@@ -1369,7 +1369,8 @@ public static class EdoSannoShaRebuild
                 },
                 (g, i, e) => IsNozuraSode(g) ? EdoAssets.Own.IshidanSodeNozuraNori(keri, fumi, e, i) : EdoAssets.Own.IshidanSodeNori(keri, fumi, e, i), sb,
                 // ⭐ 相手が野面の乱積み(法 1:0.3)の端・袖の背は石の出の包絡で切る(EDO-0437 第3巡)。野面の袖だけ ── 切石の袖は従来の中央値
-                envNori: EdoAssets.Own.SannoNozuraNori, sodeEnvNori: g => IsNozuraSode(g) ? EdoAssets.Own.SannoNozuraNori : float.NaN, envVisAt: SodeFootAt);
+                envNori: EdoAssets.Own.SannoNozuraNori, sodeEnvNori: g => IsNozuraSode(g) ? EdoAssets.Own.SannoNozuraNori : float.NaN, envVisAt: SodeFootAt,
+                envWall: g => { var mf = g.GetComponentInChildren<MeshFilter>(); return mf != null && mf.sharedMesh != null && EdoAssets.Own.IsSannoNozura(AssetDatabase.GetAssetPath(mf.sharedMesh)); });
             dans.Clear(); sodes.Clear();
             foreach (Transform c in grp)
             {
@@ -1473,6 +1474,7 @@ public static class EdoSannoShaRebuild
                 float pHalfT, pHgt; PanelProfile(EdoAssets.Eg.Itabei5, out pHalfT, out pHgt);
                 ClipRunEndsToGates(pa, pb, pHgt, pHalfT, hasSeat, seat, name, sb);
                 RetractRunEndsFromWalls(pa, pb, pHalfT, pHgt, hasSeat, seat, name, sb);
+                ShiftRunToCutShoulder(pa, pb, pHalfT, pHgt, hasSeat, name, sb);
                 for (int i = 0; i < pa.Count; i++)
                 {
                     Vector2 a = pa[i], b = pb[i];
@@ -1756,6 +1758,85 @@ public static class EdoSannoShaRebuild
                 sb.AppendLine("    " + name + ": 端 " + e.ToString("F2") + " が土留めの駒の中 ── 実面まで " + back.ToString("F3") + "m 詰めた");
             }
     }
+    /// <summary>**切土の法に沿う板塀の走りを法肩の上へ移す**(2026-09-26・EDO-0437 施主裁定イ)。座(`seat`)の無い run の区間が、郭の
+    /// `terraces[].cutSlopes` の法尻の線と平行(3°以内)で 1 間以内・走りが重なるなら、その区間は法の上(面の外の地山)に建てる:
+    /// 法尻から面の外へ、区間の 13 点で法肩(<see cref="EdoBuild.CutShoulder"/> ── 法の面 × 造成前の地山 base_dem)を測り、
+    /// **最も遠い法肩 + 離れ**の平行線へ移す(一直線を保つ・全長が法肩の背の側)。離れ = 移す前の走りと法尻の線の離れ(板塀が縁から取る離れを法肩から取る)。
+    /// 端が相手の駒(郭の縁の土留め・石段の袖)に届くなら、その**外面から同じ離れ**へ端を取り直す(面を光線で測る・<see cref="EdoBuild.ReachToBodies"/>)。
+    /// 当たらない端は移したまま。⛔ json の a・b(紙の点)のまま前庭の面の上に建てない。硬い条件: 塀の走りが法の面・法肩の内に入らない。
+    /// 当たる先: 山王 前庭の南の板塀 `Ita_ZSE`。切土の法の上に座の無い柵・板塀を建てる区間すべて(Stage4 と突き合わせの <see cref="BuiltSegs"/> が同じ関数を通る)。</summary>
+    static void ShiftRunToCutShoulder(List<Vector2> sa, List<Vector2> sbb, float halfT, float hgt, bool hasSeat, string name, StringBuilder sb)
+    {
+        if (hasSeat || sa.Count == 0) return;
+        float batter = F(D(Doc, "const"), "batterCut"); if (batter <= 0f) batter = 1f;
+        float ken = F(D(Impl, "grid"), "ken");
+        for (int i = 0; i < sa.Count; i++)
+        {
+            Vector2 a = sa[i], b = sbb[i]; float len = Vector2.Distance(a, b); if (len < 0.3f) continue;
+            Vector2 dr = (b - a) / len;
+            foreach (var to in L(Doc, "terraces"))
+            {
+                var t = to as Dictionary<string, object>; if (t == null) continue;
+                var polyUv = Pts(L(t, "poly")); if (polyUv.Count < 3) continue;
+                var poly = new Vector2[polyUv.Count]; for (int k = 0; k < poly.Length; k++) poly[k] = W(polyUv[k].x, polyUv[k].y);
+                float floorY = F(t, "y");
+                foreach (var co in L(t, "cutSlopes"))
+                {
+                    var cs = co as Dictionary<string, object>; if (cs == null) continue;
+                    Vector2 A = P2(G(cs, "a")), B = P2(G(cs, "b")); A = W(A.x, A.y); B = W(B.x, B.y);
+                    float cl = Vector2.Distance(A, B); if (cl < 0.3f) continue; Vector2 dc = (B - A) / cl;
+                    if (Mathf.Abs(dr.x * dc.y - dr.y * dc.x) > Mathf.Sin(3f * Mathf.Deg2Rad)) continue;
+                    Vector2 nc = new Vector2(dc.y, -dc.x);
+                    Vector2 mid = (A + B) * 0.5f;
+                    if (EdoGeom.PIP(poly, mid + nc * 0.3f)) nc = -nc;             // 面の外(地山)の側
+                    if (EdoGeom.PIP(poly, mid + nc * 0.3f) || !EdoGeom.PIP(poly, mid - nc * 0.3f)) continue;
+                    float offA = Vector2.Dot(a - A, nc), offB = Vector2.Dot(b - A, nc);
+                    if (Mathf.Abs(offA) > ken || Mathf.Abs(offB) > ken) continue;
+                    float pa0 = Vector2.Dot(a - A, dc), pb0 = Vector2.Dot(b - A, dc);
+                    if (Mathf.Max(pa0, pb0) < 0.1f || Mathf.Min(pa0, pb0) > cl - 0.1f) continue;   // 走りが重ならない
+                    if (_dem == null) _dem = DemAt();
+                    // 離れ: 移す前の走りと法尻の線の離れ(面の側でも外の側でも大きさで)
+                    float clr = Mathf.Abs((offA + offB) * 0.5f);
+                    float tMax = 0f; int nMeas = 0;
+                    for (int k = 0; k <= 12; k++)
+                    {
+                        float s = Mathf.Clamp(Mathf.Lerp(pa0, pb0, k / 12f), 0f, cl);
+                        float tt = EdoBuild.CutShoulder(A + dc * s, nc, floorY, batter, _dem);
+                        if (float.IsNaN(tt)) continue; nMeas++; tMax = Mathf.Max(tMax, tt);
+                    }
+                    if (nMeas == 0) { sb.AppendLine("    ⚠ " + name + ": 法「" + S(cs, "name") + "」の法肩が地山で測れない ── 移さない"); continue; }
+                    float off = tMax + clr;
+                    Vector2 na = A + dc * pa0 + nc * off, nb = A + dc * pb0 + nc * off;
+                    sb.AppendLine("    " + name + ": 法「" + S(cs, "name") + "」の法肩の上へ移す(法肩 最遠 " + tMax.ToString("F3") + "m・測った " + nMeas +
+                                  " 点 + 離れ " + clr.ToString("F3") + "m ⇒ 法尻から " + off.ToString("F3") + "m 背の側)");
+                    // 端: 相手の駒(土留め・石段の袖)の外面から同じ離れへ取り直す
+                    var bodies = new List<GameObject>();
+                    foreach (Transform c in Group("Dodome")) if (c.gameObject.activeInHierarchy) bodies.Add(c.gameObject);
+                    foreach (Transform g in Group("Sando")) foreach (Transform c in g) if (c.gameObject.activeInHierarchy && c.name.StartsWith("TW_")) bodies.Add(c.gameObject);
+                    foreach (bool atB in new[] { false, true })
+                    {
+                        Vector2 e = atB ? nb : na, outRun = atB ? dr : -dr;
+                        var near = new List<GameObject>();
+                        foreach (var g in bodies) { var c = EdoBuild.RB(g).center; if (Vector2.Distance(new Vector2(c.x, c.z), e) < len + 2f) near.Add(g); }
+                        if (near.Count == 0) continue;
+                        float back = Mathf.Min(1.5f, len * 0.4f); Vector2 from = e - outRun * back;
+                        float gy = SurfaceY(e);
+                        //   届く先は走りの長さまで(相手の駒の外面が端より先に在れば延ばす ── `Ita_ZSE` の西の端は女坂の袖まで 3.4m)
+                        float h = EdoBuild.ReachToBodies(from, outRun, near, halfT, gy, gy + hgt, back + len);
+                        if (float.IsNaN(h)) continue;
+                        Vector2 ne = from + outRun * (h - clr);
+                        sb.AppendLine("    " + name + ": " + (atB ? "終わり" : "始まり") + "の端を相手の駒の外面から離れ " + clr.ToString("F3") + "m へ取り直す(" +
+                                      (Vector2.Dot(ne - e, outRun) >= 0 ? "延ばす " : "詰める ") + Vector2.Distance(ne, e).ToString("F3") + "m)");
+                        if (atB) nb = ne; else na = ne;
+                    }
+                    sa[i] = na; sbb[i] = nb; goto nextSeg;
+                }
+            }
+            nextSeg:;
+        }
+    }
+    static Func<float, float, float> _dem;
+
     /// <summary>run の `segs` を、**Stage4 が実際に建てる区間**へ直して返す(口に門が建つなら、その縁を
     /// 門の脇柱の角へ取り付けた後の端)。⭐ 突き合わせ(<see cref="EdoSannoSashizuCheck"/>)が同じ物差しで
     /// 線を引くための入口(2026-09-23・EDO-0413)── ⛔ 検査が口の閉じ方を別に持たない。持つと、
@@ -1777,6 +1858,7 @@ public static class EdoSannoShaRebuild
         else { float postL; SakuProfile(out halfT, out hgt, out postL); }
         ClipRunEndsToGates(a, b, hgt, halfT, hasSeat, seat, S(r, "name"), new StringBuilder());
         RetractRunEndsFromWalls(a, b, halfT, hgt, hasSeat, seat, S(r, "name"), new StringBuilder());
+        if (kind == "板塀") ShiftRunToCutShoulder(a, b, halfT, hgt, hasSeat, S(r, "name"), new StringBuilder());
     }
     /// <summary>算出物の `gates[]` の行から、据える部材のパス・座・向きを引く(Stage5 と同じ物差し)。
     /// ⛔ ここで向きを作らない — `gates[].yaw` は焼いた従属値。引けなければ false。</summary>

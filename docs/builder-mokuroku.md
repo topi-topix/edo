@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 16 本・メニュー 79・関数 605(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 16 本・メニュー 79・関数 606(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -20,7 +20,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 15 | 97 |
 | [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 17 | 101 |
 | [EdoSannoShaBuilder.cs](#edosannoshabuildercs) | 山王権現社(日枝神社)本体+観理院+樹下家邸+山王門前町ビルダー (2026-08-11) | 1 | 34 |
-| [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 13 | 98 |
+| [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 13 | 99 |
 | [EdoSanyashikiRebuild.cs](#edosanyashikirebuildcs) | 三屋敷(太田・加納・鍋島=松平肥前守)の区画を下書きv3へ更新 (2026-08-08) | 0 | 6 |
 | [EdoSekiBuilder.cs](#edosekibuildercs) | — | 1 | 8 |
 | [EdoShiomizakaRebuild.cs](#edoshiomizakarebuildcs) | 汐見坂(段坂)を新区割りの回廊へ敷き直す (2026-08-09) | 0 | 12 |
@@ -544,6 +544,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `PanelProfile(path, halfT, hgt)` | `void` |  | 板塀(edogoyomi の片面 obj)の半厚・丈[m]を資産から測る。 |
 | `ClipRunEndsToGates(a, b, hgt, halfT, hasSeat, seat, name, sb)` | `void` |  | 口(seg と seg の間)に門が建つなら、両脇の seg の端を門の脇柱の角へ取り付ける。 |
 | `RetractRunEndsFromWalls(sa, sbb, halfT, hgt, hasSeat, seat, name, sb)` | `void` |  | 柵・板塀の run の端(始まり・終わり・口の両脇)が土留め・基壇の駒の中に在るなら、その実面まで詰める (EdoBuild.RetractEndFromBodies・2026-09-26 EDO-0430)── `It… |
+| `ShiftRunToCutShoulder(sa, sbb, halfT, hgt, hasSeat, name, sb)` | `void` |  | 切土の法に沿う板塀の走りを法肩の上へ移す(2026-09-26・EDO-0437 施主裁定イ)。 |
 | `BuiltSegs(r, a, b)` | `void` | 公 | run の `segs` を、Stage4 が実際に建てる区間へ直して返す(口に門が建つなら、その縁を 門の脇柱の角へ取り付けた後の端)。 |
 | `GatePlacement(gt, path, pos, yaw)` | `bool` |  | 算出物の `gates[]` の行から、据える部材のパス・座・向きを引く(Stage5 と同じ物差し)。 |
 | `Kairo(r, name, grp, sb)` | `int` |  | 回廊の翼を1本据える(2026-09-20 に建てはじめた)。 |

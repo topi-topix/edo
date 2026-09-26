@@ -1357,6 +1357,10 @@ public static class EdoAssets
             return best;
         }
 
+        /// <summary>メッシュの資産パスが山王の野面の乱積みの駒(1間・隅・切り・法切り・見切り ── `Sanno_Nozura_*`)か。
+        /// 段石の端を石の出の包絡で切る相手の篩(EdoBuild.CutStairEndsToBatter の envWall・EDO-0437)。</summary>
+        public static bool IsSannoNozura(string meshAssetPath)
+        { return !string.IsNullOrEmpty(meshAssetPath) && System.IO.Path.GetFileName(meshAssetPath).StartsWith("Sanno_Nozura_"); }
         /// <summary>**野面の乱積みの土留め — 1間の駒**(山王社の前庭の縁。施主が試作 A を採った・2026-09-24)。
         /// 見付 <paramref name="h"/>[m] ∈ 0.15(根石1段)/ 0.30 / 0.60 / 0.90 / 1.20 / 1.50 / 1.80 / 2.10 / 2.40、
         /// 勾配 <paramref name="grade"/> = 天端が +X へ 1m あたり上がる量(剪断で天端を勾配に載せる・段に折らない)、

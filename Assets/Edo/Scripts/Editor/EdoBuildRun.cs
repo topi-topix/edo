@@ -19,6 +19,29 @@ public static partial class EdoBuild
     const string PKnagayaR = EdoAssets.Eg.KnagayaR;
     const string PHei      = EdoAssets.Eg.DobeiCenter;
 
+    /// <summary>**切土の法の法肩までの水平距離**(2026-09-26・EDO-0437)。法尻 <paramref name="toe"/>(面の縁・面の高さ <paramref name="floorY"/>)から
+    /// 面の外 <paramref name="outward"/> へ、法 1:<paramref name="batter"/>(水平/鉛直)の面 floorY + t/batter が**造成前の地山**
+    /// <paramref name="natural"/>(x,z)(正典は base_dem・規則13)に届く最初の t を <paramref name="step"/> 刻みで取り、刻みの中を一次で詰める。
+    /// 法尻で地山が面以下なら 0(法が無い)。<paramref name="maxDist"/> までに届かなければ NaN。
+    /// ⭐ 描かれた地形(2m 格子)では幅 0.5m 級の法の折れは読めない ── 設計面を焼く design_y と同じ交わり(法の面 × 地山)で測る。
+    /// ⛔ 紙の座標(json の a・b)で塀を置かない。
+    /// 当たる先: 切土の法の上(背の側)に建てる柵・板塀の走り(山王 前庭の南の板塀 `Ita_ZSE`)。法の上に据える物すべて。</summary>
+    public static float CutShoulder(Vector2 toe, Vector2 outward, float floorY, float batter, Func<float, float, float> natural,
+                                    float maxDist = 8f, float step = 0.02f)
+    {
+        Vector2 n = outward.normalized; float k = batter <= 1e-4f ? 1e4f : 1f / batter;
+        float g0 = natural(toe.x, toe.y); if (float.IsNaN(g0)) return float.NaN;
+        float prev = g0 - floorY; if (prev <= 0f) return 0f;   // 地山 − 法の面(正 = まだ法の下)
+        for (float t = step; t <= maxDist + 1e-4f; t += step)
+        {
+            Vector2 q = toe + n * t; float g = natural(q.x, q.y); if (float.IsNaN(g)) return float.NaN;
+            float cur = g - (floorY + t * k);
+            if (cur <= 0f) return t - step + step * prev / Mathf.Max(1e-6f, prev - cur);
+            prev = cur;
+        }
+        return float.NaN;
+    }
+
     /// <summary>自然地形モード: true なら造成せず、駒は一枚ずつ地面へ据える。
     /// ユーザー指示 2026-08-08(榎坂保全)。⚠ 静的な状態なので、run を呼ぶ前に必ず立てること。</summary>
     public static bool NaturalMode = true;

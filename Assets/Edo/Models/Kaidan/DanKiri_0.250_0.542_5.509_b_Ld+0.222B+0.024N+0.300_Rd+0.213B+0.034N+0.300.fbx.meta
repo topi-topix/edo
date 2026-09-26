@@ -3,7 +3,12 @@ guid: 96a1db40db6a6411596cb723a18ae029
 ModelImporter:
   serializedVersion: 24501
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Danishi
+    second: {fileID: 2100000, guid: 5d4d33924bf54e2086fa375b24051196, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0

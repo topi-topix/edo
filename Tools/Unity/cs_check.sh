@@ -1,6 +1,7 @@
 #!/bin/zsh
 # Unity を起こさずに Editor アセンブリの C# を検める(構文と型)。
 #   使い方: zsh Tools/Unity/cs_check.sh    — 何も出なければ通る。error 行が出たら直す。
+#   ⚠ 行が「据え方の関数の目録が古い」なら `python3 Tools/Unity/edobuild_mokuroku.py` で刷り直す。
 #
 # ⭐ **Unity の claim が要らない。**他のセッションが Unity を握っている間でも C# を直せる。
 #    赤坂を開いた Unity の再コンパイルは 53 秒・作業場でも 9.8 秒(.claude/rules/unity.md)。
@@ -24,3 +25,5 @@ for d in $P/Library/ScriptAssemblies/*.dll; do
 done
 srcs=($(find Assets -path '*/Editor/*' -name '*.cs'))
 $DN exec $CSC -nologo -target:library -nostdlib+ -langversion:9.0 -define:UNITY_EDITOR -out:$OUT "${refs[@]}" "${srcs[@]}" 2>&1 | grep -v "warning CS" || true
+# 据え方の関数の目録が C# の注釈と食い違っていれば知らせる(EDO-0456)。止めはしない。
+python3 $P/Tools/Unity/edobuild_mokuroku.py --check 2>/dev/null || true

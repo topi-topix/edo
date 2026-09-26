@@ -244,8 +244,25 @@ def tool_category(name, inp):
 # ----------------------------------------------------------------- サブエージェント
 # 役の中の内訳(EDO-0453)。「手を付けた」= 最初に Unity・書き込み・役・workflow を呼んだ往復。
 # 起動の読み = その往復の文脈 − 最初の往復の文脈(規則・スキル・覚え書き・コードを読んで膨らんだ分)。
-INNER_KEYS = ("turns", "active_min", "think_min", "tool_min", "unity_min", "sleep_min", "read_min", "bash_min",
+INNER_KEYS = ("turns", "cs_seek", "active_min", "think_min", "tool_min", "unity_min", "sleep_min", "read_min", "bash_min",
               "stall_min", "stalls", "exec_code", "unity_calls", "tool_calls", "start_ctx_k", "startup_read_k", "startup_min", "max_ctx_k")
+
+
+# 既存の C# を読み歩く呼び出し(EDO-0456)。据え方の関数を探す grep・sed・Read を数える。
+# ⚠ 書き込み(Edit/Write)と cs_check は数えない。目録(docs/edobuild-mokuroku.md)を引いた回は数えない。
+CS_SEEK_RX = re.compile(r"\.cs\b|Scripts/Editor")
+
+
+def is_cs_seek(name, inp):
+    inp = inp or {}
+    if name in ("Read", "Grep", "Glob"):
+        blob = " ".join(str(inp.get(k) or "") for k in ("file_path", "path", "glob", "pattern"))
+        return bool(CS_SEEK_RX.search(blob)) and not blob.endswith(".md")
+    if name == "Bash":
+        c = _strip_cd(inp.get("command") or "")
+        return (bool(re.search(r"(?:^|[;&|(\n]\s*)(?:grep|rg|sed|cat|head|tail|awk|ls)\b", c))
+                and bool(CS_SEEK_RX.search(c)) and "cs_check" not in c)
+    return False
 
 
 def _is_work_tool(name):
@@ -264,7 +281,7 @@ def inner_of(rec, spans, ctx0, ctx_work, t_work):
     tool = union_min(ivs, *everything)
     by = lambda bk: union_min([(a, b) for k, _, a, b in spans if k == bk], *everything)
     return dict(
-        turns=rec["turns"], active_min=active, think_min=round(max(0.0, active - tool), 1), tool_min=tool,
+        turns=rec["turns"], cs_seek=rec.get("cs_seek", 0), active_min=active, think_min=round(max(0.0, active - tool), 1), tool_min=tool,
         unity_min=by("unity"), read_min=by("read"), bash_min=by("Bash"), sleep_min=by("sleep"),
         stall_min=union_min(stall, *everything), stalls=len(stall),
         exec_code=sum(1 for _, n, _, _ in spans if n == "mcp__unityMCP__execute_code"),
@@ -292,17 +309,17 @@ def inner_row(r, acc):
     think_s = 60.0 * acc.get("think_min", 0) / max(1, acc.get("turns") or 0)
     su = ("+%.0fK / %.1f" % (acc["startup_read_k"] / sn, acc["startup_min"] / sn)) if sn else "-"
     st = ("%d 回 %.0f 分" % (acc["stalls"], acc["stall_min"])) if acc.get("stalls") else "-"
-    return "| %s | %d | %.0f | %.1f | %.1f | %.1f | %.1f | %.1f | %.0f | %.0f | %.0fK | %s | %.0f | %s |" % (
-        r, acc.get("n") or 0, per("turns"), per("think_min"), per("tool_min"), per("unity_min"), per("sleep_min"),
+    return "| %s | %d | %.0f | %.1f | %.1f | %.1f | %.1f | %.1f | %.1f | %.0f | %.0f | %.0fK | %s | %.0f | %s |" % (
+        r, acc.get("n") or 0, per("turns"), per("cs_seek"), per("think_min"), per("tool_min"), per("unity_min"), per("sleep_min"),
         per("read_min") + per("bash_min"), per("exec_code"), think_s, per("start_ctx_k"), su, per("max_ctx_k"), st)
 
 
 INNER_NOTE = ("考える = 役の活動 − 道具の占有(和集合)。起動の文脈 = 最初の往復の文脈(役の定義・規則・依頼文)。"
               "手を付けるまでの読み = 最初に Unity・書き込み・役を呼んだ往復の文脈 − 起動の文脈(K トークン)/ そこまでの分"
-              "(読むだけの役は -)。止まり = 20 分を超えて返らなかった道具(1 回あたりの列には入れない)。")
-INNER_HEAD = ["| 役 | 回 | 往復 | 考える分 | 道具分 | うち Unity | うち sleep 待ち | うち読む・Bash | execute_code "
+              "(読むだけの役は -)。C#を探す回 = 既存の C# を grep・sed・Read で読んだ呼び出しの数(EDO-0456 の効きの物差し)。止まり = 20 分を超えて返らなかった道具(1 回あたりの列には入れない)。")
+INNER_HEAD = ["| 役 | 回 | 往復 | C#を探す回 | 考える分 | 道具分 | うち Unity | うち sleep 待ち | うち読む・Bash | execute_code "
               "| 1往復の考える秒 | 起動の文脈 | 手を付けるまでの読み/分 | 文脈max K | 止まり(計) |",
-              "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+              "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
 
 
 def subagent_index(fp):
@@ -337,6 +354,8 @@ def subagent_index(fp):
                         if isinstance(x, dict) and x.get("type") == "tool_use":
                             nm, ip = x.get("name") or "?", x.get("input") or {}
                             pend[x.get("id")] = (ts_a, nm, ip)
+                            if is_cs_seek(nm, ip):
+                                rec["cs_seek"] = rec.get("cs_seek", 0) + 1
                             if t_work is None and _is_work_tool(nm):
                                 t_work, ctx_work = ts_a, c_now
                 elif e.get("type") == "user":

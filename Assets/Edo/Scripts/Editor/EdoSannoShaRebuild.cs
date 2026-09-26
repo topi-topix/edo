@@ -1395,6 +1395,14 @@ public static class EdoSannoShaRebuild
             var sodesAll = new List<GameObject>(sodes); foreach (var g in cut) if (g.name.StartsWith("TW_")) sodesAll.Add(g);
             var wS = new List<GameObject>(walls); wS.AddRange(sodesAll);
             var rs = EdoBuild.AbutStepEndsToWalls(dans, keri, fumi, wS);
+            // ⭐ 段石の端に被さる隅の駒・土留めは段の外へ退ける(EdoBuild.YieldWallsToSteps・2026-09-26 EDO-0437 第9巡)── 段は動かさない
+            //   (蹴上・踏面は段数からの従属値)。見える所の重なりだけ・硬い(許容0)。当たる先: 全ての石段 × Dodome の駒。
+            {
+                var allDan = new List<GameObject>(); foreach (Transform c in grp) if (c.name.StartsWith("Dan_") && c.gameObject.activeInHierarchy) allDan.Add(c.gameObject);
+                foreach (var yv in EdoBuild.YieldWallsToSteps(allDan, walls, visAt, keri))
+                    sb.AppendLine("    " + (yv.refused || yv.after > 0.003f ? "⛔ " : "") + yv.wall.name + " が段 " + yv.steps + " の端に見える所で被る " + yv.need.ToString("F3") +
+                                  (yv.refused ? " ── 動かさない(" + yv.why + ")" : " → 段の外へ " + yv.moved.ToString("F3") + "m 退けた・残り " + yv.after.ToString("F3")));
+            }
             int moved = 0, mixed = 0; float gap = 0f, bite = 0f, mvMax = 0f; var mixedNames = new List<string>();
             foreach (var kv in rs)
             {

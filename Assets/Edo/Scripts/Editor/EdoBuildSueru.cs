@@ -622,6 +622,7 @@ public static partial class EdoBuild
         public int samples, thin;                 // 天端の検め点(外形の縁から inset 以上内) / 天端と地表が**面で**重なる点(前後左右 0.1m も差 < minGap)
         public int above, aboveNodes;             // 地表が天端より coTol を超えて高い点 / 節点(= 埋没・⛔ ここでは触らない・別の欠陥)
         public int faceIn;                        // 見え面を渡された駒の法(面)の点で地表の下 ── 根入れ(埋没に数えない)
+        public int covered;                       // 面の重なりの点のうち、別の駒の天端が真上を覆う点(見えない・数えない)
         public int hidden;                        // 地表が天端より高いが**見える天端の帯の奥**(上の段の土・上の壁が始まった後)の点 ── 埋没に数えない
         public float aboveMax; public Vector3 aboveAt;
         public string thinBy;                     // 薄い点の多い駒(上位 5)
@@ -634,6 +635,7 @@ public static partial class EdoBuild
                    " / 芝 " + detChanged + " / " + detVisited + " セル" +
                    " / 天端 − 地表 最小 " + (float.IsNaN(gapMin) ? "—" : gapMin.ToString("F3")) + "m @(" + gapAt.x.ToString("F2") + ", " + gapAt.z.ToString("F2") + ")" +
                    "・面の重なり " + thin + " / " + samples +
+                   (covered > 0 ? "(別の駒の天端が真上を覆う " + covered + " 点は数えない)" : "") +
                    (hidden > 0 ? " / 帯の奥で土に入る控え " + hidden + "(埋没に数えない)" : "") +
                    (faceIn > 0 ? " / 法の根入れ " + faceIn + "(天端でない・数えない)" : "") +
                    (above > 0 ? " / 天端より地表が高い点 " + above + "(節点 " + aboveNodes + "・最大 " + aboveMax.ToString("F3") + "m @(" + aboveAt.x.ToString("F2") + ", " + aboveAt.z.ToString("F2") + ")・触らない)" : "") +
@@ -896,7 +898,19 @@ public static partial class EdoBuild
                         if (-gap > r.aboveMax) { r.aboveMax = -gap; r.aboveAt = new Vector3(x, top, z); }
                         continue;
                     }
-                    if (gap < minGap && Sheet(k, x, z)) { r.thin++; int n0; thinN.TryGetValue(names[k], out n0); thinN[names[k]] = n0 + 1; }
+                    if (gap < minGap && Sheet(k, x, z))
+                    {
+                        // ⭐ 別の駒の天端が真上を覆う点は見えない(2026-09-26 EDO-0437 第9巡)── 透塀の土台 TW_Koshi_S_000f(天端 28.65)が
+                        //   御供所の郭の北の土留め TW_Gusho_N_001f の天端 28.30 の上に平面で被る所で、その下の皮 28.30 を「面の重なり」と数えていた。
+                        bool covered = false;
+                        for (int j = 0; j < hulls.Count && !covered; j++)
+                        {
+                            if (j == k || !EdoGeom.PIP(hulls[j], p)) continue;
+                            float tj = Top(trisL[j], x, z); if (!float.IsNaN(tj) && tj > top + minGap) covered = true;
+                        }
+                        if (covered) { r.covered++; continue; }
+                        r.thin++; int n0; thinN.TryGetValue(names[k], out n0); thinN[names[k]] = n0 + 1;
+                    }
                     if (float.IsNaN(r.gapMin) || gap < r.gapMin) { r.gapMin = gap; r.gapAt = new Vector3(x, top, z); }
                 }
         }

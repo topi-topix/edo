@@ -1,13 +1,14 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 8f160e88b45e -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 7e620e19f539 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
 
-- 公開関数 183 本(注釈なし 4)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs` と `EdoGeom.cs` の `///` 注釈から刷る。
+- 公開関数 198 本(注釈なし 16)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
+- 同じ道具が刷る目録: 邸ビルダーのメニュー → Stage と中の関数 `docs/builder-mokuroku.md` / 部材の名 `docs/edoassets-mokuroku.md`。
 - 札: **硬** = 注釈に「硬い/許容0」・**柔** = 「柔らかい/狙い」がある(判定ではなく注釈の語)。相手の札(地面・駒どうし・天端・床・断面・面・隅・区域)も注釈の語を拾っただけ。
-- 呼んでいる所 = `EdoBuild*.cs` の外で `EdoBuild.<名>(` と書いている C# ファイル(`Edo` と `Builder/Rebuild` を落とした名)と、その中の呼んでいる関数(Stage)。同じ名の多重定義はまとめて数える。`EdoBuild` の中どうしの呼び出しは載せない。
+- 呼んでいる所 = 定義のファイルの外で `EdoBuild.<名>(` と書いている C# ファイル(`Edo` と `Builder/Rebuild` を落とした名)と、その中の呼んでいる関数(Stage)。同じ名の多重定義はまとめて数える。`EdoBuild` の中どうしの呼び出しは載せない。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>` → その行から読む。
 - ⛔ 手で直さない。関数を足した・注釈を直したら `python3 Tools/Unity/edobuild_mokuroku.py` で刷り直し、C# と同じコミットに入れる。
 
@@ -31,6 +32,7 @@
 | [EdoBuildSueru.cs](#edobuildsuerucs) | 埋め込む駒・差し込む駒・載せる駒を据える (EdoBuild の partial・2026-09-23・EDO-0274) | 山王の前庭の井戸(板石敷・井筒+井桁・井戸屋形)。 | 15 |
 | [EdoBuildUeru.cs](#edobuilduerucs) | 植木を斜面に据える (EdoBuild の partial・2026-09-23・EDO-0401) | SeatPlant を呼ぶ所すべて(今は山王の社叢の下層と名指しの木 = Stage7_Shaso だけ)。 | 10 |
 | [EdoGeom.cs](#edogeomcs) | 純幾何ヘルパの共有置き場 (Phase 2c, 2026-08-26) | — | 6 |
+| [EdoParcels.cs](#edoparcelscs) | 町割(敷地割)の正典 — docs/Sashizu/parcels.json | — | 15 |
 
 ## EdoBuild.cs
 
@@ -113,6 +115,7 @@
 |---|---|---|---|---|
 | `EdoBuild.SKIN_PREFIX` | `string` |  | 皮の GameObject の名の頭。Drawn はこの名の MeshFilter を皮と読む。 | — |
 | `SkinFace`(struct) | — | | 皮の中で高さを揃える造成の面(世界 XZ の多角形と面の高さ)。 | |
+| `SkinDesign`(class) | — | | 皮が面の外で写す設計の地盤(算出物 `graded` の節点格子。 | |
 | `SkinReport`(struct) | — | | CutEdgeSkin の報告。 | |
 | `EdoBuild.BAND` | `float` | 地面 | 面の縁の線の帯の幅(縁からこの距離の中で地形が描く高さを検める)[m]。 | — |
 | `EdoBuild.FLAT` | `float` | 天端 | 裏込めの天端の平ら(部材の外形の縁から)[m]。 | — |
@@ -121,7 +124,10 @@
 | `EdoBuild.MeasureSkinContact(parts, samples=…, crestBandParts=…)` | `SkinReport` |  | 皮と部材の取り合いを測り直す(皮を起こし直さずに)。 | — |
 | `EdoBuild.SkinGapTable(parts, faces, faceTol)` | `string` | 地面・駒どうし | 皮と部材の隙を三つに分けて刷る(2026-09-25 普請奉行の決め・EDO-0430): A 面の高さで塞がる(外が面の中・部材の底 ≤ 面 + 許容)/ B 駒が浮く(外が面の中・底 &gt; 面 + 許容 ── 駒… | SannoSha(HifuGapTable・Stage9_Hifu) |
 | `EdoBuild.ClearEdgeSkins(parent)` | `int` | 地面 | 皮を外して穴を塞ぐ。parent の下の SKIN_PREFIX の物ごとに、皮の三角形の芯が 載る地形の升を塞ぎ、皮を消し、皮のメッシュの資産も消す。 ⟶ 返す: 塞いだ升の数 | SannoSha(Stage9_Hifu・UnSkin) |
+| `DrawnGround`(class) | — | | 描かれた地表を引く掴み。穴の升では皮の高さ(皮が無ければ NaN = 何も描かれていない)、 それ以外は地形(SampleHeight)。 | |
 | `EdoBuild.Drawn()` | `DrawnGround` | 地面 | 描かれた地表の掴みを作る(DrawnGround)。 | SannoSha(HifuMeasure・Stage3_Dodome), SannoSashizuCheck(Check) |
+| `PartTops`(class) | — | | 部材の上を向いた面の最も高い所を引く掴み(駒が他の駒の下に入っているかを見る)。 | |
+| `Bed`(class) | — | | 据わる床 = 描かれた地表(Drawn ── 縁の皮の升では皮)と、据えた部材(土留め・石段・袖)の 上向きの面の、高い方。 | |
 | `EdoBuild.ContactOn(go, bedAt, at, count, tol=…, maxSamples=…)` | `float` | 床 | Contact と同じ測り(格子ごとの最下点)を、 任意の床 bedAt に対して取る。 ⟶ 返す: 触れている所の隙(正=浮き・負=埋没) | — |
 | `EdoBuild.SettleOnBed(go, bedAt, before, maxSamples=…)` | `float` | 硬 床 | 浮いていれば床へ下ろす。座(指図の面の高さ・`sill`/`seat`)は上限として置いた駒を、 床(Bed)から浮いていれば触れる所まで下ろす。 ⟶ 返す: 下ろした量[m](0 以上) | SannoSha(Stage5_MonTorii) |
 | `EdoBuild.SeatOrBed(x, z, seat, root, bedAt)` | `float` | 床 | 走りの継ぎ目(駒の原点 = 地盤の高さ・根入れ root を持つ柵の柱)の高さ: 座 seat で駒の足元(座 − 根入れ)が床より上に出る(= 浮く)なら床へ、そうでなければ座。 | SannoSha(SakuRun) |
@@ -336,6 +342,9 @@
 
 | 関数 | 返す | 札 | 何をするか(注釈の一文目) | 呼んでいる所 |
 |---|---|---|---|---|
+| `Hard`(class) | — | | 硬い制約。ok(駒) が false の置き場は退ける。 | |
+| `Soft`(class) | — | | 柔らかい制約。measure(駒) が Target 以上なら満たす(大きいほど良い物だけを書く)。 | |
+| `SeiyakuTally`(class) | — | | 制約ごとの勘定。邸ビルダーの log へそのまま刷る(規則19)。 | |
 | `EdoBuild.PlaceBest(spots, maxTries, place, hards, softs, tally)` | `GameObject` | 硬・柔 | 置き場の候補を順に試し、硬い制約で退け・柔らかい制約で選ぶ。 | Typology(Omoya) |
 
 ## EdoBuildSueru.cs
@@ -403,4 +412,35 @@
 | `EdoGeom.DistToEdge(p, a, b)` | `float` | 区域 | 点 p から線分 ab への最短距離。 ⚠ 長さ0の線分では NaN を返してはいけない。 | TypologyBuilder.Niwa(NiwaChisen・NiwaTsubo), Typology(FenceFace) |
 | `EdoGeom.DistToPolyEdge(poly, p)` | `float` |  | 点 p から多角形の外周(全辺)への最短距離。 | Typology(Candidates・Inner・Omoya…), TypologyBuilder.Jisha(JInside・JMinEdge・JishaOmoya), TypologyBuilder.Niwa(NiwaChisen・NiwaUra), SannoSashizuCheck(Check) |
 | `EdoGeom.HullXZ(pts)` | `int[]` | 区域 | 点集合の凸包の頂点インデックス(反時計回り・共線点は落とす)。 | — |
+
+## EdoParcels.cs
+
+町割(敷地割)の正典 — docs/Sashizu/parcels.json
+
+| 関数 | 返す | 札 | 何をするか(注釈の一文目) | 呼んでいる所 |
+|---|---|---|---|---|
+| `EdoParcels.RelPath` | `string` |  | ⚠ 注釈なし | — |
+| `EdoParcels.TSUBO` | `float` |  | ⚠ 注釈なし | — |
+| `EdoParcels.KEN` | `float` |  | ⚠ 注釈なし | — |
+| `EdoParcels.Palette` | `Color[]` | 区域 | 区画の色。EdoSketch のパレットと揃える(下書きの色が意味を持つため)。 | — |
+| `EdoParcels.Categories` | `string[]` | 区域 | 区画の種別。色ではなくこれで分類する(色は見やすさのための物)。 | — |
+| `EdoParcels.CategoryLabel(c)` | `string` |  | ⚠ 注釈なし | ParcelWindow(Refresh) |
+| `Parcel`(class) | — | | (注釈なし) | |
+| `EdoParcels.Version` | `int` | 地面 | データが差し替わる/書き換わるたびに増える。 | — |
+| `EdoParcels.Load()` | `void` |  | ⚠ 注釈なし | ParcelWindow(Refresh) |
+| `EdoParcels.MarkDirty()` | `void` |  | ⚠ 注釈なし | ParcelTool(DeleteVertex・HandleInput・PopUndo…), ParcelWindow(FrameOn) |
+| `EdoParcels.IsDirty` | `bool` |  | ⚠ 注釈なし | — |
+| `EdoParcels.Save()` | `void` |  | ⚠ 注釈なし | ParcelTool(AutoSave・DrawHud・FinishDrawing…), ParcelWindow(FrameOn・Refresh) |
+| `EdoParcels.Find(id)` | `Parcel` |  | ⚠ 注釈なし | ParcelTool(PopUndo), Typology(Edges) |
+| `EdoParcels.Get(id)` | `Vector2[]` | 区域 | 区画のポリゴンを引く。無ければ 例外を投げずに null を返し、警告を出す (LoadAssetAtPath と同じ作法。 | SannoSha(InUngradedParcel・Stage1_Grade・Stage7_Shaso…), Doi(In・KomonIshigakiQA), Typology(BuildParcel・Edges・Pad), OkabeYashiki(C), SurfacePaint(Paint・Verify) ほか5 |
+| `EdoParcels.GetByPrefix(prefix)` | `List<Vector2[]>` | 区域 | json に無ければ fallback を返す。 | SannoSha(Stage6_Splat_Retired・Stage7_Keidairin) |
+| `EdoParcels.GetOr(id, fallback)` | `Vector2[]` |  | ⚠ 注釈なし | — |
+| `EdoParcels.Add(id, label, category, color, pts)` | `Parcel` |  | ⚠ 注釈なし | ParcelTool(FinishDrawing), ParcelWindow(FrameOn) |
+| `EdoParcels.Remove(p)` | `void` |  | ⚠ 注釈なし | ParcelWindow(FrameOn) |
+| `Harvested`(class) | — | | (注釈なし) | |
+| `EdoParcels.HarvestFromBuilders()` | `List<Harvested>` |  | ⚠ 注釈なし | ParcelWindow(FrameOn) |
+| `EdoParcels.DiffAgainstBuilders(tol=…)` | `string` | 区域 | 取り込み済みの区画と、いまのビルダーの配列を突き合わせる。 | ParcelWindow(Refresh) |
+| `EdoParcels.MenuDiff()` | `void` |  | ⚠ 注釈なし | — |
+| `EdoParcels.MenuReload()` | `void` |  | ⚠ 注釈なし | — |
+| `EdoParcels.MenuSave()` | `void` |  | ⚠ 注釈なし | — |
 

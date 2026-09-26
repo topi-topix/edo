@@ -1320,6 +1320,25 @@ def make_kado(h, v):
             me.flip_normals()
         box_uv(ob, (0.3, 0.7))
         objs.append(ob)
+    # ③' 留めの線の板(x = z の面・稜線の面から 0.03 奥〜天端の目地の板 BACK2 の 0.30 奥・両面)── 2026-09-27 EDO-0437 r11
+    #   稜線を回り込む横目地が、腕1 の面の目地から腕2 の面の目地へ真っすぐ抜けていた(目地の板の留めより手前を通る ──
+    #   H1500_a の稜線の天端の下 0.3 で 幅 0.1 × 長さ 0.35 が奥まで透けた・施主のレンダ r11_D)。両腕の面からの道は必ず x = z を
+    #   横切るので、そこを板で塞ぐ。石の中に在り、見えるのは目地の奥だけ(他の目地の板と同じ Danishi)。
+    for flip in (False, True):
+        bm = bmesh.new()
+        vs = []
+        for u in (-0.02, -(h + BURY)):
+            for off in (0.03, BACK2[0]):
+                k = cbat(u) - off
+                vs.append(bm.verts.new(_u2b(k, h + u, k)))
+        f = bm.faces.new((vs[0], vs[1], vs[3], vs[2]) if not flip else (vs[0], vs[2], vs[3], vs[1]))
+        me = bpy.data.meshes.new("miter%d" % flip); bm.to_mesh(me); bm.free()
+        ob = bpy.data.objects.new("miter%d" % flip, me)
+        bpy.context.scene.collection.objects.link(ob)
+        ob.data.materials.append(mats[1])
+        me.update()
+        box_uv(ob, (0.3, 0.7))
+        objs.append(ob)
     name = kado_name(h, v)
     o = V.join(objs, name)
     bisect_keep(o, (L / 2, 0, 0), (1, 0, 0))          # Unity X ≥ −L/2 ⇔ Blender X ≤ +L/2

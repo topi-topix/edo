@@ -23,7 +23,8 @@ for d in $P/Library/ScriptAssemblies/*.dll; do
   case "$(basename $d)" in Assembly-CSharp-Editor.dll) continue;; esac
   refs+=("-r:$d")
 done
-srcs=($(find Assets -path '*/Editor/*' -name '*.cs'))
+# ⚠ 行で割る — 空白を含むフォルダ(`Starter Assets`)で語に割ると CS2001 の偽の誤りが出る(2026-09-26)
+srcs=(${(f)"$(find Assets -path '*/Editor/*' -name '*.cs')"})
 $DN exec $CSC -nologo -target:library -nostdlib+ -langversion:9.0 -define:UNITY_EDITOR -out:$OUT "${refs[@]}" "${srcs[@]}" 2>&1 | grep -v "warning CS" || true
 # C# の目録(据え方・邸ビルダー・部材の名)が C# と食い違っていれば知らせる(EDO-0456)。止めはしない。
 python3 $P/Tools/Unity/edobuild_mokuroku.py --check 2>/dev/null || true

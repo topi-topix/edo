@@ -1692,22 +1692,33 @@ def sode_flat(L=SODE_FLAT_L, name=None):
 SODE_FLAT_NORI_L = 1.3375   # 男坂の据えの実長(1.25 × 1.070・棟梁の実測 2026-09-27)── 伸縮 ≈1.0 で法 1:0.25 を保つ
 
 
-def sode_flat_nori_name(L):
-    return "IshidanSodeFlatNori_%s%s" % (cs_f3(L), _dtag())
+SODE_FLAT_NORI_KINK = 0.31  # 小口の折れ点 = 天端の稜からの下がり(男坂: 袖の天端 28.58 − kado1 の天端 28.27)。上は鉛直(楼門の基壇の鉛直な帯)・下は法
+#   0 = 折れ無し(天端の稜から法 ── 2026-09-27 前半の版 `_1.338`)。据える側が相手の天端から出す従属値 ⇒ `--kink=` で渡す。
 
 
-def sode_flat_nori(L=SODE_FLAT_L, name=None):
-    name = name or sode_flat_nori_name(L)
+def _ktag(kink):
+    return "" if abs(kink) < 1e-6 else "_K%s" % cs_f3(kink)
+
+
+def sode_flat_nori_name(L, kink=0.0):
+    return "IshidanSodeFlatNori_%s%s%s" % (cs_f3(L), _dtag(), _ktag(kink))
+
+
+def sode_flat_nori(L=SODE_FLAT_L, name=None, kink=0.0):
+    """坂上の小口(−Z): 天端の稜から kink 下(Y = HT − kink)までは鉛直 Z = −L/2、そこから下は Z = −L/2 + NORI·(Yk − Y)。
+    面は 1 枚で足りる ── 折れ点より上では法の面が駒の外(Z < −L/2)を通るので何も切らない。"""
+    name = name or sode_flat_nori_name(L, kink)
     o, _ = sode_flat(L, name=name)
-    _clip(o, [((0.0, SODE_HT, -L / 2.0), (0.0, -NORI, -1.0))], name)   # Z + NORI·Y が式より小さい側(坂上の下)を捨てる
+    _clip(o, [((0.0, SODE_HT - kink, -L / 2.0), (0.0, -NORI, -1.0))], name)   # Z + NORI·Y が式より小さい側(坂上の下)を捨てる
     return o, name
 
 
-def sode_flat_nori_check(o, L):
+def sode_flat_nori_check(o, L, kink=0.0):
     ok = []
     uv = unity_verts(o)
     T = SODE_T
-    zb = lambda y: -L / 2.0 + NORI * (SODE_HT - y)
+    yk = SODE_HT - kink
+    zb = lambda y: -L / 2.0 + NORI * max(0.0, yk - y)
     ok.append(("左右対称(頂点ごとの最近傍 1e-4)", _mirror_tol(o), ""))
     ok.append(("側面が X=±T/2", abs(max(t[0] for t in uv) - T / 2) < 1e-4 and abs(min(t[0] for t in uv) + T / 2) < 1e-4, ""))
     ok.append(("坂下の端は元のまま Z=+L/2", abs(max(t[2] for t in uv) - L / 2) < 1e-4, "%.4f" % max(t[2] for t in uv)))
@@ -1719,7 +1730,12 @@ def sode_flat_nori_check(o, L):
     tops = [t for t in uv if abs(t[1] - SODE_HT) < 1e-5]
     ok.append(("天端の坂上の稜は Z=−L/2 − 面取り以内(天端の長さを変えない)",
                min(t[2] for t in tops) < -L / 2 + SODE_CHAMFER + 1e-4, "Zmin(天端)=%.4f" % min(t[2] for t in tops)))
-    onb = [t for t in uv if abs(t[2] - zb(t[1])) < 1e-4]
+    if kink > 0:
+        vert = [t for t in uv if abs(t[2] + L / 2.0) < 1e-4]
+        ok.append(("折れ点より上は鉛直 Z=−L/2(面取りの下〜Y=%.3f)" % yk,
+                   len(vert) >= 4 and min(t[1] for t in vert) > yk - 1e-4 and max(t[1] for t in vert) > SODE_HT - SODE_CHAMFER - 1e-4,
+                   "鉛直の頂点 Y %.4f..%.4f" % (min(t[1] for t in vert), max(t[1] for t in vert)) if vert else "0 点"))
+    onb = [t for t in uv if abs(t[2] - zb(t[1])) < 1e-4 and t[1] < yk - 1e-4]
     if len(onb) >= 2:
         ys = [t[1] for t in onb]; zs = [t[2] for t in onb]
         my, mz = sum(ys) / len(ys), sum(zs) / len(zs)
@@ -1826,15 +1842,16 @@ def build_sode_flat(L, do_render, keri=0.260, fumi=0.650, w=6.999):
             print("[sanno] 検証レンダ " + pth)
 
 
-def build_sode_flat_nori(L, do_render, keri=0.260, fumi=0.650, w=6.999):
+def build_sode_flat_nori(L, do_render, keri=0.260, fumi=0.650, w=6.999, kink=0.0):
     V.reset()
-    o, name = sode_flat_nori(L)
-    report(o, name, "← 石段の最上段の水平の袖・坂上の小口を法 1:%.2f に切った" % NORI)
-    sode_flat_nori_check(o, L)
+    o, name = sode_flat_nori(L, kink=kink)
+    report(o, name, "← 石段の最上段の水平の袖・坂上の小口を %.3f 下まで鉛直・その下を法 1:%.2f に切った" % (kink, NORI))
+    sode_flat_nori_check(o, L, kink)
     V.export_fbx([o], os.path.join(OUT_DAN, name + ".fbx"))
     print("[sanno] 書き出し " + os.path.join(OUT_DAN, name + ".fbx"))
     if do_render:
-        for pth in shots_sode_flat(keri, fumi, w, L, "otoko", maker=sode_flat_nori, stem="sanno_sodeflatnori"):
+        mk = lambda LL, name=None: sode_flat_nori(LL, name=name, kink=kink)
+        for pth in shots_sode_flat(keri, fumi, w, L, "otoko" + _ktag(kink), maker=mk, stem="sanno_sodeflatnori"):
             print("[sanno] 検証レンダ " + pth)
 
 
@@ -2162,12 +2179,15 @@ def main():
                 L = float(a.split("=", 1)[1])
         build_sode_flat(L, do_render)
     if what == "sode_flat_nori":
-        # sode_flat_nori [--len=1.3375] [--depth=3.20] [--render]  坂上の小口を法 1:0.25 に切った水平の袖(EDO-0459・既定は据えの実長)
-        L = SODE_FLAT_NORI_L
+        # sode_flat_nori [--len=1.3375] [--kink=0.31] [--depth=3.20] [--render]  坂上の小口を折れ点まで鉛直・下を法 1:0.25 に切った水平の袖
+        #   (EDO-0459・既定は据えの実長と男坂の折れ点。--kink=0 で折れ無しの旧版 `_1.338`)
+        L = SODE_FLAT_NORI_L; kink = SODE_FLAT_NORI_KINK
         for a in argv:
             if a.startswith("--len="):
                 L = float(a.split("=", 1)[1])
-        build_sode_flat_nori(L, do_render)
+            if a.startswith("--kink="):
+                kink = float(a.split("=", 1)[1])
+        build_sode_flat_nori(L, do_render, kink=kink)
     if what == "sode_miter_list":
         # sode_miter_list <一覧ファイル> [<蹴上> <踏面> <幅>]  各行 `段番号 a|b F±hF B±hB`
         # ⛔ 角は据え手の一覧の値(指図の値ではない)。丸め直さない

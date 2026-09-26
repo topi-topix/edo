@@ -16,6 +16,8 @@ metadata:
 5. **皮を外した間の見える地表**: 土留めの Stage は頭で皮を外し穴を塞ぐので、`Drawn()` は穴の下の造成前の地形を返す(段 0 の端で 13.33・皮は 11.94)。
    ⇒ `EdoBuild.DrawnExpected()`(外す前の皮を覚えて読む)。
 6. **沿わせて焼いた駒は据えの従属値**: 差し替えは `EdoBuild.SwapToFitted`(同じ位置・向き・縮尺)。切りの Stage を今まで通り流してから差し替えると r10 の据えが 0.0000 で再現した。相手の隅石も退けない(YieldWallsToSteps の fixedNear)。
+7. **取り込みで三角形が落ちる**: Unity の weldVertices(既定 on)は溶接後に面積 0 になる三角形を捨てる。Kado90 の留めの板は 115〜196 枚落ちて穴になった(off で数が戻る)。落ちた数は weld を off/on で ImportAsset して数え比べる。
+8. **野面の天端の石は面の縁で丸く下がる**(面から 0.2 で −0.14〜−0.23)。段の端を光線の最初の当たりへ沿わせると、踏面が丸い頭の上へ板のように張り出す(段4 ±3.03)。
 
 **How to apply:** 皮の被りは「どの駒の上向きの面が最高か」を先に引く。段と土留めの重なりは段を動かさず駒の側で。
 関連: [[kado-short-arm-and-foot-groove]] [[post-board-run-and-mesh-inside]] [[parity-inside-test-false-intrusion]]

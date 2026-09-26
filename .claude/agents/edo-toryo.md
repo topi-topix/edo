@@ -52,10 +52,11 @@ memory: project
    ⛔ `edo_session.py release`/`start`/`finish`/`steal` は打たない(門番が止める)— 打てば窓の unity を
    返し、この後の普請検査の前に待ち行列の先頭(他邸)へ Unity が渡る(EDO-0446)。
    ⛔ 身元を自作しない(`toryo-xxx`・8 字に縮めた ID は門番が止める)
-2. **アセンブリが最新か** — `Library/ScriptAssemblies/Assembly-CSharp-Editor.dll` の mtime が
-   `Assets/Edo/Scripts/**/*.cs` の最新 mtime より新しいこと。古ければ Unity 側の再コンパイルを
-   待ってから進める(古いアセンブリで走ると「直したのに反映されない」と誤診する)
-3. `read_console` でコンパイルエラーが無いこと
+2. **アセンブリが最新か・コンパイルの誤りが無いか** — `python3 Tools/Unity/compile_wait.py` を一度打つ
+   (⭕ なら両方済み。⛔ は誤りを行番号つきで返す)。C# を直すたびも**これだけ**を打つ(EDO-0457)。
+   ⛔ 手書きの `sleep`・`until` の見張り・DLL の日付の見張り・`refresh_unity` の重ね打ちはしない(門番が止める)。
+   古いアセンブリで走ると「直したのに反映されない」と誤診する
+3. ⚠ で返ったら(時間切れ・MCP が戻らない)建てずにそのまま帰って報告する
 4. **地形を触る Stage があるなら**、着手前に heightmap を `.bin` で scratchpad へスナップショットし、
    `TerrainData.asset` と `.unity` も退避する(地形の編集は Undo の外)
 5. プレハブを解く: `Edo/<屋敷>/編集のためにプレハブを解く(選択中)` を実行してから触る。

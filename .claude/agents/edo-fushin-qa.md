@@ -65,10 +65,9 @@ python3 Tools/Sashizu/qa_scope.py --touched 隅 外周 --estate okabe
   (門番が止める。打てば窓の unity が待ち行列の先頭=他邸へ渡り、レンダが撮れなくなる・EDO-0446)。
   ⛔ 身元を自作しない。Unity MCP が「使用中」で弾かれたら、**そのまま帰って**呼び出し元へ報告する
 
-- **アセンブリが最新か** — `Library/ScriptAssemblies/Assembly-CSharp-Editor.dll` の mtime が
-  `Assets/Edo/Scripts/**/*.cs` の最新 mtime より**新しい**こと。古ければ**実行しない**で報告する
-  (古いアセンブリで走ると「直したのに反映されない」と誤診する)
-- `read_console` でコンパイルエラーが無いこと
+- **アセンブリが最新か・コンパイルの誤りが無いか** — `python3 Tools/Unity/compile_wait.py` を一度打つ。
+  ⭕ 以外なら**実行しない**で報告する(古いアセンブリで走ると「直したのに反映されない」と誤診する)。
+  ⛔ 手書きの `sleep`・`until` の見張りはしない(門番が止める・EDO-0457)
 
 ## チェック項目(`qa-and-pitfalls.md` の10項目 + 11 門の完備。全部に数値を出す)
 

@@ -1549,6 +1549,37 @@ public static class EdoAssets
                  + "_E" + (e >= 0f ? "+" : "-") + System.Math.Abs(e).ToString("F2", inv) + "_" + (i % 2 == 0 ? "a" : "b") + ".fbx";
         }
 
+        /// <summary>**両端を相手の野面の石の見える外形に沿わせた段石**(EDO-0437 第10巡・2026-09-26)。<see cref="SannoDan"/> と同じ局所座標・同じピボット・
+        /// 同じ石の割り・同じ材で、蹴上・踏面・幅・段鼻の線は変えず、両の小口だけを相手の石の面へ刳る(平面で切る <see cref="SannoDanKiri"/> の代わり)。
+        /// 小口は 0.01 升で刻み、端から外へ走らせた光線の最初の当たり − 0.002 へ詰め、食い込みは 0.00125 升の標本と石の角・稜で 0 まで退かす。
+        /// 相手の石と石の目地(幅 0.04 より細い奥まり)は埋めず石の面で跨ぐ。袖の居る所(段 1)は小口 X = ±幅/2 のまま(袖の側面に突き付く)。
+        /// ⚠ 形は据えの従属値: 相手は **隅石を退けない**位置(`EdoBuild.YieldWallsToSteps` を止めた後)で、段・袖は r10 の配置のまま据える
+        /// (配置・相手の三角形は `Tools/Blender/data/sanno_sando_fit_r10.json.gz`)。据えを変えたら json を書き出し直して焼き直す。
+        /// 焼けている組: 参道の階 (0.250, 0.542, 5.509) の段 1〜4(<paramref name="stair"/> = "SandoKai")。段 0 は相手に当たりが無く <see cref="SannoDan"/> のまま。
+        /// 実寸: 段 1 W 5.509(X ±2.7545)/ 段 2 X −2.735〜+2.913 / 段 3 −2.877〜+2.887 / 段 4 −2.922〜+2.910 × H 0.430 × D 0.642。三角形 約 9,200。材 `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_sando_fit.py -- all --render</summary>
+        public static string SannoDanFit(float keri, float fumi, float w, int i, string stair)
+        {
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            return "Assets/Edo/Models/Kaidan/DanFit_" + keri.ToString("F3", inv) + "_" + fumi.ToString("F3", inv) + "_"
+                 + w.ToString("F3", inv) + "_" + (i % 2 == 0 ? "a" : "b") + "_" + stair + i + ".fbx";
+        }
+
+        /// <summary>**背を相手の野面の石の見える外形に沿わせた野面の袖**(EDO-0437 第10巡・2026-09-26)。<see cref="IshidanSodeNozuraNori"/> と
+        /// 同じ局所座標・同じピボット・同じ表(側面 X=±0.30・天端の線・坂下の端 Z=+踏面/2)で、背(−Z)だけを相手の石の面へ寄せた物
+        /// (坂上へ次の個体を継いでから 0.02 升で刻み、背から坂上へ走らせた光線の最初の当たり + 0.002 へ・食い込みは 0 まで退かす。目地は跨ぐ)。
+        /// 当たりの帯より下(見えない)は据えてあった平面の背(W e −0.15 / E e −0.20・法 1:0.3)のまま。<paramref name="side"/> = 'W' / 'E'、<paramref name="k"/> = 袖の run の番(坂上の端 = 1)。
+        /// ⚠ 形は据えの従属値: 相手(隅石)は退けない位置、袖は r10 の配置(scale z 0.9296 / 0.8951 を含む)のまま据える。据えを変えたら焼き直す。
+        /// 焼けている組: 参道の階 (0.250, 0.542) の W1・E1(個体 b)。実寸: W1 X ±0.300 × Y −1.03〜+0.52 × Z −0.36〜+0.271(三角形 約 27,500)/
+        /// E1 X ±0.300 × Y −0.96〜+0.59 × Z −0.39〜+0.271(約 57,700)。材 `Kirishi` / `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_sando_fit.py -- all --render</summary>
+        public static string IshidanSodeNozuraFit(float keri, float fumi, string stair, char side, int k, int i)
+        {
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            return "Assets/Edo/Models/Kaidan/IshidanSodeNozuraFit_" + keri.ToString("F3", inv) + "_" + fumi.ToString("F3", inv)
+                 + "_" + stair + side + k + "_" + (i % 2 == 0 ? "a" : "b") + ".fbx";
+        }
+
         /// <summary>**石段の袖 — 野面の乱積み版**(2026-09-24)。<see cref="IshidanSode"/> と**同じ局所座標・同じピボット・同じ接する面**
         /// (厚み X ±0.30 で両面とも乱積み・X について鏡像対称 / +Z = 坂下 / 天端 Y = 0.30 + (踏面/2 − Z)·蹴上/踏面 / 下端 = 天端 − 2.20 /
         /// 走り Z ±踏面/2・段の境で隣の駒と切り口が一致)⇒ **ビルダーは関数を差し替えるだけ**。石は X = ±0.30 の面を越えない。

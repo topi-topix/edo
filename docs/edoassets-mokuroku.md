@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 321(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 323(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -233,6 +233,8 @@
 | `Own.SannoNozuraNori` | float | 小口を相手の法で切った野面の短い駒(2026-09-26 EDO-0437 第3巡・前庭の W の南の区間 ── 入隅の可動側の端が 通す側 TW_Zentei_SW の見え面の法の楔に入る所)。 | SannoSha(AbutStairsToWalls) |
 | `Own.SannoNozuraNoriEnd(len, atPlusX, h)` | 関数 | — | BuildNozura, SannoSha(Nozura) |
 | `Own.IshidanSodeNozuraNori(keri, fumi, e, i)` | 関数 | 背を相手の法で切った野面の袖(2026-09-26 EDO-0437 第3巡・参道の階の袖の背が切り込みの出隅の駒の法に当たる所)。 | SannoSha(AbutStairsToWalls) |
+| `Own.SannoDanFit(keri, fumi, w, i, stair)` | 関数 | 両端を相手の野面の石の見える外形に沿わせた段石(EDO-0437 第10巡・2026-09-26)。 | — |
+| `Own.IshidanSodeNozuraFit(keri, fumi, stair, side, k, i)` | 関数 | 背を相手の野面の石の見える外形に沿わせた野面の袖(EDO-0437 第10巡・2026-09-26)。 | — |
 | `Own.IshidanSodeNozura(keri, fumi, i)` | 関数 | 石段の袖 — 野面の乱積み版(2026-09-24)。 | SannoSha(AbutStairsToWalls・Stage2_Kaidan) |
 | `Own.SannoIdoIgeta(naikeiMm, igetaTallMm)` | 関数 | 山王社の小庭の井戸 — 井筒(玉石の輪積み)と井桁を一体で。 | TypologyBuilder.Niwa(NiwaIdo・NiwaUra), SannoSha(Stage8_Ido) |
 | `Own.SannoIdoYakata(pitchMm, nokiMm, muneMm)` | 関数 | 山王社の前庭の井戸屋形(木部) — 四本柱・妻梁・軒桁・棟束・棟木・垂木・切妻こけら葺・破風板・棟押え + 釣瓶の横木と滑車(指図 bom 行22・行25)。 | SannoSha(Stage8_Ido) |

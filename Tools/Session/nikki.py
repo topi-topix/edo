@@ -20,6 +20,11 @@ release / 失効で消え、掲示板と git log には節目しか載らない�
   行き先  = tool_use(assistant の時刻)→ tool_result(user の時刻)の区間を種別ごとに和集合。
             Agent だけは subagents/agent-<id>.jsonl の first→last(tool_result は即時に返るため)。
             model = 実働 − 全道具の和集合(生成・思考)。
+  役の中  = 役 1 回ぶんの subagents/agent-<id>.jsonl を同じ算法で割る(EDO-0453)。往復・考える(活動 − 道具)・
+            道具(Unity / 読む・Bash)・execute_code 回数・起動の文脈・手を付けるまでの読み(最初に Unity・書き込み・
+            役を呼んだ往復の文脈 − 最初の往復の文脈)。20 分を超えて返らない道具は「止まり」として別に数える。
+  重複    = transcript は再開・圧縮の後に同じ行を書き直すので uuid で 1 度だけ数える(2026-09-26 まで役の呼出・
+            Edit・エラーが 2〜3 倍に出ていた。それ以前の日誌の json は水増しのまま)。
   手戻り  = 同一ファイルの Edit 上位・道具のエラー・門番の拒否・同じ役の連続呼出・自走の巡・検分 fail・Stop の差し戻し。
   待ち    = `edo_session.py wait` から次の Unity 取得まで。
 
@@ -54,6 +59,8 @@ EDIT_TOOLS = ("Edit", "Write", "MultiEdit", "NotebookEdit")
 USER_WAIT_TOOLS = ("AskUserQuestion", "ExitPlanMode")  # 施主の返事待ち = 実働から除く
 READ_TOOLS = ("Read", "Grep", "Glob")
 BASH_KIND = (
+    # sleep・until/while の待ちループ = Unity のコンパイル・再読込の待ち(棟梁の道具時間の最大、EDO-0453)
+    (re.compile(r"(?:^|[;&|(\n]\s*)sleep\b|\b(?:until|while)\b[^\n]*;\s*do\b"), "sleep"),
     (re.compile(r"build_\w+_sashizu\.py"), "sashizu-build"),
     (re.compile(r"review_gate\.py|wiring_gate\.py"), "review_gate"),
     (re.compile(r"edo_board\.py"), "edo_board"),
@@ -86,7 +93,9 @@ MAIN_ROOT = os.path.dirname(COMMON_GIT)
 NIKKI_DIR = os.path.join(MAIN_ROOT, "docs", "Nikki")
 STATE_DIR = os.path.join(COMMON_GIT, "edo-nikki")
 BOARD_DIR = os.path.join(COMMON_GIT, "edo-board")
-PROJ_GLOB = TR.PROJ + "*"  # main と worktree の project dir
+# main と worktree の project dir。TR.PROJ はこのファイルの置き場から引くので、worktree から叩くと worktree の
+# transcript しか拾わない — main の根から引く(Claude は "/" と "." を "-" にして dir 名を作る)
+PROJ_GLOB = os.path.join(TR.HOME, ".claude", "projects", "-" + re.sub(r"[/.]", "-", MAIN_ROOT.strip("/"))) + "*"
 
 
 # ----------------------------------------------------------------- 時刻
@@ -175,6 +184,19 @@ def candidate_files(lo, hi):
 
 
 # ----------------------------------------------------------------- 区間
+def dedup(entries):
+    """同じ uuid の行を 1 度だけ通す。transcript には再開・圧縮の後に同じ行が書き直されて重なる
+    (2026-09-25 の主セッションで assistant 2,329 行中 1,951 行が重複 — 役の呼出・Edit・エラーが 2〜3 倍に数えられていた)。"""
+    seen = set()
+    for e in entries:
+        u = e.get("uuid")
+        if u:
+            if u in seen:
+                continue
+            seen.add(u)
+        yield e
+
+
 def union_min(ivs, lo, hi):
     xs = sorted((max(a, lo), min(b, hi)) for a, b in ivs if a is not None and b is not None and b > lo and a < hi)
     tot, cur = 0.0, None
@@ -220,6 +242,69 @@ def tool_category(name, inp):
 
 
 # ----------------------------------------------------------------- サブエージェント
+# 役の中の内訳(EDO-0453)。「手を付けた」= 最初に Unity・書き込み・役・workflow を呼んだ往復。
+# 起動の読み = その往復の文脈 − 最初の往復の文脈(規則・スキル・覚え書き・コードを読んで膨らんだ分)。
+INNER_KEYS = ("turns", "active_min", "think_min", "tool_min", "unity_min", "sleep_min", "read_min", "bash_min",
+              "stall_min", "stalls", "exec_code", "unity_calls", "tool_calls", "start_ctx_k", "startup_read_k", "startup_min", "max_ctx_k")
+
+
+def _is_work_tool(name):
+    return name.startswith("mcp__unityMCP__") or name in EDIT_TOOLS or name in ("Agent", "Workflow")
+
+
+def inner_of(rec, spans, ctx0, ctx_work, t_work):
+    """役 1 回の中の時間と量。考える = 役の活動区間 − 道具の占有(和集合)。"""
+    everything = (0, 1e12)
+    # 20 分を超えて返らない道具(モーダルの詰まり・タイムアウト)は「止まり」として分ける。主セッションの
+    # 活動区間が同じ幅で切れるのと揃え、1 回の 6 時間の詰まりで平均が化けないようにする
+    stall = [(a, b) for _, _, a, b in spans if b - a > IDLE_GAP]
+    spans = [x for x in spans if x[3] - x[2] <= IDLE_GAP]
+    ivs = [(a, b) for _, _, a, b in spans]
+    active = union_min(list(rec["segs"]) + ivs, *everything)
+    tool = union_min(ivs, *everything)
+    by = lambda bk: union_min([(a, b) for k, _, a, b in spans if k == bk], *everything)
+    return dict(
+        turns=rec["turns"], active_min=active, think_min=round(max(0.0, active - tool), 1), tool_min=tool,
+        unity_min=by("unity"), read_min=by("read"), bash_min=by("Bash"), sleep_min=by("sleep"),
+        stall_min=union_min(stall, *everything), stalls=len(stall),
+        exec_code=sum(1 for _, n, _, _ in spans if n == "mcp__unityMCP__execute_code"),
+        unity_calls=sum(1 for k, _, _, _ in spans if k == "unity"), tool_calls=len(spans),
+        start_ctx_k=round((ctx0 or 0) / 1000.0, 1),
+        startup_read_k=round(max(0, (ctx_work or 0) - (ctx0 or 0)) / 1000.0, 1) if t_work else None,
+        startup_min=round((t_work - rec["first"]) / 60.0, 1) if t_work and rec["first"] else None,
+        max_ctx_k=0.0)
+
+
+def add_inner(acc, inner):
+    """役の中の内訳を足し込む。n = 数えた回数・startup_n = 手を付けた回数(起動の読みの分母)。"""
+    acc["n"] = acc.get("n", 0) + (inner.get("n") or 1)
+    acc["startup_n"] = acc.get("startup_n", 0) + (
+        inner["startup_n"] if "startup_n" in inner else (inner.get("startup_min") is not None))
+    for k in INNER_KEYS:
+        acc[k] = round((acc.get(k) or 0) + (inner.get(k) or 0), 1)
+    return acc
+
+
+def inner_row(r, acc):
+    """1 回あたりの表の 1 行。"""
+    n, sn = max(1, acc.get("n") or 0), acc.get("startup_n") or 0
+    per = lambda k: acc.get(k, 0) / n
+    think_s = 60.0 * acc.get("think_min", 0) / max(1, acc.get("turns") or 0)
+    su = ("+%.0fK / %.1f" % (acc["startup_read_k"] / sn, acc["startup_min"] / sn)) if sn else "-"
+    st = ("%d 回 %.0f 分" % (acc["stalls"], acc["stall_min"])) if acc.get("stalls") else "-"
+    return "| %s | %d | %.0f | %.1f | %.1f | %.1f | %.1f | %.1f | %.0f | %.0f | %.0fK | %s | %.0f | %s |" % (
+        r, acc.get("n") or 0, per("turns"), per("think_min"), per("tool_min"), per("unity_min"), per("sleep_min"),
+        per("read_min") + per("bash_min"), per("exec_code"), think_s, per("start_ctx_k"), su, per("max_ctx_k"), st)
+
+
+INNER_NOTE = ("考える = 役の活動 − 道具の占有(和集合)。起動の文脈 = 最初の往復の文脈(役の定義・規則・依頼文)。"
+              "手を付けるまでの読み = 最初に Unity・書き込み・役を呼んだ往復の文脈 − 起動の文脈(K トークン)/ そこまでの分"
+              "(読むだけの役は -)。止まり = 20 分を超えて返らなかった道具(1 回あたりの列には入れない)。")
+INNER_HEAD = ["| 役 | 回 | 往復 | 考える分 | 道具分 | うち Unity | うち sleep 待ち | うち読む・Bash | execute_code "
+              "| 1往復の考える秒 | 起動の文脈 | 手を付けるまでの読み/分 | 文脈max K | 止まり(計) |",
+              "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+
+
 def subagent_index(fp):
     """<sid>/subagents/agent-<id>.meta.json → 役、対の jsonl → first/last/turns/read/out/final_len。
     返り値は {toolUseId: rec} と {agentId: rec} を合わせた辞書。"""
@@ -234,12 +319,36 @@ def subagent_index(fp):
         except Exception:
             meta = {}
         rec = dict(role=meta.get("agentType") or "?", desc=(meta.get("description") or "")[:60],
-                   first=None, last=None, turns=0, read=0, out=0, final_len=0, aid=aid, segs=[])
+                   first=None, last=None, turns=0, read=0, out=0, final_len=0, aid=aid, segs=[], inner=None)
         seg = None
         jl = os.path.join(sdir, "agent-%s.jsonl" % aid)
         if os.path.exists(jl):
             seen, last_text = {}, ""
-            for e in TR._iter(jl):
+            pend, spans = {}, []  # 役の中の道具: tool_use_id -> (ts, name, input) / (bucket, name, t0, t1)
+            ctx0 = ctx_work = t_work = None
+            for e in dedup(TR._iter(jl)):
+                if e.get("type") == "assistant":
+                    ts_a = parse_ts(e.get("timestamp") or "") if e.get("timestamp") else None
+                    m_a = e.get("message") or {}
+                    c_now = TR._ctx(m_a.get("usage") or {})
+                    if ctx0 is None and c_now:
+                        ctx0 = c_now
+                    for x in m_a.get("content") or []:
+                        if isinstance(x, dict) and x.get("type") == "tool_use":
+                            nm, ip = x.get("name") or "?", x.get("input") or {}
+                            pend[x.get("id")] = (ts_a, nm, ip)
+                            if t_work is None and _is_work_tool(nm):
+                                t_work, ctx_work = ts_a, c_now
+                elif e.get("type") == "user":
+                    ts_u = parse_ts(e.get("timestamp") or "") if e.get("timestamp") else None
+                    c_u = (e.get("message") or {}).get("content")
+                    if isinstance(c_u, list):
+                        for x in c_u:
+                            if isinstance(x, dict) and x.get("type") == "tool_result":
+                                p = pend.pop(x.get("tool_use_id"), None)
+                                if p and p[0] and ts_u:
+                                    b_, lab_ = tool_category(p[1], p[2])
+                                    spans.append(("sleep" if lab_ == "sleep" else b_, p[1], p[0], ts_u))
                 ts = parse_ts(e.get("timestamp") or "") if e.get("timestamp") else None
                 if ts:
                     rec["first"] = ts if rec["first"] is None else min(rec["first"], ts)
@@ -278,6 +387,8 @@ def subagent_index(fp):
             rec["read"] = sum(u.get("cache_read_input_tokens") or 0 for u in seen.values())
             rec["out"] = sum(u.get("output_tokens") or 0 for u in seen.values())
             rec["final_len"] = len(last_text)
+            rec["inner"] = inner_of(rec, spans, ctx0, ctx_work, t_work)
+            rec["inner"]["max_ctx_k"] = round(max([TR._ctx(u) for u in seen.values()] or [0]) / 1000.0, 1)
         if meta.get("toolUseId"):
             idx[meta["toolUseId"]] = rec
         idx[aid] = rec
@@ -392,6 +503,7 @@ def scan_session(fp, lo, hi, subs, start_hint=None):
     edits = collections.Counter()
     agent_seq = []
     agent_calls = collections.Counter()
+    agent_inner = {}  # aid -> (role, inner)
     st = TR.Streaks()
     segs, seg = [], None  # 活動の区間 [start, last]
     first_ts = last_ts = None
@@ -415,7 +527,7 @@ def scan_session(fp, lo, hi, subs, start_hint=None):
     def in_win(t):
         return t is not None and lo <= t < hi
 
-    for e in iter_window(fp, lo, hi):
+    for e in dedup(iter_window(fp, lo, hi)):
         t = e.get("type")
         if t == "custom-title":
             rec["title"] = e.get("customTitle") or "-"
@@ -505,6 +617,8 @@ def scan_session(fp, lo, hi, subs, start_hint=None):
                                 tools.append(("Agent", role, t0, ts))
                             if s:
                                 commit_ev += s.get("commits", [])
+                                if s.get("inner"):
+                                    agent_inner[s["aid"]] = (role, s["inner"])
                         else:
                             b, lab = tool_category(name, inp)
                             tools.append((b, lab, t0, ts))
@@ -588,6 +702,9 @@ def scan_session(fp, lo, hi, subs, start_hint=None):
     for role, a in agents.items():
         m = union_min(a["spans"], lo, hi)
         time["agents"][role] = dict(calls=a["calls"], min=m, mean_min=round(m / max(1, a["calls"]), 1))
+    for role, inner in agent_inner.values():
+        if role in time["agents"]:
+            add_inner(time["agents"][role].setdefault("inner", {}), inner)
     time["top"] = sorted(time["labels"].items(), key=lambda kv: -kv[1])[:TOP_N]
     rec["time"] = time
     rec["rework"] = dict(edits_top=edits.most_common(3), agent_repeats=sum(
@@ -684,6 +801,8 @@ def totals_of(sessions, unlinked, board):
     for s in work:
         for role, a in s["time"]["agents"].items():
             by_r[role]["calls"] += a["calls"]; by_r[role]["min"] = round(by_r[role]["min"] + a["min"], 1)
+            if a.get("inner"):
+                add_inner(by_r[role].setdefault("inner", {}), a["inner"])
         for k, v in s["time"]["labels"].items():
             lab[k] += v
         for k, v in s["time"]["buckets"].items():
@@ -758,6 +877,11 @@ def render_md(doc):
     L += ["", "## 役ごと(サブエージェント)", "", "| 役 | 呼出 | 合計分 | 平均分 |", "|---|---|---|---|"]
     for r, a in sorted(T["by_role"].items(), key=lambda kv: -kv[1]["min"]):
         L.append("| %s | %d | %.0f | %.1f |" % (r, a["calls"], a["min"], a["mean_min"]))
+    inner = [(r, a["inner"]) for r, a in sorted(T["by_role"].items(), key=lambda kv: -kv[1]["min"]) if a.get("inner")]
+    if inner:
+        L += ["", "## 役の中の内訳(1 回あたり)", "",
+              INNER_NOTE, ""] + INNER_HEAD
+        L += [inner_row(r, acc) for r, acc in inner]
     L += ["", "## 手戻りの兆候", "",
           "道具のエラー %d・門番の拒否 %d・検分 fail %d・Stop の差し戻し %d・自走の巡の最大 %d。" % (
               T["tool_errors"], T["guard_denies"], T["review_fails"], T["stop_blocks"], T["streak_max"]), ""]
@@ -790,7 +914,7 @@ def render_md(doc):
         L.append("- なし")
     L += ["", "## ユーザー向け最終文の質", "", "| sid | 通数 | 平均字 | 2000字超 | 見出し率 | 記号/通 | 役名/通 |",
           "|---|---|---|---|---|---|---|"]
-    for s in doc["sessions"]:
+    for s in sorted(doc["sessions"], key=lambda s: -s["active_min"])[:15]:  # md は 150 行以内(docstring の制約)
         q = s.get("quality")
         if q:
             L.append("| %s | %d | %.0f | %d | %.0f%% | %.1f | %.1f |" % (
@@ -910,6 +1034,8 @@ def week(end, out=None):
                 ests[s["estate"]] += s["active_min"]
             for r, a in (T.get("by_role") or {}).items():
                 roles[r]["calls"] += a["calls"]; roles[r]["min"] += a["min"]
+                if a.get("inner"):
+                    add_inner(roles[r].setdefault("inner", {}), a["inner"])
         return A, lab, roles, ests
 
     A, lab, roles, ests = agg(docs)
@@ -940,6 +1066,9 @@ def week(end, out=None):
     L += ["", "## 役ごと", "", "| 役 | 呼出 | 合計分 | 平均分 |", "|---|---|---|---|"]
     for r, a in sorted(roles.items(), key=lambda kv: -kv[1]["min"]):
         L.append("| %s | %d | %.0f | %.1f |" % (r, a["calls"], a["min"], a["min"] / max(1, a["calls"])))
+    inner = [(r, a["inner"]) for r, a in sorted(roles.items(), key=lambda kv: -kv[1]["min"]) if a.get("inner")]
+    if inner:
+        L += ["", "## 役の中の内訳(週・1 回あたり)", "", INNER_NOTE, ""] + INNER_HEAD + [inner_row(r, acc) for r, acc in inner]
     L += ["", "## 今週足した・直した知識の器(コミット数)", "", "| 器 | 件 |", "|---|---|"]
     for k, v in touched.items():
         L.append("| %s | %d |" % (k, v))

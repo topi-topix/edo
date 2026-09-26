@@ -758,10 +758,16 @@ public static partial class EdoBuild
             {
                 Vector3 d3 = new Vector3(dir.x, 0f, dir.y); Vector3 ax = Vector3.Cross(d3, Vector3.up);
                 var c = RB(go).center;
+                float smn0 = float.NaN; { var sec0 = MidSection(go); foreach (var w in sec0) { float q = Vector2.Dot(new Vector2(w.x, w.z), dir); if (float.IsNaN(smn0) || q < smn0) smn0 = q; } }
                 go.transform.RotateAround(c, ax, roll);
-                // 傾けると走りの端が cos だけ縮む ── 始まりの端を元の mn へ戻す
-                float nmn, nmx; ProjExtent(go, dir, float.MinValue, float.MaxValue, null, out nmn, out nmx);
-                go.transform.position += d3 * (mn - nmn);
+                // 傾けると走りの端が cos だけ縮む ── 始まりの端を傾ける前の位置へ戻す。
+                //   ⭐ 端は**丈の中ほどの断面**(<see cref="MidSection"/>・検査と同じ物差し)で測る(2026-09-26・EDO-0437 第4巡)。
+                //   ⛔ 全頂点の射影の最小で戻さない ── 傾けた駒は頭か足の角が 丈/2·sinθ 前へ出て、その角を端へ合わせると駒全体が
+                //   走りの先へ 丈/2·sinθ ずれる(前庭の南の板塀 Ita_ZSE +0.055・Ita_ZSW +0.025)。当たる先: 傾けて据える板塀・穂垣の駒すべて。
+                var sec = MidSection(go);
+                if (sec.Count > 0 && !float.IsNaN(smn0))
+                { float smn = float.MaxValue; foreach (var w in sec) smn = Mathf.Min(smn, Vector2.Dot(new Vector2(w.x, w.z), dir)); go.transform.position += d3 * (smn0 - smn); }
+                else { float nmn, nmx; ProjExtent(go, dir, float.MinValue, float.MaxValue, null, out nmn, out nmx); go.transform.position += d3 * (mn - nmn); }
             }
         }
         Vector3 at; int n;

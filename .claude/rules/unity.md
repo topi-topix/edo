@@ -40,12 +40,17 @@ paths:
 - **C# の誤りは Unity を起こさずに捕まえる。** `zsh Tools/Unity/cs_check.sh` が Editor アセンブリを
   Unity 同梱の Roslyn で通しで検める(3〜5秒・**Unity の claim が要らない**・他人の Unity を巻き込まない)。
   何も出なければ通る。⛔ 型の通りを見るだけで、据わり・取り合いは見ない — それは Unity で測る。
+- **⭐ C# を直した後の待ちは `python3 Tools/Unity/compile_wait.py` の一手だけ**(EDO-0457)。cs_check で先に
+  誤りを拾い(あれば Unity に触らず止める)→ 橋へ refresh を1回頼む → `Editor.log` の完了行で待つ →
+  MCP が戻る(主スレッドのコマンドが返る)まで待って、所要秒・誤り・「作り直し無し」を返す。
+  終了コード 0=済/作り直し無し・1=コンパイルの誤り・2=時間切れ。Unity の claim が要る(門番が見る)。
+  ⛔ **手書きの `sleep`・`until`/`while` の見張り・DLL の日付の見張り・`refresh_unity` の重ね打ちをしない。**
+  役(棟梁・普請検査)の sleep/until は門番が止める。実測(EDO-0437): Unity 自身は1回4〜7秒なのに、
+  待ち方で1回30〜50秒・空振りで4〜5分を溶かし、3回ぶん約31分のうち Unity が要ったのは約2分だった。
+  ⚠ Unity が見るのは本体の作業ツリー。worktree で直した .cs は届かない。
 - **コンパイルが止まっていることがある。** `Library/ScriptAssemblies/Assembly-CSharp-Editor.dll` の mtime が
-  ソースより古ければ実行しない。
-- **⛔ 編集のたびに `refresh_unity` を投げない。** `create_script` / `script_apply_edits` / Edit は
-  それ自体が取り込みと再コンパイルを起こす。重ねて投げると**もう一周ドメイン再読み込みが増える**
-  (実測 39 回の要求のうち 7 回がこれ)。dll の mtime を見て待つ。投げてよいのは
-  `edo_precheck_assembly.sh` が「古い」と言った**復旧のときだけ**。
+  ソースより古ければ実行しない(`edo_precheck_assembly.sh` が知らせる。compile_wait が「作り直し不要」と
+  判じた印 `Temp/edo_compile_wait.json` があれば通す)。
 - **MCP タイムアウト後の再送で多重実行が起きる。** 冪等でないステージ(特に造成)は実行済みかを先に確認。
   ガードのマーカーは active にする。
 - **Blender の FBX を入れたらマテリアルを remap する**(`Edo/御殿/…マテリアルをremap`)。

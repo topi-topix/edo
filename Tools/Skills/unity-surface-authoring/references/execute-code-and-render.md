@@ -30,7 +30,7 @@ Almost all surfacing work is done by sending C# to `mcp__unityMCP__execute_code`
   read the state back first, or you get duplicated objects.
 - **Domain reload drops the connection.** After `SaveAssets()`, `refresh_unity`, or creating/editing
   scripts, the next call often fails with `Connection closed before reading expected bytes` or
-  `No Unity Editor instances found`. This is normal: wait ~6–7s (a `sleep` Bash call), then retry and
+  `No Unity Editor instances found`. This is normal: run `python3 Tools/Unity/compile_wait.py` (it returns once MCP answers again — ⛔ no hand-written `sleep`, EDO-0457), then retry and
   check `read_console` (types:["error"]) before relying on new types/assets.
 - **Reading pixels from a project texture** may fail if the texture isn't marked readable. Bypass the
   import flag entirely: read the PNG bytes from disk and `LoadImage` into a fresh Texture2D —

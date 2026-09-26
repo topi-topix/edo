@@ -1111,6 +1111,14 @@ BLENDER = re.compile(r"(?:^|[;&|(\n]\s*)(?:\S*/)?blender\b")
 # Unity 公式プラグインの CLI(~/.unity/bin/unity)。`command`/`pipeline` はエディタそのものを動かし、
 # `open`/`build`/`test` は同じプロジェクトに2つ目のエディタを立てる。`status`/`editors`/`releases` は読むだけ。
 UNITY_CLI = re.compile(CMDPOS + r"(?:\S*/)?unity\s+(?:command|pipeline|open|build|test|job)\b")
+# コンパイル待ちの一手(EDO-0457)— Unity の橋へ直に refresh を頼むので Unity MCP と同じ排他で通す。
+COMPILE_WAIT = re.compile(r"Tools/Unity/compile_wait\.py\b")
+# 役の手書きの待ち(EDO-0457)— C# の後の待ちは compile_wait.py の一手だけ。sleep・until の見張りを役に打たせない。
+#   実測(EDO-0437): 3 回ぶん約 31 分のうち Unity が要ったのは約 2 分、残りは sleep 20〜60 と空振りの上限待ち。
+HAND_WAIT = re.compile(CMDPOS + r"(?:sleep\s+\d|until\b|while\b[^;\n]*;\s*do\b[^\n]*\bsleep\b)")
+# ただし execute_code の時間切れの後に**進みのファイルを数える**見張りだけは通す(unity-mcp-skill
+#   「Timeout を叩き直さない」)。条件が `grep -c`/`wc -l` のファイルの行数であるものに限る。
+PROGRESS_WAIT = re.compile(r"until\s+\[\s*\"?\$\((?:grep\s+-c|wc\s+-l)\b")
 
 # ────────────────────────────── Bash から書かれるファイル(2026-09-01 の点検で塞いだ穴)
 #   ⛔ **Write/Edit だけ見張っても守れない。** 門番は Edit を止めるが、同じファイルへの
@@ -1239,6 +1247,18 @@ def cmd_check_bash(a):
         r = cmd_check_unity(a)
         if r:
             return r
+    if COMPILE_WAIT.search(cmd):
+        r = cmd_check_unity(a)
+        if r:
+            return r
+    if (agent_type() in UNITY_ROLES and HAND_WAIT.search(_strip_heredocs(cmd))
+            and not PROGRESS_WAIT.search(cmd)):
+        return _deny(
+            "⛔ 門番(待ち方): 役(%s)は手書きの `sleep`・`until`/`while` の見張りを打たない(EDO-0457)。\n"
+            "   C# を直した後は **`python3 Tools/Unity/compile_wait.py`** の一手だけ — cs_check → refresh →\n"
+            "   Editor.log の完了行 → MCP が戻るまでを待って、所要秒と誤りを返す。作り直しが無ければ即返る。\n"
+            "   ⚠ refresh_unity の重ね打ち・DLL の日付の見張りも同じく使わない(.claude/rules/unity.md)。"
+            % agent_type())
     # ── Blender(部材作り)
     #    ⚠ Blender 同士は競合しない(--background の使い捨て)。効くのは
     #    「worktree では在庫キットも出力先も無い」ことと、出力が共有資産であること。

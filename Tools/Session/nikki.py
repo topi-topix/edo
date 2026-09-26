@@ -250,18 +250,23 @@ INNER_KEYS = ("turns", "cs_seek", "active_min", "think_min", "tool_min", "unity_
 
 # 既存の C# を読み歩く呼び出し(EDO-0456)。据え方の関数を探す grep・sed・Read を数える。
 # ⚠ 書き込み(Edit/Write)と cs_check は数えない。目録(docs/edobuild-mokuroku.md)を引いた回は数えない。
-CS_SEEK_RX = re.compile(r"\.cs\b|Scripts/Editor")
+CS_SEEK_RX = re.compile(r"Assets/Edo/Scripts/\S*\.cs|Scripts/Editor")
+CS_SEEK_CMD = re.compile(r"(?:^|[;&|(\n]\s*)(?:grep|rg|sed -n|cat|head|tail|awk)\b")
+CS_SEEK_NOT = re.compile(r"<<\s*'?EOF|sed -i|cat\s*>|\bsleep\b|\buntil\b|stat -f|edo_board\.py|edo_session\.py")
 
 
 def is_cs_seek(name, inp):
     inp = inp or {}
     if name in ("Read", "Grep", "Glob"):
         blob = " ".join(str(inp.get(k) or "") for k in ("file_path", "path", "glob", "pattern"))
-        return bool(CS_SEEK_RX.search(blob)) and not blob.endswith(".md")
+        return bool(CS_SEEK_RX.search(blob)) and not blob.endswith(".md") and "/tmp/" not in blob
     if name == "Bash":
         c = _strip_cd(inp.get("command") or "")
-        return (bool(re.search(r"(?:^|[;&|(\n]\s*)(?:grep|rg|sed|cat|head|tail|awk|ls)\b", c))
-                and bool(CS_SEEK_RX.search(c)) and "cs_check" not in c)
+        # 書き換え(python の heredoc・sed -i・cat >)とコンパイルの待ち(sleep・until・stat)は探すのではない。
+        # ⚠ 2026-09-26 の初版はこれを数えていて、棟梁の 117 件のうち 37 件が探すでなかった(EDO-0456 の仕分け)
+        if CS_SEEK_NOT.search(c):
+            return False
+        return (bool(CS_SEEK_CMD.search(c)) and bool(CS_SEEK_RX.search(c)) and "cs_check" not in c)
     return False
 
 

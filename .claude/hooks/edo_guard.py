@@ -436,6 +436,13 @@ def selftest():
         ("python3 Tools/Session/edo_session.py status", {"agent_type": "edo-toryo"}, False, "役の status は通す"),
         ("python3 Tools/Session/edo_session.py release --resources unity", {}, None,
          "窓自身の release はこの型では止めない"),
+        # EDO-0457: 役の手書きの待ちは止める(C# の後は compile_wait.py の一手だけ)
+        ("sleep 30 && ls Library/ScriptAssemblies", {"agent_type": "edo-toryo"}, True, "役の sleep は止める"),
+        ("until [ -f x ]; do sleep 5; done", {"agent_type": "edo-fushin-qa"}, True, "役の until の見張りは止める"),
+        ("grep -n sleep Tools/x.py", {"agent_type": "edo-toryo"}, False, "sleep の字を含むだけの grep は通す"),
+        ("until [ \"$(grep -c 'プレハブ:' out.txt)\" -ge 13 ]; do sleep 15; done", {"agent_type": "edo-toryo"},
+         False, "時間切れの後に進みのファイルを数える見張りは通す(unity-mcp-skill)"),
+        ("sleep 30", {}, False, "窓自身の sleep はこの型では止めない"),
     ]
     for cmd, extra, want, name in rolecmds:
         r = subprocess.run([sys.executable, os.path.abspath(__file__)], capture_output=True, text=True,

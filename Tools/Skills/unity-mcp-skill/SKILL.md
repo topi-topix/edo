@@ -39,21 +39,19 @@ Before applying a template:
 
 ## Critical Best Practices
 
-### 1. After Writing/Editing Scripts: Wait for Compilation and Check Console
+### 1. After Writing/Editing Scripts: 一手で待つ(edo-unity・EDO-0457)
 
-```python
-# After create_script or script_apply_edits:
-# Both tools already trigger AssetDatabase.ImportAsset + RequestScriptCompilation automatically.
-# No need to call refresh_unity — just wait for compilation to finish, then check console.
-
-# 1. Poll editor state until compilation completes
-# Read mcpforunity://editor/state → wait until is_compiling == false
-
-# 2. Check for compilation errors
-read_console(types=["error"], count=10, include_stacktrace=True)
+```bash
+python3 Tools/Unity/compile_wait.py     # cs_check → refresh → Editor.log の完了行 → MCP が戻るまで
+# ⭕ 再読み込み済み — 6.2 秒(cs_check 3.9s・再読み込み 3.7s・DLL 5 件)
+# ⭕ 作り直し無し / ⛔ コンパイルの誤り(行番号つき)/ ⚠ 時間切れ
 ```
 
-**Why:** Unity must compile scripts before they're usable. `create_script` and `script_apply_edits` already trigger import and compilation automatically — calling `refresh_unity` afterward is redundant.
+⛔ **手書きの `sleep`・`until`/`while` の見張り・DLL の日付の見張り・`editor_state` のポーリング・
+`refresh_unity` の重ね打ちをしない。** 棟梁・普請検査の sleep/until は門番が止める。
+Unity 自身のコンパイル+再読み込みは1回4〜7秒(作業場)なのに、待ち方で1回30〜50秒・空振りで
+4〜5分を溶かしていた(EDO-0437 の実測)。道具は ping ではなく主スレッドのコマンド(read_console)が
+返るまで待つので、返った直後の `execute_code` が時間切れにならない。正典は `.claude/rules/unity.md`。
 
 ### 2. Use `batch_execute` for Multiple Operations
 
@@ -302,6 +300,8 @@ foreach (var id in ids) {
 
 進みを待つのは Unity へ問い合わせず **ファイルの行数**で:
 `until [ "$(grep -c 'プレハブ:' out.txt)" -ge 13 ]; do sleep 15; done`
+⚠ 棟梁・普請検査に許される見張りは**この形(条件が `grep -c`/`wc -l` の行数)だけ**。他の sleep・until は
+門番が止める — コンパイル待ちは `compile_wait.py`(§1)。
 ⚠ 罫線(`────`)を `grep -c` の目印にしない — シェルによっては当たらない。ASCII の語で数える。
 
 ⭕ 冪等な処理(材の remap など)は、タイムアウトの後に**もう一度呼んで 0 件が返ること**で

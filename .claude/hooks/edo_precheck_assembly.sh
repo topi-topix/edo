@@ -29,6 +29,14 @@ src_t=$(find "$root/Assets/Edo" -name '*.cs' -type f -exec stat -f %m {} + 2>/de
 # 猶予 2 秒
 [ "$((src_t - dll_t))" -le 2 ] && exit 0
 
+# compile_wait.py が「Unity は作り直し不要と判じた」印を残していれば通す(EDO-0457)。
+#   .cs の日付だけ新しく DLL が書き換わらない(中身が同じ・0 件更新)ときに、毎回ここで止まる。
+stamp="$root/Temp/edo_compile_wait.json"
+if [ -f "$stamp" ]; then
+  st_src=$(jq -r '.src_mtime // 0 | floor' "$stamp" 2>/dev/null)
+  [ -n "$st_src" ] && [ "$st_src" -ge "$src_t" ] && exit 0
+fi
+
 newest=$(find "$root/Assets/Edo" -name '*.cs' -type f -newer "$dll" 2>/dev/null | sed "s|^$root/||" | head -5)
 lag=$(( (src_t - dll_t) / 60 ))
 
@@ -42,11 +50,9 @@ read -r -d '' msg <<EOF
 $(printf '%s\n' "$newest" | sed 's/^/    /')
 
 やること:
-  1. mcp__unityMCP__refresh_unity を投げる(失敗しても実際には再コンパイルされることが多い)
-  2. dll の mtime が更新されるまで待つ。ドメインリロードの完了は Unity プロセスの %CPU が
-     <20% を数回続けるまで待つ (ps -Ao %cpu,comm | grep "MacOS/Unity$")
-  3. mcp__unityMCP__read_console でコンパイルエラーを確認する
-  4. それでも更新されないなら Editor の再起動をユーザーに頼む(こちらからフォーカスは当てられない)
+  python3 Tools/Unity/compile_wait.py   — 一手で cs_check → refresh → 完了まで待つ → 誤りと所要秒を返す
+  ⛔ 手書きの sleep・until・DLL の日付の見張り・refresh_unity の重ね打ちはしない(EDO-0457)
+  ⚠ 時間切れ(⚠ で返る)なら Editor の再起動をユーザーに頼む(こちらからフォーカスは当てられない)
 
 古い結果を根拠に同じ修正を繰り返さないこと。
 EOF

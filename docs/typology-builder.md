@@ -90,7 +90,7 @@ Unity の実測と、プレハブの yaml から起こした判定は 36 本す�
 |---|---|---|---|
 | `buke` | 37 | 上/中/下屋敷・旗本の別 × **石高帯**(→ 門の格式・外周・主屋の型) | `typology.json`(写し済み)/ `EdoNishiTameikeBuilder`(青標帋・未廃止) |
 | `machiya` | 27 | 片側町 / 両面町 × **間口(間)** × 裏長屋の有無 × 番屋・稲荷 | `typology.json`(写し済み。文政町方書上の家数・店借を含む) |
-| `jisha` | 15 | 社僧の坊 / 寺 / 社家 × 本堂の間数 × 門の型 | `typology.json`(写し済み)/ `EdoSannoJuboBuilder`(十坊の坊名・未廃止) |
+| `jisha` | 15 | 社僧の坊 / 寺 / 社家 × 本堂の間数 × 門の型 | `typology.json`(写し済み。`EdoSannoJuboBuilder` は 2026-09-21 に廃止・その産物 `Edo_SannoBo_*` は 2026-09-26 に削除 EDO-0462) |
 | `kouyuu` | 8 | 御預明地 / 干場 / 火消屋敷 × 地表の仕上げ | `typology.json`(写し済み) |
 | `other` | 1 | 松平大和守 9,661 坪 | `typology.json`(写し済み)。`EdoYamatoRebuild` は呼び手の無い残骸 → EDO-0303 |
 

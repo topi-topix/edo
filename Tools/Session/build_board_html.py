@@ -64,7 +64,7 @@ _SITE_NAMES = {"matsudaira_dewa": "松江松平邸", "sanno": "山王社", "okab
                "sotobori": "外堀・溜池"}
 SHORT = {"matsudaira_dewa": "松", "sanno": "山", "okabe": "岡", "doi": "土",
          "kyogoku_bitchu": "京", "niwa_sakyo": "丹", "sotobori": "堀",
-         "machiya": "町", "typology": "類"}
+         "machiya": "町", "typology": "類", "sannojubo": "十"}
 MENTION = {  # 関係図・巡回検知が本文から敷地を拾うときの表記ゆれ(index[1]は path 突合にも使う)
     "matsudaira_dewa": ["松平", "松江", "Matsudaira"],
     "sanno": ["山王", "Sanno"],
@@ -80,6 +80,7 @@ MENTION = {  # 関係図・巡回検知が本文から敷地を拾うときの�
     "machiya": ["町屋", "裏長屋", "表店", "Machiya", "UraNagaya"],
     #   ⚠ "類型" は仕組みの語でもある(類型ビルダー・類型表)。車線を指す語だけで拾う
     "typology": ["類型", "typology", "Typology"],
+    "sannojubo": ["十坊", "sannojubo", "SannoBo", "社僧"],
 }
 _SITE_ORDER = ["matsudaira_dewa", "sanno", "okabe", "doi"]   # 既定の並び。残りは名前順・外堀は末尾
 
@@ -136,7 +137,12 @@ def _parcel_sites():
 #   では拾えないが、「全体・基盤」へ畳むと当人の札が立たない。町屋(町人地の区画 — 表店・裏長屋・
 #   木戸・会所地)がこれ。⚠ ここへ足した物は **邸ではない** — `ESTATES` から外れるので、
 #   三巡則・完成条件の表・スパークラインは掛からず、issue の一覧だけの枠になる。
-_LANE_SITES = {"machiya": "町屋", "typology": "類型"}
+_LANE_SITES = {"machiya": "町屋", "typology": "類型",
+               # 十坊は町割では 10 区画(sannojubo_parcels_0〜9)に割れていて、束ねる id が
+               # parcels.json に無い → `_parcel_sites()` で拾えず「全体・基盤」へ畳まれていた
+               # (2026-09-26 施主指摘)。表示名は隣の区画の書き方(樹下邸(山王社社家)・
+               # 観理院(山王社別当))にそろえる。
+               "sannojubo": "十坊(山王社社僧)"}
 
 PARCEL_SITES = dict(_parcel_sites(), **_LANE_SITES)
 SITES = {e: _SITE_NAMES.get(e, PARCEL_SITES.get(e, e)) for e in _site_names()}

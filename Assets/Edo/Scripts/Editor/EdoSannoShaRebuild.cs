@@ -3304,8 +3304,8 @@ public static class EdoSannoShaRebuild
     // ================================================================ Stage 5b 踏石・踏み止め(EDO-0428)
     /// <summary>算出物 `setae.fumiishi`(二ノ鳥居の足元・仁王門の敷居前・参道の階の上端・石段の頭の踏み止め)を敷く。
     /// ⭐ 縁は相手の実メッシュの面(`EdoBuild.LayShikiishi` が天端の帯へ光線を打つ)── 四角の座標は相手の無い縁と幅の目安だけ。
-    /// ⭐ 踏み止め(指図 `kaidans[].fumitome`)の脇は、その石段の袖の最上段の駒を相手(基壇・腰石垣)の面まで延ばしてから敷く
-    /// (`EdoBuild.ExtendEndToFace` ── 袖の run の頭 `a` は相手の面・段は踏み止めの前で終わる)。
+    /// ⭐ 踏み止め(指図 `kaidans[].fumitome`)の脇は、その石段の袖の最上段の駒を**天端が水平な袖**へ差し替えて相手(基壇・腰石垣)の面まで
+    /// 延ばしてから敷く(`EdoBuild.LayFlatSode` ── 天端・脇の面は一つ下の斜めの袖の坂上の端に揃え、端は `ExtendEndToFace`。EDO-0459 施主裁定A)。
     /// 天端: 踏み止め = 指図の `top` / 面(`terraces[].surface.fumiishi`)= その面の高さ / 沿道(`sando.roadside.fumiishi`)= 地表(外形の中の最大)。</summary>
     [MenuItem(MENU + "5b 踏石・踏み止め(門・石段の頭の敷石)")]
     public static void Stage5bMenu() { Debug.Log("[山王] " + Stage5b_Fumiishi()); }
@@ -3377,12 +3377,20 @@ public static class EdoSannoShaRebuild
                         int k; if (int.TryParse(c.name.Substring(w.Length + 1).TrimEnd('f'), out k) && k > bi) { bi = k; sp = c; }
                     }
                     if (sp == null) { sb.AppendLine("  ⚠ " + nm + ": 袖 " + w + " の駒が無い"); continue; }
-                    float spread; int hits;
-                    float ext = EdoBuild.ExtendEndToFace(sp.gameObject, -new Vector3(front.x, 0f, front.y), back, top, 1.5f, out spread, out hits);
-                    side.Add(sp.gameObject);
-                    float eg = EdoBuild.MeasureEndGap(sp.gameObject, -new Vector3(front.x, 0f, front.y), back, top);
-                    sb.AppendLine("  " + nm + ": 袖 " + sp.name + " の頭を相手の面まで " + (float.IsNaN(ext) ? "⛔ 当たらず(延ばさない)" : ext.ToString("+0.000;-0.000") + "m(当たり " + hits + "・割れ " + spread.ToString("F3") + ")") +
-                                  " / 据えた後の見える口 " + (float.IsNaN(eg) ? "—" : eg.ToString("+0.000;-0.000")) + "m");
+                    // ⭐ 最上段の駒は天端が水平な袖へ差し替え、下の斜めの袖(一つ下の駒)の実メッシュに揃えて相手の面まで伸ばす
+                    //   (EDO-0459 施主裁定A 2026-09-26 ── 斜めの袖を延ばすと天端が勾配のまま腰の天端より 0.6m 上がる)。
+                    Transform below = g.Find(w + "_" + (bi - 1).ToString("000") + "f");
+                    if (below == null) { sb.AppendLine("  ⚠ " + nm + ": 袖 " + w + " の一つ下の駒が無い"); continue; }
+                    EdoBuild.FlatSode fr; string fw;
+                    var flat = EdoBuild.LayFlatSode(sp.gameObject, below.gameObject, EdoAssets.Own.IshidanSodeFlat, EdoAssets.Own.IshidanSodeDepths,
+                                                    -new Vector3(front.x, 0f, front.y), back, top, 1.5f, out fr, out fw);
+                    if (flat == null) { sb.AppendLine("  ⛔ " + nm + ": " + fw); continue; }
+                    side.Add(flat);
+                    sb.AppendLine("  " + nm + ": 袖 " + flat.name + " ── 水平の袖(丈 " + fr.depth.ToString("F2") + ")天端 " + fr.topLo.ToString("F3") + "〜" + fr.topHi.ToString("F3") +
+                                  "(下の袖の段鼻 " + fr.topBelow.ToString("F3") + "・段差 " + fr.step.ToString("+0.000;-0.000") + ")/ 脇の面の食い違い " + fr.sideIn.ToString("+0.000;-0.000") + "・" + fr.sideOut.ToString("+0.000;-0.000") +
+                                  " / 下の袖との口 " + (float.IsNaN(fr.gapBelow) ? "—" : fr.gapBelow.ToString("+0.000;-0.000")) +
+                                  " / 相手の面まで " + (float.IsNaN(fr.ext) ? "⛔ 当たらず" : fr.ext.ToString("+0.000;-0.000") + "m(当たり " + fr.hits + "・割れ " + fr.spread.ToString("F3") + ")") +
+                                  "・見える口 " + (float.IsNaN(fr.gapMate) ? "—" : fr.gapMate.ToString("+0.000;-0.000")) + (fw != null ? " / " + fw : ""));
                 }
                 how = "踏み止め(天端 " + top.ToString("F2") + "・部材 = " + S(kd, "name") + "の段石)";
             }

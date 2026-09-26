@@ -207,9 +207,9 @@
 | `Own.SannoDanNearest(width, i)` | 関数 | 幅が最も近い焼けた段石(SannoDan の綴りの物の中から・個体 i の偶奇で a / b)。 | SannoSha(Stage5b_Fumiishi) |
 | `Own.IshidanSode(keri, fumi, i)` | 関数 | 石段の袖(袖石垣)の1段ぶんの駒 — どの石段にも使える汎用の型(寸法は蹴上 keri・踏面 fumi[m] から従属)。 | BuildIshidan(FitObliqueEnd・PlaceIshidanSode), SannoSha(AbutStairsToWalls・Stage2_Kaidan) |
 | `Own.ISHIDAN_SODE_DEPTH_STD` | float | 袖の丈(天端の線から下端まで)の既定 2.20 = 最大見付 1.74 + 根入れ 0.46。 | BuildIshidan(MiterIshidanSode), SannoSha(Stage2_Kaidan) |
-| `Own.IshidanSodeDepths` | float[] | 焼いてある袖の丈(浅い順)。切通しで袖を背の地盤まで上げる(`copingRise:"groundHi"`)とき、 上げの上限 = 丈 − 笠の上がり 0.30 − 段石の根入れ(実メッシュで測る。 | BuildIshidan(PlaceIshidanSode), SannoSha(Stage2_Kaidan) |
+| `Own.IshidanSodeDepths` | float[] | 焼いてある袖の丈(浅い順)。切通しで袖を背の地盤まで上げる(`copingRise:"groundHi"`)とき、 上げの上限 = 丈 − 笠の上がり 0.30 − 段石の根入れ(実メッシュで測る。 | SannoSha(Stage2_Kaidan・Stage5b_Fumiishi), BuildIshidan(PlaceIshidanSode) |
 | `Own.IshidanSode(keri, fumi, i, depth)` | 関数 | 丈の深い石段の袖(EDO-0430 2026-09-24)。 | BuildIshidan(FitObliqueEnd・PlaceIshidanSode), SannoSha(AbutStairsToWalls・Stage2_Kaidan) |
-| `Own.IshidanSodeFlat(depth)` | 関数 | 天端が水平な石段の袖(EDO-0459 施主裁定A 2026-09-26・男坂の最上段の袖石)。 | — |
+| `Own.IshidanSodeFlat(depth)` | 関数 | 天端が水平な石段の袖(EDO-0459 施主裁定A 2026-09-26・男坂の最上段の袖石)。 | BuildIshidan(MeasureEndGap), SannoSha(Stage5b_Fumiishi) |
 | `Own.IshidanSodeMiter(keri, fumi, w, hF, hB, i)` | 関数 | 曲がる石段の袖 — 端を留めに切った駒(EDO-0415 ②③)。 | BuildIshidan(MiterPath・PlaceIshidanSodeFlat) |
 | `Own.IshidanSodeMiter(keri, fumi, w, hF, hB, i, depth)` | 関数 | 丈の深い袖の留めの駒(EDO-0430 2026-09-24)。 | BuildIshidan(MiterPath・PlaceIshidanSodeFlat) |
 | `Own.IshidanSodeNori(keri, fumi, e, i, depth=…)` | 関数 | 背を法 1:0.25 に切った石段の袖(EDO-0442 施主裁定B・2026-09-26)。 | BuildIshidan(FitObliqueEnd), SannoSha(AbutStairsToWalls) |

@@ -86,6 +86,7 @@
 - [敷石の面取りの口・門の上向きの面の下の皮・同じ高さの重なり](fumiishi-chamfer-and-floor-cover.md) — 天端の帯で口を閉じる。門の面は深さ 0.15 で拾う。重なりは下の側を 0.01 ずつ
 
 - [板塀を天端・法肩に据える罠](panel-on-crest-and-shoulder-traps.md) — 帯は天端の最高で・法肩の下りは描かれた地表で・Itabei5 は 3m 未満に割れない
+- [水平の袖の継ぎ目は面取りの下で・鉛直な端は法の隅で楔](flat-sode-chamfer-and-batter-wedge.md) — 天端の帯では V を 0.015 の口と読む。男坂 052f × kado1 は帯の下で 0.05/0.2m 入る
 - [段石×野面は全端を包絡で・野面を焼き直したら跨ぐ端の za を測り直す](nozura-envelope-and-rebake-za.md) — 中ほどの中央値は石の出入りを均して d 0。焼いた組が 0.06 外れた
 - [隅の腕を袖の実測で選ぶ・足元の溝は cap の掘り・空きの点の塞ぎ](kado-short-arm-and-foot-groove.md) — KadoShortArm は詰めた後の袖で測る。天端の四角い抜けは部材
 - [別の駒の天端・段に被る隅石を退ける](crest-of-other-and-step-yield.md) — 法の足が下の天端に載る所で皮が天端に張り付く。YieldWallsToSteps。MeshInside は一つずつ

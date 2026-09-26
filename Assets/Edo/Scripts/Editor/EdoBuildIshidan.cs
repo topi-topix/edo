@@ -1522,6 +1522,97 @@ public static partial class EdoBuild
         return worst;
     }
 
+    /// <summary><see cref="LayFlatSode"/> の検め(全て実メッシュで測った値)。</summary>
+    public struct FlatSode
+    {
+        public float depth;      // 選んだ丈[m](差し替える駒の底と同じ根入れが取れる最小の丈)
+        public float topBelow;   // 下の斜めの袖の坂上の端(段鼻)での天端[m] ── 水平の袖の天端はこれに揃える
+        public float topLo, topHi; // 据えた水平の袖の天端: 坂下の端・坂上の端[m]
+        public float step;       // 坂下の端の天端 − topBelow[m](段差。0 が狙い)
+        public float sideIn, sideOut; // 脇の面の食い違い[m](下の袖の端の面 − 水平の袖の面・左右)
+        public float gapBelow;   // 坂下の端 × 下の袖の坂上の端の見える口[m](+ 口 / − 食い込み)
+        public float ext;        // 坂上の端を相手の面まで伸ばした量[m](NaN = 当たらず)
+        public float spread; public int hits; // 当たりの割れ・数
+        public float gapMate;    // 坂上の端 × 相手の面の見える口[m]
+    }
+
+    /// <summary>**石段の袖の最上段の駒を、天端が水平な袖へ差し替えて相手の面まで伸ばす**(EDO-0459 施主裁定A 2026-09-26)。
+    /// 斜めの袖を段の外(踏み止め・踊り場)へ延ばすと天端が勾配のまま上がり続ける(男坂の頭で 28.58 → 29.05)。⇒ 最上段の駒を
+    /// 水平の袖 <paramref name="pathOf"/>(丈 → `EdoAssets.Own.IshidanSodeFlat`)へ替え、**下の斜めの袖 <paramref name="below"/> の実メッシュを測って**据える:
+    /// ① 高さ — 下の袖の坂上の端(= 最上段の段鼻)の天端の最高へ水平の袖の天端を揃える(段差 0)。
+    /// ② 横 — 下の袖の坂上の端の脇の二面(外・内)の中ほどへ、水平の袖の脇の二面の中ほどを寄せる(同じ厚み 0.60 ⇒ 両面とも面一)。
+    /// ③ 走り — 水平の袖の坂下の端を下の袖の坂上の端の面へ突き付け(隙 0)、坂上の端を <see cref="ExtendEndToFace"/> で
+    ///    相手 <paramref name="mates"/>(基壇・腰石垣)の天端の帯 <paramref name="yBand"/> の面まで伸ばす(Z だけ伸縮 ⇒ 天端は水平のまま)。
+    /// 丈 = 差し替える駒 <paramref name="old"/> の底(根入れ)を下回らない最小の丈(<paramref name="depths"/> は浅い順)。
+    /// 差し替えは据えた後に旧を消す(同じ名・同じ親)。⛔ ピボット・bounds の中心で合わせない(仮置きは当て推量)。
+    /// 硬い条件: 段差・坂下の口・相手との口 0(5mm を超えたら <paramref name="warn"/>)。相手の天端より高く出る小口は裁定どおり(欠陥ではない)。
+    /// ⚠ 坂上の端は鉛直 ⇒ 相手の面が法(腰の隅 1:0.25)だと天端の帯より下で相手の中へ入る(法の楔・男坂で 0.2m 下がるごとに 0.05)。
+    /// 解くのは端を法で切った水平の袖の駒(部材)。
+    /// 当たる先: 石段の袖の走りが段の外へ延びて相手の面で止まる所 ── 今は指図 `kaidans[].fumitome` を持つ山王の男坂(南北の 2 駒)だけ。</summary>
+    public static GameObject LayFlatSode(GameObject old, GameObject below, System.Func<float, string> pathOf, IList<float> depths,
+                                         Vector3 up, IList<GameObject> mates, float yBand, float maxReach, out FlatSode rep, out string warn)
+    {
+        rep = new FlatSode { depth = float.NaN, ext = float.NaN, gapBelow = float.NaN, gapMate = float.NaN };
+        warn = null; string nm = old.name;
+        up.y = 0f; up.Normalize(); var perp = new Vector3(up.z, 0f, -up.x);
+        var bp = Body(below.transform, 999999, true);
+        if (bp.Count == 0) { warn = below.name + ": 下の袖の実メッシュが無い"; return null; }
+        float eUp = float.MinValue; foreach (var p in bp) eUp = Mathf.Max(eUp, Vector3.Dot(p, up));
+        float topB = float.MinValue, bLo = float.MaxValue, bHi = float.MinValue;
+        foreach (var p in bp)
+        {
+            if (Vector3.Dot(p, up) < eUp - 0.03f) continue;
+            topB = Mathf.Max(topB, p.y); float s = Vector3.Dot(p, perp); bLo = Mathf.Min(bLo, s); bHi = Mathf.Max(bHi, s);
+        }
+        rep.topBelow = topB;
+        float oldBot = float.MaxValue; foreach (var p in Body(old.transform, 999999, true)) oldBot = Mathf.Min(oldBot, p.y);
+        float depth = depths[depths.Count - 1];
+        foreach (var d in depths) if (topB - d <= oldBot + 0.02f) { depth = d; break; }
+        rep.depth = depth;
+        string path = pathOf(depth);
+        if (UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(path) == null) { warn = nm + ": ⛔ 水平の袖を焼いていない " + path; return null; }
+        // ---- 仮置き(当て推量)→ 実メッシュを測って三方向を寄せる
+        var go = Place(path, below.transform.position, below.transform.eulerAngles.y, Vector3.one, old.transform.parent, old.name);
+        if (go == null) { warn = nm + ": 水平の袖を置けない"; return null; }
+        var np = Body(go.transform, 999999, true);
+        float nDown = float.MaxValue, nTop = float.MinValue, nLo = float.MaxValue, nHi = float.MinValue;
+        foreach (var p in np)
+        {
+            nDown = Mathf.Min(nDown, Vector3.Dot(p, up)); nTop = Mathf.Max(nTop, p.y);
+            float s = Vector3.Dot(p, perp); nLo = Mathf.Min(nLo, s); nHi = Mathf.Max(nHi, s);
+        }
+        go.transform.position += up * (eUp - nDown) + perp * ((bLo + bHi) * 0.5f - (nLo + nHi) * 0.5f) + Vector3.up * (topB - nTop);
+        rep.sideIn = bLo - (nLo + (bLo + bHi) * 0.5f - (nLo + nHi) * 0.5f);
+        rep.sideOut = bHi - (nHi + (bLo + bHi) * 0.5f - (nLo + nHi) * 0.5f);
+        // ---- 坂上の端を相手の面まで
+        float spread; int hits;
+        rep.ext = ExtendEndToFace(go, up, mates, yBand, maxReach, out spread, out hits);
+        rep.spread = spread; rep.hits = hits;
+        Object.DestroyImmediate(old);
+        // ---- 検め
+        np = Body(go.transform, 999999, true);
+        float d0 = float.MaxValue, d1 = float.MinValue; foreach (var p in np) { float a = Vector3.Dot(p, up); d0 = Mathf.Min(d0, a); d1 = Mathf.Max(d1, a); }
+        rep.topLo = float.MinValue; rep.topHi = float.MinValue;
+        foreach (var p in np)
+        {
+            float a = Vector3.Dot(p, up);
+            if (a < d0 + 0.05f) rep.topLo = Mathf.Max(rep.topLo, p.y);
+            if (a > d1 - 0.05f) rep.topHi = Mathf.Max(rep.topHi, p.y);
+        }
+        rep.step = rep.topLo - topB;
+        // 継ぎ目の口は面取り(0.02)の下で測る ── 天端の縁の帯では水平の袖の面取りの V を 0.015 の口と読む(2026-09-27 実測・下は 0.0001)
+        rep.gapBelow = MeasureEndGap(go, -up, new List<GameObject> { below }, topB - 0.02f);
+        rep.gapMate = MeasureEndGap(go, up, mates, yBand);
+        var bad = new List<string>();
+        if (Mathf.Abs(rep.step) > 0.005f) bad.Add("段差 " + rep.step.ToString("+0.000;-0.000"));
+        if (Mathf.Abs(rep.topHi - rep.topLo) > 0.005f) bad.Add("水平の狂い " + (rep.topHi - rep.topLo).ToString("+0.000;-0.000"));
+        if (float.IsNaN(rep.gapBelow) || Mathf.Abs(rep.gapBelow) > 0.005f) bad.Add("下の袖との口 " + (float.IsNaN(rep.gapBelow) ? "測れず" : rep.gapBelow.ToString("+0.000;-0.000")));
+        if (float.IsNaN(rep.ext)) bad.Add("相手の面に当たらず(伸ばさない)");
+        else if (float.IsNaN(rep.gapMate) || rep.gapMate > 0.005f) bad.Add("相手との口 " + (float.IsNaN(rep.gapMate) ? "測れず" : rep.gapMate.ToString("+0.000;-0.000")));
+        if (bad.Count > 0) warn = nm + ": ⚠ " + string.Join("・", bad.ToArray());
+        return go;
+    }
+
     /// <summary>**敷石を据える**(踏石・石段の頭の踏み止め・EDO-0428)。四角 <paramref name="quad"/>(世界 XZ・算出物)の中へ、段石
     /// <paramref name="pathOf"/>(個体 i → 部材)を前 <paramref name="front"/>(部材の局所 +Z = 見え面の向き)へ並べて敷く。
     /// <para>① 端: 背(−front)・前(+front)・脇(±横)は、相手 <paramref name="backMates"/> / <paramref name="frontMates"/> /

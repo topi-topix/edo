@@ -1549,6 +1549,17 @@ public static class EdoAssets
                  + "_E" + (e >= 0f ? "+" : "-") + System.Math.Abs(e).ToString("F2", inv) + "_" + (i % 2 == 0 ? "a" : "b") + ".fbx";
         }
 
+        /// <summary>**段 4 に面する所だけ天端を埋めた前庭の野面の駒**(EDO-0437 r13 2026-09-27)。<c>Sanno_Nozura_H0600_G+000_c</c> と同じ局所座標・同じピボット・
+        /// 同じ石の割り・同じ材で、参道の階の段 4 の端に面する帯(段の局所 Z −0.45〜+0.34・段 3 の踏面より上)だけ、面から 0.20 奥までの頂点を
+        /// 列ごとに前へ伸ばして面を段 4 の端(|x| 幅/2 + 0.004)へ当て、頭の石(上面が天端の 0.25 以内)を天端 14.50 まで上げた物(石は刻まず塊のまま伸びる)。
+        /// <paramref name="side"/> = 'W'(<c>TW_Zentei_Kiri_012f</c> に差し替える)/ 'E'(<c>TW_Zentei_Kiri_027f</c>)。⚠ 据えは元の駒と同じ位置・向き・
+        /// **縮尺(走り X を 0.387 / 0.394 に縮めてある)**のまま。形は r11 の据えの従属値 ── 据えを変えたら焼き直す。材 `Kirishi` / `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_sando_fit.py -- all --render</summary>
+        public static string SannoNozuraFillSandoKai4(char side)
+        {
+            return SannoNozuraDir + "/Sanno_Nozura_H0600_G+000_c_SandoKai4" + side + ".fbx";
+        }
+
         /// <summary>**両端を相手の野面の石の見える外形に沿わせた段石**(EDO-0437 第10巡 2026-09-26 → r11 2026-09-27)。<see cref="SannoDan"/> と同じ局所座標・同じピボット・
         /// 同じ石の割り・同じ材で、蹴上・踏面・幅・段鼻の線は変えず、両の小口だけを相手の石の面へ刳る(平面で切る <see cref="SannoDanKiri"/> の代わり)。
         /// 小口は 0.01 升で刻み、相手の石の面(閉じた体積)から 0.003〜0.005 外へ詰める。相手の目地(幅 0.04 未満)は跨ぐ。相手の天端が踏面の 0.03 以内の下で
@@ -1557,7 +1568,8 @@ public static class EdoAssets
         /// ⚠ 形は据えの従属値: 相手は **隅石を退けない**位置(`EdoBuild.YieldWallsToSteps` を止める)、段・袖は r11 の配置のまま据える
         /// (`Tools/Blender/data/sanno_sando_fit_r11.json.gz`)。据えを変えたら json を書き出し直して焼き直す。
         /// 焼けている組: 参道の階 (0.250, 0.542, 5.509) の段 **0〜4**(<paramref name="stair"/> = "SandoKai"・段 0 は r11 で相手の N_kado2 に当たったので足した)。
-        /// 実寸: 段 0・1 X ±2.7545 / 段 2 −2.728〜+2.722 / 段 3 −2.875〜+2.811 / 段 4 −3.029〜+3.028 × H 0.430 × D 0.642。三角形 約 13,300。材 `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// ⭐ 段 4 は小口を ±幅/2(5.509)で止める(r13 ── 野面の丸い頭の上へ板のように載った)。脇は <see cref="SannoNozuraFillSandoKai4"/> で埋める(段 2〜4 はその埋めた駒に合わせて焼いてある)。
+        /// 実寸: 段 0・1・4 X ±2.7545 / 段 2 −2.728〜+2.722 / 段 3 −2.875〜+2.811 × H 0.430 × D 0.642。三角形 約 13,300。材 `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
         /// 生成: blender --background --python Tools/Blender/build_sanno_sando_fit.py -- all --render</summary>
         public static string SannoDanFit(float keri, float fumi, float w, int i, string stair)
         {

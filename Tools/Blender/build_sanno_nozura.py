@@ -1330,7 +1330,8 @@ def make_kado(h, v):
         for u in (-0.02, -(h + BURY)):
             for off in (0.03, BACK2[0]):
                 k = cbat(u) - off
-                vs.append(bm.verts.new(_u2b(k, h + u, k)))
+                sh = 0.0005 if flip else -0.0005          # 表と裏を 1mm 離す(同じ位置の頂点は溶接で一つになり、表裏の面が重なって捨てられる)
+                vs.append(bm.verts.new(_u2b(k + sh, h + u, k - sh)))
         f = bm.faces.new((vs[0], vs[1], vs[3], vs[2]) if not flip else (vs[0], vs[2], vs[3], vs[1]))
         me = bpy.data.meshes.new("miter%d" % flip); bm.to_mesh(me); bm.free()
         ob = bpy.data.objects.new("miter%d" % flip, me)
@@ -1343,6 +1344,8 @@ def make_kado(h, v):
     o = V.join(objs, name)
     bisect_keep(o, (L / 2, 0, 0), (1, 0, 0))          # Unity X ≥ −L/2 ⇔ Blender X ≤ +L/2
     bisect_keep(o, (0, L / 2, 0), (0, 1, 0))          # Unity Z ≥ −L/2 ⇔ Blender Y ≤ +L/2
+    nd = clean_degenerate(o)
+    print("KADO %s 面積 0・辺 < 0.1mm の三角形 %d" % (name, nd))
     V.set_origin(o, (0, 0, 0))
     return o, name
 
@@ -2091,12 +2094,51 @@ def unity_bounds(o):
 
 REPORT = []
 
+DEGEN_EDGE = 1e-4        # 辺 0.1mm 未満の三角形は Unity の取り込み(頂点の溶接)で潰れて捨てられる ⇒ 面が抜ける(2026-09-27 EDO-0437 r13)
+DEGEN_AREA = 1e-9
+
+
+def degenerate_tris(o):
+    """面積 0(< 1e-9 m²)または辺 < 0.1mm の三角形の数(書き出す三角形で数える)。"""
+    me = o.data
+    me.calc_loop_triangles()
+    vs = me.vertices
+    n = 0
+    for t in me.loop_triangles:
+        a, b, c = (vs[i].co for i in t.vertices)
+        if (b - a).cross(c - a).length * 0.5 < DEGEN_AREA or min((b - a).length, (c - b).length, (a - c).length) < DEGEN_EDGE:
+            n += 1
+    return n
+
+
+def clean_degenerate(o, rounds=6):
+    """0.1mm 未満の頂点を溶接し、潰れた辺・面を溶かし、多角形を三角形に割ってから数え直す(0 になるまで)。返り値 = 残りの数。"""
+    for _ in range(rounds):
+        bm = bmesh.new(); bm.from_mesh(o.data)
+        bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=DEGEN_EDGE * 1.05)
+        bmesh.ops.dissolve_degenerate(bm, edges=bm.edges[:], dist=DEGEN_EDGE * 1.05)
+        bmesh.ops.triangulate(bm, faces=[f for f in bm.faces if len(f.verts) > 3])
+        bad = []
+        for f in bm.faces:
+            a, b, c = (v.co for v in f.verts)
+            if (b - a).cross(c - a).length * 0.5 < DEGEN_AREA:
+                bad.append(f)
+        if bad:
+            bmesh.ops.delete(bm, geom=bad, context='FACES')
+        bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
+        bm.to_mesh(o.data); bm.free(); o.data.update()
+        n = degenerate_tris(o)
+        if n == 0:
+            return 0
+    return n
+
 
 def export(o, name, outdir):
     path = os.path.join(outdir, name + ".fbx")
     V.export_fbx([o], path)
     (x0, x1), (y0, y1), (z0, z1) = unity_bounds(o)
     REPORT.append((name, tris(o), x0, x1, y0, y1, z0, z1))
+    print("NOZURA %s 面積 0・辺 < 0.1mm の三角形 %d" % (name, degenerate_tris(o)))
     print("NOZURA %s tris=%d X[%.3f,%.3f] Y[%.3f,%.3f] Z[%.3f,%.3f]" % (name, tris(o), x0, x1, y0, y1, z0, z1))
     return path
 

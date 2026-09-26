@@ -49,6 +49,7 @@ RENDER = "render" in OPT
 
 FIT = OPT.get("fit") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sanno_sando_fit_r11.json.gz")
 OUT = V.out_dir(os.path.join(V.REPO, "Assets", "Edo", "Models", "Kaidan"))
+OUT_WALL = V.out_dir(os.path.join(V.REPO, "Assets", "Edo", "Models", "Sanno"))
 SHOT = os.path.join(V.REPO, "Screenshots")
 LOGJ = OPT.get("json") or ""
 
@@ -350,6 +351,56 @@ def reproject_turned(bm, old_ax, moved, tile):
     return n
 
 
+def push_out(bm, part, clamp_fn, name, rounds=6):
+    """仕上げ: Unity と同じ測り(相手の閉じた体積の内外・見える地表より上)で残った食い込みを、最も近い相手の面の外 CLEAR へ押し出す
+    (書き出しと同じ三角形の 0.01 格子で測る・横から入る石も)。"""
+    from mathutils import kdtree
+    bvhs_u = wall_bvhs(part["walls"])
+    ball_u = bvh_of(wall_tris(part["walls"]))
+    gyu = ground_fn(part)
+    for _r in range(rounds):
+        bm.verts.index_update()
+        vs_ = [Vector(b2u(v_.co)) for v_ in bm.verts]
+        kd = kdtree.KDTree(len(vs_))
+        for i_, c_ in enumerate(vs_):
+            kd.insert(c_, i_)
+        kd.balance()
+        push = {}
+        nb = 0
+        for lt in bm.calc_loop_triangles():
+            fv = [vs_[l_.vert.index] for l_ in lt]
+            cc = sum(fv, Vector()) / len(fv)
+            rr = max((p_ - cc).length for p_ in fv)
+            if ball_u.find_nearest(cc, rr + 0.20)[0] is None:
+                continue
+            A_, B_, C_ = fv
+            n = max(1, int(math.ceil(max((B_ - A_).length, (C_ - A_).length, (C_ - B_).length) / 0.01)))
+            pts = [A_ + (B_ - A_) * (a / n) + (C_ - A_) * (b / n) for a in range(n + 1) for b in range(n + 1 - a)]
+            for p_ in pts:
+                if p_.y < gyu(p_.x, p_.z):
+                    continue
+                r_ = inside_depth(bvhs_u, tuple(p_))
+                if not r_:
+                    continue
+                nb += 1
+                loc = dict(bvhs_u)[r_[1]].find_nearest(p_, 0.3)[0]
+                dvec = (loc - p_)
+                if dvec.length < 1e-9:
+                    continue
+                dvec = dvec.normalized() * (dvec.length + CLEAR)
+                for j_ in [l_.vert.index for l_ in lt] + [j2 for (_, j2, _) in kd.find_range(p_, 0.03)]:
+                    old = push.get(j_)
+                    if old is None or dvec.length > old.length:
+                        push[j_] = dvec
+        if not push:
+            break
+        bm.verts.ensure_lookup_table()
+        for j_, dv in push.items():
+            U = clamp_fn(Vector(b2u(bm.verts[j_].co)) + dv)
+            bm.verts[j_].co[:] = u2b(tuple(U))
+        print("FIT %s 仕上げの押し出し #%d: 食い込む点 %d・動かした頂点 %d" % (name, _r, nb, len(push)))
+
+
 # ------------------------------------------------------------------ 袖の居る所(段の端で外へ出さない所)
 class SodeZone:
     def __init__(self, part, A, B, F):
@@ -552,56 +603,11 @@ def make_sode_fit(sd, v):
                 vv.co.z = top(Z); moved_top += 1
         if moved_top == 0:
             break
-    # 仕上げ: Unity と同じ測り(相手の閉じた体積の内外)で残った食い込みを、最も近い相手の面の外へ押し出す(横から入る石も)
-    from mathutils import kdtree
-    bvhs_u = wall_bvhs(sd["walls"])
-    ball_u = bvh_of(wall_tris(sd["walls"]))
-    gyu = ground_fn(sd)
-    for _r in range(6):
-        vs_ = [Vector(b2u(v_.co)) for v_ in bm.verts]
-        kd = kdtree.KDTree(len(vs_))
-        for i_, c_ in enumerate(vs_):
-            kd.insert(c_, i_)
-        kd.balance()
-        push = {}
-        nb = 0
-        for lt in bm.calc_loop_triangles():               # 書き出しと同じ三角形で測る
-            fv = [vs_[l_.vert.index] for l_ in lt]
-            cc = sum(fv, Vector()) / len(fv)
-            rr = max((p_ - cc).length for p_ in fv)
-            if ball_u.find_nearest(cc, rr + 0.20)[0] is None:
-                continue                                  # 相手から遠い面は測らない
-            pts = list(fv)
-            for i in range(1, 2):
-                A_, B_, C_ = fv[0], fv[i], fv[i + 1]
-                n = max(1, int(math.ceil(max((B_ - A_).length, (C_ - A_).length, (C_ - B_).length) / 0.01)))
-                pts += [A_ + (B_ - A_) * (a / n) + (C_ - A_) * (b / n) for a in range(n + 1) for b in range(n + 1 - a)]
-            for p_ in pts:
-                if p_.y < gyu(p_.x, p_.z):
-                    continue
-                r_ = inside_depth(bvhs_u, tuple(p_))
-                if not r_:
-                    continue
-                nb += 1
-                wb = dict(bvhs_u)[r_[1]]
-                loc = wb.find_nearest(p_, 0.3)[0]
-                dvec = (loc - p_)
-                if dvec.length < 1e-9:
-                    continue
-                dvec = dvec.normalized() * (dvec.length + CLEAR)
-                for j_ in [l_.vert.index for l_ in lt] + [j2 for (_, j2, _) in kd.find_range(p_, 0.03)]:
-                    old = push.get(j_)
-                    if old is None or dvec.length > old.length:
-                        push[j_] = dvec
-        if not push:
-            break
-        bm.verts.ensure_lookup_table()
-        for j_, dv in push.items():
-            U = Vector(b2u(bm.verts[j_].co)) + dv
-            U.x = max(-NZ.SODE_HALF, min(NZ.SODE_HALF, U.x))
-            U.z = min(U.z, zf_)
-            bm.verts[j_].co[:] = u2b(tuple(U))
-        print("SFIT %s 仕上げの押し出し #%d: 食い込む点 %d・動かした頂点 %d" % (name, _r, nb, len(push)))
+    def _clamp_sode(U):
+        U.x = max(-NZ.SODE_HALF, min(NZ.SODE_HALF, U.x))
+        U.z = min(U.z, zf_)
+        return U
+    push_out(bm, sd, _clamp_sode, name)
     # 前の端(次の個体と継ぐ面)の近くで、なお相手の体積の中に在る面は抜く(相手の法の足が袖の前の端を越える所 ── 相手の中なので見えない)
     bvhs_ = wall_bvhs(sd["walls"])
     kill = []
@@ -668,6 +674,10 @@ def dan_fit_name(i, v):
     return "DanFit_%s_%s_%s_%s_SandoKai%d" % (SB.cs_f3(KERI), SB.cs_f3(FUMI), SB.cs_f3(W), v, i)
 
 
+CAP_W2 = {"Dan_04"}     # 小口を ±幅/2 より外へ出さない段(r13: 段 4 の踏面が野面の丸い頭の上へ板のように載って欠片・隙に見えた ──
+#   前庭の天端の石 012f・027f の側を段 4 の端まで埋めた駒 `Sanno_Nozura_H0600_G+000_c_SandoKai4<W|E>` に替える)
+
+
 def end_field(st, end, zones):
     """段の端 s の X 面 V(y, z)(s 側で見た s·X)。"""
     s = -1 if end["side"] == "-X" else 1
@@ -702,6 +712,8 @@ def end_field(st, end, zones):
             if A[i] - A[itop] <= 0.03 or A[i] <= 0.0 + 1e-9 and A[itop] >= -0.03:
                 R[i, j] = R[itop, j]
     R = opening_far(R, OPEN)
+    if st.get("name") in CAP_W2:
+        R = np.minimum(R, W2)
     for i, y in enumerate(A):
         for j, z in enumerate(B):
             if R[i, j] > W2:
@@ -781,6 +793,7 @@ def make_dan_fit(st, i, zones):
         samples += [(a, b, w) for (a, b, w) in edge_samples(wall_tris(ends_[0]["walls"]), 0, lambda a, b, w: _keep(a, b, w),
                                                             box=((xl, ybot_, -(FUMI / 2 + lap)), (xh, 0.0, FUMI / 2)))]
         settle(bm, zone, 0, s, samples, CELL, "%s %s" % (name, "LR"[s > 0]))
+        push_out(bm, st, lambda U: U, "%s %s" % (name, "LR"[s > 0]), rounds=4)   # 仕上げ: Unity と同じ測りで残った食い込みを押し出す
         # _stone の UV: ax 2(Blender z 向き)は (x, y)、ax 1 は (x, z)、ax 0 は (y, z)
         fix_uv(bm, orig, fax, lambda ax, d: ((0.0, 0.0) if ax == 0 else (d.x / SB.DANISHI_TILE, 0.0)))
         reproject_turned(bm, lambda f: fax.get(f.index, 0), lambda q: (q.co - orig[q.index]).length_squared > 1e-14, SB.DANISHI_TILE)
@@ -795,6 +808,136 @@ def make_dan_fit(st, i, zones):
     for l_ in log:
         print("DFIT %s %s" % (name, l_))
     return o, name, fields
+
+
+# ------------------------------------------------------------------ 前庭の天端の石を段 4 の端まで埋めた駒(r13・2026-09-27)
+FILL_BASE = ("Sanno_Nozura_H0600_G+000_c", 0.60, "c")      # TW_Zentei_Kiri_012f(W)・027f(E)の駒
+FILL_WALL = {"W": "TW_Zentei_Kiri_012f", "E": "TW_Zentei_Kiri_027f"}
+FILL_TREAD = 14.50        # 段 4 の踏面(世界 Y)── 天端をここまで埋める
+FILL_D = 0.20             # 面から奥へこの深さまでの頂点を、奥ほど少なく前へ出す(石は塊のまま伸びる)
+
+
+def fill_name(side):
+    return "%s_SandoKai4%s" % (FILL_BASE[0], side)
+
+
+def make_wall_fill(fit, side):
+    """前庭の縁の野面の駒 H0600_c を、段 4 に面する所だけ **天端を 14.50 まで上げ、面を段 4 の端(|x| 幅/2 + 0.004)まで前へ伸ばした** 駒。
+    ⛔ 石を刻まない・足さない: 面から FILL_D の奥までの頂点を、列(壁の局所 x, y)ごとに面の出(段の端の面 − 今の面)だけ、奥ほど少なく前へ動かす
+    (石は塊のまま前へ伸びる)。頭は天端の線の 0.15 下からの頂点を、上ほど多く 14.50 へ上げる。範囲は段 4 の走り(段の局所 Z −0.40〜+0.29)と
+    段 3 の踏面より上(段の局所 Y −0.25〜)── 外は 0.05 で馴染ませる。段 2・3 の端に当たる所は動かさない。"""
+    st = fit["steps"][4]
+    s = -1 if side == "W" else 1
+    w = [w_ for w_ in st["walls"] if w_["wall"] == FILL_WALL[side]][0]
+    h = FILL_BASE[1]
+    ytop = FILL_TREAD - w["wallPos"][1]
+    o, _, _ = NZ.make_wall(h, 0.0, FILL_BASE[2])
+    # ⚠ 据えた駒は走り(局所 X)に縮めてある(json に縮尺が無い ⇒ 書き出された頂点の広がりから読む: 走りの向きへ射影した幅の比)
+    U0 = np.array([b2u(v.co) for v in o.data.vertices])
+    J = np.array(w["meshes"][0]["v"]).reshape(-1, 3)
+    wp1 = {"pos": w["wallPos"], "euler": w["wallEuler"], "scale": [1.0, 1.0, 1.0]}
+    ax = to_local(st, to_world(wp1, [(1.0, 0.0, 0.0)]))[0] - to_local(st, to_world(wp1, [(0.0, 0.0, 0.0)]))[0]
+    sx = float(np.ptp(J @ ax) / np.ptp(to_local(st, to_world(wp1, U0)) @ ax))
+    wp = {"pos": w["wallPos"], "euler": w["wallEuler"], "scale": [sx, 1.0, 1.0]}
+    print("WFILL %s 据えの縮尺(走り)%.4f" % (FILL_WALL[side], sx))
+    name = fill_name(side)
+    o.name = name; o.data.name = name
+    me = o.data
+    # 段 4 に面する帯の面を 0.02(走り)× 0.01(高さ)に刻む(面の中の点も段の端の面へ乗るように ── 大きな面の縁だけ動かすと面の中が届かない)
+    bw0 = BVHTree.FromPolygons([b2u(v.co) for v in me.vertices], [tuple(p.vertices) for p in me.polygons])
+    def in_band(co):
+        u = b2u(co)
+        q = to_local(st, to_world(wp, [u]))[0]
+        if not (-0.50 < q[2] < 0.40 and q[1] > -0.47 and s * q[0] > W2 - 0.25):
+            return False
+        hh = bw0.ray_cast(Vector((u[0], u[1], 2.0)), Vector((0, 0, -1)), 4.0)
+        return hh[0] is not None and (2.0 - hh[3]) - u[2] < FILL_D
+    bm = bmesh.new(); bm.from_mesh(me)
+    band_v = {v.index for v in bm.verts if in_band(v.co)}
+    selb = lambda f: any(v.index in band_v for v in f.verts)
+    xs_ = [round(-L_ / 2 + 0.02 * k, 4) for L_ in (1.818,) for k in range(1, int(1.818 / 0.02))]
+    ys_ = [round(ytop - 0.47 + 0.01 * k, 4) for k in range(0, 48)]
+    slice_faces(bm, 0, [-x for x in xs_], selb)
+    slice_faces(bm, 2, ys_, selb)
+    bmesh.ops.triangulate(bm, faces=[f for f in bm.faces if selb(f)])
+    bm.to_mesh(me); bm.free(); me.update()
+    U = np.array([b2u(v.co) for v in me.vertices])                   # 壁の局所
+    Q = to_local(st, to_world(wp, U))                                  # 段 4 の局所
+    bw = BVHTree.FromPolygons([tuple(u) for u in U], [tuple(p.vertices) for p in me.polygons])
+    # 段の端の面(段の局所 x = s·(W2 + CLEAR_F))を壁の局所へ: 点と法線
+    CLEAR_F = 0.004
+    # 面の上の 3 点を写して法線を作る(駒は走りに縮めて据えてあるので、法線を点のように写すと傾く)
+    p0, pa, pb = to_local(wp, to_world(st, [(s * (W2 + CLEAR_F), 0.0, 0.0), (s * (W2 + CLEAR_F), 1.0, 0.0), (s * (W2 + CLEAR_F), 0.0, 1.0)]))
+    nrm = np.cross(pa - p0, pb - p0)
+    def z_plane(x, y):                                                 # 面の上で (x, y) の z
+        return p0[2] - (nrm[0] * (x - p0[0]) + nrm[1] * (y - p0[1])) / nrm[2]
+    def front_z(x, y):
+        hh = bw.ray_cast(Vector((x, y, 2.0)), Vector((0, 0, -1)), 4.0)
+        return 2.0 - hh[3] if hh[0] is not None else None
+    def top_y(x, z):
+        hh = bw.ray_cast(Vector((x, 3.0, z)), Vector((0, -1, 0)), 4.0)
+        return 3.0 - hh[3] if hh[0] is not None else None
+    smooth = lambda t: 0.0 if t <= 0 else (1.0 if t >= 1 else t * t * (3 - 2 * t))
+    moved = 0
+    newU = U.copy()
+    for i, (u, q) in enumerate(zip(U, Q)):
+        wz = smooth((q[2] + 0.45) / 0.05) * smooth((0.34 - q[2]) / 0.05)
+        wy = smooth((q[1] + 0.25) / 0.02) if q[2] < 0.15 else smooth((q[1] + 0.20) / 0.03)   # 段 3 の上(踏面 −0.25)は段 3 の端に当てない
+        wx = smooth((s * q[0] - (W2 - 0.10)) / 0.05)                  # 段の端の外側(壁の側)だけ
+        wgt = wz * wy * wx
+        if wgt <= 0.0:
+            continue
+        zf = front_z(u[0], u[1])
+        if zf is None:
+            continue
+        zf = max(zf, u[2])                    # 光線が三角形の継ぎ目を抜けて奥を拾っても、頂点より奥を面にしない(行き過ぎて段へ入る)
+        d = z_plane(u[0], u[1]) - zf
+        if d > 0.0:
+            t = min(1.0, max(0.0, 1.0 - (zf - u[2]) / FILL_D))
+            newU[i, 2] = u[2] + wgt * t * d
+        # 頭を 14.50 へ(面の帯 = 面から 0.45 まで)
+        if u[1] > ytop - 0.30:
+            yt = top_y(u[0], u[2])
+            # 頭の石だけ(列の上面が天端の 0.25 以内)・段の端の面より手前(面の出が段へ入る下の石の出)は上げない
+            if yt is not None and ytop - 0.25 < yt < ytop and (zf - u[2]) < 0.45 and u[2] < z_plane(u[0], u[1]) - 1e-4:
+                ty = max(0.0, 1.0 - (yt - u[1]) / 0.15)
+                newU[i, 1] = u[1] + wgt * ty * (ytop - yt)
+        if abs(newU[i] - u).max() > 1e-9:
+            moved += 1
+    # 段 4 の端に面する所(段 4 の丈 −0.45〜0 の全部・段 3 の上を除く)は、元から前へ出ていた石も段の端の面で止める
+    #   (面より手前の頂点を面へ ── 面は石の中を通るので、出ていた石の鼻が平らに揃うだけ。r13: 出ていた石と伸ばした石を結ぶ面が段へ 0.005 入った)
+    nflat = 0
+    for i, (u, q) in enumerate(zip(U, Q)):
+        if -0.45 <= q[2] <= 0.29 and q[1] >= -0.45 and not (q[2] > 0.15 and q[1] < -0.25) and s * q[0] > W2 - 0.25:
+            zp = z_plane(newU[i, 0], newU[i, 1])
+            if newU[i, 2] > zp:
+                newU[i, 2] = zp; nflat += 1
+    print("WFILL %s 段の端の面で止めた出っ張りの頂点 %d" % (name, nflat))
+    # UV: 面ごとの箱投影(`box_uv`)の軸で、動かした頂点の変位ぶん柄もずらす(引き伸ばして縞にしない)・向きの変わった面は投影し直す
+    bm = bmesh.new(); bm.from_mesh(me)
+    bm.normal_update(); bm.verts.ensure_lookup_table()
+    fax_ = {f.index: (2 if (abs(f.normal.z) >= abs(f.normal.x) and abs(f.normal.z) >= abs(f.normal.y)) else (0 if abs(f.normal.x) >= abs(f.normal.y) else 1)) for f in bm.faces}
+    orig_ = {v.index: v.co.copy() for v in bm.verts}
+    for v, nu in zip(bm.verts, newU):
+        v.co[:] = u2b(tuple(nu))
+    fix_uv(bm, orig_, fax_, lambda ax, dd: ((dd.y / NZ.TILE, dd.z / NZ.TILE) if ax == 0 else ((dd.x / NZ.TILE, dd.y / NZ.TILE) if ax == 2 else (dd.x / NZ.TILE, dd.z / NZ.TILE))))
+    reproject_turned(bm, lambda f: fax_.get(f.index, 1), lambda q: (q.co - orig_[q.index]).length_squared > 1e-14, NZ.TILE)
+    bm.to_mesh(me); bm.free(); me.update()
+    nd = NZ.clean_degenerate(o)
+    print("WFILL %s 動かした頂点 %d・天端 %.4f(局所)・面積 0 / 辺 < 0.1mm %d" % (name, moved, ytop, nd))
+    return o, name, wp
+
+
+def mesh_arrays(o):
+    U = np.array([b2u(v.co) for v in o.data.vertices])
+    o.data.calc_loop_triangles()
+    return U, [i for t in o.data.loop_triangles for i in t.vertices]
+
+
+def fill_as_walls(name, U, T, wp, st):
+    """埋めた駒を、段 st の局所の閉じたメッシュ(相手)として返す(Unity と同じ測り用)。"""
+    Q = to_local(st, to_world(wp, U))
+    return {"wall": name, "meshes": [{"v": Q.ravel().tolist(), "t": T}]}
 
 
 # ------------------------------------------------------------------ 測る(焼いた駒 × 相手の三角形)
@@ -1071,13 +1214,14 @@ def import_placed(path, part):
     return new
 
 
-def wall_soup(fit):
-    """相手の石の三角形(退ける前・ワールドで重複を除く)を一つのメッシュに(撮るためだけ・書き出さない)。"""
+def wall_soup(fit, exclude=()):
+    """相手の石の三角形(退ける前・ワールドで重複を除く)を一つのメッシュに(撮るためだけ・書き出さない)。exclude = 撮らない相手の名。"""
     seen = set(); vs = []; fs = []
     parts = list(fit["steps"]) + list(fit["sodeBacks"])
     for part in parts:
         groups = [e["walls"] for e in part["ends"]] if "ends" in part else [part["walls"]]
         for walls in groups:
+            walls = [w_ for w_ in walls if w_.get("wall") not in exclude]
             T = wall_tris(walls)
             if not len(T):
                 continue
@@ -1117,7 +1261,7 @@ def _ortho_shot(cam, foc, scale, path):
     V.render(path)
 
 
-def render_all(fit, made):
+def render_all(fit, made, fills=()):
     """段 0〜4 と袖 2 本を据えた位置で読み、相手の石(退ける前の三角形・茶)と一緒に撮る。
     (名, 基準の駒, カメラ(局所・sx を掛ける前), 見る点, レンズ mm(負 = 真上の正投影の幅 m))。"""
     global REF
@@ -1125,8 +1269,10 @@ def render_all(fit, made):
     REF = fit["steps"][2]["pos"]
     for part, path in made:
         import_placed(path, part)
+    for wp, path in fills:                              # 埋めた前庭の天端の石(駒そのもの)
+        import_placed(path, wp)
     NZ.hook_stone_textures()
-    ws = wall_soup(fit)
+    ws = wall_soup(fit, exclude=tuple(FILL_WALL.values()) if fills else ())
     ws.data.materials[0].node_tree.nodes["Principled BSDF"].inputs['Base Color'].default_value = (0.30, 0.24, 0.18, 1)
     views = [
         ("ends_obl", 3, (2.0, 1.1, 1.6), (W2 + 0.0, -0.1, -0.2), 28),
@@ -1189,6 +1335,34 @@ def main():
         fields_s[sd["name"]] = (A, B, F)
         ZONES.append(SodeZone(sd, A, B, F))
     made = []
+    fills = []                  # (wp, path)
+    fill_walls = {}             # 相手の名 → 埋めた駒の三角形(段の局所に直すための元)
+    if what in ("fill", "all", "dan"):
+        for side in ("W", "E"):
+            V.reset()
+            o, name, wp = make_wall_fill(fit, side)
+            path = os.path.join(OUT_WALL, name + ".fbx")
+            fill_walls[FILL_WALL[side]] = mesh_arrays(o) + (wp,)
+            if what != "dan":
+                V.export_fbx([o], path)
+                print("WFILL 書き出し " + path)
+            fills.append((wp, path))
+    def with_fills(st):
+        """st の相手のうち、埋めた駒に替わる物を差し替えた写し(Unity と同じ測り用)。"""
+        if not fill_walls:
+            return st
+        st2 = dict(st)
+        ws_ = []
+        for w_ in st["walls"]:
+            if w_["wall"] in fill_walls:
+                U_, T_, wp_ = fill_walls[w_["wall"]]
+                ws_.append(fill_as_walls(w_["wall"], U_, T_, wp_, st))
+            else:
+                ws_.append(w_)
+        st2["walls"] = ws_
+        if "ends" in st:
+            st2["ends"] = [{"side": e_["side"], "walls": ws_} for e_ in st["ends"]]
+        return st2
     if what in ("sode", "all"):
         for sd in fit["sodeBacks"]:
             side = sode_side(sd)
@@ -1196,6 +1370,7 @@ def main():
                 continue
             v = sd["fbx"].rsplit("_", 1)[1][0]
             o, name, _ = make_sode_fit(sd, v)
+            print("SFIT %s 面積 0・辺 < 0.1mm の三角形(掃除の後)%d" % (name, NZ.clean_degenerate(o)))
             print("SFIT 検算 %s" % name)
             bad += check_common(o, "sode")
             m = measure_sode(o, sd)
@@ -1212,12 +1387,14 @@ def main():
         for i, st in enumerate(fit["steps"]):
             if only and str(i) not in only:
                 continue
-            o, name, fields = make_dan_fit(st, i, ZONES)
+            st_f = with_fills(st)                # 段は、埋めた前庭の天端の石(差し替えた後の相手)に合わせて焼く
+            o, name, fields = make_dan_fit(st_f, i, ZONES)
+            print("DFIT %s 面積 0・辺 < 0.1mm の三角形(掃除の後)%d" % (name, NZ.clean_degenerate(o)))
             print("DFIT 検算 %s" % name)
             bad += check_common(o, "dan")
-            m = measure_dan(o, st, fields)
+            m = measure_dan(o, st_f, fields)
             print("DFIT 当たり %s %s" % (name, m))
-            mu = unity_check(o, st)
+            mu = unity_check(o, st_f)
             print("DFIT Unity と同じ測り %s %s" % (name, mu))
             m = {"axis": m, "unity": mu}
             report["dan"].append({"step": i, "name": name, "for": st["name"], "was": st["fbx"], "tris": tri_count(o),
@@ -1230,7 +1407,7 @@ def main():
         with open(LOGJ, "w", encoding="utf-8") as fp:
             json.dump(report, fp, ensure_ascii=False, indent=1)
     if RENDER and what == "all":
-        for p in render_all(fit, made):
+        for p in render_all(fit, made, fills):
             print("FIT 検証レンダ " + p)
     if bad:
         sys.exit("FIT ⛔ 検算が %d 件落ちた" % bad)

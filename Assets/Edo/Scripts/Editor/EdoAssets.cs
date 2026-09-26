@@ -1259,15 +1259,28 @@ public static class EdoAssets
 
         /// <summary><see cref="IshidanSodeFlatNori(float)"/> の**小口を折れにした版**(EDO-0459 2026-09-27・kado1 の天端から楼門の基壇までの鉛直な帯で 0.009 の口が残った)。
         /// 坂上の小口(局所 −Z)は天端の稜(Y=+0.30)から <paramref name="kink"/> 下(Y = 0.30 − kink)までは**鉛直** Z = −0.66875、
-        /// そこから下は法 1:0.25 で坂下へ退く(Z = −0.66875 + 0.25·(0.30 − kink − Y))。天端の長さ 1.3375・丈・断面・材・ピボットは同じ。
+        /// そこから下は法 1:0.25 で坂下へ退く(Z = −len/2 + 0.25·(0.30 − kink − Y))。kink > 0 は天端の稜の長さ <see cref="ISHIDAN_SODE_FLAT_NORI_LEN"/>(1.247)の版を返す(1.3375 × kink 0.31 の版は 3 引数で)。丈・断面・材・ピボットは同じ。
         /// kink = 0 は折れ無しの旧版(`_1.338`・旧の駒を測るために残す)。焼いてあるのは kink 0 / 0.31 だけ(綴り `_K0.310`)。
         /// 実寸(kink 0.31): 丈 2.20 = W 0.600 × H 2.200 × D 1.338(底の坂上の端 Z −0.196)・252 面 / 丈 3.20 = 同 H 3.200(底 Z +0.052)・308 面。
         /// 材 `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
         /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_flat_nori [--kink=0.31] [--depth=3.20] --render</summary>
         public static string IshidanSodeFlatNori(float depth, float kink)
         {
-            string k = System.Math.Abs(kink) < 1e-4f ? "" : "_K" + kink.ToString("F3", System.Globalization.CultureInfo.InvariantCulture);
-            return "Assets/Edo/Models/Kaidan/IshidanSodeFlatNori_1.338" + SodeDepthTag(depth) + k + ".fbx";
+            return IshidanSodeFlatNori(depth, kink, kink > 1e-4f ? ISHIDAN_SODE_FLAT_NORI_LEN : 1.3375f);
+        }
+
+        /// <summary>男坂の据えの天端の稜の長さ(折れを kado1 の天端に合わせた実測 北 1.2468・南 1.2460 の平均・2026-09-27)。</summary>
+        public const float ISHIDAN_SODE_FLAT_NORI_LEN = 1.247f;
+
+        /// <summary><see cref="IshidanSodeFlatNori(float,float)"/> の天端の稜の長さ <paramref name="len"/> を明示する版。焼いてある組:
+        /// len 1.247 × kink 0.31(既定・2026-09-27 最終)/ len 1.3375 × kink 0.31 / len 1.3375 × kink 0(旧・旧の駒を測るために残す)。
+        /// 実寸(1.247 × 0.31): 丈 2.20 = W 0.600 × H 2.200 × D 1.247(底の坂上の端 Z −0.151)・249 面 / 丈 3.20 = 同 H 3.200(底 Z +0.099)・298 面。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_flat_nori [--len=1.247] [--kink=0.31] [--depth=3.20] --render</summary>
+        public static string IshidanSodeFlatNori(float depth, float kink, float len)
+        {
+            var ci = System.Globalization.CultureInfo.InvariantCulture;
+            string k = System.Math.Abs(kink) < 1e-4f ? "" : "_K" + kink.ToString("F3", ci);
+            return "Assets/Edo/Models/Kaidan/IshidanSodeFlatNori_" + len.ToString("F3", ci) + SodeDepthTag(depth) + k + ".fbx";
         }
 
         /// <summary>**曲がる石段の袖 — 端を留めに切った駒**(EDO-0415 ②③)。<see cref="IshidanSode"/> と同じ局所座標・同じピボットで、

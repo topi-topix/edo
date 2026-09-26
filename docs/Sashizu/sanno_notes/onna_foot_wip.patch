@@ -1,0 +1,275 @@
+diff --git a/Assets/Edo/Scripts/Editor/EdoBuildKado.cs b/Assets/Edo/Scripts/Editor/EdoBuildKado.cs
+index 024d10a0..0a204641 100644
+--- a/Assets/Edo/Scripts/Editor/EdoBuildKado.cs
++++ b/Assets/Edo/Scripts/Editor/EdoBuildKado.cs
+@@ -151,7 +151,8 @@ public static float KadoDeg(Vector2[] poly, int vertex)
+     /// 当たる先: 石垣の run が凸に折れる所すべて(山王 回廊の基壇・御供所の郭・前庭の土留め、各邸の外周石垣の隅)。</summary>
+     public static GameObject PlaceRunKado(IList<GameObject> runA, Vector2 nA, IList<GameObject> runB, Vector2 nB,
+                                           Func<float, float, string> pathOf, Func<float, float, float> groundAt,
+-                                          Transform parent, string name, float tol, out string note, bool? convex = null)
++                                          Transform parent, string name, float tol, out string note, bool? convex = null,
++                                          IList<GameObject> stops = null, Func<float, float, float, float, string> armPathOf = null)
+     {
+         note = null;
+         // 見え面の側は法の出で測る(渡された向きは軸としてだけ使う): 下の帯が上の帯より前へ出る側が見え面
+@@ -234,6 +235,46 @@ public static float KadoDeg(Vector2[] poly, int vertex)
+                 return null;
+             }
+         }
++        // ⭐ 腕が相手の面(石段の袖の外面 <paramref name="stops"/>)を越えるなら、腕の短い隅を引く(2026-09-26 EDO-0430)。
++        //   腕の要る長さ = 据え点 P から、腕の断面(控えの線 〜 見え面の足・駒の丈)の中に入る相手の頂点までの走りの最小。
++        //   ⛔ 区間長から決めない(据えた後の実メッシュで測る)。焼いた長さ ≤ 要る長さ(口 ≤ 0.05)の最長を採る。無ければ ⚠ と要る長さを刷る。
++        string armNote = null;
++        if (stops != null && stops.Count > 0 && armPathOf != null)
++        {
++            float kBot = float.MaxValue, kTp = float.MinValue; foreach (var v in Body(kc.transform, 999999)) { kBot = Mathf.Min(kBot, v.y); kTp = Mathf.Max(kTp, v.y); }
++            Func<Vector2, Vector2, float> reach = (arm, n) =>
++            {
++                float m = float.MaxValue;
++                foreach (var g in stops)
++                {
++                    if (g == null) continue; var bb = RB(g); if (Vector2.Distance(new Vector2(bb.center.x, bb.center.z), P) > 6f) continue;
++                    foreach (var v in Body(g.transform, 999999, true))
++                    {
++                        if (v.y < kBot + 0.02f || v.y > kTp - 0.02f) continue;
++                        Vector2 q = new Vector2(v.x, v.z) - P; float lat = Vector2.Dot(q, n), s = Vector2.Dot(q, arm);
++                        //   腕の断面 = 控え(lat 0)〜 見え面(足 2.40・法 1:0.25 で天端 1.40)。法の前の頂点は腕に入っていない
++                        if (lat < 0.02f || lat > 2.38f - 0.25f * (v.y - kBot) || s < 0.3f || s > 2.6f) continue;
++                        m = Mathf.Min(m, s);
++                    }
++                }
++                return m;
++            };
++            float needX = reach(armX, nX), needZ = reach(armZ, nZ);     // 局所 −Z の腕 / +X の腕
++            if (needX < 2.0f - 1e-3f || needZ < 2.0f - 1e-3f)
++            {
++                string root = System.IO.Directory.GetParent(Application.dataPath).FullName;
++                Func<float, int[]> cands = need => { if (need >= 2.0f - 1e-3f) return new[] { 200 }; int hi = Mathf.FloorToInt(need * 100f + 1e-3f); var l = new List<int>(); for (int cm = hi; cm >= hi - 5; cm--) l.Add(cm); return l.ToArray(); };
++                string p2 = null; int gx = 0, gz = 0;
++                foreach (int cx in cands(needX)) { foreach (int cz in cands(needZ)) { string pp = armPathOf(degR, h, cx / 100f, cz / 100f); if (pp != null && System.IO.File.Exists(System.IO.Path.Combine(root, pp))) { p2 = pp; gx = cx; gz = cz; break; } } if (p2 != null) break; }
++                if (p2 != null)
++                {
++                    Vector3 kp = kc.transform.position; UnityEngine.Object.DestroyImmediate(kc);
++                    kc = Place(p2, kp, psi, Vector3.one, parent, name); path = p2;
++                    armNote = "腕が袖の面を越える(要る長さ −Z " + (needX < 2f ? needX.ToString("F3") : "2.00") + " / +X " + (needZ < 2f ? needZ.ToString("F3") : "2.00") + ")⇒ 腕 " + (gx / 100f).ToString("F2") + "×" + (gz / 100f).ToString("F2") + " を引いた";
++                }
++                else armNote = "⚠ 腕が袖の面を越えるが、要る長さの隅が焼いていない(−Z " + Mathf.Min(needX, 2f).ToString("F3") + " / +X " + Mathf.Min(needZ, 2f).ToString("F3") + "・折れ " + degR + "°・丈 " + h.ToString("F1") + ")── 素の隅のまま";
++            }
++        }
+         // ③ 測る: 天端の帯(天端 −0.15 以上)の見え面と腕の先
+         float kTop = float.MinValue; foreach (var v in Body(kc.transform, 999999)) kTop = Mathf.Max(kTop, v.y);
+         Func<GameObject, Vector2, Vector2, float[]> crestFace = (g, n, arm) =>
+@@ -276,6 +317,7 @@ public static float KadoDeg(Vector2[] poly, int vertex)
+         if (endX != null && !keep[0]) { runX.Remove(endX); UnityEngine.Object.DestroyImmediate(endX); }
+         if (endZ != null && endZ != endX && !keep[1]) { runZ.Remove(endZ); UnityEngine.Object.DestroyImmediate(endZ); }
+         note = System.IO.Path.GetFileNameWithoutExtension(path) + " を据えた(yaw " + psi.ToString("F2") + "・丈 " + h.ToString("F1") + "・足元の最低 " + gMin.ToString("F2") + ")/ " + sb;
++        if (armNote != null) note += " / " + armNote;
+         return kc;
+     }
+ 
+@@ -296,7 +338,8 @@ public struct RunEnd { public string key; public string run; public int node; pu
+     /// 当たる先: 石垣の run が凸に折れる所すべて ── 山王 土留め・透塀の土台・回廊の基壇・御供所の郭。各邸の外周石垣の隅も同じ口で呼べる。</para></summary>
+     public static int PlaceRunCorners(IList<RunEnd> ends, IDictionary<string, List<GameObject>> pieces,
+                                       Func<float, float, string> pathOf, Func<float, float, float> groundAt,
+-                                      Transform parent, float tol, System.Text.StringBuilder log, List<GameObject> made)
++                                      Transform parent, float tol, System.Text.StringBuilder log, List<GameObject> made,
++                                      IList<GameObject> stops = null, Func<float, float, float, float, string> armPathOf = null)
+     {
+         int kn = 0; var used = new bool[ends.Count];
+         if (DebugCorners)
+@@ -372,7 +415,7 @@ public struct RunEnd { public string key; public string run; public int node; pu
+                         Vector2 fa = FaceSide(na, ea.outw), fb = FaceSide(nb, eb.outw);
+                         cvx = Vector2.Dot(eb.away, fa) < 0f && Vector2.Dot(ea.away, fb) < 0f;
+                     }
+-                    var kc = PlaceRunKado(na, ea.outw, nb, eb.outw, pathOf, groundAt, parent, kname, tol, out note, cvx);
++                    var kc = PlaceRunKado(na, ea.outw, nb, eb.outw, pathOf, groundAt, parent, kname, tol, out note, cvx, stops, armPathOf);
+                     if (note != null && note.StartsWith("入隅") && ea.run != eb.run) { if (DebugCorners) log?.AppendLine("  [隅] " + ea.key + " × " + eb.key + ": " + note + " na=" + na.Count + " nb=" + nb.Count); continue; }
+                     if (kc != null)
+                     {
+@@ -673,6 +716,97 @@ public static RunEndStop RunEndAtFace(Vector2 end, Vector2 toward, IList<GameObj
+         return r;
+     }
+ 
++    /// <summary><see cref="PlaceRunEndKiri"/> の答え。</summary>
++    public struct RunEndKiri
++    {
++        public bool ok;          // 切った駒を据えた
++        public GameObject piece; // 据えた駒
++        public Vector2 target;   // 天端の前の縁の端を当てた点(区間の線 × 相手の外面)
++        public Vector2 inner;    // 残りの直線材の端(切った駒の全断面の帯の中ほど)── 区間の端をここへ移す
++        public float deg;        // 測った交わりの角(相手の面の線と走り)
++        public float gapMax, biteMax;   // 据えた後の切り口 × 相手の面(+ 口 / + めり込み)[m]
++        public float back, cutIn;       // 駒の最も奥の端・切り口の最も奥(走り toward への射影)── 直線材の小口を置ける帯 [back, cutIn]
++        public string note;
++    }
++
++    /// <summary>**run の端が相手の面(石段の袖の外面など)に斜めに当たるとき、端を切った駒を引いて据える**
++    /// (<see cref="RunEndAtFace"/> の延長・2026-09-26 EDO-0430 指図 joints「土留めは袖の外面で止め、端に隅の塊を置かない」)。
++    /// 直の小口(走りに直角)は斜めの面に面で当たらない ⇒ 片端を相手の面の角で鉛直に切った駒(<paramref name="kiriPath"/>(角, 端が局所 +Z か, 見え面の側が長いか))。
++    /// ① 相手の面 = 相手の run の走り <paramref name="faceRun"/> に平行な鉛直面。位置は相手の駒(<paramref name="faceBodies"/>)の実メッシュの、その法線への射影の最小
++    ///    (区間の側を向く面)── ⛔ 相手の駒の軸のうち走りに近い物で測らない(43° では長さの軸の方が近い)。
++    /// ② 角・切る端・面の長短は測った面と、見え面 <paramref name="outw"/> を −X に向けた yaw(<c>ψ = atan2(outw.y, −outw.x)</c>)から決める。
++    /// ③ 駒を置き、**実メッシュの天端の前の縁の端**(天端の帯の中で見え面へ最も出る頂点のうち最も端の側)を、区間の線(= 天端の前の縁の線・<paramref name="lineA"/> を通る)と
++    ///    相手の面の交点へ平行移動、天端を <paramref name="crestY"/> へ。⛔ ピボットで合わせない。
++    /// ④ 据えた後、切り口の頂点(相手の面の法線へ最も出る帯)の相手の面からの離れを測る(口・めり込み)。
++    /// 残りの直線材の小口は切った駒の全断面の帯([最も奥の端, 切り口の最も奥])の中ほど(<see cref="RunEndKiri.inner"/>)へ ── 小口は駒の中に隠れる。
++    /// 焼いた角が 0.3° 以内に無ければ据えずに要る値を返す(部材の話)。硬い条件(許容0): 口・めり込み ≤ <paramref name="tol"/>。
++    /// 当たる先: 石段の口で土留めが袖に斜めに当たる所(山王 女坂の口 × 前庭の南の土留め TW_Zentei_SW/SE)。石垣の run が門の袖石垣・石段の袖に斜めに突き当たる所すべて。</summary>
++    public static RunEndKiri PlaceRunEndKiri(Vector2 lineA, Vector2 end, Vector2 toward, Vector2 outw, Vector2 faceRun, IList<GameObject> faceBodies,
++                                             float crestY, float h, Func<float, bool, bool, string> kiriPath, Transform parent, string name, float tol = 0.01f)
++    {
++        var r = new RunEndKiri { target = end, inner = end };
++        toward.Normalize(); outw.Normalize(); faceRun.Normalize();
++        Vector2 nS = new Vector2(faceRun.y, -faceRun.x); if (Vector2.Dot(nS, toward) < 0f) nS = -nS;
++        float c = float.MaxValue;
++        foreach (var g in faceBodies) if (g != null) foreach (var v in Body(g.transform, 999999, true)) c = Mathf.Min(c, v.x * nS.x + v.z * nS.y);
++        if (c == float.MaxValue) { r.note = "相手の駒が無い"; return r; }
++        float dn = Vector2.Dot(toward, nS); if (dn < 0.05f) { r.note = "相手の面が走りと平行"; return r; }
++        r.deg = 90f - Mathf.Acos(Mathf.Clamp01(dn)) * Mathf.Rad2Deg;
++        // 区間の線(天端の前の縁の線)と相手の面の交点
++        Vector2 run = toward;                                            // 線の向き(端へ)
++        float t = (c - Vector2.Dot(lineA, nS)) / Vector2.Dot(run, nS);
++        r.target = lineA + run * t;
++        bool faceLonger = Vector2.Dot(outw, nS) < 0f;                    // 背(−outw)へ下がると切り口の線が端から退く ⇒ 見え面の側が長い
++        float psi = Mathf.Atan2(outw.y, -outw.x) * Mathf.Rad2Deg;
++        Vector2 plusZ = new Vector2(Mathf.Sin(psi * Mathf.Deg2Rad), Mathf.Cos(psi * Mathf.Deg2Rad));
++        bool atPlusZ = Vector2.Dot(plusZ, toward) > 0f;
++        string root = System.IO.Directory.GetParent(Application.dataPath).FullName, path = null; float useDeg = 0f;
++        foreach (float dd in new[] { 0f, -0.1f, 0.1f, -0.2f, 0.2f, -0.3f, 0.3f })
++        {
++            float dg = Mathf.Round(r.deg * 10f) / 10f + dd; string p = kiriPath(dg, atPlusZ, faceLonger);
++            if (p != null && System.IO.File.Exists(System.IO.Path.Combine(root, p))) { path = p; useDeg = dg; break; }
++        }
++        if (path == null)
++        {
++            r.note = "⚠ 端を切った駒が焼いていない(角 " + r.deg.ToString("F2") + "°・端 " + (atPlusZ ? "+Z" : "−Z") + "・見え面の側が" + (faceLonger ? "長い" : "短い") + "・当てる点 " + r.target.ToString("F3") + ")── 据えない";
++            return r;
++        }
++        var g0 = Place(path, new Vector3(r.target.x, crestY - h, r.target.y), psi, Vector3.one, parent, name);
++        // 天端の前の縁の端 = 天端の帯で見え面へ最も出る頂点(±0.02)のうち、端の側へ最も出る物
++        var vs = Body(g0.transform, 999999, true);
++        float top = float.MinValue; foreach (var v in vs) top = Mathf.Max(top, v.y);
++        float fmax = float.MinValue; foreach (var v in vs) if (v.y >= top - 0.15f) fmax = Mathf.Max(fmax, v.x * outw.x + v.z * outw.y);
++        Vector3 E = Vector3.zero; float emax = float.MinValue;
++        foreach (var v in vs) if (v.y >= top - 0.15f && v.x * outw.x + v.z * outw.y >= fmax - 0.02f) { float e = v.x * toward.x + v.z * toward.y; if (e > emax) { emax = e; E = v; } }
++        g0.transform.position += new Vector3(r.target.x - E.x, crestY - top, r.target.y - E.z);
++        // めり込みが出たら(焼いた角と測った角の差)、走りに沿って退いて 0 にする ── 見え面の線は保つ(⛔ 面の法線へ動かさない)
++        {
++            vs = Body(g0.transform, 999999, true); float sm = float.MinValue;
++            foreach (var v in vs) sm = Mathf.Max(sm, v.x * nS.x + v.z * nS.y);
++            if (sm > c) { float back0 = (sm - c) / dn; g0.transform.position -= new Vector3(toward.x, 0f, toward.y) * back0; r.target -= toward * back0; }
++        }
++        // 据えた後: 切り口 × 相手の面
++        vs = Body(g0.transform, 999999, true);
++        float smax = float.MinValue; foreach (var v in vs) smax = Mathf.Max(smax, v.x * nS.x + v.z * nS.y);
++        float tip = float.MinValue, back = float.MaxValue, cutIn = float.MaxValue;
++        r.gapMax = 0f; r.biteMax = 0f;
++        foreach (var v in vs)
++        {
++            float s = v.x * toward.x + v.z * toward.y, d = v.x * nS.x + v.z * nS.y;
++            tip = Mathf.Max(tip, s); back = Mathf.Min(back, s);
++            if (d >= smax - 0.05f) { cutIn = Mathf.Min(cutIn, s); r.gapMax = Mathf.Max(r.gapMax, c - d); r.biteMax = Mathf.Max(r.biteMax, d - c); }
++        }
++        r.back = back; r.cutIn = cutIn;
++        float mid = (back + cutIn) * 0.5f;
++        float sT = Vector2.Dot(r.target, toward);
++        r.inner = r.target + toward * (mid - sT);
++        r.piece = g0; r.ok = true;
++        r.note = System.IO.Path.GetFileNameWithoutExtension(path) + " を据えた(測った角 " + r.deg.ToString("F2") + "°・焼いた角 " + useDeg.ToString("F1") + "・天端の前の縁の端 → " + r.target.ToString("F3") +
++                 " / 切り口 × 面: 口 " + r.gapMax.ToString("F3") + "・めり込み " + r.biteMax.ToString("F3") + " / 直線材の端は切った駒の全断面の帯 " + (cutIn - back).ToString("F2") + "m の中ほど)";
++        if (r.gapMax > tol || r.biteMax > tol) r.note = "⚠ " + r.note;
++        return r;
++    }
++
+     /// <summary>**基壇(天端が両側の地盤より上の石垣)の見え面の向きを、端で継ぐ壁の走りから決める**(2026-09-25・EDO-0430)。
+     /// 基壇は両側が低いので地表では向きが決まらない。基壇を囲む壁は端どうしで継がれ、継いだ相手は**基壇の側へ**走る ──
+     /// 見え面はその逆。<paramref name="others"/> = 基壇の壁の区間 [a, b](自分を含んでよい)。a・b から <paramref name="tol"/> 以内に
+diff --git a/Assets/Edo/Scripts/Editor/EdoSannoShaRebuild.cs b/Assets/Edo/Scripts/Editor/EdoSannoShaRebuild.cs
+index d8105719..18349f7b 100644
+--- a/Assets/Edo/Scripts/Editor/EdoSannoShaRebuild.cs
++++ b/Assets/Edo/Scripts/Editor/EdoSannoShaRebuild.cs
+@@ -940,6 +940,7 @@ public static string Stage3_Dodome()
+                 Vector2 a = P2(seg[0]), b = P2(seg[1]);
+                 // 区間の端が石段の袖の端点に重なるなら、袖の外面で止める(EdoBuild.RunEndAtFace)。斜めに当たる端は動かさず ★ で差し戻す。
+                 bool stopA = false, stopB = false;
++                var kiriPend = new List<object[]>();                  // 斜めに当たる端: [e2, ep, toward, 袖の走り, 袖の駒, 袖の名]
+                 for (int e2 = 0; e2 < 2; e2++)
+                 {
+                     Vector2 ep = e2 == 0 ? a : b, other = e2 == 0 ? b : a;
+@@ -955,9 +956,8 @@ public static string Stage3_Dodome()
+                     var st = EdoBuild.RunEndAtFace(ep, (ep - other).normalized, sps);
+                     if (!st.found) { sodeStopLog.Add("⚠ " + name + " の端 " + ep.ToString("F2") + ": 袖 " + sode + " の駒が無い(Stage2 が先)"); continue; }
+                     if (st.oblique)
+-                    {
+-                        sodeStopLog.Add("★ " + name + " の端 " + ep.ToString("F2") + " × 袖 " + sode + "(" + st.with + "): 袖の外面が走りに " + (90f - st.angleDeg).ToString("F1") +
+-                                        "° で斜めに交わる ── 直の小口では面で当たらない。端を切った駒が要る(部材の話・差し戻し)。端は動かしていない");
++                    {   // ⭐ 斜めに当たる端は、見え面の向きが決まった後で端を切った駒を引く(EdoBuild.PlaceRunEndKiri・下)
++                        kiriPend.Add(new object[] { e2, ep, (ep - other).normalized, sdir, sps, sode });
+                         continue;
+                     }
+                     if (st.move > 0.15f) { sodeStopLog.Add("⚠ " + name + " の端: 袖の外面まで " + st.move.ToString("F3") + "m 足りない ── 延ばさない(継ぎ目が開く)"); continue; }
+@@ -1001,6 +1001,36 @@ public static string Stage3_Dodome()
+                 }
+                 else outw = lowN;
+                 if (voteX > 0) sb.AppendLine("  ⚠ " + name + " の区間で低い側が割れた(" + voteN + " 対 " + voteX + ")— 多い方へ向けた");
++                // ⭐ 端が袖の外面に斜めに当たる(女坂の口 43°)── 端を切った駒を、実メッシュの天端の前の縁の端を「区間の線 × 袖の外面」へ当てて据え、
++                //   残りの直線材の区間の端を切った駒の全断面の帯の中ほどへ移す(EdoBuild.PlaceRunEndKiri・指図 joints「土留めは袖の外面で止め、端に隅の塊を置かない」)。
++                var kiriMade = new List<GameObject>();
++                foreach (var kp in kiriPend)
++                {
++                    int e2 = (int)kp[0]; Vector2 ep = (Vector2)kp[1];
++                    float kTop, kF, kB; if (!ProfileAt(prof, step, ArcOf(nodes, ep), out kTop, out kF, out kB)) continue;
++                    var kr = EdoBuild.PlaceRunEndKiri(ep, ep, (Vector2)kp[2], outw, (Vector2)kp[3], (List<GameObject>)kp[4], kTop, IG_H,
++                                                      EdoAssets.Own.IshigakiKiri, grp, name + "_kiri" + (e2 == 0 ? "A" : "B"));
++                    sodeStopLog.Add((kr.ok ? "" : "★ ") + name + " の端 " + ep.ToString("F2") + " × 袖 " + (string)kp[5] + ": " + kr.note);
++                    if (!kr.ok) continue;
++                    kiriMade.Add(kr.piece);
++                    // 残りの直線材: 反対の端 O から切った駒の帯 [back, cutIn] の中まで。駒 1 枚(2.0)が帯に届くならその長さを確保し、
++                    //   切った駒の奥の端が O に届くなら直線材は要らない。どちらでもない(O + 2.0 が切り口より先)なら ⚠(直線材の小口が切り口から出る)。
++                    Vector2 tw2 = (Vector2)kp[2]; Vector2 O = e2 == 0 ? b : a; float sO = Vector2.Dot(O, tw2);
++                    float rem = kr.back - sO, x;
++                    if (rem <= 0.02f) { x = sO; sodeStopLog.Add("  " + name + ": 切った駒の奥の端が区間の反対の端へ届く(" + (-rem).ToString("+0.000;-0.000") + "m 越え)── 直線材を置かない"); }
++                    else if (sO + IG_RUN <= kr.cutIn) x = Mathf.Max((kr.back + kr.cutIn) * 0.5f, sO + IG_RUN);
++                    else { x = kr.cutIn; sodeStopLog.Add("  ⚠ " + name + ": 残り " + rem.ToString("F3") + "m に直線材 1 枚(" + IG_RUN.ToString("F1") + ")が収まらず、小口が切り口より " + (sO + IG_RUN - kr.cutIn).ToString("F3") + "m 先へ出る"); }
++                    Vector2 xe = O + tw2 * (x - sO);
++                    if (e2 == 0) { a = xe; stopA = true; } else { b = xe; stopB = true; }
++                }
++                if (kiriMade.Count > 0)
++                {
++                    len = Vector2.Distance(a, b); sBase = ArcOf(nodes, a);
++                    N = len < 0.4f ? 0 : (len <= IG_RUN) ? 1 : Mathf.CeilToInt((len - IG_RUN) / IG_PITCH_MAX) + 1;
++                    pitch = (N > 1) ? (len - IG_RUN) / (N - 1) : 0f;
++                    head = (len <= IG_RUN) ? (len + IG_RUN) * 0.5f : IG_RUN;
++                    foreach (var kg in kiriMade) { placed.Add(kg); mine.Add(kg); segMine.Add(kg); faceOf[kg] = outw; made++; }
++                }
+                 // ローカル +X を外へ・+Z を走りへ。⇒ 走りの向きは外向き法線から決まる
+                 Vector2 run = (Vector2.Dot(new Vector2(dir.y, -dir.x), outw) >= 0f) ? dir : -dir;
+                 Vector2 A = (Vector2.Dot(new Vector2(dir.y, -dir.x), outw) >= 0f) ? a : b;
+@@ -1023,7 +1053,7 @@ public static string Stage3_Dodome()
+                 }
+                 segLine[segKey] = new Vector2[] { a, b, outw };
+                 // 区間の両端(run の端も折れ線の途中の節点も)── 出隅と一直線の継ぎ目は EdoBuild.PlaceRunCorners が見分ける
+-                foreach (var ep in new Vector2[] { a, b })
++                foreach (var ep in (Vector2.Distance(a, b) < 1e-3f ? new Vector2[] { a } : new Vector2[] { a, b }))
+                 {
+                     int node = -1; for (int k = 0; k < nodes.Count; k++) if (Vector2.Distance(nodes[k], ep) < 0.05f) { node = k; break; }
+                     runEnds.Add(new EdoBuild.RunEnd { key = segKey, run = name, node = node, p = ep, outw = outw, away = (ep == a ? dir : -dir) });
+@@ -1150,7 +1180,17 @@ public static string Stage3_Dodome()
+         //   (EdoBuild.PlaceRunCorners → PlaceRunKado・両脇の実メッシュで測る)
+         {
+             var dg = EdoBuild.Drawn(); var kcs = new List<GameObject>();
+-            int kn = EdoBuild.PlaceRunCorners(runEnds, segPieces, EdoAssets.Own.IshigakiKado, (x, z) => dg.At(x, z), grp, 0.02f, sb, kcs);
++            // ⭐ 隅の腕が石段の袖の外面を越えるなら腕の短い隅を引く(相手 = Stage2 が据えた袖の駒・2026-09-26 EDO-0430)
++            var sodePieces = new List<GameObject>();
++            var sodeNames = new HashSet<string>(); foreach (var kv in sodeEnds) sodeNames.Add(kv.Value);
++            foreach (var t in Group("Sando").GetComponentsInChildren<Transform>())
++            {
++                if (!t.gameObject.activeInHierarchy || t.GetComponentInChildren<MeshFilter>() == null) continue;
++                int us = t.name.LastIndexOf('_'); if (us <= 0) continue;
++                if (sodeNames.Contains(t.name.Substring(0, us))) sodePieces.Add(t.gameObject);
++            }
++            int kn = EdoBuild.PlaceRunCorners(runEnds, segPieces, EdoAssets.Own.IshigakiKado, (x, z) => dg.At(x, z), grp, 0.02f, sb, kcs,
++                                              sodePieces, EdoAssets.Own.IshigakiKado);
+             placed.RemoveAll(g => g == null); placed.AddRange(kcs);
+             total = 0; foreach (var kv in runPieces) { kv.Value.RemoveAll(g => g == null); total += kv.Value.Count; } total += kn;
+         }

@@ -90,6 +90,8 @@
 
 ## 測り方・関門
 
+- [悪化の申告はまず prefab を git で比べる](regression-claim-diff-prefab-first.md) — EDO-0437 の3件は駒が動いていなかった。郭の階の南の袖は EK の隅の腕の中(腕 −0.04 の隅が要る)
+
 - [Contact の筋 0.1m は疎な駒で偽の隙](contact-cell-too-fine-on-sparse-meshes.md) — 段石・袖で「測れず/0.015」。0.25m で測る。女坂の曲がりの袖の口は別件
 - [段石の浮きは袖に塞がれない端だけで数える](dan-float-read-behind-sode.md) — 底−地表は男坂で 0.43m 出るが袖の裏の空洞
 - [当たりは棟の外形線の上で測らない](notch-seat-has-80mm-plate-under.md) — 線上は内と外を拾い分ける。廊下の側へ張り出す三角形だけに絞る

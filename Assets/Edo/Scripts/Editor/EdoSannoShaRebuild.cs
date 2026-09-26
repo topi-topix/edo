@@ -1056,7 +1056,10 @@ public static class EdoSannoShaRebuild
                         float sLo = Mathf.Max(0f, sMid - 1.0f), sHi = Mathf.Min(len, sMid + 1.0f);
                         //   ⚠ 駒一つの区間(N = 1)は測り直さない ── 窓が区間そのもので、区間の票(建つ所だけ・run の手)と違う票になるだけ
                         //     (切り込みの東の返しが前庭の東の土留めの外の低い地盤を拾って裏返った)。
-                        Vector2 lowP = isBase || N == 1 || sHi - sLo < 0.2f ? Vector2.zero : EdoBuild.LowSide(A + run * sLo, A + run * sHi, (x, z) => dgS.At(x, z), wallDepth + probe, 0.05f, null, out pn, out px);
+                        //   ⭐ 測り点が他の壁の体の上に落ちる走りは数えない(EdoBuild.LowSideAwayFromWalls・2026-09-26 EDO-0437)── 体の上の地表は
+                        //     天端の下へ納めた皮で、出隅の端の駒 `TW_Koshi_W_009f` がとなりの SW の体の皮を「低い」と読んで裏返った。
+                        Vector2 lowP = isBase || N == 1 || sHi - sLo < 0.2f ? Vector2.zero : EdoBuild.LowSide(A + run * sLo, A + run * sHi, (x, z) => dgS.At(x, z), wallDepth + probe, 0.05f,
+                            EdoBuild.LowSideAwayFromWalls(A + run * sLo, A + run * sHi, wallDepth + probe, allWallSegs, new[] { a, b }, wallDepth), out pn, out px);
                         if (lowP != Vector2.zero && pn > px && Vector2.Dot(lowP, outw) < 0f) { ow = lowP; flipLocal++; }
                         EdoBuild.FaceWallToLine(wg, ow, a);
                         if (flushToward != Vector2.zero)

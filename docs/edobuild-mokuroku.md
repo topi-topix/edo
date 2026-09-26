@@ -1,11 +1,11 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 7ac75b529a3b -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 c68f9957a655 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
 
-- 公開関数 217 本(注釈なし 16)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
+- 公開関数 218 本(注釈なし 16)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
 - 同じ道具が刷る目録: 邸ビルダーのメニュー → Stage と中の関数 `docs/builder-mokuroku.md` / 部材の名 `docs/edoassets-mokuroku.md`。
 - 札: **硬** = 注釈に「硬い/許容0」・**柔** = 「柔らかい/狙い」がある(判定ではなく注釈の語)。相手の札(地面・駒どうし・天端・床・断面・面・隅・区域)も注釈の語を拾っただけ。
 - 呼んでいる所 = 定義のファイルの外で `EdoBuild.<名>(` と書いている C# ファイル(`Edo` と `Builder/Rebuild` を落とした名)と、その中の呼んでいる関数(Stage)。同じ名の多重定義はまとめて数える。`EdoBuild` の中どうしの呼び出しは載せない。
@@ -23,7 +23,7 @@
 | [EdoBuildIshidan.cs](#edobuildishidancs) | 石段の組 — 段石と袖(袖石垣)を一組の材で据える(EDO-0415・2026-09-23 施主指摘)。 | — | 27 |
 | [EdoBuildJisha.cs](#edobuildjishacs) | 寺社の本堂(と坊・社家の主屋)を、間数ごとに焼いた入母屋で組む — EdoBuild の一部(規則21)。 | — | 1 |
 | [EdoBuildJun.cs](#edobuildjuncs) | 部材を依存の順に解き、変えた所から後だけ流し直す (EdoBuild の partial・2026-09-26・EDO-0455) | 山王社の建て直し(EdoSannoShaRebuild の Stage0〜9)。 | 0 |
-| [EdoBuildKado.cs](#edobuildkadocs) | 隅部材(留め継ぎ)の据え — EdoBuild の partial (2026-09-21・EDO-0289 ②) | — | 23 |
+| [EdoBuildKado.cs](#edobuildkadocs) | 隅部材(留め継ぎ)の据え — EdoBuild の partial (2026-09-21・EDO-0289 ②) | — | 24 |
 | [EdoBuildMachiya.cs](#edobuildmachiyacs) | 町屋の表店の run — EdoBuild の一部(規則21「置く・測る・突き付ける・据えるは EdoBuild の関数だけ」)。 | — | 7 |
 | [EdoBuildMuki.cs](#edobuildmukics) | 向き(正面)の解き — EdoBuild の partial (2026-09-22・EDO-0261 ③) | — | 7 |
 | [EdoBuildNiwa.cs](#edobuildniwacs) | 庭の置き方 — 類型の庭(Stage 5・EDO-0323)が使う「置く・測る・据える」だけ。 | — | 16 |
@@ -244,6 +244,7 @@
 | `EdoBuild.KadoFaces(piece, f1, f2)` | `void` | 面・隅 | 出隅の駒の二つの見え面(局所の二軸の FaceSide)。 | SannoSha(HifuMeasure) |
 | `EdoBuild.WallFaceRiseKado(piece, groundAt)` | `float` | 面・隅 | 出隅の駒の見え面が低い側を向いているかを測る(2026-09-25・EDO-0430)。 ⟶ 返す: 前の高い方 − 後ろ[m](+ なら裏返り) | SannoSha(HifuMeasure) |
 | `EdoBuild.LowSide(a, b, groundAt, probe, eps, use, votes, against)` | `Vector2` | 地面・面 | 線 a→b のどちら側が低いかを描かれた地表で測る(2026-09-25・EDO-0430)。 ⟶ 返す: 低い側の単位法線 (票が無ければ Vector2.zero ── 呼ぶ側が別の手掛かりで決める) | SannoSha(Stage3_Dodome) |
+| `EdoBuild.LowSideAwayFromWalls(a, b, probe, walls, self, band)` | `Func<float, bool>` | 硬 地面・天端・面・隅 | LowSide の測り点が他の壁の体の上に落ちる走りを外す(use に渡す述語・2026-09-26・EDO-0437)。 | SannoSha(Stage3_Dodome) |
 | `EdoBuild.RunLowHand(segs, groundAt, probe, eps, use)` | `int` | 面 | 一本の折れ線の土留めの「低い側の手」を区間の票の差で決める(2026-09-25・EDO-0430)。 | SannoSha(Stage3_Dodome) |
 | `EdoBuild.OverlapAlong(p0, p1, run)` | `float` |  | 折れ線 run を線分 p0→p1 へ射影したとき、線分の上で重なる長さ[m](2026-09-25・EDO-0430)。 | SannoSha(Stage2_Kaidan・Stage3_Dodome) |
 | `EdoBuild.ShortSegConvexEnd(a, b, outw, segs, tol=…)` | `int` | 駒どうし・天端・面・隅 | 駒より短い区間の、どちらの端が出隅か(2026-09-25・EDO-0430)。 ⟶ 返す: +1(a だけが出隅)/ −1(b だけが出隅)/ 0(どちらでもない・両方) | SannoSha(Stage3_Dodome) |

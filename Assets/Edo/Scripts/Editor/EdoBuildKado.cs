@@ -544,6 +544,33 @@ public static partial class EdoBuild
         return r >= l ? nrm : -nrm;
     }
 
+    /// <summary>**<see cref="LowSide"/> の測り点が他の壁の体の上に落ちる走りを外す**(<c>use</c> に渡す述語・2026-09-26・EDO-0437)。
+    /// 線 a→b の走り s の両側 <paramref name="probe"/> m の測り点のどちらかが、他の壁の線(<paramref name="walls"/>・自分の線
+    /// <paramref name="self"/> と端が重なる線は除かない ── 自分と同じ線だけ除く)から <paramref name="band"/> m(駒の奥行)以内なら、その s は数えない。
+    /// ⭐ 壁の体の上の地表は天端の下へ納めた皮(見えない)で、地盤の高低を表さない ── 出隅の端の駒の窓がとなりの壁の体に掛かり、
+    /// 腰石垣の西の端の駒 `TW_Koshi_W_009f` が高い側を向いた(皮を張り替えた巡で票が入れ替わった)。硬い条件(裏向き 0)の測りの前提。
+    /// 当たる先: 駒ごとに見え面を測り直す全ての石垣・土留めの run の端(山王 Stage3、各邸の外周石垣・護岸の出隅・入隅)。</summary>
+    public static Func<float, bool> LowSideAwayFromWalls(Vector2 a, Vector2 b, float probe, IList<Vector2[]> walls, Vector2[] self, float band)
+    {
+        float len = Vector2.Distance(a, b); if (len < 1e-4f || walls == null) return null;
+        Vector2 dir = (b - a) / len, nrm = new Vector2(dir.y, -dir.x);
+        Vector2 s0 = self != null && self.Length >= 2 ? self[0] : a, s1 = self != null && self.Length >= 2 ? self[1] : b;
+        return s =>
+        {
+            Vector2 p = a + dir * s;
+            foreach (var q in new[] { p + nrm * probe, p - nrm * probe })
+                foreach (var w in walls)
+                {
+                    if (w == null || w.Length < 2) continue;
+                    bool same = (Vector2.Distance(w[0], s0) < 0.05f && Vector2.Distance(w[1], s1) < 0.05f) ||
+                                (Vector2.Distance(w[0], s1) < 0.05f && Vector2.Distance(w[1], s0) < 0.05f);
+                    if (same) continue;
+                    if (EdoGeom.DistToEdge(q, w[0], w[1]) < band) return false;
+                }
+            return true;
+        };
+    }
+
     /// <summary>**一本の折れ線の土留めの「低い側の手」を区間の票の差で決める**(2026-09-25・EDO-0430)。
     /// 一本の run の見え面は走りに対して同じ手(右か左)にある ── 区間ごとに <see cref="LowSide"/> の票を取り、
     /// 右手の票の差の和を返す(+ = 右手が低い / − = 左手 / 0 = 決まらない)。短い区間(切り込みの返し 1.7m は票が 2 つ)で

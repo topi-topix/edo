@@ -34,10 +34,11 @@ memory: project
    ⚠ ここを読まずに庭を建てない — 庭方(設計を検める)と普請検査(結果を測る)は読むのに
    実行役だけが読まない、という穴が 2026-08-29 の体制見直しで見つかった箇所
 5. `Skill(unity-mcp-skill)` — Unity MCP の一般的な作法(コンパイル待ち・console確認・resource優先)
-6. **据え方の関数を探すときは C# を grep で読み歩かず、目録 `docs/edobuild-mokuroku.md` を引く**
-   (`EdoBuild*.cs`・`EdoGeom.cs` の公開関数・返す物・硬い/柔らかいの札・どの邸のどの Stage が呼んでいるか。
-   C# の注釈から `Tools/Unity/edobuild_mokuroku.py` が刷る生成物)。目録で名を決めてから、その関数の行だけ読む。
-   関数を足した・注釈を直したら同じ道具で刷り直し、C# と同じコミットに入れる(⛔ 手で直さない)
+6. **既存の C# の名を探すときは grep で読み歩かず、目録を引く**(C# の注釈から `Tools/Unity/edobuild_mokuroku.py` が刷る生成物):
+   据え方の関数と区画 `docs/edobuild-mokuroku.md`(返す物・硬い/柔らかいの札・どの邸のどの Stage が呼んでいるか)/
+   邸ビルダーのメニュー名 → Stage の関数と中の関数 `docs/builder-mokuroku.md` / 部材の名 `docs/edoassets-mokuroku.md`。
+   目録で名を決めてから、その関数の行だけ読む。関数・部材・メニューを足した・注釈を直したら同じ道具で刷り直し、
+   C# と同じコミットに入れる(⛔ 手で直さない)
 7. 対象屋敷の指図(`<屋敷>_sashizu.json` が正典。⛔ `_sashizu.html` は大きな生成物で**読まない**。
    `_kosho.md` は該当節だけ)と
    既存 Builder(`Assets/Edo/Scripts/Editor/Edo*Builder.cs`)の Stage 構成

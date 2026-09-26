@@ -74,7 +74,8 @@
 ## 3. 触れている箇所を測る — 相手ごとの道具
 
 ⭐ **ここに無い関数を探すときは C# を読み歩かず、目録 `docs/edobuild-mokuroku.md` を引く**(`EdoBuild` の公開関数の
-全部・返す物・硬い/柔らかいの札・呼んでいる邸と Stage。C# の注釈から `Tools/Unity/edobuild_mokuroku.py` が刷る)。
+全部・返す物・硬い/柔らかいの札・呼んでいる邸と Stage。C# の注釈から `Tools/Unity/edobuild_mokuroku.py` が刷る。
+同じ道具が邸ビルダーのメニュー → Stage `docs/builder-mokuroku.md` と部材の名 `docs/edoassets-mokuroku.md` も刷る)。
 目録は「在る関数」の索引で、どれを選ぶかの作法はこの節が正典。
 
 | 相手 | 関数 | 返る物 |

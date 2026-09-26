@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 324(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 325(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -13,7 +13,7 @@
 | 名 | 種 | 中身・注釈の一文目 | 使っている所 |
 |---|---|---|---|
 | `Eg.ES_NOTE` | string | `scale 1.818` | — |
-| `Eg.Kmon` | string | `k_mon.obj` — 門 | SannoSha, Sanyashiki, Typology(GatePath), Yamato |
+| `Eg.Kmon` | string | `k_mon.obj` — 門 | Sanyashiki, Typology(GatePath), Yamato |
 | `Eg.Hmon` | string | `h_mon.obj` | Sanyashiki, Typology(GatePath) |
 | `Eg.Nagayamon` | string | `nagayamon.obj` | Typology(GatePath) |
 | `Eg.Kabukimon` | string | `kabukimon.obj` | MatsudairaDewa(Stage6_Zosaku), OkabeYashiki(AssetByKey), SannoSha, Typology(GatePath) |
@@ -49,7 +49,7 @@
 |---|---|---|---|
 | `VK.House` | string | `House.prefab` | SannoSha, Typology(Plan) |
 | `VK.HouseA` | string | `House A.prefab` | Yamato |
-| `VK.HouseB` | string | `House B.prefab` | SannoSha |
+| `VK.HouseB` | string | `House B.prefab` | — |
 | `VK.SmallHouse` | string | `Small House.prefab` | SannoSha, Typology(Plan), TypologyBuilder.Jisha(JishaOmoya), Yamato |
 | `VK.BigHouse` | string | `Big House.prefab` | Typology(Plan), Yamato |
 | `VK.Manor` | string | `Manor.prefab` | Yamato |
@@ -129,8 +129,8 @@
 | `JC.GateExteriorEndR` | string | `Gate Castle Exterior End R.prefab` | — |
 | `JC.YaguramonA` | string | `Yaguramon A.prefab` | SannoSha |
 | `JC.StoneBasket` | string | `Stone Basket.prefab` | SannoSha |
-| `JC.Azalea01` | string | `Azalea A 01.prefab` | SannoSha |
-| `JC.Azalea03` | string | `Azalea A 03.prefab` | SannoSha |
+| `JC.Azalea01` | string | `Azalea A 01.prefab` | — |
+| `JC.Azalea03` | string | `Azalea A 03.prefab` | — |
 | `JC.Azalea04` | string | `Azalea A 04.prefab` | — |
 
 ## JG
@@ -147,12 +147,12 @@
 | `JG.SakuraMid05` | string | `Tree_Sakura_Mid_Summer_05.prefab` | — |
 | `JG.BambooBig01` | string | `Tree_Bamboo_Big_Green_01.prefab` | SannoSha(Stage7_Keidairin) |
 | `JG.BambooBig02` | string | `Tree_Bamboo_Big_Green_02.prefab` | SannoSha(Stage7_Keidairin) |
-| `JG.Boxwood01` | string | `Plant_Boxwood_Spring_01.prefab` | SannoSha |
+| `JG.Boxwood01` | string | `Plant_Boxwood_Spring_01.prefab` | — |
 | `JG.Fern01` | string | `Plant_PaintedFern_Spring_01.prefab` | — |
 | `JG.GravelMat` | string | `M_FJG_Terrain_Ground_Gravel_01.mat` — 玉砂利(参道・敷き)の材。URP/Lit(パックの URP パッチ済み)。 | MatsudairaDewaBuilder.Niwa(Stage6f_Tamajari) |
-| `JG.Rock01` | string | `JG_Rock_A_01.prefab` | SannoSha |
-| `JG.Rock02` | string | `JG_Rock_A_02.prefab` | SannoSha |
-| `JG.Rock03` | string | `JG_Rock_A_03.prefab` | SannoSha |
+| `JG.Rock01` | string | `JG_Rock_A_01.prefab` | — |
+| `JG.Rock02` | string | `JG_Rock_A_02.prefab` | — |
+| `JG.Rock03` | string | `JG_Rock_A_03.prefab` | — |
 | `JG.TobiIshi01` | string | `JG_TobiIshi_A_01.prefab` | SannoSha |
 | `JG.TobiIshi02` | string | `JG_TobiIshi_A_02.prefab` | — |
 | `JG.Pine(size, i)` | 関数 | 黒松。生 5.6m ×1.65。Big/Mid/Small × 01..03 | MatsudairaDewa(ResolveApi・Stage7_Niwa), OkabeYashiki(PlantByKey), TypologyBuilder.Niwa(DeShare) |
@@ -214,7 +214,7 @@
 | `Own.IshidanSodeMiter(keri, fumi, w, hF, hB, i, depth)` | 関数 | 丈の深い袖の留めの駒(EDO-0430 2026-09-24)。 | BuildIshidan(MiterPath・PlaceIshidanSodeFlat) |
 | `Own.IshidanSodeNori(keri, fumi, e, i, depth=…)` | 関数 | 背を法 1:0.25 に切った石段の袖(EDO-0442 施主裁定B・2026-09-26)。 | BuildIshidan(FitObliqueEnd), SannoSha(AbutStairsToWalls) |
 | `Own.SodeNoriYc(keri)` | 関数 | IshidanSodeNori の背の出 e を測る高さ(袖の局所 Y)。 | BuildIshidan(CutStairEndsToBatter・FitObliqueEnd・MeasureSodeBackEnvelope…) |
-| `Own.SodeNoriSnap(e)` | 関数 | IshidanSodeNori の焼いてある刻み(0.05)へ丸める。 | BuildIshidan(CutStairEndsToBatter・SwapPart) |
+| `Own.SodeNoriSnap(e)` | 関数 | IshidanSodeNori の焼いてある刻み(0.05)へ丸める。 | BuildIshidan(CutStairEndsToBatter・SwapWallsBesideStep) |
 | `Own.SannoDanKiri(keri, fumi, w, i, endL, endR)` | 関数 | 両の小口を脇の相手に合わせて切った段石(EDO-0442 施主裁定B・2026-09-26)。 | BuildIshidan(AbutStepEndsToWalls・RayFarthest), SannoSha(AbutStairsToWalls) |
 | `Own.DanKiriNone` | string | `0` — SannoDanKiri の切らない端。 | BuildIshidan(CutStairEndsToBatter) |
 | `Own.DanKiriEnd(d)` | 関数 | SannoDanKiri の端: 全長を返しの法で切る(d = 蹴上の中ほどでの返しの面の食い込み)。 | BuildIshidan(CutStairEndsToBatter・MeasureStepEndOnBatter) |
@@ -234,8 +234,9 @@
 | `Own.SannoNozuraNoriEnd(len, atPlusX, h)` | 関数 | — | BuildNozura, SannoSha(Nozura) |
 | `Own.IshidanSodeNozuraNori(keri, fumi, e, i)` | 関数 | 背を相手の法で切った野面の袖(2026-09-26 EDO-0437 第3巡・参道の階の袖の背が切り込みの出隅の駒の法に当たる所)。 | SannoSha(AbutStairsToWalls) |
 | `Own.SannoNozuraFillSandoKai4(side)` | 関数 | 段 4 に面する所だけ天端を埋めた前庭の野面の駒(EDO-0437 r13 2026-09-27)。 | — |
-| `Own.SannoDanFit(keri, fumi, w, i, stair)` | 関数 | 両端を相手の野面の石の見える外形に沿わせた段石(EDO-0437 第10巡・2026-09-26)。 | — |
-| `Own.IshidanSodeNozuraFit(keri, fumi, stair, side, k, i)` | 関数 | 背を相手の野面の石の見える外形に沿わせた野面の袖(EDO-0437 第10巡・2026-09-26)。 | — |
+| `Own.SannoNozuraFillBeside(basePath, stair, i, side)` | 関数 | 石段 stair の段 i の脇 side('W'/'E')に合わせて焼いた野面の駒の名 (元の部材 basePath の名 + "_" + 石段 + 段 + 脇)。 | SannoSha(AbutStairsToWalls) |
+| `Own.SannoDanFit(keri, fumi, w, i, stair)` | 関数 | 両端を相手の野面の石の見える外形に沿わせた段石(EDO-0437 第10巡 2026-09-26 → r11 2026-09-27)。 | SannoSashizuCheck(Check), SannoSha(AbutStairsToWalls) |
+| `Own.IshidanSodeNozuraFit(keri, fumi, stair, side, k, i)` | 関数 | 背を相手の野面の石の見える外形に沿わせた野面の袖(EDO-0437 第10巡 2026-09-26 → r11 2026-09-27)。 | SannoSha(AbutStairsToWalls) |
 | `Own.IshidanSodeNozura(keri, fumi, i)` | 関数 | 石段の袖 — 野面の乱積み版(2026-09-24)。 | SannoSha(AbutStairsToWalls・Stage2_Kaidan) |
 | `Own.SannoIdoIgeta(naikeiMm, igetaTallMm)` | 関数 | 山王社の小庭の井戸 — 井筒(玉石の輪積み)と井桁を一体で。 | TypologyBuilder.Niwa(NiwaIdo・NiwaUra), SannoSha(Stage8_Ido) |
 | `Own.SannoIdoYakata(pitchMm, nokiMm, muneMm)` | 関数 | 山王社の前庭の井戸屋形(木部) — 四本柱・妻梁・軒桁・棟束・棟木・垂木・切妻こけら葺・破風板・棟押え + 釣瓶の横木と滑車(指図 bom 行22・行25)。 | SannoSha(Stage8_Ido) |

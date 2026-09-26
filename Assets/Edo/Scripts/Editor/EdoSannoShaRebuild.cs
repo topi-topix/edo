@@ -1176,6 +1176,11 @@ public static class EdoSannoShaRebuild
         //   段石・袖は鉛直、野面の土留めは法 1:0.25 ── 焼いた「端を法で切った駒」が在れば差し替え、無ければ見える高さの中ほどで
         //   実メッシュの面を光線で測って駒の長さを詰める/伸ばす(EdoBuild.CutStairEndsToBatter / AbutStepEndsToWalls)。⛔ 土留めの法は変えない。
         sb.Append(AbutStairsToWalls());
+        foreach (var kv in LastWallSwap)
+        {
+            int k = placed.IndexOf(kv.Key); if (k >= 0) placed[k] = kv.Value;
+            Vector2 fo; if (faceOf.TryGetValue(kv.Key, out fo)) { faceOf.Remove(kv.Key); faceOf[kv.Value] = fo; }
+        }
         // ⭐ 天端を高い側の地盤に揃えた土留め(`copingRise:"groundHi"`)は天端の面と地形が重なる ──
         //   天端の下の節点を天端より下げ、芝を消す(EDO-0414・⛔ 地形の編集は Undo の外)。
         //   ⚠ Stage1(整地)を流し直すと節点が天端へ戻るので、Stage3 を必ず後に流す。
@@ -1345,8 +1350,11 @@ public static class EdoSannoShaRebuild
     // ================================================================ Stage 4 囲い
     /// <summary>Stage3 の後段: 全ての石段について、段石の両の小口と袖の背の小口を脇の土留めの面へ突き付ける(EDO-0430)。
     /// 相手 = Dodome の土留めの駒(段石には同じ群の袖も)。報告 = 石段ごとに 動かした段・跨いで動かさなかった段・上端の口と下端のめり込みの最大。</summary>
+    /// <summary>AbutStairsToWalls が差し替えた土留めの駒(旧 → 新)── Stage3 が placed・faceOf を差し替えるため。</summary>
+    static readonly Dictionary<GameObject, GameObject> LastWallSwap = new Dictionary<GameObject, GameObject>();
     public static string AbutStairsToWalls()
     {
+        LastWallSwap.Clear();
         var sb = new StringBuilder();
         var dod = Group("Dodome"); var walls = new List<GameObject>();
         foreach (Transform c in dod) if (c.gameObject.activeInHierarchy) walls.Add(c.gameObject);
@@ -1401,6 +1409,15 @@ public static class EdoSannoShaRebuild
                     return sd == '\0' || !IsNozuraSode(g) ? null : EdoAssets.Own.IshidanSodeNozuraFit(keri, fumi, stairKey, sd, ii0, ii0);
                 }, sb);
                 foreach (var kv in mp) { if (cut.Remove(kv.Key)) { } cut.Add(kv.Value); fitted.Add(kv.Value); }
+                // ⭐ 最上段の端に脇から接する土留めの駒も、その段に合わせて焼いた駒へ(EdoBuild.SwapWallsBesideStep・測って選ぶ)
+                GameObject topStep = null; float tsy = float.MinValue;
+                foreach (Transform c in grp) if (c.name.StartsWith("Dan_")) { float y = EdoBuild.RB(c.gameObject).max.y; if (y > tsy) { tsy = y; topStep = c.gameObject; } }
+                int topI = -1; if (topStep != null) int.TryParse(topStep.name.Substring(topStep.name.LastIndexOf('_') + 1), out topI);
+                if (topStep != null && fitted.Contains(topStep))
+                {
+                    var wm = EdoBuild.SwapWallsBesideStep(topStep, walls, (w, sd) => { var wmf = w.GetComponentInChildren<MeshFilter>(); return wmf == null || wmf.sharedMesh == null ? null : EdoAssets.Own.SannoNozuraFillBeside(AssetDatabase.GetAssetPath(wmf.sharedMesh), stairKey, topI, sd); }, sb);
+                    foreach (var kv in wm) { int k = walls.IndexOf(kv.Key); if (k >= 0) walls[k] = kv.Value; if (kv.Key != kv.Value) { LastWallSwap[kv.Key] = kv.Value; fitted.Add(kv.Value); } }
+                }
             }
             dans.Clear(); sodes.Clear();
             foreach (Transform c in grp)

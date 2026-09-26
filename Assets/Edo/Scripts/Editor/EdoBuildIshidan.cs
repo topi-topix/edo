@@ -821,6 +821,45 @@ public static partial class EdoBuild
         return map;
     }
 
+    /// <summary>**段石の端に脇から接する土留めの駒を、その段に合わせて焼いた駒へ、据えを変えずに差し替える**(2026-09-27・EDO-0437 r14)。
+    /// 相手は実メッシュで選ぶ: 段 <paramref name="step"/> の局所で、端の外 |x| ∈ [幅/2 − 0.05, 幅/2 + <paramref name="reach"/>]・段の丈と走りの中に
+    /// 頂点を持つ駒(<paramref name="walls"/> のうち)。脇 = 局所 X の符号('W' = −X / 'E' = +X)。<paramref name="fitPathOf"/>(駒・脇)が返す資産が在り、
+    /// その名が今の部材の名 + "_" で始まる(= 今の部材から焼いた物)ときだけ <see cref="SwapPart"/> で差し替える(位置・向き・縮尺はそのまま)。
+    /// ⛔ 名で駒を指さない(測って選ぶ)。返り値 = 旧 → 新(呼び手は群の一覧を差し替える)。
+    /// 当たる先: 野面の返しが最上段の端に脇から接する所(山王 参道の階 段 4 × 前庭の天端 012f/027f)。</summary>
+    public static Dictionary<GameObject, GameObject> SwapWallsBesideStep(GameObject step, IList<GameObject> walls, System.Func<GameObject, char, string> fitPathOf,
+                                                                         System.Text.StringBuilder sb, float reach = 0.30f)
+    {
+        var map = new Dictionary<GameObject, GameObject>();
+        if (step == null) return map;
+        var W2L = step.transform.worldToLocalMatrix; var mf0 = step.GetComponentInChildren<MeshFilter>(); if (mf0 == null || mf0.sharedMesh == null) return map;
+        var M0 = W2L * mf0.transform.localToWorldMatrix; var lb = new Bounds(M0.MultiplyPoint3x4(mf0.sharedMesh.vertices[0]), Vector3.zero);
+        foreach (var v in mf0.sharedMesh.vertices) lb.Encapsulate(M0.MultiplyPoint3x4(v));
+        float half = Mathf.Max(-lb.min.x, lb.max.x);
+        var sbb = RB(step); sbb.Expand(reach + 0.1f);
+        foreach (var w in new List<GameObject>(walls))
+        {
+            if (w == null || !w.activeInHierarchy || !RB(w).Intersects(sbb)) continue;
+            int side = 0;
+            foreach (var v in Body(w.transform, 999999, true))
+            {
+                var l = W2L.MultiplyPoint3x4(v);
+                if (l.y < lb.min.y || l.y > lb.max.y + 0.02f || l.z < lb.min.z || l.z > lb.max.z) continue;
+                float ax = Mathf.Abs(l.x); if (ax < half - 0.05f || ax > half + reach) continue;
+                side = l.x < 0f ? -1 : 1; break;
+            }
+            if (side == 0) continue;
+            string p = fitPathOf(w, side < 0 ? 'W' : 'E'); if (string.IsNullOrEmpty(p) || UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(p) == null) continue;
+            var mf = w.GetComponentInChildren<MeshFilter>(); string cur = mf != null && mf.sharedMesh != null ? UnityEditor.AssetDatabase.GetAssetPath(mf.sharedMesh) : "";
+            string curName = System.IO.Path.GetFileNameWithoutExtension(cur), newName = System.IO.Path.GetFileNameWithoutExtension(p);
+            if (cur == p) { map[w] = w; continue; }
+            if (!newName.StartsWith(curName + "_")) continue;
+            string nm = w.name; var ng = SwapPart(w, p); map[w] = ng;
+            if (sb != null) sb.AppendLine("    " + nm + "(段 " + step.name + " の" + (side < 0 ? "−X" : "+X") + " の端に接する)→ " + newName + "(据えは " + curName + " のまま)");
+        }
+        return map;
+    }
+
     /// <summary>**石段の段石の端・袖の背を、法の面の相手に合わせて切った駒へ差し替える**(2026-09-26・EDO-0430 施主裁定B・EDO-0442)。
     /// 鉛直な駒を法 1:0.25 の野面へ中ほどで突き付けると、上下に 0.25×丈/2 の口とめり込みが残る(<see cref="AbutEndToFace"/>)。
     /// 焼いてある「端を法で切った駒」があれば差し替えて口・めり込みを 0 にする:

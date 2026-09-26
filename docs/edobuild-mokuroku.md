@@ -1,11 +1,11 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 1fe885c53640 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 703ea785fe7c -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
 
-- 公開関数 224 本(注釈なし 17)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
+- 公開関数 225 本(注釈なし 17)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
 - 同じ道具が刷る目録: 邸ビルダーのメニュー → Stage と中の関数 `docs/builder-mokuroku.md` / 部材の名 `docs/edoassets-mokuroku.md`。
 - 札: **硬** = 注釈に「硬い/許容0」・**柔** = 「柔らかい/狙い」がある(判定ではなく注釈の語)。相手の札(地面・駒どうし・天端・床・断面・面・隅・区域)も注釈の語を拾っただけ。
 - 呼んでいる所 = 定義のファイルの外で `EdoBuild.<名>(` と書いている C# ファイル(`Edo` と `Builder/Rebuild` を落とした名)と、その中の呼んでいる関数(Stage)。同じ名の多重定義はまとめて数える。`EdoBuild` の中どうしの呼び出しは載せない。
@@ -20,7 +20,7 @@
 | [EdoBuildGoten.cs](#edobuildgotencs) | 御殿複合(表向・中奥・奥向の3核)を組む — EdoBuild の一部(規則21「置く・測る・突き付ける・据えるは | — | 3 |
 | [EdoBuildHifu.cs](#edobuildhifucs) | 縁の皮 — 地形に穴を開け、穴の縁から部材の面までを皮のメッシュで描く (EdoBuild の partial・2026-09-24・EDO-0430) | 切通しの石段(山王の女坂・男坂・参道の階)・天端を地盤に揃えた土留め(山王・土井・岡部の郭)・ 造成した面の縁(全邸の段の縁)。 | 12 |
 | [EdoBuildInari.cs](#edobuildinarics) | 稲荷 — 小祠と鳥居を据える (EdoBuild の partial・2026-09-21・EDO-0326) | — | 3 |
-| [EdoBuildIshidan.cs](#edobuildishidancs) | 石段の組 — 段石と袖(袖石垣)を一組の材で据える(EDO-0415・2026-09-23 施主指摘)。 | — | 30 |
+| [EdoBuildIshidan.cs](#edobuildishidancs) | 石段の組 — 段石と袖(袖石垣)を一組の材で据える(EDO-0415・2026-09-23 施主指摘)。 | — | 31 |
 | [EdoBuildJisha.cs](#edobuildjishacs) | 寺社の本堂(と坊・社家の主屋)を、間数ごとに焼いた入母屋で組む — EdoBuild の一部(規則21)。 | — | 1 |
 | [EdoBuildJun.cs](#edobuildjuncs) | 部材を依存の順に解き、変えた所から後だけ流し直す (EdoBuild の partial・2026-09-26・EDO-0455) | 山王社の建て直し(EdoSannoShaRebuild の Stage0〜9)。 | 0 |
 | [EdoBuildKado.cs](#edobuildkadocs) | 隅部材(留め継ぎ)の据え — EdoBuild の partial (2026-09-21・EDO-0289 ②) | — | 25 |
@@ -51,7 +51,7 @@
 | `EdoBuild.Place(path, pos, ry, scale, parent, name)` | `GameObject` |  | プレハブを実体化して置く。パスは EdoAssets 経由で渡すこと (規則11)。 | OkabeYashiki(MeasureHeight・MeasureRunWidth・NaturalHeight…), SannoSha(Kairo・Place・SakuRun…), MatsudairaDewa(FenceWidth・ItabeiRun・Leaves…), Doi(LayGaki・PlaceFumiishi・PlaceKaidans…), DoiBuilder.Niwa(Niwa_B_Gogan・Niwa_C_Mizushiri・Niwa_D_Tenkei…) ほか5 |
 | `EdoBuild.RB(go)` | `Bounds` |  | 子孫 Renderer 全体のワールド Bounds。 | SannoSha(AbutStairsToWalls・Kairo・RB…), OkabeYashiki(MeasureHeight・NaturalHeight・PlaceBox…), MatsudairaDewa(ItabeiRun・ObbOverlapInBand・PlaceItabeiSpan…), Typology(BuildParcel・FenceFace・Omoya…), Doi(Box・PlaceFumiishi・PlaceKaidans) ほか7 |
 | `EdoBuild.SeatBottom(go, y)` | `void` |  | Bounds の底面を y に据える。 | OkabeYashiki(PlaceKekkai・PlaceNagayaPiece・PlaceNiwaItem…), Yamato(PlaceUV・UmayaPair・Y2_Enclosure), DoiBuilder.Niwa(Niwa_D_Tenkei・Niwa_F_Yashiro), Doi(PlaceService), MatsudairaDewa(Stage2_Perimeter) ほか2 |
-| `EdoBuild.ObbFootprint(it, mnx, mxx, mnz, mxz, mny)` | `void` |  | it のローカル座標系での mesh 頂点 footprint (OBB)。 | OkabeYashiki(ObbWD・PlaceNagayaPiece), SannoSashizuCheck(Check) |
+| `EdoBuild.ObbFootprint(it, mnx, mxx, mnz, mxz, mny)` | `void` |  | it のローカル座標系での mesh 頂点 footprint (OBB)。 | OkabeYashiki(ObbWD・PlaceNagayaPiece) |
 
 ### 据え付けの技法(2026-09-20)
 
@@ -196,6 +196,7 @@
 | `EdoBuild.EnvelopeCut(flatDan, side, keri, walls, nori, visAt, straddle)` | `float` | 地面・駒どうし・隅 | 段石の端と野面の相手の包絡の切り d(2026-09-26・EDO-0437 第3巡)。 | Assets(DanKiriEnd) |
 | `EdoBuild.EnvelopeStraddle(flatDan, side, keri, walls, dEnv, visAt, uphill, za)` | `bool` | 隅 | 跨ぐ端の隅の駒のもう一面を野面の包絡で測る(2026-09-26・EDO-0437 第4巡)。 | — |
 | `EdoBuild.SwapToFitted(pieces, fitPathOf, sb)` | `Dictionary<GameObject, GameObject>` | 駒どうし | 相手の石の形に沿わせて焼いた駒へ、据えを変えずに差し替える(2026-09-26・EDO-0437 第11巡)。 ⟶ 返す: 旧 → 新 | SannoSha(AbutStairsToWalls) |
+| `EdoBuild.SwapWallsBesideStep(step, walls, fitPathOf, sb, reach=…)` | `Dictionary<GameObject, GameObject>` | 天端 | 段石の端に脇から接する土留めの駒を、その段に合わせて焼いた駒へ、据えを変えずに差し替える(2026-09-27・EDO-0437 r14)。 ⟶ 返す: 旧 → 新(呼び手は群の一覧を差し替える) | SannoSha(AbutStairsToWalls) |
 | `EdoBuild.CutStairEndsToBatter(label, dans, sodes, keri, fumi, walls, flatDanPath, kiriPath, flatSodePath, noriPath, sb, tol=…, envNori=…, sodeEnvNori=…, envVisAt=…, envWall=…)` | `HashSet<GameObject>` | 硬 駒どうし・隅 | 石段の段石の端・袖の背を、法の面の相手に合わせて切った駒へ差し替える(2026-09-26・EDO-0430 施主裁定B・EDO-0442)。 ⟶ 返す: 差し替えた駒(呼び手は突き付けを掛けない) | SannoSha(AbutStairsToWalls) |
 
 ### 袖の脇の面 × 隅の駒・土留めの法(EDO-0437 第8巡 2026-09-26)

@@ -1559,6 +1559,14 @@ public static class EdoAssets
         {
             return SannoNozuraDir + "/Sanno_Nozura_H0600_G+000_c_SandoKai4" + side + ".fbx";
         }
+        /// <summary>石段 <paramref name="stair"/> の段 <paramref name="i"/> の脇 <paramref name="side"/>('W'/'E')に合わせて焼いた野面の駒の名
+        /// (元の部材 <paramref name="basePath"/> の名 + "_" + 石段 + 段 + 脇)。焼いてあるのは <see cref="SannoNozuraFillSandoKai4"/> の組だけ ──
+        /// 無ければ資産が無いので呼び手は差し替えない(EdoBuild.SwapWallsBesideStep)。</summary>
+        public static string SannoNozuraFillBeside(string basePath, string stair, int i, char side)
+        {
+            if (string.IsNullOrEmpty(basePath) || !basePath.StartsWith(SannoNozuraDir + "/")) return null;
+            return SannoNozuraDir + "/" + System.IO.Path.GetFileNameWithoutExtension(basePath) + "_" + stair + i + side + ".fbx";
+        }
 
         /// <summary>**両端を相手の野面の石の見える外形に沿わせた段石**(EDO-0437 第10巡 2026-09-26 → r11 2026-09-27)。<see cref="SannoDan"/> と同じ局所座標・同じピボット・
         /// 同じ石の割り・同じ材で、蹴上・踏面・幅・段鼻の線は変えず、両の小口だけを相手の石の面へ刳る(平面で切る <see cref="SannoDanKiri"/> の代わり)。

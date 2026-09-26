@@ -12,6 +12,7 @@
     blender --background --python Tools/Blender/build_sanno_buzai.py -- sode 0.300 1.199 6.363 --depth=3.20 --render   # 丈の深い袖
     blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_miter_list Tools/Blender/sanno_onna_miter_set_D320.txt 0.300 1.199 6.363 --depth=3.20 --steps=38,39,40 --render
         # 切通しで背の地盤まで上げる袖(上げの上限 = 丈 − 0.78)。綴りに `_D3.20` が入る(EDO-0430)
+    blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_flat [--depth=3.20] --render   # 天端が水平な袖(EDO-0459)
     blender --background --python Tools/Blender/build_sanno_buzai.py -- audit     # 既存部材の左右の別を検算
     blender --background --python Tools/Blender/build_sanno_buzai.py -- mitsuke   # 焼いた柵の FBX から見付けを実測
 
@@ -1641,6 +1642,134 @@ def build_sode_set(specs, do_render):
                 print("[sanno] 検証レンダ " + pth)
 
 
+# ---------------------------------------------------------------- 1b'. 天端が水平な石段の袖(EDO-0459 施主裁定A・2026-09-26)
+# 男坂の最上段の袖石を水平にする(裁定図 https://claude.ai/artifact/DVxnLaEnDYnYr6Uwk6tv1J)。
+# ⭐ 断面・材・面取り・積みの段の割り・局所座標は平らな袖 `sode` と同じで、**天端の傾きだけ 0**(剪断しない)。
+#   ⇒ `_sode_stone(keri=0, fumi=L)` をそのまま使う(剪断量 0・天端 = HT 一定・UV は同じ周期座標の貼り方)。
+#   天端 Y = HT = 0.30 一定 = 平らな袖の段鼻の真横(Z=+踏面/2)の高さと同じ ⇒ 斜めの袖の坂上の端(段鼻の線 +0.30)と面一で折れる。
+# ⭐ 1 本で完結する駒(a/b を持たない)── 走りの両端は目地(面取りあり)・中の竪目地は段ごとにずらす。
+#   長さは標準 1.25 で焼き、据え手が実長へ Z だけ伸縮する(`StretchEnd`。水平なので伸ばしても天端は水平のまま)。
+SODE_FLAT_L = 1.25
+# 段ごとの竪目地の位置(走りの長さに対する割合)。笠石は 1 枚物・積みは 0.45 / 0.70 を交互に(芋目地にしない)
+SODE_FLAT_SPLIT = (None, 0.45, 0.70)
+
+
+def sode_flat_name(L):
+    return "IshidanSodeFlat_%s%s" % (cs_f3(L), _dtag())
+
+
+def sode_flat(L=SODE_FLAT_L, name=None):
+    """天端が水平な石段の袖。Unity: X=厚み(±0.30)/ Y=高さ / Z=走り ±L/2(+Z は置いた先の向き。対称なので向きの別は無い)。
+    ピボット = 走りの中心・**天端の 0.30 下**(= 平らな袖と同じ「その段の踏面の高さ」の約束。最上段なら踊り場の面)の厚みの中心。
+    天端 Y = 0.30・下端 Y = 0.30 − 丈。"""
+    name = name or sode_flat_name(L)
+    mat = danishi_material()
+    n = max(1, int(round((SODE_DEPTH - SODE_CT) / SODE_COURSE)))
+    ch = (SODE_DEPTH - SODE_CT) / n
+    courses = [(0.0, SODE_CT)] + [(SODE_CT + c * ch, SODE_CT + (c + 1) * ch) for c in range(n)]
+    objs = []
+    for ci, (v0, v1) in enumerate(courses):
+        sp = SODE_FLAT_SPLIT[0] if ci == 0 else SODE_FLAT_SPLIT[1 + (ci - 1) % 2]
+        cuts = [0.0, L] if sp is None else [0.0, sp * L, L]
+        for pi in range(len(cuts) - 1):
+            ya, yb = cuts[pi] - L / 2.0, cuts[pi + 1] - L / 2.0
+            uvkey = "flat|%.3f|%d|%d" % (L, ci, pi)
+            objs.append(_sode_stone(ya, yb, v0, v1, True, True, 0.0, L, mat, uvkey, 0.0,
+                                    "%s_c%d_%d" % (name, ci, pi)))
+    V.dedup_materials()
+    o = V.join(objs, name)
+    V.set_origin(o, (0.0, 0.0, 0.0))
+    return o, name
+
+
+def sode_flat_check(o, L):
+    ok = []
+    uv = unity_verts(o)
+    xs = [t[0] for t in uv]; ys = [t[1] for t in uv]; zs = [t[2] for t in uv]
+    T = SODE_T
+    ok.append(("左右対称(左右の袖が同じ FBX で済む)", check_mirror_x(o), ""))
+    ok.append(("側面が X=±T/2 の平面(接する面・平らな袖と同じ)",
+               abs(max(xs) - T / 2) < 1e-4 and abs(min(xs) + T / 2) < 1e-4, "X %.4f..%.4f" % (min(xs), max(xs))))
+    ok.append(("走りが Z ±L/2", abs(max(zs) - L / 2) < 1e-4 and abs(min(zs) + L / 2) < 1e-4,
+               "Z %.4f..%.4f" % (min(zs), max(zs))))
+    ok.append(("天端が Y=HT の水平(最高点)", abs(max(ys) - SODE_HT) < 1e-5, "Ymax=%.5f" % max(ys)))
+    tops = [t for t in uv if abs(t[1] - SODE_HT) < 1e-5]
+    ok.append(("天端の面は水平(Y=HT に乗る頂点が走りの両端に)",
+               len(tops) >= 4 and min(t[2] for t in tops) < -L / 2 + 0.05 and max(t[2] for t in tops) > L / 2 - 0.05,
+               "%d 点" % len(tops)))
+    ok.append(("下端が天端 −%.2f の水平" % SODE_DEPTH, abs(min(ys) - (SODE_HT - SODE_DEPTH)) < 1e-4,
+               "Ymin=%.5f" % min(ys)))
+    mats = [m.name for m in o.data.materials]
+    ok.append(("材が Danishi だけ", mats == [DANISHI], str(mats)))
+    for (label, good, note) in ok:
+        print("      %s %s %s" % ("⭕" if good else "⛔", label, note))
+    bad = [t for t in ok if not t[1]]
+    if bad:
+        raise SystemExit("[sanno] ⛔ 水平の袖の検算が落ちた: %s" % ", ".join(t[0] for t in bad))
+
+
+def shots_sode_flat(keri, fumi, w, L, key, nstep=6):
+    """男坂の坂上 nstep 段 + 斜めの袖 + 最上段の段鼻から先の水平の袖を組んで刷る(折れの見え方を読む)。"""
+    V.reset()
+    T = SODE_T
+    for i in range(nstep):
+        v = "ab"[i % 2]
+        oo, _ = dan(keri, fumi, w, v, name="d%d" % i)
+        oo.data.transform(Matrix.Translation((0, i * fumi, (i + 1) * keri))); oo.data.update()
+        for sx in (-1, 1):
+            ss, _ = sode(keri, fumi, v, name="s%d_%d" % (i, sx))
+            ss.data.transform(Matrix.Translation((sx * (w / 2.0 + T / 2.0), i * fumi, (i + 1) * keri)))
+            ss.data.update()
+    y_nose = (nstep - 1) * fumi + fumi / 2.0          # 最上段の坂上の端 = 踊り場の縁(Blender +y = 坂上)
+    zl = (nstep + 1) * keri                          # 踊り場の面 = 斜めの袖の坂上の端の天端 − HT
+    for sx in (-1, 1):
+        ff, _ = sode_flat(L, name="f_%d" % sx)
+        ff.data.transform(Matrix.Translation((sx * (w / 2.0 + T / 2.0), y_nose + L / 2.0, zl))); ff.data.update()
+    bpy.ops.mesh.primitive_plane_add(size=1.0, location=(0, y_nose + L / 2.0, zl))   # 踊り場(検証の文脈だけ)
+    ld = bpy.context.active_object; ld.scale = (w, L, 1.0)
+    V.dedup_materials()
+    bpy.ops.mesh.primitive_plane_add(size=1.0, location=(0, nstep * fumi * 0.5, 0.0))
+    g = bpy.context.active_object
+    g.scale = (w + 12.0, nstep * fumi + 12.0, 1.0)
+    gm = bpy.data.materials.new("render_ground"); gm.use_nodes = True
+    gb = next(n for n in gm.node_tree.nodes if n.type == 'BSDF_PRINCIPLED')
+    gb.inputs['Base Color'].default_value = (0.20, 0.17, 0.12, 1.0)
+    g.data.materials.append(gm); ld.data.materials.append(gm)
+    os.makedirs(SHOT, exist_ok=True)
+    Ltot = nstep * fumi + L
+    H = zl
+    out = []
+    shots = [
+        ("3d", (w * 0.9 + 3.0, -4.0, H + 3.0), (w / 2.0, Ltot * 0.6, H * 0.8), None),
+        ("side", (w / 2.0 + T + 14.0, Ltot * 0.5, H * 0.5), (w / 2.0, Ltot * 0.5, H * 0.5 - 0.4), max(Ltot, H + 2.5) * 1.3),
+        ("near", (w / 2.0 + 2.6, y_nose - 2.2, zl + 1.6), (w / 2.0 + T / 2.0, y_nose + 0.2, zl + 0.1), None),
+        ("magenta", (w * 0.9 + 3.0, -4.0, H + 3.0), (w / 2.0, Ltot * 0.6, H * 0.8), None),
+    ]
+    for (tag, cam, at, orth) in shots:
+        V.studio(cam, at, ortho_scale=orth, res=(1600, 1100))
+        if tag == "magenta":
+            bpy.context.scene.world.node_tree.nodes["Background"].inputs[0].default_value = (1, 0, 1, 1)
+            g.hide_render = True; ld.hide_render = True
+        else:
+            g.hide_render = False; ld.hide_render = False
+        _hook_cut_stone()
+        pth = os.path.join(SHOT, "sanno_sodeflat_%s%s_%s.png" % (key, _dtag(), tag))
+        V.render(pth); out.append(pth)
+    return out
+
+
+def build_sode_flat(L, do_render, keri=0.260, fumi=0.650, w=6.999):
+    V.reset()
+    o, name = sode_flat(L)
+    report(o, name, "← 石段の最上段の水平の袖")
+    sode_flat_check(o, L)
+    V.export_fbx([o], os.path.join(OUT_DAN, name + ".fbx"))
+    print("[sanno] 書き出し " + os.path.join(OUT_DAN, name + ".fbx"))
+    if do_render:
+        for pth in shots_sode_flat(keri, fumi, w, L, "otoko"):
+            print("[sanno] 検証レンダ " + pth)
+
+
 # ---------------------------------------------------------------- 1c. 平面で折れる石段の袖の留め(EDO-0415)
 # 女坂のように段石を段ごとに折れ線の向きで据えると、折れ点で袖の外に口・内に重なりが出る(剛体では閉じない)。
 # ⇒ 平らな駒(`sode`)と**同じ局所座標・同じピボット**のまま、端を鉛直な留めの面で切り直す。
@@ -1957,6 +2086,13 @@ def main():
         else:
             specs = kaidan_specs(only)
         build_sode_set(specs, do_render)
+    if what == "sode_flat":
+        # sode_flat [--len=1.25] [--depth=3.20] [--render]  天端が水平な袖(最上段の踊り場の脇・EDO-0459)
+        L = SODE_FLAT_L
+        for a in argv:
+            if a.startswith("--len="):
+                L = float(a.split("=", 1)[1])
+        build_sode_flat(L, do_render)
     if what == "sode_miter_list":
         # sode_miter_list <一覧ファイル> [<蹴上> <踏面> <幅>]  各行 `段番号 a|b F±hF B±hB`
         # ⛔ 角は据え手の一覧の値(指図の値ではない)。丸め直さない

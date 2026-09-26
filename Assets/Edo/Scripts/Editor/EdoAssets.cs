@@ -1227,6 +1227,20 @@ public static class EdoAssets
             return "_D" + depth.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
         }
 
+        /// <summary>**天端が水平な石段の袖**(EDO-0459 施主裁定A 2026-09-26・男坂の最上段の袖石)。<see cref="IshidanSode(float,float,int,float)"/> と
+        /// **同じ断面(厚み X=±0.30・笠石の丈 0.24・積みの段の割り・面取り 0.02)・同じ材 `Danishi`**で、天端の傾きだけ 0(剪断しない)。
+        /// ⭐ 厚み = X(左右対称 ⇒ 左右とも同じ FBX)/ 高さ = Y / 走り = Z ±0.625(標準長 1.25・a/b の別は無い・両端とも目地)。
+        /// **天端 Y = +0.30 一定**・下端 Y = 0.30 − <paramref name="depth"/>。ピボット = 走りの中心・天端の 0.30 下(平らな袖の「その段の踏面の高さ」の約束と同じ)・厚みの中心。
+        /// 実寸: 丈 2.20 = W 0.600 × H 2.200(−1.900〜+0.300)× D 1.250・286 面 / 丈 3.20 = W 0.600 × H 3.200(−2.900〜+0.300)× D 1.250・390 面。
+        /// 据え方: 側面 X=±0.30 を段石(踊り場)の小口に、天端を斜めの袖の坂上の端の天端(段鼻の線 +0.30)に合わせ、実長へ Z だけ伸縮する
+        /// (`StretchEnd`・水平なので天端は水平のまま)。⛔ ピボットで合わせない。丈は <see cref="IshidanSodeDepths"/>(2.20 / 3.20)。
+        /// 材 `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_flat [--depth=3.20] --render</summary>
+        public static string IshidanSodeFlat(float depth)
+        {
+            return "Assets/Edo/Models/Kaidan/IshidanSodeFlat_1.250" + SodeDepthTag(depth) + ".fbx";
+        }
+
         /// <summary>**曲がる石段の袖 — 端を留めに切った駒**(EDO-0415 ②③)。<see cref="IshidanSode"/> と同じ局所座標・同じピボットで、
         /// 坂下の端(+Z)を <paramref name="hF"/>°・坂上の端(−Z)を <paramref name="hB"/>° だけ、石段の芯の鉛直線(X = −0.30 − <paramref name="w"/>/2)
         /// の周りに回した物(= その継ぎ目の折れ角の半分・正 = 駒の外で伸びる・0 = 平らなまま)。石段の +X 側に置く向きで焼き、−X 側は鏡で置く。

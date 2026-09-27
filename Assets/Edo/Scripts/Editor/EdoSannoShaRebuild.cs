@@ -728,7 +728,19 @@ public static class EdoSannoShaRebuild
                 var row = sodeRow[key];
                 if (k < 1 || k >= row.Length || row[k] == null || row[k - 1] == null || dans[k] == null) { sodeWarn.Add(key + ": ⛔ 段" + k + " の水平な袖 ── 段 " + k + " か一つ下の袖が据わっていない"); continue; }
                 EdoBuild.FlatSode fr; string fw;
-                var flat = EdoBuild.LayFlatSode(row[k], row[k - 1], d => EdoAssets.Own.IshidanSodeFlat(d, fumi), EdoAssets.Own.IshidanSodeDepths,
+                // 走りは段 k の踏面の**見えている実長**(段鼻 → 上の端 ── 最上段は胴の 0.1 も見える ⇒ 0.642)で焼いた版を引き、伸縮 ≈1 で据える
+                //   (2026-09-27 EDO-0437 ── fumi 0.542 の版は 1.184 倍に伸びた)。焼いていなければ fumi の版(伸ばして据える・⚠)。
+                float runLen = fumi;
+                {
+                    Vector3 upR = -dans[k].transform.forward; var fv = EdoBuild.Body(dans[k].transform, 999999, true); float fTop = float.MinValue;
+                    foreach (var p in fv) fTop = Mathf.Max(fTop, p.y);
+                    float a0 = float.MaxValue, a1 = float.MinValue; foreach (var p in fv) if (p.y >= fTop - 0.02f) { float a = Vector3.Dot(p, upR); a0 = Mathf.Min(a0, a); a1 = Mathf.Max(a1, a); }
+                    float meas = Mathf.Round((a1 - a0) * 1000f) / 1000f;
+                    if (a1 > a0 && AssetDatabase.LoadAssetAtPath<GameObject>(EdoAssets.Own.IshidanSodeFlat(EdoAssets.Own.ISHIDAN_SODE_DEPTH_STD, meas)) != null) runLen = meas;
+                    else sodeWarn.Add(key + ": ⚠ 段" + k + " の踏面の見え " + meas.ToString("F3") + " の水平な袖が焼けていない ── " + fumi.ToString("F3") + " の版を伸ばして据える");
+                }
+                float runL = runLen;
+                var flat = EdoBuild.LayFlatSode(row[k], row[k - 1], d => EdoAssets.Own.IshidanSodeFlat(d, runL), EdoAssets.Own.IshidanSodeDepths,
                                                 -dans[k].transform.forward, null, float.NaN, 0f, out fr, out fw, dans[k]);
                 if (flat == null) { sodeWarn.Add(key + ": ⛔ 段" + k + " の水平な袖を据えられない ── " + fw); continue; }
                 row[k] = flat;
@@ -1375,6 +1387,22 @@ public static class EdoSannoShaRebuild
             (up, i) => EdoAssets.Own.SannoNozuraDan(up, i), (up, i) => EdoAssets.Own.SannoNozuraKiri(up, i),
             EdoAssets.Own.SannoNozuraMikiriH, new[] { 0.30f, 0.60f, 0.90f, 1.20f, 1.50f, 1.80f, 2.10f, 2.40f }, pool, sb,
             EdoAssets.Own.SannoNozuraKiriEnd, EdoAssets.Own.SannoNozuraNoriEnd, sandoPieces);
+        // ⭐ 袖の背に取り付く出隅は、腕を袖の背の面で一辺だけ切った版を引く(EdoBuild.CutKadoArmsToFaces・EDO-0437 2026-09-27 施主
+        //   「袖に当たる石は袖の背に沿った一辺だけ切る」)。相手 = 石段の袖。据えは元の隅と同じ・硬い(焼けていなければ ⛔ と焼く値)。
+        {
+            var kados = new List<GameObject>();
+            foreach (var kv in got)
+            { var mf = kv.Key.GetComponentInChildren<MeshFilter>();
+              if (mf != null && mf.sharedMesh != null && System.IO.Path.GetFileName(AssetDatabase.GetAssetPath(mf.sharedMesh)).StartsWith("Sanno_Nozura_Kado90_")) kados.Add(kv.Key); }
+            var cm = EdoBuild.CutKadoArmsToFaces(kados, sandoPieces, (g, ax, at) =>
+            {
+                var mf = g.GetComponentInChildren<MeshFilter>(); string mp = System.IO.Path.GetFileNameWithoutExtension(AssetDatabase.GetAssetPath(mf.sharedMesh));
+                var m = System.Text.RegularExpressions.Regex.Match(mp, @"^Sanno_Nozura_Kado90_H(\d{4})_([ab])$"); if (!m.Success) return null;
+                return EdoAssets.Own.SannoNozuraKadoCut(int.Parse(m.Groups[1].Value) / 1000f, m.Groups[2].Value == "a" ? 0 : 1, ax, at);
+            }, sb);
+            for (int i = 0; i < got.Count; i++)
+            { GameObject ng; if (cm.TryGetValue(got[i].Key, out ng)) got[i] = new KeyValuePair<GameObject, Vector2>(ng, got[i].Value); }
+        }
         foreach (var kv in got) { placed.Add(kv.Key); faceOf[kv.Key] = kv.Value; }
         return got.Count;
     }

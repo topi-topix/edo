@@ -851,6 +851,61 @@ public static partial class EdoBuild
         return new[] { a + n * mx, b + n * mx };
     }
 
+    /// <summary>**隅の駒の腕が鉛直な相手の面の中へ入るなら、腕を相手の面で一辺だけ切った版へ差し替える**(2026-09-27・EDO-0437 施主
+    /// 「端の石は細くしない。袖に当たる石は袖の背に沿った一辺だけ切る」)。隅の駒 <paramref name="kados"/> ごとに、局所の腕の軸(+X・+Z ── Kado90 の
+    /// 両腕の外向き)と向きの揃う相手(<paramref name="faces"/> の実メッシュ・局所の同じ軸に直交する面を持つ石段の袖など)を探し、
+    /// 相手の**近い面**(隅の局所でその軸の座標の最小 ── 相手の頂点のうち隅の足あとの中の物)を切り面 at とする。
+    /// 隅の頂点が at を 5mm 超えて越えるなら、<paramref name="cutPathOf"/>(駒, 軸, at)の資産へ据えを変えずに差し替える(<see cref="SwapPart"/>)。
+    /// 焼いていなければ差し替えず ⛔ と焼く値(軸・at・入り)を <paramref name="sb"/> に刷る。
+    /// ⭐ 硬い条件(許容0): めり込み。⛔ ピボット・bounds の中心で決めない(面は相手の頂点で測る)。
+    /// 返り値 = 旧 → 新(差し替えた物だけ)。当たる先: 石段の袖の背に取り付く野面の出隅(山王 前庭の北の縁の口の返し)、基壇・袖の鉛直な面に沿う出隅。</summary>
+    public static Dictionary<GameObject, GameObject> CutKadoArmsToFaces(IList<GameObject> kados, IList<GameObject> faces,
+        System.Func<GameObject, char, float, string> cutPathOf, System.Text.StringBuilder sb)
+    {
+        var map = new Dictionary<GameObject, GameObject>();
+        foreach (var k in kados)
+        {
+            if (k == null) continue;
+            var kt = k.transform; var kb = RB(k); var kvL = new List<Vector3>();
+            foreach (var v in Body(kt, 999999, true)) kvL.Add(kt.InverseTransformPoint(v));
+            if (kvL.Count == 0) continue;
+            Vector3 lo = kvL[0], hi = kvL[0]; foreach (var v in kvL) { lo = Vector3.Min(lo, v); hi = Vector3.Max(hi, v); }
+            char bestAx = '\0'; float bestAt = float.NaN, bestIn = 0f; string bestWith = null;
+            foreach (char ax in new[] { 'x', 'z' })
+            {
+                Vector3 axW = ax == 'x' ? kt.right : kt.forward;
+                foreach (var f in faces)
+                {
+                    if (f == null || f == k || !RB(f).Intersects(kb)) continue;
+                    // 相手の面が隅の腕の軸に直交する ── 相手の厚みの軸(局所 X ── 石段の袖の約束)が隅の軸と平行な物だけ。
+                    //   ⚠ 局所 Z(走り)まで許すと袖の小口を「面」と読み、腕を 0.9 も切る値を出した(2026-09-27)。
+                    if (Mathf.Abs(Vector3.Dot(f.transform.right, axW)) < 0.999f) continue;
+                    float at = float.MaxValue; int n = 0;
+                    foreach (var v in Body(f.transform, 999999, true))
+                    {
+                        var p = kt.InverseTransformPoint(v);
+                        float o = ax == 'x' ? p.z : p.x, oLo = ax == 'x' ? lo.z : lo.x, oHi = ax == 'x' ? hi.z : hi.x;
+                        if (o < oLo || o > oHi || p.y < lo.y || p.y > hi.y) continue;
+                        float a = ax == 'x' ? p.x : p.z; if (a < (ax == 'x' ? lo.x : lo.z)) continue;
+                        at = Mathf.Min(at, a); n++;
+                    }
+                    if (n == 0) continue;
+                    float mx = float.MinValue; foreach (var v in kvL) mx = Mathf.Max(mx, ax == 'x' ? v.x : v.z);
+                    float inn = mx - at;
+                    if (inn > 0.005f && inn > bestIn) { bestIn = inn; bestAx = ax; bestAt = at; bestWith = f.name; }
+                }
+            }
+            if (bestAx == '\0') continue;
+            float atR = Mathf.Round(bestAt * 1000f) / 1000f;
+            string path = cutPathOf(k, bestAx, atR); string nm = k.name;
+            if (string.IsNullOrEmpty(path) || UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
+            { if (sb != null) sb.AppendLine("    ⛔ " + nm + " の腕 +" + char.ToUpperInvariant(bestAx) + " が " + bestWith + " の面へ " + bestIn.ToString("F3") + " 入る ── 切り版が焼けていない(焼く値: 軸 " + bestAx + "・at " + atR.ToString("F3") + ")"); continue; }
+            var ng = SwapPart(k, path); map[k] = ng;
+            if (sb != null) sb.AppendLine("    " + nm + ": 腕 +" + char.ToUpperInvariant(bestAx) + " が " + bestWith + " の面へ " + bestIn.ToString("F3") + " 入る ⇒ " + System.IO.Path.GetFileNameWithoutExtension(path) + " へ差し替え(据えは同じ)");
+        }
+        return map;
+    }
+
     /// <summary>区間 <paramref name="p"/>–<paramref name="q"/> の直線と直線 <paramref name="l0"/>–<paramref name="l1"/> の交点(平行なら NaN の点)。</summary>
     public static Vector2 LineMeet(Vector2 p, Vector2 q, Vector2 l0, Vector2 l1)
     {

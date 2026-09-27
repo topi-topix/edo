@@ -555,6 +555,49 @@ public static partial class EdoBuild
         return go;
     }
 
+    /// <summary>地形なりの走りの根入れの深さの上限[m](山王の板塀の代 −0.60 と同じ ── 2026-09-27 施主「基本は埋める」)。
+    /// これより深く埋めないと着かない所(崖・急な横断勾配)は浮きのまま残して刷る(崖の線は塀を建てない所 ── 呼び手が決める)。</summary>
+    public const float CHORD_ROOT_MAX = 0.60f;
+
+    /// <summary>**弦の走りを根入れで収める**(2026-09-28・EDO-0477)。継ぎ目 <paramref name="js"/> に駒を弦で張り(<paramref name="placeSeg"/>)、
+    /// 各駒の**下端**(<see cref="RootToBed"/> ── 当たり = 見えている地表)の浮きを測って、浮いた駒の両端の継ぎ目をその分だけ下げて張り直す。
+    /// 継ぎ目は隣の駒と共有したまま動かすので、天端は一続きの折れ線のまま(段々にならない)。収まるまで(最大 6 巡)回す。
+    /// ⛔ 芯の線だけで地面に合わせると、塀の厚み方向に地面が傾く所で低い側の縁が浮いた(観理院 辺2・辺3 で 1m あたり 0.2〜0.6m の横断勾配・
+    /// 最大 0.29m)。当たる先: 地形なりの練塀(<see cref="NeribeiRun"/>)・板塀(<see cref="DobeiRun"/>)── 類型の全区画の囲い。</summary>
+    public static List<GameObject> RootChordRun(List<Vector3> js, Func<int, Vector3, Vector3, List<GameObject>> placeSeg, out float worstFloat, out float deepest)
+    {
+        int m = js.Count - 1; var drop = new float[js.Count];
+        var segs = new List<GameObject>[m];
+        Func<float, float, float> bed = (x, z) => Ground(x, z);
+        worstFloat = 0f; deepest = 0f;
+        for (int it = 0; it < 6; it++)
+        {
+            for (int k = 0; k < m; k++)
+            {
+                if (segs[k] != null) foreach (var g in segs[k]) UnityEngine.Object.DestroyImmediate(g);
+                segs[k] = placeSeg(k, js[k] - Vector3.up * drop[k], js[k + 1] - Vector3.up * drop[k + 1]);
+            }
+            bool moved = false; worstFloat = 0f;
+            var need = new float[js.Count];
+            for (int k = 0; k < m; k++)
+            {
+                float hi = 0f;
+                foreach (var g in segs[k]) { var r = RootToBed(g, bed, 0.05f); if (!float.IsNaN(r.hi)) hi = Mathf.Max(hi, r.hi); }
+                worstFloat = Mathf.Max(worstFloat, hi);
+                if (hi > 0.002f) { need[k] = Mathf.Max(need[k], hi); need[k + 1] = Mathf.Max(need[k + 1], hi); }
+            }
+            for (int j = 0; j < js.Count; j++)
+            {
+                float nd = Mathf.Min(CHORD_ROOT_MAX, drop[j] + need[j]);
+                if (nd > drop[j] + 0.001f) { drop[j] = nd; moved = true; }
+            }
+            if (!moved) break;
+        }
+        foreach (var d in drop) deepest = Mathf.Max(deepest, d);
+        var all = new List<GameObject>(); foreach (var sg in segs) all.AddRange(sg);
+        return all;
+    }
+
     /// <summary>弦 j0→j1 に張った駒の表(ローカル +Z)が <paramref name="outward"/> を向くか。</summary>
     public static bool ChordFacing(Vector3 j0, Vector3 j1, Vector2 outward)
     {
@@ -620,17 +663,21 @@ public static partial class EdoBuild
             if (followGround)
             {
                 var js = GroundPolyline(A + dir * seg[0], A + dir * seg[1], DOBEI_PITCH, SLOPE_ROOT, SLOPE_ROOT * 2f);
-                for (int j = 0; j + 1 < js.Count; j++, k++)
+                for (int j = 0; j < js.Count; j++) js[j] -= Vector3.up * SLOPE_ROOT;
+                int k0 = k; float wf, dp;
+                made.AddRange(RootChordRun(js, (j, j0, j1) =>
                 {
-                    var j0 = js[j] - Vector3.up * SLOPE_ROOT; var j1 = js[j + 1] - Vector3.up * SLOPE_ROOT;
+                    var two = new List<GameObject>();
                     bool fwd = ChordFacing(j0, j1, outward);
                     for (int side = 0; side < 2; side++)
                     {
                         bool f = side == 0 ? fwd : !fwd;
-                        made.Add(PlaceOnChordMeasured(PHei, f ? j0 : j1, f ? j1 : j0, outward, lat0 + (side == 0 ? 0f : -0.2f), ES,
-                                                      parent, prefix + "_" + k + (side == 0 ? "f" : "b")));
+                        two.Add(PlaceOnChordMeasured(PHei, f ? j0 : j1, f ? j1 : j0, outward, lat0 + (side == 0 ? 0f : -0.2f), ES,
+                                                     parent, prefix + "_" + (k0 + j) + (side == 0 ? "f" : "b")));
                     }
-                }
+                    return two;
+                }, out wf, out dp));
+                k += js.Count - 1;
                 continue;
             }
             // ⭐ 区間を板で**割り切る**(端数を残さない)。短い区間は 1 枚を縮めて埋める。
@@ -696,15 +743,16 @@ public static partial class EdoBuild
                 int m = js.Count - 1;
                 bool cLo = gapHalf > 0 && seg[0] > 0.01f;
                 bool cHi = gapHalf > 0 && seg[1] < len - 0.01f && !(m == 1 && cLo);
-                for (int k = 0; k < m; k++)
+                for (int j = 0; j < js.Count; j++) js[j] -= Vector3.up * SLOPE_ROOT;
+                int idx0 = idx; float wf, dp;
+                made.AddRange(RootChordRun(js, (k, j0, j1) =>
                 {
-                    var j0 = js[k] - Vector3.up * SLOPE_ROOT; var j1 = js[k + 1] - Vector3.up * SLOPE_ROOT;
                     bool atLo = k == 0 && cLo, atHi = k == m - 1 && cHi;
                     string path = (atLo || atHi) ? EdoAssets.Own.Dobei2mEnd : EdoAssets.Own.Dobei2m;
                     bool f = atLo ? true : atHi ? false : ChordFacing(j0, j1, outward);
-                    made.Add(PlaceOnChordMeasured(path, f ? j0 : j1, f ? j1 : j0, outward, lat0, 1f, parent, prefix + "_" + idx));
-                    idx++;
-                }
+                    return new List<GameObject> { PlaceOnChordMeasured(path, f ? j0 : j1, f ? j1 : j0, outward, lat0, 1f, parent, prefix + "_" + (idx0 + k)) };
+                }, out wf, out dp));
+                idx += m;
                 continue;
             }
             int n = Mathf.Max(1, Mathf.RoundToInt(L / bodyLen));

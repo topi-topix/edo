@@ -354,6 +354,10 @@ public static partial class EdoTypologyBuilder
                     }
                     return true;
                 }),
+                // ⭐ 平場が取れる(2026-09-28 EDO-0477)── 区画の縁の法に縛られて足あとを平らに切り盛りできない所は退ける。
+                //    ⛔ 造成の後で気付いても直せない(観理院の本堂が北の角から 2.7m で 浮き 1.72m・埋まり 0.92m)。
+                new EdoBuild.Hard("平場が取れない(区画の縁に近い斜面)", go =>
+                    EdoBuild.PadSqueeze(poly, JCorners(itL.wall, new Vector2(go.transform.position.x, go.transform.position.z), go.transform.eulerAngles.y), ZOSEI_MARGIN) == 0),
             };
             var softs = new List<EdoBuild.Soft>
             {

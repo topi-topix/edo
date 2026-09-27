@@ -313,6 +313,7 @@ public static partial class EdoBuild
         // 参道の帯(白洲)— ⛔ ここに木・石・刈込・灯籠を置かない(§5-0 c)
         public List<Vector2> BandA = new List<Vector2>(), BandB = new List<Vector2>();
         public List<float> BandHalf = new List<float>();
+        public List<bool> BandWalk = new List<bool>();   // true = 歩く参道 / false = 白洲(木を入れない帯。献灯・手水は立つ)
 
         // 検査のための控え(§5-2)
         public int Refused, InBand;
@@ -343,7 +344,7 @@ public static partial class EdoBuild
             {
                 if (float.IsNaN(MinWall) || k.dw < MinWall) MinWall = k.dw;
                 if (float.IsNaN(MinEave) || k.de < MinEave) MinEave = k.de;
-                if (InSando(k.c, 0f)) InBand++;
+                if (InBandFor(k.c, k.tall || k.clump > 0)) InBand++;
             }
         }
 
@@ -356,8 +357,17 @@ public static partial class EdoBuild
             Recount();
         }
 
-        public void AddBand(Vector2 a, Vector2 b, float half)
-        { BandA.Add(a); BandB.Add(b); BandHalf.Add(half); }
+        public void AddBand(Vector2 a, Vector2 b, float half, bool walk = true)
+        { BandA.Add(a); BandB.Add(b); BandHalf.Add(half); BandWalk.Add(walk); }
+
+        /// <summary>検査の「参道の帯に入った駒」に数えるか。⭐ 歩く参道は全ての駒を、白洲の帯は**木だけ**を数える
+        /// (2026-09-28 EDO-0477 ── 本堂の前の白洲に立つ献灯の一対が「帯に入った駒 2」と数えられていた。献灯は白洲の参道の左右に立つ物)。</summary>
+        bool InBandFor(Vector2 c, bool plant)
+        {
+            for (int i = 0; i < BandA.Count; i++)
+                if ((BandWalk[i] || plant) && EdoGeom.DistToEdge(c, BandA[i], BandB[i]) <= BandHalf[i]) return true;
+            return false;
+        }
 
         /// <summary>参道の帯の中か。<paramref name="extra"/> は駒の樹冠半径(帯へ**枝も差し込まない**)。</summary>
         public bool InSando(Vector2 p, float extra)
@@ -564,7 +574,7 @@ public static partial class EdoBuild
                                      dw = dw, de = de, clearWall = o.ClearWall, padEave = o.PadEave });
             if (float.IsNaN(MinWall) || dw < MinWall) MinWall = dw;
             if (float.IsNaN(MinEave) || de < MinEave) MinEave = de;
-            if (InSando(c, 0f)) InBand++;                            // 0 でなければ実装の誤り(§5-2 ②)
+            if (InBandFor(c, o.Tall || CurClump > 0)) InBand++;       // 0 でなければ実装の誤り(§5-2 ②)
             return go;
         }
 

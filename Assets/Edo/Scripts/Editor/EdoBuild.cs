@@ -70,8 +70,34 @@ public static partial class EdoBuild
         go.transform.position = pos;
         go.transform.rotation = Quaternion.Euler(0, ry, 0);
         go.transform.localScale = scale;
+        DressBare(go, path);
         Undo.RegisterCreatedObjectUndo(go, "place " + name);
         return go;
+    }
+
+    /// <summary>材に画像の無い在庫の駒へ、同じフォルダの画像を貼った材を着せる(<see cref="EdoAssets.Eg.BareTex"/>)。
+    /// 材は `Assets/Edo/Materials/M_Bare_<駒の名>.mat` に一度だけ作る。</summary>
+    public static void DressBare(GameObject go, string path)
+    {
+        string tp;
+        if (go == null || !EdoAssets.Eg.BareTex.TryGetValue(path, out tp)) return;
+        string mp = EdoAssets.Own.Mat("M_Bare_" + System.IO.Path.GetFileNameWithoutExtension(path));
+        var m = AssetDatabase.LoadAssetAtPath<Material>(mp);
+        if (m == null)
+        {
+            m = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(tp);
+            if (tex != null) { m.SetTexture("_BaseMap", tex); m.mainTexture = tex; }
+            m.SetFloat("_Smoothness", 0.15f);
+            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(mp));
+            AssetDatabase.CreateAsset(m, mp);
+        }
+        foreach (var r in go.GetComponentsInChildren<Renderer>(true))
+        {
+            var ms = r.sharedMaterials;
+            for (int i = 0; i < ms.Length; i++) ms[i] = m;
+            r.sharedMaterials = ms;
+        }
     }
 
     /// <summary>子孫 Renderer 全体のワールド Bounds。</summary>

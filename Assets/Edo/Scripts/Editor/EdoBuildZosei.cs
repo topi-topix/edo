@@ -18,6 +18,10 @@ public static partial class EdoBuild
 {
     static Func<float, float, float> _baseDem;
 
+    /// <summary>区画の縁に沿って地山のまま残す幅[m] = 塀の足元(厚み 0.4〜0.6)+ 犬走り。【確度 U】一般類型。
+    /// 当たる先: 区画の線の上に立つ全ての囲い(塀・長屋)。</summary>
+    public const float EDGE_BERM = 1.0f;
+
     /// <summary>造成前の地盤(`docs/Sashizu/base_dem.json`・2m 格子の双一次)。範囲外・欠けは NaN。</summary>
     public static Func<float, float, float> BaseDem()
     {
@@ -73,6 +77,11 @@ public static partial class EdoBuild
         int j1 = Mathf.Clamp(Mathf.CeilToInt((mxz - tp.z) / ts.z * (res - 1)), 0, res - 1);
         int w = i1 - i0 + 1, h = j1 - j0 + 1;
         var H = td.GetHeights(i0, j0, w, h);
+        // ⭐ 平らに取る幅は**格子の対角以上**(2026-09-28 EDO-0477 実測)。地表は節点の間を双一次で結ぶので、足あとの縁に
+        //    掛かる格子の 4 節点が全部平場でないと、縁の下で面が傾く ── 格子 2.0m に幅 1.0m では観理院の客殿の下端が
+        //    0.17m 浮き 0.16m 埋まった。当たる先: GradePads を呼ぶ全区画(類型の全区画)。
+        float cell = Mathf.Max(ts.x, ts.z) / (res - 1);
+        margin = Mathf.Max(margin, cell * 1.415f);
 
         // 1. 平場の高さ = 足あと(+margin)の下の造成前の地盤の中央値
         foreach (var pad in pads)
@@ -93,6 +102,25 @@ public static partial class EdoBuild
             outp.Add(hb);
         }
 
+        // 1b. 近い棟の平場を一つの高さに束ねる(2026-09-28 EDO-0477 実測)。⛔ 棟ごとに中央値を採ると、縁取りが触れ合う
+        //    隣の平場と数cm違い、あいだの格子が傾いて下端が浮く(観理院の客殿 0.024m・鐘楼 0.038m)。足あとの間が
+        //    縁取り 2 つぶんより近く、高さの差が PAD_MERGE_DY より小さい棟は、束の中で最も広い棟の高さへそろえる。
+        //    差が大きい棟は束ねない(段として残す ── 規則3 の系統差 ±0.25 を超える均しをしない)。当たる先: 類型の全区画。
+        int n = pads.Count; var grp = new int[n]; for (int k = 0; k < n; k++) grp[k] = k;
+        Func<int, int> root = null; root = k => grp[k] == k ? k : (grp[k] = root(grp[k]));
+        for (int a = 0; a < n; a++)
+            for (int b2 = a + 1; b2 < n; b2++)
+            {
+                if (Mathf.Abs(outp[a].y - outp[b2].y) >= PAD_MERGE_DY) continue;
+                if (PolyGap(pads[a], pads[b2]) >= 2f * margin) continue;
+                grp[root(a)] = root(b2);
+            }
+        var areas = new float[n]; for (int k = 0; k < n; k++) areas[k] = Mathf.Abs(PolyArea(pads[k]));
+        var lead = new Dictionary<int, int>();
+        for (int k = 0; k < n; k++) { int r = root(k); if (!lead.ContainsKey(r) || areas[k] > areas[lead[r]]) lead[r] = k; }
+        int merged = 0;
+        for (int k = 0; k < n; k++) { int l = lead[root(k)]; if (l != k) { outp[k].y = outp[l].y; merged++; } }
+
         // 2. 区画の中の節点: 造成前の地盤へ戻し、最寄りの平場の法で挟み、縁の法で地山へ戻す
         int written = 0; float maxCut = 0f, maxFill = 0f;
         for (int j = 0; j < h; j++)
@@ -104,20 +132,26 @@ public static partial class EdoBuild
                 if (float.IsNaN(b)) continue;                                 // 正典の地盤が無い所は触らない
                 float y = b;
                 // 最寄りの平場(足あとの外へ margin まで平ら)
-                int best = -1; float bd = float.MaxValue;
+                // ⭐ 平場は**足あとへの素の距離**が最も近い棟の物を採る(2026-09-28)。⛔ 縁取り(margin)を引いた後の距離で
+                //    比べると、二棟の縁取りが重なる所で 0 が並び、先に見つかった棟の高さが隣の足あとの縁へ食い込んだ
+                //    (観理院の物置 0.17m・蔵 0.09m の浮き)。
+                int best = -1; float bd = float.MaxValue, braw = float.MaxValue;
                 for (int k = 0; k < pads.Count; k++)
                 {
                     float d = EdoGeom.PIP(pads[k], q) ? 0f : EdoGeom.DistToPolyEdge(pads[k], q);
-                    d = Mathf.Max(0f, d - margin);
-                    if (d < bd) { bd = d; best = k; }
+                    if (d < braw) { braw = d; best = k; }
                 }
+                if (best >= 0) bd = Mathf.Max(0f, braw - margin);
                 if (best >= 0)
                 {
                     float p = outp[best].y;
                     y = Mathf.Clamp(b, p - bd / fillRun, p + bd / cutRun);   // 地盤が低ければ盛土の法、高ければ切土の法で平場へ
                 }
-                float e = EdoGeom.DistToPolyEdge(parcel, q);
-                float y2 = Mathf.Clamp(y, b - e / cutRun, b + e / fillRun);   // 縁で地山へ戻す(区画の外へ出さない)
+                // 縁で地山へ戻す(区画の外へ出さない)。⭐ 縁から EDGE_BERM までは地山のまま残し、法はその内から起こす
+                //    (2026-09-28 EDO-0477 実測: 縁から法を起こすと、区画の線の上に立つ塀の足元の内側が削られ、
+                //    塀の厚み 0.42m のあいだで地面が 0.8m 落ちて塀の下端が浮いた ── 観理院 49/199 駒・最悪 0.76m)。
+                float e = Mathf.Max(0f, EdoGeom.DistToPolyEdge(parcel, q) - EDGE_BERM);
+                float y2 = Mathf.Clamp(y, b - e / cutRun, b + e / fillRun);
                 if (best >= 0 && bd <= 0f && Mathf.Abs(y2 - y) > 0.01f) outp[best].squeezed++;
                 y = y2;
                 if (y < b) maxCut = Mathf.Max(maxCut, b - y); else maxFill = Mathf.Max(maxFill, y - b);
@@ -126,9 +160,93 @@ public static partial class EdoBuild
             }
         td.SetHeightsDelayLOD(i0, j0, H); td.SyncHeightmap();
         int sq = 0; foreach (var hb in outp) sq += hb.squeezed;
-        report = string.Format("造成: 平場 {0} 面・節点 {1}(区画の中だけ・毎回造成前の地盤から)・最大の切土 {2:F2}m・盛土 {3:F2}m{4}",
+        report = string.Format("造成: 平場 {0} 面(うち隣へ束ねた {5})・節点 {1}(区画の中だけ・毎回造成前の地盤から)・最大の切土 {2:F2}m・盛土 {3:F2}m{4}",
                                pads.Count, written, maxCut, maxFill,
-                               sq > 0 ? string.Format(" ⚠ 区画の縁に近く平らに取れない節点 {0}(土留めが要る所・P3)", sq) : "");
+                               sq > 0 ? string.Format(" ⚠ 区画の縁に近く平らに取れない節点 {0}(土留めが要る所・P3)", sq) : "", merged);
+        return outp;
+    }
+
+    /// <summary>**この足あとに平場が取れるか**を置く前に測る(2026-09-28 EDO-0477)。<see cref="GradePads"/> と同じ格子・同じ法で、
+    /// 足あと(+縁取り)の節点のうち、区画の縁の法に縛られて平場の高さまで切り盛りできない物を数える(0 なら取れる)。
+    /// 硬い制約として <see cref="PlaceBest"/> へ渡す ── 取れない所に建てると下端が浮き・埋まる(観理院の本堂 浮き 1.72m・埋まり 0.92m、
+    /// 区画の北の角から 2.7m で 27 節点)。当たる先: 造成して建てる類型の全棟(寺社の本堂・附属、武家の御殿・長屋以外の棟)。</summary>
+    public static int PadSqueeze(Vector2[] parcel, Vector2[] foot, float margin, float fillRun = 1.5f, float cutRun = 1.0f)
+    {
+        var dem = BaseDem();
+        var t = T(); var td = t.terrainData; int res = td.heightmapResolution;
+        Vector3 tp = t.transform.position, ts = td.size;
+        float cell = Mathf.Max(ts.x, ts.z) / (res - 1);
+        margin = Mathf.Max(margin, cell * 1.415f);
+        float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
+        foreach (var p in foot) { mnx = Mathf.Min(mnx, p.x); mxx = Mathf.Max(mxx, p.x); mnz = Mathf.Min(mnz, p.y); mxz = Mathf.Max(mxz, p.y); }
+        int i0 = Mathf.FloorToInt((mnx - margin - tp.x) / ts.x * (res - 1)), i1 = Mathf.CeilToInt((mxx + margin - tp.x) / ts.x * (res - 1));
+        int j0 = Mathf.FloorToInt((mnz - margin - tp.z) / ts.z * (res - 1)), j1 = Mathf.CeilToInt((mxz + margin - tp.z) / ts.z * (res - 1));
+        var ys = new List<float>(); var ring = new List<Vector3>();
+        for (int j = j0; j <= j1; j++)
+            for (int i = i0; i <= i1; i++)
+            {
+                var q = NodeXZ(tp, ts, res, i, j);
+                float b = dem(q.x, q.y); if (float.IsNaN(b)) continue;
+                bool inside = EdoGeom.PIP(foot, q);
+                if (inside) ys.Add(b);
+                if (inside || EdoGeom.DistToPolyEdge(foot, q) <= margin) ring.Add(new Vector3(q.x, b, q.y));
+            }
+        if (ys.Count == 0) return 0;
+        ys.Sort(); float pad = ys[ys.Count / 2];
+        int n = 0;
+        foreach (var r in ring)
+        {
+            var q = new Vector2(r.x, r.z);
+            // 区画の外の節点は触らない(地山のまま)= e 0 ── 地山が平場の高さに揃っていれば取れる
+            float e = EdoGeom.PIP(parcel, q) ? Mathf.Max(0f, EdoGeom.DistToPolyEdge(parcel, q) - EDGE_BERM) : 0f;
+            if (pad - r.y > e / fillRun + 0.01f || r.y - pad > e / cutRun + 0.01f) n++;
+        }
+        return n;
+    }
+
+    /// <summary>隣の平場と束ねる高さの差の上限。【確度 U】── 棟ごとの系統差 ±0.25(規則3)をまたがない幅。</summary>
+    public const float PAD_MERGE_DY = 0.30f;
+
+    static float PolyArea(Vector2[] p)
+    {
+        float s = 0f; for (int i = 0; i < p.Length; i++) { var a = p[i]; var b = p[(i + 1) % p.Length]; s += a.x * b.y - b.x * a.y; }
+        return 0.5f * s;
+    }
+
+    /// <summary>二つの多角形の縁どうしの最短距離(頂点↔相手の辺で近似。重なれば 0)。</summary>
+    static float PolyGap(Vector2[] a, Vector2[] b)
+    {
+        float d = float.MaxValue;
+        foreach (var q in a) { if (EdoGeom.PIP(b, q)) return 0f; d = Mathf.Min(d, EdoGeom.DistToPolyEdge(b, q)); }
+        foreach (var q in b) { if (EdoGeom.PIP(a, q)) return 0f; d = Mathf.Min(d, EdoGeom.DistToPolyEdge(a, q)); }
+        return d;
+    }
+
+    /// <summary>崖とみなす横断勾配(高さ/水平)。1:1.4(約 35°)より急なら崖。【確度 U】── 盛土の法 1:1.5 より急な地山は人が土で保てない。</summary>
+    public const float CLIFF_SLOPE = 0.7f;
+
+    /// <summary>**辺のうち崖下でない区間**(2026-09-28・EDO-0477。施主の規則「崖の線は面の縁だけ囲う・崖の中腹と崖下に塀を建てない」)。
+    /// 辺 a→b に沿って 1m ごとに、造成前の地盤(base_dem)を線の内外 ±1m で読み、内が低い崖(内が CLIFF_SLOPE より急に落ちる)の所を外し、
+    /// 残る区間を [t0, t1](a からの距離)で返す。<paramref name="minSpan"/> より短い区間は捨てる。崖の上の側は囲う(面の縁)ので外さない。
+    /// ⛔ 崖下の線に塀を建てると、厚みのあいだで地面が 1m 近く落ち、根入れ 0.60 でも着かない(観理院 辺1 の 25m)。
+    /// 当たる先: 類型の全区画の囲い(塀・柵の種別)。長屋の囲いは棟なので別に扱う(未)。</summary>
+    public static List<float[]> CliffFreeSpans(Vector2 a, Vector2 b, Vector2 outward, float minSpan, out float cliffLen)
+    {
+        var dem = BaseDem(); var outp = new List<float[]>(); cliffLen = 0f;
+        float L = (b - a).magnitude; if (L < 1e-3f) return outp;
+        var d = (b - a) / L; var inN = -outward.normalized;
+        float start = 0f; bool open = true;
+        for (float s = 0f; s <= L + 1e-3f; s += 1f)
+        {
+            float t = Mathf.Min(s, L); var p = a + d * t;
+            float gi = dem(p.x + inN.x, p.y + inN.y), go = dem(p.x - inN.x, p.y - inN.y);
+            bool cliff = !float.IsNaN(gi) && !float.IsNaN(go) && (gi - go) / 2f < -CLIFF_SLOPE;
+            if (cliff) cliffLen += 1f;
+            if (cliff && open) { if (t - start >= minSpan) outp.Add(new[] { start, t }); open = false; }
+            else if (!cliff && !open) { start = t; open = true; }
+        }
+        if (open && L - start >= minSpan) outp.Add(new[] { start, L });
+        cliffLen = Mathf.Min(cliffLen, L);
         return outp;
     }
 

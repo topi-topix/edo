@@ -67,6 +67,17 @@ public static class EdoAssets
         /// (庭方の境内の設計 2026-09-27・EDO-0477 P5)。⚠ 素で置かず `ES = 1.818` を掛ける。
         /// ⛔ 屋敷の庭の灯籠には使わない(雪見 <see cref="ToroYukimi"/> ── 上の注記)。</summary>
         public const string ToroKasuga = "Assets/edogoyomi/t_kasuga/t_kasuga.obj";
+        public const string TexToroKasuga = "Assets/edogoyomi/t_kasuga/t_kasuga.jpg";
+
+        /// <summary>**材の無い edogoyomi の駒 → 同じフォルダの画像**(2026-09-28 EDO-0477 施主指摘「灯籠が真っ白」)。
+        /// obj に .mtl が無く、取り込むと画像の無い灰白 0.906 の材になる。⭐ 在庫のパックは gitignore なので取り込みの設定(meta)は
+        /// 直さず、`EdoBuild.Place` が置くたびに Edo 側の材(画像を貼った Lit)を着せる。当たる先: 石灯籠(春日・雪見)を置く全邸。</summary>
+        public static readonly System.Collections.Generic.Dictionary<string, string> BareTex =
+            new System.Collections.Generic.Dictionary<string, string>
+            {
+                { ToroKasuga, TexToroKasuga },
+                { ToroYukimi, TexToroYukimi },
+            };
 
         // 店先の小物
         public const string Shop01Taru  = "Assets/edogoyomi/es_shop01/s01_taru.obj";

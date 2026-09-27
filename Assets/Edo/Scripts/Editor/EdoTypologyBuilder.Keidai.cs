@@ -95,7 +95,7 @@ public static partial class EdoTypologyBuilder
             foreach (var q in quad) zn.quads.Add(new Vector3(q.x, 0f, q.y));
             foreach (var p in poly) zn.clip.Add(new Vector3(p.x, 0f, p.y));
             maeArea = maeW * maeD;
-            f.AddBand(c0 + vDir * (maeD * 0.5f) - uDir * maeW * 0.5f, c0 + vDir * (maeD * 0.5f) + uDir * maeW * 0.5f, maeD * 0.5f);   // 白洲にも木を入れない
+            f.AddBand(c0 + vDir * (maeD * 0.5f) - uDir * maeW * 0.5f, c0 + vDir * (maeD * 0.5f) + uDir * maeW * 0.5f, maeD * 0.5f, false);   // 白洲にも木を入れない(献灯は立つ ── 歩く帯でない)
         }
         var tsuchi = f.Cells.Where(p => f.Eaves.Dist(p, 4f) <= 3f).ToList();
         AddGroundZone(grp, "tataki", tsuchi);

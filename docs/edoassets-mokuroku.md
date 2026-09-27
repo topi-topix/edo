@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 341(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 343(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -36,6 +36,8 @@
 | `Eg.ToroYukimi` | string | `t_yukimi.obj` — 雪見灯籠(六角の広い笠 + 宝珠 + 火袋 + 竿を持たない三脚)。 | DoiBuilder.Niwa(ResolveNiwaApi), OkabeYashiki(PlaceNiwaItem) |
 | `Eg.TexToroYukimi` | string | `t_yukimi.jpg` | — |
 | `Eg.ToroKasuga` | string | `t_kasuga.obj` — 春日灯籠(edogoyomi `t_kasuga`)── 寺社の境内の献灯(本堂の前・参道の左右に一対)にだけ当てる (庭方の境内の設計 2026-09-27・EDO-0477 P5)。 | TypologyBuilder.Keidai(NiwaKeidai) |
+| `Eg.TexToroKasuga` | string | `t_kasuga.jpg` | — |
+| `Eg.BareTex` | System.Collections.Generic.Dictionary<string, string> | 材の無い edogoyomi の駒 → 同じフォルダの画像(2026-09-28 EDO-0477 施主指摘「灯籠が真っ白」)。 | Build(Place) |
 | `Eg.Shop01Taru` | string | `s01_taru.obj` — 店先の小物 | — |
 | `Eg.Shop01Oke` | string | `oke.obj` | — |
 | `Eg.TexShop01` | string | `shop01.jpg` — テクスチャ(マテリアル生成用) | SannoSha(Stage5_Monzencho) |
@@ -298,7 +300,7 @@
 | `Own.MSannoDanishi` | string | `Danishi.mat` — 山王社の段石の材(`Danishi`)。 | — |
 | `Own.MJishinban` | string | `M_Jishinban.mat` | — |
 | `Own.MGateStone` | string | `GateStone.mat` | — |
-| `Own.Mat(name)` | 関数 | 自作マテリアルの名前引き(規則11: パスの literal はここ以外に書かない) | SannoSha(MonzenMat), SolidMat(Named) |
+| `Own.Mat(name)` | 関数 | 自作マテリアルの名前引き(規則11: パスの literal はここ以外に書かない) | Build(DressBare), SannoSha(MonzenMat), SolidMat(Named) |
 | `Own.SolidMatDir` | string | `Solid` — 色だけの無地の材質(URP/Lit)を置く場所。 | SolidMat(Get・Migrate) |
 | `Own.SolidMat(hex)` | 関数 | — | SolidMat(Get) |
 | `Own.GenMeshDir` | string | `Gen` — コードで起こしたメッシュの置き場。`EdoSolidMesh.Save(mesh, 名)` が `&lt;名&gt;_&lt;中身の指紋&gt;.asset` で 1 枚だけ起こす(EDO-0332)。 | SolidMesh(Get・Save), BuildHifu(ClearEdgeSkins) |

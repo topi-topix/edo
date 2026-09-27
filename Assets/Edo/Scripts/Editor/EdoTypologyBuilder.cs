@@ -562,9 +562,22 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 {
                     // ⭐ 種別を run へ**渡す**(EDO-0324)。⛔ 2026-09-21 まで種別は捨てられていて、
                     //    ita / dobei / ita+ikegaki / ishigaki+hei / yarai / boji / kui が全部おなじ板塀で建っていた。
-                    string note;
-                    EdoBuild.FenceRun(encl, e.a, e.b, e.outward, kind, pad, gc, gh, pre, out note);
-                    if (!string.IsNullOrEmpty(note)) kakoiNotes.Add("辺" + e.i + " " + note);
+                    // ⭐ 崖下の区間は囲わない(施主の規則「崖の線は面の縁だけ囲う・崖の中腹と崖下に塀なし」・2026-09-28 EDO-0477)。
+                    float cliffLen;
+                    var spans = EdoBuild.CliffFreeSpans(e.a, e.b, e.outward, 2.0f, out cliffLen);
+                    if (cliffLen < 1f) spans = new List<float[]> { new[] { 0f, e.len } };
+                    else kakoiNotes.Add(string.Format("辺{0} 崖下 {1:F0}m を囲わない(崖の上の面の縁が囲う所)", e.i, cliffLen));
+                    var ed = (e.b - e.a).normalized;
+                    for (int si = 0; si < spans.Count; si++)
+                    {
+                        var sa = e.a + ed * spans[si][0]; var sb2 = e.a + ed * spans[si][1];
+                        float gt = Vector2.Dot(gc - e.a, ed);
+                        bool gateHere = gh > 0f && gt >= spans[si][0] && gt <= spans[si][1];
+                        string note;
+                        EdoBuild.FenceRun(encl, sa, sb2, e.outward, kind, pad, gateHere ? gc : Vector2.zero, gateHere ? gh : -1f,
+                                          spans.Count == 1 ? pre : pre + "s" + si, out note);
+                        if (!string.IsNullOrEmpty(note)) kakoiNotes.Add("辺" + e.i + " " + note);
+                    }
                 }
             }
         };
@@ -1071,13 +1084,6 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 Vector3 at; int nc;
                 float dy = EdoBuild.Contact(t.gameObject, out at, out nc, 0.01f, VERTS);
                 if (float.IsNaN(dy)) continue;
-                // ⭐ 棟(御殿の複合を除く)は**下端の全部**を測る(§0a)── Contact は最寄りの 1 点なので、斜面で下手が浮いても 0 を返す。
-                //    浮きと埋まりの大きい方を代表にする(複合の棟ごとと同じ作法)。
-                if (grp.name == "Tatemono" && t.name != "Goten")
-                {
-                    var rt = EdoBuild.RootToBed(t.gameObject, GroundBed, 0.1f);
-                    if (!float.IsNaN(rt.hi)) dy = rt.hi > -rt.lo ? rt.hi : rt.lo;
-                }
                 // ⭐ 赤になりかけた駒だけ、間引かずに測り直す。⛔ 頂点の多い駒(屋敷林の木)は 800 点の
                 //    一様な間引きが根元の頂点を落とし、+0.97m の「浮き」が全頂点では −0.29m だった
                 //    (2026-09-22 todablock。EDO-0323 の指摘)。全区画を精密に測ると 79 区画が終わらないので、
@@ -1085,6 +1091,13 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 bool rooted = grp.name == "Kakoi" || grp.name == "Niwa";   // 根入れで据える物(埋没を数えない)
                 if ((!rooted && dy < -GROUND_TOL) || dy > GROUND_TOL)
                     dy = EdoBuild.Contact(t.gameObject, out at, out nc, 0.01f, 60000);
+                // ⭐ 棟(御殿の複合を除く)は**下端の全部**を測る(§0a)── Contact(上の測り直しも)は最寄りの 1 点なので、斜面で下手が浮いても 0 を返す。
+                //    浮きと埋まりの大きい方を代表にする(複合の棟ごとと同じ作法)。
+                if (grp.name == "Tatemono" && t.name != "Goten")
+                {
+                    var rt = EdoBuild.RootToBed(t.gameObject, GroundBed, 0.1f);
+                    if (!float.IsNaN(rt.hi)) dy = rt.hi > -rt.lo ? rt.hi : rt.lo;
+                }
                 // ⭐ **一続きの複合は棟ごとに測る。**⛔ 複合ぜんたいの Contact は**子の最小**を返すので、
                 //    塚に載った 1 棟が 0.00m を返すと、他の 6 棟が 2.1m 浮いていても「⭕ 0.00m」になる。
                 //    2026-09-22 の戸田・阿部・松平がこれで、数値の関門は全部通ったのに

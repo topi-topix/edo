@@ -202,40 +202,49 @@ public static partial class EdoBuild
                                             //    樹冠のはみ出しは Stage6 の検査で**壁体の区域侵犯**として
                                             //    数えられてしまう(検査は木と軒を見分けない)ので、
                                             //    許容0(規則4)を保つには樹冠ごと内に入れる。
+        public float TrunkEdge;             // >0 なら区画の線からの控えを**幹の芯**で測る[m](EdgeK の樹冠は見ない)。
+                                            // ⭐ 施主の規則(2026-09-23・繰り返し指摘): 幹の芯は道(区画の線)から 2.0m・低木も。
+                                            //    樹冠は線を越えて張り出してよい(検査も幹で数える ── EdoTypologyBuilder.Inspect)。
         public float Block;                 // **通り抜ける物(飛石)がこの駒を避ける半径**。
                                             //   >0 = その定数(木は幹 0.25)/ 0 = 実測の樹冠(刈込・低木・石)/ <0 = 避けない(下草)
         public bool Tall;                   // 高木・中木か(⭐ 常緑:落葉の**分母はこれだけ**・検分⑦)
         public bool PathMode;               // 通り道の駒(飛石)— 相手は Block で避け、同じ層とだけ Mutual で突き合う
         public string SelfLayer;            // PathMode の「同じ層」の名(NiwaStepPath が差す)
 
-        /// <summary>**高木**(囲いから幹で 1.2 / 軒から樹冠で 0.3)。塊の芯々は樹冠半径の和×0.45〜0.75 —
+        /// <summary>木・低木・下草の幹の芯から区画の線と囲い・門構えの壁体までの控え[m](2026-09-27・EDO-0477 P5)。
+        /// ⭐ 施主の規則: 幹の芯 ↔ 道辺 ≥ 2.0m(全層・低木も)・囲いのある辺は囲いの線から 2m(山王 EDO-0401/0409 の型)。
+        /// ⛔ それまで類型の庭は囲いから 高木 1.2 / 中木 0.8 / 低木 0.4 で、区画の線は樹冠 × EdgeK で測っていた。
+        /// ⚠ 2m は PC の解像度の都合で将来外し得る(施主注記)── 外すときはこの一行だけ。</summary>
+        public const float TREE_KEEP = 2.0f;
+
+        /// <summary>**高木**(囲いから幹で 2.0 / 軒から樹冠で 0.3)。塊の芯々は樹冠半径の和×0.45〜0.75 —
         /// ⭐ 三本の松が**株**に見える寄り(⛔ 0.7〜1.1 では芯々8〜11m で孤立木3本になる・検分⑥)。</summary>
         public static NiwaSet Tree
         {
             get
             {
-                return new NiwaSet { ClearWall = 1.2f, PadEave = 0.3f, SinkLo = 0.05f, SinkHi = 0.12f,
+                return new NiwaSet { ClearWall = TREE_KEEP, PadEave = 0.3f, SinkLo = 0.05f, SinkHi = 0.12f,
                                      ScaleLo = 0.88f, ScaleHi = 1.12f, SpaceLo = 0.45f, SpaceHi = 0.75f,
-                                     Mutual = 0.42f, EdgeK = 1.0f, Block = 0.25f, Tall = true };
+                                     Mutual = 0.42f, EdgeK = -1f, TrunkEdge = TREE_KEEP, Block = 0.25f, Tall = true };
             }
         }
-        /// <summary>**中木**(囲いから幹で 0.8 / 軒から樹冠で 0.3)。芯々 0.6〜0.9・Mutual 0.55(検分⑥)。</summary>
+        /// <summary>**中木**(囲いから幹で 2.0 / 軒から樹冠で 0.3)。芯々 0.6〜0.9・Mutual 0.55(検分⑥)。</summary>
         public static NiwaSet Chuboku
         {
             get
             {
-                var o = Tree; o.ClearWall = 0.8f; o.SpaceLo = 0.6f; o.SpaceHi = 0.9f; o.Mutual = 0.55f;
+                var o = Tree; o.SpaceLo = 0.6f; o.SpaceHi = 0.9f; o.Mutual = 0.55f;
                 return o;
             }
         }
-        /// <summary>低木・刈込(囲いから幹で 0.4 / 軒から樹冠で 0.2)。芯々は現行のまま(検分⑥)。</summary>
+        /// <summary>低木・刈込(囲いから幹で 2.0 / 軒から樹冠で 0.2)。芯々は現行のまま(検分⑥)。</summary>
         public static NiwaSet Shrub
         {
             get
             {
-                return new NiwaSet { ClearWall = 0.4f, PadEave = 0.2f, SinkLo = 0.03f, SinkHi = 0.08f,
+                return new NiwaSet { ClearWall = TREE_KEEP, PadEave = 0.2f, SinkLo = 0.03f, SinkHi = 0.08f,
                                      ScaleLo = 0.88f, ScaleHi = 1.12f, SpaceLo = 0.8f, SpaceHi = 1.3f,
-                                     Mutual = 0.65f, EdgeK = 0.9f, Block = 0f, Tall = false };
+                                     Mutual = 0.65f, EdgeK = -1f, TrunkEdge = TREE_KEEP, Block = 0f, Tall = false };
             }
         }
         /// <summary>下草(シダ)。⭐ 低木と同じ据えだが **踏める**(Block &lt; 0)— 飛石は下草を避けない
@@ -396,7 +405,8 @@ public static partial class EdoBuild
         public bool Free(Vector2 p, float r, NiwaSet o, bool voidOk = false)
         {
             if (!EdoGeom.PIP(Poly, p)) return false;
-            if (EdoGeom.DistToPolyEdge(Poly, p) < r * o.EdgeK) return false;
+            if (o.TrunkEdge > 0f) { if (EdoGeom.DistToPolyEdge(Poly, p) < o.TrunkEdge) return false; }   // 幹の芯で
+            else if (EdoGeom.DistToPolyEdge(Poly, p) < r * o.EdgeK) return false;
             if (InSando(p, r)) return false;
             if (!voidOk && InVoid(p)) return false;
             if (o.ClearWall > 0f && Walls.Dist(p, o.ClearWall) < o.ClearWall) return false;   // 幹の芯で
@@ -501,7 +511,9 @@ public static partial class EdoBuild
                 catch (Exception) { UnityEngine.Object.DestroyImmediate(go); Refused++; return null; }
                 Vector3 at; int nc;
                 float dy = Contact(go, out at, out nc, 0.01f, 60000);
-                if (float.IsNaN(dy) || dy < -1.0f || dy > 0.7f)
+                // ⭐ 浮きの線は地面との間の +0.01m(2026-09-27 施主・docs/oki-kata.md §4 ── 旧の浮 0.7 は根拠の無い目安で廃止)。
+                //    木・下草・景石は根入れで据える物なので、埋まりは下限を広く取ったまま(沈めは意図・§0a)。
+                if (float.IsNaN(dy) || dy < -1.0f || dy > 0.01f)
                 {
                     WorstSteep = Mathf.Max(WorstSteep, float.IsNaN(dy) ? 0f : Mathf.Abs(dy));
                     UnityEngine.Object.DestroyImmediate(go); DropSteep++; return null;
@@ -524,6 +536,19 @@ public static partial class EdoBuild
                     _lastRR = rr;
                     UnityEngine.Object.DestroyImmediate(go);
                     return null;                                            // 数えるのは呼び手の Put(寄せ直しても駄目なときだけ)
+                }
+            }
+            // ⭐ 幹の芯で区画の線からの控えを守る(TrunkEdge・据えた後の実の幹で検め直す)
+            if (o.TrunkEdge > 0f)
+            {
+                bool tin = EdoGeom.PIP(Poly, trunk);
+                float td0 = EdoGeom.DistToPolyEdge(Poly, trunk);
+                if (!tin || td0 < o.TrunkEdge)
+                {
+                    _edgeNeed = o.TrunkEdge + (tin ? -td0 : td0);
+                    _lastRR = rr;
+                    UnityEngine.Object.DestroyImmediate(go);
+                    return null;
                 }
             }
             // 検査の控え — 実測の離れ(⛔ 「置けた」だけを合格にしない・規則19)

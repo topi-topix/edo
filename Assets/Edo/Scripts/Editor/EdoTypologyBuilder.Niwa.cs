@@ -506,6 +506,7 @@ public static partial class EdoTypologyBuilder
             case "small":  NiwaChisen(s, grp, f, poly, front, rnd, main, katte, per, zashikiLen, zashikiMid, zashikiN, gateC, half, want, got, log, 0.55f); break;
             case "tsubo":  NiwaTsubo(s, grp, f, poly, front, rnd, main, per, zashikiMid, zashikiN, want, got, log); break;
             case "ura":    NiwaUra(s, grp, f, mune, rnd, katte, kdir, cO, want, got, log); break;
+            case "keidai": NiwaKeidai(s, grp, f, poly, front, rnd, mune, gateC, half, sandoB, want, got, log); break;   // 寺社の境内(EDO-0477 P5)
             default:       return "  ⚠ 庭: 表の garden=" + g + " は庭方の設計に無い型 — 建てない(表を検め直す)";
         }
 
@@ -1066,10 +1067,12 @@ public static partial class EdoTypologyBuilder
         // ⭐ 裁定5: ura にも禿げの線を当てる。ただし下限は **3%**(他の型は 5%)。
         //    ⛔ 閾値だけでは足りない — 真因は層の本数が庭域に従っていなかったこと(NiwaUra で是正)。
         float covFloor = g == "ura" ? 0.03f : 0.05f;
+        // ⭐ 境内(keidai)は斜面を閉じた林で覆う設計(施主: 斜面は木でしっかり覆う)── 林の上限は 70%(庭方 2026-09-27)
+        float covMax = g == "keidai" ? 0.70f : 0.50f;
         float covLo = g == "tsubo" ? 0.15f : (g == "ura" ? 0.03f : 0.10f);   // 刷らないが引数に残す
         float covHi = g == "tsubo" ? 0.30f : (g == "ura" ? 0.20f : 0.25f);
-        bool covBad = cov > 0.50f || cov < covFloor;
-        string covMark = cov > 0.50f ? "⛔ 林(50%超)"
+        bool covBad = cov > covMax || cov < covFloor;
+        string covMark = cov > covMax ? "⛔ 林(" + covMax.ToString("P0") + "超)"
                        : (cov < covFloor ? "⛔ 禿げ(" + covFloor.ToString("P0") + "未満)"
                        : "参考(union の新式・旧式の目安は当てない)");
         // ⭐ 常緑:落葉の**分母は高木+中木だけ**(検分⑦)。照葉低木・刈込・坪庭の低木・下草は全て常緑なので、

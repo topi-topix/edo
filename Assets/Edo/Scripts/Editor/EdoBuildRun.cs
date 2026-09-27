@@ -525,6 +525,47 @@ public static partial class EdoBuild
         return go;
     }
 
+    /// <summary>**弦に張る(実測版)**(2026-09-27・EDO-0477 P2)。<see cref="PlaceOnChord"/> と同じく継ぎ目 <paramref name="j0"/>→<paramref name="j1"/> に
+    /// 勾配なりに張るが、**ピボットを使わない** ── 駒の実メッシュの走りの中央・丈の中ほどを測り、その点を弦の中点(足元から丈の中ほどまで上げた所)へ
+    /// 置く。足元の線が弦に乗り、隣の駒とは丈の中ほどで継ぐ。奥行は据えた駒の実測の厚みの中央を <paramref name="latLine"/>(outward への射影)へ寄せる。
+    /// <paramref name="unitScale"/> は丈と厚みの倍率(edogoyomi の obj は ES)。
+    /// <para>⭐ 表(ローカル +Z)を <paramref name="outward"/> へ向けたいなら j0→j1 を (−dir.y, dir.x)·outward > 0 の順で渡す(<see cref="ChordFacing"/>)。</para>
+    /// 当たる先: 類型の板塀・練塀の run(<see cref="DobeiRun"/>・<see cref="NeribeiRun"/> の地形なり)。</summary>
+    public static GameObject PlaceOnChordMeasured(string path, Vector3 j0, Vector3 j1, Vector2 outward, float latLine,
+                                                  float unitScale, Transform parent, string name)
+    {
+        var rx = RunMeasure(path); var ry = RunMeasureY(path);
+        Vector2 h0 = new Vector2(j0.x, j0.z), h1 = new Vector2(j1.x, j1.z);
+        float du = Vector2.Distance(h0, h1), dy = j1.y - j0.y;
+        Vector2 dir = du > 1e-6f ? (h1 - h0) / du : Vector2.right;
+        float chord = Mathf.Sqrt(du * du + dy * dy);
+        float yaw = Mathf.Atan2(-dir.y, dir.x) * Mathf.Rad2Deg;
+        float roll = Mathf.Atan2(dy, du) * Mathf.Rad2Deg;
+        var scale = new Vector3(chord / rx.W, unitScale, unitScale);
+        var q = Quaternion.Euler(0f, yaw, 0f) * Quaternion.Euler(0f, 0f, roll);
+        var anchorL = new Vector3((rx.lo + rx.hi) * 0.5f, ry.Mid, 0f);                 // 実メッシュの走りの中央・丈の中ほど
+        var anchorW = (j0 + j1) * 0.5f + Vector3.up * ((ry.Mid - ry.lo) * unitScale);  // 弦の中点(足元)から丈の中ほどまで
+        var pos = anchorW - q * Vector3.Scale(scale, anchorL);
+        var go = Place(path, pos, yaw, scale, parent, name);
+        go.transform.rotation = q; go.transform.position = pos;
+        float lmn, lmx;
+        ProjExtent(go, outward, float.MinValue, float.MaxValue, null, out lmn, out lmx);
+        float d = latLine - (lmn + lmx) * 0.5f;
+        go.transform.position += new Vector3(outward.x * d, 0f, outward.y * d);
+        return go;
+    }
+
+    /// <summary>弦 j0→j1 に張った駒の表(ローカル +Z)が <paramref name="outward"/> を向くか。</summary>
+    public static bool ChordFacing(Vector3 j0, Vector3 j1, Vector2 outward)
+    {
+        Vector2 d = new Vector2(j1.x - j0.x, j1.z - j0.z);
+        return Vector2.Dot(new Vector2(-d.y, d.x), outward) > 0f;
+    }
+
+    /// <summary>地形なりの走りで、継ぎ目を足元から沈める根入れ[m]。⭐ 継ぎ目の均しの上限にも同じ値を使う
+    /// (<see cref="GroundPolyline"/> の floatMax)ので、継ぎ目で足が地面から出ることはない。旧来の SeatOnGround(go, 0.10) と同じ値。</summary>
+    const float SLOPE_ROOT = 0.10f;
+
     /// <summary>駒を走り方向 <paramref name="dir"/> の実寸で <paramref name="startAbs"/>(世界の xz を dir へ射影した値)へ突き付ける。
     /// 奥行は実測した厚みの中央を「線から latOff だけ内」へ。返る <paramref name="mn"/>/<paramref name="mx"/> は
     /// 据えたあとの端の**実測値**(次の駒はこの mx へ突き付ける)。
@@ -567,9 +608,31 @@ public static partial class EdoBuild
         float a0 = Vector2.Dot(A, dir);
         float W = RunMeasure(PHei).W;
         int k = 0;
+        float lat0 = Vector2.Dot(A, outward);
         foreach (var seg in segs)
         {
             float L = seg[1] - seg[0];
+            // ⭐ 地形なりの run は**地表の道のりで割り、駒を弦に張る**(2026-09-27・EDO-0477 P2 ── 山王の柵 EDO-0398 の型を共有へ)。
+            //   ⛔ 2026-09-27 まで駒は水平のまま「触れている箇所」(= 斜面の上手の端)で据えていたので、下手の端が
+            //   勾配 × 駒の長さだけ宙に浮いた(観理院の西の斜面で 133 駒中 35 駒が 5cm 超・最大 1.74m・EDO-0466/0431)。
+            //   天端は区間ごとに一続きの線になり、段々にならない(施主の規則「天端は一続きごとに一直線」)。
+            //   当たる先: 類型の板塀・生垣付き板塀・石垣+塀・既定の囲い(followGround = NaturalMode)と、地形なりで呼ぶ旧山王ビルダーの TW_*/SB_*。
+            if (followGround)
+            {
+                var js = GroundPolyline(A + dir * seg[0], A + dir * seg[1], DOBEI_PITCH, SLOPE_ROOT, SLOPE_ROOT * 2f);
+                for (int j = 0; j + 1 < js.Count; j++, k++)
+                {
+                    var j0 = js[j] - Vector3.up * SLOPE_ROOT; var j1 = js[j + 1] - Vector3.up * SLOPE_ROOT;
+                    bool fwd = ChordFacing(j0, j1, outward);
+                    for (int side = 0; side < 2; side++)
+                    {
+                        bool f = side == 0 ? fwd : !fwd;
+                        made.Add(PlaceOnChordMeasured(PHei, f ? j0 : j1, f ? j1 : j0, outward, lat0 + (side == 0 ? 0f : -0.2f), ES,
+                                                      parent, prefix + "_" + k + (side == 0 ? "f" : "b")));
+                    }
+                }
+                continue;
+            }
             // ⭐ 区間を板で**割り切る**(端数を残さない)。短い区間は 1 枚を縮めて埋める。
             int n = Mathf.Max(1, Mathf.RoundToInt(L / DOBEI_PITCH));
             float pitch = L / n;
@@ -579,12 +642,6 @@ public static partial class EdoBuild
             {
             var c2 = A + dir * (seg[0] + pitch * (j + 0.5f));
             float baseY = flatBase;
-            if (followGround)
-            {
-                float g1 = Ground(c2.x - dir.x * pitch * 0.5f, c2.y - dir.y * pitch * 0.5f);
-                float g2 = Ground(c2.x + dir.x * pitch * 0.5f, c2.y + dir.y * pitch * 0.5f);
-                baseY = Mathf.Max(g1, g2);
-            }
             float startAbs = chained ? prevEnd : a0 + seg[0] + pitch * j;
             for (int side = 0; side < 2; side++)
             {
@@ -594,9 +651,7 @@ public static partial class EdoBuild
                 float mn, mx;
                 ButtOnRun(go, A, dir, outward, side == 0 ? 0.0f : -0.2f, startAbs, out mn, out mx);
                 if (side == 0) { prevEnd = mx; chained = true; }
-                // ⛔ 底を「足元の地形」へ落とさない — **触れている箇所**を測って据える(規則21・2026-09-21)
-                if (followGround) { try { SeatOnGround(go, 0.10f, 600); } catch (System.Exception) { SeatBottom(go, baseY - 0.10f); } }
-                else SeatBottom(go, baseY - 0.10f);
+                SeatBottom(go, baseY - 0.10f);   // 平らな座(地形なりは上の弦の枝)
                 made.Add(go);
             }
             }
@@ -627,10 +682,31 @@ public static partial class EdoBuild
         float psi = Mathf.Atan2(outward.x, outward.y) * Mathf.Rad2Deg;
         float a0 = Vector2.Dot(A, dir);
         int idx = 0;
+        float lat0 = Vector2.Dot(A, outward);
         foreach (var seg in segs)
         {
             float L = seg[1] - seg[0];
             if (L < bodyLen * 0.5f) continue;    // 一枚も入らない端数は置かない(呼び手が別途埋める)
+            // ⭐ 地形なりは**地表の道のりで割り、駒を弦に張る**(2026-09-27・EDO-0477 P2。DobeiRun と同じ型)。
+            //   ⛔ 水平の駒を上手の端で据えると下手が宙に浮く(観理院・十坊の練塀 6.2〜6.8m 浮き・EDO-0431)。
+            //   妻塞ぎ(Dobei2mEnd)は小口がローカル x の低い側にあるので、弦の j0 を**自由端**に取る(回転の向きを外向きの算術に頼らない)。
+            if (followGround)
+            {
+                var js = GroundPolyline(A + dir * seg[0], A + dir * seg[1], bodyLen, SLOPE_ROOT, SLOPE_ROOT * 2f);
+                int m = js.Count - 1;
+                bool cLo = gapHalf > 0 && seg[0] > 0.01f;
+                bool cHi = gapHalf > 0 && seg[1] < len - 0.01f && !(m == 1 && cLo);
+                for (int k = 0; k < m; k++)
+                {
+                    var j0 = js[k] - Vector3.up * SLOPE_ROOT; var j1 = js[k + 1] - Vector3.up * SLOPE_ROOT;
+                    bool atLo = k == 0 && cLo, atHi = k == m - 1 && cHi;
+                    string path = (atLo || atHi) ? EdoAssets.Own.Dobei2mEnd : EdoAssets.Own.Dobei2m;
+                    bool f = atLo ? true : atHi ? false : ChordFacing(j0, j1, outward);
+                    made.Add(PlaceOnChordMeasured(path, f ? j0 : j1, f ? j1 : j0, outward, lat0, 1f, parent, prefix + "_" + idx));
+                    idx++;
+                }
+                continue;
+            }
             int n = Mathf.Max(1, Mathf.RoundToInt(L / bodyLen));
             float pitch = L / n;
             // 開口に面した端だけ閉じる。両端とも開口に面す(n==1 の短い残り)ときは低位側を優先。
@@ -650,8 +726,7 @@ public static partial class EdoBuild
                 float mn, mx;
                 ButtOnRun(go, A, dir, outward, 0f, startAbs, out mn, out mx);
                 prevEnd = mx; chained = true;
-                if (followGround) { try { SeatOnGround(go, 0.10f, 600); } catch (Exception) { SeatBottom(go, flatBase - 0.10f); } }
-                else SeatBottom(go, flatBase - 0.10f);
+                SeatBottom(go, flatBase - 0.10f);   // 平らな座(地形なりは上の弦の枝)
                 made.Add(go); idx++;
             }
         }
@@ -670,6 +745,20 @@ public static partial class EdoBuild
     {
         var made = new List<GameObject>();
         Vector2 dir = (B - A).normalized; float len = (B - A).magnitude;
+        // ⭐ 開口(門)は**辺を開口の縁で区切ってから**区間ごとに張る(2026-09-27・EDO-0477 P2。DobeiRun の EDO-0474 と同じ型)。
+        //   ⛔ それまでは辺全体を等割りし開口に掛かる駒を丸ごと抜いていた — 門の脇に最大で駒 1 枚ぶんの隙が空く。
+        //   当たる先: 開口を渡す呼び手(類型の竹矢来)。開口を渡さない呼び手(山王の板塀)は不変。
+        if (gapHalf > 0)
+        {
+            float gT = Vector2.Dot(gapC - A, dir);
+            if (gT - gapHalf > DOBEI_MIN_PIECE)
+                made.AddRange(PanelRun(parent, A, A + dir * Mathf.Min(gT - gapHalf, len), outward, prefix, assetPath, Vector2.zero, -1f,
+                                       pair, unitScale, beds, bedAt, splitPost, splitBoard));
+            if (gT + gapHalf < len - DOBEI_MIN_PIECE)
+                made.AddRange(PanelRun(parent, A + dir * Mathf.Max(gT + gapHalf, 0f), B, outward, prefix + "_g", assetPath, Vector2.zero, -1f,
+                                       pair, unitScale, beds, bedAt, splitPost, splitBoard));
+            return made;
+        }
         bool fits = true;
         // スパン実測(unitScale基準・既定はES)
         float spanLocal = RunMeasure(assetPath).W;

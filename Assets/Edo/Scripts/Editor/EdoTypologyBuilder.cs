@@ -436,6 +436,9 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         return "  ⛔ プレハブへの切り出しに失敗(シーンに生で残る): " + string.Join(" ", f);
     }
 
+    /// <summary>棟の足あとの外へ平らに取る幅[m](犬走り・雨落ち)。【確度 U】一般類型 ── 史料の値が取れたら表の欄へ上げる。</summary>
+    const float ZOSEI_MARGIN = 1.0f;
+
     public static string BuildParcel(string id, bool force)
     {
         Spec s; if (!Table.TryGetValue(id, out s)) return "⛔ 類型表に無い区画: " + id;
@@ -451,6 +454,10 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
 
         var poly = EdoParcels.Get(id);
         if (poly == null || poly.Length < 3) return "⛔ 区画の形が無い: " + id;
+        // ⭐ 造成は毎回**造成前の地盤**から起こす(2026-09-27・EDO-0477 P1)── 区画の中を base_dem へ戻してから置く。
+        //   置き場の選びも前の巡の平場に引きずられない(二度建てても同じ姿)。⛔ 区画の外(道・隣)は触らない。
+        string restoreNote;
+        EdoBuild.GradePads(poly, new List<Vector2[]>(), 0f, out restoreNote);
         float spread, pad;
         try { pad = Pad(id, out spread); }
         catch (Exception ex) { return "⛔ " + id + ": 面の高さが測れない — " + ex.Message; }
@@ -458,7 +465,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         string frontWarn; var front = FrontEdge(s, edges, out frontWarn);
 
         var log = new List<string>();
-        log.Add(string.Format("{0}: 面 y={1:F2}(区画内の自然地形の中央値・造成なし / 起伏 {2:F2}m)", id, pad, spread));
+        log.Add(string.Format("{0}: 面 y={1:F2}(区画内の自然地形の中央値 / 起伏 {2:F2}m。棟の下は Stage 4z で平場を採る)", id, pad, spread));
         if (frontWarn != null) log.Add("  ⚠ " + frontWarn);
         log.Add(string.Format("  辺 {0}: 接道 {1} / 隣と共有 {2}(うち当方持ち {3})", edges.Count,
             edges.Count(e => e.kind == EdgeKind.Road), edges.Count(e => e.kind == EdgeKind.Shared),
@@ -535,26 +542,33 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         // ⭐ 町屋の通りの側の囲いは**表店の壁そのもの**(EDO-0325)。この辺に板塀を建てると
         //    店先が通りから隠れる。辺を選ぶのは Stage 3m と同じ関数なので、列の載る辺と必ず一致する。
         var machiyaFronts = MachiyaFrontEdges(s, edges, front);
-        foreach (var e in edges)
+        // ⭐ 囲いは造成の後でもう一度建てる(施主の規則「造成の後で全部据え直す」)ので、一手にまとめる。
+        Action buildKakoi = () =>
         {
-            if (e.kind == EdgeKind.Shared && !e.mine) continue;         // 隣が持つ辺は建てない
-            if (machiyaFronts.Contains(e)) { kakoiNotes.Add("辺" + e.i + " 囲わない — 表店の列が通りを受ける"); continue; }
-            bool isFront = (e == front);
-            var gc = isFront ? gateC : Vector2.zero;
-            var gh = isFront ? gateHalf : -1f;
-            string kind = EnclosureFor(s, e, isFront);
-            string pre = kind + "_" + e.i;
-            if (kind == "nagaya")
-                EdoBuild.NagayaRun(encl, e.a, e.b, e.outward, pad, gc, gh, pre, poly);
-            else
+            for (int c = encl.childCount - 1; c >= 0; c--) UnityEngine.Object.DestroyImmediate(encl.GetChild(c).gameObject);
+            kakoiNotes.Clear();
+            foreach (var e in edges)
             {
-                // ⭐ 種別を run へ**渡す**(EDO-0324)。⛔ 2026-09-21 まで種別は捨てられていて、
-                //    ita / dobei / ita+ikegaki / ishigaki+hei / yarai / boji / kui が全部おなじ板塀で建っていた。
-                string note;
-                EdoBuild.FenceRun(encl, e.a, e.b, e.outward, kind, pad, gc, gh, pre, out note);
-                if (!string.IsNullOrEmpty(note)) kakoiNotes.Add("辺" + e.i + " " + note);
+                if (e.kind == EdgeKind.Shared && !e.mine) continue;         // 隣が持つ辺は建てない
+                if (machiyaFronts.Contains(e)) { kakoiNotes.Add("辺" + e.i + " 囲わない — 表店の列が通りを受ける"); continue; }
+                bool isFront = (e == front);
+                var gc = isFront ? gateC : Vector2.zero;
+                var gh = isFront ? gateHalf : -1f;
+                string kind = EnclosureFor(s, e, isFront);
+                string pre = kind + "_" + e.i;
+                if (kind == "nagaya")
+                    EdoBuild.NagayaRun(encl, e.a, e.b, e.outward, pad, gc, gh, pre, poly);
+                else
+                {
+                    // ⭐ 種別を run へ**渡す**(EDO-0324)。⛔ 2026-09-21 まで種別は捨てられていて、
+                    //    ita / dobei / ita+ikegaki / ishigaki+hei / yarai / boji / kui が全部おなじ板塀で建っていた。
+                    string note;
+                    EdoBuild.FenceRun(encl, e.a, e.b, e.outward, kind, pad, gc, gh, pre, out note);
+                    if (!string.IsNullOrEmpty(note)) kakoiNotes.Add("辺" + e.i + " " + note);
+                }
             }
-        }
+        };
+        buildKakoi();
         log.Add("  囲い: " + string.Join(" / ", edges.Where(e => e.mine).Select(
             e => e.i + "=" + (machiyaFronts.Contains(e) ? "表店" : EnclosureFor(s, e, e == front))).ToArray()));
         foreach (var nt in kakoiNotes) log.Add("    " + nt);   // ⛔ 代用を黙って飲まない(規則7・19)
@@ -597,6 +611,51 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         //    通りに面して軒を接して建つ町屋とは置き方が別の物。→ EdoTypologyBuilder.Machiya.cs
         if (s.type == "machiya") log.Add(Machiya(s, root, poly, front, edges, pad, gateC, gateHalf));
         else log.Add(Omoya(s, root, poly, front, pad, gateC));
+
+        // ── Stage 4z: 造成(平場を採る・2026-09-27 EDO-0477 P1)──
+        // ⭐ 棟の足あと(壁体の実メッシュの凸包)ごとに造成前の地盤の中央値を平場に採り、法面(盛土 1:1.5・切土 1:1.0)で
+        //    地山へ擦り付ける。区画の縁で地山へ戻す(区画の外へ出さない)。⛔ 2026-09-27 まで類型は造成を一切せず、
+        //    斜面の棟は足元の地形なりに傾いた地面へ SeatOnGround で置かれ、下手が浮いた(規則3 の「面は自然の平場」が効いていなかった)。
+        // ⭐ 造成の後で**全部据え直す**(施主の規則)── 棟・門・番所を据え直し、囲いは建て直す。庭と植栽はこの後の段なので造成の上に建つ。
+        {
+            var tat = root.Find("Tatemono");
+            var pads = new List<Vector2[]>(); var bldg = new List<GameObject>();
+            if (tat != null)
+                foreach (Transform b in tat)
+                {
+                    var ws = EdoBuild.Body(b, 2000, false);     // 壁体(屋根・軒を外す ── 軒の下まで平らにしない)
+                    if (ws.Count < 3) continue;
+                    var xz = ws.Select(w => new Vector2(w.x, w.z)).ToArray();
+                    pads.Add(EdoGeom.HullXZ(xz).Select(k => xz[k]).ToArray());
+                    bldg.Add(b.gameObject);
+                }
+            if (pads.Count > 0)
+            {
+                string zn;
+                var hb = EdoBuild.GradePads(poly, pads, ZOSEI_MARGIN, out zn);
+                log.Add("  " + zn);
+                for (int k = 0; k < bldg.Count; k++)
+                {
+                    Seat(bldg[k], log);
+                    // ⭐ 棟の**下端**(当たり)が平場からどれだけ浮き・埋まるかを全棟で測る(docs/oki-kata.md §0a ── 当たりだけを測る)。
+                    //    ⛔ UnderfloorGap は軒・庇の下(接する想定の無い所)まで拾い、棟の高さを「浮き」と返した(2026-09-27 観理院 3〜6m)。
+                    var rt = EdoBuild.RootToBed(bldg[k], GroundBed, 0.1f);
+                    log.Add(string.Format("    平場 {0}: y={1:F2}(足あとの下の地盤の起伏 {2:F2}m)・下端の浮き {3:F3}m / 埋まり {4:F3}m{5}{6}", bldg[k].name, hb[k].y, hb[k].relief,
+                                          float.IsNaN(rt.hi) ? 0f : Mathf.Max(0f, rt.hi), float.IsNaN(rt.lo) ? 0f : Mathf.Max(0f, -rt.lo),
+                                          (rt.hi > GROUND_TOL || rt.lo < -GROUND_TOL) ? " ⚠(線 ±0.01)" : "",
+                                          hb[k].squeezed > 0 ? string.Format("・⚠ 縁に近く平らに取れない節点 {0}", hb[k].squeezed) : ""));
+                }
+                var ya = root.Find("Yashiro");                  // 町屋の稲荷(Stage 3m で建つ・棟の群の外)
+                if (ya != null) foreach (Transform y in ya) Seat(y.gameObject, log);
+                if (mon != null)
+                {
+                    Seat(mon, log);
+                    for (int k = 0; k < bansho.Count; k++) EdoBuild.AbutAndSeat(bansho[k], mon, push[k], 0f, 0f, VERTS);
+                }
+                buildKakoi();
+                log.Add("    造成の後で棟 " + bldg.Count + "・門構え・囲いを据え直した");
+            }
+        }
 
         // ── Stage 5: 植栽(EDO-0323)── ⭐ 参道の帯は**Stage 1 で実測した門構えの開口**から引く
         //    (⛔ 当て推量の GateWidth ではない)。庭の意匠は庭方の設計・EdoTypologyBuilder.Niwa.cs。
@@ -734,7 +793,9 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 // 壁体が区画の外へ出ない(軒は別勘定・2026-09-21 施主裁定A)
                 new EdoBuild.Hard("区域侵犯", q => OutsideBy(poly, q.transform, false) <= 0f),
                 // ⛔ 外接箱の膨らましだけで離れを決めない — **既に建った棟と触れている箇所**を測る(規則21)
-                new EdoBuild.Hard("めり込み", q =>
+                // ⭐ 棟が棟の中へ入るのは**突き抜けて見える**ので退ける(2026-09-27 施主: 部材どうしのめり込みは数えないが、
+                //    直すのは「見た目に違和感が出るとき(突き抜けて見える)」── 棟どうしの重なりはいつもそれに当たる・docs/oki-kata.md §4)
+                new EdoBuild.Hard("棟どうしの突き抜け", q =>
                 {
                     foreach (var prev in made)
                     {
@@ -960,14 +1021,25 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
     /// <summary>Stage 6 — 建てた姿を測る。⛔ **数えるのは「据えた駒」ひとつずつ**(群の直下の子)で、
     /// 部材の中のメッシュ一枚ずつではない。⛔ 2026-09-19、屋根や壁の一枚一枚を数えていて
     /// 「浮き 1103 / 1388」という**嘘の赤**が出た(屋根は地面から離れているのが正しい姿)。
-    /// 測る物: ①区域侵犯=駒の底面が区画の外へ出た量 ②埋没=駒の底が地面より 1.0m 下
-    /// ③浮き=駒の底が地面より 0.7m 上。⭐ 塀は境界線の**上に**立つので囲いだけ 0.6m の遊びを持つ
+    /// 測る物: ①区域侵犯=駒の底面が区画の外へ出た量 ②埋没=触れている所が地面より 0.01m 下
+    /// ③浮き=触れている所が地面より 0.01m 上(2026-09-27 施主 ── 地面との間だけ ±0.01m・docs/oki-kata.md §4。
+    /// 旧の埋 1.0 / 浮 0.7 は根拠の無い目安で廃止)。⭐ **根入れで据える物は埋没を数えない** ── 囲い(塀・長屋は代を地中へ
+    /// 埋めて据える・§0a「基本は根入れ」)と庭(木の根元・景石の 1/3 埋め)は浮きだけを数える。
+    /// ⭐ 部材どうしのめり込みは欠陥に数えない(同日 施主・§4)── 棟どうしの当たりは見張りとして刷るだけ。⭐ 塀は境界線の**上に**立つので囲いだけ 0.6m の遊びを持つ
     /// (建物と門は遊び 0 — 規則4「境界侵犯は許容0」)。⛔ 0 件は「この型では捕まらなかった」
     /// であって合格ではない(規則19)。最悪値を必ず刷り、緩い条件で 0 が出ていないか見えるようにする。</summary>
+    /// <summary>地面に置く物の接地の許容[m](浮き +0.01・埋まり −0.01 ── 2026-09-27 施主・docs/oki-kata.md §4)。
+    /// ⛔ 地面との間だけの線。部材どうしの隙は 1mm 未満を 0(別の線)。</summary>
+    const float GROUND_TOL = 0.01f;
+    /// <summary>塀の下端の浮きの線[m] = 地面の線と同じ(2026-09-27 に 0.05 から改めた・§4「類型の塀の下 0.05 はこの線へそろえる」)。</summary>
+    const float KAKOI_UKI_TOL = GROUND_TOL;
+    /// <summary>当たりの相手 = 見えている地表(live terrain)。<see cref="EdoBuild.RootToBed"/> に渡す。</summary>
+    static float GroundBed(float x, float z) { return EdoBuild.Ground(x, z); }
+
     public static string Inspect(string id, Transform root, Vector2[] poly)
     {
-        int n = 0, outside = 0, sunk = 0, floated = 0, multi = 0, eaveOut = 0;
-        float worstOut = 0f, worstSunk = 0f, worstFloat = 0f, worstRelief = 0f, worstEave = 0f;
+        int n = 0, outside = 0, sunk = 0, floated = 0, multi = 0, eaveOut = 0, kakoiUki = 0, kakoiN = 0;
+        float worstOut = 0f, worstSunk = 0f, worstFloat = 0f, worstRelief = 0f, worstEave = 0f, worstKakoiUki = 0f;
         foreach (Transform grp in root)
         {
             // ⛔ 2026-09-22 まで「Mon」もここに入っていて、辺に載らない門を折り込んでも残る
@@ -984,7 +1056,12 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 // ⛔ AABB の隅で測らない — 斜めの辺に沿う塀は、回っているだけで隅が外へ出る。
                 //    実メッシュの底面(回転込み)で測る(規則5)。
                 // 区域侵犯は**壁体**で数える(軒は別勘定 — 軒の許容は裁定待ち)
-                float outD = OutsideBy(poly, t, false);
+                // ⭐ 木は**幹の芯**で数える(樹冠は区画の線を越えて張り出してよい ── 施主の規則 2026-09-23・EDO-0477 P5)。
+                //    幹の取れない駒(石・灯籠)は従来どおり壁体で。
+                Vector3 foot3; Vector2 foot;
+                float outD = grp.name == "Niwa" && EdoBuild.TrunkFootWorld(t.gameObject, out foot3)
+                    ? (EdoGeom.PIP(poly, foot = new Vector2(foot3.x, foot3.z)) ? 0f : EdoGeom.DistToPolyEdge(poly, foot))
+                    : OutsideBy(poly, t, false);
                 if (outD > tol) { outside++; worstOut = Mathf.Max(worstOut, outD); }
                 float eaveD = OutsideBy(poly, t, true);
                 if (eaveD > tol) { eaveOut++; worstEave = Mathf.Max(worstEave, eaveD); }
@@ -994,11 +1071,19 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 Vector3 at; int nc;
                 float dy = EdoBuild.Contact(t.gameObject, out at, out nc, 0.01f, VERTS);
                 if (float.IsNaN(dy)) continue;
+                // ⭐ 棟(御殿の複合を除く)は**下端の全部**を測る(§0a)── Contact は最寄りの 1 点なので、斜面で下手が浮いても 0 を返す。
+                //    浮きと埋まりの大きい方を代表にする(複合の棟ごとと同じ作法)。
+                if (grp.name == "Tatemono" && t.name != "Goten")
+                {
+                    var rt = EdoBuild.RootToBed(t.gameObject, GroundBed, 0.1f);
+                    if (!float.IsNaN(rt.hi)) dy = rt.hi > -rt.lo ? rt.hi : rt.lo;
+                }
                 // ⭐ 赤になりかけた駒だけ、間引かずに測り直す。⛔ 頂点の多い駒(屋敷林の木)は 800 点の
                 //    一様な間引きが根元の頂点を落とし、+0.97m の「浮き」が全頂点では −0.29m だった
                 //    (2026-09-22 todablock。EDO-0323 の指摘)。全区画を精密に測ると 79 区画が終わらないので、
                 //    ここだけ。測り直した値が本当の値 — 間引きの値で ⛔ を出さない(規則19)。
-                if (dy < -1.0f || dy > 0.7f)
+                bool rooted = grp.name == "Kakoi" || grp.name == "Niwa";   // 根入れで据える物(埋没を数えない)
+                if ((!rooted && dy < -GROUND_TOL) || dy > GROUND_TOL)
                     dy = EdoBuild.Contact(t.gameObject, out at, out nc, 0.01f, 60000);
                 // ⭐ **一続きの複合は棟ごとに測る。**⛔ 複合ぜんたいの Contact は**子の最小**を返すので、
                 //    塚に載った 1 棟が 0.00m を返すと、他の 6 棟が 2.1m 浮いていても「⭕ 0.00m」になる。
@@ -1012,7 +1097,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                         if (part.GetComponentsInChildren<Renderer>().Length == 0) continue;
                         Vector3 pat2; int pn2;
                         float pd = EdoBuild.Contact(part.gameObject, out pat2, out pn2, 0.01f, VERTS);
-                        if (!float.IsNaN(pd) && (pd < -1.0f || pd > 0.7f))
+                        if (!float.IsNaN(pd) && (pd < -GROUND_TOL || pd > GROUND_TOL))
                             pd = EdoBuild.Contact(part.gameObject, out pat2, out pn2, 0.01f, 60000);
                         if (float.IsNaN(pd)) continue;
                         if (pd < lo) lo = pd;
@@ -1020,9 +1105,20 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                     }
                     dy = hi > -lo ? hi : lo;            // 浮きと埋没の**大きい方**を複合の代表にする
                 }
-                if (dy < -1.0f) { sunk++; worstSunk = Mathf.Max(worstSunk, -dy); }
-                if (dy > 0.7f) { floated++; worstFloat = Mathf.Max(worstFloat, dy); }
+                if (!rooted && dy < -GROUND_TOL) { sunk++; worstSunk = Mathf.Max(worstSunk, -dy); }
+                if (dy > GROUND_TOL) { floated++; worstFloat = Mathf.Max(worstFloat, dy); }
                 if (nc > 1) multi++;
+                // ⭐ 塀は**下端のいちばん浮いた所**を数える(2026-09-27・EDO-0477 P2)。⛔ Contact は最寄りの 1 点
+                //    (= 上手の端)なので、斜面で下手が浮いた塀を 0 と返していた(観理院 35/133 駒・最大 1.74m・EDO-0466)。
+                //    浮きは許容0(規則4)── 遊び KAKOI_UKI_TOL は格子の読み違いの幅だけ。
+                if (grp.name == "Kakoi")
+                {
+                    kakoiN++;
+                    // ⭐ 塀の**下端**(当たり)だけを測る(RootToBed ── §0a)。⛔ UnderfloorGap は笠(瓦の庇)の下まで拾い、
+                    //    塀の高さ 2.9m を「浮き」と返した(2026-09-27 観理院 199/199 駒)。
+                    float uk = EdoBuild.RootToBed(t.gameObject, GroundBed, 0.05f).hi;
+                    if (!float.IsNaN(uk) && uk > KAKOI_UKI_TOL) { kakoiUki++; worstKakoiUki = Mathf.Max(worstKakoiUki, uk); }
+                }
                 // ⭐ 接地箇所が着いていても、**剛体の反対側は足元の地形の起伏ぶん浮く**。
                 //    0 件を「地面に沿っている」と読み違えないため、足元の起伏を必ず刷る(規則19)。
                 float gmn = float.MaxValue, gmx = float.MinValue;
@@ -1039,7 +1135,8 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         // 棟どうしの離れ — 建つ姿の欠陥ではないが、MIN_BLDG_GAP という数字を書いた以上、
         // 実際に何 m 離れたかを刷らないと「未検査」を「合格」に見せることになる(規則19)。
         // ⛔ 外接箱の隙で測らない(回った棟で 0 に見える)。**棟どうしの触れている箇所**を測る
-        //    (負 = めり込み = 許容0・規則4。2026-09-21 施主指摘「何かと何かが接する所を測れ」)。
+        //    (負 = めり込み。2026-09-27 施主: 部材どうしのめり込みは欠陥に数えない ── 見張りとして刷り、直すのはレンダで
+        //    違和感が見えたとき(docs/oki-kata.md §4)。棟の置き場の選び(PlaceBest)は突き抜けを避けるので、ここで負が出たら見る)。
         float minGap = float.MaxValue;
         var tate = root.Find("Tatemono");
         if (tate != null)
@@ -1068,11 +1165,11 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         }
         string gap = minGap == float.MaxValue ? "" :
             string.Format(" / 棟どうしの当たりの最小 {0:F2}m{1}", minGap,
-                minGap < 0f ? "(⛔ めり込み)" : (minGap < MIN_BLDG_GAP ? "(⚠ 目安 " + MIN_BLDG_GAP.ToString("F1") + "m 未満)" : ""));
-        bool clash = minGap != float.MaxValue && minGap < 0f;
-        string mark = (outside + sunk + floated) == 0 && !clash ? "⭕" : "⛔";
+                minGap < 0f ? "(⚠ めり込み・数えない ── レンダで見る)" : (minGap < MIN_BLDG_GAP ? "(⚠ 目安 " + MIN_BLDG_GAP.ToString("F1") + "m 未満)" : ""));
+        string mark = (outside + sunk + floated + kakoiUki) == 0 ? "⭕" : "⛔";
+        gap += string.Format(" / 塀の下端の浮き {0}/{1}駒(最悪 {2:F3}m・線 {3:F2})", kakoiUki, kakoiN, worstKakoiUki, KAKOI_UKI_TOL);
         return string.Format("  {0} 検査: 駒 {1} — 壁体が区画の外 {2}(最悪 {3:F2}m) / 軒が区画の外 {11}(最悪 {12:F2}m・許容・裁定A) / "
-                           + "触れている所の埋没 {4}(最悪 {5:F2}m) / 浮き {6}(最悪 {7:F2}m) / "
+                           + "触れている所の埋没 {4}(最悪 {5:F3}m・囲いと庭は根入れで数えない) / 浮き {6}(最悪 {7:F3}m・線 ±0.01) / "
                            + "触れている所が複数 {8}駒 / 足元の起伏 最悪 {9:F2}m{10}",
                              mark, n, outside, worstOut, sunk, worstSunk,
                              floated, worstFloat, multi, worstRelief, gap, eaveOut, worstEave);

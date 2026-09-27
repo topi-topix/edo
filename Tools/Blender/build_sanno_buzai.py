@@ -13,6 +13,7 @@
     blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_miter_list Tools/Blender/sanno_onna_miter_set_D320.txt 0.300 1.199 6.363 --depth=3.20 --steps=38,39,40 --render
         # 切通しで背の地盤まで上げる袖(上げの上限 = 丈 − 0.78)。綴りに `_D3.20` が入る(EDO-0430)
     blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_flat [--depth=3.20] --render   # 天端が水平な袖(EDO-0459)
+    blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_flat --only=参道の階 --render   # 同・走り = 踏面 0.542(EDO-0437)
     blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_flat_nori [--depth=3.20] --render   # 同・坂上の小口を法 1:0.25 に切った版
     blender --background --python Tools/Blender/build_sanno_buzai.py -- audit     # 既存部材の左右の別を検算
     blender --background --python Tools/Blender/build_sanno_buzai.py -- mitsuke   # 焼いた柵の FBX から見付けを実測
@@ -1653,6 +1654,9 @@ def build_sode_set(specs, do_render):
 SODE_FLAT_L = 1.25
 # 段ごとの竪目地の位置(走りの長さに対する割合)。笠石は 1 枚物・積みは 0.45 / 0.70 を交互に(芋目地にしない)
 SODE_FLAT_SPLIT = (None, 0.45, 0.70)
+# 竪目地で割ると短い側がこれ未満になる走り(参道の階の段4 = 踏面 0.542 など)では割らない ── 丈 0.39 の段に 0.16〜0.27 の縦長の石が立つと
+#   積みに見えない(EDO-0437 2026-09-27)。1.25 系(短い側 0.375)は割りのまま ⇒ 既存の FBX は変わらない。
+SODE_FLAT_MIN_PIECE = 0.30
 
 
 def sode_flat_name(L):
@@ -1671,6 +1675,8 @@ def sode_flat(L=SODE_FLAT_L, name=None):
     objs = []
     for ci, (v0, v1) in enumerate(courses):
         sp = SODE_FLAT_SPLIT[0] if ci == 0 else SODE_FLAT_SPLIT[1 + (ci - 1) % 2]
+        if sp is not None and min(sp, 1.0 - sp) * L < SODE_FLAT_MIN_PIECE:
+            sp = None
         cuts = [0.0, L] if sp is None else [0.0, sp * L, L]
         for pi in range(len(cuts) - 1):
             ya, yb = cuts[pi] - L / 2.0, cuts[pi + 1] - L / 2.0
@@ -1830,15 +1836,39 @@ def shots_sode_flat(keri, fumi, w, L, key, nstep=6, maker=None, stem="sanno_sode
     return out
 
 
-def build_sode_flat(L, do_render, keri=0.260, fumi=0.650, w=6.999):
+def sode_flat_seam(keri, fumi, L):
+    """斜めの袖(段 n−1・坂上の端)と、その上の段 n に据える水平の袖(坂下の端)の継ぎ目の断面を突き合わせる。
+    斜めの袖のピボット = 段 n−1 の踏面、水平の袖のピボット = 段 n の踏面(= +蹴上)。Blender +y = 坂上。
+    返り値: (天端の差, 下端の差, 横目地の高さの集合の最大の食い違い, 側面 X の差)。"""
+    V.reset()
+    s, _ = sode(keri, fumi, "b", name="seam_s")
+    f, _ = sode_flat(L, name="seam_f")
+    ss = [(v.co.x, v.co.z) for v in s.data.vertices if abs(v.co.y - fumi / 2.0) < 1e-4]
+    ff = [(v.co.x, v.co.z + keri) for v in f.data.vertices if abs(v.co.y + L / 2.0) < 1e-4]
+    zs = sorted({round(z, 4) for _, z in ss}); zf = sorted({round(z, 4) for _, z in ff})
+    # 横目地(面取りの上下の 2 本を含む)は高さの集合で比べる。片側にしか無い高さ = 端が目地でない側の面取り無し
+    far = max([min(abs(a - b) for b in zf) for a in zs] + [min(abs(a - b) for b in zs) for a in zf])
+    out = (max(zf) - max(zs), min(zf) - min(zs), far,
+           max(abs(max(x for x, _ in ff) - max(x for x, _ in ss)), abs(min(x for x, _ in ff) - min(x for x, _ in ss))))
+    print("[sanno] 継ぎ目(段 n−1 の斜めの袖 b の坂上の端 ↔ 段 n の水平の袖の坂下の端・段 n の踏面基準):")
+    print("      斜め: 天端 %.4f 下端 %.4f 高さ %s" % (max(zs) - keri, min(zs) - keri, [round(z - keri, 3) for z in zs]))
+    print("      水平: 天端 %.4f 下端 %.4f 高さ %s" % (max(zf) - keri, min(zf) - keri, [round(z - keri, 3) for z in zf]))
+    print("      差: 天端 %+.4f 下端 %+.4f 横目地の最大の食い違い %.4f 側面 %.4f" % out)
+    V.reset()
+    return out
+
+
+def build_sode_flat(L, do_render, keri=0.260, fumi=0.650, w=6.999, key="otoko", nstep=6):
     V.reset()
     o, name = sode_flat(L)
     report(o, name, "← 石段の最上段の水平の袖")
     sode_flat_check(o, L)
     V.export_fbx([o], os.path.join(OUT_DAN, name + ".fbx"))
     print("[sanno] 書き出し " + os.path.join(OUT_DAN, name + ".fbx"))
+    if abs(L - fumi) < 1e-6:
+        sode_flat_seam(keri, fumi, L)
     if do_render:
-        for pth in shots_sode_flat(keri, fumi, w, L, "otoko"):
+        for pth in shots_sode_flat(keri, fumi, w, L, key, nstep=nstep):
             print("[sanno] 検証レンダ " + pth)
 
 
@@ -2173,11 +2203,19 @@ def main():
         build_sode_set(specs, do_render)
     if what == "sode_flat":
         # sode_flat [--len=1.25] [--depth=3.20] [--render]  天端が水平な袖(最上段の踊り場の脇・EDO-0459)
+        # sode_flat --only=参道の階 [--render]  走り = その段の踏面の版(参道の階の段4 ── 0.542・EDO-0437)。蹴上・踏面・幅は指図 kaidans から
         L = SODE_FLAT_L
+        only = None
         for a in argv:
             if a.startswith("--len="):
                 L = float(a.split("=", 1)[1])
-        build_sode_flat(L, do_render)
+            if a.startswith("--only="):
+                only = a.split("=", 1)[1]
+        if only:
+            (label, keri, fumi, w), = kaidan_specs(only)
+            build_sode_flat(fumi, do_render, keri=keri, fumi=fumi, w=w, key=label_key(label), nstep=4)
+        else:
+            build_sode_flat(L, do_render)
     if what == "sode_flat_nori":
         # sode_flat_nori [--len=1.247] [--kink=0.31] [--depth=3.20] [--render]  坂上の小口を折れ点まで鉛直・下を法 1:0.25 に切った水平の袖
         #   (EDO-0459・既定は据えの実長と男坂の折れ点。--kink=0 で折れ無しの旧版 `_1.338`)

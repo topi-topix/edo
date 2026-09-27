@@ -1241,6 +1241,19 @@ public static class EdoAssets
             return "Assets/Edo/Models/Kaidan/IshidanSodeFlat_1.250" + SodeDepthTag(depth) + ".fbx";
         }
 
+        /// <summary>**走りを指定した天端が水平な石段の袖**(EDO-0437 施主裁定 2026-09-27・参道の階の段4 の袖 ── 走り = その段の踏面 0.542)。
+        /// <see cref="IshidanSodeFlat(float)"/> と同じ断面・材 `Danishi`・局所座標(X=厚み ±0.30 / Y=高さ / Z=走り・+Z 坂下)・ピボット(走りの中心・天端の 0.30 下)で、
+        /// 走り Z ±<paramref name="len"/>/2 を実長で焼いた物(伸縮せずに据える ⇒ 積みの目地が潰れない)。竪目地の割りは短い側が 0.30 を切るなら割らない(0.542 は各段 1 枚物)。
+        /// 実寸(0.542・丈 2.20): W 0.600 × H 2.200(−1.900〜+0.300)× D 0.542・156 面。
+        /// 継ぎ目: 段3 の `IshidanSode(0.250,0.542,3)`(b)の坂上の端と、段4 の踏面基準で天端 +0.30・下端 −1.90・横目地の高さが一致(差 0 ── 違いは水平の袖の小口の面取り 0.02 だけ)。
+        /// 焼けている組: len 0.542・丈 2.20 のみ。材 `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_flat --only=参道の階 --render</summary>
+        public static string IshidanSodeFlat(float depth, float len)
+        {
+            return "Assets/Edo/Models/Kaidan/IshidanSodeFlat_" + len.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)
+                 + SodeDepthTag(depth) + ".fbx";
+        }
+
         /// <summary>**坂上の小口を法 1:0.25 に切った水平の袖**(EDO-0459 2026-09-27・男坂の最上段 → 楼門の腰の隅 kado1 の法の面へ突き付ける)。
         /// <see cref="IshidanSodeFlat"/> と同じ断面・材 `Danishi`・ピボット・局所座標(X=厚み ±0.30 / Y=高さ / Z=走り・+Z 坂下)で、
         /// **坂上の端(局所 −Z)**だけを面 Z = −0.66875 + 0.25·(0.30 − Y) で切った物 ── 天端の稜(Y=+0.30, Z=−0.66875)を起点に、1 下がるごとに 0.25 坂下へ後退する。

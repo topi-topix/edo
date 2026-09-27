@@ -149,7 +149,7 @@
 
 ### 作業 → 呼ぶエージェント(`.claude/agents/`。何をする役かは各役の description が正典)
 
-**`edo-sashizukata`** 指図方(唯一の書き込み可)/ **`edo-kosho`** 考証方 / **`edo-kenzu`** 検図方 /
+**`edo-sashizukata`** 指図方(唯一の書き込み可。⛔ 図を一から起こすときだけ呼ぶ ── 建った敷地の欄の上書きは普請奉行が直に直す・施主裁定A 2026-09-27)/ **`edo-kosho`** 考証方 / **`edo-kenzu`** 検図方 /
 **`edo-niwashi`** 庭方(検分と庭の設計)/ **`edo-zaiko`** 在庫方 / **`edo-buzai`** 部材方 /
 **`edo-toryo`** 棟梁(建てる)/ **`edo-fushin-qa`** 普請検査(計測とレンダのみ)
 

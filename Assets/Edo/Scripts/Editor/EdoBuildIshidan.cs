@@ -1573,9 +1573,12 @@ public static partial class EdoBuild
     /// 硬い条件: 段差・坂下の口・相手との口 0(5mm を超えたら <paramref name="warn"/>)。相手の天端より高く出る小口は裁定どおり(欠陥ではない)。
     /// ⚠ 坂上の端は鉛直 ⇒ 相手の面が法(腰の隅 1:0.25)だと天端の帯より下で相手の中へ入る(法の楔・男坂で 0.2m 下がるごとに 0.05)。
     /// 解くのは端を法で切った水平の袖の駒(部材)。
-    /// 当たる先: 石段の袖の走りが段の外へ延びて相手の面で止まる所 ── 今は指図 `kaidans[].fumitome` を持つ山王の男坂(南北の 2 駒)だけ。</summary>
+    /// 当たる先: 石段の袖の走りが段の外へ延びて相手の面で止まる所 ── 今は指図 `kaidans[].fumitome` を持つ山王の男坂(南北の 2 駒)だけ。
+    /// <paramref name="mates"/> が空で <paramref name="flushTo"/>(最上段の段石)を渡すと、坂上の端は相手へ伸ばさず最上段の上の端と同じ通りに揃える
+    /// (見切り ── 山王の参道の階の段4 の袖 W・E。部材は走りを踏面の実長で焼いた `IshidanSodeFlat(depth, len)` ⇒ 伸縮 ≈ 1)。</summary>
     public static GameObject LayFlatSode(GameObject old, GameObject below, System.Func<float, string> pathOf, IList<float> depths,
-                                         Vector3 up, IList<GameObject> mates, float yBand, float maxReach, out FlatSode rep, out string warn)
+                                         Vector3 up, IList<GameObject> mates, float yBand, float maxReach, out FlatSode rep, out string warn,
+                                         GameObject flushTo = null)
     {
         rep = new FlatSode { depth = float.NaN, ext = float.NaN, gapBelow = float.NaN, gapMate = float.NaN };
         warn = null; string nm = old.name;
@@ -1612,16 +1615,27 @@ public static partial class EdoBuild
         rep.sideIn = bLo - (nLo + (bLo + bHi) * 0.5f - (nLo + nHi) * 0.5f);
         rep.sideOut = bHi - (nHi + (bLo + bHi) * 0.5f - (nLo + nHi) * 0.5f);
         // ---- 坂上の端を相手の面まで
-        float spread; int hits;
-        rep.ext = ExtendEndToFace(go, up, mates, yBand, maxReach, out spread, out hits);
+        //   ⭐ 相手が無く坂上の端が「見切り」(指図 joints: 小口を最上段の上の端と同じ通りに揃えて終える)なら、
+        //   <paramref name="flushTo"/>(最上段の段石)の実メッシュの坂上の端へ揃える(EDO-0437 参道の階の段4 2026-09-27)。
+        bool flush = (mates == null || mates.Count == 0) && flushTo != null;
+        float spread = 0f; int hits = 0; float flushAt = float.NaN;
+        if (flush)
+        {
+            // 最上段の上の端 = **踏面(天端の帯 0.02)の坂上の縁** ── 段石の胴は次の段(ここでは面)の下へ 0.1 潜るので、全メッシュの端で測ると 0.1 伸びた
+            var fv = Body(flushTo.transform, 999999, true); float fTop = float.MinValue; foreach (var p in fv) fTop = Mathf.Max(fTop, p.y);
+            foreach (var p in fv) if (p.y >= fTop - 0.02f) { float a = Vector3.Dot(p, up); flushAt = float.IsNaN(flushAt) ? a : Mathf.Max(flushAt, a); }
+            rep.ext = float.IsNaN(flushAt) ? float.NaN : StretchEnd(go.transform, null, up, +1f, flushAt);
+        }
+        else rep.ext = ExtendEndToFace(go, up, mates, yBand, maxReach, out spread, out hits);
         rep.spread = spread; rep.hits = hits;
         // ⭐ 高さ方向に測り、最も深いめり込みだけ詰める(閉じは「隙間 > めり込み」)
-        if (!float.IsNaN(rep.ext))
+        if (!flush && !float.IsNaN(rep.ext))
         {
             float pMin, pMax; EndGapProfile(go, up, mates, yBand, out pMin, out pMax);
             if (!float.IsNaN(pMin) && pMin < -0.002f) { StretchEnd(go.transform, null, up, +1f, EdgeAlong(go.transform, up, +1f) + pMin); rep.pulled = -pMin; }
         }
-        { float pMin, pMax; EndGapProfile(go, up, mates, yBand, out pMin, out pMax); rep.profMin = pMin; rep.profMax = pMax; }
+        if (!flush) { float pMin, pMax; EndGapProfile(go, up, mates, yBand, out pMin, out pMax); rep.profMin = pMin; rep.profMax = pMax; }
+        else { rep.profMin = float.NaN; rep.profMax = float.NaN; }
         Object.DestroyImmediate(old);
         // ---- 検め
         np = Body(go.transform, 999999, true);
@@ -1636,12 +1650,13 @@ public static partial class EdoBuild
         rep.step = rep.topLo - topB;
         // 継ぎ目の口は面取り(0.02)の下で測る ── 天端の縁の帯では水平の袖の面取りの V を 0.015 の口と読む(2026-09-27 実測・下は 0.0001)
         rep.gapBelow = MeasureEndGap(go, -up, new List<GameObject> { below }, topB - 0.02f);
-        rep.gapMate = MeasureEndGap(go, up, mates, yBand);
+        rep.gapMate = flush ? (float.IsNaN(flushAt) ? float.NaN : EdgeAlong(go.transform, up, +1f) - flushAt) : MeasureEndGap(go, up, mates, yBand);
         var bad = new List<string>();
         if (Mathf.Abs(rep.step) > 0.005f) bad.Add("段差 " + rep.step.ToString("+0.000;-0.000"));
         if (Mathf.Abs(rep.topHi - rep.topLo) > 0.005f) bad.Add("水平の狂い " + (rep.topHi - rep.topLo).ToString("+0.000;-0.000"));
         if (float.IsNaN(rep.gapBelow) || Mathf.Abs(rep.gapBelow) > 0.005f) bad.Add("下の袖との口 " + (float.IsNaN(rep.gapBelow) ? "測れず" : rep.gapBelow.ToString("+0.000;-0.000")));
-        if (float.IsNaN(rep.ext)) bad.Add("相手の面に当たらず(伸ばさない)");
+        if (float.IsNaN(rep.ext)) bad.Add(flush ? "最上段の坂上の端を測れず" : "相手の面に当たらず(伸ばさない)");
+        else if (flush) { if (float.IsNaN(rep.gapMate) || Mathf.Abs(rep.gapMate) > 0.005f) bad.Add("最上段の上の端との見切りの差 " + (float.IsNaN(rep.gapMate) ? "測れず" : rep.gapMate.ToString("+0.000;-0.000"))); }
         else if (float.IsNaN(rep.gapMate) || rep.gapMate > 0.005f) bad.Add("相手との口 " + (float.IsNaN(rep.gapMate) ? "測れず" : rep.gapMate.ToString("+0.000;-0.000")));
         if (!float.IsNaN(rep.profMin) && (rep.profMin < -0.005f || rep.profMax > 0.005f)) bad.Add("相手との取り合い(高さ方向)" + rep.profMin.ToString("+0.000;-0.000") + "〜" + rep.profMax.ToString("+0.000;-0.000"));
         if (bad.Count > 0) warn = nm + ": ⚠ " + string.Join("・", bad.ToArray());

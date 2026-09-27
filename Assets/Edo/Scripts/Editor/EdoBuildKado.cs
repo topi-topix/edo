@@ -822,6 +822,44 @@ public static partial class EdoBuild
         return -m;
     }
 
+    /// <summary>**区間の線を相手の駒の外の面(鉛直な面)の上へ移す**(2026-09-27・EDO-0437 施主裁定「返しの見え面 = 袖の背の面」)。
+    /// <paramref name="a"/>–<paramref name="b"/> = 紙の区間、<paramref name="faceBodies"/> = 面を持つ駒(一直線に並んだ石段の袖など・走りは区間と平行)、
+    /// <paramref name="outward"/> = 面の外向き(区間の法線の片側)。面の位置 = 相手の実メッシュの全頂点の <paramref name="outward"/> への射影の最大
+    /// (外の面が鉛直な平面の駒 ⇒ 最も外の頂点がその面の上)。返り値 = 区間を法線に沿って平行に移した [a', b'](測れなければ null)。
+    /// ⛔ ピボット・bounds の中心で合わせない。⚠ 相手の駒の走りが区間と平行でないなら ⛔(<paramref name="warn"/>)── 面が一つの平面に乗らない。
+    /// 当たる先: 石段の袖の背に沿う返し(山王 前庭の切り込みの返し TW_Zentei_Kiri)、袖・基壇の外の面に通りを合わせる土留め。</summary>
+    public static Vector2[] SegOntoOuterFace(Vector2 a, Vector2 b, IList<GameObject> faceBodies, Vector2 outward, out float offset, out string warn)
+    {
+        offset = float.NaN; warn = null;
+        if (faceBodies == null || faceBodies.Count == 0) { warn = "相手の駒が無い"; return null; }
+        Vector2 d = (b - a); if (d.sqrMagnitude < 1e-8f) { warn = "区間の長さ 0"; return null; }
+        d.Normalize(); Vector2 n = new Vector2(-d.y, d.x); if (Vector2.Dot(n, outward) < 0f) n = -n;
+        float mx = float.MinValue; float angMax = 0f;
+        foreach (var g in faceBodies)
+        {
+            if (g == null) continue;
+            foreach (var v in Body(g.transform, 999999, true)) mx = Mathf.Max(mx, Vector2.Dot(new Vector2(v.x, v.z) - a, n));
+            foreach (var ax0 in new[] { g.transform.right, g.transform.forward })
+            {
+                var ax = new Vector2(ax0.x, ax0.z); if (ax.sqrMagnitude < 1e-8f) continue; ax.Normalize();
+                float c = Mathf.Abs(Vector2.Dot(ax, d)); if (c > 0.5f) angMax = Mathf.Max(angMax, Mathf.Acos(Mathf.Clamp01(c)) * Mathf.Rad2Deg);
+            }
+        }
+        if (mx == float.MinValue) { warn = "相手の実メッシュが無い"; return null; }
+        if (angMax > 2f) warn = "相手の駒の走りが区間と " + angMax.ToString("F1") + "° ずれる(面が一つの平面に乗らない)";
+        offset = mx;
+        return new[] { a + n * mx, b + n * mx };
+    }
+
+    /// <summary>区間 <paramref name="p"/>–<paramref name="q"/> の直線と直線 <paramref name="l0"/>–<paramref name="l1"/> の交点(平行なら NaN の点)。</summary>
+    public static Vector2 LineMeet(Vector2 p, Vector2 q, Vector2 l0, Vector2 l1)
+    {
+        Vector2 r = q - p, s = l1 - l0; float den = r.x * s.y - r.y * s.x;
+        if (Mathf.Abs(den) < 1e-9f) return new Vector2(float.NaN, float.NaN);
+        float t = ((l0.x - p.x) * s.y - (l0.y - p.y) * s.x) / den;
+        return p + r * t;
+    }
+
     /// <summary><see cref="RunEndAtFace"/> の答え。</summary>
     public struct RunEndStop
     {

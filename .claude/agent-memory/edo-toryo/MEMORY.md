@@ -92,6 +92,8 @@
 - [別の駒の天端・段に被る隅石を退ける](crest-of-other-and-step-yield.md) — 法の足が下の天端に載る所で皮が天端に張り付く。YieldWallsToSteps。MeshInside は一つずつ
 - [MidSection は世界座標・内外は MeshInside で](post-board-run-and-mesh-inside.md) — 重ねて板が 438m 飛んだ。総当たりの光線は 25 分ふさいだ(二度目)
 
+- [袖の背に沿う返しの隅は法で袖へ入る](kado-arm-along-sode-back-batter.md) — 見える所は面一でも W0.31/E0.47 入る。解くのは返しの腕を一辺切った Kado90(部材)
+
 ## 測り方・関門
 
 - [偶奇の多数決の内外判定は野面で偽のめり込み](parity-inside-test-false-intrusion.md) — 袖×SW の隅 0.234 は偽。当たり0の向きが在れば外

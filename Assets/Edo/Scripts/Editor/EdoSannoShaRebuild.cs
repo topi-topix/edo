@@ -716,6 +716,28 @@ public static class EdoSannoShaRebuild
             foreach (var kv in sodeRow)
                 if (sodeSide.ContainsKey(kv.Key))
                     sodeMiter += EdoBuild.MiterIshidanSode(dans, kv.Value, sodeSide[kv.Key], keri, fumi, wM, sodeWarn, sodeDepth[kv.Key]);
+            // ⭐ 天端が水平な袖(指図 terraceWalls[].part「段k = 天端が水平な袖」── 参道の階の段4・施主裁定 2026-09-27 EDO-0437)。
+            //   段 k の斜めの袖を、走りを踏面の実長で焼いた水平の袖へ差し替え、段 k−1 の斜めの袖の坂上の端に天端・脇の面・小口を揃え(EdoBuild.LayFlatSode)、
+            //   坂上の小口は段 k の上の端と同じ通りに揃える(見切り・joints「段4 の上の端」)。⛔ ピボットで合わせない。
+            //   ⚠ 男坂の最上段の水平な袖は踏み止め(Stage5b)が持つ ── 指図 part に宣言の無い袖はここで触らない。
+            foreach (var key in new List<string>(sodeRow.Keys))
+            {
+                var twdF = FindByName(Doc, "terraceWalls", key); string partDecl = twdF != null ? (S(twdF, "part") ?? "") : "";
+                var mk = System.Text.RegularExpressions.Regex.Match(partDecl, @"段(\d+) = \**天端が水平な袖");
+                int k; if (!mk.Success || !int.TryParse(mk.Groups[1].Value, out k)) continue;
+                var row = sodeRow[key];
+                if (k < 1 || k >= row.Length || row[k] == null || row[k - 1] == null || dans[k] == null) { sodeWarn.Add(key + ": ⛔ 段" + k + " の水平な袖 ── 段 " + k + " か一つ下の袖が据わっていない"); continue; }
+                EdoBuild.FlatSode fr; string fw;
+                var flat = EdoBuild.LayFlatSode(row[k], row[k - 1], d => EdoAssets.Own.IshidanSodeFlat(d, fumi), EdoAssets.Own.IshidanSodeDepths,
+                                                -dans[k].transform.forward, null, float.NaN, 0f, out fr, out fw, dans[k]);
+                if (flat == null) { sodeWarn.Add(key + ": ⛔ 段" + k + " の水平な袖を据えられない ── " + fw); continue; }
+                row[k] = flat;
+                sb.AppendLine("    " + flat.name + " ── 天端が水平な袖(丈 " + fr.depth.ToString("F2") + ")天端 " + fr.topLo.ToString("F3") + "〜" + fr.topHi.ToString("F3") +
+                              "(下の袖の坂上の端 " + fr.topBelow.ToString("F3") + "・段差 " + fr.step.ToString("+0.000;-0.000") + ")/ 脇の面の食い違い " + fr.sideIn.ToString("+0.000;-0.000") + "・" + fr.sideOut.ToString("+0.000;-0.000") +
+                              " / 下の袖との口 " + (float.IsNaN(fr.gapBelow) ? "—" : fr.gapBelow.ToString("+0.000;-0.000")) +
+                              " / 坂上の小口 − 段" + k + " の上の端 " + (float.IsNaN(fr.gapMate) ? "—" : fr.gapMate.ToString("+0.000;-0.000")) + "(伸縮 " + (float.IsNaN(fr.ext) ? "—" : fr.ext.ToString("+0.000;-0.000")) + ")" +
+                              (fw != null ? " / " + fw : ""));
+            }
             // ⭐ 袖の天端は外の地盤と同じ高さ ── 天端の下の節点と芝を納める(EDO-0414・⛔ 地形の編集は Undo の外)
             var sodeAll = new List<GameObject>(); var faceAll = new Dictionary<GameObject, Vector3>();
             foreach (var kv in sodeRow)
@@ -1211,6 +1233,71 @@ public static class EdoSannoShaRebuild
         var sandoPieces = new List<GameObject>();
         foreach (var t in Group("Sando").GetComponentsInChildren<Transform>())
             if (t.name.StartsWith("TW_") && t.gameObject.activeInHierarchy && t.GetComponentInChildren<MeshFilter>() != null && t.parent != null && !t.parent.name.StartsWith("TW_")) sandoPieces.Add(t.gameObject);
+        // ⭐ 見え面を石段の袖の背の面に揃える土留め(指図 joints: a = この run・kind「面一」・bFace「袖の背の面」── 前庭の切り込みの返し
+        //   施主裁定 2026-09-27 EDO-0437)は、紙の通りを袖の実メッシュの背の面の上へ移す(EdoBuild.SegOntoOuterFace)。その区間の端で継ぐ
+        //   他の run の端は、その run の線と移した線の交点へ(出隅の稜線 = 二本の天端の線の交点 ── joints「出隅」)。⛔ 紙の座標で置かない。
+        var faceLine = new List<KeyValuePair<Vector2, Vector2[]>>();   // 紙の端点 → 移した線
+        var segMoved = new Dictionary<string, Vector2[]>();              // run#区間の紙の端 → 移した区間
+        foreach (var r in runs)
+        {
+            string name = S(r, "name"); var twd = FindByName(Doc, "terraceWalls", name); if (twd == null) continue;
+            bool flush = false;
+            foreach (var o in L(Doc, "joints"))
+            { var j = o as Dictionary<string, object>; if (j == null) continue;
+              if ((S(j, "a") ?? "").Contains(name) && (S(j, "kind") ?? "").StartsWith("面一") && (S(j, "bFace") ?? "").Contains("袖の背の面")) flush = true; }
+            var gf = D(twd, "gapFrom"); string kai = gf == null ? null : S(gf, "kaidan");
+            if (!flush || kai == null) continue;
+            var sw = SodeWallsOf(kai); var stg = Group("Sando").Find(GroupNameOf(kai));
+            Vector2 sc = Vector2.zero; int ns0 = 0;
+            if (stg != null) foreach (Transform c in stg) if (c.name.StartsWith("Dan_")) { var cc = EdoBuild.RB(c.gameObject).center; sc += new Vector2(cc.x, cc.z); ns0++; }
+            if (ns0 == 0 || sw.Count == 0) { sb.AppendLine("  ⛔ " + name + ": 袖の背の面に揃える相手(石段 " + kai + " の段・袖)が据わっていない"); continue; }
+            sc /= ns0;
+            foreach (var so in L(r, "segs"))
+            {
+                var sg = so as List<object>; if (sg == null || sg.Count < 2) continue; Vector2 a = P2(sg[0]), b = P2(sg[1]); Vector2 mid = (a + b) * 0.5f;
+                string best = null; float bd = float.MaxValue; foreach (var kv in sw) { float dd = DistToPoly(kv.Value, mid); if (dd < bd) { bd = dd; best = kv.Key; } }
+                var bodies = new List<GameObject>(); foreach (var g in sandoPieces) if (g.name.StartsWith(best + "_")) bodies.Add(g);
+                float off; string w;
+                var ln = EdoBuild.SegOntoOuterFace(a, b, bodies, mid - sc, out off, out w);
+                if (ln == null) { sb.AppendLine("  ⛔ " + name + ": 袖 " + best + " の背の面を測れない ── " + w); continue; }
+                sb.AppendLine("  " + name + " の区間 " + a.ToString("F2") + "→" + b.ToString("F2") + ": 通りを袖 " + best + " の背の面へ " + off.ToString("+0.000;-0.000") + "m 移した(駒 " + bodies.Count + ")" + (w != null ? " ⚠ " + w : ""));
+                segMoved[name + "#" + a.ToString("F3") + b.ToString("F3")] = ln;
+                faceLine.Add(new KeyValuePair<Vector2, Vector2[]>(a, ln)); faceLine.Add(new KeyValuePair<Vector2, Vector2[]>(b, ln));
+            }
+        }
+        // 紙の端 e を持つ区間 (e, other) の端を動かす: 自分が移した区間なら、他の run と継ぐ端は交点・継がない端は移した線の上 / 他の run なら交点
+        Func<string, Vector2, Vector2, Vector2> endOf = (nm, e, other) =>
+        {
+            Vector2[] mine = null; segMoved.TryGetValue(nm + "#" + e.ToString("F3") + other.ToString("F3"), out mine);
+            if (mine == null) segMoved.TryGetValue(nm + "#" + other.ToString("F3") + e.ToString("F3"), out mine);
+            foreach (var kv in faceLine)
+            {
+                if (Vector2.Distance(kv.Key, e) > 0.05f || kv.Value == mine) continue;
+                // e で継ぐ別の区間の線(mine が在れば自分の線と相手の線の交点)
+                if (mine != null)
+                {   // 相手 = e で継ぐ他の run の紙の区間 ── 移した線ではない(相手も移したなら二本の移した線の交点)
+                    var q = EdoBuild.LineMeet(mine[0], mine[1], kv.Value[0], kv.Value[1]); if (!float.IsNaN(q.x)) return q;
+                }
+                else { var q = EdoBuild.LineMeet(e, other, kv.Value[0], kv.Value[1]); if (!float.IsNaN(q.x)) return q; }
+            }
+            if (mine != null)
+            {   // 自分の端: 他の run の紙の区間と継ぐなら交点、継がなければ移した線への射影
+                foreach (var r2 in runs)
+                {
+                    string n2 = S(r2, "name");
+                    foreach (var so2 in L(r2, "segs"))
+                    {
+                        var s2 = so2 as List<object>; if (s2 == null || s2.Count < 2) continue; Vector2 p0 = P2(s2[0]), p1 = P2(s2[1]);
+                        if (n2 == nm) continue;
+                        Vector2 near = Vector2.Distance(p0, e) < 0.05f ? p0 : Vector2.Distance(p1, e) < 0.05f ? p1 : new Vector2(float.NaN, float.NaN);
+                        if (float.IsNaN(near.x)) continue;
+                        var q = EdoBuild.LineMeet(p0, p1, mine[0], mine[1]); if (!float.IsNaN(q.x)) return q;
+                    }
+                }
+                Vector2 dd2 = (mine[1] - mine[0]).normalized; return mine[0] + dd2 * Vector2.Dot(e - mine[0], dd2);
+            }
+            return e;
+        };
         foreach (var r in runs)
         {
             string name = S(r, "name"); var nodes = Pts(L(r, "nodes")); var prof = L(r, "profile"); float step = F(r, "profileStep");
@@ -1234,7 +1321,9 @@ public static class EdoSannoShaRebuild
             if (segL.Count == 0) for (int i = 1; i < nodes.Count; i++) segL.Add(new[] { nodes[i - 1], nodes[i] });
             foreach (var sg in segL)
             {
-                var ns = new EdoBuild.NozuraSeg { name = name, a = sg[0], b = sg[1], footAt = footAt, movesAtConcave = moves };
+                var ns = new EdoBuild.NozuraSeg { name = name, a = endOf(name, sg[0], sg[1]), b = endOf(name, sg[1], sg[0]), footAt = footAt, movesAtConcave = moves };
+                if (Vector2.Distance(ns.a, sg[0]) > 1e-3f || Vector2.Distance(ns.b, sg[1]) > 1e-3f)
+                    sb.AppendLine("  " + name + " の区間の端(実測の面へ): " + sg[0].ToString("F3") + "→" + ns.a.ToString("F3") + " / " + sg[1].ToString("F3") + "→" + ns.b.ToString("F3"));
                 float sOff = ArcOf(nodes, sg[0]), len = Vector2.Distance(sg[0], sg[1]);
                 // 天端 = 区間の中の行だけを線形に(口の中の行は地表を拾う ⇒ 使わない)
                 //   ⚠ 見付も受け高も 0 の行(両側の地表 = 天端)は壁の無い所の標本 ── 区間の端の行が石段・口の地表を拾い、
@@ -1394,31 +1483,9 @@ public static class EdoSannoShaRebuild
                 // ⭐ 相手が野面の乱積み(法 1:0.3)の端・袖の背は石の出の包絡で切る(EDO-0437 第3巡)。野面の袖だけ ── 切石の袖は従来の中央値
                 envNori: EdoAssets.Own.SannoNozuraNori, sodeEnvNori: g => IsNozuraSode(g) ? EdoAssets.Own.SannoNozuraNori : float.NaN, envVisAt: visAt,
                 envWall: g => { var mf = g.GetComponentInChildren<MeshFilter>(); return mf != null && mf.sharedMesh != null && EdoAssets.Own.IsSannoNozura(AssetDatabase.GetAssetPath(mf.sharedMesh)); });
-            // ⭐ 相手の石の形に沿わせて焼いた駒が在れば、据えを変えずに差し替える(EdoBuild.SwapToFitted・EDO-0437 第11巡)。差し替えた駒には
-            //   突き付け・ResizeEnd を掛けず、相手の隅石も退けない(形は据えの従属値)。
+            // ⛔ 相手の石の形に沿わせて焼いた合わせ駒(DanFit・IshidanSodeNozuraFit・SannoNozuraFill*)へは差し替えない
+            //   (施主裁定 2026-09-27 EDO-0437「段も袖も削らない」── 段は SannoDan・袖は IshidanSode のまま、取り合いは据えで決める)。
             var fitted = new List<GameObject>();
-            {
-                var all0 = new List<GameObject>(); foreach (Transform c in grp) all0.Add(c.gameObject);
-                string stairKey = GroupNameOf(name);
-                var mp = EdoBuild.SwapToFitted(all0, g =>
-                {
-                    int us0 = g.name.LastIndexOf('_'); int ii0;
-                    if (us0 < 0 || !int.TryParse(g.name.Substring(us0 + 1).TrimEnd('f'), out ii0)) return null;
-                    if (g.name.StartsWith("Dan_")) return EdoAssets.Own.SannoDanFit(keri, fumi, wM, ii0, stairKey);
-                    string row = g.name.Substring(0, us0); char sd = row.EndsWith("_W") ? 'W' : row.EndsWith("_E") ? 'E' : '\0';
-                    return sd == '\0' || !IsNozuraSode(g) ? null : EdoAssets.Own.IshidanSodeNozuraFit(keri, fumi, stairKey, sd, ii0, ii0);
-                }, sb);
-                foreach (var kv in mp) { if (cut.Remove(kv.Key)) { } cut.Add(kv.Value); fitted.Add(kv.Value); }
-                // ⭐ 最上段の端に脇から接する土留めの駒も、その段に合わせて焼いた駒へ(EdoBuild.SwapWallsBesideStep・測って選ぶ)
-                GameObject topStep = null; float tsy = float.MinValue;
-                foreach (Transform c in grp) if (c.name.StartsWith("Dan_")) { float y = EdoBuild.RB(c.gameObject).max.y; if (y > tsy) { tsy = y; topStep = c.gameObject; } }
-                int topI = -1; if (topStep != null) int.TryParse(topStep.name.Substring(topStep.name.LastIndexOf('_') + 1), out topI);
-                if (topStep != null && fitted.Contains(topStep))
-                {
-                    var wm = EdoBuild.SwapWallsBesideStep(topStep, walls, (w, sd) => { var wmf = w.GetComponentInChildren<MeshFilter>(); return wmf == null || wmf.sharedMesh == null ? null : EdoAssets.Own.SannoNozuraFillBeside(AssetDatabase.GetAssetPath(wmf.sharedMesh), stairKey, topI, sd); }, sb);
-                    foreach (var kv in wm) { int k = walls.IndexOf(kv.Key); if (k >= 0) walls[k] = kv.Value; if (kv.Key != kv.Value) { LastWallSwap[kv.Key] = kv.Value; fitted.Add(kv.Value); } }
-                }
-            }
             dans.Clear(); sodes.Clear();
             foreach (Transform c in grp)
             {

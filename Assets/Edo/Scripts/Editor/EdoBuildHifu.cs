@@ -855,7 +855,7 @@ public static partial class EdoBuild
         // ---- 3 皮の高さ(格子の点ごと)
         // 格子の点 (gi, gj) = 地形の原点 + (gi, gj) × step。升 (i, j) の中は gi ∈ [iN, (i+1)N]。
         var H = new Dictionary<long, float>(); var O = new Dictionary<long, float>(); var PIN = new HashSet<long>(); var SUNK = new HashSet<long>();
-        var topCache = new Dictionary<long, float>(); var faceTop = new HashSet<long>();
+        var topCache = new Dictionary<long, float>(); var faceTop = new HashSet<long>(); var crestTop = new HashSet<long>();
         // 部材の天端(篩わない)。⭐ 天端の帯で篩う駒(crestBandParts)の**法の面**の点は faceTop に記す ──
         //   そこでは天端の下へ納める cap を**足元の面の高さより下げない**(法の足は面の下へ入るのが正しい納め・掘らない)。
         Func<int, int, float> TopL = (gi, gj) =>
@@ -864,7 +864,7 @@ public static partial class EdoBuild
             if (topCache.TryGetValue(k, out v)) return v;
             int who; float x = org.x + gi * step, z = org.z + gj * step;
             v = idx.TopRaw(x, z, out who);
-            if (!float.IsNaN(v) && who >= 0 && idx.banded[who] && float.IsNaN(idx.Top(x, z, out who))) faceTop.Add(k);
+            if (!float.IsNaN(v) && who >= 0 && idx.banded[who]) { if (float.IsNaN(idx.Top(x, z, out who))) faceTop.Add(k); else crestTop.Add(k); }
             topCache[k] = v; return v;
         };
         var botCache = new Dictionary<long, float>();
@@ -1044,6 +1044,11 @@ public static partial class EdoBuild
                                 if (di == 0 && dj == 0) continue;
                                 float tq = TopL(gi + di, gj + dj); if (float.IsNaN(tq)) continue;
                                 tq -= eps; if (faceTop.Contains(CK(gi + di, gj + dj))) tq = Floor(tq, gi + di, gj + dj);
+                                // ⭐ 面(造成の面)の中で部材の外形の外の点は、土留めの天端の帯(crestBandParts)の石の頭が面より低くても
+                                //   面の高さより下げない(2026-09-27・EDO-0437 普請検査 r15 ── 返しの隅石の腕の先の頭 14.31 に引かれて、
+                                //   前庭 14.50 の皮が隅石の背と袖の背の際で 0.37 窪んだ)。石の頭が面の下へ入るのは土留めが面を受ける正しい納め。
+                                //   頭が面より帯 2 つ(0.30)を超えて低い所(打ち切りの先・低い見付)は従来どおり天端の下へ。
+                                else if (faced && near < 2 && crestTop.Contains(CK(gi + di, gj + dj)) && tq < hgt0 && hgt0 - tq <= 2f * CREST_BAND) tq = hgt0;
                                 if (float.IsNaN(cap) || tq < cap) cap = tq;
                                 if (Mathf.Abs(di) <= 1 && Mathf.Abs(dj) <= 1 && (float.IsNaN(capN1) || tq < capN1)) capN1 = tq;
                             }

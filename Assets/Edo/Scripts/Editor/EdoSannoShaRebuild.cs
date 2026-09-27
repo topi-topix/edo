@@ -1233,6 +1233,76 @@ public static class EdoSannoShaRebuild
         return "土留め: 駒 " + total + " 枚 / ⛔ 埋まっていて建てなかった " + buried + " 枚 ≒ " +
                buriedM.ToString("F1") + "m(裁定 EDO-0182 が未着手のため据え置き)\n" + sb;
     }
+    /// <summary>見え面を石段の袖の背の面に揃える土留めの区間(紙)と、袖の実メッシュの背の面へ移した区間。</summary>
+    struct FaceFlushSeg { public string run; public Vector2[] paper, moved; public float off; }
+    /// <summary>**見え面を石段の袖の背の面に揃える土留め**(指図 joints: a = その run・kind「面一」・bFace「袖の背の面」── 前庭の切り込みの返し
+    /// 施主裁定 2026-09-27 EDO-0437)の区間ごとに、紙の通りを袖の実メッシュの背の面の上へ移した線(EdoBuild.SegOntoOuterFace)。
+    /// Stage3(返しと継ぐ run の端)と Stage4(返しから離れを取る板塀の端)が同じ関数で引く ── ⛔ 片方だけ紙の線で測らない。</summary>
+    static List<FaceFlushSeg> FaceFlushSegs(IEnumerable<Dictionary<string, object>> runs, List<GameObject> sandoPieces, StringBuilder sb)
+    {
+        var res = new List<FaceFlushSeg>();
+        foreach (var r in runs)
+        {
+            string name = S(r, "name"); var twd = FindByName(Doc, "terraceWalls", name); if (twd == null) continue;
+            bool flush = false;
+            foreach (var o in L(Doc, "joints"))
+            { var j = o as Dictionary<string, object>; if (j == null) continue;
+              if ((S(j, "a") ?? "").Contains(name) && (S(j, "kind") ?? "").StartsWith("面一") && (S(j, "bFace") ?? "").Contains("袖の背の面")) flush = true; }
+            var gf = D(twd, "gapFrom"); string kai = gf == null ? null : S(gf, "kaidan");
+            if (!flush || kai == null) continue;
+            var sw = SodeWallsOf(kai); var stg = Group("Sando").Find(GroupNameOf(kai));
+            Vector2 sc = Vector2.zero; int ns0 = 0;
+            if (stg != null) foreach (Transform c in stg) if (c.name.StartsWith("Dan_")) { var cc = EdoBuild.RB(c.gameObject).center; sc += new Vector2(cc.x, cc.z); ns0++; }
+            if (ns0 == 0 || sw.Count == 0) { if (sb != null) sb.AppendLine("  ⛔ " + name + ": 袖の背の面に揃える相手(石段 " + kai + " の段・袖)が据わっていない"); continue; }
+            sc /= ns0;
+            foreach (var so in L(r, "segs"))
+            {
+                var sg = so as List<object>; if (sg == null || sg.Count < 2) continue; Vector2 a = P2(sg[0]), b = P2(sg[1]); Vector2 mid = (a + b) * 0.5f;
+                string best = null; float bd = float.MaxValue; foreach (var kv in sw) { float dd = DistToPoly(kv.Value, mid); if (dd < bd) { bd = dd; best = kv.Key; } }
+                var bodies = new List<GameObject>(); foreach (var g in sandoPieces) if (g.name.StartsWith(best + "_")) bodies.Add(g);
+                float off; string w;
+                var ln = EdoBuild.SegOntoOuterFace(a, b, bodies, mid - sc, out off, out w);
+                if (ln == null) { if (sb != null) sb.AppendLine("  ⛔ " + name + ": 袖 " + best + " の背の面を測れない ── " + w); continue; }
+                if (sb != null) sb.AppendLine("  " + name + " の区間 " + a.ToString("F2") + "→" + b.ToString("F2") + ": 通りを袖 " + best + " の背の面へ " + off.ToString("+0.000;-0.000") + "m 移した(駒 " + bodies.Count + ")" + (w != null ? " ⚠ " + w : ""));
+                res.Add(new FaceFlushSeg { run = name, paper = new[] { a, b }, moved = ln, off = off });
+            }
+        }
+        return res;
+    }
+    /// <summary>**板塀・柵の端が、見え面を袖の背へ移した土留めから紙の離れを保つ**(2026-09-27・EDO-0437 普請検査 r15 ── 返しが外へ 0.60 移ったのに
+    /// 板塀 Ita_ZN・Ita_ZNE の端が紙のまま残り、最後の柱が袖の天端に載った)。指図 joints の a がこの run・kind「見切り(離れ …)」・b が
+    /// <see cref="FaceFlushSegs"/> で移る土留めのとき、端を走りに沿って動かし、**移した線からの離れ = 紙の端と紙の線の離れ**にする(離れの値は紙のまま・発明しない)。
+    /// 当たる先: 石段の袖の背へ移した返しに見切りで取り付く板塀・柵・玉垣の端(山王 前庭の北の縁 Ita_ZN・Ita_ZNE)。</summary>
+    static void KeepClearOfFlushWalls(List<Vector2> sa, List<Vector2> sbb, string name, StringBuilder sb)
+    {
+        var walls = new HashSet<string>();
+        foreach (var o in L(Doc, "joints"))
+        { var j = o as Dictionary<string, object>; if (j == null) continue;
+          if (!System.Text.RegularExpressions.Regex.IsMatch(S(j, "a") ?? "", "(^|[^A-Za-z_])" + name + "([^A-Za-z_]|$)") || !(S(j, "kind") ?? "").StartsWith("見切り")) continue;
+          var m = System.Text.RegularExpressions.Regex.Match(S(j, "b") ?? "", "TW_[A-Za-z0-9_]+"); if (m.Success) walls.Add(m.Value); }
+        if (walls.Count == 0) return;
+        var wr = new List<Dictionary<string, object>>();
+        foreach (var o in L(Impl, "runs")) { var r = o as Dictionary<string, object>; if (r != null && walls.Contains(S(r, "name"))) wr.Add(r); }
+        var sandoPieces = new List<GameObject>();
+        foreach (var t in Group("Sando").GetComponentsInChildren<Transform>())
+            if (t.name.StartsWith("TW_") && t.gameObject.activeInHierarchy && t.GetComponentInChildren<MeshFilter>() != null && t.parent != null && !t.parent.name.StartsWith("TW_")) sandoPieces.Add(t.gameObject);
+        var fms = FaceFlushSegs(wr, sandoPieces, null); if (fms.Count == 0) return;
+        for (int i = 0; i < sa.Count; i++)
+            foreach (bool atB in new[] { false, true })
+            {
+                Vector2 e = atB ? sbb[i] : sa[i], o2 = atB ? sa[i] : sbb[i]; Vector2 dir = (e - o2); float L0 = dir.magnitude; if (L0 < 1e-4f) continue; dir /= L0;
+                FaceFlushSeg best = default(FaceFlushSeg); float bd = float.MaxValue; bool has = false;
+                foreach (var fm in fms) { float d = EdoGeom.DistToEdge(e, fm.paper[0], fm.paper[1]); if (d < bd) { bd = d; best = fm; has = true; } }
+                if (!has || bd > 1.5f) continue;
+                Vector2 pd = (best.paper[1] - best.paper[0]).normalized, n = new Vector2(-pd.y, pd.x);
+                float s0 = Vector2.Dot(e - best.paper[0], n), s1 = Vector2.Dot(e - best.moved[0], n), dn = Vector2.Dot(dir, n);
+                if (Mathf.Abs(dn) < 0.2f) continue;
+                float t = (s0 - s1) / dn; if (Mathf.Abs(t) < 1e-3f) continue;
+                Vector2 ne = e + dir * t;
+                if (atB) sbb[i] = ne; else sa[i] = ne;
+                if (sb != null) sb.AppendLine("  " + name + " の端 " + e.ToString("F3") + " → " + ne.ToString("F3") + "(" + best.run + " を袖の背へ移した線から紙の離れ " + Mathf.Abs(s0).ToString("F3") + "m を保つ・走りに沿って " + t.ToString("+0.000;-0.000") + "m)");
+            }
+    }
     /// <summary>野面の乱積みの土留め(`terraceWalls[].masonry`)を据える。指図の run を口で割った区間(算出物 `segs`)を
     /// <see cref="EdoBuild.NozuraSeg"/> に読み替えて <see cref="EdoBuild.PlaceNozuraNet"/> へ渡すだけ(継ぎ方・端の納め・置き方は EdoBuild)。
     /// 読むもの: 区間ごとの天端 = `profile` のうち区間の中の行(口の中の行 = 地表を拾わない)/ 足元の平場 = `foot.terrace` /
@@ -1250,32 +1320,11 @@ public static class EdoSannoShaRebuild
         //   他の run の端は、その run の線と移した線の交点へ(出隅の稜線 = 二本の天端の線の交点 ── joints「出隅」)。⛔ 紙の座標で置かない。
         var faceLine = new List<KeyValuePair<Vector2, Vector2[]>>();   // 紙の端点 → 移した線
         var segMoved = new Dictionary<string, Vector2[]>();              // run#区間の紙の端 → 移した区間
-        foreach (var r in runs)
+        foreach (var fm in FaceFlushSegs(runs, sandoPieces, sb))
         {
-            string name = S(r, "name"); var twd = FindByName(Doc, "terraceWalls", name); if (twd == null) continue;
-            bool flush = false;
-            foreach (var o in L(Doc, "joints"))
-            { var j = o as Dictionary<string, object>; if (j == null) continue;
-              if ((S(j, "a") ?? "").Contains(name) && (S(j, "kind") ?? "").StartsWith("面一") && (S(j, "bFace") ?? "").Contains("袖の背の面")) flush = true; }
-            var gf = D(twd, "gapFrom"); string kai = gf == null ? null : S(gf, "kaidan");
-            if (!flush || kai == null) continue;
-            var sw = SodeWallsOf(kai); var stg = Group("Sando").Find(GroupNameOf(kai));
-            Vector2 sc = Vector2.zero; int ns0 = 0;
-            if (stg != null) foreach (Transform c in stg) if (c.name.StartsWith("Dan_")) { var cc = EdoBuild.RB(c.gameObject).center; sc += new Vector2(cc.x, cc.z); ns0++; }
-            if (ns0 == 0 || sw.Count == 0) { sb.AppendLine("  ⛔ " + name + ": 袖の背の面に揃える相手(石段 " + kai + " の段・袖)が据わっていない"); continue; }
-            sc /= ns0;
-            foreach (var so in L(r, "segs"))
-            {
-                var sg = so as List<object>; if (sg == null || sg.Count < 2) continue; Vector2 a = P2(sg[0]), b = P2(sg[1]); Vector2 mid = (a + b) * 0.5f;
-                string best = null; float bd = float.MaxValue; foreach (var kv in sw) { float dd = DistToPoly(kv.Value, mid); if (dd < bd) { bd = dd; best = kv.Key; } }
-                var bodies = new List<GameObject>(); foreach (var g in sandoPieces) if (g.name.StartsWith(best + "_")) bodies.Add(g);
-                float off; string w;
-                var ln = EdoBuild.SegOntoOuterFace(a, b, bodies, mid - sc, out off, out w);
-                if (ln == null) { sb.AppendLine("  ⛔ " + name + ": 袖 " + best + " の背の面を測れない ── " + w); continue; }
-                sb.AppendLine("  " + name + " の区間 " + a.ToString("F2") + "→" + b.ToString("F2") + ": 通りを袖 " + best + " の背の面へ " + off.ToString("+0.000;-0.000") + "m 移した(駒 " + bodies.Count + ")" + (w != null ? " ⚠ " + w : ""));
-                segMoved[name + "#" + a.ToString("F3") + b.ToString("F3")] = ln;
-                faceLine.Add(new KeyValuePair<Vector2, Vector2[]>(a, ln)); faceLine.Add(new KeyValuePair<Vector2, Vector2[]>(b, ln));
-            }
+            Vector2 a = fm.paper[0], b = fm.paper[1];
+            segMoved[fm.run + "#" + a.ToString("F3") + b.ToString("F3")] = fm.moved;
+            faceLine.Add(new KeyValuePair<Vector2, Vector2[]>(a, fm.moved)); faceLine.Add(new KeyValuePair<Vector2, Vector2[]>(b, fm.moved));
         }
         // 紙の端 e を持つ区間 (e, other) の端を動かす: 自分が移した区間なら、他の run と継ぐ端は交点・継がない端は移した線の上 / 他の run なら交点
         Func<string, Vector2, Vector2, Vector2> endOf = (nm, e, other) =>
@@ -1674,6 +1723,7 @@ public static class EdoSannoShaRebuild
                 }
                 float pHalfT, pHgt; PanelProfile(EdoAssets.Eg.Itabei5, out pHalfT, out pHgt);
                 ClipRunEndsToGates(pa, pb, pHgt, pHalfT, hasSeat, seat, name, sb);
+                KeepClearOfFlushWalls(pa, pb, name, sb);
                 RetractRunEndsFromWalls(pa, pb, pHalfT, pHgt, hasSeat, seat, name, sb);
                 ShiftRunToCutShoulder(pa, pb, pHalfT, pHgt, hasSeat, name, sb);
                 var dgB = hasSeat ? null : EdoBuild.Drawn();
@@ -2115,6 +2165,7 @@ public static class EdoSannoShaRebuild
         if (kind == "板塀") PanelProfile(EdoAssets.Eg.Itabei5, out halfT, out hgt);
         else { float postL; SakuProfile(out halfT, out hgt, out postL); }
         ClipRunEndsToGates(a, b, hgt, halfT, hasSeat, seat, S(r, "name"), new StringBuilder());
+        KeepClearOfFlushWalls(a, b, S(r, "name"), null);
         RetractRunEndsFromWalls(a, b, halfT, hgt, hasSeat, seat, S(r, "name"), new StringBuilder());
         if (kind == "板塀") ShiftRunToCutShoulder(a, b, halfT, hgt, hasSeat, S(r, "name"), new StringBuilder());
     }

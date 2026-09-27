@@ -660,6 +660,13 @@ public static partial class EdoBuild
     public static void KadoFaces(GameObject piece, out Vector2 f1, out Vector2 f2)
     {
         var tr = piece.transform;
+        // ⭐ 野面の隅の駒(`SannoNozuraKado`・切り版 `SannoNozuraKadoCut` も)は、部材の約束で見え面が局所 +X・+Z(EdoAssets の注釈)。
+        //   法の出で測ると、腕を袖の背の面で切った版は切った腕に法が無く、局所 −X を見え面と読んで「高い側を向く」と嘘を出した
+        //   (2026-09-27 EDO-0437 普請検査 r15・Kiri_kado2)。部材ごとの正面の軸を使うのは FaceYaw と同じ考え(位置は決めない)。
+        var mf0 = piece.GetComponentInChildren<MeshFilter>();
+        string mp0 = mf0 != null && mf0.sharedMesh != null ? System.IO.Path.GetFileName(UnityEditor.AssetDatabase.GetAssetPath(mf0.sharedMesh)) : "";
+        if (mp0.StartsWith("Sanno_Nozura_Kado90_"))
+        { f1 = new Vector2(tr.right.x, tr.right.z).normalized; f2 = new Vector2(tr.forward.x, tr.forward.z).normalized; return; }
         f1 = FaceSide(new List<GameObject> { piece }, new Vector2(tr.right.x, tr.right.z).normalized);
         f2 = FaceSide(new List<GameObject> { piece }, new Vector2(tr.forward.x, tr.forward.z).normalized);
     }

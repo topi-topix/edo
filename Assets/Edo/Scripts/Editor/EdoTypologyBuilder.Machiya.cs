@@ -167,7 +167,7 @@ public static partial class EdoTypologyBuilder
                             + " / 端の余りの合計 {3:F2}m",
             float.IsNaN(worstFace) ? 0f : worstFace,
             float.IsNaN(worstJoint) ? "—" : worstJoint.ToString("F3") + "m"
-                + (worstJoint < 0f ? "(⛔ めり込み)" : ""),
+                + (worstJoint < 0f ? "(⚠ めり込み・数えない ── レンダで見る)" : ""),
             worstWallGap, restSum));
         if (dropped > 0) log.Add("    ⛔ 区画の外へ出て退けた駒 " + dropped + "枚 — その分だけ通りに歯抜けが残る");
         if (clashed > 0) log.Add("    角で先の列にめり込むので退けた駒 " + clashed
@@ -280,7 +280,7 @@ public static partial class EdoTypologyBuilder
                            + "その筆に何戸あったかの史料は無い(部材の注記・確度U)",
             made, rows, want == DERIVE ? "表は数でないので割り出した" : "表の ura_nagaya=" + want + " を上限にした",
             s.depthKen, depthM, shopD, ROJI, avail, mw.D, rows,
-            float.IsNaN(worst) ? "—" : worst.ToString("F3") + "m" + (worst < 0f ? "(⛔ めり込み)" : ""),
+            float.IsNaN(worst) ? "—" : worst.ToString("F3") + "m" + (worst < 0f ? "(⚠ めり込み・数えない ── レンダで見る)" : ""),
             dropped > 0 ? string.Format(" / 退けた掛け直し {0}回(区画の外・先の列との当たり)", dropped) : "",
             nMune, made - nMune, um.D,
             far > 0f ? string.Format(" − 向かいの表店と路地 {0:F1}m(両側町)", far) : "")

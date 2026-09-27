@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 330(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 341(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -35,6 +35,7 @@
 | `Eg.TakeGaki` | string | `bamboo garden fence B.prefab` — 竹垣(0.9高 x 1.05長)。水際・庭園帯の囲いに。 | MatsudairaDewa(Stage6_Zosaku), MatsudairaDewaBuilder.Niwa(Stage6d_Tenkei), OkabeYashiki(AssetByKey) |
 | `Eg.ToroYukimi` | string | `t_yukimi.obj` — 雪見灯籠(六角の広い笠 + 宝珠 + 火袋 + 竿を持たない三脚)。 | DoiBuilder.Niwa(ResolveNiwaApi), OkabeYashiki(PlaceNiwaItem) |
 | `Eg.TexToroYukimi` | string | `t_yukimi.jpg` | — |
+| `Eg.ToroKasuga` | string | `t_kasuga.obj` — 春日灯籠(edogoyomi `t_kasuga`)── 寺社の境内の献灯(本堂の前・参道の左右に一対)にだけ当てる (庭方の境内の設計 2026-09-27・EDO-0477 P5)。 | TypologyBuilder.Keidai(NiwaKeidai) |
 | `Eg.Shop01Taru` | string | `s01_taru.obj` — 店先の小物 | — |
 | `Eg.Shop01Oke` | string | `oke.obj` | — |
 | `Eg.TexShop01` | string | `shop01.jpg` — テクスチャ(マテリアル生成用) | SannoSha(Stage5_Monzencho) |
@@ -89,7 +90,7 @@
 | `Goten.RoofDir` | string | `` — 入母屋屋根。棟の寸法ごとに Blender で生成する: blender --background --python Tools/Blender/build_goten_roof.py -- W D 名前 | — |
 | `Goten.RoofIrimoya` | string | — | GotenKit(BuildTestGankou・BuildTestMune) |
 | `Goten.RoofIrimoya5x5` | string | — | GotenKit(BuildTestGankou) |
-| `Goten.RoofIrimoya_(wKen, dKen)` | 関数 | 棟の外形(身舎+入側)の間数で引く入母屋。 | BuildJisha(Honden), BuildGoten(GotenComplex), MatsudairaDewa(Stage4_Goten) |
+| `Goten.RoofIrimoya_(wKen, dKen)` | 関数 | 棟の外形(身舎+入側)の間数で引く入母屋。 | BuildJisha(Honden), BuildGoten(GotenComplex), MatsudairaDewa(Stage4_Goten), TypologyBuilder.Jisha(JHallBaked) |
 | `Goten.RoofYosemune_(wKen, dKen)` | 関数 | 棟の外形(身舎+入側)の間数で引く寄棟。 | — |
 | `Goten.RoofBanded(bands, spanKen, alongV=…, irikawa=…, noki=…)` | 関数 | 帯割りの入母屋。身舎を帯(2〜5間)に割り、帯ごとに入母屋を架けて 境を水平の谷にした屋根。 | MatsudairaDewa(Stage4_Goten・TriPierceY), Doi(Stage4_Goten), GotenKit(Put) |
 | `Goten.RoofKirizumaKen` | float[] | 渡廊下の切妻屋根。幅1間・長さRoofKirizumaKen間の定尺で作ってある (瓦の繰り返し 1.785/2.004m は江戸間と割り切れないので1間モジュールにはできない)。 | — |
@@ -209,7 +210,8 @@
 | `Own.ISHIDAN_SODE_DEPTH_STD` | float | 袖の丈(天端の線から下端まで)の既定 2.20 = 最大見付 1.74 + 根入れ 0.46。 | BuildIshidan(MiterIshidanSode), SannoSha(Stage2_Kaidan) |
 | `Own.IshidanSodeDepths` | float[] | 焼いてある袖の丈(浅い順)。切通しで袖を背の地盤まで上げる(`copingRise:"groundHi"`)とき、 上げの上限 = 丈 − 笠の上がり 0.30 − 段石の根入れ(実メッシュで測る。 | SannoSha(Stage2_Kaidan・Stage5b_Fumiishi), BuildIshidan(PlaceIshidanSode) |
 | `Own.IshidanSode(keri, fumi, i, depth)` | 関数 | 丈の深い石段の袖(EDO-0430 2026-09-24)。 | BuildIshidan(FitObliqueEnd・PlaceIshidanSode), SannoSha(AbutStairsToWalls・Stage2_Kaidan) |
-| `Own.IshidanSodeFlat(depth)` | 関数 | 天端が水平な石段の袖(EDO-0459 施主裁定A 2026-09-26・男坂の最上段の袖石)。 | BuildIshidan(EndGapProfile) |
+| `Own.IshidanSodeFlat(depth)` | 関数 | 天端が水平な石段の袖(EDO-0459 施主裁定A 2026-09-26・男坂の最上段の袖石)。 | BuildIshidan(EndGapProfile), SannoSha(Stage2_Kaidan) |
+| `Own.IshidanSodeFlat(depth, len)` | 関数 | 走りを指定した天端が水平な石段の袖(EDO-0437 施主裁定 2026-09-27・参道の階の段4 の袖 ── 走り = その段の踏面 0.542)。 | BuildIshidan(EndGapProfile), SannoSha(Stage2_Kaidan) |
 | `Own.IshidanSodeFlatNori(depth)` | 関数 | 坂上の小口を法 1:0.25 に切った水平の袖(EDO-0459 2026-09-27・男坂の最上段 → 楼門の腰の隅 kado1 の法の面へ突き付ける)。 | SannoSha(Stage5b_Fumiishi) |
 | `Own.ISHIDAN_SODE_FLAT_NORI_KINK` | float | 男坂の小口の折れ点 = 袖の天端 28.58 − kado1 の天端 28.27(EDO-0459 2026-09-27)。 | — |
 | `Own.IshidanSodeFlatNori(depth, kink)` | 関数 | IshidanSodeFlatNori の小口を折れにした版(EDO-0459 2026-09-27・kado1 の天端から楼門の基壇までの鉛直な帯で 0.009 の口が残った)。 | SannoSha(Stage5b_Fumiishi) |
@@ -231,6 +233,8 @@
 | `Own.SannoNozura(h, grade, i)` | 関数 | 野面の乱積みの土留め — 1間の駒(山王社の前庭の縁。 | BuildNozura(PlaceNozuraRun), SannoSha(Nozura) |
 | `Own.SannoNozuraKiri(risesToPlusX, i)` | 関数 | 野面の乱積みの打ち切り — 根石一段が地中へ沈む駒(見付 0.2 未満で壁を終える所)。 | SannoSha(Nozura) |
 | `Own.SannoNozuraKado(h, i)` | 関数 | 野面の乱積みの出隅 90° の隅の駒(2026-09-25・山王 本殿の西の土留め `TW_Nozura_ShadenW` の帯の北西・南西の隅。 | SannoSha(Nozura) |
+| `Own.SannoNozuraKadoCut(h, i, axis, at)` | 関数 | SannoNozuraKado の片腕を袖の背の面で一度だけ切った版(EDO-0437 2026-09-27・参道の階の前庭の北の縁の口の出隅。 | SannoSha(Nozura) |
+| `Own.SannoNozuraKadoCut(h, i, axis, at, arm)` | 関数 | SannoNozuraKadoCut の切った側の腕を arm に詰めた版(EDO-0437 2026-09-27 r16)。 | SannoSha(Nozura) |
 | `Own.SannoNozuraDan(risesToPlusX, i)` | 関数 | 野面の乱積みの段の境の駒(2026-09-25・帯 `SukibeiSoto` 29.65 → `SukibeiSoto_Chu` 29.25 の差 0.40 を 1間で流す) = SannoNozura(1.50, ±… | SannoSha(Nozura) |
 | `Own.SannoNozuraMikiri` | string | `Sanno_Nozura_Mikiri.fbx` — 見切りの大きな野面石(男坂の下で城の石垣と野面の乱積みを継ぐ1点)。 | — |
 | `Own.SannoNozuraMikiriH(h)` | 関数 | 丈を合わせた見切り石(2026-09-26 EDO-0437・男坂の口の両脇 TW_Zentei_W の端 2 か所)。 | SannoSha(Nozura) |
@@ -239,9 +243,9 @@
 | `Own.SannoNozuraNoriEnd(len, atPlusX, h)` | 関数 | — | BuildNozura, SannoSha(Nozura) |
 | `Own.IshidanSodeNozuraNori(keri, fumi, e, i)` | 関数 | 背を相手の法で切った野面の袖(2026-09-26 EDO-0437 第3巡・参道の階の袖の背が切り込みの出隅の駒の法に当たる所)。 | SannoSha(AbutStairsToWalls) |
 | `Own.SannoNozuraFillSandoKai4(side)` | 関数 | 段 4 に面する所だけ天端を埋めた前庭の野面の駒(EDO-0437 r13 2026-09-27)。 | — |
-| `Own.SannoNozuraFillBeside(basePath, stair, i, side)` | 関数 | 石段 stair の段 i の脇 side('W'/'E')に合わせて焼いた野面の駒の名 (元の部材 basePath の名 + "_" + 石段 + 段 + 脇)。 | SannoSha(AbutStairsToWalls) |
-| `Own.SannoDanFit(keri, fumi, w, i, stair)` | 関数 | 両端を相手の野面の石の見える外形に沿わせた段石(EDO-0437 第10巡 2026-09-26 → r11 2026-09-27)。 | SannoSashizuCheck(Check), SannoSha(AbutStairsToWalls) |
-| `Own.IshidanSodeNozuraFit(keri, fumi, stair, side, k, i)` | 関数 | 背を相手の野面の石の見える外形に沿わせた野面の袖(EDO-0437 第10巡 2026-09-26 → r11 2026-09-27)。 | SannoSha(AbutStairsToWalls) |
+| `Own.SannoNozuraFillBeside(basePath, stair, i, side)` | 関数 | 石段 stair の段 i の脇 side('W'/'E')に合わせて焼いた野面の駒の名 (元の部材 basePath の名 + "_" + 石段 + 段 + 脇)。 | — |
+| `Own.SannoDanFit(keri, fumi, w, i, stair)` | 関数 | 両端を相手の野面の石の見える外形に沿わせた段石(EDO-0437 第10巡 2026-09-26 → r11 2026-09-27)。 | SannoSashizuCheck(Check) |
+| `Own.IshidanSodeNozuraFit(keri, fumi, stair, side, k, i)` | 関数 | 背を相手の野面の石の見える外形に沿わせた野面の袖(EDO-0437 第10巡 2026-09-26 → r11 2026-09-27)。 | — |
 | `Own.IshidanSodeNozura(keri, fumi, i)` | 関数 | 石段の袖 — 野面の乱積み版(2026-09-24)。 | SannoSha(AbutStairsToWalls・Stage2_Kaidan) |
 | `Own.SannoIdoIgeta(naikeiMm, igetaTallMm)` | 関数 | 山王社の小庭の井戸 — 井筒(玉石の輪積み)と井桁を一体で。 | TypologyBuilder.Niwa(NiwaIdo・NiwaUra), SannoSha(Stage8_Ido) |
 | `Own.SannoIdoYakata(pitchMm, nokiMm, muneMm)` | 関数 | 山王社の前庭の井戸屋形(木部) — 四本柱・妻梁・軒桁・棟束・棟木・垂木・切妻こけら葺・破風板・棟押え + 釣瓶の横木と滑車(指図 bom 行22・行25)。 | SannoSha(Stage8_Ido) |
@@ -329,7 +333,7 @@
 |---|---|---|---|
 | `Own.Typ.Komegura` | string | 米蔵 3間(梁間)× 4間(桁行)。石腰+白漆喰の大壁・妻に観音扉・切妻の本瓦。 | Typology(Plan) |
 | `Own.Typ.Umaya` | string | 厩 3間(梁間)× 4間(桁行)。板壁・桟瓦・前面(+Z)は吹き放ちで 足元に半高の板壁、馬房を4つ(桁行4間なので1房ちょうど1間)。 | Typology(Plan) |
-| `Own.Typ.SakujiKoya` | string | 作事小屋 2間(梁間)× 3間(桁行)。 | Typology(Plan) |
+| `Own.Typ.SakujiKoya` | string | 作事小屋 2間(梁間)× 3間(桁行)。 | Typology(Plan), TypologyBuilder.Jisha(JishaOmoya) |
 | `Own.Typ.Takeyarai` | string | 竹矢来(たけやらい)— 2間モジュールの透ける囲い(類型共用・EDO-0363)。 | BuildRun(FenceRun・NeribeiRun) |
 | `Own.Typ.Omotedana(wKen)` | 関数 | 表店(おもてだな)— 町屋24町の通りに面して並ぶ2階建ての商家(類型共用)。 | TypologyBuilder.Machiya(OmotedanaFor), BuildMachiya |
 | `Own.Typ.Omotedana(wKen, dKen)` | 関数 | 奥行を詰めた表店。背後の余地が 4間(7.272m)に足りない筆で使う。 | TypologyBuilder.Machiya(OmotedanaFor), BuildMachiya |
@@ -352,7 +356,9 @@
 | `Own.HoriSaku` | string | `HoriSaku.fbx` — 汀の木柵 1スパン(`fences[0]` F_Hori・辺5 の全長 s0〜80.589)。 | OkabeYashiki(PlaceFences) |
 | `Own.HoriSakuPost` | string | `HoriSakuPost.fbx` — 汀の木柵の端の杭。⛔ 足さないと run の最後の板が宙で終わる。 | OkabeYashiki(PlaceFences) |
 | `Own.ItabeiIta` | string | `Itabei_Ita_1.410.fbx` — 板塀の板(柱なし)1間。在庫の板塀 Eg.Itabei5(柱と板が一体の 5間の駒)を 柱と板に分けた組の板の方(2026-09-26・EDO-0437 山王 前庭の南の板塀 `Ita_ZSE`)。 | SannoSha(Stage4_Kakoi) |
-| `Own.ItabeiHashira` | string | `Itabei_Hashira_N0.30.fbx` — 板塀の柱1本(ItabeiIta と組・2026-09-26・EDO-0437)。 | SannoSha(Stage4_Kakoi) |
+| `Own.ItabeiHashira` | string | `Itabei_Hashira_N0.30.fbx` — 板塀の柱1本(ItabeiIta と組・2026-09-26・EDO-0437)。 | — |
+| `Own.ItabeiJifuku` | string | `Itabei_Jifuku_1.410_Hk0.60.fbx` — 板塀の地覆(板の下の横木)1間・光付けの代つき(2026-09-27・EDO-0437 施主裁定 案A「板を石の天端・地面まで下ろす」)。 | BuildRun(PostBoardRun), SannoSha(Stage4_Kakoi) |
+| `Own.ItabeiHashiraHk` | string | `Itabei_Hashira_Hk0.60.fbx` — 板塀の柱1本・光付けの代つき(ItabeiJifuku と組・2026-09-27・EDO-0437 案A)。 | BuildRun(PostBoardRun), SannoSha(Stage4_Kakoi) |
 | `Own.Ishigumi(i)` | 関数 | 庭石1個(景石・石組護岸の石・岩島・中島の汀石・荒磯の立石を全部これで置く)。 | DoiBuilder.Niwa(Niwa_B_Gogan・Niwa_D_Tenkei・ResolveNiwaApi), OkabeYashiki(PlaceNiwaItem), TypologyBuilder.Niwa(MomijiPalFor) |
 | `Own.Tobiishi(i)` | 関数 | 飛石・沢飛石1枚(天端が平ら)。⭕ 同じ photoscanned rock の頭を水平に 落として天端を作り、縁は自然石のまま残してある(⛔ 切石に見せない)。 | DoiBuilder.Niwa(Niwa_D_Tenkei・ResolveNiwaApi), OkabeYashiki(PlaceNiwaItem), TypologyBuilder.Niwa(MomijiPalFor) |
 | `Own.Kutsunugi` | string | 沓脱石(根府川石)。天端を平らに落とした自然石。 | OkabeYashiki(PlaceNiwaItem) |
@@ -369,7 +375,7 @@
 | `Own.DoiKachu(ketaKen)` | 関数 | 家中長屋(邸内の長屋・土井邸 `service.Kachu_N1/N2/N3/S1/Y` の5棟)。 | — |
 | `Own.DoiKura(hariKen, ketaKen)` | 関数 | 土蔵(土井邸 `service` の `Komegura` / `Kura1` / `Kura2`)。 | Doi(PlaceService) |
 | `Own.DoiIdo` | string | 井戸(土井邸 `wells` の5口とも同じ部材)。 | Doi(PlaceWells) |
-| `Own.DoiChozu` | string | 手水石(水盤) — 稲荷の社前・参道の西(`yashiro.chozu`)。 | DoiBuilder.Niwa(Niwa_F_Yashiro) |
+| `Own.DoiChozu` | string | 手水石(水盤) — 稲荷の社前・参道の西(`yashiro.chozu`)。 | DoiBuilder.Niwa(Niwa_F_Yashiro), TypologyBuilder.Keidai(NiwaKeidai) |
 | `Own.DoiKutsunugi` | string | 沓脱石 — 奥棟の南入側の前の一枚石(`gardens.G_Okuniwa.kutsunugi.Kutsunugi_Oku`)。 | DoiBuilder.Niwa(ResolveNiwaApi) |
 | `Own.DoiMizushiriShiki` | string | 水尻の石の閾(余水吐)。汀 #14(西端)、天端は `mizu.mizushiri.shiki.sill` (水面 +0.05)。 | DoiBuilder.Niwa(Niwa_C_Mizushiri) |
 | `Own.DoiMizushiriHakiguchi` | string | 水尻の石組の吐き口(埋樋の終点)。実寸 0.950(X) × 0.740(Y) × 0.820(Z)。 | DoiBuilder.Niwa(Niwa_C_Mizushiri) |
@@ -395,5 +401,15 @@
 
 | 名 | 種 | 中身・注釈の一文目 | 使っている所 |
 |---|---|---|---|
-| `Scenes.Akasaka` | string | `Akasaka.unity` — 本番の一枚。 | Koba(BackToAkasaka・Harvest・OnCompile…) |
+| `Scenes.Akasaka` | string | `Akasaka.unity` — 本番の一枚。 | Koba(BackToAkasaka・Harvest・OnCompile…), AppBuild(Build・OnProcessScene・OnlyAkasaka) |
 | `Scenes.Koba` | string | `Koba.unity` — 作業場 — 建て直しの輪を回す軽いシーン(地形+光+対象邸+20m 以内の隣)。 | Koba(Open・Shitateru) |
+
+## App
+
+| 名 | 種 | 中身・注釈の一文目 | 使っている所 |
+|---|---|---|---|
+| `App.BuildDir` | string | `Builds` — 書き出し先(gitignore の Builds/)。 | AppBuild(Build) |
+| `App.PcRPAsset` | string | `PC_RPAsset.asset` — エディタの URP 資産(App の複写元)。 | AppBuild(EnsureAppPipeline) |
+| `App.RPAsset` | string | `App_RPAsset.asset` — アプリだけが使う URP 資産(品質 App)。 | AppBuild(EnsureAppPipeline) |
+| `App.EditorOnlyRoots` | string[] | 図の上の置き場 — 書き出しから外すルート。 | AppBuild(OnProcessScene) |
+| `App.MeshLodModels` | string[] | 遠くで面を自動で間引く(Mesh LOD)模型。 | AppBuild(DropInactive・Reimport) |

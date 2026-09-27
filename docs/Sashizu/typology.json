@@ -112,7 +112,8 @@
     "shoro": false,
     "sanmon": false,
     "graveyard": false,
-    "src": "住坊の類型(本堂・山門・鐘楼・墓地を持たない)"
+    "src": "住坊の類型(本堂・山門・鐘楼・墓地を持たない) / garden=keidai — 寺社の境内の庭(庭方 2026-09-27・EDO-0477 P5。意匠の全文 UserData/EDO0477_survey/G_niwa_keidai.json)",
+    "garden": "keidai"
    },
    "temple": {
     "main_hall_ken": [
@@ -125,7 +126,8 @@
     "shoro": true,
     "sanmon": true,
     "graveyard": true,
-    "src": "一般類型"
+    "src": "一般類型 / garden=keidai — 寺社の境内の庭(庭方 2026-09-27・EDO-0477 P5。意匠の全文 UserData/EDO0477_survey/G_niwa_keidai.json)",
+    "garden": "keidai"
    },
    "shake": {
     "main_hall_ken": [
@@ -138,7 +140,8 @@
     "shoro": false,
     "sanmon": false,
     "graveyard": false,
-    "src": "神主の屋敷(薬医門+式台玄関)"
+    "src": "神主の屋敷(薬医門+式台玄関) / garden=keidai — 寺社の境内の庭(庭方 2026-09-27・EDO-0477 P5。意匠の全文 UserData/EDO0477_survey/G_niwa_keidai.json)",
+    "garden": "keidai"
    }
   },
   "kouyuu": {

@@ -40,6 +40,15 @@ public static partial class EdoTypologyBuilder
     const float JISHA_GRID  = 1.5f;   // 候補点の格子(m)
     const float JISHA_GAP_LOOSE = 1.0f;
     const float JISHA_GAP_TIGHT = 0.3f;   // 最後の手 — 軒どうしが触れかけるが棟どうしは離れている(めり込みは実測で弾く)
+    // ⭐ 広さからの従属値(2026-09-27・EDO-0477 P4)。どれも【確度 U】── 考証方の目安(御府内寺社備考 B の 3 寺:
+    //    澄泉寺 1,374 坪/本堂 121 坪 = 9%・光蔵院 107/12 = 11%・善正寺 101/30 = 30%)。全文 UserData/EDO0477_survey/F_kosho_jisha.json。
+    //    ⛔ 史料の間数(確度 S/A/B)があればそちらが勝つ(JHallSizes)。
+    const float JISHA_HALL_RATIO   = 0.09f;  // 寺の本堂の坪 ≈ 境内の坪 × 8〜10%
+    const float JISHA_KYAKU_RATIO  = 0.5f;   // 客殿 ≈ 本堂の半ば(附属合計 ≈ 本堂の 1.0〜1.5 倍の内訳)
+    const int   JISHA_N_BASE       = 4;      // 棟数 ≈ 4 + 境内 500 坪ごとに 1
+    const float JISHA_N_PER_TSUBO  = 500f;
+    const float JISHA_JITTER       = 1.5f;   // 附属の置き場の点数の揺らぎ[m](EDO-0476・区画ごとの種で決定的)
+    const int   JISHA_TRIES        = 72;     // PlaceBest に試させる置き場の数(旧: 三巡 × 24)
 
     enum JMode { Main, Near, Back, Front }
 
@@ -147,17 +156,23 @@ public static partial class EdoTypologyBuilder
         float yawMain = JYaw(outward);                 // 本堂の表(+Z)を門の方へ
         float yawVK = Mathf.Atan2(-outward.x, -outward.y) * Mathf.Rad2Deg;   // 従来の VK 駒の向き
 
+        // ── 本堂の大きさ(2026-09-27・EDO-0477 P4 ── 施主「類型で建てた物が薄すぎる」)──────────────
+        // ⭐ 寺(kind=temple)で表の間数が史料でない(確度 S/A/B でない)ときは、**境内の広さ × HALL_RATIO** を下限に採る。
+        //    ⛔ それまでは表の U の間数そのまま ── 1,823 坪の観理院が 7×5 間(35 坪 = 目安の 1/5)だった。
+        //    坊・社家(kind=bo/shake)の主屋は本堂でないので比を掛けない(比の典拠は寺の堂だけ)。
+        // ⭐ 揺らぎ(EDO-0476): 目安の ±帯に入る焼いた入母屋のうちから区画ごとの種で選ぶ ── 同じ型の区画が同じ姿にならない。
+        float tsubo = Mathf.Abs(EdoGeom.SignedArea(poly)) / (1.818f * 1.818f);
+        var rng = new System.Random(JSeed(s.id));
+        string hallCert = JCert(s, "main_hall_ken");
+        bool hallFirm = hallCert == "S" || hallCert == "A" || hallCert == "B";
+        var hallSizes = JHallSizes(s, tsubo, hallFirm, rng, out string sizeNote);
+
         // ── 棟の一覧を起こす(置く前に**実メッシュの外形**を測る)──────────────
         var items = new List<JItem>();
         var dropped = new List<string>();
         int units = Mathf.Max(1, s.units);
-        int hw = s.hallW, hd = s.hallD;
-        string hallNote = "";
-        if (hw <= 0 || hd <= 0)
-        {
-            hallNote = "⚠ 表に main_hall_ken が無い — 類型の既定(坊 6x4)で建てる";
-            hw = 6; hd = 4;
-        }
+        int hw = hallSizes[0][0], hd = hallSizes[0][1];
+        string hallNote = sizeNote;
         GameObject firstHall = null;
         // ⭐ 庫裏は本堂より格を落とした専用駒(EDO-0354・2026-09-22)。以前は VK.SmallHouse
         //    (実測14.49×10.49m・本堂とほぼ同大)を当てていて、狭い境内でまず庫裏が「収まらず未建」に
@@ -172,7 +187,7 @@ public static partial class EdoTypologyBuilder
             if (firstHall == null) { h = EdoBuild.Honden(g, nm, hw, hd, out note); if (h != null) firstHall = h; }
             else { h = UnityEngine.Object.Instantiate(firstHall, g); h.name = nm; note = "複製"; }
             if (h == null) { dropped.Add(note); continue; }
-            if (u == 0) hallNote = string.IsNullOrEmpty(hallNote) ? note : hallNote;
+            if (u == 0) hallNote = note + (string.IsNullOrEmpty(hallNote) ? "" : "(" + hallNote + ")");
             items.Add(new JItem { label = nm, go = h, mode = u == 0 ? JMode.Main : JMode.Near, yaw = yawMain, rank = u == 0 ? 0f : 3f + u });
             if (s.kuri && units > 1) JAdd(items, dropped, g, "Kuri_" + u, kuriPath, JMode.Near, yawVK, 3.5f + u);
         }
@@ -183,6 +198,40 @@ public static partial class EdoTypologyBuilder
             JAdd(items, dropped, g, "Tacchu" + k, EdoAssets.VK.SmallHouse, JMode.Near, yawVK, 4f + k);
         for (int k = 0; k < Mathf.Clamp(s.kura, 0, 2) * units; k++)
             JAdd(items, dropped, g, "Kura" + k, EdoAssets.Eg.Kura, JMode.Back, yawVK, 5f + k);
+
+        // ── 棟数の目標(2026-09-27・EDO-0477 P4)── 4 棟 + 境内 500 坪ごとに 1 棟【U】(考証方: 御府内寺社備考の 3 寺 B からの目安)。
+        //    足りない分は寺なら客殿(本堂の半ばの入母屋)→ 蔵 → 物置、坊・社家は蔵 → 物置の順に足す。
+        //    ⛔ 棟の種別を推定で既成事実にしない ── 足した棟は名に出し、log に「目標で足した」と刷る(規則7)。
+        int nTarget = JISHA_N_BASE + Mathf.FloorToInt(tsubo / JISHA_N_PER_TSUBO);
+        var added = new List<string>();
+        int kuraN = items.Count(i => i.label.StartsWith("Kura")), monoN = 0;
+        bool kyakuDone = s.kind != "temple";
+        while (items.Count + dropped.Count < nTarget && added.Count < 6)
+        {
+            if (!kyakuDone)
+            {
+                kyakuDone = true;
+                var ks = JPickSize(hw * hd * JISHA_KYAKU_RATIO, rng, 3);
+                string kn;
+                var kh = ks == null ? null : EdoBuild.Honden(g, "Kyakuden", ks[0], ks[1], out kn);
+                if (kh != null)
+                {
+                    items.Add(new JItem { label = "Kyakuden", go = kh, mode = JMode.Near, yaw = yawVK, rank = 3.2f });
+                    added.Add(string.Format("客殿 {0}x{1}間", ks[0], ks[1]));
+                    continue;
+                }
+            }
+            if (kuraN <= monoN)
+            {
+                JAdd(items, dropped, g, "Kura" + kuraN, EdoAssets.Eg.Kura, JMode.Back, yawVK, 5f + kuraN);
+                added.Add("蔵"); kuraN++;
+            }
+            else
+            {
+                JAdd(items, dropped, g, "Monooki" + monoN, EdoAssets.Own.Typ.SakujiKoya, JMode.Back, yawVK, 6.5f + monoN);
+                added.Add("物置(作事小屋の駒で代用)"); monoN++;
+            }
+        }
         int want = items.Count + dropped.Count;
         items = items.OrderBy(i => i.rank).ToList();
 
@@ -212,127 +261,164 @@ public static partial class EdoTypologyBuilder
             gInRoof = Mathf.Max(gInRoof, gInWall);
         }
 
-        // ── 置く ────────────────────────────────────────────────
+        // ── 置く ── ⭐ 置き場は EdoBuild.PlaceBest で選ぶ(2026-09-27・EDO-0477 P4。docs/oki-kata.md §4a)。
+        //    硬い制約 = 壁体が区画の外・棟どうしの突き抜け(見て違和感の出る重なり・部材どうしの埋め込みとは別)・接地(許容0 = 退ける)。
+        //    柔らかい制約 = 棟どうしの離れ(屋根込み)MIN_BLDG_GAP・本堂の前庭(軒先から)JISHA_FRONT(狙い = 最も近い所へ建てて ⚠)。
+        //    ⛔ それまでは自前の三巡(離れ 2.0 → 1.0 → 0.3)で、狙いを関門として書いていた。
+        //    候補の並びは「狙いの帯(2.0 / 1.0 / 0.3)→ 置き方の点数」── 狙いを満たす所が先に試される。
         float mnx = poly.Min(p => p.x), mxx = poly.Max(p => p.x), mnz = poly.Min(p => p.y), mxz = poly.Max(p => p.y);
         var taken = new List<Vector2[]>();           // 置いた棟の屋根込みの矩形
         var made = new List<GameObject>();
         Vector2[] lane = null;
         Vector2 hallC = poly.Aggregate(Vector2.zero, (a, q) => a + q) / poly.Length; bool hallDone = false;
-        int placedN = 0, unseated = 0, clashed = 0;
+        int placedN = 0;
         float worstPair = float.NaN; bool loose = false, tight = false;
-        var log = new List<string>();
+        var tally = new EdoBuild.SeiyakuTally();
+        float hallArea = 0f, annexArea = 0f;
+        int hallTry = 0;
 
-        foreach (var it in items)
+        for (int ii = 0; ii < items.Count; ii++)
         {
+            var it = items[ii];
             if (!JExt(it.go, false, it.wall) || !JExt(it.go, true, it.roof))
             { dropped.Add(it.label + "の外形が測れない"); UnityEngine.Object.DestroyImmediate(it.go); continue; }
+            var tmpl = it.go; tmpl.SetActive(false);   // 型紙(置くたびに複製し、退けた複製は PlaceBest が消す)
 
-            bool ok = false;
-            for (int pass = 0; pass < 3 && !ok; pass++)
-            {
-                float gap = pass == 0 ? MIN_BLDG_GAP : pass == 1 ? JISHA_GAP_LOOSE : JISHA_GAP_TIGHT;
-                var cands = new List<JCand>();
-                var yaws = new List<float> { it.yaw };
-                // ⭐ Near(庫裏・塔頭)も縁の向きを試す(2026-09-22・EDO-0354 退行の直し)。
-                //    以前は既定の1向き(yawVK)しか試さず、Back/Front だけ複数の候補角を試していた。
-                //    参道の帯が門の実面から測るようになって本堂が奥へ寄った境内では、本堂の周りに
-                //    残る空きが細長い帯状になり、1向きしか試さない庫裏だけが「収まらず未建」に落ちた
-                //    (棟どうしの当たりが 6〜21m と余裕があるのに庫裏だけ建たない、という形で出た)。
-                if (it.mode != JMode.Main) yaws.AddRange(edgeYaws);
-                for (float x = mnx; x <= mxx; x += JISHA_GRID)
-                    for (float z = mnz; z <= mxz; z += JISHA_GRID)
-                    {
-                        var p = new Vector2(x, z);
-                        if (!EdoGeom.PIP(poly, p) || EdoGeom.DistToPolyEdge(poly, p) < JISHA_EDGE) continue;
-                        foreach (var yaw in yaws)
-                        {
-                            var wc = JCorners(it.wall, p, yaw);
-                            if (!JInside(poly, wc, JISHA_EDGE)) continue;
-                            var rc = JCorners(it.roof, p, yaw);
-                            bool clear = true;
-                            foreach (var t in taken) if (JSep(rc, t) < gap) { clear = false; break; }
-                            if (!clear) continue;
-                            if (lane != null && it.mode != JMode.Main && JSep(rc, lane) < 0.5f) continue;
-                            var c = JCenter(wc);
-                            float vc = Vector2.Dot(c - gateC, vDir);
-                            float sc;
-                            switch (it.mode)
-                            {
-                                case JMode.Main:
-                                {
-                                    // ⭐ 参道の**見えの長さ**を決めるのは壁体でなく**軒先**(2026-09-22)。
-                                    //    壁体で 6m を測ると軒が 1.2m せり出し、門の屋根が本堂の軒の下へ潜って
-                                    //    「門が本堂に貼り付いた」姿になった(成満寺・坊で軒先〜門の内端 3.28m)。
-                                    //    ⛔ 狭い境内で本堂が建たなくなるのは本末転倒なので、緩める巡は壁体へ戻す。
-                                    // 起点も三手で戻す: 0=門の軒の内端 / 1=門の壁体の内端 / 2=辺の中点(従来)
-                                    float g0 = pass == 0 ? gInRoof : pass == 1 ? gInWall : 0f;
-                                    var fc = pass == 0 ? rc : wc;
-                                    float vf = fc.Min(q => Vector2.Dot(q - gateC, vDir));
-                                    if (vf < g0 + JISHA_FRONT) continue;
-                                    sc = 2f * Mathf.Abs(Vector2.Dot(c - gateC, uDir)) + vf;      // 軸の上・手前寄り
-                                    break;
-                                }
-                                case JMode.Near:  sc = Vector2.Distance(c, hallC); break;
-                                case JMode.Back:  sc = JMinEdge(poly, wc) - 0.35f * vc; break;
-                                default:          sc = JMinEdge(poly, wc) + 0.35f * vc; break;
-                            }
-                            cands.Add(new JCand { p = p, yaw = yaw, score = sc });
-                        }
-                    }
-                cands.Sort((a, b) => a.score.CompareTo(b.score));
-
-                // ── 上位から**置いた実メッシュ**で検める ──
-                for (int ci = 0; ci < cands.Count && ci < 24 && !ok; ci++)
+            var cands = new List<JCand>();
+            var yaws = new List<float> { it.yaw };
+            // ⭐ Near(庫裏・塔頭)も縁の向きを試す(2026-09-22・EDO-0354 退行の直し)。
+            if (it.mode != JMode.Main) yaws.AddRange(edgeYaws);
+            for (float x = mnx; x <= mxx; x += JISHA_GRID)
+                for (float z = mnz; z <= mxz; z += JISHA_GRID)
                 {
-                    var cd = cands[ci];
-                    it.go.transform.SetPositionAndRotation(new Vector3(cd.p.x, pad, cd.p.y), Quaternion.Euler(0f, cd.yaw, 0f));
-                    try { EdoBuild.SeatOnGround(it.go, 0f, VERTS); }
-                    catch (Exception) { unseated++; continue; }
-                    if (OutsideBy(poly, it.go.transform, false) > 0f) continue;   // 壁体が外へ出たら退ける(軒は別勘定)
-                    float worst = float.NaN; bool clash = false;
-                    foreach (var prev in made)
+                    var p = new Vector2(x, z);
+                    if (!EdoGeom.PIP(poly, p) || EdoGeom.DistToPolyEdge(poly, p) < JISHA_EDGE) continue;
+                    foreach (var yaw in yaws)
                     {
-                        var d3 = PairDir(it.go, prev);        // ⛔ 基準点どうしで向けない(規則21)— 外形の中心どうし
-                        if (d3.sqrMagnitude < 1e-4f) { clash = true; break; }
-                        Vector3 pat; int pn;
-                        float gp = EdoBuild.Contact(it.go, prev, d3.normalized, out pat, out pn, 0.01f, 0.5f, 800);
-                        if (!float.IsNaN(gp) && (float.IsNaN(worst) || gp < worst)) worst = gp;
-                    }
-                    if (clash || (!float.IsNaN(worst) && worst < 0f)) { clashed++; continue; }   // めり込み = 許容0
-                    if (!float.IsNaN(worst) && (float.IsNaN(worstPair) || worst < worstPair)) worstPair = worst;
-                    ok = true;
-                    if (pass == 1) loose = true;
-                    if (pass == 2) tight = true;
-                    taken.Add(JCorners(it.roof, cd.p, cd.yaw));
-                    made.Add(it.go);
-                    placedN++;
-                    if (it.mode == JMode.Main)
-                    {
-                        var wc = JCorners(it.wall, cd.p, cd.yaw);
-                        hallC = JCenter(wc); hallDone = true;
-                        float vf = wc.Min(q => Vector2.Dot(q - gateC, vDir));
-                        // 参道 = 門から本堂の前面まで(半幅 JISHA_LANE)。以後の棟は入れない。
-                        lane = new[] { gateC - uDir * JISHA_LANE, gateC + uDir * JISHA_LANE,
-                                       gateC + uDir * JISHA_LANE + vDir * vf, gateC - uDir * JISHA_LANE + vDir * vf };
+                        var wc = JCorners(it.wall, p, yaw);
+                        if (!JInside(poly, wc, JISHA_EDGE)) continue;
+                        var rc = JCorners(it.roof, p, yaw);
+                        float gm = JGapTo(rc, taken);
+                        if (gm < JISHA_GAP_TIGHT) continue;
+                        if (lane != null && it.mode != JMode.Main && JSep(rc, lane) < 0.5f) continue;
+                        var c = JCenter(wc);
+                        float vc = Vector2.Dot(c - gateC, vDir);
+                        float sc; int tier = gm >= MIN_BLDG_GAP ? 0 : gm >= JISHA_GAP_LOOSE ? 1 : 2;
+                        switch (it.mode)
+                        {
+                            case JMode.Main:
+                            {
+                                // ⭐ 参道の**見えの長さ**を決めるのは壁体でなく**軒先**(2026-09-22)。
+                                //    起点は三手: 0=門の軒の内端 / 1=門の壁体の内端 / 2=辺の中点(従来)── 帯の並びで表す。
+                                float vfR = rc.Min(q => Vector2.Dot(q - gateC, vDir));
+                                float vfW = wc.Min(q => Vector2.Dot(q - gateC, vDir));
+                                if (vfW < JISHA_FRONT) continue;                                   // 最後の手(辺の中点から 6m)も届かない所
+                                int ft = vfR >= gInRoof + JISHA_FRONT ? 0 : vfW >= gInWall + JISHA_FRONT ? 1 : 2;
+                                tier = Mathf.Max(tier, ft);
+                                sc = 2f * Mathf.Abs(Vector2.Dot(c - gateC, uDir)) + vfR;      // 軸の上・手前寄り
+                                break;
+                            }
+                            case JMode.Near:  sc = Vector2.Distance(c, hallC); break;
+                            case JMode.Back:  sc = JMinEdge(poly, wc) - 0.35f * vc; break;
+                            default:          sc = JMinEdge(poly, wc) + 0.35f * vc; break;
+                        }
+                        // ⭐ 揺らぎ(EDO-0476)── 附属は区画ごとの種で点数を ±JISHA_JITTER[m] 揺らす(本堂は軸に載せるので揺らさない)
+                        if (it.mode != JMode.Main) sc += JISHA_JITTER * (float)(rng.NextDouble() * 2.0 - 1.0);
+                        cands.Add(new JCand { p = p, yaw = yaw, score = sc + tier * 1e4f });
                     }
                 }
-            }
-            if (!ok)
+            cands.Sort((a, b) => a.score.CompareTo(b.score));
+
+            var itL = it;
+            Func<JCand, GameObject> place = cd =>
             {
+                var go = UnityEngine.Object.Instantiate(tmpl, g);
+                go.name = itL.label; go.SetActive(true);
+                go.transform.SetPositionAndRotation(new Vector3(cd.p.x, pad, cd.p.y), Quaternion.Euler(0f, cd.yaw, 0f));
+                try { EdoBuild.SeatOnGround(go, 0f, VERTS); }
+                catch (Exception) { UnityEngine.Object.DestroyImmediate(go); return null; }
+                return go;
+            };
+            var hards = new List<EdoBuild.Hard>
+            {
+                new EdoBuild.Hard("壁体が区画の外", go => OutsideBy(poly, go.transform, false) <= 0f),   // 軒は別勘定(裁定A)
+                new EdoBuild.Hard("棟どうしの突き抜け", go =>
+                {
+                    foreach (var prev in made)
+                    {
+                        var d3 = PairDir(go, prev);        // ⛔ 基準点どうしで向けない(規則21)— 外形の中心どうし
+                        if (d3.sqrMagnitude < 1e-4f) return false;
+                        Vector3 pat; int pn;
+                        float gp = EdoBuild.Contact(go, prev, d3.normalized, out pat, out pn, 0.01f, 0.5f, 800);
+                        if (!float.IsNaN(gp) && gp < 0f) return false;
+                    }
+                    return true;
+                }),
+            };
+            var softs = new List<EdoBuild.Soft>
+            {
+                new EdoBuild.Soft("棟どうしの離れ(屋根込み)", MIN_BLDG_GAP, go => JGapTo(JRoofOf(itL, go), taken)),
+            };
+            if (it.mode == JMode.Main)
+                softs.Add(new EdoBuild.Soft("本堂の前庭(門の軒から軒先まで)", JISHA_FRONT,
+                    go => JRoofOf(itL, go).Min(q => Vector2.Dot(q - gateC, vDir)) - gInRoof));
+
+            var placed = EdoBuild.PlaceBest(cands, JISHA_TRIES, place, hards, softs, tally);
+            UnityEngine.Object.DestroyImmediate(tmpl);
+            if (placed == null)
+            {
+                // ⭐ 本堂が入らなければ一回り小さい焼いた入母屋で建て直す(柔らかい: 目安の大きさは狙い)
+                if (it.mode == JMode.Main && ++hallTry < hallSizes.Count)
+                {
+                    string nt;
+                    var nh = EdoBuild.Honden(g, it.label, hallSizes[hallTry][0], hallSizes[hallTry][1], out nt);
+                    if (nh != null)
+                    {
+                        hallNote += string.Format("・⚠ {0}x{1}間は境内に収まらず {2}", hw, hd, nt);
+                        hw = hallSizes[hallTry][0]; hd = hallSizes[hallTry][1];
+                        it.go = nh; ii--; continue;
+                    }
+                }
                 dropped.Add(it.label + "は境内に収まらず未建");
-                UnityEngine.Object.DestroyImmediate(it.go);
+                it.go = null;
+                continue;
+            }
+            it.go = placed;
+            var rcP = JRoofOf(it, placed);
+            float gP = JGapTo(rcP, taken);
+            if (gP < MIN_BLDG_GAP) { if (gP >= JISHA_GAP_LOOSE) loose = true; else tight = true; }
+            foreach (var prev in made)
+            {
+                var d3 = PairDir(placed, prev);
+                Vector3 pat; int pn;
+                float gp = EdoBuild.Contact(placed, prev, d3.normalized, out pat, out pn, 0.01f, 0.5f, 800);
+                if (!float.IsNaN(gp) && (float.IsNaN(worstPair) || gp < worstPair)) worstPair = gp;
+            }
+            taken.Add(rcP);
+            made.Add(placed);
+            placedN++;
+            float wa = (it.wall[1] - it.wall[0]) * (it.wall[3] - it.wall[2]);
+            if (it.mode == JMode.Main) hallArea += wa; else annexArea += wa;
+            if (it.mode == JMode.Main)
+            {
+                var pp = new Vector2(placed.transform.position.x, placed.transform.position.z);
+                var wc = JCorners(it.wall, pp, placed.transform.eulerAngles.y);
+                hallC = JCenter(wc); hallDone = true;
+                float vf = wc.Min(q => Vector2.Dot(q - gateC, vDir));
+                // 参道 = 門から本堂の前面まで(半幅 JISHA_LANE)。以後の棟は入れない。
+                lane = new[] { gateC - uDir * JISHA_LANE, gateC + uDir * JISHA_LANE,
+                               gateC + uDir * JISHA_LANE + vDir * vf, gateC - uDir * JISHA_LANE + vDir * vf };
             }
         }
-
         // ⭐ **何を建てるつもりだったか**を毎回刷る(規則19)
         var kinds = new List<string>();
         foreach (var it in items)
         {
-            kinds.Add(made.Contains(it.go) ? it.label : it.label + "(未建)");
+            kinds.Add(it.go != null && made.Contains(it.go) ? it.label : it.label + "(未建)");
         }
         string dr = dropped.Count > 0 ? "・⚠ " + string.Join(" / ", dropped.ToArray()) : "";
-        if (unseated > 0) dr += string.Format("・⛔ {0}回は接地箇所が測れなかった(部材のメッシュを検める)", unseated);
-        if (clashed > 0) dr += string.Format("・{0}回は先の棟にめり込むので退けて置き直した", clashed);
+        string ts = tally.Summary();
+        if (!string.IsNullOrEmpty(ts)) dr += ts;
         if (!float.IsNaN(worstPair)) dr += string.Format("・棟どうしの当たりの最小 {0:F2}m{1}", worstPair,
             worstPair < MIN_BLDG_GAP ? "(⚠ 目安 " + MIN_BLDG_GAP.ToString("F1") + "m 未満)" : "");
         if (loose) dr += "・⚠ 境内が狭く棟どうしの離れを 1.0m へ緩めた棟がある";
@@ -342,9 +428,105 @@ public static partial class EdoTypologyBuilder
         string un  = units > 1 ? string.Format("・{0}戸割り", units) : "";
         string lay = hallDone ? string.Format("参道の帯を空けて本堂を軸へ(参道の起点は門の実面・辺の中点から {0:F2}m 奥)・墓地と蔵は奥の縁・鐘楼は手前の縁", gInRoof)
                               : "⛔ 本堂が置けなかった";
-        return string.Format("  主屋と付属: {0}/{1}棟(型=jisha:{2}・{3}{4}){5}{6}{7}\n    仕様: {8} ／ 置き方: {9}",
+        // ⭐ 広さに見合うか(規則19 ── 目安を書いた以上、建った値を刷る)。目安はどれも【U】(考証方・御府内寺社備考の 3 寺 B から)。
+        string mitate = string.Format("\n    広さ: 境内 {0:F0}坪・棟 {1}/目標 {2}(4+500坪ごと1・U){3}・本堂 {4:F0}坪 = 境内の {5:F1}%{6}・附属/本堂 {7:F2}(目安 1.0〜1.5・U){8}",
+            tsubo, placedN, nTarget, added.Count > 0 ? "(目標で足した: " + string.Join("・", added.ToArray()) + ")" : "",
+            hallArea / (1.818f * 1.818f), 100f * hallArea / (1.818f * 1.818f) / Mathf.Max(1f, tsubo),
+            s.kind == "temple" ? "(目安 8〜10%・U)" : "(坊・社家の主屋は比を掛けない)",
+            hallArea > 0f ? annexArea / hallArea : 0f,
+            hallArea > 0f && annexArea / hallArea < 1.0f ? " ⚠ 附属が目安に届かない" : "");
+        return string.Format("  主屋と付属: {0}/{1}棟(型=jisha:{2}・{3}{4}){5}{6}{7}\n    仕様: {8} ／ 置き方: {9}{10}",
             placedN, want, s.kind ?? "jisha", hallNote, un, dr, tch, tkn,
-            string.Join(" ", kinds.ToArray()), lay);
+            string.Join(" ", kinds.ToArray()), lay, mitate);
+    }
+
+    // ───────────────────────── 広さからの従属値(EDO-0477 P4)─────────────────────────
+    /// <summary>区画 id からの決まった種(FNV-1a)。⛔ string.GetHashCode は実行ごとに変わり得るので使わない ── 二度建てても同じ姿。</summary>
+    static int JSeed(string id)
+    {
+        unchecked
+        {
+            uint h = 2166136261u;
+            foreach (char c in id ?? "") { h ^= c; h *= 16777619u; }
+            return (int)(h & 0x7fffffff);
+        }
+    }
+
+    /// <summary>表の欄の確度(`cert` の中の欄名)。無ければ null。</summary>
+    static string JCert(Spec s, string key)
+    {
+        object c;
+        if (s.raw == null || !s.raw.TryGetValue("cert", out c)) return null;
+        var d = c as Dictionary<string, object>;
+        object v;
+        return d != null && d.TryGetValue(key, out v) && v != null ? v.ToString() : null;
+    }
+
+    static List<int[]> _hallBaked;
+    /// <summary>焼いてある入母屋の間数(梁間 3 間以上・桁行/梁間 ≤ 1.8)。<see cref="EdoBuild.Honden"/> が建てられる大きさだけ。</summary>
+    static List<int[]> JHallBaked()
+    {
+        if (_hallBaked != null) return _hallBaked;
+        _hallBaked = new List<int[]>();
+        for (int w = 3; w <= 40; w++)
+            for (int d = 3; d <= w; d++)
+            {
+                if (w > d * 1.8f) continue;
+                if (AssetDatabase.LoadAssetAtPath<GameObject>(EdoAssets.Goten.RoofIrimoya_(w, d)) != null) _hallBaked.Add(new[] { w, d });
+            }
+        return _hallBaked;
+    }
+
+    /// <summary>坪 <paramref name="area"/> に近い焼いた入母屋を一つ(目安の 0.85〜1.25 倍の帯から種で選ぶ・帯が空なら最寄り)。</summary>
+    static int[] JPickSize(float area, System.Random rng, int minD)
+    {
+        var all = JHallBaked().Where(z => z[1] >= minD).ToList();
+        if (all.Count == 0) return null;
+        var band = all.Where(z => z[0] * z[1] >= area * 0.85f && z[0] * z[1] <= area * 1.25f).ToList();
+        if (band.Count > 0) return band[rng.Next(band.Count)];
+        return all.OrderBy(z => Mathf.Abs(z[0] * z[1] - area)).First();
+    }
+
+    /// <summary>本堂の間数の候補(先頭が第一候補、以下は境内に収まらないときの一回りずつ小さい物)。
+    /// 史料の間数(確度 S/A/B)はそのまま。そうでなければ寺は「境内 × <see cref="JISHA_HALL_RATIO"/>」と表の間数の大きい方を
+    /// 目安に、焼いた入母屋から種で選ぶ(揺らぎ)。</summary>
+    static List<int[]> JHallSizes(Spec s, float tsubo, bool firm, System.Random rng, out string note)
+    {
+        int hw = s.hallW, hd = s.hallD;
+        note = "";
+        if (hw <= 0 || hd <= 0) { note = "⚠ 表に main_hall_ken が無い — 類型の既定(坊 6x4)を目安に"; hw = 6; hd = 4; }
+        if (hw < hd) { int t = hw; hw = hd; hd = t; }
+        var outp = new List<int[]>();
+        if (firm) outp.Add(new[] { hw, hd });
+        else
+        {
+            float tgt = hw * hd;
+            if (s.kind == "temple" && tsubo * JISHA_HALL_RATIO > tgt)
+            {
+                tgt = tsubo * JISHA_HALL_RATIO;
+                note += (note.Length > 0 ? "・" : "") + string.Format("表の {0}x{1}間(U)は境内 {2:F0}坪に小さく、目安 {3:F0}坪(境内の {4:P0}・U)から採った",
+                                                                     hw, hd, tsubo, tgt, JISHA_HALL_RATIO);
+            }
+            var pick = JPickSize(tgt, rng, 3);
+            outp.Add(pick ?? new[] { hw, hd });
+        }
+        float a0 = outp[0][0] * outp[0][1];
+        foreach (var z in JHallBaked().Where(z => z[0] * z[1] < a0).OrderByDescending(z => z[0] * z[1]).Take(5)) outp.Add(z);
+        return outp;
+    }
+
+    /// <summary>置いた棟の屋根込みの矩形(置いた位置と向きから ── 測った局所矩形を載せる)。</summary>
+    static Vector2[] JRoofOf(JItem it, GameObject go)
+    {
+        return JCorners(it.roof, new Vector2(go.transform.position.x, go.transform.position.z), go.transform.eulerAngles.y);
+    }
+
+    /// <summary>矩形から置いた棟の屋根の矩形までの最小の離れ(無ければ 99)。</summary>
+    static float JGapTo(Vector2[] rc, List<Vector2[]> taken)
+    {
+        float m = 99f;
+        foreach (var t in taken) m = Mathf.Min(m, JSep(rc, t));
+        return m;
     }
 
     /// <summary>プレハブの駒を 1 つ起こして一覧へ足す。置けなかった理由は <paramref name="dropped"/> へ(黙って落とさない)。</summary>

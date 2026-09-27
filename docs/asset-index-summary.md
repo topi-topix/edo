@@ -2,33 +2,36 @@
 
 `Edo ▸ アセット目録 ▸ 目録を再生成` で自動生成。全件は `asset-index.tsv`。
 
-- 総数 **3252** 点 / シーンで使用中 **134** 点 / ビルダーが参照 **85** 点
+- 総数 **3515** 点 / シーンで使用中 **134** 点 / ビルダーが参照 **88** 点
 - URP でピンクになる(BUILTIN) **4** 点
 
-## Edo — 585 点
+## Edo — 848 点
 
 | フォルダ | 点数 | 幅の中央値[m] | 高さの中央値[m] | 使用中 |
 |---|---:|---:|---:|---:|
-| `Assets/Edo/Models/Dobei` | 2 | 2 | 2.5 | 1 |
+| `Assets/Edo/Models/Dobei` | 2 | 2 | 2.5 | 2 |
 | `Assets/Edo/Models/Fuchi` | 5 | 25.45 | 0.48 | 0 |
 | `Assets/Edo/Models/Fuzokuya` | 27 | 6.55 | 4.34 | 0 |
 | `Assets/Edo/Models/Gogan` | 1 | 107.53 | 45.92 | 0 |
 | `Assets/Edo/Models/Goten/Parts` | 23 | 1.82 | 1.82 | 0 |
-| `Assets/Edo/Models/Goten/Roofs` | 79 | 23.96 | 4.28 | 0 |
+| `Assets/Edo/Models/Goten/Roofs` | 84 | 23.96 | 4.28 | 0 |
 | `Assets/Edo/Models/Hei` | 23 | 3.64 | 1.8 | 5 |
 | `Assets/Edo/Models/Ishigaki` | 2 | 12.5 | 7.45 | 0 |
-| `Assets/Edo/Models/Kado` | 20 | 4.49 | 1.46 | 0 |
-| `Assets/Edo/Models/Kaidan` | 6 | 6.36 | 0.44 | 0 |
+| `Assets/Edo/Models/Jisha` | 7 | 6.79 | 6.69 | 0 |
+| `Assets/Edo/Models/Kado` | 30 | 4.5 | 1.46 | 0 |
+| `Assets/Edo/Models/Kaidan` | 115 | 1.2 | 2.49 | 0 |
+| `Assets/Edo/Models/Kakoi` | 1 | 3.64 | 2 | 0 |
+| `Assets/Edo/Models/Machiya` | 2 | 9.09 | 4.28 | 0 |
 | `Assets/Edo/Models/Maruta` | 6 | 0.27 | 1.23 | 0 |
-| `Assets/Edo/Models/Mon` | 6 | 4.63 | 3.86 | 1 |
-| `Assets/Edo/Models/Nagaya` | 46 | 17.52 | 5.51 | 0 |
+| `Assets/Edo/Models/Mon` | 8 | 4.66 | 4.26 | 1 |
+| `Assets/Edo/Models/Nagaya` | 56 | 16.9 | 5.51 | 0 |
 | `Assets/Edo/Models/Niwa` | 44 | 0.75 | 1 | 0 |
-| `Assets/Edo/Models/Sanno` | 45 | 1.9 | 2.55 | 0 |
+| `Assets/Edo/Models/Sanno` | 162 | 1.82 | 2.55 | 2 |
 | `Assets/Edo/Models/Shiomizaka` | 4 | 2.09 | 0.59 | 2 |
 | `Assets/Edo/Models/Trees` | 76 | 7.25 | 8.2 | 0 |
 | `Assets/Edo/Models/Tsuijibei` | 1 | 2.1 | 2.57 | 0 |
 | `Assets/Edo/Prefabs` | 3 | 0.74 | 0.87 | 2 |
-| `Assets/Edo/Prefabs/Scene` | 134 | 95.45 | 9.21 | 134 |
+| `Assets/Edo/Prefabs/Scene` | 134 | 95.45 | 8.99 | 134 |
 | `Assets/Edo/Prefabs/Scene/Parts` | 29 | 152.1 | 15.8 | 0 |
 | `Assets/Edo/Terrain/details` | 3 | 0.45 | 0.11 | 3 |
 

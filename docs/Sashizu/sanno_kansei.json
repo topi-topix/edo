@@ -1,7 +1,7 @@
 {
  "_": "完成条件の表(2026-09-19 施主裁定3=A)。全部 pass で完成。以後の指摘は掲示板へ積み、指図は開かない。値は普請検査の実測、render だけは施主の発話の引用。見張りは python3 Tools/Sashizu/kansei_gate.py",
  "estate": "sanno",
- "phase": "built",
+ "phase": "done",
  "since": "2026-09-20",
  "items": {
   "gap": {
@@ -45,13 +45,13 @@
    "what": "検証レンダ(真上・門の外・庭の目線)を施主が見て承認",
    "how": "施主の発話。⛔ 役は書けない — --quote に引用を入れる",
    "value": null,
-   "verdict": "fail",
+   "verdict": "pass",
    "at": "2026-09-27",
-   "note": "2026-09-26 の承認は EDO-0409 の姿。EDO-0437(前庭の縁と参道の階の袖の野面・板塀の根入れ)の r22 レンダは施主の承認待ち",
-   "quote": null
+   "note": "",
+   "quote": "Ａです(2026-09-27・EDO-0437 r22 前庭の縁・参道の階の袖・板塀 https://claude.ai/artifact/LeQw7mUoKhgmKvjxexmyVv)"
   }
  },
- "completed": null,
+ "completed": "2026-09-27",
  "history": [
   {
    "at": "2026-09-20T12:09:04+09:00",
@@ -654,6 +654,12 @@
    "event": "record",
    "item": "render",
    "verdict": "fail"
+  },
+  {
+   "at": "2026-09-27T21:49:44+09:00",
+   "event": "record",
+   "item": "render",
+   "verdict": "pass"
   }
  ]
 }

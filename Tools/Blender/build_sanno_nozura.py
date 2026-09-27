@@ -8,6 +8,8 @@
     blender --background --python Tools/Blender/build_sanno_nozura.py -- check                 # 継ぎ目の一致を数で検める
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado [--h=1.5] [--render]   # 出隅 90° の隅の駒
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_cut --h=0.9 --v=b --axis=x --at=0.085 [--render]  # 隅の駒の片腕を袖の背で一度切った版(EDO-0437)
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_cut --h=0.9 --v=b --axis=x --at=0.085 --arm=0.5 [--render]  # 同・切った腕を詰め天端を切り口まで通した版(r16)
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_cap --h=1.5 --v=a [--render]  # 隅の駒の腕の先の継ぎ目の口を天端から 0.25 塞ぐ(同じ名で焼き直す)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado-check [--h=1.5]  # 隅の駒の腕の先 = 直線の切り口
     blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=0.22 --h=1.5  # 段の境の勾配の駒(± 両方)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- dan --render          # 段の境の並べ焼き
@@ -1463,14 +1465,15 @@ def kado_backface_rays(o, h, step=0.01):
 #   ⇒ 焼き上がった隅の駒(`make_kado` ── 1c84bf9b の天端を塊に焼き直した版)を、局所(Unity)の軸に直交する平面 axis = at で一度切り、
 #   at より外(袖の側)を捨てて切り口を平らな面で塞ぐ。石を細くも伸ばしもしない(残す側の頂点は一つも動かない)。
 #   切る面は法の面の前にしか出ない(天端の線 = 0 ⇒ 切り口の上端は天端から at/0.3 下)⇒ 天端の塊は切れない。
-def kado_cut_name(h, v, axis, at):
-    return "%s_cut%s%.3f" % (kado_name(h, v), axis.upper(), at)
+def kado_cut_name(h, v, axis, at, arm=0.0):
+    return "%s_cut%s%.3f" % (kado_name(h, v), axis.upper(), at) + ("_L%.3f" % arm if arm else "")
 
 
-def kado_cut(o, axis, at):
-    """o(Blender 座標のメッシュ)を Unity 局所の axis ∈ {x, z} ≤ at に切り、切り口を塞ぐ。返り値 = (切り口の面の数, 捨てた頂点の数)"""
+def kado_cut(o, axis, at, keep="le"):
+    """o(Blender 座標のメッシュ)を Unity 局所の axis ∈ {x, z} ≤ at(keep="ge" なら ≥ at)に切り、切り口を塞ぐ。返り値 = (切り口の面の数, 捨てた頂点の数)"""
     a = at
-    co, no = ((-a, 0.0, 0.0), (-1.0, 0.0, 0.0)) if axis == "x" else ((0.0, -a, 0.0), (0.0, -1.0, 0.0))
+    sg = 1.0 if keep == "le" else -1.0
+    co, no = ((-a, 0.0, 0.0), (-sg, 0.0, 0.0)) if axis == "x" else ((0.0, -a, 0.0), (0.0, -sg, 0.0))
     n = Vector(no); c = Vector(co)
     before = len(o.data.vertices)
     out_n = sum(1 for vt in o.data.vertices if (vt.co - c).dot(n) > 1e-6)
@@ -1508,6 +1511,143 @@ def kado_cut(o, axis, at):
     return len(filled) + len(filled2), out_n
 
 
+# ---- 切り版の腕を詰め、袖の背の側の天端を切り口まで天端の高さで通す(2026-09-27 EDO-0437 r16)
+#   棟梁の実測: ①袖の背の天端の縁と稜線・面の列の丸い頭の間に谷(東 0.250・西 0.225/0.170)── 法の面(天端で 0)から切り口(at)までの
+#   楔の上が空いて、谷から奥の地面が見通せた。②返しの走りは北の縁の面から 0.48 しかないのに腕が 0.909(法の足で 1.0)あり、
+#   腕の先の低い頭へ前庭の皮が引かれて窪んだ。⇒ 腕を ARM で詰め(平面で切って塞ぐ)、切り口の近くの石は頭を天端へ揃えて切り口まで通す。
+#   ⛔ 石を細くも伸ばしもしない: 面の列の石は前の面だけを切り口の平面へ送る(袖の背に隠れる面・送る量は法の楔 ≤ at)。
+KADO_ARM = 0.50           # 詰めた腕の長さ(稜線の面の線から)── 返しの走り 0.48(棟梁の実測 t0927_summary kiri_return.cutoff)+ 0.02
+KADO_FLUSH_NEAR = 0.05    # 切り口の側の面(t = 0)から これより前に出る石 = 面の列・稜線の石(切り口まで通す)
+KADO_FLUSH_SWEEP = 0.10   # その石の前の層(切り口の側の面 t = 0 から奥へ これ以内の点)を切り口の平面へ送る
+KADO_END_NEAR = 0.15      # 詰めた端の面から これ以内に掛かる石は頭を天端へ揃える
+KADO_RAISE = 0.20         # 天端の線から これより上の点を天端へ上げる(丸めて下げない)
+KADO_TOPROW = 0.35        # 最高が天端の線から これ以内の石だけ触る(下の段は触らない)
+KADO_CREST_E = (0.004, 0.012)   # 上げた頭の天端の線からの沈み(石ごと・裏石と同じ幅 ⇒ z-fight しない)
+KADO_CAP_D = 0.25         # 腕の先の継ぎ目の小口を塞ぐ深さ(天端の線から)── 隣の直線の駒を縮めて据えると切り口が合わない
+
+
+def _components(bm):
+    """bmesh の面の連結成分(石 1 個ずつ)。返り値 = [set(faces)]"""
+    seen, comps = set(), []
+    for f in bm.faces:
+        if f in seen:
+            continue
+        stack, comp = [f], set()
+        seen.add(f)
+        while stack:
+            g = stack.pop()
+            comp.add(g)
+            for e in g.edges:
+                for h_ in e.link_faces:
+                    if h_ not in seen:
+                        seen.add(h_); stack.append(h_)
+        comps.append(comp)
+    return comps
+
+
+def kado_flush_crest(o, h, axis, at, arm):
+    """切り版の隅の駒(`kado_cut` の後)の天端を、袖の背の側は切り口の平面(axis = at)まで・詰めた端(他の軸 = −arm)の近くまで、
+    天端の線の KADO_CREST_E 下で通す。石ごとに: 天端から KADO_RAISE 内の点を天端へ上げ、切り口の側の石は前の層を平面へ送り、
+    凸包に焼き直す(天端の石はもともと凸な塊 ── `kado_hull_stones`)。返り値 = dict(上げた石, 送った石, 送った量の最大)"""
+    k = 0 if axis == "x" else 2
+    j = 2 - k
+    bm = bmesh.new(); bm.from_mesh(o.data)
+    uvl = bm.loops.layers.uv.active
+    n_raise = n_sweep = 0
+    sweep_max = 0.0
+    for comp in _components(bm):
+        vs = {v for f in comp for v in f.verts}
+        U = [(_b2u(v.co), v) for v in vs]
+        ys = [u[1] for u, _ in U]
+        ext = sorted(max(u[i] for u, _ in U) - min(u[i] for u, _ in U) for i in range(3))
+        if ext[0] < 0.01 or max(ys) < h - KADO_TOPROW:
+            continue                                                  # 板・下の段
+        tmax = max(u[k] for u, _ in U)
+        smin = min(u[j] for u, _ in U)
+        near_face = tmax > -KADO_FLUSH_NEAR
+        # 詰めた端に掛かる石(切り口の側でない物)は、端の面の近くの点だけ上げる ── 残す腕の見え面の肩(割肌)は触らない。
+        # 残す腕の先の継ぎ目の石(t < −0.86・直線の駒と同じ形)は触らない
+        near_end = smin < -arm + KADO_END_NEAR and min(u[k] for u, _ in U) > -0.86
+        if not (near_face or near_end):
+            continue
+        cx = sum(u[0] for u, _ in U) / len(U); cz = sum(u[2] for u, _ in U) / len(U)
+        e = KADO_CREST_E[0] + (KADO_CREST_E[1] - KADO_CREST_E[0]) * _hn(cx + 3.1, cz - 7.7)
+        pts = [Vector(u) for u, _ in U]
+        up = (lambda u: True) if near_face else (lambda u: u[j] < -arm + KADO_END_NEAR)
+        pts += [Vector((u[0], h - e, u[2])) for u, _ in U if u[1] > h - KADO_RAISE and up(u)]
+        pts = [Vector((p.x, min(p.y, h - e), p.z)) for p in pts]      # 天端の線より上へ出さない
+        if near_face:
+            top_front = max((p[k] for p in pts if p.y > h - 0.05), default=at)
+            add = []
+            for p in pts:
+                if p[k] > -KADO_FLUSH_SWEEP:
+                    q = p.copy(); q[k] = at; add.append(q)
+            sweep_max = max(sweep_max, at - top_front)
+            pts += add
+            n_sweep += 1
+        n_raise += 1
+        mats_ = [f.material_index for f in comp]
+        mi = max(set(mats_), key=mats_.count)
+        bmesh.ops.delete(bm, geom=list(comp), context='FACES')
+        bmesh.ops.delete(bm, geom=[v for v in vs if v.is_valid and not v.link_faces], context='VERTS')
+        nv = [bm.verts.new(_u2b(*p)) for p in pts]
+        res = bmesh.ops.convex_hull(bm, input=nv, use_existing_faces=False)
+        bmesh.ops.delete(bm, geom=[v for v in nv if v.is_valid and not v.link_faces], context='VERTS')
+        hull_f = [g for g in res["geom"] if isinstance(g, bmesh.types.BMFace)]
+        hv = list({v for f in hull_f for v in f.verts})
+        bmesh.ops.remove_doubles(bm, verts=hv, dist=DEGEN_EDGE * 1.05)
+        hull_f = [f for f in hull_f if f.is_valid]
+        bmesh.ops.recalc_face_normals(bm, faces=hull_f)
+        c = sum((v.co for f in hull_f for v in f.verts), Vector()) / max(1, sum(len(f.verts) for f in hull_f))
+        ofs = (0.13 * (n_raise % 7), 0.29 * (n_raise % 5))
+        for f in hull_f:
+            f.material_index = mi
+            nx, ny, nz = (abs(x) for x in f.normal)
+            for l in f.loops:
+                q = l.vert.co - c
+                a, b = (q.x, q.y) if (nz >= nx and nz >= ny) else ((q.y, q.z) if nx >= ny else (q.x, q.z))
+                l[uvl].uv = (a / TILE + ofs[0], b / TILE + ofs[1])
+    bm.to_mesh(o.data); bm.free(); o.data.update()
+    return dict(raised=n_raise, swept=n_sweep, sweep_max=round(sweep_max, 3))
+
+
+def kado_cap_end(o, h, axis, depth=KADO_CAP_D):
+    """腕の先の継ぎ目(Unity 局所 axis = −L/2)の切り口に開いた石の口のうち、天端から depth 内に掛かる物を平らな面で塞ぐ。
+    隣の直線の駒を走りに縮めて据えると(N_025f ×0.53・N_011f ×0.81)継ぎ目の切り口が合わず、口から石の裏が覗いた。
+    あわせて平面に乗る既存の面の向きを外へ揃える。返り値 = 塞いだ面 + 向きを直した面の数"""
+    k = 0 if axis == "x" else 2
+    bm = bmesh.new(); bm.from_mesh(o.data)
+    uvl = bm.loops.layers.uv.active
+    onp = lambda v: abs(_b2u(v.co)[k] + L / 2) < 1e-4
+    edges = [e for e in bm.edges if e.is_boundary and all(onp(v) for v in e.verts)]
+    faces = bmesh.ops.holes_fill(bm, edges=edges, sides=0)["faces"] if edges else []
+    out = Vector(_u2b(*((-1, 0, 0) if axis == "x" else (0, 0, -1))))
+    drop, keep = [], []
+    for f in faces:
+        if max(_b2u(v.co)[1] for v in f.verts) < h - depth:
+            drop.append(f); continue
+        f.normal_update()
+        if f.normal.dot(out) < 0:
+            f.normal_flip()
+        for l in f.loops:
+            q = _b2u(l.vert.co)
+            l[uvl].uv = ((q[2] if axis == "x" else q[0]) / TILE + 0.37, q[1] / TILE + 0.11)
+        keep.append(f)
+    if drop:
+        bmesh.ops.delete(bm, geom=drop, context='FACES_ONLY')
+    bmesh.ops.triangulate(bm, faces=[f for f in keep if f.is_valid and len(f.verts) > 3])
+    # 継ぎ目の平面に乗る既存の面(`bisect_keep` の use_fill が張った小口)の向きを外(−axis)へ揃える
+    #   ⚠ H1500_a の −X の小口の 26 面が内を向いていた(天端まで)── Unity は裏を描かないので口が開いて見えた(棟梁の実測 96 本)
+    nflip = 0
+    for f in bm.faces:
+        if all(onp(v) for v in f.verts):
+            f.normal_update()
+            if f.normal.dot(out) < 0:
+                f.normal_flip(); nflip += 1
+    bm.to_mesh(o.data); bm.free(); o.data.update()
+    return len(keep) + nflip
+
+
 def kado_rays_all(o, h, step=0.01, dstep=0.025):
     """`kado_backface_rays`(軸: 真上・+Z 面の前・+X 面の前)に、隅の外からの斜めの光線を足して数える。
     斜め = 水平の対角(−1,0,−1)・見下ろしの対角(−1,−1,−1)・腕ごとの見下ろし(−1,−1,0)/(0,−1,−1)。的は x,z ∈ [−L/2, 0.7]・y ∈ [0, h]。
@@ -1538,13 +1678,20 @@ def kado_rays_all(o, h, step=0.01, dstep=0.025):
     return {"axis": (nb, exb), "diag": (bad, ex)}
 
 
-def make_kado_cut(h, v, axis, at):
+def make_kado_cut(h, v, axis, at, arm=0.0):
     o0, name0 = make_kado(h, v)
     rays0 = kado_rays_all(o0, h)
     (x0, x1), (y0, y1), (z0, z1) = unity_bounds(o0)
-    name = kado_cut_name(h, v, axis, at)
+    name = kado_cut_name(h, v, axis, at, arm)
     o0.name = name; o0.data.name = name
     nf, nout = kado_cut(o0, axis, at)
+    other = "z" if axis == "x" else "x"
+    arm_info = None
+    if arm:
+        nf2, nout2 = kado_cut(o0, other, -arm, keep="ge")                 # 切った側の腕を詰める(詰めた端の小口も塞ぐ)
+        fl = kado_flush_crest(o0, h, axis, at, arm)
+        ncap = kado_cap_end(o0, h, axis)                                   # 残す腕の先の継ぎ目の口(天端から KADO_CAP_D)
+        arm_info = dict(arm=arm, end_faces=nf2, end_dropped=nout2, cap_faces=ncap, **fl)
     # 切り口の面(Unity の axis = at に乗る面)の最も高い所 < 天端 ⇒ 天端の上に切り口は出ない
     uv = [_b2u(vt.co) for vt in o0.data.vertices]
     k = 0 if axis == "x" else 2
@@ -1557,20 +1704,20 @@ def make_kado_cut(h, v, axis, at):
     bm = bmesh.new(); bm.from_mesh(o0.data)
     nbnd = sum(1 for e in bm.edges if e.is_boundary); bm.free()
     info = dict(name=name, src=name0, axis=axis, at=at, before_max=(x1 if axis == "x" else z1), after_max=over,
-                cut_faces=nf, dropped_verts=nout, cut_top_y=top_cut, crest=h, degenerate=nd, boundary_edges=nbnd,
+                cut_faces=nf, dropped_verts=nout, cut_top_y=top_cut, crest=h, degenerate=nd, boundary_edges=nbnd, arm=arm_info,
                 rays_before=rays0, rays_after=rays1)
     print("KADOCUT %s" % info)
     V.set_origin(o0, (0, 0, 0))
     return o0, name, info
 
 
-def render_kado_cut(h, v, axis, at):
+def render_kado_cut(h, v, axis, at, arm=0.0):
     """切った隅の駒を、袖の背(切り口の平面)に見立てた板と並べて撮る: 隅の外から・切り口の側から・マゼンタ"""
     V.reset()
-    _import_at(os.path.join(OUT_WALL, kado_cut_name(h, v, axis, at) + ".fbx"), 0, 0, 0)
+    _import_at(os.path.join(OUT_WALL, kado_cut_name(h, v, axis, at, arm) + ".fbx"), 0, 0, 0)
     hook_stone_textures()
     ground()
-    tag = "%s_%s%s%.3f" % (int(round(h * 1000)), v, axis, at)
+    tag = "%s_%s%s%.3f" % (int(round(h * 1000)), v, axis, at) + ("_L%.3f" % arm if arm else "")
     # 袖の背の見立て(切り口の平面から 1cm 外・厚み 0.6・天端 h+0.3)── 撮る 1 枚だけ
     if axis == "x":
         sode = _flat_box("Sode", [(at + 0.01, -0.3, -2.0), (at + 0.61, -0.3, -2.0), (at + 0.61, -0.3, 1.2), (at + 0.01, -0.3, 1.2),
@@ -3025,15 +3172,30 @@ if __name__ == "__main__":
     if what == "kado_cut":
         # blender ... -- kado_cut --h=0.9 --v=b --axis=x --at=0.085 [--render] ── 隅の駒の片腕を袖の背の面で一度切った版(EDO-0437)
         #   焼いた組: H0900_b cutX0.085(西 Kiri_kado2)/ H1500_b cutZ0.097(東 N_kado2)
+        #   --arm=0.5 ── 切った側の腕を詰め、袖の背の側の天端を切り口まで通し、残す腕の先の継ぎ目の口を塞いだ版(r16)
         h_, v_, ax_, at_ = float(OPT["h"]), OPT.get("v") or "b", (OPT.get("axis") or "x").lower(), float(OPT["at"])
-        o, name, info = make_kado_cut(h_, v_, ax_, at_)
+        arm_ = float(OPT.get("arm") or 0.0)
+        o, name, info = make_kado_cut(h_, v_, ax_, at_, arm_)
         export(o, name, OUT_WALL)
         if OPT.get("json"):
             import json
             with open(OPT["json"], "w") as fh:
                 json.dump(info, fh, ensure_ascii=False, indent=1, default=str)
         if RENDER:
-            render_kado_cut(h_, v_, ax_, at_)
+            render_kado_cut(h_, v_, ax_, at_, arm_)
+    if what == "kado_cap":
+        # blender ... -- kado_cap --h=1.5 --v=a [--render] ── 隅の駒の両腕の先の継ぎ目の口を天端から KADO_CAP_D 塞いで焼き直す(同じ名・r16)
+        h_, v_ = float(OPT["h"]), OPT.get("v") or "a"
+        o, name = make_kado(h_, v_)
+        r0 = kado_rays_all(o, h_)
+        nc = kado_cap_end(o, h_, "x") + kado_cap_end(o, h_, "z")
+        nd = clean_degenerate(o)
+        r1 = kado_rays_all(o, h_)
+        print("KADOCAP %s cap_faces=%d degenerate=%d rays %s -> %s" % (name, nc, nd, r0, r1))
+        V.set_origin(o, (0, 0, 0))
+        export(o, name, OUT_WALL)
+        if RENDER:
+            render_kado(h_, tag="_cap")
     if what == "back" and RENDER:
         render_back(float(OPT.get("h") or 1.2))
     if what == "top" and RENDER:

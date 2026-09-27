@@ -867,7 +867,7 @@ public static partial class EdoBuild
     /// ⭐ 硬い条件(許容0): めり込み。⛔ ピボット・bounds の中心で決めない(面は相手の頂点で測る)。
     /// 返り値 = 旧 → 新(差し替えた物だけ)。当たる先: 石段の袖の背に取り付く野面の出隅(山王 前庭の北の縁の口の返し)、基壇・袖の鉛直な面に沿う出隅。</summary>
     public static Dictionary<GameObject, GameObject> CutKadoArmsToFaces(IList<GameObject> kados, IList<GameObject> faces,
-        System.Func<GameObject, char, float, string> cutPathOf, System.Text.StringBuilder sb)
+        System.Func<GameObject, char, float, float, string> cutPathOf, System.Text.StringBuilder sb)
     {
         var map = new Dictionary<GameObject, GameObject>();
         foreach (var k in kados)
@@ -904,7 +904,42 @@ public static partial class EdoBuild
             }
             if (bestAx == '\0') continue;
             float atR = Mathf.Round(bestAt * 1000f) / 1000f;
-            string path = cutPathOf(k, bestAx, atR); string nm = k.name;
+            // ⭐ 切った腕(相手の面に沿う腕 ── 局所で切りの軸でない方へ −向きに延びる)の要る長さ = 稜線から、相手の天端が隅の天端に届く所まで
+            //   (そこより先は相手の方が高く、腕は相手の背に隠れて土の中 ── 腕の先の石の頭が上の面に出て皮が窪んだ・2026-09-27 r15)。
+            //   相手の天端は切り面から相手の奥へ 0.7 までの頂点の最高で 0.02 刻みに測る(背の縁の面取り 0.02 で読むと 0.04 長く出た)。焼けている腕の長さのうち要る長さ以上の最短を引く(無ければ詰めない版)。
+            float crest = float.MinValue; foreach (var v in kvL) crest = Mathf.Max(crest, v.y);
+            float need = float.NaN;
+            {
+                var tops = new SortedDictionary<int, float>();
+                foreach (var f in faces)
+                {
+                    if (f == null || f == k) continue;
+                    foreach (var v in Body(f.transform, 999999, true))
+                    {
+                        var p = kt.InverseTransformPoint(v); float a = bestAx == 'x' ? p.x : p.z, o = bestAx == 'x' ? p.z : p.x;
+                        if (a < bestAt - 0.01f || a > bestAt + 0.7f || o > 0.05f || o < -1.2f) continue;   // 相手の天端(面取りの縁でなく天端の面)
+                        int key = Mathf.FloorToInt(-o / 0.02f); float y; if (!tops.TryGetValue(key, out y) || p.y > y) tops[key] = p.y;   // 局所の高さ(crest も局所)
+                    }
+                }
+                // 頂点は駒の継ぎ目にしか無い(天端は平らな斜面)⇒ 隣り合う頂点の間を線形に読んで、天端が隅の天端に届く走りを取る
+                bool first = true; float pk = 0f, py = 0f;
+                foreach (var kv in tops)
+                {
+                    float kk = (kv.Key + 0.5f) * 0.02f;
+                    if (kv.Value >= crest - 0.005f) { need = first || kv.Value - py < 1e-4f ? kk : pk + (kk - pk) * Mathf.Clamp01((crest - 0.005f - py) / (kv.Value - py)); break; }
+                    if (first || kv.Value >= py) { pk = kk; py = kv.Value; first = false; }
+                }
+            }
+            float arm = 0f;
+            if (!float.IsNaN(need))
+                for (int a100 = 30; a100 <= 95; a100 += 5)
+                {
+                    float cand = a100 / 100f; if (cand < need - 1e-4f) continue;
+                    string cp = cutPathOf(k, bestAx, atR, cand);
+                    if (!string.IsNullOrEmpty(cp) && UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(cp) != null) { arm = cand; break; }
+                }
+            string path = cutPathOf(k, bestAx, atR, arm); string nm = k.name;
+            if (sb != null) sb.AppendLine("    " + nm + ": 切った腕の要る長さ " + (float.IsNaN(need) ? "測れず" : need.ToString("F2")) + "(相手の天端が隅の天端(局所 " + crest.ToString("F2") + ")に届く所)⇒ 腕 " + (arm > 0f ? arm.ToString("F2") : "詰めない"));
             if (string.IsNullOrEmpty(path) || UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
             { if (sb != null) sb.AppendLine("    ⛔ " + nm + " の腕 +" + char.ToUpperInvariant(bestAx) + " が " + bestWith + " の面へ " + bestIn.ToString("F3") + " 入る ── 切り版が焼けていない(焼く値: 軸 " + bestAx + "・at " + atR.ToString("F3") + ")"); continue; }
             var ng = SwapPart(k, path); map[k] = ng;

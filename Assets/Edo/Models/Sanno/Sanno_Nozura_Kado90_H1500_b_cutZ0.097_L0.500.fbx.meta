@@ -3,7 +3,17 @@ guid: bc8ce3cc591c44667b1581ee6e5d1141
 ModelImporter:
   serializedVersion: 24501
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Danishi
+    second: {fileID: 2100000, guid: 5d4d33924bf54e2086fa375b24051196, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kirishi
+    second: {fileID: 2100000, guid: 3736144dc0bddef39628311a0b24be5d, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0

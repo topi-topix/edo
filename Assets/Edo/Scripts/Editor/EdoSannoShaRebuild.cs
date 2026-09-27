@@ -1443,11 +1443,11 @@ public static class EdoSannoShaRebuild
             foreach (var kv in got)
             { var mf = kv.Key.GetComponentInChildren<MeshFilter>();
               if (mf != null && mf.sharedMesh != null && System.IO.Path.GetFileName(AssetDatabase.GetAssetPath(mf.sharedMesh)).StartsWith("Sanno_Nozura_Kado90_")) kados.Add(kv.Key); }
-            var cm = EdoBuild.CutKadoArmsToFaces(kados, sandoPieces, (g, ax, at) =>
+            var cm = EdoBuild.CutKadoArmsToFaces(kados, sandoPieces, (g, ax, at, arm) =>
             {
                 var mf = g.GetComponentInChildren<MeshFilter>(); string mp = System.IO.Path.GetFileNameWithoutExtension(AssetDatabase.GetAssetPath(mf.sharedMesh));
                 var m = System.Text.RegularExpressions.Regex.Match(mp, @"^Sanno_Nozura_Kado90_H(\d{4})_([ab])$"); if (!m.Success) return null;
-                return EdoAssets.Own.SannoNozuraKadoCut(int.Parse(m.Groups[1].Value) / 1000f, m.Groups[2].Value == "a" ? 0 : 1, ax, at);
+                return EdoAssets.Own.SannoNozuraKadoCut(int.Parse(m.Groups[1].Value) / 1000f, m.Groups[2].Value == "a" ? 0 : 1, ax, at, arm);
             }, sb);
             for (int i = 0; i < got.Count; i++)
             { GameObject ng; if (cm.TryGetValue(got[i].Key, out ng)) got[i] = new KeyValuePair<GameObject, Vector2>(ng, got[i].Value); }

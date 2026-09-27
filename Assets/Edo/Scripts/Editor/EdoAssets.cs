@@ -3468,4 +3468,25 @@ public static class EdoAssets
         /// → <see cref="EdoKoba"/></summary>
         public const string Koba    = "Assets/Edo/Scenes/Koba.unity";
     }
+
+    /// <summary>書き出し(Mac / Windows のアプリ)— EDO-0450。→ <see cref="EdoAppBuild"/></summary>
+    public static class App
+    {
+        /// <summary>書き出し先(gitignore の Builds/)。</summary>
+        public const string BuildDir  = "Builds";
+        /// <summary>エディタの URP 資産(App の複写元)。</summary>
+        public const string PcRPAsset = "Assets/Settings/PC_RPAsset.asset";
+        /// <summary>アプリだけが使う URP 資産(品質 App)。GPU Resident Drawer とオクルージョンカリングを入れる。</summary>
+        public const string RPAsset   = "Assets/Edo/Settings/App_RPAsset.asset";
+        /// <summary>図の上の置き場 — 書き出しから外すルート。</summary>
+        public static readonly string[] EditorOnlyRoots = { "ModernMapOverlay", "OldMapOverlay", "GeoAnchors" };
+        /// <summary>遠くで面を自動で間引く(Mesh LOD)模型。2026-09-27 の赤坂の実測で三角形の多い順:
+        /// 土塀(s_hei_center 8,588 本・計 25M = 全体の 28%)・長屋・表店・類型の長屋と表店。</summary>
+        public static readonly string[] MeshLodModels =
+        {
+            "Assets/edogoyomi/es_dobei/", "Assets/edogoyomi/es_knagaya/",
+            "Assets/edogoyomi/es_shop01/", "Assets/edogoyomi/es_shop02/",
+            "Assets/Edo/Models/Nagaya/Typ_", "Assets/Edo/Models/Machiya/Typ_",
+        };
+    }
 }

@@ -51,3 +51,4 @@
 - [recalc が折れた塊を裏返す・天端の穴の検査](recalc-normals-inverts-folded-stone.md) — 符号付き体積で外向きを保証・-- holes で裏当たりを数える(2026-09-26)
 - [袖が隅の法の足に当たるのは袖の膝](sode-knee-vs-kado-arm.md) — 「要る腕 0」は見え面の前の袖の誤読。袖の背の法を底まで通す(2026-09-26)
 - [段の端・袖の背を野面の石の外形へ刳る](fit-end-to-rubble-heightfield.md) — 検査は Unity と同じ体積の測り・袖は石を刻まず伸縮・Kado90 は留めの板(2026-09-27)
+- [隅の駒を平面で切ると切り口に 1mm の欠片と開いた辺](kado-cut-plane-slivers.md) — 平面上だけ 1mm 溶接して塞ぎ直す・FBX を読み直して数える(2026-09-27)

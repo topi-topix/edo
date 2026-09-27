@@ -14,6 +14,7 @@
         # 切通しで背の地盤まで上げる袖(上げの上限 = 丈 − 0.78)。綴りに `_D3.20` が入る(EDO-0430)
     blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_flat [--depth=3.20] --render   # 天端が水平な袖(EDO-0459)
     blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_flat --only=参道の階 --render   # 同・走り = 踏面 0.542(EDO-0437)
+    blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_flat --only=参道の階 --len=0.642 --render   # 同・走り = 段4 の踏面の見え 0.642(EDO-0437)
     blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_flat_nori [--depth=3.20] --render   # 同・坂上の小口を法 1:0.25 に切った版
     blender --background --python Tools/Blender/build_sanno_buzai.py -- audit     # 既存部材の左右の別を検算
     blender --background --python Tools/Blender/build_sanno_buzai.py -- mitsuke   # 焼いた柵の FBX から見付けを実測
@@ -1858,14 +1859,14 @@ def sode_flat_seam(keri, fumi, L):
     return out
 
 
-def build_sode_flat(L, do_render, keri=0.260, fumi=0.650, w=6.999, key="otoko", nstep=6):
+def build_sode_flat(L, do_render, keri=0.260, fumi=0.650, w=6.999, key="otoko", nstep=6, seam=False):
     V.reset()
     o, name = sode_flat(L)
     report(o, name, "← 石段の最上段の水平の袖")
     sode_flat_check(o, L)
     V.export_fbx([o], os.path.join(OUT_DAN, name + ".fbx"))
     print("[sanno] 書き出し " + os.path.join(OUT_DAN, name + ".fbx"))
-    if abs(L - fumi) < 1e-6:
+    if seam or abs(L - fumi) < 1e-6:
         sode_flat_seam(keri, fumi, L)
     if do_render:
         for pth in shots_sode_flat(keri, fumi, w, L, key, nstep=nstep):
@@ -2204,7 +2205,8 @@ def main():
     if what == "sode_flat":
         # sode_flat [--len=1.25] [--depth=3.20] [--render]  天端が水平な袖(最上段の踊り場の脇・EDO-0459)
         # sode_flat --only=参道の階 [--render]  走り = その段の踏面の版(参道の階の段4 ── 0.542・EDO-0437)。蹴上・踏面・幅は指図 kaidans から
-        L = SODE_FLAT_L
+        # sode_flat --only=参道の階 --len=0.642 [--render]  同・走りを据えの実長で(段4 の段石の踏面の見え 0.642 ── 1.184 倍に伸ばさずに済む・EDO-0437)
+        L = None
         only = None
         for a in argv:
             if a.startswith("--len="):
@@ -2213,9 +2215,11 @@ def main():
                 only = a.split("=", 1)[1]
         if only:
             (label, keri, fumi, w), = kaidan_specs(only)
-            build_sode_flat(fumi, do_render, keri=keri, fumi=fumi, w=w, key=label_key(label), nstep=4)
+            LL = fumi if L is None else L
+            build_sode_flat(LL, do_render, keri=keri, fumi=fumi, w=w,
+                            key=label_key(label) + ("" if L is None else "_" + cs_f3(L)), nstep=4, seam=True)
         else:
-            build_sode_flat(L, do_render)
+            build_sode_flat(SODE_FLAT_L if L is None else L, do_render)
     if what == "sode_flat_nori":
         # sode_flat_nori [--len=1.247] [--kink=0.31] [--depth=3.20] [--render]  坂上の小口を折れ点まで鉛直・下を法 1:0.25 に切った水平の袖
         #   (EDO-0459・既定は据えの実長と男坂の折れ点。--kink=0 で折れ無しの旧版 `_1.338`)

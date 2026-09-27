@@ -7,6 +7,7 @@
     blender --background --python Tools/Blender/build_sanno_nozura.py -- all --render
     blender --background --python Tools/Blender/build_sanno_nozura.py -- check                 # 継ぎ目の一致を数で検める
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado [--h=1.5] [--render]   # 出隅 90° の隅の駒
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_cut --h=0.9 --v=b --axis=x --at=0.085 [--render]  # 隅の駒の片腕を袖の背で一度切った版(EDO-0437)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado-check [--h=1.5]  # 隅の駒の腕の先 = 直線の切り口
     blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=0.22 --h=1.5  # 段の境の勾配の駒(± 両方)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- dan --render          # 段の境の並べ焼き
@@ -1457,6 +1458,142 @@ def kado_backface_rays(o, h, step=0.01):
     return bad, ex
 
 
+# ---- 隅の駒の片腕を袖の背の面で一度だけ切った版(2026-09-27 EDO-0437 施主「端の石は細くしない。袖に当たる石は袖の背に沿った一辺だけ切る」)
+# 参道の階の前庭の北の縁の口の出隅: 返し側の腕の法(1:0.3)の足が袖の中へ W 0.31 / E 0.47 入った。
+#   ⇒ 焼き上がった隅の駒(`make_kado` ── 1c84bf9b の天端を塊に焼き直した版)を、局所(Unity)の軸に直交する平面 axis = at で一度切り、
+#   at より外(袖の側)を捨てて切り口を平らな面で塞ぐ。石を細くも伸ばしもしない(残す側の頂点は一つも動かない)。
+#   切る面は法の面の前にしか出ない(天端の線 = 0 ⇒ 切り口の上端は天端から at/0.3 下)⇒ 天端の塊は切れない。
+def kado_cut_name(h, v, axis, at):
+    return "%s_cut%s%.3f" % (kado_name(h, v), axis.upper(), at)
+
+
+def kado_cut(o, axis, at):
+    """o(Blender 座標のメッシュ)を Unity 局所の axis ∈ {x, z} ≤ at に切り、切り口を塞ぐ。返り値 = (切り口の面の数, 捨てた頂点の数)"""
+    a = at
+    co, no = ((-a, 0.0, 0.0), (-1.0, 0.0, 0.0)) if axis == "x" else ((0.0, -a, 0.0), (0.0, -1.0, 0.0))
+    n = Vector(no); c = Vector(co)
+    before = len(o.data.vertices)
+    out_n = sum(1 for vt in o.data.vertices if (vt.co - c).dot(n) > 1e-6)
+    bm = bmesh.new(); bm.from_mesh(o.data)
+    res = bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], dist=1e-6,
+                                 plane_co=c, plane_no=n, clear_outer=True, clear_inner=False)
+    cut = [x for x in res["geom_cut"] if isinstance(x, bmesh.types.BMEdge) and x.is_valid and x.is_boundary]
+    filled = bmesh.ops.holes_fill(bm, edges=cut, sides=0)["faces"]
+    uvl = bm.loops.layers.uv.active
+    for f in filled:
+        f.normal_update()
+        if f.normal.dot(n) < 0:
+            f.normal_flip()
+        for l in f.loops:
+            q = l.vert.co
+            l[uvl].uv = ((q.y if axis == "x" else q.x) / TILE + 0.37, q.z / TILE + 0.11)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
+    # 切り口の面の上で石の頂点のすぐ脇(≤ 1mm)を切ると、書き出しの三角形割りで潰れた三角形と 0〜8mm の開いた辺が残った(H1500_b)
+    #   ⇒ 平面に乗る頂点だけ 1mm で溶接し、潰れた面を溶かし、平面の上に残った開いた辺の環をもう一度塞ぐ
+    onp = lambda vv: abs((vv.co - c).dot(n)) < 1e-5
+    bmesh.ops.remove_doubles(bm, verts=[x for x in bm.verts if onp(x)], dist=1e-3)
+    bmesh.ops.dissolve_degenerate(bm, edges=bm.edges[:], dist=1e-4)
+    rest = [e for e in bm.edges if e.is_boundary and all(onp(x) for x in e.verts)]
+    filled2 = bmesh.ops.holes_fill(bm, edges=rest, sides=0)["faces"] if rest else []
+    for f in filled2:
+        f.normal_update()
+        if f.normal.dot(n) < 0:
+            f.normal_flip()
+        for l in f.loops:
+            q = l.vert.co
+            l[uvl].uv = ((q.y if axis == "x" else q.x) / TILE + 0.37, q.z / TILE + 0.11)
+    bmesh.ops.triangulate(bm, faces=[f for f in bm.faces if len(f.verts) > 4 and all(onp(x) for x in f.verts)])
+    bmesh.ops.delete(bm, geom=[x for x in bm.verts if not x.link_faces], context='VERTS')
+    bm.to_mesh(o.data); bm.free(); o.data.update()
+    return len(filled) + len(filled2), out_n
+
+
+def kado_rays_all(o, h, step=0.01, dstep=0.025):
+    """`kado_backface_rays`(軸: 真上・+Z 面の前・+X 面の前)に、隅の外からの斜めの光線を足して数える。
+    斜め = 水平の対角(−1,0,−1)・見下ろしの対角(−1,−1,−1)・腕ごとの見下ろし(−1,−1,0)/(0,−1,−1)。的は x,z ∈ [−L/2, 0.7]・y ∈ [0, h]。
+    返り値 = {"axis": (本数, 例), "diag": (本数, 例)}"""
+    from mathutils.bvhtree import BVHTree
+    me = o.data
+    bvh = BVHTree.FromPolygons([v.co.copy() for v in me.vertices], [tuple(p.vertices) for p in me.polygons])
+    nb, exb = kado_backface_rays(o, h, step)
+    dirs = [Vector((-1, 0, -1)).normalized(), Vector((-1, -1, -1)).normalized(),
+            Vector((-1, -1, 0)).normalized(), Vector((0, -1, -1)).normalized()]
+    grid = [(-L / 2 + dstep * (i + 0.5)) for i in range(int((L / 2 + 0.7) / dstep))]
+    ys = [dstep * (k + 0.5) for k in range(int(h / dstep) + 1)]
+    bad, ex = 0, []
+    for du in dirs:
+        d_ = Vector(_u2b(*du))
+        for a in grid:
+            for y in ys:
+                # 的の面: 水平の対角は稜線の鉛直面(x = −z)に沿って、ほかは各腕の面の近く・天端の上に並べる
+                for tgt in ((a, y, -a), (a, y, 0.1), (0.1, y, a), (a, h, a * 0.5)):
+                    pu = Vector(tgt) - 6.0 * du
+                    hit = bvh.ray_cast(Vector(_u2b(*pu)), d_, 12.0)
+                    if hit[0] is None:
+                        continue
+                    if hit[1].dot(d_) > 0.0:
+                        bad += 1
+                        if len(ex) < 8:
+                            ex.append(tuple(round(c, 3) for c in _b2u(hit[0])))
+    return {"axis": (nb, exb), "diag": (bad, ex)}
+
+
+def make_kado_cut(h, v, axis, at):
+    o0, name0 = make_kado(h, v)
+    rays0 = kado_rays_all(o0, h)
+    (x0, x1), (y0, y1), (z0, z1) = unity_bounds(o0)
+    name = kado_cut_name(h, v, axis, at)
+    o0.name = name; o0.data.name = name
+    nf, nout = kado_cut(o0, axis, at)
+    # 切り口の面(Unity の axis = at に乗る面)の最も高い所 < 天端 ⇒ 天端の上に切り口は出ない
+    uv = [_b2u(vt.co) for vt in o0.data.vertices]
+    k = 0 if axis == "x" else 2
+    on = [t for t in uv if abs(t[k] - at) < 1e-4]
+    top_cut = max(t[1] for t in on) if on else float("nan")
+    over = max(t[k] for t in uv)
+    nd = clean_degenerate(o0)
+    rays1 = kado_rays_all(o0, h)
+    # 閉じているか: 境界の辺(開いた辺)の数を切る前と比べる
+    bm = bmesh.new(); bm.from_mesh(o0.data)
+    nbnd = sum(1 for e in bm.edges if e.is_boundary); bm.free()
+    info = dict(name=name, src=name0, axis=axis, at=at, before_max=(x1 if axis == "x" else z1), after_max=over,
+                cut_faces=nf, dropped_verts=nout, cut_top_y=top_cut, crest=h, degenerate=nd, boundary_edges=nbnd,
+                rays_before=rays0, rays_after=rays1)
+    print("KADOCUT %s" % info)
+    V.set_origin(o0, (0, 0, 0))
+    return o0, name, info
+
+
+def render_kado_cut(h, v, axis, at):
+    """切った隅の駒を、袖の背(切り口の平面)に見立てた板と並べて撮る: 隅の外から・切り口の側から・マゼンタ"""
+    V.reset()
+    _import_at(os.path.join(OUT_WALL, kado_cut_name(h, v, axis, at) + ".fbx"), 0, 0, 0)
+    hook_stone_textures()
+    ground()
+    tag = "%s_%s%s%.3f" % (int(round(h * 1000)), v, axis, at)
+    # 袖の背の見立て(切り口の平面から 1cm 外・厚み 0.6・天端 h+0.3)── 撮る 1 枚だけ
+    if axis == "x":
+        sode = _flat_box("Sode", [(at + 0.01, -0.3, -2.0), (at + 0.61, -0.3, -2.0), (at + 0.61, -0.3, 1.2), (at + 0.01, -0.3, 1.2),
+                                  (at + 0.01, h + 0.3, -2.0), (at + 0.61, h + 0.3, -2.0), (at + 0.61, h + 0.3, 1.2), (at + 0.01, h + 0.3, 1.2)],
+                         (0.55, 0.52, 0.48))
+        cam_cut = _u2b(3.2, h * 0.5, 0.6); look_cut = _u2b(0.0, h * 0.45, -0.3)
+    else:
+        sode = _flat_box("Sode", [(-2.0, -0.3, at + 0.01), (1.2, -0.3, at + 0.01), (1.2, -0.3, at + 0.61), (-2.0, -0.3, at + 0.61),
+                                  (-2.0, h + 0.3, at + 0.01), (1.2, h + 0.3, at + 0.01), (1.2, h + 0.3, at + 0.61), (-2.0, h + 0.3, at + 0.61)],
+                         (0.55, 0.52, 0.48))
+        cam_cut = _u2b(0.6, h * 0.5, 3.2); look_cut = _u2b(-0.3, h * 0.45, 0.0)
+    sode.hide_render = True
+    studio_run([], _u2b(3.6, h + 1.4, 3.6), _u2b(-0.5, h * 0.5, -0.5), 30,
+               os.path.join(SHOT, "sanno_nozura_kadocut_%s.png" % tag))
+    studio_run([], cam_cut, look_cut, 30, os.path.join(SHOT, "sanno_nozura_kadocut_%s_face.png" % tag))
+    studio_run([], _u2b(3.6, h + 1.4, 3.6), _u2b(-0.5, h * 0.5, -0.5), 30,
+               os.path.join(SHOT, "sanno_nozura_kadocut_%s_magenta.png" % tag), magenta=True)
+    studio_run([], cam_cut, look_cut, 30, os.path.join(SHOT, "sanno_nozura_kadocut_%s_face_magenta.png" % tag), magenta=True)
+    sode.hide_render = False
+    studio_run([], _u2b(3.6, h + 1.4, 3.6), _u2b(-0.5, h * 0.5, -0.5), 30,
+               os.path.join(SHOT, "sanno_nozura_kadocut_%s_sode.png" % tag))
+
+
 def check_kado(h=1.50):
     """⭕ 隅の駒の腕の先の切り口 = 直線の駒の切り口(天端から 0.25 まで・1mm で丸め)"""
     ow, _, _ = make_wall(h, 0.0, "a")
@@ -2885,6 +3022,18 @@ if __name__ == "__main__":
         do_kado()
         if RENDER:
             render_kado(float(OPT.get("h") or 1.5))
+    if what == "kado_cut":
+        # blender ... -- kado_cut --h=0.9 --v=b --axis=x --at=0.085 [--render] ── 隅の駒の片腕を袖の背の面で一度切った版(EDO-0437)
+        #   焼いた組: H0900_b cutX0.085(西 Kiri_kado2)/ H1500_b cutZ0.097(東 N_kado2)
+        h_, v_, ax_, at_ = float(OPT["h"]), OPT.get("v") or "b", (OPT.get("axis") or "x").lower(), float(OPT["at"])
+        o, name, info = make_kado_cut(h_, v_, ax_, at_)
+        export(o, name, OUT_WALL)
+        if OPT.get("json"):
+            import json
+            with open(OPT["json"], "w") as fh:
+                json.dump(info, fh, ensure_ascii=False, indent=1, default=str)
+        if RENDER:
+            render_kado_cut(h_, v_, ax_, at_)
     if what == "back" and RENDER:
         render_back(float(OPT.get("h") or 1.2))
     if what == "top" and RENDER:

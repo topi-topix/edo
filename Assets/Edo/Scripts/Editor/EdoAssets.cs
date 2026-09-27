@@ -63,6 +63,10 @@ public static class EdoAssets
         ///   (指図 `gardens[].toro` 「⛔ 春日型を置かない」)。</summary>
         public const string ToroYukimi  = "Assets/edogoyomi/t_yukimi/t_yukimi.obj";
         public const string TexToroYukimi = "Assets/edogoyomi/t_yukimi/t_yukimi.jpg";
+        /// <summary>**春日灯籠**(edogoyomi `t_kasuga`)── 寺社の境内の**献灯**(本堂の前・参道の左右に一対)にだけ当てる
+        /// (庭方の境内の設計 2026-09-27・EDO-0477 P5)。⚠ 素で置かず `ES = 1.818` を掛ける。
+        /// ⛔ 屋敷の庭の灯籠には使わない(雪見 <see cref="ToroYukimi"/> ── 上の注記)。</summary>
+        public const string ToroKasuga = "Assets/edogoyomi/t_kasuga/t_kasuga.obj";
 
         // 店先の小物
         public const string Shop01Taru  = "Assets/edogoyomi/es_shop01/s01_taru.obj";
@@ -1246,8 +1250,9 @@ public static class EdoAssets
         /// 走り Z ±<paramref name="len"/>/2 を実長で焼いた物(伸縮せずに据える ⇒ 積みの目地が潰れない)。竪目地の割りは短い側が 0.30 を切るなら割らない(0.542 は各段 1 枚物)。
         /// 実寸(0.542・丈 2.20): W 0.600 × H 2.200(−1.900〜+0.300)× D 0.542・156 面。
         /// 継ぎ目: 段3 の `IshidanSode(0.250,0.542,3)`(b)の坂上の端と、段4 の踏面基準で天端 +0.30・下端 −1.90・横目地の高さが一致(差 0 ── 違いは水平の袖の小口の面取り 0.02 だけ)。
-        /// 焼けている組: len 0.542・丈 2.20 のみ。材 `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
-        /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_flat --only=参道の階 --render</summary>
+        /// 焼けている組: len 0.542 / 0.642(段4 の段石の踏面の見え ── 0.542 を 1.184 倍に伸ばさずに据える版・継ぎ目は 0.542 と同じ)・丈 2.20 のみ。
+        /// 材 `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_flat --only=参道の階 [--len=0.642] --render</summary>
         public static string IshidanSodeFlat(float depth, float len)
         {
             return "Assets/Edo/Models/Kaidan/IshidanSodeFlat_" + len.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)
@@ -1507,6 +1512,20 @@ public static class EdoAssets
         {
             int hmm = (int)System.Math.Round(h * 1000.0);
             return "Assets/Edo/Models/Sanno/Sanno_Nozura_Kado90_H" + hmm.ToString("0000") + "_" + (((i % 2) + 2) % 2 == 0 ? "a" : "b") + ".fbx";
+        }
+
+        /// <summary><see cref="SannoNozuraKado"/> の**片腕を袖の背の面で一度だけ切った版**(EDO-0437 2026-09-27・参道の階の前庭の北の縁の口の出隅。
+        /// 返し側の腕の法 1:0.3 の足が袖の中へ W 0.31 / E 0.47 入った ── 施主「端の石は細くしない。袖に当たる石は袖の背に沿った一辺だけ切る」)。
+        /// 元の駒(<see cref="SannoNozuraKado"/>(h, i)・1c84bf9b の塊に焼き直した版)を局所の軸に直交する平面 <paramref name="axis"/> = <paramref name="at"/> で切り、
+        /// 外(袖の側)を捨てて切り口を平らな面で塞いだ物。残す側の頂点は動かない(石を細くも伸ばしもしない)。局所座標・ピボット・材は元と同じ。
+        /// 切り口の上端は天端より下(H0.90: 0.769 / H1.50: 1.391)⇒ 天端の塊は切れない。表から当てた光線が裏の面に当たる本数 0(軸・斜めとも)。
+        /// 焼けている組: (0.90, b, 'x', 0.085) = 西 Kiri_kado2 / (1.50, b, 'z', 0.097) = 東 N_kado2。
+        /// 材 `Kirishi` / `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_cut --h=0.9 --v=b --axis=x --at=0.085 --render</summary>
+        public static string SannoNozuraKadoCut(float h, int i, char axis, float at)
+        {
+            return SannoNozuraKado(h, i).Replace(".fbx", "_cut" + char.ToUpperInvariant(axis)
+                 + at.ToString("F3", System.Globalization.CultureInfo.InvariantCulture) + ".fbx");
         }
 
         /// <summary>**野面の乱積みの段の境の駒**(2026-09-25・帯 `SukibeiSoto` 29.65 → `SukibeiSoto_Chu` 29.25 の差 0.40 を 1間で流す)

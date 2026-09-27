@@ -545,25 +545,39 @@ public static partial class EdoBuild
     // ---------- dobei run (表裏ペア) ----------
     // 走り方向: 区間を pitch に等分し、駒の実寸(RunMeasure)を pitch へ伸縮して、前の駒の実測の端へ突き付ける。
     // ⚠ 表(side 0)が鎖の主。裏(side 1)は表の端の実測に揃える(裏は 0.20m 内側へ寄る)。
+    // ⭐ 開口(門)があれば**辺を開口で区切ってから**区間ごとに割る(NeribeiRun と同じ)。板の端は開口の縁
+    //    = 呼び手が門構えの実測の妻面から採った幅に来る。⛔ 2026-09-27 まで辺全体を等割りし、開口に掛かる板を
+    //    丸ごと抜いていた — 門の脇に最大で板 1 枚(≈3m)の隙が空いた(施主指摘・十坊の写真・EDO-0474)。
+    const float DOBEI_PITCH = 2.982f;
+    const float DOBEI_MIN_PIECE = 0.05f;   // これより短い端数は板にならない(開口の縁の丸めの誤差)
     public static List<GameObject> DobeiRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward, string prefix,
         bool followGround, float flatBase, Vector2 gapC, float gapHalf)
     {
         var made = new List<GameObject>();
         Vector2 dir = (B - A).normalized; float len = (B - A).magnitude;
-        int n = Mathf.Max(1, Mathf.RoundToInt(len / 2.982f));
-        float pitch = len / n;
-        float sx = pitch / RunMeasure(PHei).W;
+        var segs = new List<float[]>();
+        if (gapHalf > 0)
+        {
+            float gT = Vector2.Dot(gapC - A, dir);
+            if (gT - gapHalf > DOBEI_MIN_PIECE) segs.Add(new float[] { 0f, Mathf.Min(gT - gapHalf, len) });
+            if (gT + gapHalf < len - DOBEI_MIN_PIECE) segs.Add(new float[] { Mathf.Max(gT + gapHalf, 0f), len });
+        }
+        else segs.Add(new float[] { 0f, len });
         float psi = Mathf.Atan2(outward.x, outward.y) * Mathf.Rad2Deg;
         float a0 = Vector2.Dot(A, dir);
-        bool chained = false; float prevEnd = 0f;
-        for (int k = 0; k < n; k++)
+        float W = RunMeasure(PHei).W;
+        int k = 0;
+        foreach (var seg in segs)
         {
-            var c2 = A + dir * (pitch * (k + 0.5f));
-            if (gapHalf > 0)
+            float L = seg[1] - seg[0];
+            // ⭐ 区間を板で**割り切る**(端数を残さない)。短い区間は 1 枚を縮めて埋める。
+            int n = Mathf.Max(1, Mathf.RoundToInt(L / DOBEI_PITCH));
+            float pitch = L / n;
+            float sx = pitch / W;
+            bool chained = false; float prevEnd = 0f;
+            for (int j = 0; j < n; j++, k++)
             {
-                float gT = Vector2.Dot(gapC - A, dir);
-                if (Mathf.Abs(pitch * (k + 0.5f) - gT) < gapHalf + pitch * 0.5f - 0.01f) { chained = false; continue; }
-            }
+            var c2 = A + dir * (seg[0] + pitch * (j + 0.5f));
             float baseY = flatBase;
             if (followGround)
             {
@@ -571,7 +585,7 @@ public static partial class EdoBuild
                 float g2 = Ground(c2.x + dir.x * pitch * 0.5f, c2.y + dir.y * pitch * 0.5f);
                 baseY = Mathf.Max(g1, g2);
             }
-            float startAbs = chained ? prevEnd : a0 + pitch * k;
+            float startAbs = chained ? prevEnd : a0 + seg[0] + pitch * j;
             for (int side = 0; side < 2; side++)
             {
                 float ry = side == 0 ? psi : psi + 180f;
@@ -584,6 +598,7 @@ public static partial class EdoBuild
                 if (followGround) { try { SeatOnGround(go, 0.10f, 600); } catch (System.Exception) { SeatBottom(go, baseY - 0.10f); } }
                 else SeatBottom(go, baseY - 0.10f);
                 made.Add(go);
+            }
             }
         }
         return made;

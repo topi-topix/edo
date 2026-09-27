@@ -1,11 +1,11 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 d812315cc376 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 55670edd2139 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
 
-- 公開関数 227 本(注釈なし 17)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
+- 公開関数 227 本(注釈なし 18)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
 - 同じ道具が刷る目録: 邸ビルダーのメニュー → Stage と中の関数 `docs/builder-mokuroku.md` / 部材の名 `docs/edoassets-mokuroku.md`。
 - 札: **硬** = 注釈に「硬い/許容0」・**柔** = 「柔らかい/狙い」がある(判定ではなく注釈の語)。相手の札(地面・駒どうし・天端・床・断面・面・隅・区域)も注釈の語を拾っただけ。
 - 呼んでいる所 = 定義のファイルの外で `EdoBuild.<名>(` と書いている C# ファイル(`Edo` と `Builder/Rebuild` を落とした名)と、その中の呼んでいる関数(Stage)。同じ名の多重定義はまとめて数える。`EdoBuild` の中どうしの呼び出しは載せない。
@@ -395,7 +395,7 @@
 | `EdoBuild.GroundPolyline(a, b, span, floatMax, buryMax, smooth=…)` | `List<Vector3>` | 地面 | 地表なりの折れ線へ割る。辺 a→b を、描かれている地表に沿った実長(道のり)で span ごとに割り、継ぎ目の点(世界座標・高さは地表)を返す。 | SannoSha(SakuRun) |
 | `EdoBuild.SplitAtBedSteps(a, b, heightAt, jump, res=…, minLen=…)` | `List<Vector2[]>` | 天端・床 | 走りを床の段(鉛直の落ち)で割る(2026-09-26・EDO-0430 山王 `Ita_Keidai` の柵 × 御供所の郭の土留め)。 | SannoSha(SakuRun) |
 | `EdoBuild.PlaceOnChord(path, j0, j1, parent, name)` | `GameObject` |  | 弦に沿って駒を据える。継ぎ目 j0→j1 に張るよう、 yaw = 走り・roll = 弦の勾配・走り方向の伸縮 = 弦の実長(斜距離)で置く。 | SannoSha(SakuRun) |
-| `EdoBuild.DobeiRun(parent, A, B, outward, prefix, followGround, flatBase, gapC, gapHalf)` | `List<GameObject>` | 駒どうし | 走り方向: 区間を pitch に等分し、駒の実寸(RunMeasure)を pitch へ伸縮して、前の駒の実測の端へ突き付ける。 | SannoSha(Stage1_Keidai・Stage2_Sando), Doi(Stage2_Perimeter), MatsudairaDewa(Stage2_Perimeter), OkabeYashiki(Stage2_Perimeter), Sanyashiki(S3_Enclosure) ほか1 |
+| `EdoBuild.DobeiRun(parent, A, B, outward, prefix, followGround, flatBase, gapC, gapHalf)` | `List<GameObject>` |  | ⚠ 注釈なし | SannoSha(Stage1_Keidai・Stage2_Sando), Doi(Stage2_Perimeter), MatsudairaDewa(Stage2_Perimeter), OkabeYashiki(Stage2_Perimeter), Sanyashiki(S3_Enclosure) ほか1 |
 | `EdoBuild.NeribeiRun(parent, A, B, outward, prefix, followGround, flatBase, gapC, gapHalf)` | `List<GameObject>` | 隅・区域 | DobeiRun(表裏2枚の板塀)と違い Dobei2m は1駒で厚みを持つ一体物なので、side ループは無い。 | — |
 | `EdoBuild.PanelRun(parent, A, B, outward, prefix, assetPath, gapC, gapHalf, pair=…, unitScale=…, beds=…, bedAt=…, splitPost=…, splitBoard=…)` | `List<GameObject>` |  | <remarks>据えは DobeiRun と同じ — 触れている箇所を測る(規則21)。 | SannoSha(Stage4_Kakoi) |
 | `EdoBuild.PostBoardRun(parent, A, B, outward, prefix, postPath, boardPath, bedAt, root, pair=…)` | `List<GameObject>` | 駒どうし・床・断面 | 柱と板を分けた組で板塀の run を張る(2026-09-26・EDO-0437 第7巡)。 | — |

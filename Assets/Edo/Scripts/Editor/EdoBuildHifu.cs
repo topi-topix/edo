@@ -1873,6 +1873,63 @@ public static partial class EdoBuild
         /// <summary>(x,z) の最も高い上向きの面と、その駒の名(無ければ NaN / null)。</summary>
         public float Top(float x, float z, out string who)
         { int w; float y = idx.Top(x, z, out w); who = w >= 0 ? idx.names[w] : null; return y; }
+        /// <summary>(x,z) の部材の上向きの面の最も高い所(帯で篩わない・無ければ NaN)。</summary>
+        public float RawTop(float x, float z) { int w; return idx.TopRaw(x, z, out w); }
+    }
+
+    // ---------------------------------------------------------------- 当たりの床(2026-09-27・EDO-0437/EDO-0480 ── docs/oki-kata.md §0a)
+    /// <summary>**当たりの床** = 下端が**接すると決めた相手の面**だけを返す床。相手は (1) 石(土留め・袖)の**天端** ── 上向きの面のうち
+    /// 天端の帯(<see cref="CREST_BAND"/>)に入る所、(2) 部材の載っていない所の**描かれた地表**。部材の上向きの面が在るのに天端の帯に
+    /// 入らない所(野面の**目地** ── 石と石の間の、天端の 0.19 下の目地の底の板)は**跨ぎ**で NaN を返す ── 接する想定の無い所なので
+    /// 据えの相手にも測りの相手にもしない。
+    /// ⛔ 目地の底や、石の外形の下に隠れた地表で下端を測らない(2026-09-27 施主「設置する想定ではないところを測って隙間があると考えるのはナンセンス」)。
+    /// 当たる先: 石の天端と地面に載せて光付けする部材(板塀の地覆・柱 ── <see cref="PostBoardRunScribed"/>)。以後、天端に載る部材の据え全て(EDO-0480)。</summary>
+    public sealed class AtariBed
+    {
+        /// <summary>目地と読む深さ・周りを見る半径[m]。野面の目地は幅 0.02〜0.04・底は天端の 0.19〜0.20 下(`build_sanno_nozura.py`)。
+        /// 半径 0.04 なら目地のどこからでも少なくとも片側の石の天端に届き、石の天端の凹凸(数 cm で 1〜2 cm)は深さ 0.05 に届かない。
+        /// ⛔ 周り 0.6(<see cref="CREST_R"/>)の同じ駒の天端で篩わない ── 駒の端・見え面の際では輪が駒の外へ出て目地の底を天端と読んだ(2026-09-27 実測 0.18)。</summary>
+        public const float JOINT_DEPTH = 0.05f, JOINT_R = 0.04f;
+        /// <summary>目地に詰まった土を当たりに採る面一の許し[m](地面に置く物の接地の許容 ±0.01 と同じ)。</summary>
+        public const float JOINT_SOIL_FLUSH = 0.01f;
+        readonly DrawnGround dg; readonly PartTops tops;
+        /// <summary>石の上向きの面の高さを升 <see cref="CELL"/> で覚える(目地の見分けは一点に 17 本引くので、覚えないと 1 駒に数分かかった)。</summary>
+        const float CELL = 0.00125f;
+        readonly Dictionary<long, float> raw = new Dictionary<long, float>();
+        public AtariBed(IList<GameObject> stones) { dg = Drawn(); tops = stones == null || stones.Count == 0 ? null : new PartTops(stones); }
+        float Raw(float x, float z)
+        {
+            int i = Mathf.RoundToInt(x / CELL), j = Mathf.RoundToInt(z / CELL); long k = ((long)i << 32) ^ (uint)j;
+            float v; if (!raw.TryGetValue(k, out v)) { v = tops.RawTop(i * CELL, j * CELL); raw[k] = v; } return v;
+        }
+        /// <summary>(x,z) の当たりの面の高さ。跨ぎ(目地)では NaN。</summary>
+        public float At(float x, float z) { bool span; return At(x, z, out span); }
+        /// <summary><paramref name="span"/> = 跨ぎ(石の上向きの面が、周り <see cref="JOINT_R"/> の石の天端より <see cref="JOINT_DEPTH"/> 以上深い所 ── 目地)。</summary>
+        public float At(float x, float z, out bool span)
+        {
+            span = false;
+            float g = dg.At(x, z);
+            if (tops == null) return g;
+            float r0 = Raw(x, z);
+            // 周り JOINT_R の最も高い相手の面(石の天端・地表)。そこより JOINT_DEPTH 以上深い所は、目地・石の縁の外の落ち(見え面の外の地表)で跨ぎ
+            float mx = float.IsNaN(r0) ? g : (float.IsNaN(g) ? r0 : Mathf.Max(r0, g));
+            if (float.IsNaN(mx)) return float.NaN;
+            float top = mx;
+            for (int r = 1; r <= 2; r++)
+                for (int a = 0; a < 8; a++)
+                {
+                    float ang = a * Mathf.PI / 4f, rr = JOINT_R * r / 2f, px = x + Mathf.Cos(ang) * rr, pz = z + Mathf.Sin(ang) * rr;
+                    float t = Raw(px, pz);
+                    if (!float.IsNaN(t) && t > top) top = t;
+                }
+            if (float.IsNaN(r0)) { if (g >= top - JOINT_DEPTH) return g; span = true; return float.NaN; }   // 石の載っていない所 ── 地表が相手(石の縁の下へ落ちた地表は跨ぎ)
+            if (r0 >= top - JOINT_DEPTH) return float.IsNaN(g) ? r0 : Mathf.Max(r0, g);   // 石の天端(土が被っていれば地表)
+            float mxS = top;
+            // 目地。土が天端と面一(<see cref="JOINT_SOIL_FLUSH"/> 以内)まで詰まっていれば、その土が相手。⛔ 目地の中の低い土・石の下に隠れた地表を相手にしない
+            //   (2026-09-27 実測: 天端の 0.045 下の目地の土を相手に取り、地覆がそこへ 0.05 浮くと数えた)
+            if (!float.IsNaN(g) && g >= mxS - JOINT_SOIL_FLUSH) return g;
+            span = true; return float.NaN;
+        }
     }
 
     // ---------------------------------------------------------------- 据わる床(2026-09-25・EDO-0430)

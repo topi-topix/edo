@@ -1076,7 +1076,8 @@ public static class EdoSannoSashizuCheck
         int digits = 0;
         while (i >= 0 && n[i] >= '0' && n[i] <= '9') { i--; digits++; }
         // ⭐ 柱と板を分けた組(EdoBuild.PostBoardRun)は `<run名>_h<番号>f|b`(柱)・`_i<番号>f|b`(板)── 番号の前の一字を読み飛ばす(2026-09-26 EDO-0437)
-        if (digits > 0 && i > 0 && (n[i] == 'h' || n[i] == 'i') && n[i - 1] == '_') i--;
+        //   地覆の組(EdoBuild.PostBoardRunScribed)の地覆 `_j<番号>f|b` も同じ(2026-09-27)
+        if (digits > 0 && i > 0 && (n[i] == 'h' || n[i] == 'i' || n[i] == 'j') && n[i - 1] == '_') i--;
         if (digits == 0 || i <= 0 || n[i] != '_') return null;
         return n.Substring(0, i);
     }

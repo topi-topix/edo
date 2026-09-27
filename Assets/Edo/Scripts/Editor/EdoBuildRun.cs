@@ -836,6 +836,387 @@ public static partial class EdoBuild
         return made;
     }
 
+    /// <summary>**光付け(削り合わせ)の印** = 部材の局所 y ≤ これ の頂点(<see cref="EdoAssets.Own.ItabeiJifuku"/>・<see cref="EdoAssets.Own.ItabeiHashiraHk"/> の下端の格子)。</summary>
+    public const float SCRIBE_MARK = -0.599f;
+    /// <summary>削りは部材の上端の手前これだけで止める(面が裏返らない)。</summary>
+    public const float SCRIBE_TOP_STOP = 0.02f;
+    /// <summary>光付けの結果(床との隙の実測)。</summary>
+    public struct Scribe
+    {
+        /// <summary>削った頂点の数・床が代より深く届かなかった頂点の数(⚠ 浮く)。</summary>
+        public int moved, shortN;
+        /// <summary>当たりの標本の数・跨ぎ(床が NaN ── 目地の上)で測らなかった標本の数・下端を割り足した辺の数(<see cref="SplitEdges"/> ── 隙が狙いを超えた所だけ)。</summary>
+        public int atariN, spanN, refined;
+        /// <summary>下端の線 − 床(標本ごと)の最小・最大[m]。最小 &lt; 0 = 床へ入る・最大 &gt; 0 = 浮く(野面の目地の際は目地の底との差)。</summary>
+        public float lo, hi;
+        /// <summary>最大の隙の点。</summary>
+        public Vector3 hiAt;
+    }
+
+    /// <summary>床の引きを升 <paramref name="cell"/> で覚える(同じ升は一度だけ引く・升の中の点は升の芯の値)。光付けの標本は駒ごとに万を超え、
+    /// 野面の相手(<see cref="AtariBed"/>)は一点に 17 本の縦線を引くので、覚えないと 1 run に 10 分を超えた(2026-09-27 実測)。</summary>
+    public static Func<float, float, float> MemoBed(Func<float, float, float> bedAt, float cell)
+    {
+        var memo = new Dictionary<long, float>();
+        return (x, z) =>
+        {
+            int i = Mathf.RoundToInt(x / cell), j = Mathf.RoundToInt(z / cell); long k = ((long)i << 32) ^ (uint)j;
+            float v; if (!memo.TryGetValue(k, out v)) { v = bedAt(i * cell, j * cell); memo[k] = v; } return v;
+        };
+    }
+
+    /// <summary>光付けの狙い[m]: 削った後の下端と当たりの隙がこれを超える三角形だけ、最も長い辺を割って削り直す(合格線 ±0.01 の手前)。
+    /// 割る辺はこれより短くしない(<see cref="SCRIBE_REFINE_MIN"/> の 2 倍未満の辺は割らない)・削り直しは <see cref="SCRIBE_REFINE_PASSES"/> 回まで。</summary>
+    public const float SCRIBE_GAP_TARGET = 0.008f, SCRIBE_REFINE_MIN = 0.003f;
+    public const int SCRIBE_REFINE_PASSES = 14;
+    static long ScribePK(Vector3 p) { return ((long)Mathf.RoundToInt(p.x * 20000f) * 73856093L) ^ ((long)Mathf.RoundToInt(p.y * 20000f) * 19349663L) ^ ((long)Mathf.RoundToInt(p.z * 20000f) * 83492791L); }
+    static long ScribeEK(long x, long y) { if (x > y) { var z = x; x = y; y = z; } return x * 1000003L ^ y; }
+    /// <summary>**辺を半分に割る**(光付けの割り足し・2026-09-27 EDO-0437)。<paramref name="want"/> = 割る辺(両端の**メッシュの座標の位置**の鍵
+    /// <see cref="ScribeEK"/>)。同じ位置の辺を持つ全ての三角形(全サブメッシュ・見え面の下の縁も)で一緒に割る ⇒ 継ぎ目に口(T 字の割れ)を開けない。
+    /// 一つの三角形は一度に一辺だけ(残りは次の削り直しで拾う)。属性(法線・uv・uv2)は両端の中点。返り値 = 割った辺の数。</summary>
+    public static int SplitEdges(Mesh m, HashSet<long> want)
+    {
+        var V = new List<Vector3>(m.vertices); var Nn = new List<Vector3>(m.normals);
+        var U = new List<Vector2>(m.uv); var U2 = new List<Vector2>(m.uv2);
+        bool hasN = Nn.Count == V.Count, hasU = U.Count == V.Count, hasU2 = U2.Count == V.Count;
+        int sub = m.subMeshCount; var S = new List<int>[sub]; for (int i = 0; i < sub; i++) S[i] = new List<int>(m.GetTriangles(i));
+        var triEdges = new Dictionary<long, List<long>>();   // 辺 → 三角形(si<<32|t)
+        for (int si = 0; si < sub; si++)
+            for (int t = 0; t + 2 < S[si].Count; t += 3)
+                for (int e = 0; e < 3; e++)
+                {
+                    long ek = ScribeEK(ScribePK(V[S[si][t + e]]), ScribePK(V[S[si][t + (e + 1) % 3]]));
+                    if (!want.Contains(ek)) continue;
+                    List<long> l; if (!triEdges.TryGetValue(ek, out l)) { l = new List<long>(); triEdges[ek] = l; } l.Add(((long)si << 32) | (uint)t);
+                }
+        var busy = new HashSet<long>(); var take = new Dictionary<long, long>(); int total = 0;
+        foreach (var kv in triEdges)
+        {
+            bool ok = true; foreach (var tt in kv.Value) if (busy.Contains(tt)) { ok = false; break; }
+            if (!ok) continue; foreach (var tt in kv.Value) { busy.Add(tt); take[tt] = kv.Key; }
+            total++;
+        }
+        if (total == 0) return 0;
+        var mid = new Dictionary<long, int>();
+        Func<int, int, int> Mid = (i0, i1) =>
+        {
+            long k = i0 < i1 ? ((long)i0 << 32) | (uint)i1 : ((long)i1 << 32) | (uint)i0; int r;
+            if (mid.TryGetValue(k, out r)) return r;
+            r = V.Count; V.Add((V[i0] + V[i1]) * 0.5f);
+            if (hasN) Nn.Add((Nn[i0] + Nn[i1]).normalized); if (hasU) U.Add((U[i0] + U[i1]) * 0.5f); if (hasU2) U2.Add((U2[i0] + U2[i1]) * 0.5f);
+            mid[k] = r; return r;
+        };
+        for (int si = 0; si < sub; si++)
+        {
+            var tl = S[si]; var outL = new List<int>(tl.Count + 64);
+            for (int t = 0; t + 2 < tl.Count; t += 3)
+            {
+                long tk = ((long)si << 32) | (uint)t; long ek;
+                if (!take.TryGetValue(tk, out ek)) { outL.Add(tl[t]); outL.Add(tl[t + 1]); outL.Add(tl[t + 2]); continue; }
+                int e = 0; for (; e < 3; e++) if (ScribeEK(ScribePK(V[tl[t + e]]), ScribePK(V[tl[t + (e + 1) % 3]])) == ek) break;
+                int i0 = tl[t + e], i1 = tl[t + (e + 1) % 3], i2 = tl[t + (e + 2) % 3], mm = Mid(i0, i1);
+                outL.Add(i0); outL.Add(mm); outL.Add(i2); outL.Add(mm); outL.Add(i1); outL.Add(i2);
+            }
+            S[si] = outL;
+        }
+        m.indexFormat = V.Count > 65000 ? UnityEngine.Rendering.IndexFormat.UInt32 : m.indexFormat;
+        m.SetVertices(V); if (hasN) m.SetNormals(Nn); if (hasU) m.SetUVs(0, U); if (hasU2) m.SetUVs(1, U2);
+        for (int si = 0; si < sub; si++) m.SetTriangles(S[si], si);
+        return total;
+    }
+
+    /// <summary>**部材の下端を床へ光付けする**(削り合わせ・2026-09-27 EDO-0437 施主裁定 案A)。部材の局所 y ≤ <see cref="SCRIBE_MARK"/> の頂点
+    /// (下端の格子)を、その下の床 <paramref name="bedAt"/>(世界の x,z → 高さ)へ上げる。手本は `Tools/Blender/build_itabei_jifuku.py` の scribe()。
+    /// <para>1. 削る頂点を**格子点**(局所 x,z が同じ ── 面ごとに割れた頂点は一緒に動かす)にまとめ、下端の面(3 頂点とも格子点の三角形)を集める。
+    /// 2. 三角形の中に <paramref name="step"/> 刻みの標本を取り、それぞれの床の高さを引く(**標本は部材の足跡の中だけ** ── 足跡の外の高い床で持ち上げない)。
+    /// 3. 格子点の高さ = その点の床から始め、三角形の中で下端の面が床より下になる標本があれば、重みの大きい頂点から上げる
+    /// (上げは周りの三角形の床の最大まで)。**走りと厚みの両方向で**食い込み 0 にする。
+    /// 4. 上げは部材の上端 − <see cref="SCRIBE_TOP_STOP"/> で止める。床が代(下端)より深い格子点は動かさない(⚠ 浮き ── shortN)。
+    /// 5. uv += uv2·Δy で木理を直し、uv2 を消し、<see cref="EdoSolidMesh.Save"/> で資産にして差し替える。</para>
+    /// ⭐ **当たりの作法**(docs/oki-kata.md §0a・2026-09-27 施主): <paramref name="bedAt"/> は**接すると決めた相手の面**だけを返す(<see cref="AtariBed"/>)。
+    /// NaN の所は**跨ぎ**(目地の上)── 標本は据えにも測りにも使わず(<see cref="Scribe.spanN"/>)、跨ぎの格子点は周りの当たりの格子点から均して
+    /// まっすぐ渡す。返る lo/hi は**当たりの標本だけ**の実測。
+    /// ⚠ 旧(2026-09-27 前半)は厚みの列ごとに窓 [z − 列の間隔, z + 列の間隔] の床の**最大**で列を上げていた ⇒ 厚みの向きに傾いた床では
+    /// 勾配 × 0.037 だけ浮き(法肩の柱 +0.016)、石の天端の目地が厚みの途中に掛かると隣の列との間の面が天端へ 0.16 食い込んだ(前庭の板塀 `Ita_ZN`)。
+    /// ⛔ 基準点で高さを決めない ── 下端は床の標本(触れている箇所)で決まる。⛔ 部材を傾けない(y 軸は世界の上のまま)。
+    /// 当たる先: 光付けの代を持つ部材の全て(板塀の地覆・柱 ── 山王 前庭の板塀 `Ita_Z*`・`Ita_Niou_N`、以後の地覆の在る板塀・柵)。</summary>
+    public static Scribe ScribeToBed(GameObject go, Func<float, float, float> bedAt, string meshName, float step = 0.0025f)
+    {
+        var res = new Scribe { lo = float.NaN, hi = float.NaN };
+        var mf = go.GetComponentInChildren<MeshFilter>(); if (mf == null || mf.sharedMesh == null) return res;
+        var m = UnityEngine.Object.Instantiate(mf.sharedMesh);
+        Transform gt = go.transform, mt = mf.transform;
+        int refined = 0;
+        // 削っては隙を測り、狙い(SCRIBE_GAP_TARGET)を超える三角形の最も長い辺だけ割って、元の形から削り直す ⇒ 点は隙の出る所にだけ増える(施主「点数は出来るかぎり少なく」)
+        for (int pass = 0; ; pass++)
+        {
+        res = new Scribe { lo = float.NaN, hi = float.NaN, refined = refined };
+        var vs = m.vertices; var uv = m.uv; var uv2 = m.uv2; var tris = m.triangles;
+        var L = new Vector3[vs.Length];                  // 部材(go)の局所
+        float ytop = float.MinValue;
+        for (int i = 0; i < vs.Length; i++) { L[i] = gt.InverseTransformPoint(mt.TransformPoint(vs[i])); ytop = Mathf.Max(ytop, L[i].y); }
+        // 格子点(局所 x,z)→ 同じ位置の頂点
+        var nodeOf = new int[vs.Length]; var key = new Dictionary<long, int>();
+        var nX = new List<float>(); var nZ = new List<float>(); var nH0 = new List<float>(); var nV = new List<List<int>>();
+        for (int i = 0; i < vs.Length; i++)
+        {
+            nodeOf[i] = -1; if (L[i].y > SCRIBE_MARK) continue;
+            long k = ((long)Mathf.RoundToInt(L[i].x * 10000f) << 32) ^ (uint)Mathf.RoundToInt(L[i].z * 10000f);
+            int n; if (!key.TryGetValue(k, out n)) { n = nX.Count; key[k] = n; nX.Add(L[i].x); nZ.Add(L[i].z); nH0.Add(L[i].y); nV.Add(new List<int>()); }
+            nV[n].Add(i); nodeOf[i] = n;
+        }
+        int N = nX.Count;
+        if (N == 0) { UnityEngine.Object.DestroyImmediate(m); return res; }
+        // 床(局所 y)── 世界の x,z の床の高さを局所へ(y 軸は世界の上のまま)
+        Func<float, float, float> BedL = (lx, lz) =>
+        {
+            var w = gt.TransformPoint(new Vector3(lx, 0f, lz)); float b = bedAt(w.x, w.z);
+            return float.IsNaN(b) ? float.NaN : gt.InverseTransformPoint(new Vector3(w.x, b, w.z)).y;
+        };
+        // 下端の面(3 頂点とも格子点・足跡に面積の在るもの)と、その中の標本
+        var seen = new HashSet<long>(); var T = new List<int[]>();
+        var sTri = new List<int>(); var sW = new List<Vector3>(); var sB = new List<float>(); var sP = new List<Vector2>();
+        float sxw = (gt.TransformVector(Vector3.right)).magnitude, szw = (gt.TransformVector(Vector3.forward)).magnitude;
+        for (int t = 0; t + 2 < tris.Length; t += 3)
+        {
+            int a = nodeOf[tris[t]], b = nodeOf[tris[t + 1]], c = nodeOf[tris[t + 2]];
+            if (a < 0 || b < 0 || c < 0 || a == b || b == c || a == c) continue;
+            int p0 = Mathf.Min(a, Mathf.Min(b, c)), p2 = Mathf.Max(a, Mathf.Max(b, c)), p1 = a + b + c - p0 - p2;
+            long tk = ((long)p0 * N + p1) * N + p2; if (!seen.Add(tk)) continue;
+            Vector2 A = new Vector2(nX[a] * sxw, nZ[a] * szw), B = new Vector2(nX[b] * sxw, nZ[b] * szw), C = new Vector2(nX[c] * sxw, nZ[c] * szw);
+            float area = Mathf.Abs((B.x - A.x) * (C.y - A.y) - (C.x - A.x) * (B.y - A.y)) * 0.5f; if (area < 1e-9f) continue;
+            int ti = T.Count; T.Add(new[] { a, b, c });
+            float el = Mathf.Max((B - A).magnitude, Mathf.Max((C - B).magnitude, (A - C).magnitude));
+            int ns = Mathf.Max(1, Mathf.CeilToInt(el / step));
+            for (int i = 0; i <= ns; i++)
+                for (int j = 0; j <= ns - i; j++)
+                {
+                    float w0 = (float)i / ns, w1 = (float)j / ns, w2 = 1f - w0 - w1;
+                    float lx = nX[a] * w0 + nX[b] * w1 + nX[c] * w2, lz = nZ[a] * w0 + nZ[b] * w1 + nZ[c] * w2;
+                    float bl = BedL(lx, lz); if (float.IsNaN(bl)) { res.spanN++; continue; }   // 跨ぎ(当たりの相手が無い)は据えにも測りにも使わない
+                    sTri.Add(ti); sW.Add(new Vector3(w0, w1, w2)); sB.Add(bl); sP.Add(new Vector2(lx, lz));
+                }
+        }
+        // 格子点の高さ = その点の床から。上げの上限 = 周りの三角形の床の最大
+        var h = new float[N]; var cap = new float[N];
+        var span = new bool[N]; int nSpan = 0;
+        for (int n = 0; n < N; n++) { float b = BedL(nX[n], nZ[n]); span[n] = float.IsNaN(b); if (span[n]) nSpan++; h[n] = span[n] ? nH0[n] : b; cap[n] = h[n]; }
+        var tS0 = new int[T.Count]; var tS1 = new int[T.Count];
+        for (int s = 0; s < sTri.Count; s++)
+        {
+            var tr = T[sTri[s]]; for (int q = 0; q < 3; q++) cap[tr[q]] = Mathf.Max(cap[tr[q]], sB[s]);
+            if (s == 0 || sTri[s] != sTri[s - 1]) tS0[sTri[s]] = s; tS1[sTri[s]] = s + 1;
+        }
+        // 跨ぎの格子点(目地の上)は床が無い ── 周りの三角形の当たりの標本(石の肩)の**最も低い床**から始める(上げの上限は周りの床の最大 = 他の格子点と同じ)。
+        //   周りに標本の無い点(目地の真ん中)は、後で周りの格子点から均して渡す ⇒ 下端は石の肩まで沿い、目地の上はまっすぐ(大工の光付けと同じ)
+        var spanLo = new float[N]; for (int n = 0; n < N; n++) spanLo[n] = float.NaN;
+        for (int s = 0; s < sTri.Count; s++) { var tr = T[sTri[s]]; for (int q = 0; q < 3; q++) { int n = tr[q]; if (span[n] && (float.IsNaN(spanLo[n]) || sB[s] < spanLo[n])) spanLo[n] = sB[s]; } }
+        for (int n = 0; n < N; n++) if (span[n] && !float.IsNaN(spanLo[n])) h[n] = spanLo[n];
+        for (int it = 0; it < 400; it++)
+        {
+            bool changed = false;
+            for (int ti = 0; ti < T.Count; ti++)
+            {
+                var tr = T[ti]; float worst = 1e-6f; Vector3 ww = Vector3.zero;
+                for (int s = tS0[ti]; s < tS1[ti]; s++)
+                {
+                    var w = sW[s]; float d = sB[s] - (h[tr[0]] * w.x + h[tr[1]] * w.y + h[tr[2]] * w.z);
+                    if (d > worst) { worst = d; ww = w; }
+                }
+                if (worst <= 1e-6f) continue;
+                // 重みの大きい頂点から上げる(上限まで・残りを次へ)
+                var ord = new[] { 0, 1, 2 }; var wv = new[] { ww.x, ww.y, ww.z };
+                Array.Sort(ord, (p, q) => wv[q].CompareTo(wv[p]));
+                float rest = worst;
+                foreach (int q in ord)
+                {
+                    if (wv[q] < 1e-4f || rest <= 1e-7f) continue;
+                    int n = tr[q]; float up = Mathf.Max(0f, Mathf.Min(rest / wv[q], cap[n] - h[n]));
+                    if (up > 0f) { h[n] += up; rest -= up * wv[q]; changed = true; }
+                }
+            }
+            if (!changed) break;
+        }
+        if (nSpan > 0 && nSpan < N)
+        {
+            var nb = new List<int>[N]; for (int n = 0; n < N; n++) nb[n] = new List<int>();
+            foreach (var tr in T) for (int q = 0; q < 3; q++) { int u = tr[q], v = tr[(q + 1) % 3]; if (!nb[u].Contains(v)) nb[u].Add(v); if (!nb[v].Contains(u)) nb[v].Add(u); }
+            var free = new bool[N]; var known = new bool[N];
+            for (int n = 0; n < N; n++) { free[n] = span[n] && float.IsNaN(spanLo[n]); known[n] = !free[n]; }
+            for (int it = 0; it < 4 * N; it++)
+            {
+                bool any = false;
+                for (int n = 0; n < N; n++)
+                {
+                    if (!free[n]) continue; float sum = 0f; int c = 0;
+                    foreach (int v in nb[n]) if (known[v]) { sum += h[v]; c++; }
+                    if (c > 0) { float nv = sum / c; if (!known[n] || Mathf.Abs(nv - h[n]) > 1e-6f) any = true; h[n] = nv; known[n] = true; }
+                }
+                if (!any) break;
+            }
+        }
+        // 動かす(床が代より深い格子点は動かさない)
+        var dY = new Dictionary<int, float>();
+        for (int n = 0; n < N; n++)
+        {
+            if (h[n] < nH0[n] - 1e-6f) { res.shortN++; h[n] = nH0[n]; continue; }
+            h[n] = Mathf.Min(h[n], ytop - SCRIBE_TOP_STOP);
+            foreach (int vi in nV[n]) dY[vi] = h[n] - nH0[n];
+            res.moved++;
+        }
+        // 下端の面と床の差(標本ごと)・三角形ごとの最悪の隙
+        var tWorst = new float[T.Count];
+        for (int s = 0; s < sTri.Count; s++)
+        {
+            var tr = T[sTri[s]]; var w = sW[s];
+            float d = h[tr[0]] * w.x + h[tr[1]] * w.y + h[tr[2]] * w.z - sB[s]; res.atariN++;
+            if (Mathf.Abs(d) > tWorst[sTri[s]]) tWorst[sTri[s]] = Mathf.Abs(d);
+            if (float.IsNaN(res.lo) || d < res.lo) res.lo = d;
+            if (float.IsNaN(res.hi) || d > res.hi) { res.hi = d; res.hiAt = gt.TransformPoint(new Vector3(sP[s].x, sB[s], sP[s].y)); }
+        }
+        // 隙が狙いを超えた三角形の最も長い辺を割って削り直す(元の形のメッシュ m はまだ動かしていない)
+        if (pass < SCRIBE_REFINE_PASSES)
+        {
+            var want = new HashSet<long>();
+            for (int ti = 0; ti < T.Count; ti++)
+            {
+                if (tWorst[ti] <= SCRIBE_GAP_TARGET) continue;
+                var tr = T[ti]; int ea = 0; float best = -1f;
+                for (int q = 0; q < 3; q++)
+                {
+                    int u = tr[q], v = tr[(q + 1) % 3];
+                    float el = new Vector2((nX[u] - nX[v]) * sxw, (nZ[u] - nZ[v]) * szw).magnitude; if (el > best) { best = el; ea = q; }
+                }
+                if (best < 2f * SCRIBE_REFINE_MIN) continue;
+                want.Add(ScribeEK(ScribePK(vs[nV[tr[ea]][0]]), ScribePK(vs[nV[tr[(ea + 1) % 3]][0]])));
+            }
+            int k = want.Count == 0 ? 0 : SplitEdges(m, want);
+            if (k > 0) { refined += k; continue; }
+        }
+        bool hasUv2 = uv2 != null && uv2.Length == vs.Length, hasUv = uv != null && uv.Length == vs.Length;
+        foreach (var kv in dY)
+        {
+            var l2 = L[kv.Key]; l2.y += kv.Value;
+            vs[kv.Key] = mt.InverseTransformPoint(gt.TransformPoint(l2));
+            if (hasUv && hasUv2) uv[kv.Key] += uv2[kv.Key] * kv.Value;
+        }
+        m.vertices = vs; if (hasUv) m.uv = uv;
+        try { m.uv2 = null; } catch (Exception) { m.uv2 = new Vector2[0]; }   // 削り終えたら uv2 を消す(ライトマップの UV と取り違えない)
+        m.RecalculateBounds(); m.RecalculateNormals(); m.RecalculateTangents();
+        mf.sharedMesh = EdoSolidMesh.Save(m, meshName);
+        return res;
+        }
+    }
+
+    /// <summary>**根入れで据える**(埋めて隠す・2026-09-27 施主「基本は埋める、違和感が見える所だけ光付け」── docs/oki-kata.md §0a)。
+    /// 部材の形は変えない(共有のメッシュのまま)。下端(局所の最も低い y)より下は相手(石・地面)の中に隠れる。測るのは**当たり**
+    /// (<paramref name="bedAt"/> が NaN でない所 = 石の天端・見えている地表)だけで、足跡の中を <paramref name="step"/> 刻みに引き、
+    /// 下端 − 相手 を返す(最大 &gt; 0 = 浮き・最小 = 最も深い根入れ)。跨ぎ(目地の上)は測らない。
+    /// 当たる先: <see cref="PostBoardRunScribed"/> の地覆・柱(scribe=false)。以後、代(下へ延ばした部分)を持つ部材の据え全て。</summary>
+    public static Scribe RootToBed(GameObject go, Func<float, float, float> bedAt, float step = 0.01f)
+    {
+        var res = new Scribe { lo = float.NaN, hi = float.NaN };
+        Transform gt = go.transform; float x0 = float.MaxValue, x1 = float.MinValue, z0 = float.MaxValue, z1 = float.MinValue, yb = float.MaxValue;
+        foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            foreach (var v in mf.sharedMesh.vertices)
+            { var l = gt.InverseTransformPoint(mf.transform.TransformPoint(v)); x0 = Mathf.Min(x0, l.x); x1 = Mathf.Max(x1, l.x); z0 = Mathf.Min(z0, l.z); z1 = Mathf.Max(z1, l.z); yb = Mathf.Min(yb, l.y); }
+        }
+        if (yb == float.MaxValue) return res;
+        float sxw = gt.TransformVector(Vector3.right).magnitude, szw = gt.TransformVector(Vector3.forward).magnitude;
+        int nx = Mathf.Max(1, Mathf.CeilToInt((x1 - x0) * sxw / step)), nz = Mathf.Max(1, Mathf.CeilToInt((z1 - z0) * szw / step));
+        for (int i = 0; i <= nx; i++)
+            for (int j = 0; j <= nz; j++)
+            {
+                var w = gt.TransformPoint(new Vector3(x0 + (x1 - x0) * i / nx, yb, z0 + (z1 - z0) * j / nz));
+                float b = bedAt(w.x, w.z); if (float.IsNaN(b)) { res.spanN++; continue; }
+                float d = w.y - b; res.atariN++;
+                if (float.IsNaN(res.lo) || d < res.lo) res.lo = d;
+                if (float.IsNaN(res.hi) || d > res.hi) { res.hi = d; res.hiAt = new Vector3(w.x, b, w.z); }
+                if (d > 0.01f) res.shortN++;
+            }
+        return res;
+    }
+
+    /// <summary>**柱・板・地覆の組で板塀の run を張り、地覆と柱の下端を床へ光付けする**(2026-09-27・EDO-0437 施主裁定 案A「板を石の天端・地面まで下ろす」)。
+    /// <para>1. 柱の間の割りは <see cref="PostBoardRun"/> と同じ(端の柱は外形の端を A/B に突き付け・間は柱身の芯を等分・柱間 = 板の幅 + 柱身の幅を実メッシュで測る)。
+    /// 2. 板と地覆は同じ変換で置く(地覆は板の真下に納まる枠 ── 部材の約束)。高さは**間ごとに地覆の足跡の下の床の最も高い所**へ板の y=0 を合わせる
+    /// (地覆の下端 −0.600 が光付けの代 ⇒ 間の床の起伏が 0.6 までは届く)。
+    /// 3. 柱は両隣の間の高い方の y=0 に合わせる(板の笠木と柱の頭の納まりを高い側で取る)。
+    /// 4. 既定(<paramref name="scribe"/>=false)は**根入れ** <see cref="RootToBed"/> ── 形を変えず、地覆と柱の代(下端 −0.600)を石・地面の中へ埋めて隠す。
+    /// 見た目に違和感が出る所だけ scribe=true で <see cref="ScribeToBed"/>(光付け)。どちらも当たりとの隙の最悪を <paramref name="log"/> へ
+    /// (2026-09-27 施主「基本は埋める・違和感が見える所だけ光付け」。光付けは石の段の足の楔 1.5cm が点を足しても縮まず、1 駒 50〜100 秒かかった)。</para>
+    /// ⛔ 走りの位置は柱身の断面・外形の射影で決める(規則21)。⛔ 板を傾けない。
+    /// 当たる先: 地覆の組で張る板塀の全て(山王 前庭の板塀 `Ita_ZN`・`Ita_ZNE`・`Ita_ZSW`・`Ita_ZSE`・`Ita_Niou_N`)。</summary>
+    public static List<GameObject> PostBoardRunScribed(Transform parent, Vector2 A, Vector2 B, Vector2 outward, string prefix,
+        string postPath, string boardPath, string jifukuPath, Func<float, float, float> bedAt, bool pair, System.Text.StringBuilder log, bool scribe = false)
+    {
+        var made = new List<GameObject>();
+        bedAt = MemoBed(bedAt, 0.00125f);   // 光付けと割り足しは同じ点を何度も引く ── 相手の面を 1.25mm の升で覚える
+        Vector2 dir = (B - A).normalized; float len = (B - A).magnitude; Vector2 nrm = new Vector2(-dir.y, dir.x);
+        float a0 = Vector2.Dot(A, dir);
+        float psi = Mathf.Atan2(outward.x, outward.y) * Mathf.Rad2Deg;
+        float boardW = RunMeasure(boardPath).W;
+        float gLo = float.NaN, gHi = float.NaN; Vector3 gHiAt = Vector3.zero; int shortN = 0, nScr = 0, nAtari = 0, nSpan = 0, nRef = 0;
+        Action<Scribe> Tally = s =>
+        {
+            nScr++; shortN += s.shortN; nAtari += s.atariN; nSpan += s.spanN; nRef += s.refined;
+            if (!float.IsNaN(s.lo) && (float.IsNaN(gLo) || s.lo < gLo)) gLo = s.lo;
+            if (!float.IsNaN(s.hi) && (float.IsNaN(gHi) || s.hi > gHi)) { gHi = s.hi; gHiAt = s.hiAt; }
+        };
+        for (int side = 0; side < (pair ? 2 : 1); side++)
+        {
+            float ry = side == 0 ? psi : psi + 180f; float latOff = side == 0 ? 0f : -0.12f; string sfx = side == 0 ? "f" : "b";
+            var probe = Place(postPath, Vector3.zero, ry, Vector3.one, parent, "_probe");
+            float fmn, fmx; ButtOnRun(probe, A, dir, outward, latOff, a0, out fmn, out fmx);
+            float bmn = float.MaxValue, bmx = float.MinValue;
+            foreach (var w in MidSection(probe)) { float q = w.x * dir.x + w.z * dir.y; bmn = Mathf.Min(bmn, q); bmx = Mathf.Max(bmx, q); }
+            UnityEngine.Object.DestroyImmediate(probe);
+            float bc = (bmn + bmx) * 0.5f, bodyW = bmx - bmn, fl = fmn - bc, fh = fmx - bc;
+            float c0 = a0 - fl, cn = a0 + len - fh, span = cn - c0;
+            int nb = Mathf.Max(1, Mathf.RoundToInt(span / (boardW + bodyW)));
+            float p = span / nb;
+            var y0 = new float[nb];
+            for (int k = 0; k < nb; k++)
+            {
+                float f0 = c0 + p * k + bodyW * 0.5f, f1 = c0 + p * (k + 1) - bodyW * 0.5f;
+                var sx = new Vector3((f1 - f0) / boardW, 1f, 1f);
+                var ita = Place(boardPath, Vector3.zero, ry, sx, parent, prefix + "_i" + k + sfx);
+                float mn, mx; ButtOnRun(ita, A, dir, outward, latOff, f0, out mn, out mx);
+                var jf = Place(jifukuPath, Vector3.zero, ry, sx, parent, prefix + "_j" + k + sfx);
+                jf.transform.SetPositionAndRotation(ita.transform.position, ita.transform.rotation);
+                // 間の床 = 地覆の足跡(実メッシュの走り × 厚み)の下の床の最も高い所
+                float s0 = float.MaxValue, s1 = float.MinValue, t0 = float.MaxValue, t1 = float.MinValue;
+                foreach (var mf in jf.GetComponentsInChildren<MeshFilter>())
+                    foreach (var v in mf.sharedMesh.vertices)
+                    { var w = mf.transform.TransformPoint(v); Vector2 q = new Vector2(w.x, w.z); float s = Vector2.Dot(q, dir), t = Vector2.Dot(q, nrm); s0 = Mathf.Min(s0, s); s1 = Mathf.Max(s1, s); t0 = Mathf.Min(t0, t); t1 = Mathf.Max(t1, t); }
+                float fmax = float.NaN;
+                for (float s = s0; s <= s1 + 1e-4f; s += 0.02f)
+                    for (int c = 0; c <= 2; c++)
+                    { Vector2 q = dir * Mathf.Min(s, s1) + nrm * (t0 + (t1 - t0) * c / 2f); float b = bedAt(q.x, q.y); if (!float.IsNaN(b) && (float.IsNaN(fmax) || b > fmax)) fmax = b; }
+                y0[k] = float.IsNaN(fmax) ? ita.transform.position.y : fmax;
+                foreach (var g in new[] { ita, jf }) { var ps = g.transform.position; ps.y = y0[k]; g.transform.position = ps; }
+                Tally(scribe ? ScribeToBed(jf, bedAt, "Jifuku_" + prefix + "_" + k + sfx) : RootToBed(jf, bedAt));
+                made.Add(ita); made.Add(jf);
+            }
+            for (int k = 0; k <= nb; k++)
+            {
+                var go = Place(postPath, Vector3.zero, ry, Vector3.one, parent, prefix + "_h" + k + sfx);
+                float mn, mx; ButtOnRun(go, A, dir, outward, latOff, c0 + p * k + fl, out mn, out mx);
+                float yy = Mathf.Max(k > 0 ? y0[k - 1] : float.MinValue, k < nb ? y0[k] : float.MinValue);
+                var ps = go.transform.position; ps.y = yy; go.transform.position = ps;
+                Tally(scribe ? ScribeToBed(go, bedAt, "Hashira_" + prefix + "_" + k + sfx) : RootToBed(go, bedAt));
+                made.Add(go);
+            }
+        }
+        if (log != null)
+            log.AppendLine("    " + prefix + ": 地覆の組で" + (scribe ? "光付け " : "根入れ ") + nScr + " 駒 ── 当たりの標本 " + nAtari + "・跨ぎ(目地の上・測らない) " + nSpan + "・細かく割った辺 " + nRef + " / 当たりの下端 − 相手 最小 " + gLo.ToString("F3") + " / 最大 " + gHi.ToString("F3") +
+                           "m @(" + gHiAt.x.ToString("F2") + ", " + gHiAt.y.ToString("F2") + ", " + gHiAt.z.ToString("F2") + ")" +
+                           (shortN > 0 ? (scribe ? " / ⚠ 床が代より深く届かない頂点 " : " / ⚠ 浮き(+0.01 超)の標本 ") + shortN : ""));
+        return made;
+    }
+
     /// <summary>**板塀の駒を描かれた地表の弦に張って据える**(2026-09-26・EDO-0437 第5巡)。駒の走り [<paramref name="mn"/>, <paramref name="mx"/>]
     /// (<paramref name="dir"/> への射影)の足の線に沿う床の高さ <paramref name="bedAt"/> の最小二乗の直線(弦)の勾配だけ走りの向きに傾け、実メッシュの**触れている箇所**
     /// (<see cref="ContactOn"/>)を床に合わせてから根入れ <paramref name="root"/> だけ沈める。

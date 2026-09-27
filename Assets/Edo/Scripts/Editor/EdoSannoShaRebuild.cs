@@ -1726,8 +1726,7 @@ public static class EdoSannoShaRebuild
                 KeepClearOfFlushWalls(pa, pb, name, sb);
                 RetractRunEndsFromWalls(pa, pb, pHalfT, pHgt, hasSeat, seat, name, sb);
                 ShiftRunToCutShoulder(pa, pb, pHalfT, pHgt, hasSeat, name, sb);
-                var dgB = hasSeat ? null : EdoBuild.Drawn();
-                Func<float, float, float> drawnBed = dgB == null ? (Func<float, float, float>)null : (x, z) => dgB.At(x, z);
+                // ⭐ 床は座の有無に依らず描かれた地表と土留めの天端で測る(2026-09-27 EDO-0437 案A ── 地覆と柱の下端を光付けする)
                 for (int i = 0; i < pa.Count; i++)
                 {
                     Vector2 a = pa[i], b = pb[i];
@@ -1740,19 +1739,15 @@ public static class EdoSannoShaRebuild
                     // ⭐ 座の無い run(地表なり)は描かれた地表の弦に張る(EdoBuild.SeatPanelOnBed・EDO-0437 第5巡)── Stage4 は皮(Stage9)の後に流す
                     //   ⭐ 足が土留めの天端に載る所は、床 = 描かれた地表と天端(触れている箇所)の高い方(第6巡)── 地表だけの弦は天端の下の皮へ傾き、
                     //   天端へ上げた後に反対の端が 0.46 浮いた(前庭の南西の板塀 `Ita_ZSW`)。受けは走りの近くの駒だけ(光線の数を抑える)
-                    Func<float, float, float> bedFn = null;
-                    if (!hasSeat)
-                    {
-                        var nearBeds = new List<GameObject>();
-                        foreach (var bd in beds) { var rb = EdoBuild.RB(bd); Vector2 cc = new Vector2(rb.center.x, rb.center.z); if (EdoGeom.DistToEdge(cc, a, b) < 3f + rb.extents.magnitude) nearBeds.Add(bd); }
-                        bedFn = nearBeds.Count == 0 ? drawnBed : (x, z) =>
-                        {
-                            float g = drawnBed(x, z), t = EdoBuild.BedTopAt(new Vector2(x, z), nearBeds, (float.IsNaN(g) ? 30f : g) + 8f);
-                            return float.IsNaN(t) ? g : float.IsNaN(g) ? t : Mathf.Max(g, t);
-                        };
-                    }
-                    var lst = EdoBuild.PanelRun(grp, a, b, outw, name, EdoAssets.Eg.Itabei5, Vector2.zero, -1, beds: beds, bedAt: hasSeat ? null : bedFn,
-                        splitPost: EdoAssets.Own.ItabeiHashira, splitBoard: EdoAssets.Own.ItabeiIta);
+                    //   ⭐ 天端は上を向いた面の最も高い所(EdoBuild.PartTops ── 升で引く。光付けは駒ごとに万の標本を引くので光線では遅い)
+                    var nearBeds = new List<GameObject>();
+                    foreach (var bd in beds) { var rb = EdoBuild.RB(bd); Vector2 cc = new Vector2(rb.center.x, rb.center.z); if (EdoGeom.DistToEdge(cc, a, b) < 3f + rb.extents.magnitude) nearBeds.Add(bd); }
+                    //   ⭐ 当たり = 石の天端と見えている地表だけ。目地の上は跨ぎ(EdoBuild.AtariBed ── docs/oki-kata.md §0a・2026-09-27 施主)
+                    var atari = new EdoBuild.AtariBed(nearBeds);
+                    Func<float, float, float> bedFn = atari.At;
+                    // ⭐ 柱・板・地覆の組で張り、地覆と柱の代(下端 −0.60)を石・地面へ埋めて据える(根入れ ── 2026-09-27 施主「基本は埋める・違和感が見える所だけ光付け」。EdoBuild.PostBoardRunScribed の scribe=false)
+                    var lst = EdoBuild.PostBoardRunScribed(grp, a, b, outw, name, EdoAssets.Own.ItabeiHashiraHk, EdoAssets.Own.ItabeiIta,
+                        EdoAssets.Own.ItabeiJifuku, bedFn, true, sb);
                     made += lst.Count;
                 }
             }

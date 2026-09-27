@@ -1507,6 +1507,8 @@ public static class EdoAssets
         /// 実寸(H1.50): X −0.909〜+0.59 × Y −0.23〜+1.50 × Z −0.909〜+0.56(面は法で下ほど前へ・稜線は対角に出る。背の列の上面は天端の線 = 帯 X ≤ 0・Z ≤ 0)。三角形 4,700(H0.3)〜16,200(H2.4)。
         /// 裏石は両腕の面から 0.36 より奥の正方形(X, Z ∈ −0.909〜−0.36)に敷き、奥の角(両腕から 0.78 より奥)は対角の向きに石ごとの深さで丸く切る。腕の先の端の裏石は直線の駒と同じ形(面から 0.6 まで切り口が一致・奥の角だけ腕2 の先を切り離す)。
         /// 材 `Kirishi` / `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// ⚠ H1.50 の a(北東の外の角 N_kado1)は −X の腕の先の小口の 26 面が内を向いていた(隣の直線の駒を ×0.53 に縮めて据えると口が開いて見えた)
+        ///   ⇒ 継ぎ目の平面に乗る面を外へ揃えて同じ名で焼き直した(2026-09-27 r16): blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_cap --h=1.5 --v=a
         /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- kado [--h=1.5] --render</summary>
         public static string SannoNozuraKado(float h, int i)
         {
@@ -1526,6 +1528,20 @@ public static class EdoAssets
         {
             return SannoNozuraKado(h, i).Replace(".fbx", "_cut" + char.ToUpperInvariant(axis)
                  + at.ToString("F3", System.Globalization.CultureInfo.InvariantCulture) + ".fbx");
+        }
+
+        /// <summary><see cref="SannoNozuraKadoCut(float,int,char,float)"/> の**切った側の腕を <paramref name="arm"/> に詰めた版**(EDO-0437 2026-09-27 r16)。
+        /// 返しの走りは北の縁の面から 0.48 しかなく、0.909 の腕の先の低い頭へ前庭の皮が引かれて窪んだ ⇒ 腕を稜線の面の線から arm(0.50)で平面に切って塞ぎ、
+        /// 詰めた端に掛かる石の頭を天端へ揃えた。あわせて袖の背の側の天端を**切り口の平面まで天端の 0.004〜0.012 下で通した**
+        /// (面の列・稜線の石の天端から 0.20 内を天端へ上げ、前の層(面から 0.10 内)を切り口の平面へ送って塊のまま凸包に焼き直す ──
+        /// 袖の背の天端の縁と丸い頭の間の谷(棟梁の実測 東 0.250・西 0.225)を塞ぐ)。残す腕の先の継ぎ目の小口は内向きの面を外へ揃えた。
+        /// 局所座標・ピボット(稜線・床レベル)・材は元と同じ。焼けている組: (0.90, b, 'x', 0.085, 0.50) = 西 Kiri_kado2 / (1.50, b, 'z', 0.097, 0.50) = 東 N_kado2。
+        /// 材 `Kirishi` / `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_cut --h=0.9 --v=b --axis=x --at=0.085 --arm=0.5 --render</summary>
+        public static string SannoNozuraKadoCut(float h, int i, char axis, float at, float arm)
+        {
+            string p = SannoNozuraKadoCut(h, i, axis, at);
+            return arm > 0f ? p.Replace(".fbx", "_L" + arm.ToString("F3", System.Globalization.CultureInfo.InvariantCulture) + ".fbx") : p;
         }
 
         /// <summary>**野面の乱積みの段の境の駒**(2026-09-25・帯 `SukibeiSoto` 29.65 → `SukibeiSoto_Chu` 29.25 の差 0.40 を 1間で流す)
@@ -2979,6 +2995,26 @@ public static class EdoAssets
         /// ⭐ 据えは「y=0 を床に合わせ、そこから根入れ」── 足の下端を床に当てない(0.30 が根入れの取り代)。
         /// 生成: blender --background --python Tools/Blender/build_itabei_bunkatsu.py -- [--render]</summary>
         public const string ItabeiHashira = "Assets/Edo/Models/Hei/Itabei_Hashira_N0.30.fbx";
+
+        /// <summary>**板塀の地覆(板の下の横木)1間・光付けの代つき**(2026-09-27・EDO-0437 施主裁定 案A「板を石の天端・地面まで下ろす」)。
+        /// <see cref="ItabeiIta"/> の真下に通し、**下端を据えた所の地表・石の天端へ光付け(削り合わせ)**して接地 ±0.01 に納める。
+        /// ローカル(実寸・scale 1): **板と同じ枠** ── ピボット = 板の中心・板の y=0。x ±0.7050(= 板の端 = 柱の面)/
+        /// 上端 y = +0.1171(= 板の下端・接する)/ 下端 y = **−0.600**(光付けの代)/ z ±0.0373(= <see cref="ItabeiHashiraHk"/> の柱身と面一)。
+        /// ⭐ **板と同じ変換(位置・回転・走りの縮尺)で置けば板の真下に納まる。**
+        /// 【光付けの印】局所 y ≤ −0.599 の頂点(下端の 4 隅だけ ── 点は出来るかぎり少なく・2026-09-27 施主。⭐ 既定は削らず根入れ `EdoBuild.RootToBed` で代を石・地面に埋める)が削る頂点。
+        /// `mesh.uv2` = その頂点の d(uv)/dy(地覆は (0.16316, 0)・下面は 0)⇒ Δy 上げたら `uv += uv2·Δy`、削り終えたら uv2 を消す。
+        /// 手本: `build_itabei_jifuku.py` の `scribe()`。材 `itabei`(貫と同じアトラスの帯)。
+        /// 生成: blender --background --python Tools/Blender/build_itabei_jifuku.py -- [--render]</summary>
+        public const string ItabeiJifuku = "Assets/Edo/Models/Hei/Itabei_Jifuku_1.410_Hk0.60.fbx";
+
+        /// <summary>**板塀の柱1本・光付けの代つき**(<see cref="ItabeiJifuku"/> と組・2026-09-27・EDO-0437 案A)。在庫の柱身(0.0812×0.0746)を
+        /// そのまま使い、**根元の台(小さな礎石)を外して**下へ y = −0.600 まで継いだ物(継ぎ足しの UV は柱身の下端から上へ折り返す)。
+        /// 台を外したのは、地覆の小口と 0.028 重なり、野面の上では台そのものが浮くため。
+        /// ローカル(実寸・scale 1): ピボット = 柱の芯・板の y=0。頭 y = +1.4387 / 下端 y = **−0.600**(光付けの代)/ x ±0.0406・z ±0.0373。
+        /// 【光付けの印】局所 y ≤ −0.599 の頂点(下端の隅だけ。⭐ 既定は削らず根入れ `EdoBuild.RootToBed`)。`mesh.uv2` = d(uv)/dy(側面ごと)。削り方は <see cref="ItabeiJifuku"/> と同じ。
+        /// ⛔ 旧の <see cref="ItabeiHashira"/>(根入れ 0.30 で地中へ沈める)と混ぜない。
+        /// 生成: blender --background --python Tools/Blender/build_itabei_jifuku.py -- [--render]</summary>
+        public const string ItabeiHashiraHk = "Assets/Edo/Models/Hei/Itabei_Hashira_Hk0.60.fbx";
 
         // ---------------------------------------------------------------- 庭の点景(岡部邸)
         // 指図 `gardens[]` / 算出物 `okabe_impl.json` の `gardens[].asset` が指す部材。

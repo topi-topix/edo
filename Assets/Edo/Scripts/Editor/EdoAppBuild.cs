@@ -63,6 +63,15 @@ public static class EdoAppBuild
             Debug.LogError($"[書き出し] {target} の書き出し部品が Unity に入っていない(Unity Hub ▸ インストール ▸ モジュールを加える)");
             return null;
         }
+        // ⛔ 開いているシーンに未保存の変更があると、書き出しの前に Unity が「保存しますか」のモーダルを出して
+        //   主スレッドが止まる(MCP からは押せない・2026-09-27 に作業場 Koba で踏んだ)。保存するかは持ち主の窓が決めるので、ここでは断る
+        for (int i = 0; i < SceneManager.sceneCount; i++)
+        {
+            var sc = SceneManager.GetSceneAt(i);
+            if (!sc.isDirty) continue;
+            Debug.LogError($"[書き出し] 断った: 開いているシーン {sc.path} に未保存の変更がある(持ち主の窓が保存か破棄を決めてから)");
+            return null;
+        }
         OnlyAkasaka();
         int app = EnsureAppQuality();
 

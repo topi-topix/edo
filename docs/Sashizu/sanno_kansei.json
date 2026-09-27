@@ -1,43 +1,43 @@
 {
  "_": "完成条件の表(2026-09-19 施主裁定3=A)。全部 pass で完成。以後の指摘は掲示板へ積み、指図は開かない。値は普請検査の実測、render だけは施主の発話の引用。見張りは python3 Tools/Sashizu/kansei_gate.py",
  "estate": "sanno",
- "phase": "done",
+ "phase": "built",
  "since": "2026-09-20",
  "items": {
   "gap": {
    "label": "隙 0",
    "what": "塀と塀・門と塀・長屋 run の駒どうしの隙・めり込み・裏表(許容 0)",
    "how": "edo-fushin-qa 項目 6(run の格子)・7(裏表)・8(門の取り合い)、JointQA / GateQA",
-   "value": "皮と部材の隙 A/B/C 0・透塀の口 0(150.12m)・土留め裏向き 0/213",
-   "verdict": "pass",
-   "at": "2026-09-26",
+   "value": "参道の階 見通しの穴7行 最大0.030(目地)・めり込み0(8方向 最大0.001)・男坂 TW_Zentei_W_mikiri1×TW_Otoko_S_000f 0.071 残る(EDO-0459)・隅石の透け58本(近景で穴として見えず)・前庭の皮の窪み 東0.423m²/西0.352m²(14.40未満 0.095/0.104)が前庭から見える",
+   "verdict": "fail",
+   "at": "2026-09-27",
    "note": ""
   },
   "boundary": {
    "label": "境界侵犯 0",
    "what": "棟・塀・木・石が区画 / 庭の区域 / 建物 / 水面 / 道へ入らない",
    "how": "edo-fushin-qa 項目 1(境界)と区域の点検(EdoGeom.PIP)",
-   "value": "駒の越境0(鳥居2基は宣言済)・道に面した囲い/土留め<2.0m 0本(最小2.025m・角石は道側の天端帯で数えて北西角2.372m)・道辺最小2.018m・隣地辺2.089m・実体上の幹0",
+   "value": "越境0(最小0.099)・木 部材上0/道<2m 0(最小2.10)",
    "verdict": "pass",
-   "at": "2026-09-26",
+   "at": "2026-09-27",
    "note": ""
   },
   "ground": {
    "label": "埋没・浮き 0",
-   "what": "埋 ≤1.0 / 浮 ≤0.7 を超える駒が 0",
+   "what": "埋 ≤1.0 / 浮 ≤0.01 を超える駒が 0(oki-kata §4)",
    "how": "edo-fushin-qa 項目 2(接地)と GroundQA",
-   "value": "皮の隙B(駒浮き)0・踏面埋没0・木1,944本 幹の芯-0.007〜+0.191m・根元浮き最大0.044m",
-   "verdict": "pass",
-   "at": "2026-09-26",
+   "value": "踏面埋没0/242・天端と皮の重なり0・皮との隙0・裏表0/210・板塀ZN/ZNEの板が窪みの上で0.164/0.198浮く・ZSE 根入れ0.385/板の浮き0.340(r13と同じ)",
+   "verdict": "fail",
+   "at": "2026-09-27",
    "note": ""
   },
   "match": {
    "label": "突き合わせ 0",
    "what": "指図(意図)と実装の食い違いが 0 件",
    "how": "Unity メニュー Edo/<敷地>/指図と実装を突き合わせる",
-   "value": "突き合わせ0件(全6部門)・社叢1,944本 点と全数対応",
+   "value": "0件(段幅5.490×5)・板塀の端の離れ0.456(0.25間)",
    "verdict": "pass",
-   "at": "2026-09-26",
+   "at": "2026-09-27",
    "note": ""
   },
   "render": {
@@ -51,7 +51,7 @@
    "quote": "意図通りです。409クローズしてください。"
   }
  },
- "completed": "2026-09-26",
+ "completed": null,
  "history": [
   {
    "at": "2026-09-20T12:09:04+09:00",
@@ -527,6 +527,102 @@
    "at": "2026-09-26T08:51:26+09:00",
    "event": "record",
    "item": "render",
+   "verdict": "pass"
+  },
+  {
+   "at": "2026-09-26T19:12:30+09:00",
+   "event": "record",
+   "item": "gap",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-26T19:12:30+09:00",
+   "event": "record",
+   "item": "boundary",
+   "verdict": "pass"
+  },
+  {
+   "at": "2026-09-26T19:12:30+09:00",
+   "event": "record",
+   "item": "ground",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-26T19:12:30+09:00",
+   "event": "record",
+   "item": "match",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-26T21:57:50+09:00",
+   "event": "record",
+   "item": "gap",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-26T21:57:50+09:00",
+   "event": "record",
+   "item": "boundary",
+   "verdict": "pass"
+  },
+  {
+   "at": "2026-09-26T21:57:50+09:00",
+   "event": "record",
+   "item": "ground",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-26T21:57:50+09:00",
+   "event": "record",
+   "item": "match",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-27T11:21:16+09:00",
+   "event": "record",
+   "item": "gap",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-27T11:21:16+09:00",
+   "event": "record",
+   "item": "boundary",
+   "verdict": "pass"
+  },
+  {
+   "at": "2026-09-27T11:21:16+09:00",
+   "event": "record",
+   "item": "ground",
+   "verdict": "pass"
+  },
+  {
+   "at": "2026-09-27T11:21:16+09:00",
+   "event": "record",
+   "item": "match",
+   "verdict": "pass"
+  },
+  {
+   "at": "2026-09-27T12:43:58+09:00",
+   "event": "record",
+   "item": "gap",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-27T12:43:58+09:00",
+   "event": "record",
+   "item": "boundary",
+   "verdict": "pass"
+  },
+  {
+   "at": "2026-09-27T12:43:58+09:00",
+   "event": "record",
+   "item": "ground",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-27T12:43:58+09:00",
+   "event": "record",
+   "item": "match",
    "verdict": "pass"
   }
  ]

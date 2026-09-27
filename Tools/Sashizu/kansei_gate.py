@@ -52,7 +52,7 @@ ITEMS = collections.OrderedDict([
                   "what": "棟・塀・木・石が区画 / 庭の区域 / 建物 / 水面 / 道へ入らない",
                   "how": "edo-fushin-qa 項目 1(境界)と区域の点検(EdoGeom.PIP)"}),
     ("ground", {"label": "埋没・浮き 0",
-                "what": "埋 ≤1.0 / 浮 ≤0.7 を超える駒が 0",
+                "what": "埋 ≤1.0 / 浮 ≤0.01 を超える駒が 0(oki-kata §4)",
                 "how": "edo-fushin-qa 項目 2(接地)と GroundQA"}),
     ("match", {"label": "突き合わせ 0",
                "what": "指図(意図)と実装の食い違いが 0 件",

@@ -301,4 +301,68 @@ public static partial class EdoBuild
             return best;
         }
     }
+
+    /// <summary>**崖の縁の石垣に載せる塀を、区画の線から内へ寄せる量**[m]。線 a→b に沿って、足あと(内へ o ± <paramref name="half"/>)の下が
+    /// 石垣の天端の面(<paramref name="bed"/> ≥ 天端 − 0.05)に載る割合を測り、<paramref name="need"/> 以上になる最小の o を返す
+    /// (届かなければ割合の最も高い o)。<paramref name="frac"/> にその割合。
+    /// ⭐ 石垣は区画の中に納める(背の端が線の際)ので、天端の面は線から内へ 0.4〜1.0m の帯にしか無い(野面の背の不揃い)。
+    /// ⛔ 線の上に芯を置くと足あとの外の半分が地面に掛かり、座が地面の最低へ引かれて塀が沈む(観理院の西 1.5m・2026-09-28)。</summary>
+    public static float RimFenceInset(BedIndex bed, Vector2 a, Vector2 b, Vector2 inw, float half, float crest, float maxIn, float need, out float frac)
+    {
+        float L = Vector2.Distance(a, b); var d = (b - a) / Mathf.Max(L, 1e-4f);
+        float bestO = half + 0.02f, bestF = -1f;
+        for (float o = half + 0.02f; o <= maxIn + 1e-3f; o += 0.05f)
+        {
+            int n = 0, ok = 0;
+            for (float u = 0.25f; u <= L - 0.25f + 1e-3f; u += 0.25f)
+                foreach (float lat in new[] { o - half, o, o + half })
+                {
+                    var q = a + d * u + inw * lat; n++;
+                    float v = bed != null ? bed.At(q.x, q.y) : float.NaN;
+                    if (!float.IsNaN(v) && v >= crest - 0.05f) ok++;
+                }
+            float f = n > 0 ? ok / (float)n : 0f;
+            if (f > bestF + 1e-4f) { bestF = f; bestO = o; }
+            if (f >= need) { frac = f; return o; }
+        }
+        frac = bestF; return bestO;
+    }
+
+    // ============================================================ 区画の角の塀の口(2026-09-28・EDO-0477 P2 隅)
+    /// <summary>囲いの駒の**足元の面**が区画の線からどれだけ外(<paramref name="hOut"/>)・内(<paramref name="hIn"/>)にあるか[m]。
+    /// 駒の足元の水平断面(<see cref="SectionAt"/>・高さ 0.05)の実寸から測る。<see cref="CornerReach"/> が隅の延ばしに使う。
+    /// 表裏の対(板塀の型 = DobeiRun)は表が線の上・裏が 0.2 内なので、内の面は裏の内の面。杭・矢来など連続しない種別は 0。</summary>
+    public static void FenceFaceOffsets(string kind, out float hOut, out float hIn)
+    {
+        hOut = hIn = 0f;
+        Func<string, float, float> half = (path, sc) =>
+        {
+            float z0 = float.MaxValue, z1 = float.MinValue;
+            foreach (var v in SectionAt(path, Vector3.zero, 0f, 0.05f / sc, false)) { z0 = Mathf.Min(z0, v.z); z1 = Mathf.Max(z1, v.z); }
+            return z1 > z0 ? (z1 - z0) * 0.5f * sc : 0f;
+        };
+        switch (kind)
+        {
+            case "dobei": hOut = hIn = half(EdoAssets.Own.Dobei2m, 1f); break;   // 練塀(一体物・芯が線の上)
+            case "yarai": case "boji": case "kui": case "none": case "nagaya": break;
+            default: { float h = half(PHei, ES); hOut = h; hIn = 0.2f + h; break; }   // ita / ita+ikegaki / ishigaki+hei / 既定
+        }
+    }
+
+    /// <summary>**区画の角で塀の run を頂点の先へ延ばす長さ**[m]。
+    /// 辺の線に芯を置いた二本の run が頂点で切れると、折れの外側(出隅なら区画の外の面・入隅なら内の面)に楔形の口が開く
+    /// ── 観理院の西の隅で 0.38m・0.13m(2026-09-28 EDO-0468 の検査)。両方の run を「その側の面の線からの離れ × tan(折れ/2)
+    /// + 0.02」だけ延ばすと、二本の面が交点まで届いて口が閉じる(内側は重なる ── 駒どうしの埋め込みは数えない・§0a)。
+    /// ⛔ 2026-09-28 までは「隅は留め継ぎが未解決なので開放」(NeribeiRun の注記)のまま、全邸の角に口を残していた。
+    /// <paramref name="dPrev"/>/<paramref name="dThis"/> = 頂点へ入る辺・出る辺の向き、<paramref name="outPrev"/> = 入る辺の外向き。
+    /// 条件は**硬い**(隙は許容0)── 延ばせない鋭い折り返し(135° 超)は 0 を返し、口は検査が拾う。</summary>
+    public static float CornerReach(Vector2 dPrev, Vector2 dThis, Vector2 outPrev, float hOut, float hIn)
+    {
+        dPrev.Normalize(); dThis.Normalize();
+        float th = Mathf.Acos(Mathf.Clamp(Vector2.Dot(dPrev, dThis), -1f, 1f));
+        if (th < 1e-3f || th > Mathf.PI * 0.75f) return 0f;
+        bool convex = Vector2.Dot(dThis, outPrev) < 0f;               // 出る辺が内へ折れる = 出隅
+        float h = convex ? hOut : hIn;
+        return h <= 0f ? 0f : h * Mathf.Tan(th * 0.5f) + 0.02f;
+    }
 }

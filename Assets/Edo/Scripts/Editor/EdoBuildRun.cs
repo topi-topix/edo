@@ -1339,17 +1339,23 @@ public static partial class EdoBuild
     {
         // ⭐ 測るのは**下端に届いている駒の足跡だけ**(2026-09-28 EDO-0477 施主「接すると決めた所以外をなぜ測る」)。
         //    ⛔ 2026-09-28 まで全メッシュの外形の四角を下端の高さで引き、棟では屋根の軒の出の下の地面まで「浮き」に数えた
-        //    (観理院の護摩堂 0.018m ── 縁も壁も 0.000)。塀の駒は一つの駒が足跡いっぱいに着くので結果は変わらない。
+        //    (観理院の護摩堂 0.018m ── 縁も壁も 0.000)。
         var res = new Scribe { lo = float.NaN, hi = float.NaN };
         Transform gt = go.transform; float yb = float.MaxValue;
         var boxes = new List<float[]>();   // 駒ごとの局所 [x0,x1,z0,z1,y0]
         foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
         {
             if (mf.sharedMesh == null) continue;
-            float x0 = float.MaxValue, x1 = float.MinValue, z0 = float.MaxValue, z1 = float.MinValue, y0 = float.MaxValue;
-            foreach (var v in mf.sharedMesh.vertices)
-            { var l = gt.InverseTransformPoint(mf.transform.TransformPoint(v)); x0 = Mathf.Min(x0, l.x); x1 = Mathf.Max(x1, l.x); z0 = Mathf.Min(z0, l.z); z1 = Mathf.Max(z1, l.z); y0 = Mathf.Min(y0, l.y); }
+            // ⭐ 足跡の箱は**下端から ROOT_TOUCH 以内の頂点**だけで作る(2026-09-28 EDO-0477)。
+            //    ⛔ 全頂点の箱では、笠・軒と一体の 1 メッシュの駒(練塀 Dobei2m・長屋)で箱が笠の幅まで広がり、笠の下の
+            //    石垣の見え面を「浮き 0.93m」と測って、観理院の西の石垣の上の塀を一続きごと 1m 沈めた。
+            var ls = new List<Vector3>(); float y0 = float.MaxValue;
+            foreach (var v in mf.sharedMesh.vertices) { var l = gt.InverseTransformPoint(mf.transform.TransformPoint(v)); ls.Add(l); y0 = Mathf.Min(y0, l.y); }
             if (y0 == float.MaxValue) continue;
+            float x0 = float.MaxValue, x1 = float.MinValue, z0 = float.MaxValue, z1 = float.MinValue;
+            float yTol = ROOT_TOUCH / Mathf.Max(1e-6f, gt.TransformVector(Vector3.up).magnitude);
+            foreach (var l in ls)
+            { if (l.y > y0 + yTol) continue; x0 = Mathf.Min(x0, l.x); x1 = Mathf.Max(x1, l.x); z0 = Mathf.Min(z0, l.z); z1 = Mathf.Max(z1, l.z); }
             boxes.Add(new[] { x0, x1, z0, z1, y0 }); yb = Mathf.Min(yb, y0);
         }
         if (yb == float.MaxValue) return res;

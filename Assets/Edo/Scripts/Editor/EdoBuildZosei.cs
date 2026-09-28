@@ -225,25 +225,35 @@ public static partial class EdoBuild
     /// <summary>崖とみなす横断勾配(高さ/水平)。1:1.4(約 35°)より急なら崖。【確度 U】── 盛土の法 1:1.5 より急な地山は人が土で保てない。</summary>
     public const float CLIFF_SLOPE = 0.7f;
 
-    /// <summary>**辺のうち崖下でない区間**(2026-09-28・EDO-0477。施主の規則「崖の線は面の縁だけ囲う・崖の中腹と崖下に塀を建てない」)。
-    /// 辺 a→b に沿って 1m ごとに、造成前の地盤(base_dem)を線の内外 ±1m で読み、内が低い崖(内が CLIFF_SLOPE より急に落ちる)の所を外し、
-    /// 残る区間を [t0, t1](a からの距離)で返す。<paramref name="minSpan"/> より短い区間は捨てる。崖の上の側は囲う(面の縁)ので外さない。
-    /// ⛔ 崖下の線に塀を建てると、厚みのあいだで地面が 1m 近く落ち、根入れ 0.60 でも着かない(観理院 辺1 の 25m)。
+    /// <summary>**辺のうち塀が立てる区間**(2026-09-28・EDO-0477。施主の規則「崖の線は面の縁だけ囲う・崖の中腹に塀を建てない」)。
+    /// 辺 a→b に沿って 0.25m ごとに、**今の地面**(造成の後)で塀の足あとの下を読み、崖に掛かる所を外して、
+    /// 残る区間を [t0, t1](a からの距離)で返す。<paramref name="minSpan"/> より短い区間は捨てる。崖とみなすのは:
+    /// ① 線に沿って ±0.5m の勾配が CLIFF_SLOPE より急(塀が崖を登る)② 線から内へ 0.5m の勾配が CLIFF_SLOPE より急(塀の内の半分が崖の面に掛かる)。
+    /// ⭐ 線の外が高いだけの所(崖の裾・施主裁定X で線を寄せた所)は囲う ── 外の半分は崖の裾へ埋めて据える(根入れが基本・§0a)。
+    /// ⛔ 2026-09-28 までは造成前の地盤で線の内外 ±1m の差を見ていて、造成で平らになった崖の裾まで崖と数え、
+    /// 観理院 辺4 の頭 6m(うち平ら 3m)を素通しにした(EDO-0468 の検査・人が通れる口)。
     /// 当たる先: 類型の全区画の囲い(塀・柵の種別)。長屋の囲いは棟なので別に扱う(未)。</summary>
     public static List<float[]> CliffFreeSpans(Vector2 a, Vector2 b, Vector2 outward, float minSpan, out float cliffLen)
     {
-        var dem = BaseDem(); var outp = new List<float[]>(); cliffLen = 0f;
+        var outp = new List<float[]>(); cliffLen = 0f;
         float L = (b - a).magnitude; if (L < 1e-3f) return outp;
         var d = (b - a) / L; var inN = -outward.normalized;
-        float start = 0f; bool open = true;
-        for (float s = 0f; s <= L + 1e-3f; s += 1f)
+        // ⭐ 刻み 0.25m・区間は**最後の崖でない標本**で終える(⛔ 崖と判じた標本で終えると最後の駒が崖へ登った ── 観理院 辺4 の下端 8.15)
+        const float STEP = 0.25f;
+        float start = 0f, lastOk = 0f; bool open = true;
+        for (float s = 0f; s <= L + 1e-3f; s += STEP)
         {
             float t = Mathf.Min(s, L); var p = a + d * t;
-            float gi = dem(p.x + inN.x, p.y + inN.y), go = dem(p.x - inN.x, p.y - inN.y);
-            bool cliff = !float.IsNaN(gi) && !float.IsNaN(go) && (gi - go) / 2f < -CLIFF_SLOPE;
-            if (cliff) cliffLen += 1f;
-            if (cliff && open) { if (t - start >= minSpan) outp.Add(new[] { start, t }); open = false; }
+            var p0 = a + d * Mathf.Max(0f, t - 0.5f); var p1 = a + d * Mathf.Min(L, t + 0.5f);
+            float g = Ground(p.x, p.y), gi = Ground(p.x + inN.x * 0.5f, p.y + inN.y * 0.5f);
+            float g0 = Ground(p0.x, p0.y), g1 = Ground(p1.x, p1.y);
+            bool cliff = !float.IsNaN(g) && !float.IsNaN(gi) && !float.IsNaN(g0) && !float.IsNaN(g1)
+                         && (Mathf.Abs(g1 - g0) / Mathf.Max(0.01f, (p1 - p0).magnitude) > CLIFF_SLOPE
+                             || Mathf.Abs(g - gi) / 0.5f > CLIFF_SLOPE);
+            if (cliff) cliffLen += STEP;
+            if (cliff && open) { if (lastOk - start >= minSpan) outp.Add(new[] { start, lastOk }); open = false; }
             else if (!cliff && !open) { start = t; open = true; }
+            if (!cliff) lastOk = t;
         }
         if (open && L - start >= minSpan) outp.Add(new[] { start, L });
         cliffLen = Mathf.Min(cliffLen, L);

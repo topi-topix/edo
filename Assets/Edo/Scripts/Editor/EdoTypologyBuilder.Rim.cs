@@ -16,6 +16,20 @@ public static partial class EdoTypologyBuilder
     /// <summary>塀の厚みの半分[m]。<see cref="Rim"/> が練塀の駒の実メッシュから測って入れる(既定は測る前の仮)。</summary>
     static float RIM_WALL_HALF = 0.21f;
 
+    /// <summary>辺 <paramref name="e"/> の囲いを区画の角で頂点の先へ延ばす長さ(始点 <paramref name="atA"/>・終点 <paramref name="atB"/>)。
+    /// 型は <see cref="EdoBuild.CornerReach"/>(区画の角の塀の口を閉じる・EDO-0477 P2 隅)。隣の辺が長屋でも延ばす(長屋の妻に隠れる)。</summary>
+    static void CornerReaches(List<Edge> edges, Edge e, string kind, out float atA, out float atB)
+    {
+        atA = atB = 0f;
+        float hOut, hIn; EdoBuild.FenceFaceOffsets(kind, out hOut, out hIn);
+        if (hOut <= 0f && hIn <= 0f) return;
+        var d = (e.b - e.a).normalized;
+        var prev = edges.FirstOrDefault(x => x != e && (x.b - e.a).sqrMagnitude < 1e-4f);
+        var next = edges.FirstOrDefault(x => x != e && (x.a - e.b).sqrMagnitude < 1e-4f);
+        if (prev != null) atA = EdoBuild.CornerReach((prev.b - prev.a), d, prev.outward, hOut, hIn);
+        if (next != null) atB = EdoBuild.CornerReach(d, (next.b - next.a), e.outward, hOut, hIn);
+    }
+
     static string Rim(Spec s, Transform root, Vector2[] poly, List<Edge> edges, Edge front, List<Edge> machiyaFronts,
                       List<Vector2[]> pads, List<float> padY, List<EdoBuild.RimRun> rims, out EdoBuild.BedIndex bed)
     {
@@ -44,10 +58,11 @@ public static partial class EdoTypologyBuilder
         float back = 0f;
         foreach (var v in EdoBuild.BodyAt(EdoAssets.Own.SannoNozura(hPick, 0f, 0), Vector3.zero, 0f, true)) back = Mathf.Max(back, -v.z);
         float off = back + 0.02f;
-        // 塀の厚みの半分(練塀の駒の壁体の実メッシュ ── 走りは X・笠の瓦は外す)
+        // 塀の厚みの半分(練塀の駒の**足元の水平断面** ── 走りは X。座に当たるのは足元の下見板)
+        //   ⛔ 全頂点の幅で採らない: 笠の瓦は壁体と一つのメッシュで屋根の名が付かず、屋根の総幅 1.00 を拾って 0.50 と出た。
         {
             float z0 = float.MaxValue, z1 = float.MinValue;
-            foreach (var v in EdoBuild.BodyAt(EdoAssets.Own.Dobei2m, Vector3.zero, 0f, false)) { z0 = Mathf.Min(z0, v.z); z1 = Mathf.Max(z1, v.z); }
+            foreach (var v in EdoBuild.SectionAt(EdoAssets.Own.Dobei2m, Vector3.zero, 0f, 0.05f, false)) { z0 = Mathf.Min(z0, v.z); z1 = Mathf.Max(z1, v.z); }
             if (z1 > z0) RIM_WALL_HALF = (z1 - z0) * 0.5f;
         }
         sb.AppendLine(string.Format("    天端の線 = 区画の線を内へ {0:F2}m(駒 H{1:F2} の背の深さ {2:F2} + 0.02)・塀の厚みの半分 {3:F2}(実測)", off, hPick, back, RIM_WALL_HALF));

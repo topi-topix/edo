@@ -1107,7 +1107,7 @@ public static partial class EdoTypologyBuilder
           + " / 軒から **樹冠の外接円**で 最小 {7:F2}m(層ごとの下限 0.2〜0.4m・割った駒は据えてから落とす→次行)\n"
           + "      樹冠の投影の被覆率 {8:P0} {9}(union・下草/飛石/景石/灯籠/井戸を除く全層・不合格は 50%超{20})"
           + " / 常緑:落葉 = {10:P0}:{11:P0} {21}(高木+中木 {22}本が分母・この型の落葉の許容 {23:P0}〜{24:P0})\n"
-          + "      置けなかった駒 {12}(退避で拒んだ)/ 据えてから落とした駒: 軒へ食い込み {17}・区画の線を越え {25}(うち内へ寄せて据わった駒 {30}・寄せても駄目で落とした数がこの {25})・急斜面で据わらず {26}(最悪 {27:F2}m)"
+          + "      置けなかった駒 {12}(退避で拒んだ)/ 据えてから落とした駒: 軒へ食い込み {17}・区画の線を越え {25}(うち内へ寄せて据わった駒 {30}・寄せても駄目で落とした数がこの {25})・急斜面で据わらず {26}(最悪 {27:F2}m)・参道の帯へずれた {31}"
           + " / 起伏が大きく間引かずに据え直した駒 {28} / 幹の芯が測れなかった駒 {29}\n"
           + "      意図: {13}\n      実際: {14}",
             mark, f.Komas.Count, NIWA_BUDGET, f.InBand, evenClump, twin,
@@ -1115,6 +1115,6 @@ public static partial class EdoTypologyBuilder
             cov, covMark, 1f - deRatio, deRatio, f.Refused,
             string.Join(" / ", want.ToArray()), string.Join(" / ", got.ToArray()), perClump.Count,
             g, f.DropEave, covLo, covHi, g == "ura" ? "と 3%未満" : "と 5%未満", deMark, tall, deLo, deHi,
-            f.DropEdge, f.DropSteep, f.WorstSteep, f.Reseat, f.TrunkNaN, f.Nudged);
+            f.DropEdge, f.DropSteep, f.WorstSteep, f.Reseat, f.TrunkNaN, f.Nudged, f.DropBand);
     }
 }

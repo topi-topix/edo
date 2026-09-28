@@ -111,7 +111,7 @@ public static partial class EdoTypologyBuilder
             int made = 0;
             for (int sd = -1; sd <= 1; sd += 2)
             {
-                var p = gateC + vDir * vAt + uDir * (hallUc + sd * (half + 1.2f + r));
+                var p = gateC + vDir * vAt + uDir * (sd * (half + 1.2f + r));   // 参道の軸の左右(本堂の芯でない ── 本堂が軸から外れると片方が参道へ入った 2026-09-28)
                 if (f.Put(grp, EdoAssets.Eg.ToroKasuga, p, JYaw(front.outward), ES, 0f, "Kenntou_" + (sd < 0 ? "L" : "R"), "献灯", o) != null) made++;
             }
             want.Add("献灯 2(一対)"); got.Add("献灯 " + made);

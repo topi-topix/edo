@@ -321,7 +321,7 @@ public static partial class EdoBuild
         /// <c>DropEave</c> = 実バウンズで軒へ食い込んだ / <c>DropEdge</c> = 実バウンズが区画の線を越えた /
         /// <c>DropSteep</c> = 急斜面で据わらなかった(間引かずに据え直しても埋没>1.0 か 浮き>0.7)。
         /// <c>Reseat</c> = 足元の起伏が大きいので間引かずに据え直した数・<c>TrunkNaN</c> = 幹の芯が測れなかった数。</summary>
-        public int DropEave, DropEdge, DropSteep, Reseat, TrunkNaN, Nudged;
+        public int DropEave, DropEdge, DropSteep, Reseat, TrunkNaN, Nudged, DropBand;
         // Put が区画の線で断ったときの控え — 越えた量と実樹冠(呼び手の Put が内へ寄せ直すのに使う)
         float _edgeNeed, _lastRR;
         public float WorstSteep;
@@ -569,6 +569,9 @@ public static partial class EdoBuild
             // ⭐ 軒は据えた後の実バウンズで検め直す — Free は推定の樹冠で判じるので、実物が大きい木は
             //    屋根へ枝が食い込む(検分⑧「Put の後に実バウンズで軒を検め直し、割ったら落とす」)。
             if (de < o.PadEave) { UnityEngine.Object.DestroyImmediate(go); DropEave++; return null; }
+            // ⭐ 参道の帯も据えた後の実の芯で検め直す(2026-09-28 EDO-0477 観理院 ── 区画を寄せたら 1 駒が帯へ入った。
+            //    Free は据える前の狙いの点で判じ、実の芯が帯へずれた)。許容0 は建てる時点で退ける(検査で捕まえない)。
+            if (InBandFor(c, o.Tall || CurClump > 0)) { UnityEngine.Object.DestroyImmediate(go); DropBand++; return null; }
             Komas.Add(new NiwaKoma { c = c, r = rr, trunk = trunk, path = path, layer = layer, clump = CurClump,
                                      block = o.Block, tall = o.Tall,
                                      dw = dw, de = de, clearWall = o.ClearWall, padEave = o.PadEave });

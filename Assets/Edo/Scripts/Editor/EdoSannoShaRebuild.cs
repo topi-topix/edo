@@ -3286,7 +3286,8 @@ public static class EdoSannoShaRebuild
         {
             x0 = gr.x0, z0 = gr.z0, step = gr.step, nx = gr.nx, nz = gr.nz, h = gr.h, ok = gr.ok,
             batterCut = F(cst, "batterCut"), batterFill = F(cst, "batterFill"),
-            baseAt = DemAt()   // 駒の下に落ちた節点は造成前の地盤で引く(見え面の足元の山形・2026-09-25)
+            baseAt = DemAt(),  // 駒の下に落ちた節点は造成前の地盤で引く(見え面の足元の山形・2026-09-25)
+            own = EdoParcels.Get("sannosha_prec")   // 区画の外は今の地形を写す(観理院の石垣の前に浮いた皮・EDO-0477)
         };
         // ⭐ `copingRise:"line"` の袖(宣言の無い石段の袖も同じ・EDO-0421)は背を天端 − 0.05 から法(batterCut)で元の地形へ下げる(施主 2026-09-25)
         var dig = new List<GameObject>(); var lineWalls = new List<string>();

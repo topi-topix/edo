@@ -58,6 +58,11 @@ public static partial class EdoBuild
         /// (見え面の 0.1〜1m 奥)に落ちると、その節点は天端の側の高さを持ち、見え面の前の地表を三角に持ち上げる
         /// (2026-09-25 山王 回廊の基壇の東の見え面の足元に高さ 0.3〜1m の山形が 2m おき)。</summary>
         public Func<float, float, float> baseAt;
+        /// <summary>設計の持ち主の区画(無ければ null)。⭐ 区画の外の点は設計の地盤でなく**今の地形**(隣が造成した地盤)を写す ──
+        /// 設計の地盤は持ち主の区画の中の話で、隣の区画の中は隣の造成が決める。⛔ 2026-09-28 まで山王社の皮が観理院の中へ
+        /// 削る前の高さ(11〜13m)で芝を描き、観理院の崖の縁の石垣の前に横に通る板が浮いた(EDO-0477)。
+        /// 当たる先: CutEdgeSkin に設計を渡す全邸(いまは山王社 Stage9)。</summary>
+        public Vector2[] own;
     }
 
     /// <summary><see cref="CutEdgeSkin"/> の報告。</summary>
@@ -648,6 +653,7 @@ public static partial class EdoBuild
         //   囲い(部材)が縁に立つ所は法を当てない(土留めの前に盛土を出さない)。sloped = 法で受けたか。
         Func<Vector2, bool[], float> OutsideY = (q, sloped) =>
         {
+            if (design != null && design.own != null && !EdoGeom.PIP(design.own, q)) return probe.At(q.x, q.y);   // 区画の外は今の地形
             float s = DesignOut(q.x, q.y); if (float.IsNaN(s)) s = CleanAt(q.x, q.y);
             if (design == null) return s;
             float bd = BATTER_REACH; SkinFace bf = default(SkinFace); Vector2 bq = Vector2.zero; bool found = false;

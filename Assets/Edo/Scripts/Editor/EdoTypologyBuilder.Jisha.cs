@@ -164,7 +164,10 @@ public static partial class EdoTypologyBuilder
         float tsubo = Mathf.Abs(EdoGeom.SignedArea(poly)) / (1.818f * 1.818f);
         var rng = new System.Random(JSeed(s.id));
         string hallCert = JCert(s, "main_hall_ken");
-        bool hallFirm = hallCert == "S" || hallCert == "A" || hallCert == "B";
+        bool hallFirm = hallCert == "S" || hallCert == "A" || hallCert == "B"
+                     // ⭐ 棟をこの区画の絵図から採った筆(mune_zu)で、間数もその絵図から測った P は、他寺の比(U)より近い
+                     //    (観理院 EDO-0468: 御宮絵図に本堂は無く、本坊 ≒ 20×6間 を主の堂に当てる)。
+                     || (hallCert == "P" && s.muneZu);
         var hallSizes = JHallSizes(s, tsubo, hallFirm, rng, out string sizeNote);
 
         // ── 棟の一覧を起こす(置く前に**実メッシュの外形**を測る)──────────────

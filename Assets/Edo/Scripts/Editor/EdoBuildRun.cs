@@ -134,6 +134,9 @@ public static partial class EdoBuild
     /// (2026-09-21 実測: 溜池西・三べ坂西・溜池北の5区画で 0.83〜1.88m 外へ)。
     /// その区間は薄い塀で埋める(置き方の4手④「端数は伸縮側へ流す」・`docs/oki-kata.md`)。
     /// null なら従来どおり検めない。</param>
+    /// <summary>長屋の鎖を門の開口の縁から門へ差し込む量[m](隙間 &gt; めり込み・EDO-0468)。【U】門の柱と長屋の妻の厚みの内。</summary>
+    const float NAGAYA_GATE_TUCK = 0.25f;
+
     public static List<GameObject> NagayaRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward, float baseY,
         Vector2 gapC, float gapHalf, string prefix, Vector2[] keepInside = null)
     {
@@ -161,6 +164,7 @@ public static partial class EdoBuild
         float Wc = mc.W;                               // 実測 8.065m
         int idx = 0;                                   // 命名は run 通しの prefix_k(従来互換)
         int fill = 0;
+        var fillRuns = new List<List<GameObject>>();   // 門の脇の端数を埋めた塀(鎖を建ててから外面を長屋の外面へ合わせる)
         foreach (var seg in segs)
         {
             float L = seg[1] - seg[0];
@@ -188,7 +192,23 @@ public static partial class EdoBuild
             Func<string, NagModule> modOf = p2 => p2 == PKnagayaL ? ml : (p2 == PKnagayaR ? mr : mc);
             float total = 0f;
             for (int k = 0; k < n; k++) total += modOf(pathAt(k)).W;
-            float cursor = seg[0] + (L - total) * 0.5f; // 鎖は区間中央寄せ(端数は隅・開口が受ける)
+            // ⭐ 門の脇は鎖を開口の縁へ突き付け、端数は隅の側へ寄せて塀で埋める(2026-09-28 観理院 EDO-0468 ──
+            //    中央寄せでは表門の両脇に 1.0〜1.2m、隅に 1.24m の素通しが開いた。隙は許容0)。
+            //    門の無い区間は従来どおり中央寄せ(端数は両隅が受ける・隣の辺の駒と重なって閉じる)。
+            bool gateAtEnd = gapHalf > 0 && seg == segs[0] && segs.Count > 1 || gapHalf > 0 && segs.Count == 1 && seg[1] < len - 0.01f;
+            bool gateAtStart = gapHalf > 0 && seg == segs[segs.Count - 1] && seg[0] > 0.01f;
+            //    門の側は開口の縁から NAGAYA_GATE_TUCK だけ門へ差し込む(隙間 > めり込み ── 平面で斜めに 0.10〜0.19m 開いた)。
+            float tuck = (gateAtEnd || gateAtStart) ? NAGAYA_GATE_TUCK : 0f;
+            float rem = L - total + tuck;
+            float cursor = gateAtEnd ? seg[0] + rem : gateAtStart ? seg[0] - tuck : seg[0] + rem * 0.5f;
+            if ((gateAtEnd || gateAtStart) && rem >= 0.30f)
+            {
+                float f0 = gateAtEnd ? seg[0] : seg[1] - (rem - tuck), f1 = gateAtEnd ? seg[0] + rem : seg[1];
+                if (gateAtStart) f0 = cursor + total;
+                var fl = DobeiRun(parent, sA + rdir * f0, sA + rdir * f1, outward, prefix + "_fill" + fill, followGround, baseY, Vector2.zero, -1);
+                fillRuns.Add(fl);
+                fill++;
+            }
             for (int k = 0; k < n; k++)
             {
                 string path = pathAt(k);
@@ -210,7 +230,14 @@ public static partial class EdoBuild
                 // ⛔ 底(bounds.min.y)を「足元の地形の最小」へ落とさない — 起伏のある区画で駒が埋まる
                 //    (2026-09-21 実測: 山王の内藤邸で 37 枚・最悪 2.74m)。**触れている箇所**を測って据える
                 //    (CLAUDE.md 規則21)。地形追従でないとき(天端を run の seat で通すとき)は設計の座のまま。
-                if (followGround) { try { SeatOnGround(go, 0.10f, 600); } catch (System.Exception) { SeatBottom(go, pieceBase - 0.10f); } }
+                if (followGround)
+                {
+                    try { SeatOnGround(go, 0.10f, 600); } catch (System.Exception) { SeatBottom(go, pieceBase - 0.10f); }
+                    // ⭐ 根入れ(docs/oki-kata.md §0a)── 触れている所は上手の 1 点なので、8m の駒の下手が斜面で浮く
+                    //    (2026-09-28 観理院の東の長屋 最悪 0.874m・EDO-0468)。下端の当たりのいちばん浮いた所まで沈め、上手は埋めて隠す。
+                    var rt = RootToBed(go, Ground, 0.25f);
+                    if (!float.IsNaN(rt.hi) && rt.hi > 0f) go.transform.position -= Vector3.up * rt.hi;
+                }
                 else SeatBottom(go, pieceBase - 0.10f);
                 // ⛔ 壁体が区画の外へ出る駒は置かない(区域侵犯は許容0・規則4)。薄い塀で埋め直す。
                 if (keepInside != null && OutsideParcel(go.transform, keepInside))
@@ -226,6 +253,25 @@ public static partial class EdoBuild
         }
         // namako(表)が外向きかを数値検証、逆なら180°回して面位置を復元
         if (made.Count > 0) VerifyFlipOutward(made, outward, prefix);
+        // ⭐ 端数の塀の外面を長屋の壁の外面へ合わせる(規則5 面で合わせる・2026-09-28 観理院 EDO-0468 ──
+        //    塀は区画の線の上、長屋の壁は線から内に立ち、隅で 0.65〜1.7m 開いた)。足元の帯(下端から 1.0m)で測る ── 笠と軒は外へ出るので拾わない。
+        if (made.Count > 0 && fillRuns.Count > 0)
+        {
+            float nMn, nMx; float y0 = RB(made[0]).min.y;
+            var ou = outward.normalized;
+            ProjExtent(made[Mathf.Min(1, made.Count - 1)], ou, y0 - 0.01f, y0 + 1.0f,
+                       nm => { var l = nm.ToLower(); return l.Contains("wall") || l.Contains("namako") || l.Contains("dodai"); }, out nMn, out nMx);
+            if (nMx > float.MinValue)
+                foreach (var run in fillRuns)
+                    foreach (var p in run)
+                    {
+                        float fMn, fMx; float py = RB(p).min.y;
+                        ProjExtent(p, ou, py - 0.01f, py + 1.0f, nm => true, out fMn, out fMx);
+                        if (fMx > float.MinValue) p.transform.position -= new Vector3(ou.x, 0f, ou.y) * (fMx - nMx);
+                        // 寄せた先の地面で据え直す(根入れ ── 下端のいちばん浮いた所まで沈める)
+                        if (followGround) { var rt = RootToBed(p, Ground, 0.10f); if (!float.IsNaN(rt.hi) && rt.hi > 0f) p.transform.position -= Vector3.up * rt.hi; }
+                    }
+        }
         return made;
     }
 

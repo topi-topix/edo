@@ -60,6 +60,10 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         public bool kuri, yagura, shoro, sanmon, graveyard;
         // ⭐ 本堂(坊・社家は主屋)の間数 [桁行, 梁間]。EDO-0354 まで**ビルダーが名を読みもしない欄**だった。
         public int hallW, hallD;
+        // ⭐ 辺ごとの囲い(EDO-0468)。`enclosure_dir` = { "N": "nagaya", "S": "none", … } ── 辺の外向きに最も近い
+        //    4 方位の値が `enclosure` に勝つ。書いていない方位は `enclosure` のまま。史料で辺ごとに違う区画だけに書く
+        //    (観理院: 名所図会で東と北に長屋・南は囲わない)。
+        public Dictionary<string, string> encDir;
         // ⭐ 主屋の型(EDO-0327)。goten / omote_oku / ganko / ujigata / tanoji。
         //    ⛔ 2026-09-21 まで Plan() は rank でしか分岐せず、defaults の omoya は**足しても
         //    建つ姿が変わらない**欄だった(typology_check の inert_defaults が毎朝刷っていた)。
@@ -192,6 +196,8 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
             };
             var hall = IA(d, "main_hall_ken");
             if (hall != null && hall.Length >= 2) { s.hallW = hall[0]; s.hallD = hall[1]; }
+            var ed = d.TryGetValue("enclosure_dir", out var edo) ? edo as Dictionary<string, object> : null;
+            if (ed != null) s.encDir = ed.Where(q => q.Value is string).ToDictionary(q => q.Key, q => (string)q.Value);
             _table[kv.Key] = s;
         }
     }
@@ -803,6 +809,13 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
     static string EnclosureFor(Spec s, Edge e, bool isFront)
     {
         if (s.type == "kouyuu") return s.fence ?? "yarai";   // ⭐ 表の欄が勝つ(既定は表の defaults.kouyuu.fence)
+        if (s.encDir != null && s.encDir.Count > 0)
+        {
+            // 辺の外向きに最も近い 4 方位(N=+Z から時計回り)
+            float deg = Mathf.Repeat(Mathf.Atan2(e.outward.x, e.outward.y) * Mathf.Rad2Deg, 360f);
+            string d4 = new[] { "N", "E", "S", "W" }[Mathf.RoundToInt(deg / 90f) % 4];
+            if (s.encDir.TryGetValue(d4, out var k4)) return k4;
+        }
         if (s.enclosure == "nagaya") return "nagaya";
         if (s.enclosure == "nagaya_front+ita") return isFront ? "nagaya" : "ita";
         return s.enclosure ?? "ita";

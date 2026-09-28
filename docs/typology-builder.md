@@ -159,7 +159,7 @@ Unity の実測と、プレハブの yaml から起こした判定は 36 本す�
 |---|---|---|
 | `buke` | `yashiki`(kami/naka/shimo)・`rank`(daimyo / hatamoto_large / hatamoto_mid / gokenin)・`koku`・`front`・`gate`(kmon/nagayamon/hmon/kabukimon/komon)・`bansho`(ryou/kata/none)・`enclosure`・`garden`・`kura`・`maeniwa_ken`(前庭の奥行の狙い[間]・無ければ既定) | 門の格式(`estate-types.md` 早見表・[西川1959])、外周(全周長屋 / 前辺長屋+塀 / 塀)、主屋の型(雁行複合 / U字 / 田の字)、蔵の数、庭の有無 |
 | `machiya` | `two_sided`・`front`・`maguchi_ken`・`depth_ken`・`pattern`(auto か並び)・`ura_nagaya`・`jishinban`・`kamiyui`・`inari` | 表店の並び(間口で割る)・裏長屋の棟数・番屋と稲荷の有無 |
-| `jisha` | `kind`(bo / temple / shake)・`main_hall_ken`([桁行,梁間]。EDO-0354 で建つ姿に効いた)・`gate`(munemon/yakuimon/sanmon)・`enclosure`・`shoro`・`sanmon`・`graveyard`・`tacchu`・`tokinokane`・`mune_zu`(棟を絵図から採った=目安で足さない)・`kyakuden`・`gomado`(mune_zu の筆で絵図に在る客殿・護摩堂)・`kodachi`(絵図で棟の無い空きに木の点=明地の木立) | 本堂(または坊の主屋)の間数・門・囲い。⛔ 坊を本堂・山門・鐘楼・墓地つきの寺にしない(考証方 (c))。境内の置き方は §4.6 |
+| `jisha` | `kind`(bo / temple / shake)・`main_hall_ken`([桁行,梁間]。EDO-0354 で建つ姿に効いた)・`gate`(munemon/yakuimon/sanmon)・`enclosure`・`shoro`・`sanmon`・`graveyard`・`tacchu`・`tokinokane`・`mune_zu`(棟を絵図から採った=目安で足さない)・`kyakuden`・`gomado`(mune_zu の筆で絵図に在る客殿・護摩堂)・`kodachi`(絵図で棟の無い空きに木の点=明地の木立)・`enclosure_dir`(辺ごとの囲い `{"N":"nagaya","S":"none"}`。辺の外向きに最も近い4方位の値が `enclosure` に勝つ・全型共通)・`main_hall_ken` の確度 P は `mune_zu` の筆でだけ境内比に勝つ(絵図から測った間数・EDO-0468) | 本堂(または坊の主屋)の間数・門・囲い。⛔ 坊を本堂・山門・鐘楼・墓地つきの寺にしない(考証方 (c))。境内の置き方は §4.6 |
 | `kouyuu` | `kind`(azukarichi / hoshiba / yaba / hikeshi)・`surface`・`fence`・`building` | 地表(草・土)と柵。建物は火消屋敷だけ |
 
 ---

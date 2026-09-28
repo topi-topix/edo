@@ -29,6 +29,19 @@ public static partial class EdoBuild
     public const float RIM_BACK_TOL = 0.3f;
     /// <summary>石垣の一続きの最短[m]。これより短い区間は積まない。</summary>
     public const float RIM_MIN_LEN = 6f;
+    /// <summary>区画の角を挟んで崖の縁の標本が抜けた長さ[m]がこれ以下なら、角まで継いで一続きにする(= <see cref="RIM_MIN_LEN"/>)。
+    /// 角は平場から遠く <see cref="RIM_REACH"/> の外へ出やすい ── 抜けで鎖が切れ、角の片側が短いとして捨てられ、塀が崖の面で口を開けた
+    /// (観理院 v5: 辺4 の終わり 0.9m・辺5 の頭 4.0m が抜け、辺4 の 5.8m を捨てた・2026-09-28 EDO-0477)。</summary>
+    public const float RIM_CORNER_BRIDGE = 6f;
+
+    /// <summary>角を挟んで継ぐ二つの区間の抜けを埋める ── 前の区間の末を角(s = <paramref name="lenPrev"/>)まで、次の区間の頭を角(s = 0)まで、
+    /// 端の標本の背と平場で延ばす(背の低い端は後で天端の許しで切る)。</summary>
+    static void BridgeCorner(List<Vector3> prev, float lenPrev, List<Vector3> next)
+    {
+        var e = prev[prev.Count - 1]; if (lenPrev - e.x > 1e-3f) prev.Add(new Vector3(lenPrev, e.y, e.z));
+        var h = next[0]; if (h.x > 1e-3f) next.Insert(0, new Vector3(0f, h.y, h.z));
+    }
+
     /// <summary>法尻の前に平らに取る犬走り[m]。【確度 U】</summary>
     public const float RIM_BERM = 2.0f;
     /// <summary>野面の法(3分)。焼いた駒と同じ(EdoAssets.Own.SannoNozura)。</summary>
@@ -109,11 +122,13 @@ public static partial class EdoBuild
             {
                 grew = false;
                 var last = ch[ch.Count - 1]; int k = last.Key; float Lk = Vector2.Distance(A[k], B[k]);
-                if (Lk - last.Value[last.Value.Count - 1].x > 1.01f) break;
+                float gapK = Lk - last.Value[last.Value.Count - 1].x;
+                if (gapK > RIM_CORNER_BRIDGE) break;
                 for (int j = 0; j < pieces.Count; j++)
                 {
                     if (usedP[j]) continue; int kj = pieces[j].Key;
-                    if (Vector2.Distance(B[k], A[kj]) > 0.05f || pieces[j].Value[0].x > 1.01f) continue;
+                    if (Vector2.Distance(B[k], A[kj]) > 0.05f || gapK + pieces[j].Value[0].x > RIM_CORNER_BRIDGE) continue;
+                    BridgeCorner(last.Value, Lk, pieces[j].Value);
                     ch.Add(pieces[j]); usedP[j] = true; grew = true; break;
                 }
             }
@@ -123,11 +138,12 @@ public static partial class EdoBuild
             {
                 grew = false;
                 var first = ch[0]; int k = first.Key;
-                if (first.Value[0].x > 1.01f) break;
+                if (first.Value[0].x > RIM_CORNER_BRIDGE) break;
                 for (int j = 0; j < pieces.Count; j++)
                 {
                     if (usedP[j]) continue; int kj = pieces[j].Key; float Lj = Vector2.Distance(A[kj], B[kj]);
-                    if (Vector2.Distance(B[kj], A[k]) > 0.05f || Lj - pieces[j].Value[pieces[j].Value.Count - 1].x > 1.01f) continue;
+                    if (Vector2.Distance(B[kj], A[k]) > 0.05f || Lj - pieces[j].Value[pieces[j].Value.Count - 1].x + first.Value[0].x > RIM_CORNER_BRIDGE) continue;
+                    BridgeCorner(pieces[j].Value, Lj, first.Value);
                     ch.Insert(0, pieces[j]); usedP[j] = true; grew = true; break;
                 }
             }
@@ -164,7 +180,12 @@ public static partial class EdoBuild
             }
             float len = rr.Length;
             int dropped = flat.Count - (i1 - i0 + 1);
-            if (len < RIM_MIN_LEN) { sb.AppendLine(string.Format("    崖の縁 {0:F1}m は短い(< {1:F0}m)── 積まない", len, RIM_MIN_LEN)); continue; }
+            if (len < RIM_MIN_LEN)
+            {
+                sb.AppendLine(string.Format("    崖の縁 {0:F1}m は短い(< {1:F0}m)── 積まない(辺 {2})", len, RIM_MIN_LEN,
+                    string.Join("+", rr.spans.Select(s => string.Format("{0} s{1:F1}〜{2:F1}", s.Key, s.Value.x, s.Value.y)).ToArray())));
+                continue;
+            }
             sb.AppendLine(string.Format("    崖の縁: 辺 {0}・長さ {1:F1}m・天端 {2:F1}(背の地盤の中央値 {3:F2} を 0.5 に切り下げ)・平場 {4:F2}・見付 {5:F2}m{6}",
                 string.Join("+", rr.spans.Select(s => s.Key.ToString()).ToArray()), len, crest, backs[backs.Count / 2], foot, crest - foot,
                 dropped > 0 ? string.Format("・背が天端 − {0:F1} より低い端 {1} 標本を切った", RIM_BACK_TOL, dropped) : ""));

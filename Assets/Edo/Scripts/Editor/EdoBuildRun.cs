@@ -737,18 +737,22 @@ public static partial class EdoBuild
     /// <summary>駒を走り方向 <paramref name="dir"/> の実寸で <paramref name="startAbs"/>(世界の xz を dir へ射影した値)へ突き付ける。
     /// 奥行は実測した厚みの中央を「線から latOff だけ内」へ。返る <paramref name="mn"/>/<paramref name="mx"/> は
     /// 据えたあとの端の**実測値**(次の駒はこの mx へ突き付ける)。
-    /// ⛔ bounds の中心へ合わせない — 奥行を先に、走りを最後に寄せるので、走りの端は必ず startAbs に来る。</summary>
+    /// ⛔ bounds の中心へ合わせない。奥行と走りは**連立で一度に**寄せる ── 駒は原点で生まれて数百 m 動くので、外向きと走りが
+    /// 直交していないと(呼び手が走りの端を線の向きへ延ばした斜めの継ぎ)、順に動かしたとき走りの移動が奥行を角度 × 距離だけ崩す
+    /// (観理院の石垣の頭の継ぎ 1.4° で 6.7m 横へ流れた・2026-09-28 EDO-0477)。直交なら従来と同じ結果。</summary>
     static void ButtOnRun(GameObject go, Vector2 A, Vector2 dir, Vector2 outward, float latOff, float startAbs,
                           out float mn, out float mx)
     {
         float lmn, lmx;
         ProjExtent(go, outward, float.MinValue, float.MaxValue, null, out lmn, out lmx);
-        float dLat = (Vector2.Dot(A, outward) + latOff) - (lmn + lmx) * 0.5f;
-        go.transform.position += new Vector3(outward.x * dLat, 0f, outward.y * dLat);
         ProjExtent(go, dir, float.MinValue, float.MaxValue, null, out mn, out mx);
-        float dRun = startAbs - mn;
-        go.transform.position += new Vector3(dir.x * dRun, 0f, dir.y * dRun);
-        mn += dRun; mx += dRun;
+        float tLat = (Vector2.Dot(A, outward) + latOff) - (lmn + lmx) * 0.5f;
+        float tRun = startAbs - mn;
+        float c = Vector2.Dot(outward, dir), den = 1f - c * c;
+        float a = den > 1e-6f ? (tLat - c * tRun) / den : tLat, b = den > 1e-6f ? (tRun - c * tLat) / den : tRun;
+        var v = outward * a + dir * b;
+        go.transform.position += new Vector3(v.x, 0f, v.y);
+        mn += tRun; mx += tRun;
     }
 
     // ---------- dobei run (表裏ペア) ----------

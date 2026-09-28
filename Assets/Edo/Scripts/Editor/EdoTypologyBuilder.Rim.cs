@@ -15,6 +15,12 @@ public static partial class EdoTypologyBuilder
 {
     /// <summary>塀の厚みの半分[m]。<see cref="Rim"/> が練塀の駒の実メッシュから測って入れる(既定は測る前の仮)。</summary>
     static float RIM_WALL_HALF = 0.21f;
+    /// <summary>石垣の端の継ぎが登ってよい高さ[m](座 − 線の地盤)。これを超える端は継ぎを登らせず、下の塀を石垣の端へ差し込む。【確度 U】</summary>
+    const float RIM_LINK_CLIMB = 1.0f;
+    /// <summary>下の塀を石垣の端の胴へ差し込む長さ[m]。【確度 U】</summary>
+    const float RIM_LINK_TUCK = 0.3f;
+    /// <summary>斜めの継ぎを本の塀へ重ねる長さ[m](折れの延ばしに足す)。⛔ 延ばしだけだと駒の割りの丸めで 0.017m 開いた(観理院 v6 の手前)。</summary>
+    const float RIM_LINK_LAP = 0.05f;
 
     /// <summary>辺 <paramref name="e"/> の囲いを区画の角で頂点の先へ延ばす長さ(始点 <paramref name="atA"/>・終点 <paramref name="atB"/>)。
     /// 型は <see cref="EdoBuild.CornerReach"/>(区画の角の塀の口を閉じる・EDO-0477 P2 隅)。隣の辺が長屋でも延ばす(長屋の妻に隠れる)。</summary>

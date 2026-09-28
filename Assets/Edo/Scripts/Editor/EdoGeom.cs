@@ -53,6 +53,15 @@ public static class EdoGeom
 
     /// <summary>点 p から多角形の外周(全辺)への最短距離。
     /// ⛔ NaN を混ぜない — 混ざると最小値でなくなる(<see cref="DistToEdge"/> の注)。</summary>
+    /// <summary>直線 p0 + d0·t と p1 + d1·u の交点。平行なら <paramref name="fallback"/>。</summary>
+    public static Vector2 LineIntersect(Vector2 p0, Vector2 d0, Vector2 p1, Vector2 d1, Vector2 fallback)
+    {
+        float den = d0.x * d1.y - d0.y * d1.x;
+        if (Mathf.Abs(den) < 1e-4f) return fallback;
+        float t = ((p1.x - p0.x) * d1.y - (p1.y - p0.y) * d1.x) / den;
+        return p0 + d0 * t;
+    }
+
     public static float DistToPolyEdge(Vector2[] poly, Vector2 p)
     {
         float m = float.MaxValue;

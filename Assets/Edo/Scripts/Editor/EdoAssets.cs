@@ -2512,6 +2512,19 @@ public static class EdoAssets
         /// 生成: blender --background --python Tools/Blender/build_dobei.py -- [--render]</summary>
         public const string Dobei2m = "Assets/Edo/Models/Dobei/Dobei2m.fbx";
 
+        /// <summary><see cref="Dobei2m"/> の下に据える**布石(腰の石)** — 切石の布積み 4段の1駒(EDO-0477)。
+        /// 用途: **段塀の布石**(呼び手は EdoBuild の練塀の段塀)。区間ごとに塀の笠を水平にし、区間の中で
+        /// 地面が下がる所は塀の下端と地面の間を布石の見え(0〜約1.1m)で受け、見えない所は地面に埋めて隠す
+        /// (一種類の丈の駒・下は埋まる)。考証: 屋敷の練塀は傾けず、足元の差は布石・根石の見え高さで受ける【U】。
+        /// ローカル座標は Dobei2m と同じ: 走り +X ∈ [0, 2.004]・高さ +Y・**天端が y=0**(下端 y=−1.30)・
+        /// 厚み Z は芯0で ±0.28(下見板 0.42 より片側 0.07 出る・両面とも見え面)。
+        /// ⭐ 真の m で作ってあり scale=1 で置く(ES も vklib.S も掛けない)。⇒ 塀の駒と同じ位置・向きに
+        /// 置けば天端が塀の下端に接する。縦目地は駒の中だけで、駒の両端は石を切ったまま(並べると端の石が
+        /// 継ぎ目を跨いで続く)。両小口は面で塞いである(段の所で見える)。三角形 608。
+        /// 材 `Kirishi` ⇒ `Edo/類型/新造部材のマテリアルをremap`(Models/Dobei は対象・借り先に Sanno/Kirishi.mat)。
+        /// 生成: blender --background --python Tools/Blender/build_dobei_nunoishi.py -- [--render]</summary>
+        public const string Dobei2mNunoishi = "Assets/Edo/Models/Dobei/Dobei2m_Nunoishi.fbx";
+
         /// <summary><see cref="Dobei2m"/> の**妻を塞いだ端部**(x=0 側の小口に袖瓦を葺いて閉じた駒。
         /// build_dobei.py の gable='L')。塀が行き止まる自由端(門の脇など)に使う — 開放小口のまま
         /// 置くと軒裏の三角の空隙が見える。走りの**高位側**を閉じたいときは 180°回して継ぐ

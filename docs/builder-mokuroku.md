@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 18 本・メニュー 79・関数 622(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 18 本・メニュー 79・関数 624(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -25,12 +25,12 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoSekiBuilder.cs](#edosekibuildercs) | — | 1 | 8 |
 | [EdoShiomizakaRebuild.cs](#edoshiomizakarebuildcs) | 汐見坂(段坂)を新区割りの回廊へ敷き直す (2026-08-09) | 0 | 12 |
 | [EdoTypologyBuilder.Inari.cs](#edotypologybuilderinarics) | 類型ビルダー — 稲荷(町屋の裏手の小祠と鳥居)。EDO-0326。 | 0 | 1 |
-| [EdoTypologyBuilder.Jisha.cs](#edotypologybuilderjishacs) | 類型ビルダー — 寺社の境内(Stage 3〜4 の jisha 分)。本堂・庫裏・蔵・鐘楼・墓地・塔頭を置く。 | 0 | 16 |
+| [EdoTypologyBuilder.Jisha.cs](#edotypologybuilderjishacs) | 類型ビルダー — 寺社の境内(Stage 3〜4 の jisha 分)。本堂・庫裏・蔵・鐘楼・墓地・塔頭を置く。 | 0 | 17 |
 | [EdoTypologyBuilder.Keidai.cs](#edotypologybuilderkeidaics) | 類型の庭 — 寺社の境内(garden=keidai)。2026-09-27・EDO-0477 P5。 | 0 | 3 |
 | [EdoTypologyBuilder.Machiya.cs](#edotypologybuildermachiyacs) | 類型ビルダー — 町屋(machiya)の段。24 区画。EDO-0325。 | 0 | 5 |
 | [EdoTypologyBuilder.Niwa.cs](#edotypologybuilderniwacs) | 類型の庭(Stage 5)— どの類型が何をどこへだけ。EDO-0323。 | 0 | 26 |
 | [EdoTypologyBuilder.Rim.cs](#edotypologybuilderrimcs) | 類型の崖の縁の石垣(Stage 4y・2026-09-28・EDO-0477 施主裁定A「石垣を積み、その上に塀」)。 | 0 | 2 |
-| [EdoTypologyBuilder.cs](#edotypologybuildercs) | 類型ビルダー — 区画の形(parcels.json)と類型表(typology.json)から、一本で建てる。 | 5 | 45 |
+| [EdoTypologyBuilder.cs](#edotypologybuildercs) | 類型ビルダー — 区画の形(parcels.json)と類型表(typology.json)から、一本で建てる。 | 5 | 46 |
 | [EdoYamatoRebuild.cs](#edoyamatorebuildcs) | 松平大和守(川越藩17万石)上屋敷の再建 v2 (2026-08-08) | 0 | 13 |
 
 ## EdoDoiBuilder.Niwa.cs
@@ -664,6 +664,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `JPickSize(area, rng, minD)` | `int[]` |  | 坪 area に近い焼いた入母屋を一つ(目安の 0.85〜1.25 倍の帯から種で選ぶ・帯が空なら最寄り)。 |
 | `JHallSizes(s, tsubo, firm, rng, note)` | `List<int[]>` |  | 本堂の間数の候補(先頭が第一候補、以下は境内に収まらないときの一回りずつ小さい物)。 |
 | `JRoofOf(it, go)` | `Vector2[]` |  | 置いた棟の屋根込みの矩形(置いた位置と向きから ── 測った局所矩形を載せる)。 |
+| `JEnclosureRoofs(root, taken)` | `int` |  | 囲いの長屋の駒ごとに、屋根込みの矩形(駒の向きの軸で実メッシュを測った外形)を taken へ足す。 ⟶ 返す: 足した数 |
 | `JGapTo(rc, taken)` | `float` |  | 矩形から置いた棟の屋根の矩形までの最小の離れ(無ければ 99)。 |
 | `JAdd(items, dropped, g, name, path, mode, yaw, rank)` | `void` |  | プレハブの駒を 1 つ起こして一覧へ足す。 |
 
@@ -783,6 +784,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `TuckBase(p0, p1, inw, stone=…)` | `float` |  | GroundBed と同じ床だが、石垣の天端の継ぎ目の穴(その点に天端の面が無く、0.35m 以内に有る所)は NaN を返す ── 塀は穴を跨いで石に載るので、穴の下の地面を床に数えない(EdoBuild.RootTo… |
 | `RimStoneBack(bed, p, inw, maxIn)` | `float` |  | 点 p から内へ、石垣の天端の面(bed)が始まる離れ[m](最大 maxIn)。 |
 | `GroundBedSpan(x, z)` | `float` |  | — |
+| `KakoiBedFor(t)` | `System.Func<float, float, float>` |  | 囲いの駒の当たりの相手。布石("_ishi")は自分が床なので地面だけで測る ── 床の索引で測ると自分の天端を床に採り、 地中へ埋めた底を「浮き」と数えた(観理院の段塀の布石 86/86 駒・最悪 0.96m・2026… |
 | `Inspect(id, root, poly)` | `string` | 公 | — |
 | `BuildAll(force)` | `string` | 公 | — |
 

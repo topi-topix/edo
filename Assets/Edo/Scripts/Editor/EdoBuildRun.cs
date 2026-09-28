@@ -948,6 +948,183 @@ public static partial class EdoBuild
         return made;
     }
 
+    // ---------- 段塀(2026-09-29・EDO-0477 施主裁定1=B)----------
+    // ⭐ 屋敷の練塀は**傾けない**。区間ごとに笠を水平にし、区切りで段を付ける(段塀)。区間の中で地面が下がる所は、
+    //    塀の下の布石(腰の石)の見えで受ける ── 地面は盛りも削りもしない(unity-buke-yashiki/references/perimeter.md
+    //    「塀は傾けない」・考証: 金剛寺の築地塀の段の妻と貝形【A】・登り塀は城の作法)。
+    //    ⛔ それまでは地形なりに駒を弦へ張って傾け(StraightRunJoints)、斜面で笠がガタガタに上下した(施主 2026-09-28)。
+    // 区切り方(施主裁定1=B): 区間の中の地面の起伏が段の目安 DAN_STEP 以内に収まる最も長い区間(半間に丸め・DAN_MAX_SEC まで)。
+    //    急で収まらない所は区間を最短 DAN_MIN_SEC(1間)にして、段 = 勾配 × 1間。段は区画の角から DAN_CORNER_CLEAR 離す(狙い・柔らかい)。
+    //    塀の座 = 区間の芯の地面の最も高い所 − DAN_BURY(埋めて据える)。
+    // 当たる先: 類型の全区画の練塀(buildKakoi が辺の鎖ごとに DanPlan を引いて FenceRun へ渡す)。
+    public const float DAN_STEP = 0.60f;          // 段の目安[m]【施主裁定1=B】
+    public const float DAN_MIN_SEC = 1.818f;      // 区間の最短 = 1間【施主裁定1=B】
+    public const float DAN_MAX_SEC = 40f;         // 区間の最長[m](perimeter.md)
+    public const float DAN_BURY = 0.10f;          // 塀の根入れ[m]
+    public const float DAN_CORNER_CLEAR = 1.0f;   // 段を区画の角から離す[m](狙い)
+    const float DAN_Q = 0.909f;                   // 区切りの刻み = 半間
+    const float DAN_FLOAT_TOL = 0.01f;            // 段塀の下端の浮きの線[m] ── 超えれば布石。検査の「塀の下端の浮き」の線と同じ
+    const float DAN_DS = 0.10f;                   // 地面の標本の刻み[m]
+
+    /// <summary>段塀の一区間(鎖の道のり a〜b・塀の座 W = 塀の下端の高さ)。</summary>
+    public struct DanSec { public float a, b, W; }
+
+    /// <summary>折れ線(区画の辺の鎖)に段塀の区切りを引く。道のりは折れ線の頭から。
+    /// 動的計画で「区間の数 + 小さすぎる段(0.20 未満)の罰 + 角から DAN_CORNER_CLEAR 以内の段の罰」を最小にする。
+    /// 硬い条件: 区間の芯の地面の起伏 ≤ DAN_STEP(ただし最短の区間はこの限りでない)・区間 ≤ DAN_MAX_SEC。</summary>
+    public static List<DanSec> DanPlan(IList<Vector2> chain, out string note)
+    {
+        var segL = new List<float>(); float L = 0f;
+        for (int i = 0; i + 1 < chain.Count; i++) { float l = Vector2.Distance(chain[i], chain[i + 1]); segL.Add(l); L += l; }
+        var outp = new List<DanSec>(); note = "";
+        if (L < 1e-3f) return outp;
+        // 芯の地面の標本
+        int ns = Mathf.Max(2, Mathf.CeilToInt(L / DAN_DS) + 1);
+        var gs = new float[ns]; var ss = new float[ns];
+        for (int k = 0; k < ns; k++)
+        {
+            float s = Mathf.Min(L, k * DAN_DS); ss[k] = s;
+            var p = ChainAt(chain, segL, s);
+            float g = Ground(p.x, p.y); gs[k] = float.IsNaN(g) ? (k > 0 ? gs[k - 1] : 0f) : g;
+        }
+        // 区切りの節(半間)と角の道のり
+        int N = Mathf.Max(1, Mathf.CeilToInt(L / DAN_Q - 1e-3f));
+        var E = new float[N + 1]; for (int k = 0; k <= N; k++) E[k] = Mathf.Min(k * DAN_Q, L);
+        var corners = new List<float>(); { float c = 0f; for (int i = 0; i + 1 < segL.Count; i++) { c += segL[i]; corners.Add(c); } }
+        int qMin = Mathf.Max(1, Mathf.RoundToInt(DAN_MIN_SEC / DAN_Q)), qMax = Mathf.Max(qMin, Mathf.FloorToInt(DAN_MAX_SEC / DAN_Q));
+        Func<int, int, Vector2> rangeOf = (i, j) =>
+        {
+            float lo = float.MaxValue, hi = float.MinValue;
+            for (int k = 0; k < ns; k++) if (ss[k] >= E[i] - 1e-4f && ss[k] <= E[j] + 1e-4f) { lo = Mathf.Min(lo, gs[k]); hi = Mathf.Max(hi, gs[k]); }
+            return new Vector2(lo, hi);
+        };
+        var cost = new float[N + 1]; var prv = new int[N + 1]; var Wl = new float[N + 1];
+        for (int k = 0; k <= N; k++) { cost[k] = float.MaxValue; prv[k] = -1; }
+        cost[0] = 0f;
+        for (int j = 1; j <= N; j++)
+            for (int i = Mathf.Max(0, j - qMax); i < j; i++)
+            {
+                if (cost[i] == float.MaxValue) continue;
+                int q = j - i;
+                if (q < qMin && i != 0 && j != N) continue;
+                var r = rangeOf(i, j);
+                if (r.y - r.x > DAN_STEP && q > qMin) continue;
+                float W = r.y - DAN_BURY, pen = 0f;
+                if (i > 0)
+                {
+                    if (Mathf.Abs(W - Wl[i]) < 0.20f) pen += 3f;
+                    foreach (var cc in corners) if (Mathf.Abs(E[i] - cc) < DAN_CORNER_CLEAR) { pen += 30f; break; }
+                }
+                float c = cost[i] + 1f + pen;
+                if (c < cost[j] - 1e-6f) { cost[j] = c; prv[j] = i; Wl[j] = W; }
+            }
+        if (prv[N] < 0) { note = "⚠ 段塀の区切りが引けない ── 一区間で建てた"; var r0 = rangeOf(0, N); outp.Add(new DanSec { a = 0f, b = L, W = r0.y - DAN_BURY }); return outp; }
+        for (int j = N; j > 0; j = prv[j]) { int i = prv[j]; var r = rangeOf(i, j); outp.Insert(0, new DanSec { a = E[i], b = E[j], W = r.y - DAN_BURY }); }
+        float mx = 0f; int nStep = 0, nCorner = 0;
+        for (int k = 0; k + 1 < outp.Count; k++)
+        {
+            float d = Mathf.Abs(outp[k + 1].W - outp[k].W); if (d > 1e-3f) nStep++; mx = Mathf.Max(mx, d);
+            foreach (var cc in corners) if (Mathf.Abs(outp[k].b - cc) < DAN_CORNER_CLEAR) { nCorner++; break; }
+        }
+        note = string.Format("段塀 {0:F0}m を {1} 区間・段 {2}・最大の段 {3:F2}m(目安 {4:F2}・最短 {5:F2}m){6}", L, outp.Count, nStep, mx, DAN_STEP, DAN_MIN_SEC,
+                             nCorner > 0 ? string.Format("・⚠ 角から {0:F1}m 以内の段 {1}(狙い)", DAN_CORNER_CLEAR, nCorner) : "");
+        return outp;
+    }
+
+    static Vector2 ChainAt(IList<Vector2> chain, List<float> segL, float s)
+    {
+        for (int i = 0; i < segL.Count; i++)
+        {
+            if (s <= segL[i] || i == segL.Count - 1) return chain[i] + (chain[i + 1] - chain[i]) * Mathf.Clamp01(segL[i] > 1e-6f ? s / segL[i] : 0f);
+            s -= segL[i];
+        }
+        return chain[chain.Count - 1];
+    }
+
+    /// <summary>練塀を段塀で建てる。<paramref name="secs"/> は A からの道のりの区間(座 W)。駒は水平に据え(笠は区間ごとに水平)、
+    /// 段の上手の端と開口の脇は妻を塞いだ駒(Dobei2mEnd)。駒の下の地面が座より下がる所は布石を据える(天端 = 据えた塀の下端を測って合わせる)。</summary>
+    public static List<GameObject> NeribeiStepRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward, string prefix,
+        IList<DanSec> secs, Vector2 gapC, float gapHalf, out string note)
+    {
+        var made = new List<GameObject>();
+        Vector2 dir = (B - A).normalized; float len = (B - A).magnitude;
+        float bodyLen = RunMeasure(EdoAssets.Own.Dobei2m).W;
+        float stoneLen = RunMeasure(EdoAssets.Own.Dobei2mNunoishi).W;
+        float stoneH = RunMeasureY(EdoAssets.Own.Dobei2mNunoishi).hi - RunMeasureY(EdoAssets.Own.Dobei2mNunoishi).lo;
+        var segs = new List<float[]>();
+        if (gapHalf > 0)
+        {
+            float gT = Vector2.Dot(gapC - A, dir);
+            if (gT - gapHalf > 0f) segs.Add(new float[] { 0f, Mathf.Min(gT - gapHalf, len) });
+            if (gT + gapHalf < len) segs.Add(new float[] { Mathf.Max(gT + gapHalf, 0f), len });
+        }
+        else segs.Add(new float[] { 0f, len });
+        float psi = Mathf.Atan2(outward.x, outward.y) * Mathf.Rad2Deg;
+        float a0 = Vector2.Dot(A, dir);
+        var inN = -outward.normalized;
+        int idx = 0, nStone = 0; float worstShow = 0f, deepStone = 0f;
+        foreach (var seg in segs)
+        {
+            if (seg[1] - seg[0] < bodyLen * 0.25f) continue;
+            // 区間を開口で切る。端の短い切れ端(駒の 1/4 未満)は隣の区間へ寄せる。
+            var sub = new List<Vector3>();   // (x0, x1, W)
+            foreach (var d in secs)
+            {
+                float x0 = Mathf.Max(seg[0], d.a), x1 = Mathf.Min(seg[1], d.b);
+                if (x1 - x0 > 1e-3f) sub.Add(new Vector3(x0, x1, d.W));
+            }
+            if (sub.Count == 0) continue;
+            sub[0] = new Vector3(seg[0], sub[0].y, sub[0].z); sub[sub.Count - 1] = new Vector3(sub[sub.Count - 1].x, seg[1], sub[sub.Count - 1].z);
+            for (int k = sub.Count - 1; k >= 0 && sub.Count > 1; k--)
+            {
+                if (sub[k].y - sub[k].x >= bodyLen * 0.25f) continue;
+                if (k > 0) sub[k - 1] = new Vector3(sub[k - 1].x, sub[k].y, sub[k - 1].z);
+                else sub[1] = new Vector3(sub[k].x, sub[1].y, sub[1].z);
+                sub.RemoveAt(k);
+            }
+            bool gapLo = gapHalf > 0 && seg[0] > 0.01f, gapHi = gapHalf > 0 && seg[1] < len - 0.01f;
+            bool chained = false; float prevEnd = 0f;
+            for (int si = 0; si < sub.Count; si++)
+            {
+                float x0 = sub[si].x, x1 = sub[si].y, W = sub[si].z, L = x1 - x0;
+                // 妻を塞ぐ端: 開口の脇・段の上手(隣の区間より高い側)
+                bool capLo = (si == 0 && gapLo) || (si > 0 && W > sub[si - 1].z + 0.05f);
+                bool capHi = (si == sub.Count - 1 && gapHi) || (si < sub.Count - 1 && W > sub[si + 1].z + 0.05f);
+                int n = Mathf.Max(1, Mathf.RoundToInt(L / bodyLen));
+                float pitch = L / n;
+                for (int k = 0; k < n; k++)
+                {
+                    bool closeLo = k == 0 && capLo, closeHi = k == n - 1 && capHi && !(n == 1 && closeLo);
+                    string path = (closeLo || closeHi) ? EdoAssets.Own.Dobei2mEnd : EdoAssets.Own.Dobei2m;
+                    float sx = pitch / RunMeasure(path).W;
+                    var go = Place(path, Vector3.zero, closeHi ? psi + 180f : psi, new Vector3(sx, 1f, 1f), parent, prefix + "_" + idx);
+                    float startAbs = chained ? prevEnd : a0 + x0 + pitch * k;
+                    float mn, mx;
+                    ButtOnRun(go, A, dir, outward, 0f, startAbs, out mn, out mx);
+                    prevEnd = mx; chained = true;
+                    SeatBottom(go, W);
+                    made.Add(go); idx++;
+                    // 布石: 塀の下端の足跡を地面に当て(RootToBed ── 検査と同じ測り)、浮きが線 DAN_FLOAT_TOL を超えれば据える。
+                    //    天端 = 据えた塀の下端(実測)。⛔ 2026-09-29 まで「芯と両面を 0.25m 刻み・端 5cm を除く・線 0.02」で測り、
+                    //    検査(足跡の全部・線 0.01)と食い違って端の 1.3cm の浮きを残した(観理院 dobei_1_0・EDO-0477)。
+                    var rootG = RootToBed(go, Ground, 0.05f);
+                    if (float.IsNaN(rootG.hi) || rootG.hi <= DAN_FLOAT_TOL) continue;
+                    float wb = RB(go).min.y, gmin = wb - rootG.hi;
+                    var st = Place(EdoAssets.Own.Dobei2mNunoishi, Vector3.zero, psi, new Vector3((mx - mn) / stoneLen, 1f, 1f), parent, prefix + "_" + (idx - 1) + "_ishi");
+                    float smn, smx;
+                    ButtOnRun(st, A, dir, outward, 0f, mn, out smn, out smx);
+                    var srb = RB(st); st.transform.position += new Vector3(0f, wb - srb.max.y, 0f);
+                    made.Add(st); nStone++;
+                    worstShow = Mathf.Max(worstShow, wb - gmin);
+                    if (wb - gmin > stoneH - 0.05f) deepStone = Mathf.Max(deepStone, wb - gmin);
+                }
+            }
+        }
+        note = string.Format("布石 {0} 駒(見え最大 {1:F2}m){2}", nStone, worstShow,
+                             deepStone > 0f ? string.Format("・⛔ 布石の丈 {0:F2} より地面が下がる所 {1:F2}m(石の下が浮く)", stoneH, deepStone) : "");
+        return made;
+    }
+
     // ---------- 板塀/穂垣 run — 片面ポリゴンなので表裏の対で置く ----------
     // asset: 5枚スパンOBJ。走りは DobeiRun と同じ実寸カーソル。パネル毎に接地。
     /// <remarks>据えは DobeiRun と同じ — **触れている箇所**を測る(規則21)。失敗したときだけ bounds の底(EDO-0342)。
@@ -1620,7 +1797,7 @@ public static partial class EdoBuild
     /// <para><paramref name="note"/> に「何で建てたか・何を代用したか」を必ず返す — ⛔ 黙って代用しない(規則7・19)。
     /// 既定(<paramref name="kind"/> が null や未知の語)は**今までどおりの板塀**で、呼び手を変えない限り姿は変わらない。</para></summary>
     public static List<GameObject> FenceRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward, string kind,
-        float baseY, Vector2 gapC, float gapHalf, string prefix, out string note)
+        float baseY, Vector2 gapC, float gapHalf, string prefix, out string note, IList<DanSec> dan = null)
     {
         switch (kind)
         {
@@ -1674,6 +1851,8 @@ public static partial class EdoBuild
 
             case "dobei":
                 note = null;   // EDO-0351: 練塀の一体物(Dobei2m)が在る。板塀代用は誤りだった(EDO-0318 ⑤ の訂正)
+                // ⭐ 段塀(2026-09-29 EDO-0477 施主裁定1=B)── 呼び手が区切り(DanPlan)を渡したときは傾けずに段で建てる
+                if (dan != null && dan.Count > 0) return NeribeiStepRun(parent, A, B, outward, prefix, dan, gapC, gapHalf, out note);
                 return NeribeiRun(parent, A, B, outward, prefix, NaturalMode, baseY, gapC, gapHalf);
 
             case "ishigaki+hei":

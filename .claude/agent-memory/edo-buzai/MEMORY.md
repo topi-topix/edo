@@ -55,3 +55,4 @@
 - [隅の駒の継ぎ目の小口が内向き・棟梁の光線を prefab の TRS で再現](kado-seam-inward-and-prefab-rays.md) — use_fill の小口は向きを数える・近傍を組んでから撃つ(2026-09-27)
 - [板塀の地覆と光付け](itabei-jifuku-scribe.md) — 代つきの直材を焼き EdoBuild で削る・uv2=d(uv)/dy・名の ".60" は番号に化ける(2026-09-27)
 - [野面の駒を H2.40 より深く焼く](nozura-deep-layout-shared-rng.md) — DEEP を上げると既存全駒の中の石が変わる。深い駒だけ別の型を引く(2026-09-28)
+- [並べる石積みの駒は端の稜を面取りしない](nunoishi-seamless-module-ends.md) — 目地は駒の中だけ・面取り1セグで三角形を抑える・写しは hide_render を継ぐ(2026-09-29)

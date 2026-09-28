@@ -282,6 +282,10 @@ public static partial class EdoTypologyBuilder
         //    候補の並びは「狙いの帯(2.0 / 1.0 / 0.3)→ 置き方の点数」── 狙いを満たす所が先に試される。
         float mnx = poly.Min(p => p.x), mxx = poly.Max(p => p.x), mnz = poly.Min(p => p.y), mxz = poly.Max(p => p.y);
         var taken = new List<Vector2[]>();           // 置いた棟の屋根込みの矩形
+        // ⭐ 囲いの長屋も棟として数える(2026-09-29 EDO-0477 施主裁定C)── 囲い(Stage 2)は境内の棟より先に建つので、
+        //    長屋の屋根込みの矩形を先に積んでおけば、離れの硬い下限(JISHA_GAP_TIGHT)と狙い(MIN_BLDG_GAP)が長屋にも効く。
+        //    ⛔ それまで境内の棟は境内の棟どうしだけを避け、観理院の本堂の柱が東の長屋の壁へ 0.6m 食い込んでいた。
+        int enclN = JEnclosureRoofs(root, taken);
         var made = new List<GameObject>();
         Vector2[] lane = null;
         Vector2 hallC = poly.Aggregate(Vector2.zero, (a, q) => a + q) / poly.Length; bool hallDone = false;
@@ -457,6 +461,7 @@ public static partial class EdoTypologyBuilder
         string dr = dropped.Count > 0 ? "・⚠ " + string.Join(" / ", dropped.ToArray()) : "";
         string ts = tally.Summary();
         if (!string.IsNullOrEmpty(ts)) dr += ts;
+        if (enclN > 0) dr += string.Format("・囲いの長屋 {0} 駒を棟として避けた", enclN);
         if (!float.IsNaN(worstPair)) dr += string.Format("・棟どうしの当たりの最小 {0:F2}m{1}", worstPair,
             worstPair < MIN_BLDG_GAP ? "(⚠ 目安 " + MIN_BLDG_GAP.ToString("F1") + "m 未満)" : "");
         if (loose) dr += "・⚠ 境内が狭く棟どうしの離れを 1.0m へ緩めた棟がある";
@@ -557,6 +562,31 @@ public static partial class EdoTypologyBuilder
     static Vector2[] JRoofOf(JItem it, GameObject go)
     {
         return JCorners(it.roof, new Vector2(go.transform.position.x, go.transform.position.z), go.transform.eulerAngles.y);
+    }
+
+    /// <summary>囲いの長屋の駒ごとに、屋根込みの矩形(駒の向きの軸で実メッシュを測った外形)を <paramref name="taken"/> へ足す。
+    /// ⛔ 駒の基準点で矩形を決めない(規則21)── 向きだけを駒の回転から採り、広がりは頂点で測る。返り値は足した数。</summary>
+    static int JEnclosureRoofs(Transform root, List<Vector2[]> taken)
+    {
+        var kk = root.Find("Kakoi"); if (kk == null) return 0;
+        int n = 0;
+        foreach (Transform c in kk)
+        {
+            if (!c.name.StartsWith("nagaya")) continue;
+            var pts = EdoBuild.Body(c, 600, true);
+            if (pts.Count < 3) continue;
+            var u = new Vector2(c.right.x, c.right.z).normalized; var v = new Vector2(-u.y, u.x);
+            float u0 = float.MaxValue, u1 = float.MinValue, v0 = float.MaxValue, v1 = float.MinValue;
+            foreach (var p in pts)
+            {
+                var q = new Vector2(p.x, p.z);
+                float a = Vector2.Dot(q, u), b = Vector2.Dot(q, v);
+                u0 = Mathf.Min(u0, a); u1 = Mathf.Max(u1, a); v0 = Mathf.Min(v0, b); v1 = Mathf.Max(v1, b);
+            }
+            taken.Add(new[] { u * u0 + v * v0, u * u1 + v * v0, u * u1 + v * v1, u * u0 + v * v1 });
+            n++;
+        }
+        return n;
     }
 
     /// <summary>矩形から置いた棟の屋根の矩形までの最小の離れ(無ければ 99)。</summary>

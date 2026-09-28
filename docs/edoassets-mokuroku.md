@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 343(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 344(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -309,8 +309,9 @@
 | `Own.SkinMat(terrain, pass)` | 関数 | — | BuildHifu(SkinMaterials) |
 | `Own.MatsudairaOmotemon` | string | `Matsudaira_Omotemon.fbx` — 松江松平邸の表門 — 屋根なしの冠木門(角柱・冠木・内開きの板戸)。 | MatsudairaDewa(Stage5_Mon) |
 | `Own.Sodebei(len, kuguri=…)` | 関数 | 袖塀(長さ可変・潜り戸つき)— 表門の脇で外周を塞ぐ練塀。 | MatsudairaDewa(Stage5_Mon) |
-| `Own.Dobei2m` | string | `Dobei2m.fbx` — 練塀(築地塀)の一体物 — 腰の下見板・貫・白漆喰・本瓦の両流れが1駒に焼いてある (`Tools/Blender/build_dobei.py`)。 | BuildRim(FenceFaceOffsets), BuildRun(NeribeiRun), TypologyBuilder.Rim(Rim) |
-| `Own.Dobei2mEnd` | string | `Dobei2m_End.fbx` — Dobei2m の妻を塞いだ端部(x=0 側の小口に袖瓦を葺いて閉じた駒。 | BuildRun(NeribeiRun) |
+| `Own.Dobei2m` | string | `Dobei2m.fbx` — 練塀(築地塀)の一体物 — 腰の下見板・貫・白漆喰・本瓦の両流れが1駒に焼いてある (`Tools/Blender/build_dobei.py`)。 | BuildRun(NeribeiRun・NeribeiStepRun), BuildRim(FenceFaceOffsets), TypologyBuilder.Rim(Rim) |
+| `Own.Dobei2mNunoishi` | string | `Dobei2m_Nunoishi.fbx` — Dobei2m の下に据える布石(腰の石) — 切石の布積み 4段の1駒(EDO-0477)。 | BuildRun(NeribeiStepRun) |
+| `Own.Dobei2mEnd` | string | `Dobei2m_End.fbx` — Dobei2m の妻を塞いだ端部(x=0 側の小口に袖瓦を葺いて閉じた駒。 | BuildRun(NeribeiRun・NeribeiStepRun) |
 | `Own.MatsudairaBansho(w)` | 関数 | 松江松平邸の表門の番所 — 向唐破風・出格子・切石畳出の基壇。 | MatsudairaDewa(Stage5_Mon) |
 | `Own.MatsudairaBanshoBodyBand` | float[] | ⭐⭐ 番所の「躯体」を測るための帯 — ピボット(= 走りの芯・基壇の下端)からの 局所 y[m]。 | MatsudairaDewa(Stage5_Mon) |
 | `Own.NeishiLong` | float[] | 板塀の根石(玉石) — 松江松平邸の中仕切の板塀 8 run(延長 444.2m・約 800 石)。 | MatsudairaDewa(NeishiPlace) |
@@ -336,7 +337,7 @@
 | `Own.Typ.Komegura` | string | 米蔵 3間(梁間)× 4間(桁行)。石腰+白漆喰の大壁・妻に観音扉・切妻の本瓦。 | Typology(Plan) |
 | `Own.Typ.Umaya` | string | 厩 3間(梁間)× 4間(桁行)。板壁・桟瓦・前面(+Z)は吹き放ちで 足元に半高の板壁、馬房を4つ(桁行4間なので1房ちょうど1間)。 | Typology(Plan) |
 | `Own.Typ.SakujiKoya` | string | 作事小屋 2間(梁間)× 3間(桁行)。 | Typology(Plan), TypologyBuilder.Jisha(JishaOmoya) |
-| `Own.Typ.Takeyarai` | string | 竹矢来(たけやらい)— 2間モジュールの透ける囲い(類型共用・EDO-0363)。 | BuildRun(FenceRun・NeribeiRun) |
+| `Own.Typ.Takeyarai` | string | 竹矢来(たけやらい)— 2間モジュールの透ける囲い(類型共用・EDO-0363)。 | BuildRun(FenceRun・NeribeiStepRun) |
 | `Own.Typ.Omotedana(wKen)` | 関数 | 表店(おもてだな)— 町屋24町の通りに面して並ぶ2階建ての商家(類型共用)。 | TypologyBuilder.Machiya(OmotedanaFor), BuildMachiya |
 | `Own.Typ.Omotedana(wKen, dKen)` | 関数 | 奥行を詰めた表店。背後の余地が 4間(7.272m)に足りない筆で使う。 | TypologyBuilder.Machiya(OmotedanaFor), BuildMachiya |
 

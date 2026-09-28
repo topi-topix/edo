@@ -235,8 +235,9 @@ public static partial class EdoBuild
     /// ⭐ 線の外が高いだけの所(崖の裾・施主裁定X で線を寄せた所)は囲う ── 外の半分は崖の裾へ埋めて据える(根入れが基本・§0a)。
     /// ⛔ 2026-09-28 までは造成前の地盤で線の内外 ±1m の差を見ていて、造成で平らになった崖の裾まで崖と数え、
     /// 観理院 辺4 の頭 6m(うち平ら 3m)を素通しにした(EDO-0468 の検査・人が通れる口)。
-    /// 当たる先: 類型の全区画の囲い(塀・柵の種別)。長屋の囲いは棟なので別に扱う(未)。</summary>
-    public static List<float[]> CliffFreeSpans(Vector2 a, Vector2 b, Vector2 outward, float minSpan, out float cliffLen)
+    /// 当たる先: 類型の全区画の囲い(塀・柵の種別)。長屋の囲いは棟なので別に扱う(未)。
+    /// ⭐ <paramref name="alongOnly"/>=true は ② を見ない ── 段塀(練塀)は線を横切る元の斜面に埋めて据え、下がる側は布石が受ける(2026-09-29 EDO-0477 施主裁定)。</summary>
+    public static List<float[]> CliffFreeSpans(Vector2 a, Vector2 b, Vector2 outward, float minSpan, out float cliffLen, bool alongOnly = false)
     {
         var outp = new List<float[]>(); cliffLen = 0f;
         float L = (b - a).magnitude; if (L < 1e-3f) return outp;
@@ -253,7 +254,7 @@ public static partial class EdoBuild
             ts.Add(t);
             cl.Add(!float.IsNaN(g) && !float.IsNaN(gi) && !float.IsNaN(g0) && !float.IsNaN(g1)
                    && (Mathf.Abs(g1 - g0) / Mathf.Max(0.01f, (p1 - p0).magnitude) > CLIFF_SLOPE
-                       || Mathf.Abs(g - gi) / 0.5f > CLIFF_SLOPE));
+                       || (!alongOnly && Mathf.Abs(g - gi) / 0.5f > CLIFF_SLOPE)));
         }
         // ⭐ 崖の続きが CLIFF_MIN_RUN より短い所は崖と数えない ── 塀の駒 1 つで跨げる段差で、地盤の格子(2m)の角の段が崖と出る。
         //    ⛔ 2026-09-28 まで角の 0.75m が崖と出て区間が角から始まらず、角の延ばしが効かずに口が残った(観理院 v4 0.07m・EDO-0477)。

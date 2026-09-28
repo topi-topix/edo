@@ -1448,7 +1448,7 @@ public static class EdoAssets
         public static bool IsSannoNozura(string meshAssetPath)
         { return !string.IsNullOrEmpty(meshAssetPath) && System.IO.Path.GetFileName(meshAssetPath).StartsWith("Sanno_Nozura_"); }
         /// <summary>**野面の乱積みの土留め — 1間の駒**(山王社の前庭の縁。施主が試作 A を採った・2026-09-24)。
-        /// 見付 <paramref name="h"/>[m] ∈ 0.15(根石1段)/ 0.30 / 0.60 / 0.90 / 1.20 / 1.50 / 1.80 / 2.10 / 2.40、
+        /// 見付 <paramref name="h"/>[m] ∈ 0.15(根石1段)/ 0.30 / 0.60 / 0.90 / 1.20 / 1.50 / 1.80 / 2.10 / 2.40 / 4.80(勾配 0 だけ・三角形 約 3 万・EDO-0477 ── blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=0 --h=4.8)、
         /// 勾配 <paramref name="grade"/> = 天端が +X へ 1m あたり上がる量(剪断で天端を勾配に載せる・段に折らない)、
         /// 種類 <paramref name="i"/> は i%4 で a〜d(中の石だけが違う ⇒ **順に振って**繰り返しを隠す)。
         /// ⭐ **両端の石は全種類・全段・全勾配で同じ形**で、継ぎ目 X = ±0.909 で石の途中を切ってある ⇒ どの駒どうしでも継げる

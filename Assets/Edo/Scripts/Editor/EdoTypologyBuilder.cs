@@ -549,6 +549,8 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         //    店先が通りから隠れる。辺を選ぶのは Stage 3m と同じ関数なので、列の載る辺と必ず一致する。
         var machiyaFronts = MachiyaFrontEdges(s, edges, front);
         // ⭐ 囲いは造成の後でもう一度建てる(施主の規則「造成の後で全部据え直す」)ので、一手にまとめる。
+        // ⭐ 崖の縁の石垣(Stage 4y)── 造成の後で測って決まる。塀はその区間を石垣の天端に平らに載せる(EDO-0477 施主裁定A)。
+        var rims = new List<EdoBuild.RimRun>(); EdoBuild.BedIndex rimBed = null;
         Action buildKakoi = () =>
         {
             for (int c = encl.childCount - 1; c >= 0; c--) UnityEngine.Object.DestroyImmediate(encl.GetChild(c).gameObject);
@@ -574,6 +576,58 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                     if (cliffLen < 1f) spans = new List<float[]> { new[] { 0f, e.len } };
                     else kakoiNotes.Add(string.Format("辺{0} 崖下 {1:F0}m を囲わない(崖の上の面の縁が囲う所)", e.i, cliffLen));
                     var ed = (e.b - e.a).normalized;
+                    // ⭐ 崖の縁の石垣の区間は、崖を問わず塀を建て(石垣の天端に載る)、その外の区間から抜く。
+                    int ek = edges.IndexOf(e);
+                    var rimIv = new List<Vector3>();   // (s0, s1, 天端)
+                    foreach (var r in rims) foreach (var sp in r.spans) if (sp.Key == ek) rimIv.Add(new Vector3(sp.Value.x, sp.Value.y, r.crest));
+                    if (rimIv.Count > 0)
+                    {
+                        var cut = new List<float[]>();
+                        foreach (var sp in spans)
+                        {
+                            var pcs = new List<float[]> { new[] { sp[0], sp[1] } };
+                            foreach (var iv in rimIv)
+                            {
+                                var nx = new List<float[]>();
+                                foreach (var pc in pcs)
+                                {
+                                    if (iv.y <= pc[0] || iv.x >= pc[1]) { nx.Add(pc); continue; }
+                                    if (iv.x - pc[0] >= 2.0f) nx.Add(new[] { pc[0], iv.x });
+                                    if (pc[1] - iv.y >= 2.0f) nx.Add(new[] { iv.y, pc[1] });
+                                }
+                                pcs = nx;
+                            }
+                            cut.AddRange(pcs);
+                        }
+                        spans = cut;
+                        for (int ri = 0; ri < rimIv.Count; ri++)
+                        {
+                            var iv = rimIv[ri];
+                            var ra = e.a + ed * iv.x; var rb2 = e.a + ed * iv.y;
+                            // 座 = 塀の足あとの下の床(石垣の天端・地表の高い方)の最も低い所 −0.02 ── 塀は床に埋めて据える(§0a)
+                            float bmin = float.MaxValue;
+                            for (float u = 0f; u <= iv.y - iv.x + 1e-3f; u += 0.25f)
+                                foreach (float lat in new[] { -RIM_WALL_HALF, 0f, RIM_WALL_HALF })
+                                {
+                                    var q = ra + ed * u - e.outward.normalized * lat;
+                                    float g = EdoBuild.Ground(q.x, q.y), sb0 = rimBed != null ? rimBed.At(q.x, q.y) : float.NaN;
+                                    float bed = float.IsNaN(sb0) ? g : Mathf.Max(g, sb0);
+                                    if (!float.IsNaN(bed)) bmin = Mathf.Min(bmin, bed);
+                                }
+                            if (bmin == float.MaxValue) bmin = iv.z;
+                            string note2; bool nm0 = EdoBuild.NaturalMode; EdoBuild.NaturalMode = false;
+                            List<GameObject> rimWall;
+                            try { rimWall = EdoBuild.FenceRun(encl, ra, rb2, e.outward, kind, bmin - 0.02f + 0.10f, Vector2.zero, -1f, pre + "r" + ri, out note2); }
+                            finally { EdoBuild.NaturalMode = nm0; }
+                            // ⭐ 据えた塀の下端を床(石垣の天端・地表の高い方)で測り、浮いた所が在れば一続きごと沈める(天端は一直線のまま・§0a)
+                            var bdX = _bedX; _bedX = rimBed; float up = 0f;
+                            try { foreach (var g in rimWall) { var rt = EdoBuild.RootToBed(g, GroundBed, 0.05f); if (!float.IsNaN(rt.hi)) up = Mathf.Max(up, rt.hi); } }
+                            finally { _bedX = bdX; }
+                            if (up > 0f) { foreach (var g in rimWall) g.transform.position -= Vector3.up * (up + 0.005f); bmin -= up + 0.005f; }
+                            kakoiNotes.Add(string.Format("辺{0} 石垣の天端に載せた {1:F1}m(座 {2:F2}・天端 {3:F1})", e.i, iv.y - iv.x, bmin - 0.02f, iv.z)
+                                           + (string.IsNullOrEmpty(note2) ? "" : " " + note2));
+                        }
+                    }
                     for (int si = 0; si < spans.Count; si++)
                     {
                         var sa = e.a + ed * spans[si][0]; var sb2 = e.a + ed * spans[si][1];
@@ -664,6 +718,9 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                                           (rt.hi > GROUND_TOL || rt.lo < -GROUND_TOL) ? " ⚠(線 ±0.01)" : "",
                                           hb[k].squeezed > 0 ? string.Format("・⚠ 縁に近く平らに取れない節点 {0}", hb[k].squeezed) : ""));
                 }
+                // ── Stage 4y: 崖の縁の石垣(2026-09-28 EDO-0477 施主裁定A)── 区画の縁の外が平場より RIM_MIN 以上高い区間は、
+                //    塀の真下を平場まで削って野面の石垣を積み、塀を天端に載せる(EdoBuildRim.cs)。当たる先: 類型の全区画の崖の縁。
+                log.Add(Rim(s, root, poly, edges, front, machiyaFronts, pads, hb.Select(x => x.y).ToList(), rims, out rimBed));
                 var ya = root.Find("Yashiro");                  // 町屋の稲荷(Stage 3m で建つ・棟の群の外)
                 if (ya != null) foreach (Transform y in ya) Seat(y.gameObject, log);
                 if (mon != null)
@@ -1053,12 +1110,21 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
     /// <summary>塀の下端の浮きの線[m] = 地面の線と同じ(2026-09-27 に 0.05 から改めた・§4「類型の塀の下 0.05 はこの線へそろえる」)。</summary>
     const float KAKOI_UKI_TOL = GROUND_TOL;
     /// <summary>当たりの相手 = 見えている地表(live terrain)。<see cref="EdoBuild.RootToBed"/> に渡す。</summary>
-    static float GroundBed(float x, float z) { return EdoBuild.Ground(x, z); }
+    static float GroundBed(float x, float z)
+    {
+        float g = EdoBuild.Ground(x, z);
+        if (_bedX != null) { float b = _bedX.At(x, z); if (!float.IsNaN(b) && b > g) return b; }
+        return g;
+    }
+    /// <summary>床に数える受けの駒(崖の縁の石垣の天端)の索引。<see cref="Inspect"/> が区画の Ishigaki 群から作る ── 塀は石垣の天端に載る。</summary>
+    static EdoBuild.BedIndex _bedX;
 
     public static string Inspect(string id, Transform root, Vector2[] poly)
     {
         int n = 0, outside = 0, sunk = 0, floated = 0, multi = 0, eaveOut = 0, kakoiUki = 0, kakoiN = 0;
         float worstOut = 0f, worstSunk = 0f, worstFloat = 0f, worstRelief = 0f, worstEave = 0f, worstKakoiUki = 0f;
+        var ishiG = root.Find("Ishigaki");
+        _bedX = ishiG != null && ishiG.childCount > 0 ? new EdoBuild.BedIndex(ishiG.Cast<Transform>().Select(t => t.gameObject)) : null;
         foreach (Transform grp in root)
         {
             // ⛔ 2026-09-22 まで「Mon」もここに入っていて、辺に載らない門を折り込んでも残る
@@ -1094,7 +1160,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 //    一様な間引きが根元の頂点を落とし、+0.97m の「浮き」が全頂点では −0.29m だった
                 //    (2026-09-22 todablock。EDO-0323 の指摘)。全区画を精密に測ると 79 区画が終わらないので、
                 //    ここだけ。測り直した値が本当の値 — 間引きの値で ⛔ を出さない(規則19)。
-                bool rooted = grp.name == "Kakoi" || grp.name == "Niwa";   // 根入れで据える物(埋没を数えない)
+                bool rooted = grp.name == "Kakoi" || grp.name == "Niwa" || grp.name == "Ishigaki";   // 石垣は根入れ 0.22 と見付の余りを地中へ   // 根入れで据える物(埋没を数えない)
                 if ((!rooted && dy < -GROUND_TOL) || dy > GROUND_TOL)
                     dy = EdoBuild.Contact(t.gameObject, out at, out nc, 0.01f, 60000);
                 // ⭐ 棟(御殿の複合を除く)は**下端の全部**を測る(§0a)── Contact(上の測り直しも)は最寄りの 1 点なので、斜面で下手が浮いても 0 を返す。

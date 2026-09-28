@@ -1120,17 +1120,21 @@ def backing(name, h, g, mat, d=0.12, u0=-0.12, u1=None):
 _LAYOUT = {}
 
 
-def wall_cells(v):
-    if v not in _LAYOUT:
-        _LAYOUT[v] = layout(L, DEEP, "nozura-wall-B", "nozura-wall-" + v)
-    return _LAYOUT[v]
+def wall_cells(v, depth=DEEP):
+    """depth = 型の深さ(天端から)。⭐ 既定 DEEP(H2.40+根入れ)の駒は型を変えない ── 深い駒(H4.80 など・EDO-0477)だけ
+    `layout` を h+BURY まで延ばす(端の石の列も中の石の行も天端から下へ継ぎ足すだけ ⇒ 天端の線を揃えれば継ぎ目の端の石は既存と同じ形)。"""
+    depth = max(DEEP, depth)
+    key = v if depth == DEEP else (v, round(depth, 3))
+    if key not in _LAYOUT:
+        _LAYOUT[key] = layout(L, depth, "nozura-wall-B", "nozura-wall-" + v)
+    return _LAYOUT[key]
 
 
 def make_wall(h, g, v):
     V.reset()
     mats = materials()
     cells = []
-    for poly, kind, key in wall_cells(v):
+    for poly, kind, key in wall_cells(v, h + BURY):
         p2 = clip(poly, (0, -1), h + BURY)            # u >= −(h+BURY)
         if len(p2) >= 3 and area(p2) > 0.004:
             cells.append((p2, kind, key))

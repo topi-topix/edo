@@ -532,7 +532,7 @@ public static partial class EdoBuild
     /// <para>⭐ 表(ローカル +Z)を <paramref name="outward"/> へ向けたいなら j0→j1 を (−dir.y, dir.x)·outward > 0 の順で渡す(<see cref="ChordFacing"/>)。</para>
     /// 当たる先: 類型の板塀・練塀の run(<see cref="DobeiRun"/>・<see cref="NeribeiRun"/> の地形なり)。</summary>
     public static GameObject PlaceOnChordMeasured(string path, Vector3 j0, Vector3 j1, Vector2 outward, float latLine,
-                                                  float unitScale, Transform parent, string name)
+                                                  float unitScale, Transform parent, string name, float ext0 = 0f, float ext1 = 0f)
     {
         var rx = RunMeasure(path); var ry = RunMeasureY(path);
         Vector2 h0 = new Vector2(j0.x, j0.z), h1 = new Vector2(j1.x, j1.z);
@@ -541,10 +541,13 @@ public static partial class EdoBuild
         float chord = Mathf.Sqrt(du * du + dy * dy);
         float yaw = Mathf.Atan2(-dir.y, dir.x) * Mathf.Rad2Deg;
         float roll = Mathf.Atan2(dy, du) * Mathf.Rad2Deg;
-        var scale = new Vector3(chord / rx.W, unitScale, unitScale);
+        // ⭐ ext0/ext1 = 継ぎ目の外へ伸ばす長さ(折れの継ぎ目で隣と重ねる ── 隙間>めり込み)
+        var scale = new Vector3((chord + ext0 + ext1) / rx.W, unitScale, unitScale);
         var q = Quaternion.Euler(0f, yaw, 0f) * Quaternion.Euler(0f, 0f, roll);
+        var cdir = chord > 1e-6f ? (j1 - j0) / chord : Vector3.right;
         var anchorL = new Vector3((rx.lo + rx.hi) * 0.5f, ry.Mid, 0f);                 // 実メッシュの走りの中央・丈の中ほど
-        var anchorW = (j0 + j1) * 0.5f + Vector3.up * ((ry.Mid - ry.lo) * unitScale);  // 弦の中点(足元)から丈の中ほどまで
+        var anchorW = (j0 + j1) * 0.5f + cdir * ((ext1 - ext0) * 0.5f)
+                    + Vector3.up * ((ry.Mid - ry.lo) * unitScale);                      // 弦の中点(足元)から丈の中ほどまで
         var pos = anchorW - q * Vector3.Scale(scale, anchorL);
         var go = Place(path, pos, yaw, scale, parent, name);
         go.transform.rotation = q; go.transform.position = pos;
@@ -564,7 +567,8 @@ public static partial class EdoBuild
     /// 継ぎ目は隣の駒と共有したまま動かすので、天端は一続きの折れ線のまま(段々にならない)。収まるまで(最大 6 巡)回す。
     /// ⛔ 芯の線だけで地面に合わせると、塀の厚み方向に地面が傾く所で低い側の縁が浮いた(観理院 辺2・辺3 で 1m あたり 0.2〜0.6m の横断勾配・
     /// 最大 0.29m)。当たる先: 地形なりの練塀(<see cref="NeribeiRun"/>)・板塀(<see cref="DobeiRun"/>)── 類型の全区画の囲い。</summary>
-    public static List<GameObject> RootChordRun(List<Vector3> js, Func<int, Vector3, Vector3, List<GameObject>> placeSeg, out float worstFloat, out float deepest)
+    public static List<GameObject> RootChordRun(List<Vector3> js, Func<int, Vector3, Vector3, List<GameObject>> placeSeg, out float worstFloat, out float deepest,
+                                                List<int> breaks = null)
     {
         int m = js.Count - 1; var drop = new float[js.Count];
         var segs = new List<GameObject>[m];
@@ -586,6 +590,27 @@ public static partial class EdoBuild
                 worstFloat = Mathf.Max(worstFloat, hi);
                 if (hi > 0.002f) { need[k] = Mathf.Max(need[k], hi); need[k + 1] = Mathf.Max(need[k + 1], hi); }
             }
+            if (breaks != null && breaks.Count >= 2)
+            {
+                // ⭐ 一直線の区間(breaks の間)は**区間ごと下げる**(2026-09-28 施主「塀が地形に合わせて滑らかに波打つ」)。
+                //    ⛔ 継ぎ目を一つずつ下げると天端が折れ線に戻る。区間の両端を区間の中の最悪の浮きだけ下げ、中は両端から線形に取る。
+                var bn = new float[js.Count];
+                for (int r = 0; r + 1 < breaks.Count; r++)
+                {
+                    float rn = 0f; for (int j = breaks[r]; j <= breaks[r + 1]; j++) rn = Mathf.Max(rn, need[j]);
+                    bn[breaks[r]] = Mathf.Max(bn[breaks[r]], rn); bn[breaks[r + 1]] = Mathf.Max(bn[breaks[r + 1]], rn);
+                }
+                for (int r = 0; r + 1 < breaks.Count; r++)
+                {
+                    int b0 = breaks[r], b1 = breaks[r + 1];
+                    float d0 = Mathf.Min(CHORD_ROOT_MAX, drop[b0] + bn[b0]), d1 = Mathf.Min(CHORD_ROOT_MAX, drop[b1] + bn[b1]);
+                    for (int j = b0; j <= b1; j++)
+                    {
+                        float nd = b1 > b0 ? Mathf.Lerp(d0, d1, (float)(j - b0) / (b1 - b0)) : d0;
+                        need[j] = Mathf.Max(0f, nd - drop[j]);
+                    }
+                }
+            }
             for (int j = 0; j < js.Count; j++)
             {
                 float nd = Mathf.Min(CHORD_ROOT_MAX, drop[j] + need[j]);
@@ -596,6 +621,60 @@ public static partial class EdoBuild
         foreach (var d in drop) deepest = Mathf.Max(deepest, d);
         var all = new List<GameObject>(); foreach (var sg in segs) all.AddRange(sg);
         return all;
+    }
+
+    /// <summary>**天端を一続きごとに一直線に取る継ぎ目**(2026-09-28・EDO-0477 施主「塀が地形に合わせて滑らかに波打ってる」)。
+    /// a→b の地表を 0.25m ごとに読み、始点から**一直線のまま下端が浮かず・根入れ <see cref="CHORD_ROOT_MAX"/> 以内に収まる所まで**区間を延ばす
+    /// (下端の線は地表 − <paramref name="root"/> を越えない最も高い直線)。収まらなくなった所で折り、次の区間は前の終わりの高さから続ける。
+    /// 区間の中は道のり <paramref name="span"/> ほどの駒に等分し、継ぎ目は直線の上に置く。<paramref name="breaks"/> は折れの継ぎ目の番号(両端を含む)。
+    /// ⛔ 1 駒ごとに地表へ弦を張ると天端が波打ち、傾きの違う駒の継ぎ目に V の隙が開いた(観理院・山王社の前庭から)。
+    /// 当たる先: 地形なりの練塀・板塀(<see cref="NeribeiRun"/>・<see cref="DobeiRun"/>)── 類型の全区画の囲い。</summary>
+    public static List<Vector3> StraightRunJoints(Vector2 a, Vector2 b, float span, float root, out List<int> breaks)
+    {
+        var outp = new List<Vector3>(); breaks = new List<int>();
+        float L = Vector2.Distance(a, b);
+        Vector2 dir = L > 1e-6f ? (b - a) / L : Vector2.right;
+        int M = Mathf.Max(2, Mathf.CeilToInt(L / 0.25f)); float step = L / M;
+        var probe = Probe();
+        var g = new float[M + 1];
+        for (int i = 0; i <= M; i++) { var p = a + dir * (step * i); g[i] = probe.At(p.x, p.y); }
+        int s = 0; float y0 = g[0] - root;
+        outp.Add(new Vector3(a.x, y0, a.y)); breaks.Add(0);
+        while (s < M)
+        {
+            float mLo = float.MinValue, mHi = float.MaxValue; int e = s;
+            for (int i = s + 1; i <= M; i++)
+            {
+                float t = step * (i - s);
+                float hi = Mathf.Min(mHi, (g[i] - root - y0) / t);              // 下端が地表 − root を越えない
+                float lo = Mathf.Max(mLo, (g[i] - CHORD_ROOT_MAX - y0) / t);    // 根入れが上限を越えない
+                if (lo > hi && e > s) break;                                    // この点を入れると一直線で収まらない
+                mHi = hi; mLo = lo; e = i;
+                if (lo > hi) break;                                             // 一歩目から収まらない(崖)── 浮かせない側を採って折る
+            }
+            // 傾きは浮かない側の上限(= どこかで根入れ root で地表に当たる、最も浅く埋まる直線)
+            float te = step * (e - s), ye = y0 + mHi * te;
+            // 区間 s..e を道のり span ほどに等分
+            float du = te, dy = ye - y0;
+            int n = Mathf.Max(1, Mathf.RoundToInt(Mathf.Sqrt(du * du + dy * dy) / span));
+            for (int k = 1; k <= n; k++)
+            {
+                float f = (float)k / n; var p = a + dir * (step * s + te * f);
+                outp.Add(new Vector3(p.x, y0 + dy * f, p.y));
+            }
+            breaks.Add(outp.Count - 1);
+            s = e; y0 = ye;
+        }
+        return outp;
+    }
+
+    /// <summary>折れの継ぎ目で隣の駒へ重ねる長さ[m] ── 丈の半分 × 傾きの差 + 0.02(隙間>めり込み・駒どうしの埋め込みは数えない)。</summary>
+    public static float KinkOverlap(List<Vector3> js, List<int> breaks, int j, float height)
+    {
+        if (j <= 0 || j >= js.Count - 1 || !breaks.Contains(j)) return 0f;
+        Func<Vector3, Vector3, float> ang = (p, q) => Mathf.Atan2(q.y - p.y, Vector2.Distance(new Vector2(p.x, p.z), new Vector2(q.x, q.z)));
+        float d = Mathf.Abs(ang(js[j], js[j + 1]) - ang(js[j - 1], js[j]));
+        return d < 1e-4f ? 0f : height * 0.5f * Mathf.Tan(d) + 0.02f;
     }
 
     /// <summary>弦 j0→j1 に張った駒の表(ローカル +Z)が <paramref name="outward"/> を向くか。</summary>
@@ -662,21 +741,24 @@ public static partial class EdoBuild
             //   当たる先: 類型の板塀・生垣付き板塀・石垣+塀・既定の囲い(followGround = NaturalMode)と、地形なりで呼ぶ旧山王ビルダーの TW_*/SB_*。
             if (followGround)
             {
-                var js = GroundPolyline(A + dir * seg[0], A + dir * seg[1], DOBEI_PITCH, SLOPE_ROOT, SLOPE_ROOT * 2f);
-                for (int j = 0; j < js.Count; j++) js[j] -= Vector3.up * SLOPE_ROOT;
+                // ⭐ 天端は一続きごとに一直線(StraightRunJoints)・折れの継ぎ目は重ねる(KinkOverlap)── 2026-09-28 施主「波打ってる」「隙間」
+                List<int> brk;
+                var js = StraightRunJoints(A + dir * seg[0], A + dir * seg[1], DOBEI_PITCH, SLOPE_ROOT, out brk);
+                float hH = (RunMeasureY(PHei).hi - RunMeasureY(PHei).lo) * ES;
                 int k0 = k; float wf, dp;
                 made.AddRange(RootChordRun(js, (j, j0, j1) =>
                 {
                     var two = new List<GameObject>();
                     bool fwd = ChordFacing(j0, j1, outward);
+                    float e0 = KinkOverlap(js, brk, j, hH), e1 = KinkOverlap(js, brk, j + 1, hH);
                     for (int side = 0; side < 2; side++)
                     {
                         bool f = side == 0 ? fwd : !fwd;
                         two.Add(PlaceOnChordMeasured(PHei, f ? j0 : j1, f ? j1 : j0, outward, lat0 + (side == 0 ? 0f : -0.2f), ES,
-                                                     parent, prefix + "_" + (k0 + j) + (side == 0 ? "f" : "b")));
+                                                     parent, prefix + "_" + (k0 + j) + (side == 0 ? "f" : "b"), f ? e0 : e1, f ? e1 : e0));
                     }
                     return two;
-                }, out wf, out dp));
+                }, out wf, out dp, brk));
                 k += js.Count - 1;
                 continue;
             }
@@ -739,19 +821,22 @@ public static partial class EdoBuild
             //   妻塞ぎ(Dobei2mEnd)は小口がローカル x の低い側にあるので、弦の j0 を**自由端**に取る(回転の向きを外向きの算術に頼らない)。
             if (followGround)
             {
-                var js = GroundPolyline(A + dir * seg[0], A + dir * seg[1], bodyLen, SLOPE_ROOT, SLOPE_ROOT * 2f);
+                // ⭐ 天端は一続きごとに一直線(StraightRunJoints)・折れの継ぎ目は重ねる(KinkOverlap)── 2026-09-28 施主「波打ってる」「隙間」
+                List<int> brk;
+                var js = StraightRunJoints(A + dir * seg[0], A + dir * seg[1], bodyLen, SLOPE_ROOT, out brk);
                 int m = js.Count - 1;
                 bool cLo = gapHalf > 0 && seg[0] > 0.01f;
                 bool cHi = gapHalf > 0 && seg[1] < len - 0.01f && !(m == 1 && cLo);
-                for (int j = 0; j < js.Count; j++) js[j] -= Vector3.up * SLOPE_ROOT;
+                float hH = RunMeasureY(EdoAssets.Own.Dobei2m).hi - RunMeasureY(EdoAssets.Own.Dobei2m).lo;
                 int idx0 = idx; float wf, dp;
                 made.AddRange(RootChordRun(js, (k, j0, j1) =>
                 {
                     bool atLo = k == 0 && cLo, atHi = k == m - 1 && cHi;
                     string path = (atLo || atHi) ? EdoAssets.Own.Dobei2mEnd : EdoAssets.Own.Dobei2m;
                     bool f = atLo ? true : atHi ? false : ChordFacing(j0, j1, outward);
-                    return new List<GameObject> { PlaceOnChordMeasured(path, f ? j0 : j1, f ? j1 : j0, outward, lat0, 1f, parent, prefix + "_" + (idx0 + k)) };
-                }, out wf, out dp));
+                    float e0 = KinkOverlap(js, brk, k, hH), e1 = KinkOverlap(js, brk, k + 1, hH);
+                    return new List<GameObject> { PlaceOnChordMeasured(path, f ? j0 : j1, f ? j1 : j0, outward, lat0, 1f, parent, prefix + "_" + (idx0 + k), f ? e0 : e1, f ? e1 : e0) };
+                }, out wf, out dp, brk));
                 idx += m;
                 continue;
             }

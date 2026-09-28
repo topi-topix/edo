@@ -588,15 +588,47 @@ public static partial class EdoBuild
         float yaw = Mathf.Atan2(-dir.y, dir.x) * Mathf.Rad2Deg;
         float roll = Mathf.Atan2(dy, du) * Mathf.Rad2Deg;
         // ⭐ ext0/ext1 = 継ぎ目の外へ伸ばす長さ(折れの継ぎ目で隣と重ねる ── 隙間>めり込み)
-        var scale = new Vector3((chord + ext0 + ext1) / rx.W, unitScale, unitScale);
-        var q = Quaternion.Euler(0f, yaw, 0f) * Quaternion.Euler(0f, 0f, roll);
+        float sx = (chord + ext0 + ext1) / rx.W;
+        var yawQ = Quaternion.Euler(0f, yaw, 0f);
         var cdir = chord > 1e-6f ? (j1 - j0) / chord : Vector3.right;
         var anchorL = new Vector3((rx.lo + rx.hi) * 0.5f, ry.Mid, 0f);                 // 実メッシュの走りの中央・丈の中ほど
         var anchorW = (j0 + j1) * 0.5f + cdir * ((ext1 - ext0) * 0.5f)
                     + Vector3.up * ((ry.Mid - ry.lo) * unitScale);                      // 弦の中点(足元)から丈の中ほどまで
-        var pos = anchorW - q * Vector3.Scale(scale, anchorL);
-        var go = Place(path, pos, yaw, scale, parent, name);
-        go.transform.rotation = q; go.transform.position = pos;
+        GameObject go;
+        if (Mathf.Abs(roll) < 0.05f)
+        {
+            var scale = new Vector3(sx, unitScale, unitScale);
+            var pos = anchorW - yawQ * Vector3.Scale(scale, anchorL);
+            go = Place(path, pos, yaw, scale, parent, name);
+            go.transform.rotation = yawQ; go.transform.position = pos;
+        }
+        else
+        {
+            // ⭐ 勾配の弦は**剪断で張る** ── 柱は鉛直のまま、駒の走りだけを弦に沿わせる(2026-09-28・EDO-0472)。
+            //    ⛔ 2026-09-28 まで駒を roll で回していたので、柱が傾き、上端が丈 × sin(roll) だけ弦の低い端の外へ倒れて
+            //    走りの端(区画の角)を越えた(十坊 4・5・9 の角の板塀 8 駒が区画の外へ 0.61〜0.85m)。
+            //    Unity の transform は剪断を持てないので、M = R(φ)·Σ·R(θ)(2×2 の特異値分解・走り×丈の面)を
+            //    枠(yaw だけ・倍率 1 ── RootToBed 等が測る局所の上 = 世界の上)→ 中(R(φ)・Σ)→ 駒(R(θ))の三段に割る。
+            //    当たる先: DobeiRun・NeribeiRun の地形なりの枝(類型の板塀・生垣付き板塀・石垣+塀・練塀の全区画)。
+            float r = roll * Mathf.Deg2Rad;
+            float a = sx * Mathf.Cos(r), c = sx * Mathf.Sin(r), dd = unitScale;  // 列 = 局所 x・y の像(走り・上)
+            float E = (a + dd) * 0.5f, F = (a - dd) * 0.5f, G = c * 0.5f, H = c * 0.5f;
+            float Q = Mathf.Sqrt(E * E + H * H), R = Mathf.Sqrt(F * F + G * G);
+            float s1 = Q + R, s2 = Q - R, a1 = Mathf.Atan2(G, F), a2 = Mathf.Atan2(H, E);
+            float th = (a2 - a1) * 0.5f * Mathf.Rad2Deg, ph = (a2 + a1) * 0.5f * Mathf.Rad2Deg;
+            var qPh = Quaternion.Euler(0f, 0f, ph); var qTh = Quaternion.Euler(0f, 0f, th);
+            var sig = new Vector3(s1, s2, unitScale);
+            var pos = anchorW - yawQ * (qPh * Vector3.Scale(sig, qTh * anchorL));
+            go = new GameObject(name);
+            go.transform.SetParent(parent, true);
+            go.transform.position = pos; go.transform.rotation = yawQ; go.transform.localScale = Vector3.one;
+            var mid = new GameObject("剪断");
+            mid.transform.SetParent(go.transform, false);
+            mid.transform.localRotation = qPh; mid.transform.localScale = sig;
+            var piece = Place(path, Vector3.zero, 0f, Vector3.one, mid.transform, name + "_駒");
+            piece.transform.localPosition = Vector3.zero; piece.transform.localRotation = qTh; piece.transform.localScale = Vector3.one;
+            Undo.RegisterCreatedObjectUndo(go, "place " + name);
+        }
         float lmn, lmx;
         ProjExtent(go, outward, float.MinValue, float.MaxValue, null, out lmn, out lmx);
         float d = latLine - (lmn + lmx) * 0.5f;
@@ -1739,9 +1771,28 @@ public static partial class EdoBuild
             }
             if (near != null) { Vector3 at; int cn; Abut(go, near, toFence, 0f, out at, out cn, 0.30f, 400); }
             try { SeatOnGround(go, 0.05f, 300); } catch (Exception) { }
+            if (!RootPlant(go, CHORD_ROOT_MAX)) { UnityEngine.Object.DestroyImmediate(go); continue; }
             made++;
         }
         return made;
+    }
+
+    /// <summary>林縁帯の低木を斜面へ埋めてよい深さの上限[m]【U】── 法面の帯に据える物なので生垣(<see cref="CHORD_ROOT_MAX"/>)より深く許す。</summary>
+    const float RINEN_ROOT_MAX = 1.00f;
+
+    /// <summary>**植えた駒(生垣・林縁帯の低木)を根入れで据える**(2026-09-28・EDO-0472)。
+    /// <see cref="SeatOnGround"/> は最寄りの 1 点を地表に着けるだけなので、斜面では 1.8m の生垣の下手の端が勾配ぶん浮いた
+    /// (十坊 10 区画で生垣 217 駒・林縁帯 14 駒が浮き・最悪 2.63m)。下端の足跡(<see cref="RootToBed"/> ── 当たり = 見えている地表)の
+    /// 最大の浮きだけ沈めて、上手を土に埋める(埋めて隠すのが基本・docs/oki-kata.md §4)。
+    /// 条件は**硬い**: 沈める量が <paramref name="maxRoot"/> を越える所(駒が崖の縁・石垣の天端の縁を跨いで宙に出る)は植えない → false。
+    /// 当たる先: <see cref="IkegakiRow"/>・<see cref="RinenBand"/> ── 類型の生垣付き板塀(ita+ikegaki)の全区画。</summary>
+    public static bool RootPlant(GameObject go, float maxRoot)
+    {
+        var rt = RootToBed(go, Ground, 0.10f);
+        if (float.IsNaN(rt.hi) || rt.hi <= 0f) return true;
+        if (rt.hi > maxRoot) return false;
+        go.transform.position -= Vector3.up * (rt.hi + 0.005f);
+        return true;
     }
 
     /// <summary>辺の**内側**(据える帯そのもの)が法面かを、地形を実測して判定する(EDO-0171)。
@@ -1816,6 +1867,7 @@ public static partial class EdoBuild
                           Vector3.one, parent, prefix + "_" + made);
             if (go == null) continue;
             try { SeatOnGround(go, 0.05f, 300); } catch (Exception) { UnityEngine.Object.DestroyImmediate(go); continue; }
+            if (!RootPlant(go, RINEN_ROOT_MAX)) { UnityEngine.Object.DestroyImmediate(go); continue; }
             placed.Add(c);
             made++;
         }

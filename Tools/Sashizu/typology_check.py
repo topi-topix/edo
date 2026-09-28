@@ -46,7 +46,10 @@ def read_keys():
     if src is None:
         return None
     # ⭐ `IA(d,"…")` は整数の配列を読む道具(`main_hall_ken` = [桁行, 梁間]。EDO-0354)。
-    return set(re.findall(r'\b(?:[SIB]o?|IA)\(\s*d\s*,\s*"([^"]+)"', src))
+    # ⭐ 辞書の欄(`enclosure_dir`)は `d.TryGetValue("…"` で読む — これを数えないと読んでいる欄を
+    #    「読みもしない」と偽って出した(EDO-0472)。
+    return (set(re.findall(r'\b(?:[SIB]o?|IA)\(\s*d\s*,\s*"([^"]+)"', src))
+            | set(re.findall(r'\bd\.TryGetValue\(\s*"([^"]+)"', src)))
 
 
 def read_but_unused():

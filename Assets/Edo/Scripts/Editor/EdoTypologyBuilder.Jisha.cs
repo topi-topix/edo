@@ -290,6 +290,7 @@ public static partial class EdoTypologyBuilder
         var tally = new EdoBuild.SeiyakuTally();
         float hallArea = 0f, annexArea = 0f;
         int hallTry = 0;
+        bool hallTurn = false;   // 表を門へ向けては収まらず、本堂を 90° 振って探している(EDO-0472)
 
         for (int ii = 0; ii < items.Count; ii++)
         {
@@ -299,7 +300,9 @@ public static partial class EdoTypologyBuilder
             var tmpl = it.go; tmpl.SetActive(false);   // 型紙(置くたびに複製し、退けた複製は PlaceBest が消す)
 
             var cands = new List<JCand>();
-            var yaws = new List<float> { it.yaw };
+            // ⭐ 本堂の表を門へ向けるのは**狙い**(柔らかい・EDO-0472)── 向けては収まらない境内(細長い平場を門の軸が縦に貫く
+            //    智乗院)に限り、90° 振った向きで探し直す。⛔ 2026-09-28 まで向きは硬く、本堂を建てずに落とした。
+            var yaws = it.mode == JMode.Main && hallTurn ? new List<float> { it.yaw + 90f, it.yaw - 90f } : new List<float> { it.yaw };
             // ⭐ Near(庫裏・塔頭)も縁の向きを試す(2026-09-22・EDO-0354 退行の直し)。
             if (it.mode != JMode.Main) yaws.AddRange(edgeYaws);
             for (float x = mnx; x <= mxx; x += JISHA_GRID)
@@ -311,6 +314,11 @@ public static partial class EdoTypologyBuilder
                     {
                         var wc = JCorners(it.wall, p, yaw);
                         if (!JInside(poly, wc, JISHA_EDGE)) continue;
+                        // ⭐ 平場が取れない所は**候補の段で**外す(下の硬い制約と同じ判定・地形と区画の形だけで決まる)(EDO-0472)。
+                        //    ⛔ 候補のままにすると PlaceBest の試行 JISHA_TRIES を門に近い細い所で使い切り、奥の平場へ届かない
+                        //    (智乗院: 細長い平場の先に門 → 本堂 3 寸法 × 2 向きが全部「収まらず」)。
+                        if (EdoBuild.PadSqueeze(poly, wc, ZOSEI_MARGIN) != 0)
+                        { EdoBuild.SeiyakuTally.Inc(tally.HardRejected, "平場が取れない(区画の縁に近い斜面)"); continue; }
                         var rc = JCorners(it.roof, p, yaw);
                         float gm = JGapTo(rc, taken);
                         if (gm < JISHA_GAP_TIGHT) continue;
@@ -394,6 +402,18 @@ public static partial class EdoTypologyBuilder
                     {
                         hallNote += string.Format("・⚠ {0}x{1}間は境内に収まらず {2}", hw, hd, nt);
                         hw = hallSizes[hallTry][0]; hd = hallSizes[hallTry][1];
+                        it.go = nh; ii--; continue;
+                    }
+                }
+                if (it.mode == JMode.Main && !hallTurn)
+                {
+                    string nt;
+                    var nh = EdoBuild.Honden(g, it.label, hallSizes[0][0], hallSizes[0][1], out nt);
+                    if (nh != null)
+                    {
+                        hallTurn = true; hallTry = 0;
+                        hallNote += string.Format("・⚠ {0}x{1}間まで表を門へ向けては収まらず、本堂を 90° 振って(表を横へ)探し直した({2})", hw, hd, nt);
+                        hw = hallSizes[0][0]; hd = hallSizes[0][1];
                         it.go = nh; ii--; continue;
                     }
                 }

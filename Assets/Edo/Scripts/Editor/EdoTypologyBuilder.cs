@@ -853,6 +853,16 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 // ── Stage 4y: 崖の縁の石垣(2026-09-28 EDO-0477 施主裁定A)── 区画の縁の外が平場より RIM_MIN 以上高い区間は、
                 //    塀の真下を平場まで削って野面の石垣を積み、塀を天端に載せる(EdoBuildRim.cs)。当たる先: 類型の全区画の崖の縁。
                 log.Add(Rim(s, root, poly, edges, front, machiyaFronts, pads, hb.Select(x => x.y).ToList(), rims, out rimBed));
+                // ⭐ 造成と石垣の前の削り(Rim)の後で棟を据え直して測る(EDO-0472)。⛔ 2026-09-28 まで棟は削りの前にだけ据えて測り、
+                //    削りで足元が下がった棟(十坊 智乗院の物置 0.79m)を黙って残した。棟は地面の ±0.01 の内(docs/oki-kata.md §4)
+                //    ── 埋めて消さない(埋没に数わる)。浮けば ⛔ で刷り、置き場か平場を直す。
+                for (int k = 0; k < bldg.Count; k++)
+                {
+                    Seat(bldg[k], log);
+                    var rt2 = EdoBuild.RootToBed(bldg[k], GroundBed, 0.1f);
+                    if (float.IsNaN(rt2.hi) || rt2.hi <= GROUND_TOL) continue;
+                    log.Add(string.Format("    ⛔ 棟 {0}: 造成と石垣の前の削りの後で下端が {1:F3}m 浮く(線 ±0.01)── 置き場か平場を直す", bldg[k].name, rt2.hi));
+                }
                 var ya = root.Find("Yashiro");                  // 町屋の稲荷(Stage 3m で建つ・棟の群の外)
                 if (ya != null) foreach (Transform y in ya) Seat(y.gameObject, log);
                 if (mon != null)

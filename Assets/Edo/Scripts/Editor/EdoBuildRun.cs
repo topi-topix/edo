@@ -1337,29 +1337,44 @@ public static partial class EdoBuild
     /// 当たる先: <see cref="PostBoardRunScribed"/> の地覆・柱(scribe=false)。以後、代(下へ延ばした部分)を持つ部材の据え全て。</summary>
     public static Scribe RootToBed(GameObject go, Func<float, float, float> bedAt, float step = 0.01f)
     {
+        // ⭐ 測るのは**下端に届いている駒の足跡だけ**(2026-09-28 EDO-0477 施主「接すると決めた所以外をなぜ測る」)。
+        //    ⛔ 2026-09-28 まで全メッシュの外形の四角を下端の高さで引き、棟では屋根の軒の出の下の地面まで「浮き」に数えた
+        //    (観理院の護摩堂 0.018m ── 縁も壁も 0.000)。塀の駒は一つの駒が足跡いっぱいに着くので結果は変わらない。
         var res = new Scribe { lo = float.NaN, hi = float.NaN };
-        Transform gt = go.transform; float x0 = float.MaxValue, x1 = float.MinValue, z0 = float.MaxValue, z1 = float.MinValue, yb = float.MaxValue;
+        Transform gt = go.transform; float yb = float.MaxValue;
+        var boxes = new List<float[]>();   // 駒ごとの局所 [x0,x1,z0,z1,y0]
         foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
         {
             if (mf.sharedMesh == null) continue;
+            float x0 = float.MaxValue, x1 = float.MinValue, z0 = float.MaxValue, z1 = float.MinValue, y0 = float.MaxValue;
             foreach (var v in mf.sharedMesh.vertices)
-            { var l = gt.InverseTransformPoint(mf.transform.TransformPoint(v)); x0 = Mathf.Min(x0, l.x); x1 = Mathf.Max(x1, l.x); z0 = Mathf.Min(z0, l.z); z1 = Mathf.Max(z1, l.z); yb = Mathf.Min(yb, l.y); }
+            { var l = gt.InverseTransformPoint(mf.transform.TransformPoint(v)); x0 = Mathf.Min(x0, l.x); x1 = Mathf.Max(x1, l.x); z0 = Mathf.Min(z0, l.z); z1 = Mathf.Max(z1, l.z); y0 = Mathf.Min(y0, l.y); }
+            if (y0 == float.MaxValue) continue;
+            boxes.Add(new[] { x0, x1, z0, z1, y0 }); yb = Mathf.Min(yb, y0);
         }
         if (yb == float.MaxValue) return res;
         float sxw = gt.TransformVector(Vector3.right).magnitude, szw = gt.TransformVector(Vector3.forward).magnitude;
-        int nx = Mathf.Max(1, Mathf.CeilToInt((x1 - x0) * sxw / step)), nz = Mathf.Max(1, Mathf.CeilToInt((z1 - z0) * szw / step));
-        for (int i = 0; i <= nx; i++)
-            for (int j = 0; j <= nz; j++)
-            {
-                var w = gt.TransformPoint(new Vector3(x0 + (x1 - x0) * i / nx, yb, z0 + (z1 - z0) * j / nz));
-                float b = bedAt(w.x, w.z); if (float.IsNaN(b)) { res.spanN++; continue; }
-                float d = w.y - b; res.atariN++;
-                if (float.IsNaN(res.lo) || d < res.lo) res.lo = d;
-                if (float.IsNaN(res.hi) || d > res.hi) { res.hi = d; res.hiAt = new Vector3(w.x, b, w.z); }
-                if (d > 0.01f) res.shortN++;
-            }
+        float syw = Mathf.Max(1e-6f, gt.TransformVector(Vector3.up).magnitude);
+        foreach (var bx in boxes)
+        {
+            if ((bx[4] - yb) * syw > ROOT_TOUCH) continue;   // 下端に届いていない駒(床・柱・壁・屋根)は当たりでない
+            int nx = Mathf.Max(1, Mathf.CeilToInt((bx[1] - bx[0]) * sxw / step)), nz = Mathf.Max(1, Mathf.CeilToInt((bx[3] - bx[2]) * szw / step));
+            for (int i = 0; i <= nx; i++)
+                for (int j = 0; j <= nz; j++)
+                {
+                    var w = gt.TransformPoint(new Vector3(bx[0] + (bx[1] - bx[0]) * i / nx, bx[4], bx[2] + (bx[3] - bx[2]) * j / nz));
+                    float b = bedAt(w.x, w.z); if (float.IsNaN(b)) { res.spanN++; continue; }
+                    float d = w.y - b; res.atariN++;
+                    if (float.IsNaN(res.lo) || d < res.lo) res.lo = d;
+                    if (float.IsNaN(res.hi) || d > res.hi) { res.hi = d; res.hiAt = new Vector3(w.x, b, w.z); }
+                    if (d > 0.01f) res.shortN++;
+                }
+        }
         return res;
     }
+
+    /// <summary><see cref="RootToBed"/> が「下端に届いている」とみなす駒の下端の差[m]。【U】部材の継ぎの誤差より大きく、床の厚み(0.28)より小さく。</summary>
+    const float ROOT_TOUCH = 0.05f;
 
     /// <summary>**柱・板・地覆の組で板塀の run を張り、地覆と柱の下端を床へ光付けする**(2026-09-27・EDO-0437 施主裁定 案A「板を石の天端・地面まで下ろす」)。
     /// <para>1. 柱の間の割りは <see cref="PostBoardRun"/> と同じ(端の柱は外形の端を A/B に突き付け・間は柱身の芯を等分・柱間 = 板の幅 + 柱身の幅を実メッシュで測る)。

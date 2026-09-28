@@ -1000,17 +1000,27 @@
    "gate": "sanmon",
    "enclosure": "dobei",
    "front": "N",
-   "kura": 2,
+   "kura": 1,
+   "mune_zu": true,
+   "kyakuden": true,
+   "gomado": true,
+   "kodachi": true,
    "graveyard": false,
-   "shoro": true,
+   "shoro": false,
    "sanmon": true,
    "cert": {
     "kind": "A",
     "front": "A",
     "main_hall_ken": "U",
-    "enclosure": "U"
+    "enclosure": "U",
+    "kura": "S",
+    "mune_zu": "S",
+    "kyakuden": "S",
+    "gomado": "S",
+    "kodachi": "S",
+    "shoro": "S"
    },
-   "source": "観理院 — 山王権現の別当寺。[切絵図 尾張屋版 外桜田永田町絵図 嘉永3 NDL1286657 実見] 7-080。表参道石段下の正面(現キャピトル東急)[神殿大観←水野家文書「山王絵図」]。十坊を配下に置く別当なので、坊より一格上(山門・鐘楼を持つ) ⚠ 門は**山門ひとつ**(gate:munemon と sanmon:true で二重に建っていた)。囲いは考証では練塀だが、在庫に練塀の部材が無いため土塀で代用(確度P)。",
+   "source": "観理院 — 山王権現の別当寺。[切絵図 尾張屋版 外桜田永田町絵図 嘉永3 NDL1286657 実見] 7-080。表参道石段下の正面(現キャピトル東急)[神殿大観←水野家文書「山王絵図」]。十坊を配下に置く別当なので、坊より一格上(山門・鐘楼を持つ) ⚠ 門は**山門ひとつ**(gate:munemon と sanmon:true で二重に建っていた)。囲いは考証では練塀だが、在庫に練塀の部材が無いため土塀で代用(確度P)。⭐ 南の空きは空けておく(EDO-0477 施主答え C → B): 切絵図(嘉永3)で観理院の南は界線が無く南〜南西は山王社の社地の明地【S】。山王御宮絵図(NDL 2542581 コマ25・文政3)で堂宇は区画の北半に固まり、南半は白地に木立・南西に土蔵1【S/帰属P】。蔵は1・物置なし・棟数の目安で足さない(mune_zu)。同じ絵図に客殿・護摩堂は在り(kyakuden/gomado)、鐘楼は描かれない(shoro:false)。北の門は朱の門で山門かは読めない(gate は据え置き・U)。",
    "type": "jisha"
   },
   "sannosha_prec": {

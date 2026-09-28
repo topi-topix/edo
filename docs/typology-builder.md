@@ -159,7 +159,7 @@ Unity の実測と、プレハブの yaml から起こした判定は 36 本す�
 |---|---|---|
 | `buke` | `yashiki`(kami/naka/shimo)・`rank`(daimyo / hatamoto_large / hatamoto_mid / gokenin)・`koku`・`front`・`gate`(kmon/nagayamon/hmon/kabukimon/komon)・`bansho`(ryou/kata/none)・`enclosure`・`garden`・`kura`・`maeniwa_ken`(前庭の奥行の狙い[間]・無ければ既定) | 門の格式(`estate-types.md` 早見表・[西川1959])、外周(全周長屋 / 前辺長屋+塀 / 塀)、主屋の型(雁行複合 / U字 / 田の字)、蔵の数、庭の有無 |
 | `machiya` | `two_sided`・`front`・`maguchi_ken`・`depth_ken`・`pattern`(auto か並び)・`ura_nagaya`・`jishinban`・`kamiyui`・`inari` | 表店の並び(間口で割る)・裏長屋の棟数・番屋と稲荷の有無 |
-| `jisha` | `kind`(bo / temple / shake)・`main_hall_ken`([桁行,梁間]。EDO-0354 で建つ姿に効いた)・`gate`(munemon/yakuimon/sanmon)・`enclosure`・`shoro`・`sanmon`・`graveyard`・`tacchu`・`tokinokane` | 本堂(または坊の主屋)の間数・門・囲い。⛔ 坊を本堂・山門・鐘楼・墓地つきの寺にしない(考証方 (c))。境内の置き方は §4.6 |
+| `jisha` | `kind`(bo / temple / shake)・`main_hall_ken`([桁行,梁間]。EDO-0354 で建つ姿に効いた)・`gate`(munemon/yakuimon/sanmon)・`enclosure`・`shoro`・`sanmon`・`graveyard`・`tacchu`・`tokinokane`・`mune_zu`(棟を絵図から採った=目安で足さない)・`kyakuden`・`gomado`(mune_zu の筆で絵図に在る客殿・護摩堂)・`kodachi`(絵図で棟の無い空きに木の点=明地の木立) | 本堂(または坊の主屋)の間数・門・囲い。⛔ 坊を本堂・山門・鐘楼・墓地つきの寺にしない(考証方 (c))。境内の置き方は §4.6 |
 | `kouyuu` | `kind`(azukarichi / hoshiba / yaba / hikeshi)・`surface`・`fence`・`building` | 地表(草・土)と柵。建物は火消屋敷だけ |
 
 ---
@@ -431,7 +431,8 @@ Unity の実測と、プレハブの yaml から起こした判定は 36 本す�
   遊び 0.05m を越えたら ⛔(浮きは許容0)。⛔ 接地の最小(= 上手の端)だけ見ると斜面の塀の浮きを 0 と返す。
 - **寺社の棟(§4.6 の続き)。** 本堂は、表の間数が史料(確度 S/A/B)でなければ寺は「境内の坪 × 9%」と表の間数の大きい方を
   目安に、焼いた入母屋から区画ごとの種で選ぶ(揺らぎ・EDO-0476)。入らなければ一回りずつ小さく。棟数の目標は
-  4 + 境内 500 坪ごとに 1(足りなければ 寺=客殿(本堂の半ば)→ 蔵 → 物置、坊・社家=蔵 → 物置)。置き場は
+  4 + 境内 500 坪ごとに 1(足りなければ 寺=客殿(本堂の半ば)→ 蔵 → 物置、坊・社家=蔵 → 物置)。絵図で棟が
+  分かる筆は表の `mune_zu: true` で目安の足しを止める(観理院 EDO-0477 ── 南の空きは絵図どおり空ける)。置き場は
   `EdoBuild.PlaceBest`(硬い = 壁体が区画の外・めり込み・接地 / 柔らかい = 棟どうしの離れ 2.0m・前庭 6.0m)。
   目安はどれも【U】(考証方・御府内寺社備考の 3 寺 B から・`UserData/EDO0477_survey/F_kosho_jisha.json`)。建った値
   (本堂の坪と境内比・附属/本堂)は毎回 log へ刷る。

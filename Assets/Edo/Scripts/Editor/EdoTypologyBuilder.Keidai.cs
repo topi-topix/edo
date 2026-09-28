@@ -21,6 +21,8 @@ public static partial class EdoTypologyBuilder
     const float KEIDAI_TALL_FROM_WALL = 3f * 1.818f;
     /// <summary>「斜面」とみなす勾配(1:4)。これより急な庭域は閉じた林で覆う(施主: 斜面は木でしっかり覆う)。</summary>
     const float KEIDAI_SLOPE = 0.25f;
+    /// <summary>明地の木立(表の kodachi)を入れる、棟の壁体からの離れ[m]と、斜面の林に対する密度の比【どちらも U】。</summary>
+    const float KEIDAI_KODACHI_FROM_MUNE = 15f, KEIDAI_KODACHI_DENSITY = 1.0f;
 
     struct KeidaiK { public float bandW, bandPitch; public int bandCap, keidaiboku; }
 
@@ -100,6 +102,23 @@ public static partial class EdoTypologyBuilder
         var tsuchi = f.Cells.Where(p => f.Eaves.Dist(p, 4f) <= 3f).ToList();
         AddGroundZone(grp, "tataki", tsuchi);
 
+        // ── 献灯の一対(本堂の前・参道の左右)── 決まった場所に据えるので、種で散らす層より先に置く
+        //    (2026-09-28 EDO-0477: 層を一つ足したら後の低木が献灯の場所を先に取り、一対が片方になった)
+        {
+            var o = EdoBuild.NiwaSet.Stone;
+            float r = EdoBuild.CrownR(EdoAssets.Eg.ToroKasuga) * ES;
+            float vAt = hv0 - Mathf.Min(3f, Mathf.Max(1.2f, maeD * 0.6f));
+            int made = 0;
+            for (int sd = -1; sd <= 1; sd += 2)
+            {
+                var p = gateC + vDir * vAt + uDir * (hallUc + sd * (half + 1.2f + r));
+                if (f.Put(grp, EdoAssets.Eg.ToroKasuga, p, JYaw(front.outward), ES, 0f, "Kenntou_" + (sd < 0 ? "L" : "R"), "献灯", o) != null) made++;
+            }
+            want.Add("献灯 2(一対)"); got.Add("献灯 " + made);
+            if (made == 1) log.Add("    ⚠ 献灯が片方しか据わらない — 一対にならない(据わった方も残す・柔らかい)");
+
+        }
+
         // ── 層 ① 斜面の林(閉じた林)── 急な庭域の点を塊で埋める。⭐ 下る側は地形が決める(点の勾配で採る)
         var slope = f.Cells.Where(p => KeidaiSlope(p) >= KEIDAI_SLOPE).ToList();
         float slopeArea = slope.Count * f.Cell * f.Cell;
@@ -119,6 +138,28 @@ public static partial class EdoTypologyBuilder
             want.Add("斜面の林 " + tried); got.Add("斜面の林 " + made);
             log.Add(string.Format("    斜面の林: 勾配 1:4 より急な庭域 {0:F0}m² → {1}/{2}本(幹は壁のある棟から 3 間・囲いと区画の線から {3:F1}m)",
                                   slopeArea, made, tried, EdoBuild.NiwaSet.TREE_KEEP));
+        }
+
+        // ── 層 ①b 明地の木立(表の kodachi・EDO-0477)── 絵図で棟が無く木の点が描かれた空き(観理院の南半 = 山王御宮絵図)。
+        //    棟の壁体から 15m より離れた庭域を、閉じた林より疎らな木立で覆う【密度 U】。⛔ 棟を推定で足して空きを埋めない(規則7)。
+        if (s.kodachi)
+        {
+            var open = f.Cells.Where(p => tallOk(p) && occBody.Dist(p, 20f) >= KEIDAI_KODACHI_FROM_MUNE).ToList();
+            float openArea = open.Count * f.Cell * f.Cell;
+            float rr = MaxCrown(LinPal) * tree.ScaleHi;
+            int nGrove = Mathf.Min(NIWA_BUDGET / 3, Mathf.RoundToInt(openArea / (Mathf.PI * rr * rr) * KEIDAI_KODACHI_DENSITY));
+            var mix = LinMix(rnd, DeShare(nGrove));
+            int made = 0, tried = 0;
+            while (tried < nGrove && f.Komas.Count < NIWA_BUDGET)
+            {
+                var site = TakeSite(open, rnd, f, rr, tree);
+                if (site == null) break;
+                int n = rnd.NextDouble() < 2.0 / 3.0 ? 3 : 5; tried += n;
+                made += EdoBuild.NiwaClump(grp, "Kodachi", f, site.Value, LinPal, n, rnd, tree, "明地の木立", mix).Count;
+            }
+            want.Add("明地の木立 " + tried); got.Add("明地の木立 " + made);
+            log.Add(string.Format("    明地の木立: 棟から {0:F0}m より離れた庭域 {1:F0}m² → {2}/{3}本(表の kodachi・絵図の木の点)",
+                                  KEIDAI_KODACHI_FROM_MUNE, openArea, made, tried));
         }
 
         // ── 層 ② 縁の帯(囲いの内側の面から TREE_KEEP 〜 TREE_KEEP + 帯の幅)── 門の辺は空ける
@@ -181,24 +222,13 @@ public static partial class EdoTypologyBuilder
         {
             var rin = new List<Vector2>();
             foreach (var km in f.Komas)
-                if (km.layer == "斜面の林" || km.layer == "縁の帯" || km.layer == "境内木") rin.Add(km.trunk);
+                if (km.layer == "斜面の林" || km.layer == "明地の木立" || km.layer == "縁の帯" || km.layer == "境内木") rin.Add(km.trunk);
             AddGroundZone(grp, "rinsho", rin, 3.0f);
         }
 
-        // ── 点景 ── 献灯の一対(本堂の前・参道の左右)・手水鉢・井戸
+        // ── 点景 ── 手水鉢・井戸(献灯は層より先に据えた)
         {
             var o = EdoBuild.NiwaSet.Stone;
-            float r = EdoBuild.CrownR(EdoAssets.Eg.ToroKasuga) * ES;
-            float vAt = hv0 - Mathf.Min(3f, Mathf.Max(1.2f, maeD * 0.6f));
-            int made = 0;
-            for (int sd = -1; sd <= 1; sd += 2)
-            {
-                var p = gateC + vDir * vAt + uDir * (hallUc + sd * (half + 1.2f + r));
-                if (f.Put(grp, EdoAssets.Eg.ToroKasuga, p, JYaw(front.outward), ES, 0f, "Kenntou_" + (sd < 0 ? "L" : "R"), "献灯", o) != null) made++;
-            }
-            want.Add("献灯 2(一対)"); got.Add("献灯 " + made);
-            if (made == 1) log.Add("    ⚠ 献灯が片方しか据わらない — 一対にならない(据わった方も残す・柔らかい)");
-
             var chozuPool = f.Cells.Where(p =>
             {
                 var q = p - gateC; float v = Vector2.Dot(q, vDir), u = Mathf.Abs(Vector2.Dot(q, uDir) - hallUc);

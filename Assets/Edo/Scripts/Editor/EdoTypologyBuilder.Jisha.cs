@@ -199,6 +199,14 @@ public static partial class EdoTypologyBuilder
         for (int k = 0; k < Mathf.Clamp(s.kura, 0, 2) * units; k++)
             JAdd(items, dropped, g, "Kura" + k, EdoAssets.Eg.Kura, JMode.Back, yawVK, 5f + k);
 
+        // 護摩堂(表の gomado・絵図に在る筆だけ)── 焼いた入母屋のうち 3x3間に最も近い小堂【間数 U】
+        if (s.gomado)
+        {
+            string gn;
+            var gs = JPickSize(9f, rng, 3);
+            var gh = gs == null ? null : EdoBuild.Honden(g, "Gomado", gs[0], gs[1], out gn);
+            if (gh != null) items.Add(new JItem { label = "Gomado", go = gh, mode = JMode.Front, yaw = yawVK, rank = 3.5f });   // 絵図は北の門の脇 ── 鐘楼と同じ手前の縁
+        }
         // ── 棟数の目標(2026-09-27・EDO-0477 P4)── 4 棟 + 境内 500 坪ごとに 1 棟【U】(考証方: 御府内寺社備考の 3 寺 B からの目安)。
         //    足りない分は寺なら客殿(本堂の半ばの入母屋)→ 蔵 → 物置、坊・社家は蔵 → 物置の順に足す。
         //    ⛔ 棟の種別を推定で既成事実にしない ── 足した棟は名に出し、log に「目標で足した」と刷る(規則7)。
@@ -206,6 +214,8 @@ public static partial class EdoTypologyBuilder
         var added = new List<string>();
         int kuraN = items.Count(i => i.label.StartsWith("Kura")), monoN = 0;
         bool kyakuDone = s.kind != "temple";
+        // 棟は絵図から採った(表の mune_zu)── 目安で足さない。絵図に客殿が在れば(kyakuden)それだけ建てる
+        if (s.muneZu) nTarget = items.Count + dropped.Count + (s.kyakuden && s.kind == "temple" ? 1 : 0);
         while (items.Count + dropped.Count < nTarget && added.Count < 6)
         {
             if (!kyakuDone)
@@ -221,6 +231,7 @@ public static partial class EdoTypologyBuilder
                     continue;
                 }
             }
+            if (s.muneZu) break;
             if (kuraN <= monoN)
             {
                 JAdd(items, dropped, g, "Kura" + kuraN, EdoAssets.Eg.Kura, JMode.Back, yawVK, 5f + kuraN);
@@ -433,8 +444,8 @@ public static partial class EdoTypologyBuilder
         string lay = hallDone ? string.Format("参道の帯を空けて本堂を軸へ(参道の起点は門の実面・辺の中点から {0:F2}m 奥)・墓地と蔵は奥の縁・鐘楼は手前の縁", gInRoof)
                               : "⛔ 本堂が置けなかった";
         // ⭐ 広さに見合うか(規則19 ── 目安を書いた以上、建った値を刷る)。目安はどれも【U】(考証方・御府内寺社備考の 3 寺 B から)。
-        string mitate = string.Format("\n    広さ: 境内 {0:F0}坪・棟 {1}/目標 {2}(4+500坪ごと1・U){3}・本堂 {4:F0}坪 = 境内の {5:F1}%{6}・附属/本堂 {7:F2}(目安 1.0〜1.5・U){8}",
-            tsubo, placedN, nTarget, added.Count > 0 ? "(目標で足した: " + string.Join("・", added.ToArray()) + ")" : "",
+        string mitate = string.Format("\n    広さ: 境内 {0:F0}坪・棟 {1}/目標 {2}{3}・本堂 {4:F0}坪 = 境内の {5:F1}%{6}・附属/本堂 {7:F2}(目安 1.0〜1.5・U){8}",
+            tsubo, placedN, s.muneZu ? "なし(棟は絵図から・表の mune_zu)" : nTarget + "(4+500坪ごと1・U)", added.Count > 0 ? "(目標で足した: " + string.Join("・", added.ToArray()) + ")" : "",
             hallArea / (1.818f * 1.818f), 100f * hallArea / (1.818f * 1.818f) / Mathf.Max(1f, tsubo),
             s.kind == "temple" ? "(目安 8〜10%・U)" : "(坊・社家の主屋は比を掛けない)",
             hallArea > 0f ? annexArea / hallArea : 0f,

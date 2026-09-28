@@ -72,6 +72,11 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         // 前庭の奥行の狙い[間](EDO-0372)。0 ならビルダーの既定(4間と白洲が描ける広さの大きい方)。
         //    狭い筆で狙いが強すぎる・広い筆でもっと空けたいときは、コードでなくこの欄を書き換える。
         public int maeniwaKen;
+        // 寺社の棟を絵図から採った(EDO-0477・山王御宮絵図の観理院)。true なら棟数の目安(4 + 500坪ごとに1)で足さない。
+        //    ⛔ 絵図に在る棟だけ建つ ── 南の空きを埋めるために推定の蔵・物置を足さない(規則7)。
+        public bool muneZu;
+        public bool kyakuden, gomado;        // 絵図に在る客殿・護摩堂(mune_zu の筆だけ読む)
+        public bool kodachi;                 // 絵図で棟の無い空きに木の点(境内の庭に明地の木立を入れる)
         public Dictionary<string, object> raw;
         public bool Hand { get { return built == "hand"; } }
     }
@@ -182,7 +187,8 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 graveyard = Bo(d, "graveyard", false),
                 omoya = S(d, "omoya"), hoshiba = S(d, "hoshiba"),
                 tacchu = I(d, "tacchu", 0), tokinokane = Bo(d, "tokinokane", false),
-                maeniwaKen = I(d, "maeniwa_ken", 0),
+                maeniwaKen = I(d, "maeniwa_ken", 0), muneZu = Bo(d, "mune_zu", false),
+                kyakuden = Bo(d, "kyakuden", false), gomado = Bo(d, "gomado", false), kodachi = Bo(d, "kodachi", false),
             };
             var hall = IA(d, "main_hall_ken");
             if (hall != null && hall.Length >= 2) { s.hallW = hall[0]; s.hallD = hall[1]; }

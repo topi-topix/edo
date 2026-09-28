@@ -1,6 +1,6 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 59bd24a3d572 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 300b5f6fc3de -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
@@ -532,6 +532,7 @@ EdoBuild — 造成(平場を採る)。2026-09-27・EDO-0477 P1(山王 Stage1_Gr
 | `EdoBuild.PadSqueeze(parcel, foot, margin, fillRun=…, cutRun=…)` | `int` | 硬 区域 | この足あとに平場が取れるかを置く前に測る(2026-09-28 EDO-0477)。 | TypologyBuilder.Jisha(JishaOmoya) |
 | `EdoBuild.PAD_MERGE_DY` | `float` |  | 隣の平場と束ねる高さの差の上限。【確度 U】── 棟ごとの系統差 ±0.25(規則3)をまたがない幅。 | — |
 | `EdoBuild.CLIFF_SLOPE` | `float` |  | 崖とみなす横断勾配(高さ/水平)。1:1.4(約 35°)より急なら崖。 | — |
+| `EdoBuild.CLIFF_MIN_RUN` | `float` |  | 崖と数える続きの最短[m]。これより短い急な所は塀の駒(2m)で跨ぐ段差として囲う。 | — |
 | `EdoBuild.CliffFreeSpans(a, b, outward, minSpan, cliffLen)` | `List<float[]>` | 地面・区域 | 辺のうち塀が立てる区間(2026-09-28・EDO-0477。 | Typology(BuildParcel) |
 
 ## EdoGeom.cs

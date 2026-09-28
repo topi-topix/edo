@@ -225,6 +225,9 @@ public static partial class EdoBuild
     /// <summary>崖とみなす横断勾配(高さ/水平)。1:1.4(約 35°)より急なら崖。【確度 U】── 盛土の法 1:1.5 より急な地山は人が土で保てない。</summary>
     public const float CLIFF_SLOPE = 0.7f;
 
+    /// <summary>崖と数える続きの最短[m]。これより短い急な所は塀の駒(2m)で跨ぐ段差として囲う。【確度 U】</summary>
+    public const float CLIFF_MIN_RUN = 1.0f;
+
     /// <summary>**辺のうち塀が立てる区間**(2026-09-28・EDO-0477。施主の規則「崖の線は面の縁だけ囲う・崖の中腹に塀を建てない」)。
     /// 辺 a→b に沿って 0.25m ごとに、**今の地面**(造成の後)で塀の足あとの下を読み、崖に掛かる所を外して、
     /// 残る区間を [t0, t1](a からの距離)で返す。<paramref name="minSpan"/> より短い区間は捨てる。崖とみなすのは:
@@ -240,16 +243,31 @@ public static partial class EdoBuild
         var d = (b - a) / L; var inN = -outward.normalized;
         // ⭐ 刻み 0.25m・区間は**最後の崖でない標本**で終える(⛔ 崖と判じた標本で終えると最後の駒が崖へ登った ── 観理院 辺4 の下端 8.15)
         const float STEP = 0.25f;
-        float start = 0f, lastOk = 0f; bool open = true;
+        var ts = new List<float>(); var cl = new List<bool>();
         for (float s = 0f; s <= L + 1e-3f; s += STEP)
         {
             float t = Mathf.Min(s, L); var p = a + d * t;
             var p0 = a + d * Mathf.Max(0f, t - 0.5f); var p1 = a + d * Mathf.Min(L, t + 0.5f);
             float g = Ground(p.x, p.y), gi = Ground(p.x + inN.x * 0.5f, p.y + inN.y * 0.5f);
             float g0 = Ground(p0.x, p0.y), g1 = Ground(p1.x, p1.y);
-            bool cliff = !float.IsNaN(g) && !float.IsNaN(gi) && !float.IsNaN(g0) && !float.IsNaN(g1)
-                         && (Mathf.Abs(g1 - g0) / Mathf.Max(0.01f, (p1 - p0).magnitude) > CLIFF_SLOPE
-                             || Mathf.Abs(g - gi) / 0.5f > CLIFF_SLOPE);
+            ts.Add(t);
+            cl.Add(!float.IsNaN(g) && !float.IsNaN(gi) && !float.IsNaN(g0) && !float.IsNaN(g1)
+                   && (Mathf.Abs(g1 - g0) / Mathf.Max(0.01f, (p1 - p0).magnitude) > CLIFF_SLOPE
+                       || Mathf.Abs(g - gi) / 0.5f > CLIFF_SLOPE));
+        }
+        // ⭐ 崖の続きが CLIFF_MIN_RUN より短い所は崖と数えない ── 塀の駒 1 つで跨げる段差で、地盤の格子(2m)の角の段が崖と出る。
+        //    ⛔ 2026-09-28 まで角の 0.75m が崖と出て区間が角から始まらず、角の延ばしが効かずに口が残った(観理院 v4 0.07m・EDO-0477)。
+        for (int i = 0; i < cl.Count;)
+        {
+            if (!cl[i]) { i++; continue; }
+            int j = i; while (j < cl.Count && cl[j]) j++;
+            if ((j - i) * STEP < CLIFF_MIN_RUN) for (int k = i; k < j; k++) cl[k] = false;
+            i = j;
+        }
+        float start = 0f, lastOk = 0f; bool open = true;
+        for (int i = 0; i < ts.Count; i++)
+        {
+            float t = ts[i]; bool cliff = cl[i];
             if (cliff) cliffLen += STEP;
             if (cliff && open) { if (lastOk - start >= minSpan) outp.Add(new[] { start, lastOk }); open = false; }
             else if (!cliff && !open) { start = t; open = true; }

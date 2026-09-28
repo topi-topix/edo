@@ -582,6 +582,8 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                     if (cliffLen < 1f) spans = new List<float[]> { new[] { 0f, e.len } };
                     else kakoiNotes.Add(string.Format("辺{0} 崖の面 {1:F0}m を囲わない(塀が崖を登る・内の半分が崖の面に掛かる所)", e.i, cliffLen));
                     var ed = (e.b - e.a).normalized;
+                    // ⭐ 区画の角は頂点の先へ延ばして口を閉じる(EdoBuild.CornerReach・EDO-0477 P2 隅)
+                    float reA, reB; CornerReaches(edges, e, kind, out reA, out reB);
                     // ⭐ 崖の縁の石垣の区間は、崖を問わず塀を建て(石垣の天端に載る)、その外の区間から抜く。
                     int ek = edges.IndexOf(e);
                     var rimIv = new List<Vector3>();   // (s0, s1, 天端)
@@ -617,6 +619,14 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                                 if (sp[1] <= iv.x + 1e-3f && iv.x - sp[1] < 2.5f) s0 = Mathf.Min(s0, sp[1]);
                                 if (sp[0] >= iv.y - 1e-3f && sp[0] - iv.y < 2.5f) s1 = Mathf.Max(s1, sp[0]);
                             }
+                            //    区画の角まで 2.5m 未満なら継ぎは角から始め、角の先へ延ばす(CornerReach)── 石垣と角の間の 2m 未満の切れ端は
+                            //    上で捨てるので、隣の辺の塀と角で離れた(観理院 v5 2.92m・v6 1.33m の口・2026-09-28)。
+                            //    角との間に塀の区間が無く(石垣の前を削った法で「崖」と判じられた所)5m 未満なら、同じく角から継ぐ
+                            //    (観理院 v5: 角と石垣の間 3.9m が削りの法で崖と出て口が残った・2026-09-28)。
+                            bool spanBefore = spans.Any(sp => sp[1] <= iv.x + 1e-3f), spanAfter = spans.Any(sp => sp[0] >= iv.y - 1e-3f);
+                            bool atA = s0 < 2.5f || (!spanBefore && iv.x < 5f), atB = e.len - s1 < 2.5f || (!spanAfter && e.len - iv.y < 5f);
+                            if (atA) s0 = 0f;
+                            if (atB) s1 = e.len;
                             var ra = e.a + ed * s0; var rb2 = e.a + ed * s1;
                             var inw = -e.outward.normalized;
                             // ⭐ 塀は石垣の**天端の面の上**へ内に寄せて載せる(寄せ量は天端の面を実測・EdoBuild.RimFenceInset)。
@@ -629,6 +639,12 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                             var dl0 = (m0 - ra).normalized; var dl1 = (rb2 - m1).normalized;
                             float k0 = EdoBuild.CornerReach(dl0, ed, e.outward, hO, hI), k1 = EdoBuild.CornerReach(ed, dl1, e.outward, hO, hI);
                             float kA = EdoBuild.CornerReach(ed, dl0, e.outward, hO, hI), kB = EdoBuild.CornerReach(dl1, ed, e.outward, hO, hI);
+                            //    角から継ぐときは、折れは隣の辺と継ぎの間 ── 継ぎ**自身の向き**で角の先へ延ばす
+                            //    (⛔ 線の向きで延ばすと凸の角の外へ出た ── 観理院 v5 壁体の外 0.61m・2026-09-28)。
+                            var pA = atA ? edges.FirstOrDefault(x => x != e && (x.b - e.a).sqrMagnitude < 1e-4f) : null;
+                            var nB = atB ? edges.FirstOrDefault(x => x != e && (x.a - e.b).sqrMagnitude < 1e-4f) : null;
+                            var startA = pA != null ? ra - dl0 * EdoBuild.CornerReach(pA.b - pA.a, dl0, pA.outward, hO, hI) : ra - ed * kA;
+                            var endB = nB != null ? rb2 + dl1 * EdoBuild.CornerReach(dl1, nB.b - nB.a, e.outward, hO, hI) : rb2 + ed * kB;
                             // 座 = 天端の上の足あとの下の床の最も低い所 −0.02 ── 塀は床に埋めて据える(§0a)
                             //    ⭐ 石の天端のある標本だけで採る ── 野面の継ぎ目の穴(天端の面が無い所)は塀が跨ぐので床に数えない。
                             //    ⛔ 穴で地面へ落とすと、背の地山の低い所(北寄り 12.9)へ座が引かれ 1.1m 沈んだ(2026-09-28)。
@@ -654,15 +670,13 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                             //    外向きは**継ぎ自身の**外向き(⛔ 線の外向きを渡すと、FenceRun は駒の横を始点を通る線の上へ揃え、斜めの継ぎが線の外へ 0.86m 出た)
                             string nl0, nl1;
                             Func<Vector2, Vector2> outOf = dd => { var nn = new Vector2(-dd.y, dd.x); return Vector2.Dot(nn, e.outward) >= 0f ? nn : -nn; };
-                            EdoBuild.FenceRun(encl, ra - ed * kA, m0 + dl0 * k0, outOf(dl0), kind, bmin, Vector2.zero, -1f, pre + "r" + ri + "a", out nl0);
-                            EdoBuild.FenceRun(encl, m1 - dl1 * k1, rb2 + ed * kB, outOf(dl1), kind, bmin, Vector2.zero, -1f, pre + "r" + ri + "b", out nl1);
+                            EdoBuild.FenceRun(encl, startA, m0 + dl0 * k0, outOf(dl0), kind, bmin, Vector2.zero, -1f, pre + "r" + ri + "a", out nl0);
+                            EdoBuild.FenceRun(encl, m1 - dl1 * k1, endB, outOf(dl1), kind, bmin, Vector2.zero, -1f, pre + "r" + ri + "b", out nl1);
                             kakoiNotes.Add(string.Format("辺{0} 石垣の天端に載せた {1:F1}m(座 {2:F2}・天端 {3:F1}・線から内へ {4:F2}m 寄せ・足あとが天端に載る割合 {5:P0}・両端は斜めの継ぎ {6:F1}m)",
                                                          e.i, iv.y - iv.x, bmin - 0.02f, iv.z, o, frac, Ls)
                                            + (string.IsNullOrEmpty(note2) ? "" : " " + note2));
                         }
                     }
-                    // ⭐ 区画の角は頂点の先へ延ばして口を閉じる(EdoBuild.CornerReach・EDO-0477 P2 隅)
-                    float reA, reB; CornerReaches(edges, e, kind, out reA, out reB);
                     for (int si = 0; si < spans.Count; si++)
                     {
                         var sa = e.a + ed * (spans[si][0] - (spans[si][0] < 1e-3f ? reA : 0f));

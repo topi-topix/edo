@@ -953,82 +953,220 @@ public static partial class EdoBuild
     //    塀の下の布石(腰の石)の見えで受ける ── 地面は盛りも削りもしない(unity-buke-yashiki/references/perimeter.md
     //    「塀は傾けない」・考証: 金剛寺の築地塀の段の妻と貝形【A】・登り塀は城の作法)。
     //    ⛔ それまでは地形なりに駒を弦へ張って傾け(StraightRunJoints)、斜面で笠がガタガタに上下した(施主 2026-09-28)。
-    // 区切り方(施主裁定1=B): 区間の中の地面の起伏が段の目安 DAN_STEP 以内に収まる最も長い区間(半間に丸め・DAN_MAX_SEC まで)。
-    //    急で収まらない所は区間を最短 DAN_MIN_SEC(1間)にして、段 = 勾配 × 1間。段は区画の角から DAN_CORNER_CLEAR 離す(狙い・柔らかい)。
-    //    塀の座 = 区間の芯の地面の最も高い所 − DAN_BURY(埋めて据える)。
+    // 区切り方(施主裁定1=B → 施主裁定 2026-09-29 ③): 区間ごとに塀の座 W を**選び**、布石と根入れで区間の中の起伏を受ける。
+    //    硬い条件: 区間の芯の地面の最も低い所まで布石が届く(W ≤ 最低 + 布石の丈 − DAN_STONE_EMBED)・最も高い所へ
+    //    埋める深さ ≤ DAN_BURY_MAX(W ≥ 最高 − DAN_BURY_MAX)。急で最短の区間(1間)でも収まらない所だけ、埋めを深くして浮かせない。
+    //    狙い(柔らかい・罰): 区間の数を少なく / **半端な段(DAN_STEP_MIN 未満)を作らない** / 段は DAN_STEP_MAX 以下 /
+    //    段の高さを揃える(段の二乗を足す ── 同じ落ちを同じ数で割るなら等分が最小)/ 座は標準の根入れ(最高 − DAN_BURY)に近く /
+    //    段を区画の角から DAN_CORNER_CLEAR 離す / **片側が平場(前庭など水平に均した面)に面する所に段を切らない**。
+    //    ⛔ 段を「どこに置いても同じ値段」と数えると、同じ落ちの段が平場の前へ出た ── 山王社の前庭に面する観理院の西の塀に
+    //    0.57m の段が 2 つ(2026-09-29 EDO-0477・施主裁定③「前庭に面する所は一続きに水平」)。段は斜面に面する所へ寄せる。
+    //    ⛔ 2026-09-29 まで「区間の起伏 ≤ DAN_STEP(0.60)」を硬い条件にし、座を「最高 − DAN_BURY」に固定していた ──
+    //    石垣の足元でわずかに下がる地面が 0.49・0.58 の半端な段を立て、前庭から段々に見えた(観理院の西・施主 2026-09-29
+    //    「微妙な段差ができるのも気持ち悪い」)。布石(丈 1.3m)が受けられる起伏まで一区間にして、座を選んで段を揃える。
     // 当たる先: 類型の全区画の練塀(buildKakoi が辺の鎖ごとに DanPlan を引いて FenceRun へ渡す)。
-    public const float DAN_STEP = 0.60f;          // 段の目安[m]【施主裁定1=B】
+    public const float DAN_STEP = 0.60f;          // (旧)段の目安[m]【施主裁定1=B】── いまは段の数の見積りの註にだけ使う
+    public const float DAN_STEP_MIN = 0.70f;      // 半端な段の線[m] ── これ未満の段は作らない(狙い)【施主裁定 2026-09-29 ③「半端な段(0.5m 前後)0」】
+                                                  // ⛔ 0.50 にすると 0.50・0.65 の段が残った(観理院の北の角)── 裁定図の段は 0.81・0.83
+    public const float DAN_STEP_MAX = 1.00f;      // 段の上限[m](狙い)── 段が妻を大きく見せすぎない
     public const float DAN_MIN_SEC = 1.818f;      // 区間の最短 = 1間【施主裁定1=B】
     public const float DAN_MAX_SEC = 40f;         // 区間の最長[m](perimeter.md)
-    public const float DAN_BURY = 0.10f;          // 塀の根入れ[m]
+    public const float DAN_BURY = 0.10f;          // 塀の根入れ[m](標準)
+    public const float DAN_BURY_MAX = 0.35f;      // 区間の最も高い地面へ塀の下端を埋めてよい深さ[m](硬い)── 塀の見えの丈 2.5m の 1 割半
+    public const float DAN_STONE_EMBED = 0.05f;   // 布石の下端を地面へ入れる深さ[m](硬い)
     public const float DAN_CORNER_CLEAR = 1.0f;   // 段を区画の角から離す[m](狙い)
+    public const float DAN_FLAT_NEAR = 3.0f, DAN_FLAT_FAR = 5.0f; // 平場かを見る帯[m](塀の芯から片側。布石・法の肩の先)
+    public const float DAN_FLAT_ALONG = 1.0f;     // 平場かを見る道のりの幅[m](節の前後)
+    public const float DAN_FLAT_MARGIN = 3.0f;    // 段を平場の端から離す[m](狙い)── 平場の縁の手前に段が出て前庭から見えた(観理院 z863)
+    public const float DAN_FLAT_TOL = 0.05f;      // 平場とみなす地面の高低[m](均した面の誤差)
     const float DAN_Q = 0.909f;                   // 区切りの刻み = 半間
     const float DAN_FLOAT_TOL = 0.01f;            // 段塀の下端の浮きの線[m] ── 超えれば布石。検査の「塀の下端の浮き」の線と同じ
     const float DAN_DS = 0.10f;                   // 地面の標本の刻み[m]
+    const float DAN_WQ = 0.05f;                   // 座の候補の刻み[m]
 
     /// <summary>段塀の一区間(鎖の道のり a〜b・塀の座 W = 塀の下端の高さ)。</summary>
     public struct DanSec { public float a, b, W; }
 
-    /// <summary>折れ線(区画の辺の鎖)に段塀の区切りを引く。道のりは折れ線の頭から。
-    /// 動的計画で「区間の数 + 小さすぎる段(0.20 未満)の罰 + 角から DAN_CORNER_CLEAR 以内の段の罰」を最小にする。
-    /// 硬い条件: 区間の芯の地面の起伏 ≤ DAN_STEP(ただし最短の区間はこの限りでない)・区間 ≤ DAN_MAX_SEC。</summary>
+    /// <summary>折れ線(区画の辺の鎖)に段塀の区切りと座を引く。道のりは折れ線の頭から。
+    /// 動的計画(状態 = 区切りの節 × 座の候補)で「区間の数 + 段の二乗 + 半端な段・大きすぎる段・角の段・標準から外れた座の罰」
+    /// を最小にする。硬い条件は冒頭の註(布石が届く・埋めが DAN_BURY_MAX 以内)。</summary>
     public static List<DanSec> DanPlan(IList<Vector2> chain, out string note)
     {
         var segL = new List<float>(); float L = 0f;
         for (int i = 0; i + 1 < chain.Count; i++) { float l = Vector2.Distance(chain[i], chain[i + 1]); segL.Add(l); L += l; }
         var outp = new List<DanSec>(); note = "";
         if (L < 1e-3f) return outp;
-        // 芯の地面の標本
+        var sy = RunMeasureY(EdoAssets.Own.Dobei2mNunoishi); float stoneH = sy.hi - sy.lo;
+        float reach = stoneH - DAN_STONE_EMBED;
+        // 足跡の地面の標本 ── 芯と両脇(布石の実測の半厚)。塀と布石は区画の線を芯に据わる(ButtOnRun の latOff 0)ので、
+        //    検査(RootToBed = 足跡の全部)と同じ幅を見る。⛔ 芯だけを見ると脇の低い地面で布石の下が 0.02〜0.04m 浮いた
+        //    (観理院の西の崖の肩・2026-09-29 EDO-0477)。
+        float half;
+        {
+            var bp = BodyAt(EdoAssets.Own.Dobei2mNunoishi, Vector3.zero, 0f, true);
+            float zl = float.MaxValue, zh = float.MinValue; foreach (var q in bp) { zl = Mathf.Min(zl, q.z); zh = Mathf.Max(zh, q.z); }
+            half = bp.Count > 0 ? (zh - zl) * 0.5f : 0f;
+        }
         int ns = Mathf.Max(2, Mathf.CeilToInt(L / DAN_DS) + 1);
-        var gs = new float[ns]; var ss = new float[ns];
+        var gsLo = new float[ns]; var gsHi = new float[ns]; var ss = new float[ns];
         for (int k = 0; k < ns; k++)
         {
             float s = Mathf.Min(L, k * DAN_DS); ss[k] = s;
-            var p = ChainAt(chain, segL, s);
-            float g = Ground(p.x, p.y); gs[k] = float.IsNaN(g) ? (k > 0 ? gs[k - 1] : 0f) : g;
+            var p = ChainAt(chain, segL, s); var d = ChainDir(chain, segL, s); var nrm = new Vector2(-d.y, d.x);
+            float lo = float.MaxValue, hi = float.MinValue;
+            foreach (float o in new[] { 0f, half, -half })
+            {
+                var q = p + nrm * o; float g = Ground(q.x, q.y);
+                if (!float.IsNaN(g)) { lo = Mathf.Min(lo, g); hi = Mathf.Max(hi, g); }
+            }
+            if (lo > hi) { lo = k > 0 ? gsLo[k - 1] : 0f; hi = k > 0 ? gsHi[k - 1] : 0f; }
+            gsLo[k] = lo; gsHi[k] = hi;
         }
         // 区切りの節(半間)と角の道のり
         int N = Mathf.Max(1, Mathf.CeilToInt(L / DAN_Q - 1e-3f));
         var E = new float[N + 1]; for (int k = 0; k <= N; k++) E[k] = Mathf.Min(k * DAN_Q, L);
         var corners = new List<float>(); { float c = 0f; for (int i = 0; i + 1 < segL.Count; i++) { c += segL[i]; corners.Add(c); } }
         int qMin = Mathf.Max(1, Mathf.RoundToInt(DAN_MIN_SEC / DAN_Q)), qMax = Mathf.Max(qMin, Mathf.FloorToInt(DAN_MAX_SEC / DAN_Q));
-        Func<int, int, Vector2> rangeOf = (i, j) =>
+        // 節の間ごとの地面の最低・最高(区間の範囲は節の間を足して引く)
+        var nLo = new float[N]; var nHi = new float[N];
+        for (int k = 0; k < N; k++)
         {
             float lo = float.MaxValue, hi = float.MinValue;
-            for (int k = 0; k < ns; k++) if (ss[k] >= E[i] - 1e-4f && ss[k] <= E[j] + 1e-4f) { lo = Mathf.Min(lo, gs[k]); hi = Mathf.Max(hi, gs[k]); }
-            return new Vector2(lo, hi);
-        };
-        var cost = new float[N + 1]; var prv = new int[N + 1]; var Wl = new float[N + 1];
-        for (int k = 0; k <= N; k++) { cost[k] = float.MaxValue; prv[k] = -1; }
-        cost[0] = 0f;
-        for (int j = 1; j <= N; j++)
-            for (int i = Mathf.Max(0, j - qMax); i < j; i++)
+            for (int m = 0; m < ns; m++) if (ss[m] >= E[k] - 1e-4f && ss[m] <= E[k + 1] + 1e-4f) { lo = Mathf.Min(lo, gsLo[m]); hi = Mathf.Max(hi, gsHi[m]); }
+            nLo[k] = lo; nHi[k] = hi;
+        }
+        var nearCorner = new bool[N + 1];
+        for (int k = 0; k <= N; k++) foreach (var cc in corners) if (Mathf.Abs(E[k] - cc) < DAN_CORNER_CLEAR) { nearCorner[k] = true; break; }
+        // 片側が平場に面する節(その側の帯の地面が前後 DAN_FLAT_ALONG の間で DAN_FLAT_TOL 以内に揃う)と、そこから DAN_FLAT_MARGIN 内の節
+        var flatAt = new bool[N + 1];
+        for (int k = 0; k <= N; k++)
+            foreach (float sd in new[] { 1f, -1f })
             {
-                if (cost[i] == float.MaxValue) continue;
+                float lo = float.MaxValue, hi = float.MinValue; bool ok = true;
+                foreach (float ds in new[] { -DAN_FLAT_ALONG, 0f, DAN_FLAT_ALONG })
+                {
+                    float s = Mathf.Clamp(E[k] + ds, 0f, L);
+                    var p = ChainAt(chain, segL, s); var d = ChainDir(chain, segL, s); var nrm = new Vector2(-d.y, d.x) * sd;
+                    foreach (float o in new[] { DAN_FLAT_NEAR, DAN_FLAT_FAR })
+                    {
+                        var q = p + nrm * o; float g = Ground(q.x, q.y);
+                        if (float.IsNaN(g)) { ok = false; break; }
+                        lo = Mathf.Min(lo, g); hi = Mathf.Max(hi, g);
+                    }
+                    if (!ok) break;
+                }
+                if (ok && hi - lo <= DAN_FLAT_TOL) { flatAt[k] = true; break; }
+            }
+        var nearFlat = new bool[N + 1];
+        for (int k = 1; k < N; k++)
+            for (int m = 0; m <= N; m++) if (flatAt[m] && Mathf.Abs(E[m] - E[k]) <= DAN_FLAT_MARGIN + 1e-3f) { nearFlat[k] = true; break; }
+        // 状態: 節 j に終わる区間の座の候補
+        var stW = new List<float>[N + 1]; var stC = new List<float>[N + 1]; var stPi = new List<int>[N + 1]; var stPk = new List<int>[N + 1];
+        for (int k = 0; k <= N; k++) { stW[k] = new List<float>(); stC[k] = new List<float>(); stPi[k] = new List<int>(); stPk[k] = new List<int>(); }
+        int forced = 0;
+        for (int j = 1; j <= N; j++)
+        {
+            float lo = float.MaxValue, hi = float.MinValue;
+            for (int i = j - 1; i >= Mathf.Max(0, j - qMax); i--)
+            {
+                lo = Mathf.Min(lo, nLo[i]); hi = Mathf.Max(hi, nHi[i]);
                 int q = j - i;
                 if (q < qMin && i != 0 && j != N) continue;
-                var r = rangeOf(i, j);
-                if (r.y - r.x > DAN_STEP && q > qMin) continue;
-                float W = r.y - DAN_BURY, pen = 0f;
-                if (i > 0)
+                if (i > 0 && stW[i].Count == 0) continue;
+                float wMin = hi - DAN_BURY_MAX, wMax = lo + reach, wStd = hi - DAN_BURY;
+                var cands = new List<float>();
+                if (wMin <= wMax)
                 {
-                    if (Mathf.Abs(W - Wl[i]) < 0.20f) pen += 3f;
-                    foreach (var cc in corners) if (Mathf.Abs(E[i] - cc) < DAN_CORNER_CLEAR) { pen += 30f; break; }
+                    for (float w = Mathf.Ceil(wMin / DAN_WQ) * DAN_WQ; w <= wMax + 1e-4f; w += DAN_WQ) cands.Add(w);
+                    if (wStd >= wMin && wStd <= wMax) cands.Add(wStd);
+                    if (cands.Count == 0) cands.Add(wMax);
                 }
-                float c = cost[i] + 1f + pen;
-                if (c < cost[j] - 1e-6f) { cost[j] = c; prv[j] = i; Wl[j] = W; }
+                else if (q <= qMin) cands.Add(wMax);          // 急で最短でも収まらない ── 浮かせず埋めを深くする(硬い条件の例外)
+                else continue;
+                foreach (var W in cands)
+                {
+                    float pen0 = 1f + 0.5f * Mathf.Abs(W - wStd) + (wMin > wMax ? 2f : 0f);
+                    if (i == 0)
+                    {
+                        float c0 = pen0;
+                        Push(stW[j], stC[j], stPi[j], stPk[j], W, c0, 0, -1);
+                        continue;
+                    }
+                    int bestK = -1; float best = float.MaxValue;
+                    for (int kk = 0; kk < stW[i].Count; kk++)
+                    {
+                        float d = Mathf.Abs(W - stW[i][kk]), pen = d * d;
+                        if (d > 0.005f)
+                        {
+                            if (d < DAN_STEP_MIN - DAN_FLOAT_TOL) pen += 5f;
+                            if (d > DAN_STEP_MAX) pen += 10f * (d - DAN_STEP_MAX) + 2f;
+                            if (nearCorner[i]) pen += 30f;
+                            if (nearFlat[i]) pen += 8f;
+                        }
+                        float c = stC[i][kk] + pen;
+                        if (c < best) { best = c; bestK = kk; }
+                    }
+                    Push(stW[j], stC[j], stPi[j], stPk[j], W, best + pen0, i, bestK);
+                }
             }
-        if (prv[N] < 0) { note = "⚠ 段塀の区切りが引けない ── 一区間で建てた"; var r0 = rangeOf(0, N); outp.Add(new DanSec { a = 0f, b = L, W = r0.y - DAN_BURY }); return outp; }
-        for (int j = N; j > 0; j = prv[j]) { int i = prv[j]; var r = rangeOf(i, j); outp.Insert(0, new DanSec { a = E[i], b = E[j], W = r.y - DAN_BURY }); }
-        float mx = 0f; int nStep = 0, nCorner = 0;
+        }
+        if (stW[N].Count == 0)
+        {
+            note = "⚠ 段塀の区切りが引けない ── 一区間で建てた";
+            float lo0 = float.MaxValue, hi0 = float.MinValue; for (int k = 0; k < N; k++) { lo0 = Mathf.Min(lo0, nLo[k]); hi0 = Mathf.Max(hi0, nHi[k]); }
+            outp.Add(new DanSec { a = 0f, b = L, W = Mathf.Min(hi0 - DAN_BURY, lo0 + reach) }); return outp;
+        }
+        {
+            int kb = 0; for (int kk = 1; kk < stC[N].Count; kk++) if (stC[N][kk] < stC[N][kb]) kb = kk;
+            int j = N, k = kb;
+            while (j > 0)
+            {
+                int i = stPi[j][k], pk = stPk[j][k];
+                outp.Insert(0, new DanSec { a = E[i], b = E[j], W = stW[j][k] });
+                j = i; k = pk; if (j > 0 && k < 0) break;
+            }
+        }
+        // 同じ座の隣り合う区間は一つに畳む(段 0 の区切りは建てる側で意味が無い)
+        for (int k = outp.Count - 1; k > 0; k--)
+            if (Mathf.Abs(outp[k].W - outp[k - 1].W) < 0.005f) { outp[k - 1] = new DanSec { a = outp[k - 1].a, b = outp[k].b, W = outp[k - 1].W }; outp.RemoveAt(k); }
+        float mx = 0f, mnStep = float.MaxValue; int nStep = 0, nCorner = 0, nSmall = 0, nFlat = 0;
         for (int k = 0; k + 1 < outp.Count; k++)
         {
-            float d = Mathf.Abs(outp[k + 1].W - outp[k].W); if (d > 1e-3f) nStep++; mx = Mathf.Max(mx, d);
+            float d = Mathf.Abs(outp[k + 1].W - outp[k].W); if (d > 1e-3f) { nStep++; mnStep = Mathf.Min(mnStep, d); if (d < DAN_STEP_MIN - DAN_FLOAT_TOL) nSmall++; if (nearFlat[Mathf.Clamp(Mathf.RoundToInt(outp[k].b / DAN_Q), 0, N)]) nFlat++; }
+            mx = Mathf.Max(mx, d);
             foreach (var cc in corners) if (Mathf.Abs(outp[k].b - cc) < DAN_CORNER_CLEAR) { nCorner++; break; }
         }
-        note = string.Format("段塀 {0:F0}m を {1} 区間・段 {2}・最大の段 {3:F2}m(目安 {4:F2}・最短 {5:F2}m){6}", L, outp.Count, nStep, mx, DAN_STEP, DAN_MIN_SEC,
-                             nCorner > 0 ? string.Format("・⚠ 角から {0:F1}m 以内の段 {1}(狙い)", DAN_CORNER_CLEAR, nCorner) : "");
+        for (int k = 0; k < outp.Count; k++)
+        {
+            float lo = float.MaxValue, hi = float.MinValue;
+            for (int m = 0; m < ns; m++) if (ss[m] >= outp[k].a - 1e-4f && ss[m] <= outp[k].b + 1e-4f) { lo = Mathf.Min(lo, gsLo[m]); hi = Mathf.Max(hi, gsHi[m]); }
+            if (outp[k].W < hi - DAN_BURY_MAX - 0.01f || outp[k].W > lo + reach + 0.01f) forced++;
+        }
+        note = string.Format("段塀 {0:F0}m を {1} 区間・段 {2}・段 {3:F2}〜{4:F2}m(半端な段の線 {5:F2}・上限 {6:F2}){7}{8}{9}{10}", L, outp.Count, nStep,
+                             nStep > 0 ? mnStep : 0f, mx, DAN_STEP_MIN, DAN_STEP_MAX,
+                             nSmall > 0 ? string.Format("・⚠ 半端な段 {0}(狙い)", nSmall) : "",
+                             nCorner > 0 ? string.Format("・⚠ 角から {0:F1}m 以内の段 {1}(狙い)", DAN_CORNER_CLEAR, nCorner) : "",
+                             forced > 0 ? string.Format("・⚠ 布石と根入れで受けきれない急な区間 {0}(埋めを深くした)", forced) : "",
+                             nFlat > 0 ? string.Format("・⚠ 平場に面する段 {0}(狙い)", nFlat) : "");
         return outp;
+    }
+
+    /// <summary>DanPlan の状態を足す。同じ座(刻みの内)の候補が既にあれば安い方だけ残す。</summary>
+    static void Push(List<float> W, List<float> C, List<int> Pi, List<int> Pk, float w, float c, int pi, int pk)
+    {
+        for (int k = 0; k < W.Count; k++)
+            if (Mathf.Abs(W[k] - w) < 1e-3f) { if (c < C[k]) { C[k] = c; Pi[k] = pi; Pk[k] = pk; } return; }
+        W.Add(w); C.Add(c); Pi.Add(pi); Pk.Add(pk);
+    }
+
+    static Vector2 ChainDir(IList<Vector2> chain, List<float> segL, float s)
+    {
+        for (int i = 0; i < segL.Count; i++)
+        {
+            if (s <= segL[i] || i == segL.Count - 1) return (chain[i + 1] - chain[i]).normalized;
+            s -= segL[i];
+        }
+        return Vector2.right;
     }
 
     static Vector2 ChainAt(IList<Vector2> chain, List<float> segL, float s)

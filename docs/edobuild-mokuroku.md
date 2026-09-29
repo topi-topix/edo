@@ -1,6 +1,6 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 b022cbf30f7d -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 d80e943c4ee3 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
@@ -439,13 +439,21 @@
 | `EdoBuild.ChordFacing(j0, j1, outward)` | `bool` |  | 弦 j0→j1 に張った駒の表(ローカル +Z)が outward を向くか。 | — |
 | `EdoBuild.DobeiRun(parent, A, B, outward, prefix, followGround, flatBase, gapC, gapHalf)` | `List<GameObject>` |  | ⚠ 注釈なし | SannoSha(Stage1_Keidai・Stage2_Sando), Doi(Stage2_Perimeter), MatsudairaDewa(Stage2_Perimeter), OkabeYashiki(Stage2_Perimeter), Sanyashiki(S3_Enclosure) ほか1 |
 | `EdoBuild.NeribeiRun(parent, A, B, outward, prefix, followGround, flatBase, gapC, gapHalf)` | `List<GameObject>` | 隅・区域 | DobeiRun(表裏2枚の板塀)と違い Dobei2m は1駒で厚みを持つ一体物なので、side ループは無い。 | — |
-| `EdoBuild.DAN_STEP` | `float` | 柔 地面・床・区域 | ⭐ 屋敷の練塀は傾けない。区間ごとに笠を水平にし、区切りで段を付ける(段塀)。 | — |
+| `EdoBuild.DAN_STEP` | `float` | 硬・柔 地面・床・区域 | ⭐ 屋敷の練塀は傾けない。区間ごとに笠を水平にし、区切りで段を付ける(段塀)。 | — |
+| `EdoBuild.DAN_STEP_MIN` | `float` |  | ⚠ 注釈なし | — |
+| `EdoBuild.DAN_STEP_MAX` | `float` |  | ⛔ 0.50 にすると 0.50・0.65 の段が残った(観理院の北の角)── 裁定図の段は 0.81・0.83 | — |
 | `EdoBuild.DAN_MIN_SEC` | `float` |  | ⚠ 注釈なし | — |
 | `EdoBuild.DAN_MAX_SEC` | `float` |  | ⚠ 注釈なし | — |
 | `EdoBuild.DAN_BURY` | `float` |  | ⚠ 注釈なし | — |
+| `EdoBuild.DAN_BURY_MAX` | `float` |  | ⚠ 注釈なし | — |
+| `EdoBuild.DAN_STONE_EMBED` | `float` |  | ⚠ 注釈なし | — |
 | `EdoBuild.DAN_CORNER_CLEAR` | `float` |  | ⚠ 注釈なし | — |
+| `EdoBuild.DAN_FLAT_NEAR` | `float` |  | ⚠ 注釈なし | — |
+| `EdoBuild.DAN_FLAT_ALONG` | `float` |  | ⚠ 注釈なし | — |
+| `EdoBuild.DAN_FLAT_MARGIN` | `float` |  | ⚠ 注釈なし | — |
+| `EdoBuild.DAN_FLAT_TOL` | `float` |  | ⚠ 注釈なし | — |
 | `DanSec`(struct) | — | | 段塀の一区間(鎖の道のり a〜b・塀の座 W = 塀の下端の高さ)。 | |
-| `EdoBuild.DanPlan(chain, note)` | `List<DanSec>` | 硬 地面・区域 | 折れ線(区画の辺の鎖)に段塀の区切りを引く。 | Typology(BuildParcel) |
+| `EdoBuild.DanPlan(chain, note)` | `List<DanSec>` | 硬 区域 | 折れ線(区画の辺の鎖)に段塀の区切りと座を引く。 | Typology(BuildParcel) |
 | `EdoBuild.NeribeiStepRun(parent, A, B, outward, prefix, secs, gapC, gapHalf, note)` | `List<GameObject>` | 地面・天端 | 練塀を段塀で建てる。secs は A からの道のりの区間(座 W)。 | — |
 | `EdoBuild.PanelRun(parent, A, B, outward, prefix, assetPath, gapC, gapHalf, pair=…, unitScale=…, beds=…, bedAt=…, splitPost=…, splitBoard=…)` | `List<GameObject>` |  | <remarks>据えは DobeiRun と同じ — 触れている箇所を測る(規則21)。 | — |
 | `EdoBuild.PostBoardRun(parent, A, B, outward, prefix, postPath, boardPath, bedAt, root, pair=…)` | `List<GameObject>` | 駒どうし・床・断面 | 柱と板を分けた組で板塀の run を張る(2026-09-26・EDO-0437 第7巡)。 | — |

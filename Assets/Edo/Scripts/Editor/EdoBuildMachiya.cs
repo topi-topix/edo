@@ -309,9 +309,11 @@ public static partial class EdoBuild
     /// 在庫の駒と同じ候補として <see cref="ShopCombos"/> に載るので、間口に合う駒が先に採られ、
     /// 合わなければ従来どおり在庫の駒を継ぐ。</param>
     /// <param name="keepInside">壁体がここから出る駒は置かない(区域侵犯は許容0・規則4)。null なら検めない。</param>
+    /// <param name="seed">1 軒の埋め方を引く乱数の種(区画ごと・EDO-0476)。負なら列の名から。</param>
     public static List<GameObject> MachiyaRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward, float baseY,
         float maguchiM, float maxDepthM, Vector2 gapC, float gapHalf, string prefix,
-        string leadPath, string[] ours, Vector2[] keepInside, List<GameObject> avoid, out MachiyaTally tally)
+        string leadPath, string[] ours, Vector2[] keepInside, List<GameObject> avoid, out MachiyaTally tally,
+        int seed = -1)
     {
         var made = new List<GameObject>();
         tally = new MachiyaTally();
@@ -365,7 +367,9 @@ public static partial class EdoBuild
         }
         else segs.Add(new float[] { 0f, len });
 
-        var rnd = new System.Random(prefix.GetHashCode());
+        // ⭐ 種は呼び手が区画ごとに渡す(EDO-0476)。⛔ 列の名(prefix)だけで種を作らない ── 2026-09-29 まで
+        //    `prefix.GetHashCode()` で、名が "Omotedana0" の 24 区画が同じ順で同じ組を引いていた。
+        var rnd = new System.Random(seed >= 0 ? seed : Seed(prefix));
         var kinds = new Dictionary<string, int>();
         int idx = 0;
         ShopPiece? lead = leadPath != null ? (ShopPiece?)ShopPiece.Kit(leadPath) : null;   // 頭の 1 枚は最初の区間の最初の軒でだけ使う

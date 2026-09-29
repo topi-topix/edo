@@ -170,6 +170,7 @@ public static partial class EdoTypologyBuilder
                      //    (観理院 EDO-0468: 御宮絵図に本堂は無く、本坊 ≒ 20×6間 を主の堂に当てる)。
                      || (hallCert == "P" && s.muneZu);
         var hallSizes = JHallSizes(s, tsubo, hallFirm, rng, out string sizeNote);
+        float jitter = YuJishaOkiba(s, JISHA_JITTER);     // 附属の置き場の揺らぎ[m](表の yuragi・無ければ定数)
 
         // ── 棟の一覧を起こす(置く前に**実メッシュの外形**を測る)──────────────
         var items = new List<JItem>();
@@ -183,6 +184,14 @@ public static partial class EdoTypologyBuilder
         //    落ちていた。焼いた寸法は 6x4間 / 5x3.5間 の2本だけ(EdoAssets.Own.Kuri)。本堂が
         //    6間以下(坊)なら小さい方、7間級(寺・社家)なら大きい方を当てる。
         string kuriPath = hw <= 6 ? EdoAssets.Own.Kuri(5f, 3.5f) : EdoAssets.Own.Kuri(6f, 4f);
+        // ⭐ 揺らぎ(EDO-0476)── 表の `yuragi.jisha.<kind>.kuri` に候補があれば区画の種で選ぶ(焼いてある駒だけ)
+        var yk = YuKuri(s);
+        if (yk != null && AssetDatabase.LoadAssetAtPath<GameObject>(EdoAssets.Own.Kuri(yk[0], yk[1])) != null)
+        {
+            string kp = EdoAssets.Own.Kuri(yk[0], yk[1]);
+            if (s.kuri) YuSay(s.id, string.Format("庫裏 {0}x{1}間", yk[0], yk[1]));
+            kuriPath = kp;
+        }
         for (int u = 0; u < units; u++)
         {
             string nm = "Honden" + (units > 1 ? "_" + u : "");
@@ -351,7 +360,7 @@ public static partial class EdoTypologyBuilder
                             default:          sc = JMinEdge(poly, wc) + 0.35f * vc; break;
                         }
                         // ⭐ 揺らぎ(EDO-0476)── 附属は区画ごとの種で点数を ±JISHA_JITTER[m] 揺らす(本堂は軸に載せるので揺らさない)
-                        if (it.mode != JMode.Main) sc += JISHA_JITTER * (float)(rng.NextDouble() * 2.0 - 1.0);
+                        if (it.mode != JMode.Main) sc += jitter * (float)(rng.NextDouble() * 2.0 - 1.0);
                         cands.Add(new JCand { p = p, yaw = yaw, score = sc + tier * 1e4f });
                     }
                 }
@@ -530,11 +539,11 @@ public static partial class EdoTypologyBuilder
     }
 
     /// <summary>坪 <paramref name="area"/> に近い焼いた入母屋を一つ(目安の 0.85〜1.25 倍の帯から種で選ぶ・帯が空なら最寄り)。</summary>
-    static int[] JPickSize(float area, System.Random rng, int minD)
+    static int[] JPickSize(float area, System.Random rng, int minD, float lo = 0.85f, float hi = 1.25f)
     {
         var all = JHallBaked().Where(z => z[1] >= minD).ToList();
         if (all.Count == 0) return null;
-        var band = all.Where(z => z[0] * z[1] >= area * 0.85f && z[0] * z[1] <= area * 1.25f).ToList();
+        var band = all.Where(z => z[0] * z[1] >= area * lo && z[0] * z[1] <= area * hi).ToList();
         if (band.Count > 0) return band[rng.Next(band.Count)];
         return all.OrderBy(z => Mathf.Abs(z[0] * z[1] - area)).First();
     }
@@ -559,7 +568,27 @@ public static partial class EdoTypologyBuilder
                 note += (note.Length > 0 ? "・" : "") + string.Format("表の {0}x{1}間(U)は境内 {2:F0}坪に小さく、目安 {3:F0}坪(境内の {4:P0}・U)から採った",
                                                                      hw, hd, tsubo, tgt, JISHA_HALL_RATIO);
             }
-            var pick = JPickSize(tgt, rng, 3);
+            // ⭐ 揺らぎ(EDO-0476)── 坊は表の間数の幅(`yuragi.jisha.bo.main_hall_w/_d`)の中の焼いた入母屋から、
+            //    寺・社家は目安の坪の帯(`hall_band`)から、区画の種で選ぶ。⛔ 史料の間数(firm)は揺らさない(上の枝)。
+            int[] pick = null;
+            var rg = YuHallRange(s);
+            if (rg != null)
+            {
+                var inR = JHallBaked().Where(z => z[0] >= rg[0] && z[0] <= rg[1] && z[1] >= rg[2] && z[1] <= rg[3]).ToList();
+                if (inR.Count > 0)
+                {
+                    pick = inR[YuRng(s.id, "hall").Next(inR.Count)];
+                    YuSay(s.id, string.Format("主屋 {0}x{1}間(幅 桁行{2}〜{3}・梁間{4}〜{5}間の焼いた {6} 通りから)",
+                                              pick[0], pick[1], rg[0], rg[1], rg[2], rg[3], inR.Count));
+                }
+            }
+            if (pick == null)
+            {
+                var band = YuHallBand(s);
+                pick = JPickSize(tgt, rng, 3, band.x, band.y);
+                if (pick != null) YuSay(s.id, string.Format("本堂 {0}x{1}間(目安 {2:F0}坪の {3:0.00}〜{4:0.00} 倍の帯から)",
+                                                           pick[0], pick[1], tgt, band.x, band.y));
+            }
             outp.Add(pick ?? new[] { hw, hd });
         }
         float a0 = outp[0][0] * outp[0][1];

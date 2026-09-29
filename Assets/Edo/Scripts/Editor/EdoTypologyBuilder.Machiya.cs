@@ -115,7 +115,7 @@ public static partial class EdoTypologyBuilder
             built.AddRange(EdoBuild.MachiyaRun(g, e.a, e.b, e.outward, pad, maguchiM, depthM,
                                 hasGate ? gateC : Vector2.zero, hasGate ? gateHalf : -1f,
                                 "Omotedana" + k, k == 0 ? lead : null, ours, poly,
-                                k == 0 ? null : built, out t));
+                                k == 0 ? null : built, out t, YuTanaSeed(s, "Omotedana" + k)));
             clashed += t.clashed;
             if (k == 0) roomFirst = t.roomM;
             shopDeep = Mathf.Max(shopDeep, t.shopD);
@@ -186,7 +186,7 @@ public static partial class EdoTypologyBuilder
 
         log.Add(UraNagaya(s, root, poly, fronts, depthM, roomFirst, shopD, pad, built));
         log.Add(UnusedFields(s));
-        return string.Join("\n", log.ToArray());
+        return string.Join("\n", log.ToArray()) + YuNote(s);
     }
 
     /// <summary>**裏長屋(裏店)。**表の `ura_nagaya` がそのまま数ならその棟数まで、

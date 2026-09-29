@@ -170,6 +170,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         {
             var d = kv.Value as Dictionary<string, object>; if (d == null) continue;
             Fill(d, DefaultsFor(d));                 // ⭐ 既定を差してから読む(区画の値が勝つ)
+            YuragiFields(kv.Key, d);                 // ⭐ 揺らぎ(EDO-0476)── 史料値でない欄を表の幅の中で区画ごとに(EdoTypologyBuilder.Yuragi.cs)
             var s = new Spec
             {
                 id = kv.Key, raw = d,
@@ -817,7 +818,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                               s.surface ?? "dirt"));
         // ⭐ 寺社の境内は別の置き方(EDO-0354)— 棟ごとの実外形で本堂を軸へ・墓地と鐘楼を縁の帯へ。
         //    Spot() の格子点+半径では、狭い境内(成満寺 248 坪)で 4 棟のうち 2 棟が入らなかった。
-        if (s.type == "jisha") return JishaOmoya(s, root, poly, front, pad, gateC);
+        if (s.type == "jisha") return JishaOmoya(s, root, poly, front, pad, gateC) + YuNote(s);
         var g = Group("Tatemono", root);
         var c = Inner(poly, SETBACK);
         if (c.Count == 0) return "  ⛔ 主屋: 区画が狭く、囲いの内側に置ける場所が無い";
@@ -826,8 +827,9 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         //    20.6m の余地がある奥へ一度も試されなかった。
         // ⭐ 奥ほど先に試す: 辺から遠い点を優先し、同じくらいなら門から遠い方(表門→前庭→主屋)。
         var gate = front.mid;
-        c.Sort((p, q) => (EdoGeom.DistToPolyEdge(poly, q) + 0.15f * Vector2.Distance(q, gate))
-                .CompareTo(EdoGeom.DistToPolyEdge(poly, p) + 0.15f * Vector2.Distance(p, gate)));
+        // ⭐ 揺らぎ(EDO-0476)── 点数に区画の種で決まる 0〜okiba_m[m] を足す。同じ形の区画でも同じ点から試さない
+        c.Sort((p, q) => (EdoGeom.DistToPolyEdge(poly, q) + 0.15f * Vector2.Distance(q, gate) + YuOkiba(s, q))
+                .CompareTo(EdoGeom.DistToPolyEdge(poly, p) + 0.15f * Vector2.Distance(p, gate) + YuOkiba(s, p)));
         float psi = Mathf.Atan2(-front.outward.x, -front.outward.y) * Mathf.Rad2Deg; // 門の方を向く
 
         var plan = Plan(s);
@@ -878,12 +880,16 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         // ⭐ 置き場は EdoBuild.PlaceBest で選ぶ — **硬い制約で退け、柔らかい制約で選ぶ**(docs/oki-kata.md §4a)。
         //    ⛔ 前庭のような狙いを「届かなければ退ける」関門として書かない(施主 2026-09-23)。
         var tally = new EdoBuild.SeiyakuTally();
+        int pi = -1;
         foreach (var item in plan)
         {
-            string nm = "B" + n + "_" + Path.GetFileNameWithoutExtension(item.Key);
+            pi++;
+            string key = item.Key;
+            string nm = "B" + n + "_" + Path.GetFileNameWithoutExtension(key);
+            float yaw = psi + YuYaw(s, key, nm);   // ⭐ 揺らぎ(EDO-0476)── 付属の向きだけ。主屋級は門へ向けたまま
             Func<Vector2, GameObject> place = spot =>
             {
-                var q = EdoBuild.Place(item.Key, new Vector3(spot.x, pad, spot.y), psi, Vector3.one, g, nm);
+                var q = EdoBuild.Place(key, new Vector3(spot.x, pad, spot.y), yaw, Vector3.one, g, nm);
                 if (q == null) return null;
                 // ⛔ ピボットの座・底ではなく**接地箇所**で据える(規則21)
                 try { EdoBuild.SeatOnGround(q, 0f, VERTS); }
@@ -917,6 +923,15 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
             };
             // ⭐ 試す数は 24 — PlaceBest は狙いを満たした所で止まるので、多く試すのは狙いに届かないときだけ
             var go = EdoBuild.PlaceBest(Candidates(poly, c, placed, item.Value, tried), 24, place, hards, softs, tally);
+            // ⭐ 揺らぎで差し替えた駒が入らなければ**元の駒で**もう一度(EDO-0476)── 揺らぎで棟を失わない
+            //    (2026-09-30 実測: 堀口邸 田の字の 1 棟が House B に替わって区画に入らず、主屋が 0 棟になった)
+            string orig = go == null ? YuOrig(s, s.units > 1 ? pi % Mathf.Max(1, plan.Count / s.units) : pi) : null;
+            if (orig != null && orig != key)
+            {
+                YuSay(s.id, string.Format("{0} は入らず元の {1} で建てた", Path.GetFileNameWithoutExtension(key), Path.GetFileNameWithoutExtension(orig)));
+                key = orig; nm = "B" + n + "_" + Path.GetFileNameWithoutExtension(key); yaw = psi;
+                go = EdoBuild.PlaceBest(Candidates(poly, c, placed, item.Value, new HashSet<Vector2>()), 24, place, hards, softs, tally);
+            }
             if (go == null) { dropped++; continue; }
             float worst = float.NaN;
             foreach (var prev in made)
@@ -959,7 +974,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
             n, plan.Count,
             s.type == "buke" ? OmoyaOf(s) : (s.kind ?? s.type),
             un, dr, yag, bab, tch, tkn,
-            string.Join(" ", kinds.ToArray()), gotenNote);
+            string.Join(" ", kinds.ToArray()), gotenNote) + YuNote(s);
     }
 
     /// <summary>二つの駒を**互いへ押し付ける向き**(a から b・水平)。⛔ 駒の基準点(ピボット)から基準点へ
@@ -990,7 +1005,8 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
     static List<KeyValuePair<string, float>> Plan(Spec s)
     {
         var L = new List<KeyValuePair<string, float>>();
-        Action<string, float, int> add = (p, r, k) => { for (int i = 0; i < k; i++) L.Add(new KeyValuePair<string, float>(p, r)); };
+        // ⭐ 揺らぎ(EDO-0476)── 主屋級の駒は表の `yuragi.buke.koma` の同じ格の駒へ区画の種で差し替える(YuKoma)
+        Action<string, float, int> add = (p, r, k) => { for (int i = 0; i < k; i++) L.Add(new KeyValuePair<string, float>(YuKoma(s, p, L.Count), r)); };
         if (s.type == "buke")
         {
             // ⭐ 主屋の型は**表の `omoya` が勝つ**(区画 > defaults > 格帯。EDO-0327)。

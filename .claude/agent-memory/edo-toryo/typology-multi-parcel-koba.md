@@ -15,3 +15,7 @@ metadata:
 3. 1区画 1.5〜11 秒。3〜6区画ずつ区画ごとの印のファイルで割れば30秒の再送に掛からない。
 
 関連: [[koba-writeback-ledger-empty]] [[long-run-guard-and-soft-only-converge]]
+
+追記 2026-09-29 EDO-0475(生垣の作り直し・10区画 57秒): 作業場が dirty のときは `EditorSceneManager.OpenScene(Koba, Single)` を
+直に打てばダイアログ無しで捨てて開ける(その後 `EdoKoba.Open`)。生垣の区域の越えを外接箱の角で測ると 0.3〜1.07m の
+偽の越えが出る(回した株の AABB)。葉の頂点で測れば 20 株・最大 0.38m。株の芯は全部区画の内。

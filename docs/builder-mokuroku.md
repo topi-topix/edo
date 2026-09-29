@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 18 本・メニュー 79・関数 625(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 18 本・メニュー 79・関数 626(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -28,7 +28,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoTypologyBuilder.Jisha.cs](#edotypologybuilderjishacs) | 類型ビルダー — 寺社の境内(Stage 3〜4 の jisha 分)。本堂・庫裏・蔵・鐘楼・墓地・塔頭を置く。 | 0 | 17 |
 | [EdoTypologyBuilder.Keidai.cs](#edotypologybuilderkeidaics) | 類型の庭 — 寺社の境内(garden=keidai)。2026-09-27・EDO-0477 P5。 | 0 | 3 |
 | [EdoTypologyBuilder.Machiya.cs](#edotypologybuildermachiyacs) | 類型ビルダー — 町屋(machiya)の段。24 区画。EDO-0325。 | 0 | 5 |
-| [EdoTypologyBuilder.Niwa.cs](#edotypologybuilderniwacs) | 類型の庭(Stage 5)— どの類型が何をどこへだけ。EDO-0323。 | 0 | 26 |
+| [EdoTypologyBuilder.Niwa.cs](#edotypologybuilderniwacs) | 類型の庭(Stage 5)— どの類型が何をどこへだけ。EDO-0323。 | 0 | 27 |
 | [EdoTypologyBuilder.Rim.cs](#edotypologybuilderrimcs) | 類型の崖の縁の石垣(Stage 4y・2026-09-28・EDO-0477 施主裁定A「石垣を積み、その上に塀」)。 | 0 | 2 |
 | [EdoTypologyBuilder.cs](#edotypologybuildercs) | 類型ビルダー — 区画の形(parcels.json)と類型表(typology.json)から、一本で建てる。 | 5 | 47 |
 | [EdoYamatoRebuild.cs](#edoyamatorebuildcs) | 松平大和守(川越藩17万石)上屋敷の再建 v2 (2026-08-08) | 0 | 13 |
@@ -666,7 +666,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `JRoofOf(it, go)` | `Vector2[]` |  | 置いた棟の屋根込みの矩形(置いた位置と向きから ── 測った局所矩形を載せる)。 |
 | `JEnclosureRoofs(root, taken)` | `int` |  | 囲いの長屋の駒ごとに、屋根込みの矩形(駒の向きの軸で実メッシュを測った外形)を taken へ足す。 ⟶ 返す: 足した数 |
 | `JGapTo(rc, taken)` | `float` |  | 矩形から置いた棟の屋根の矩形までの最小の離れ(無ければ 99)。 |
-| `JAdd(items, dropped, g, name, path, mode, yaw, rank)` | `void` |  | プレハブの駒を 1 つ起こして一覧へ足す。 |
+| `JAdd(items, dropped, g, name, path, mode, yaw, rank, hyo=…)` | `void` |  | プレハブの駒を 1 つ起こして一覧へ足す。 |
 
 ## EdoTypologyBuilder.Keidai.cs
 
@@ -719,7 +719,8 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `NiwaIshigumi(grp, f, pool, rnd, kumi, want, got, poolAlt=…)` | `void` |  | 景石(1組 = 三石)。⭐ 丈 1.000 に正規化した部材なので localScale = 総丈、 沈めは 総丈÷3(1/3埋め・庭方 §5-0「据え」)。 |
 | `NiwaTobiishi(grp, f, rnd, start, aim, n, want, got, log, label=…)` | `void` |  | 飛石1条 — 座敷面の中点の外 2.0m から庭へ下りる筋(検分①)。 |
 | `NiwaToro(grp, f, pool, rnd, n, want, got, poolAlt=…)` | `void` |  | 灯籠(雪見)。⚠ edogoyomi の駒なので ES を掛ける。 |
-| `NiwaIdo(grp, f, katte, rnd, n, want, got, log)` | `void` |  | 井戸。⚠ 類型の井戸の部材は未造で、山王社の井桁の井戸を当てている(部材方へ・EDO-0318)。 |
+| `NiwaIdo(grp, f, katte, rnd, n, yaw0, want, got, log)` | `void` |  | 井戸。⭐ 据え方は PutIdo(山王社の前庭の井戸と同じ・EDO-0490)。 |
+| `PutIdo(grp, f, site, yaw0, spin, name, log)` | `GameObject` |  | 井戸一式を 1 口据える。返り値 = 板石敷の駒(井筒+井桁はその子)。 ⟶ 返す: 板石敷の駒(井筒+井桁はその子) |
 | `NiwaMaeniwa(grp, f, rnd, gateC, bandHalf, front, want, got)` | `void` |  | 前庭。⛔ 帯の中には置かない(白洲)。門の内側の左右に松を必ず非対称に。 |
 | `NiwaInspect(f, g, want, got)` | `string` |  | 庭方 §5-2 の5項目。⛔ 「置けた本数」だけを刷らない — 意図との差・帯の侵入・ 実測の離れ・偶数の塊・樹冠の被覆率まで出して、はじめて検査になる。 |
 

@@ -636,6 +636,9 @@ public static class EdoAssets
         { return JGP + "Trees/Sakura/Tree_Sakura_" + size + "_Summer_0" + i + ".prefab"; }
         /// <summary>柘植の刈込。Spring/Fall × 01..03、Single/ もある</summary>
         public static string Boxwood(int i) { return JGP + "Plants/Boxwood/Plant_Boxwood_Spring_0" + i + ".prefab"; }
+        /// <summary>柘植の**一株**(Single)。01..03・実寸 約1.0×0.8〜1.1×0.9m・120〜140ポリ。生垣の前列の裾の塊に使う(EDO-0475)。
+        /// ⚠ Spring は花無しの黄緑 — 夏の生垣にはそのまま使える(色は植える側で暗く振る)。</summary>
+        public static string BoxwoodSingle(int i) { return JGP + "Plants/Boxwood/Single/Plant_Boxwood_Single_Spring_0" + i + ".prefab"; }
         /// <summary>羊歯の下草。Spring/Fall × 01..02</summary>
         public static string Fern(int i) { return JGP + "Plants/PaintedFern/Plant_PaintedFern_Spring_0" + i + ".prefab"; }
         /// <summary>庭石。01..03</summary>

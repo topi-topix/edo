@@ -1981,7 +1981,7 @@ public static partial class EdoBuild
                 else
                 {
                     int ni = IkegakiRow(parent, A, B, outward, prefix + "ike", made, gapC, gapHalf);
-                    note = string.Format("板塀 {0}枚 + 生垣 {1}駒(生垣は塀の**触れている箇所**まで寄せた・帯の内の勾配 {2:P0} は法面と見ない)",
+                    note = string.Format("板塀 {0}枚 + 生垣 {1}株(ツツジの後列+ツゲの前列の塊・後列は塀の**触れている箇所**まで寄せた・帯の内の勾配 {2:P0} は法面と見ない・EDO-0475)",
                                          made.Count, ni, grade);
                 }
                 return made;
@@ -2051,88 +2051,263 @@ public static partial class EdoBuild
         return made;
     }
 
-    /// <summary>板塀の内側に**生垣**(1 間モジュール)を並べる。走りは 1 間ピッチ
-    /// (駒の実幅 1.91m は葉の持ち出し込みで、**突き付けるのは 1 間の木口**)。
-    /// 奥行は塀の**触れている箇所**まで <see cref="Abut(GameObject,GameObject,Vector3,float,out Vector3,out int,float,int,bool)"/> で寄せる
-    /// — ⛔ 外接箱 + 定数で寄せない(規則21)。返り値 = 据えた駒の数。</summary>
+    /// <summary>生垣を植えてはならない所(棟・門構えの外接箱)。囲いを建てる呼び手(類型ビルダーの造成後の建て直し)が
+    /// 入れて、建て終えたら null に戻す。null なら避けない(棟の前の一巡目)。EDO-0475</summary>
+    public static List<Bounds> PlantAvoid = null;
+
+    /// <summary>生垣の後列(主)の一株の型。⭐ 設計は庭方(2026-09-29 EDO-0475・scratchpad の EDO0475_ikegaki_design)。
+    /// 江戸の寺の生垣は濃緑小葉の常緑(マサキ・イヌツゲ・カシ)が類型【B】だが在庫に無く、**ツツジ(花無し・暗いオリーブ緑)で見立てる【P】**。
+    /// 水平と高さの倍率の幅は型ごと(A04 は横に張るので水平を絞る)。</summary>
+    struct IkeKind { public string path; public float hLo, hHi, vLo, vHi; }
+    static IkeKind[] _ikeBack;
+    static IkeKind[] IkeBack
+    {
+        get
+        {
+            if (_ikeBack == null) _ikeBack = new[]
+            {
+                new IkeKind { path = EdoAssets.JG.Azalea(1), hLo = 0.62f, hHi = 0.72f, vLo = 1.10f, vHi = 1.30f },
+                new IkeKind { path = EdoAssets.JG.Azalea(3), hLo = 0.55f, hHi = 0.65f, vLo = 0f,    vHi = 0f },   // vHi=0 は等倍(高さも水平と同じ倍率)
+                new IkeKind { path = EdoAssets.JG.Azalea(4), hLo = 0.50f, hHi = 0.56f, vLo = 1.00f, vHi = 1.12f },
+            };
+            return _ikeBack;
+        }
+    }
+    /// <summary>生垣の色の寄せ【P・庭方】。パックの材は触らず Edo 側の複製の _BaseColor に掛ける ── 暗く青みへ。</summary>
+    static readonly Color IKE_TINT_BACK = new Color(0.85f, 0.92f, 0.85f);
+    static readonly Color IKE_TINT_FRONT = new Color(0.70f, 0.80f, 0.68f);
+
+    /// <summary>**在庫の材の色を寄せた複製を着せる。**複製は <c>Assets/Edo/Materials/M_Tint_&lt;元の材&gt;_&lt;色&gt;.mat</c> に一度だけ作る
+    /// (⛔ パックの材を書き換えない ── 再 import で消え、他の邸の同じ木まで色が変わる)。
+    /// ⛔ コードの <c>new Material</c> を資産にせず着せない(プレハブの m_Materials が null になりマゼンタ・EDO-0301)。</summary>
+    static readonly Dictionary<string, Material> _tintCache = new Dictionary<string, Material>();
+    public static void TintFoliage(GameObject go, Color tint)
+    {
+        string hex = ColorUtility.ToHtmlStringRGB(tint);
+        foreach (var r in go.GetComponentsInChildren<Renderer>(true))
+        {
+            var ms = r.sharedMaterials; bool ch = false;
+            for (int i = 0; i < ms.Length; i++)
+            {
+                var m = ms[i];
+                if (m == null || m.name.StartsWith("M_Tint_")) continue;
+                string key = m.name.Replace(' ', '_') + "_" + hex;
+                Material t;
+                if (!_tintCache.TryGetValue(key, out t) || t == null)
+                {
+                    string p = EdoAssets.Own.Mat("M_Tint_" + key);
+                    t = AssetDatabase.LoadAssetAtPath<Material>(p);
+                    if (t == null)
+                    {
+                        t = new Material(m);
+                        foreach (var prop in new[] { "_BaseColor", "_Color" })
+                            if (t.HasProperty(prop))
+                            {
+                                var c = t.GetColor(prop);
+                                t.SetColor(prop, new Color(c.r * tint.r, c.g * tint.g, c.b * tint.b, c.a));
+                            }
+                        System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(p));
+                        AssetDatabase.CreateAsset(t, p);
+                    }
+                    _tintCache[key] = t;
+                }
+                ms[i] = t; ch = true;
+            }
+            if (ch) r.sharedMaterials = ms;
+        }
+    }
+
+    /// <summary>据えた株の実メッシュを辺の向き <paramref name="dir"/> へ投げた幅(中心からの前後)。⭐ 外接箱で測らない(yaw を振った株で膨らむ)。</summary>
+    static void SpanAlong(GameObject go, Vector2 dir, out float lo, out float hi)
+    {
+        var pts = Body(go.transform, 600, true);
+        float c = Vector2.Dot(new Vector2(go.transform.position.x, go.transform.position.z), dir);
+        lo = float.MaxValue; hi = float.MinValue;
+        foreach (var p in pts) { float d = p.x * dir.x + p.z * dir.y - c; if (d < lo) lo = d; if (d > hi) hi = d; }
+        if (lo > hi) { lo = -0.5f; hi = 0.5f; }
+    }
+
+    static bool HitsAvoid(GameObject go)
+    {
+        if (PlantAvoid == null || PlantAvoid.Count == 0) return false;
+        var b = RB(go);
+        b.Expand(new Vector3(-0.3f, 0f, -0.3f));   // 葉先が軒下へ掛かるのは許す(据えの芯が棟に入るのを退ける)
+        foreach (var a in PlantAvoid)
+            if (b.min.x < a.max.x && b.max.x > a.min.x && b.min.z < a.max.z && b.max.z > a.min.z) return true;
+        return false;
+    }
+
+    /// <summary>板塀の内側に**生垣**を植える(EDO-0475 で作り直し・設計は庭方 2026-09-29)。
+    /// <para>⛔ 2026-09-29 まで 1 間の箱の駒(<c>Ikegaki_1.818.fbx</c>)を 1 間ピッチで並べていて、施主に「緑の四角い箱」「気持ち悪い」
+    /// 「ショボすぎる」と言われた。いまは**在庫の低木を不揃いに密に植えて**生垣に見せる:</para>
+    /// <para>① **後列(主・連続)** ツツジ A01:A03:A04 = 5:3:2【P】。芯々 = 隣り合う 2 株の**実測の樹冠幅**の平均 × 0.75 ± 0.12m
+    /// (樹冠が 2〜3 割重なり向こうが抜けない)。奥行は塀の内側の葉へ <see cref="Abut(GameObject,GameObject,Vector3,float,out Vector3,out int,float,int,bool)"/>
+    /// で**触れている箇所**まで寄せ、0.03〜0.22m 戻す(塀を葉が抜けない)。頂は塀の天端より 0〜0.35m 低く(越えれば丈を詰める)。
+    /// 同じ型を隣に置かない。走りの両端の株は A04(横に張る・隅を埋める)、門の開口の脇は A01 を低く(袖を段に落とす)。</para>
+    /// <para>② **前列(裾)** ツゲの一株を 3・5・7 の奇数の塊で、走りの 45〜60% を覆う(塊の間 1.5〜4m)【B 刈込は塊・奇数】。
+    /// 芯は後列の芯より 0.55〜0.80m 手前。門の開口の角には 1 株。</para>
+    /// <para>③ 開口の縁から樹冠の端まで 0.3〜0.5m 空ける。株の側面はどこも葉なので箱の小口は出ない。
+    /// ④ 足元は根入れ(<see cref="RootPlant"/>)。塀際の帯を叩き土の印(<see cref="NiwaGroundZone"/> tataki)で塗り、草を抜く。
+    /// ⑤ 色は <see cref="TintFoliage"/> で暗く寄せる。種は辺の座標から(版を跨いで同じ姿)。
+    /// 棟・門構え(<see cref="PlantAvoid"/>)に芯が掛かる株は植えない。硬い条件 = 根入れ ≤ <see cref="CHORD_ROOT_MAX"/>・棟に掛けない / 柔らかい = 芯々・丈・覆う割合。
+    /// 当たる先: 類型の生垣付き板塀(ita+ikegaki)の全区画(いま十坊 10 区画)。返り値 = 植えた株の数(後列+前列)。</para></summary>
     static int IkegakiRow(Transform parent, Vector2 A, Vector2 B, Vector2 outward, string prefix,
                           List<GameObject> fence, Vector2 gapC, float gapHalf)
     {
         if (fence == null || fence.Count == 0) return 0;
         Vector2 dir = (B - A).normalized; float len = (B - A).magnitude;
-        int n = Mathf.FloorToInt(len / ES);
-        if (n < 1) return 0;
-        float psi = Mathf.Atan2(outward.x, outward.y) * Mathf.Rad2Deg;
+        if (len < 1.0f) return 0;
         var toFence = new Vector3(outward.x, 0f, outward.y);
-        float head = (len - ES * n) * 0.5f;
-        float gT = gapHalf > 0 ? Vector2.Dot(gapC - A, dir) : 0f;
-        // ⭐ 突き付ける相手は塀の**内側の葉**(DobeiRun は表裏の対で置き、裏の駒の名が "b" で終わる)。
-        var inner = fence.Where(f => f.name.EndsWith("b")).ToList();
+        var inner = fence.Where(f => f.name.EndsWith("b")).ToList();   // 塀の内側の葉(DobeiRun の裏の駒)
         if (inner.Count == 0) inner = fence;
-        int made = 0;
-        Func<int, bool> skip = k => gapHalf > 0 && Mathf.Abs(head + ES * (k + 0.5f) - gT) < gapHalf + ES * 0.5f;   // 門の開口は空ける
-        // ⭐ **切れ目の両脇は端の駒**(小口を葉で閉じた Ikegaki_End)── 走りの両端だけでなく門の開口の両脇も。
-        //    ⛔ 2026-09-29 まで端の駒は走りの両端(k=0・n−1)だけで、門の開口に面した駒は突き付け用の平らな小口のまま
-        //    門から見え、「塀際の緑の四角い物体」と施主に問われた(十坊 0 の表門の脇・EDO-0472)。
-        //    端の駒は片方の小口だけを閉じている。⭐ Unity へ入った駒では閉じた小口は**局所 +X**(Blender の −X が FBX の
-        //    書き出しで左右反転する)── 開いた側へ +X が向くよう要れば 180° 回す(生垣は表裏とも葉)。
-        //    ⛔ 2026-09-29 まで −X と読んでいて、端の駒 70 個すべてが閉じた小口を隣の駒へ向け、平らな小口を外へ出していた
-        //    (駒のメッシュの頂点で実測: 葉のカードが小口を越えて出るのは +X 側)。
-        //    当たる先: 類型の生垣付き板塀(ita+ikegaki)の全区画。
-        //    ⭐ 切れ目は門だけでない — 急な所で根入れが利かず落とした駒の両脇も切れ目になる(2 巡目で端の駒へ差し替える)。
-        //    ⛔ 1 巡だけでは落とした駒の隣が平らな小口のまま残った(十坊 0・5・8・9 で 17 か所・2026-09-29 実測)。
-        //    前後とも切れた 1 駒だけの生垣は緑の箱にしか見えないので植えない(柔らかい・並木の見えの狙い)。
-        //    当たる先: 類型の生垣付き板塀(ita+ikegaki)の全区画。
-        var lx = new Vector2(outward.y, -outward.x);                  // 回転 psi の局所 +X(世界 xz)
-        Vector2 closedDir = Vector2.Dot(lx, dir) > 0f ? dir : -dir;   // 端の駒の閉じた小口(局所 +X)の向き
-        var got = new GameObject[n];
-        var endA = new bool[n];                                        // 端の駒を据えたとき、閉じた小口が −dir 側(A 側)か
-        var isEnd = new bool[n];
-        Func<int, bool, bool, GameObject> plant = (k, openA, openB) =>
+        var rnd = new System.Random(Mathf.RoundToInt((A.x * 13.7f + A.y * 3.1f + B.x * 19.3f + B.y * 47.1f) * 100f) & 0x7fffffff);
+        Func<float, float, float> U = (a, b) => a + (float)rnd.NextDouble() * (b - a);
+        Func<Vector2, float> dOf = p => Vector2.Dot(p - A, -outward);   // 塀の線から内へ
+
+        // 区切り: 門の開口(+ 0.3〜0.5m の空き)で走りを割る
+        var segs = new List<float[]>();   // {s0, s1, s0 が開口側か, s1 が開口側か}
+        if (gapHalf > 0f)
         {
-            float t = head + ES * (k + 0.5f);
-            float yawK = psi;
-            if ((openA || openB) && Vector2.Dot(closedDir, openA ? -dir : dir) < 0f) yawK += 180f;
-            // 仮置きは塀の内側へ引いた所。⭐ 位置は置いたあと**測って**決める(この 1.6m は姿に残らない)。
-            var c = A + dir * t - outward * 1.6f;
-            var go = Place(EdoAssets.Own.Ikegaki(openA || openB), new Vector3(c.x, 0f, c.y), yawK,
-                           Vector3.one, parent, prefix + "_" + k);
-            if (go == null) return null;
-            try { SeatOnGround(go, 0.05f, 300); } catch (Exception) { }
+            float gT = Vector2.Dot(gapC - A, dir);
+            float clrA = U(0.3f, 0.5f), clrB = U(0.3f, 0.5f);
+            if (gT - gapHalf - clrA > 0.5f) segs.Add(new[] { 0f, gT - gapHalf - clrA, 0f, 1f });
+            if (len - (gT + gapHalf + clrB) > 0.5f) segs.Add(new[] { gT + gapHalf + clrB, len, 1f, 0f });
+        }
+        else segs.Add(new[] { 0f, len, 0f, 0f });
+
+        Func<Vector2, GameObject> nearFence = c =>
+        {
             GameObject near = null; float bd = float.MaxValue;
             foreach (var f in inner)
             {
-                float d = Vector3.Distance(f.transform.position, go.transform.position);
+                var fp = f.transform.position;
+                float d = (new Vector2(fp.x, fp.z) - c).sqrMagnitude;
                 if (d < bd) { bd = d; near = f; }
             }
-            if (near != null) { Vector3 at; int cn; Abut(go, near, toFence, 0f, out at, out cn, 0.30f, 400); }
-            try { SeatOnGround(go, 0.05f, 300); } catch (Exception) { }
-            if (!RootPlant(go, CHORD_ROOT_MAX)) { UnityEngine.Object.DestroyImmediate(go); return null; }
-            isEnd[k] = openA || openB; endA[k] = openA;
-            return go;
+            return near;
         };
-        for (int k = 0; k < n; k++)
+
+        int made = 0, idx = 0;
+        var backT = new List<float>(); var backD = new List<float>(); var backFront = new List<float>();
+        var zoneQuads = new List<Vector3>();
+        foreach (var sg in segs)
         {
-            if (skip(k)) continue;
-            got[k] = plant(k, k == 0 || skip(k - 1), k == n - 1 || skip(k + 1));
-        }
-        // 2 巡目: 落とした駒の隣を端の駒へ差し替える。差し替えで落ちればその隣がまた切れ目になるので、変わらなくなるまで回す。
-        for (int pass = 0; pass < 4; pass++)
-        {
-            bool changed = false;
-            for (int k = 0; k < n; k++)
+            float s0 = sg[0], s1 = sg[1];
+            bool gateA = sg[2] > 0f, gateB = sg[3] > 0f;
+            // ── ① 後列 ──
+            int prevK = -1; float prevT = float.NaN, prevHi = 0f, prevW = 0f;
+            for (int guard = 0; guard < 400; guard++)
             {
-                if (got[k] == null) continue;
-                bool oA = k == 0 || got[k - 1] == null, oB = k == n - 1 || got[k + 1] == null;
-                if (oA && oB) { UnityEngine.Object.DestroyImmediate(got[k]); got[k] = null; changed = true; continue; }
-                if (!oA && !oB) continue;                              // 両隣あり(端の駒のままでも見えない所は据え直さない)
-                if (isEnd[k] && endA[k] == oA) continue;               // もう開いた側へ閉じた小口が向いている
-                UnityEngine.Object.DestroyImmediate(got[k]);
-                got[k] = plant(k, oA, oB); changed = true;
+                float remain = float.IsNaN(prevT) ? s1 - s0 : s1 - (prevT + prevHi);
+                if (remain < 0.35f) break;
+                bool first = float.IsNaN(prevT), last = remain < 2.0f;
+                bool atGate = (first && gateA) || (last && gateB);
+                bool atEnd = (first && !gateA && s0 < 1e-3f) || (last && !gateB && s1 > len - 1e-3f);
+                int k;
+                if (atGate) k = 0;                                   // 門の脇 = A01 を低く(袖を段に落とす)
+                else if (atEnd) k = 2;                               // 走りの両端 = A04 で隅を埋める
+                else
+                {
+                    do
+                    {
+                        int r = rnd.Next(10);
+                        k = r < 5 ? 0 : r < 8 ? 1 : 2;
+                    } while (k == prevK);
+                }
+                if (k == prevK) k = (k + 1) % 3;
+                var kd = IkeBack[k];
+                float sh = U(kd.hLo, kd.hHi);                        // 倍率は型ごとの絶対値(庭方の設計値)
+                float sv = kd.vHi > 0f ? U(kd.vLo, kd.vHi) : sh;
+                if (k == 0 && atGate) sv = U(0.95f, 1.05f);          // 袖の株は低く(丈 ≈1.2m)
+                var c0 = A + dir * (float.IsNaN(prevT) ? s0 : prevT) - outward * 2.5f;
+                var go = Place(kd.path, new Vector3(c0.x, 0f, c0.y), U(0f, 360f), new Vector3(sh, sv, sh), parent,
+                               prefix + "_" + (idx++));
+                if (go == null) break;
+                float lo, hi; SpanAlong(go, dir, out lo, out hi);
+                float w = hi - lo;
+                float tc = float.IsNaN(prevT) ? s0 - lo : prevT + 0.75f * (prevW + w) * 0.5f + U(-0.12f, 0.12f);
+                if (tc + hi > s1 + 0.05f)
+                {
+                    tc = s1 - hi;
+                    if (!float.IsNaN(prevT) && tc - prevT < 0.35f * (prevW + w)) { UnityEngine.Object.DestroyImmediate(go); break; }
+                }
+                var c = A + dir * tc - outward * 2.5f;
+                go.transform.position = new Vector3(c.x, go.transform.position.y, c.y);
+                try { SeatOnGround(go, 0.05f, 400); } catch (Exception) { }
+                var nf = nearFence(c);
+                if (nf != null) { Vector3 at; int cn; Abut(go, nf, toFence, U(0.03f, 0.22f), out at, out cn, 0.30f, 500); }
+                try { SeatOnGround(go, 0.05f, 400); } catch (Exception) { }
+                // 頂は塀の天端より 0〜0.35m 低く ── 越えれば丈を詰めて据え直す(柔らかい条件)
+                if (nf != null)
+                {
+                    float top = RB(nf).max.y - U(0f, 0.35f);
+                    var gb = RB(go);
+                    if (gb.max.y > top && gb.size.y > 0.1f)
+                    {
+                        float want = Mathf.Max(0.8f, top - gb.min.y);
+                        var s = go.transform.localScale; s.y *= want / gb.size.y; go.transform.localScale = s;
+                        try { SeatOnGround(go, 0.05f, 400); } catch (Exception) { }
+                    }
+                }
+                prevT = tc; prevHi = hi; prevW = w; prevK = k;          // 植えられなくても間は進める(同じ所で回らない)
+                if (HitsAvoid(go) || !RootPlant(go, CHORD_ROOT_MAX)) { UnityEngine.Object.DestroyImmediate(go); continue; }
+                TintFoliage(go, IKE_TINT_BACK);
+                var p2 = new Vector2(go.transform.position.x, go.transform.position.z);
+                backT.Add(tc); backD.Add(dOf(p2));
+                float flo, fhi; SpanAlong(go, -outward, out flo, out fhi);
+                backFront.Add(dOf(p2) + fhi);
+                made++;
             }
-            if (!changed) break;
+
+            // ── ② 前列(ツゲの奇数の塊)──
+            Func<float, float> depthAt = t =>
+            {
+                if (backT.Count == 0) return 1.2f;
+                int bi = 0; float bd = float.MaxValue;
+                for (int i = 0; i < backT.Count; i++) { float d = Mathf.Abs(backT[i] - t); if (d < bd) { bd = d; bi = i; } }
+                return backD[bi];
+            };
+            Action<float, string> plantFront = (t, nm) =>
+            {
+                var c = A + dir * t - outward * (depthAt(t) + U(0.55f, 0.80f));
+                float s = U(1.0f, 1.25f);
+                var go = Place(EdoAssets.JG.BoxwoodSingle(1 + rnd.Next(3)), new Vector3(c.x, 0f, c.y), U(0f, 360f),
+                               Vector3.one * s, parent, nm);
+                if (go == null) return;
+                try { SeatOnGround(go, 0.03f, 300); } catch (Exception) { }
+                if (HitsAvoid(go) || !RootPlant(go, CHORD_ROOT_MAX)) { UnityEngine.Object.DestroyImmediate(go); return; }
+                TintFoliage(go, IKE_TINT_FRONT);
+                made++;
+            };
+            float cur = s0 + U(0.3f, 2.0f);
+            if (gateA) { plantFront(s0 + 0.35f, prefix + "_f" + (idx++)); cur = s0 + U(1.5f, 3.0f); }
+            while (cur < s1 - 0.6f)
+            {
+                int n = new[] { 3, 5, 7 }[rnd.Next(3)];
+                float t = cur;
+                for (int j = 0; j < n && t < s1 - 0.4f; j++)
+                {
+                    plantFront(t, prefix + "_f" + (idx++));
+                    t += U(0.6f, 0.8f) + U(-0.1f, 0.1f);
+                }
+                cur = t + U(1.5f, 4.0f);
+            }
+            if (gateB && cur - U(1.5f, 4.0f) < s1 - 1.2f) plantFront(s1 - 0.35f, prefix + "_f" + (idx++));
+
+            // ── ④ 足元の帯(塀際から後列の樹冠の前 + 0.6m・叩き土)──
+            float dz = backFront.Count > 0 ? backFront.Average() + 0.6f : 1.8f;
+            var q0 = A + dir * s0; var q1 = A + dir * s1;
+            foreach (var q in new[] { q0, q1, q1 - outward * dz, q0 - outward * dz })
+                zoneQuads.Add(new Vector3(q.x, 0f, q.y));
+            backT.Clear(); backD.Clear(); backFront.Clear();
         }
-        foreach (var g in got) if (g != null) made++;
+        if (zoneQuads.Count >= 4)
+        {
+            var zg = new GameObject(prefix + "_Ground_tataki");
+            zg.transform.SetParent(parent, false);
+            var z = zg.AddComponent<NiwaGroundZone>();
+            z.kind = "tataki"; z.quads = zoneQuads;
+        }
         return made;
     }
 

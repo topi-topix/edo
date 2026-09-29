@@ -732,7 +732,10 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                     Seat(mon, log);
                     for (int k = 0; k < bansho.Count; k++) EdoBuild.AbutAndSeat(bansho[k], mon, push[k], 0f, 0f, VERTS);
                 }
-                buildKakoi();
+                // ⭐ 生垣の株は棟・門構えに芯を掛けない(EDO-0475)── 造成の後の建て直しでだけ効く(一巡目は棟がまだ無い)
+                EdoBuild.PlantAvoid = bldg.Where(g => g != null).Select(g => EdoBuild.RB(g))
+                                          .Concat(gamae.Where(g => g != null).Select(g => EdoBuild.RB(g))).ToList();
+                try { buildKakoi(); } finally { EdoBuild.PlantAvoid = null; }
                 log.Add("    造成の後で棟 " + bldg.Count + "・門構え・囲いを据え直した");
                 // ⭐ 建て直した囲いの注記も刷る(⛔ 2026-09-28 まで一巡目の注記だけが載り、石垣の上の塀の座・寄せが記録に出なかった・規則19)
                 foreach (var nt in kakoiNotes) log.Add("      " + nt);

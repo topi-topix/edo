@@ -282,6 +282,7 @@ public static partial class EdoTypologyBuilder
         //    候補の並びは「狙いの帯(2.0 / 1.0 / 0.3)→ 置き方の点数」── 狙いを満たす所が先に試される。
         float mnx = poly.Min(p => p.x), mxx = poly.Max(p => p.x), mnz = poly.Min(p => p.y), mxz = poly.Max(p => p.y);
         var taken = new List<Vector2[]>();           // 置いた棟の屋根込みの矩形
+        var takenWall = new List<Vector2[]>();       // 置いた棟の壁体の足あと(平場の束ねを置く段で見る ── EdoBuild.PadSqueeze)
         // ⭐ 囲いの長屋も棟として数える(2026-09-29 EDO-0477 施主裁定C)── 囲い(Stage 2)は境内の棟より先に建つので、
         //    長屋の屋根込みの矩形を先に積んでおけば、離れの硬い下限(JISHA_GAP_TIGHT)と狙い(MIN_BLDG_GAP)が長屋にも効く。
         //    ⛔ それまで境内の棟は境内の棟どうしだけを避け、観理院の本堂の柱が東の長屋の壁へ 0.6m 食い込んでいた。
@@ -321,7 +322,7 @@ public static partial class EdoTypologyBuilder
                         // ⭐ 平場が取れない所は**候補の段で**外す(下の硬い制約と同じ判定・地形と区画の形だけで決まる)(EDO-0472)。
                         //    ⛔ 候補のままにすると PlaceBest の試行 JISHA_TRIES を門に近い細い所で使い切り、奥の平場へ届かない
                         //    (智乗院: 細長い平場の先に門 → 本堂 3 寸法 × 2 向きが全部「収まらず」)。
-                        if (EdoBuild.PadSqueeze(poly, wc, ZOSEI_MARGIN) != 0)
+                        if (EdoBuild.PadSqueeze(poly, wc, ZOSEI_MARGIN, takenWall) != 0)
                         { EdoBuild.SeiyakuTally.Inc(tally.HardRejected, "平場が取れない(区画の縁に近い斜面)"); continue; }
                         var rc = JCorners(it.roof, p, yaw);
                         float gm = JGapTo(rc, taken);
@@ -383,7 +384,7 @@ public static partial class EdoTypologyBuilder
                 // ⭐ 平場が取れる(2026-09-28 EDO-0477)── 区画の縁の法に縛られて足あとを平らに切り盛りできない所は退ける。
                 //    ⛔ 造成の後で気付いても直せない(観理院の本堂が北の角から 2.7m で 浮き 1.72m・埋まり 0.92m)。
                 new EdoBuild.Hard("平場が取れない(区画の縁に近い斜面)", go =>
-                    EdoBuild.PadSqueeze(poly, JCorners(itL.wall, new Vector2(go.transform.position.x, go.transform.position.z), go.transform.eulerAngles.y), ZOSEI_MARGIN) == 0),
+                    EdoBuild.PadSqueeze(poly, JCorners(itL.wall, new Vector2(go.transform.position.x, go.transform.position.z), go.transform.eulerAngles.y), ZOSEI_MARGIN, takenWall) == 0),
             };
             var softs = new List<EdoBuild.Soft>
             {
@@ -437,6 +438,7 @@ public static partial class EdoTypologyBuilder
                 if (!float.IsNaN(gp) && (float.IsNaN(worstPair) || gp < worstPair)) worstPair = gp;
             }
             taken.Add(rcP);
+            takenWall.Add(JCorners(it.wall, new Vector2(placed.transform.position.x, placed.transform.position.z), placed.transform.eulerAngles.y));
             made.Add(placed);
             placedN++;
             float wa = (it.wall[1] - it.wall[0]) * (it.wall[3] - it.wall[2]);

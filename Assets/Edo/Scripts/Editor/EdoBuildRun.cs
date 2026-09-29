@@ -2070,15 +2070,34 @@ public static partial class EdoBuild
         var inner = fence.Where(f => f.name.EndsWith("b")).ToList();
         if (inner.Count == 0) inner = fence;
         int made = 0;
-        for (int k = 0; k < n; k++)
+        Func<int, bool> skip = k => gapHalf > 0 && Mathf.Abs(head + ES * (k + 0.5f) - gT) < gapHalf + ES * 0.5f;   // 門の開口は空ける
+        // ⭐ **切れ目の両脇は端の駒**(小口を葉で閉じた Ikegaki_End)── 走りの両端だけでなく門の開口の両脇も。
+        //    ⛔ 2026-09-29 まで端の駒は走りの両端(k=0・n−1)だけで、門の開口に面した駒は突き付け用の平らな小口のまま
+        //    門から見え、「塀際の緑の四角い物体」と施主に問われた(十坊 0 の表門の脇・EDO-0472)。
+        //    端の駒は片方の小口だけを閉じている。⭐ Unity へ入った駒では閉じた小口は**局所 +X**(Blender の −X が FBX の
+        //    書き出しで左右反転する)── 開いた側へ +X が向くよう要れば 180° 回す(生垣は表裏とも葉)。
+        //    ⛔ 2026-09-29 まで −X と読んでいて、端の駒 70 個すべてが閉じた小口を隣の駒へ向け、平らな小口を外へ出していた
+        //    (駒のメッシュの頂点で実測: 葉のカードが小口を越えて出るのは +X 側)。
+        //    当たる先: 類型の生垣付き板塀(ita+ikegaki)の全区画。
+        //    ⭐ 切れ目は門だけでない — 急な所で根入れが利かず落とした駒の両脇も切れ目になる(2 巡目で端の駒へ差し替える)。
+        //    ⛔ 1 巡だけでは落とした駒の隣が平らな小口のまま残った(十坊 0・5・8・9 で 17 か所・2026-09-29 実測)。
+        //    前後とも切れた 1 駒だけの生垣は緑の箱にしか見えないので植えない(柔らかい・並木の見えの狙い)。
+        //    当たる先: 類型の生垣付き板塀(ita+ikegaki)の全区画。
+        var lx = new Vector2(outward.y, -outward.x);                  // 回転 psi の局所 +X(世界 xz)
+        Vector2 closedDir = Vector2.Dot(lx, dir) > 0f ? dir : -dir;   // 端の駒の閉じた小口(局所 +X)の向き
+        var got = new GameObject[n];
+        var endA = new bool[n];                                        // 端の駒を据えたとき、閉じた小口が −dir 側(A 側)か
+        var isEnd = new bool[n];
+        Func<int, bool, bool, GameObject> plant = (k, openA, openB) =>
         {
             float t = head + ES * (k + 0.5f);
-            if (gapHalf > 0 && Mathf.Abs(t - gT) < gapHalf + ES * 0.5f) continue;   // 門の開口は空ける
+            float yawK = psi;
+            if ((openA || openB) && Vector2.Dot(closedDir, openA ? -dir : dir) < 0f) yawK += 180f;
             // 仮置きは塀の内側へ引いた所。⭐ 位置は置いたあと**測って**決める(この 1.6m は姿に残らない)。
             var c = A + dir * t - outward * 1.6f;
-            var go = Place(EdoAssets.Own.Ikegaki(k == 0 || k == n - 1), new Vector3(c.x, 0f, c.y), psi,
+            var go = Place(EdoAssets.Own.Ikegaki(openA || openB), new Vector3(c.x, 0f, c.y), yawK,
                            Vector3.one, parent, prefix + "_" + k);
-            if (go == null) continue;
+            if (go == null) return null;
             try { SeatOnGround(go, 0.05f, 300); } catch (Exception) { }
             GameObject near = null; float bd = float.MaxValue;
             foreach (var f in inner)
@@ -2088,9 +2107,32 @@ public static partial class EdoBuild
             }
             if (near != null) { Vector3 at; int cn; Abut(go, near, toFence, 0f, out at, out cn, 0.30f, 400); }
             try { SeatOnGround(go, 0.05f, 300); } catch (Exception) { }
-            if (!RootPlant(go, CHORD_ROOT_MAX)) { UnityEngine.Object.DestroyImmediate(go); continue; }
-            made++;
+            if (!RootPlant(go, CHORD_ROOT_MAX)) { UnityEngine.Object.DestroyImmediate(go); return null; }
+            isEnd[k] = openA || openB; endA[k] = openA;
+            return go;
+        };
+        for (int k = 0; k < n; k++)
+        {
+            if (skip(k)) continue;
+            got[k] = plant(k, k == 0 || skip(k - 1), k == n - 1 || skip(k + 1));
         }
+        // 2 巡目: 落とした駒の隣を端の駒へ差し替える。差し替えで落ちればその隣がまた切れ目になるので、変わらなくなるまで回す。
+        for (int pass = 0; pass < 4; pass++)
+        {
+            bool changed = false;
+            for (int k = 0; k < n; k++)
+            {
+                if (got[k] == null) continue;
+                bool oA = k == 0 || got[k - 1] == null, oB = k == n - 1 || got[k + 1] == null;
+                if (oA && oB) { UnityEngine.Object.DestroyImmediate(got[k]); got[k] = null; changed = true; continue; }
+                if (!oA && !oB) continue;                              // 両隣あり(端の駒のままでも見えない所は据え直さない)
+                if (isEnd[k] && endA[k] == oA) continue;               // もう開いた側へ閉じた小口が向いている
+                UnityEngine.Object.DestroyImmediate(got[k]);
+                got[k] = plant(k, oA, oB); changed = true;
+            }
+            if (!changed) break;
+        }
+        foreach (var g in got) if (g != null) made++;
         return made;
     }
 

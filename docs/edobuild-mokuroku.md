@@ -1,11 +1,11 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 f14196723c34 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 5c78c56088a6 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
 
-- 公開関数 255 本(注釈なし 20)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
+- 公開関数 256 本(注釈なし 20)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
 - 同じ道具が刷る目録: 邸ビルダーのメニュー → Stage と中の関数 `docs/builder-mokuroku.md` / 部材の名 `docs/edoassets-mokuroku.md`。
 - 札: **硬** = 注釈に「硬い/許容0」・**柔** = 「柔らかい/狙い」がある(判定ではなく注釈の語)。相手の札(地面・駒どうし・天端・床・断面・面・隅・区域)も注釈の語を拾っただけ。
 - 呼んでいる所 = 定義のファイルの外で `EdoBuild.<名>(` と書いている C# ファイル(`Edo` と `Builder/Rebuild` を落とした名)と、その中の呼んでいる関数(Stage)。同じ名の多重定義はまとめて数える。`EdoBuild` の中どうしの呼び出しは載せない。
@@ -34,7 +34,7 @@
 | [EdoBuildSeiyaku.cs](#edobuildseiyakucs) | 制約の二種 — 硬い制約(関門)と柔らかい制約(狙い)を、置く側の共通の層で使い分ける(EDO-0372・施主 2026-09-23)。 | — | 1 |
 | [EdoBuildSueru.cs](#edobuildsuerucs) | 埋め込む駒・差し込む駒・載せる駒を据える (EdoBuild の partial・2026-09-23・EDO-0274) | 山王の前庭の井戸(板石敷・井筒+井桁・井戸屋形)。 | 15 |
 | [EdoBuildUeru.cs](#edobuilduerucs) | 植木を斜面に据える (EdoBuild の partial・2026-09-23・EDO-0401) | SeatPlant を呼ぶ所すべて(今は山王の社叢の下層と名指しの木 = Stage7_Shaso だけ)。 | 10 |
-| [EdoBuildZosei.cs](#edobuildzoseics) | EdoBuild — 造成(平場を採る)。2026-09-27・EDO-0477 P1(山王 Stage1_Grade と松江松平 DesignY の型を、図を持たない区画へ)。 | 類型ビルダーで建てる全区画(武家・寺社・町屋・公有地)。 | 4 |
+| [EdoBuildZosei.cs](#edobuildzoseics) | EdoBuild — 造成(平場を採る)。2026-09-27・EDO-0477 P1(山王 Stage1_Grade と松江松平 DesignY の型を、図を持たない区画へ)。 | 類型ビルダーで建てる全区画(武家・寺社・町屋・公有地)。 | 5 |
 | [EdoGeom.cs](#edogeomcs) | 純幾何ヘルパの共有置き場 (Phase 2c, 2026-08-26) | — | 7 |
 | [EdoParcels.cs](#edoparcelscs) | 町割(敷地割)の正典 — docs/Sashizu/parcels.json | — | 15 |
 
@@ -548,7 +548,9 @@ EdoBuild — 造成(平場を採る)。2026-09-27・EDO-0477 P1(山王 Stage1_Gr
 | `Hiraba`(class) | — | | 平場の結果(棟ごと)。 | |
 | `EdoBuild.GradePads(parcel, pads, margin, report, fillRun=…, cutRun=…)` | `List<Hiraba>` | 区域 | 棟の足あとごとに平場を採り、法面で地山へ擦り付ける。 | Typology(BuildParcel) |
 | `EdoBuild.PadSqueeze(parcel, foot, margin, fillRun=…, cutRun=…)` | `int` | 硬 区域 | この足あとに平場が取れるかを置く前に測る(2026-09-28 EDO-0477)。 | TypologyBuilder.Jisha(JishaOmoya) |
-| `EdoBuild.PAD_MERGE_DY` | `float` |  | 隣の平場と束ねる高さの差の上限。【確度 U】── 棟ごとの系統差 ±0.25(規則3)をまたがない幅。 | — |
+| `EdoBuild.PadSqueeze(parcel, foot, margin, placed, fillRun=…, cutRun=…)` | `int` | 硬 区域 | 置いた棟の平場と束ねても平場が取れるか(2026-09-29 EDO-0472)。 | TypologyBuilder.Jisha(JishaOmoya) |
+| `RingNode`(struct) | — | | 縁取りの内の節点。y = 造成前の地盤(無ければ NaN)/ live = 今の地表 / inFoot = 足あとの中 / inP = 区画の中 / e = 区画の縁の法が使える距離(縁から EDGE_BERM を引いた… | |
+| `EdoBuild.PAD_SHIFT` | `float` |  | 束ねた平場が、棟ごとの地盤の中央値から動いてよい幅[m] = 規則3 の系統差 ±0.25。 | — |
 | `EdoBuild.CLIFF_SLOPE` | `float` |  | 崖とみなす横断勾配(高さ/水平)。1:1.4(約 35°)より急なら崖。 | — |
 | `EdoBuild.CLIFF_MIN_RUN` | `float` |  | 崖と数える続きの最短[m]。これより短い急な所は塀の駒(2m)で跨ぐ段差として囲う。 | — |
 | `EdoBuild.CliffFreeSpans(a, b, outward, minSpan, cliffLen, alongOnly=…)` | `List<float[]>` | 地面・床・区域 | 辺のうち塀が立てる区間(2026-09-28・EDO-0477。 | Typology(BuildParcel) |

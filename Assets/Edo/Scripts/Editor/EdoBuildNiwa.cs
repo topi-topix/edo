@@ -210,6 +210,9 @@ public static partial class EdoBuild
         public bool Tall;                   // 高木・中木か(⭐ 常緑:落葉の**分母はこれだけ**・検分⑦)
         public bool PathMode;               // 通り道の駒(飛石)— 相手は Block で避け、同じ層とだけ Mutual で突き合う
         public string SelfLayer;            // PathMode の「同じ層」の名(NiwaStepPath が差す)
+        public float NeireMax;              // >0 = **剛体の据え物**(井戸・灯籠・景石・飛石)。下端の全部が地面に着くまで沈める根入れの上限[m]。
+                                            //   ⭐ 坂では上手の 1 点が着いても下手が浮く(Contact は最寄りの 1 点)── 下端の最も浮いた所を測って沈める。
+                                            //   上限を超える坂には置かない(硬い制約・DropNeire で数える)。0 = 低木・下草(根で据える物・測らない)
 
         /// <summary>木・低木・下草の幹の芯から区画の線と囲い・門構えの壁体までの控え[m](2026-09-27・EDO-0477 P5)。
         /// ⭐ 施主の規則: 幹の芯 ↔ 道辺 ≥ 2.0m(全層・低木も)・囲いのある辺は囲いの線から 2m(山王 EDO-0401/0409 の型)。
@@ -250,6 +253,9 @@ public static partial class EdoBuild
         /// <summary>下草(シダ)。⭐ 低木と同じ据えだが **踏める**(Block &lt; 0)— 飛石は下草を避けない
         /// (避ける物は幹と刈込の実メッシュだけ・検分①)。</summary>
         public static NiwaSet Kusa { get { var o = Shrub; o.Block = -1f; return o; } }
+        /// <summary>剛体の据え物を坂で沈めてよい上限[m]【確度 U】。井筒・灯籠の台石の見えが半分を切らない深さ
+        /// (井筒の丈 ≈0.7m・雪見灯籠の脚 ≈0.4m)。2026-09-29 EDO-0472: 十坊 8・9 の井戸が坂の下手で 0.75m 浮いていた。</summary>
+        public const float STONE_NEIRE_MAX = 0.30f;
         /// <summary>景石・飛石・灯籠・井戸(囲いから 0.4 / 軒から樹冠で 0.4)。⭐ 沈めは呼び手が上書きする(景石は石高÷3)。</summary>
         public static NiwaSet Stone
         {
@@ -257,7 +263,7 @@ public static partial class EdoBuild
             {
                 return new NiwaSet { ClearWall = 0.4f, PadEave = 0.4f, SinkLo = 0.06f, SinkHi = 0.10f,
                                      ScaleLo = 0.90f, ScaleHi = 1.15f, SpaceLo = 0.9f, SpaceHi = 1.4f,
-                                     Mutual = 0.8f, EdgeK = 0.8f, Block = 0f, Tall = false };
+                                     Mutual = 0.8f, EdgeK = 0.8f, Block = 0f, Tall = false, NeireMax = STONE_NEIRE_MAX };
             }
         }
         /// <summary>飛石の一条(**通り道**)。⭐ 相手は <c>block</c> で避け — 木は幹(0.25m)・刈込と低木と石は
@@ -322,6 +328,10 @@ public static partial class EdoBuild
         /// <c>DropSteep</c> = 急斜面で据わらなかった(間引かずに据え直しても埋没>1.0 か 浮き>0.7)。
         /// <c>Reseat</c> = 足元の起伏が大きいので間引かずに据え直した数・<c>TrunkNaN</c> = 幹の芯が測れなかった数。</summary>
         public int DropEave, DropEdge, DropSteep, Reseat, TrunkNaN, Nudged, DropBand;
+        /// <summary><c>Neire</c> = 剛体の据え物を下端の全部が着くまで沈めた数(最深 <c>MaxNeire</c>)/
+        /// <c>DropNeire</c> = 沈める量が <see cref="NiwaSet.NeireMax"/> を超えて置かなかった数(最悪 <c>WorstNeire</c>)。</summary>
+        public int Neire, DropNeire;
+        public float MaxNeire, WorstNeire;
         // Put が区画の線で断ったときの控え — 越えた量と実樹冠(呼び手の Put が内へ寄せ直すのに使う)
         float _edgeNeed, _lastRR;
         public float WorstSteep;
@@ -529,6 +539,26 @@ public static partial class EdoBuild
                     UnityEngine.Object.DestroyImmediate(go); DropSteep++; return null;
                 }
                 rb = RB(go);
+            }
+            // ⭐ **剛体の据え物は下端の全部を地面へ着ける**(根入れ・docs/oki-kata.md §0a)。SeatOnGround は最寄りの 1 点
+            //    (坂の上手)を着けるだけなので、下手は足元の起伏ぶん浮く ── 下端の足跡(RootToBed)で最も浮いた所を測り、
+            //    その量だけ沈めて上手を埋める。上限を超える坂には置かない(浮きは許容0・§4a の硬い制約)。
+            //    ⛔ 2026-09-29 まで井戸・灯籠は 1 点の接地だけを見て、十坊 8・9 の井戸が坂の下手で 0.75m 浮いていた(EDO-0472)。
+            //    当たる先: NiwaSet.Stone を使う全駒(井戸・灯籠・景石・飛石・手水鉢)── 類型の全区画と山王の境内。
+            if (o.NeireMax > 0f)
+            {
+                var nr = RootToBed(go, Ground, 0.05f);
+                if (!float.IsNaN(nr.hi) && nr.hi > 0.005f)
+                {
+                    if (nr.hi > o.NeireMax)
+                    {
+                        WorstNeire = Mathf.Max(WorstNeire, nr.hi);
+                        UnityEngine.Object.DestroyImmediate(go); DropNeire++; return null;
+                    }
+                    go.transform.position -= new Vector3(0f, nr.hi, 0f);
+                    Neire++; MaxNeire = Mathf.Max(MaxNeire, nr.hi);
+                    rb = RB(go);
+                }
             }
             float rr = Mathf.Max(rb.size.x, rb.size.z) * 0.5f;      // ⭐ 実バウンズで測り直す
             var c = new Vector2(rb.center.x, rb.center.z);

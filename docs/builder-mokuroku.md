@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 18 本・メニュー 79・関数 624(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 18 本・メニュー 79・関数 625(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -30,7 +30,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoTypologyBuilder.Machiya.cs](#edotypologybuildermachiyacs) | 類型ビルダー — 町屋(machiya)の段。24 区画。EDO-0325。 | 0 | 5 |
 | [EdoTypologyBuilder.Niwa.cs](#edotypologybuilderniwacs) | 類型の庭(Stage 5)— どの類型が何をどこへだけ。EDO-0323。 | 0 | 26 |
 | [EdoTypologyBuilder.Rim.cs](#edotypologybuilderrimcs) | 類型の崖の縁の石垣(Stage 4y・2026-09-28・EDO-0477 施主裁定A「石垣を積み、その上に塀」)。 | 0 | 2 |
-| [EdoTypologyBuilder.cs](#edotypologybuildercs) | 類型ビルダー — 区画の形(parcels.json)と類型表(typology.json)から、一本で建てる。 | 5 | 46 |
+| [EdoTypologyBuilder.cs](#edotypologybuildercs) | 類型ビルダー — 区画の形(parcels.json)と類型表(typology.json)から、一本で建てる。 | 5 | 47 |
 | [EdoYamatoRebuild.cs](#edoyamatorebuildcs) | 松平大和守(川越藩17万石)上屋敷の再建 v2 (2026-08-08) | 0 | 13 |
 
 ## EdoDoiBuilder.Niwa.cs
@@ -704,7 +704,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `Rf(r, lo, hi)` | `float` |  | — |
 | `OddSplit(total, rnd)` | `List<int>` |  | 層の本数を奇数の塊へ割る(7/5/3/1)。 |
 | `MaxCrown(pal)` | `float` |  | — |
-| `TakeSite(pool, rnd, f, r, o)` | `Vector2?` |  | 候補の池から、その半径が本当に空いている点を1つ取り出す。 |
+| `TakeSite(pool, rnd, f, r, o)` | `Vector2?` |  | — |
 | `Layer(grp, name, f, pool, pal, want, rnd, o, want_, got_, poolAlt=…)` | `void` |  | 層をひと組据える。⭐ 意図した数と据わった数の差を必ず控える(§5-2 ①・規則19)。 |
 | `MainBand(f, apex, n, faceLen, depth)` | `List<Vector2>` |  | 主景の帯 — 座敷面の中点 + 法線 3.0m を起点に、幅 = 面長 + 左右各 4.0m・奥行 25m の 帯と庭域 G の交わり(検分⑨)。 |
 | `GateThrough(gate)` | `float` |  | 門の通り抜け(柱間)[m] — 参道の帯(白洲)の幅を引くための代用値(検分③)。 |
@@ -780,6 +780,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `Candidates(poly, cand, placed, r, tried)` | `IEnumerable<Vector2>` |  | Spot を次々に引く候補の列(引いた点は tried へ入れる)。 |
 | `Spot(poly, cand, placed, r, tried)` | `Vector2?` |  | まだ空いていて、半径 r が区画からはみ出さず、既に置いた棟から MIN_BLDG_GAP 離れる点。 |
 | `OutsideBy(poly, t, withRoof)` | `float` |  | 駒が区画の外へ出た量[m]。⭐ 壁体と軒を分けて測る。 |
+| `IsSueMono(name)` | `bool` |  | — |
 | `GroundBed(x, z)` | `float` |  | 当たりの相手 = 見えている地表(live terrain)。 |
 | `TuckBase(p0, p1, inw, stone=…)` | `float` |  | GroundBed と同じ床だが、石垣の天端の継ぎ目の穴(その点に天端の面が無く、0.35m 以内に有る所)は NaN を返す ── 塀は穴を跨いで石に載るので、穴の下の地面を床に数えない(EdoBuild.RootTo… |
 | `RimStoneBack(bed, p, inw, maxIn)` | `float` |  | 点 p から内へ、石垣の天端の面(bed)が始まる離れ[m](最大 maxIn)。 |

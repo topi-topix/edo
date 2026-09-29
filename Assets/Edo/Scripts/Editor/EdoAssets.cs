@@ -3188,7 +3188,7 @@ public static class EdoAssets
         public static string Ishibashi() { return NiwaDir + "Ishibashi_Kiri_1.fbx"; }
 
         /// <summary>刈込の生垣モジュール(ツゲ・マサキの見立て・1 間 × 1.90m × 0.80m、葉カード・材 M_FJG_Plant_Boxwood_01_Spring・LOD1)。
-        /// <c>end</c> は小口が葉で閉じた端部(+X が突き付け面)。ピボットは 1 間の中心・床レベル、前後対称。
+        /// <c>end</c> は小口が葉で閉じた端部(⭐ Unity の局所 **+X が葉で閉じた小口・−X が突き付け面** ── Blender では逆。2026-09-29 頂点で実測・EDO-0472)。ピボットは 1 間の中心・床レベル、前後対称。
         /// 実寸(葉の持ち出し込み)1.908×2.02×1.09。Blender: <c>blender --background --python Tools/Blender/build_ikegaki.py</c>(2026-09-06 部材方)。</summary>
         public static string Ikegaki(bool end)
         { return NiwaDir + (end ? "Ikegaki_End_1.818.fbx" : "Ikegaki_1.818.fbx"); }

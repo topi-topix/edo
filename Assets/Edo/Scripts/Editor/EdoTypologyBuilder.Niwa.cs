@@ -229,6 +229,9 @@ public static partial class EdoTypologyBuilder
     /// ⭐ **池から外すのは据わった点だけ**(検分④)。⛔ 空いていなかった点まで捨てない —
     /// 捨てると候補が**成否に関わらず**枯れて、後ろの層(小さい駒なら置けた層)が丸ごと 0 になる
     /// (2026-09-22 実測: 6区画でモミジ以降が単調に 0)。</summary>
+    /// <summary>剛体の据え物(井戸・灯籠)が坂で据わらなかったとき、次に試す置き場の数。</summary>
+    const int SITE_RETRY = 8;
+
     static Vector2? TakeSite(List<Vector2> pool, System.Random rnd, EdoBuild.NiwaField f,
                              float r, EdoBuild.NiwaSet o)
     {
@@ -974,13 +977,13 @@ public static partial class EdoTypologyBuilder
     {
         var o = EdoBuild.NiwaSet.Stone;
         int made = 0;
-        for (int i = 0; i < n; i++)
+        for (int tries = 0; made < n && tries < n + SITE_RETRY; tries++)      // 坂で据わらなければ次の置き場(井戸と同じ)
         {
             float r = EdoBuild.CrownR(EdoAssets.Own.Toro) * ES;
             var site = TakeSite(pool, rnd, f, r, o);
             if (site == null && poolAlt != null) site = TakeSite(poolAlt, rnd, f, r, o);      // 環 → main(裁定6C)
             if (site == null) break;
-            if (f.Put(grp, EdoAssets.Own.Toro, site.Value, Rf(rnd, 0f, 360f), ES, 0f, "Toro_" + i, "灯籠", o) != null) made++;
+            if (f.Put(grp, EdoAssets.Own.Toro, site.Value, Rf(rnd, 0f, 360f), ES, 0f, "Toro_" + made, "灯籠", o) != null) made++;
         }
         want.Add("灯籠 " + n); got.Add("灯籠 " + made);
     }
@@ -994,11 +997,12 @@ public static partial class EdoTypologyBuilder
         float r = EdoBuild.CrownR(ido);
         var pool = new List<Vector2>(katte);
         int made = 0;
-        for (int i = 0; i < n; i++)
+        // ⭐ 坂で据わらなかった井戸(沈めの上限を超えた・NiwaSet.NeireMax)は次の置き場を試す ── 1 候補で諦めない(EDO-0472)
+        for (int tries = 0; made < n && tries < n + SITE_RETRY; tries++)
         {
             var site = TakeSite(pool, rnd, f, r, o);
             if (site == null) break;
-            if (f.Put(grp, ido, site.Value, Rf(rnd, 0f, 360f), 1f, 0f, "Ido_" + i, "井戸", o) != null) made++;
+            if (f.Put(grp, ido, site.Value, Rf(rnd, 0f, 360f), 1f, 0f, "Ido_" + made, "井戸", o) != null) made++;
         }
         want.Add("井戸 " + n); got.Add("井戸 " + made);
         if (made > 0) log.Add("    ⚠ 井戸の駒は山王社の井桁の井戸(`Own.SannoIdoIgeta`)の流用 — 類型の井戸は未造(EDO-0318)");
@@ -1107,7 +1111,8 @@ public static partial class EdoTypologyBuilder
           + " / 軒から **樹冠の外接円**で 最小 {7:F2}m(層ごとの下限 0.2〜0.4m・割った駒は据えてから落とす→次行)\n"
           + "      樹冠の投影の被覆率 {8:P0} {9}(union・下草/飛石/景石/灯籠/井戸を除く全層・不合格は 50%超{20})"
           + " / 常緑:落葉 = {10:P0}:{11:P0} {21}(高木+中木 {22}本が分母・この型の落葉の許容 {23:P0}〜{24:P0})\n"
-          + "      置けなかった駒 {12}(退避で拒んだ)/ 据えてから落とした駒: 軒へ食い込み {17}・区画の線を越え {25}(うち内へ寄せて据わった駒 {30}・寄せても駄目で落とした数がこの {25})・急斜面で据わらず {26}(最悪 {27:F2}m)・参道の帯へずれた {31}"
+          + "      置けなかった駒 {12}(退避で拒んだ)/ 据えてから落とした駒: 軒へ食い込み {17}・区画の線を越え {25}(うち内へ寄せて据わった駒 {30}・寄せても駄目で落とした数がこの {25})・急斜面で据わらず {26}(最悪 {27:F2}m)・参道の帯へずれた {31}・坂で沈めが {33:F2}m を超えて置かなかった据え物 {32}(最悪 {34:F2}m)"
+          + " / 下端の全部が着くまで沈めた据え物 {35}(最深 {36:F2}m)"
           + " / 起伏が大きく間引かずに据え直した駒 {28} / 幹の芯が測れなかった駒 {29}\n"
           + "      意図: {13}\n      実際: {14}",
             mark, f.Komas.Count, NIWA_BUDGET, f.InBand, evenClump, twin,
@@ -1115,6 +1120,7 @@ public static partial class EdoTypologyBuilder
             cov, covMark, 1f - deRatio, deRatio, f.Refused,
             string.Join(" / ", want.ToArray()), string.Join(" / ", got.ToArray()), perClump.Count,
             g, f.DropEave, covLo, covHi, g == "ura" ? "と 3%未満" : "と 5%未満", deMark, tall, deLo, deHi,
-            f.DropEdge, f.DropSteep, f.WorstSteep, f.Reseat, f.TrunkNaN, f.Nudged, f.DropBand);
+            f.DropEdge, f.DropSteep, f.WorstSteep, f.Reseat, f.TrunkNaN, f.Nudged, f.DropBand,
+            f.DropNeire, EdoBuild.NiwaSet.STONE_NEIRE_MAX, f.WorstNeire, f.Neire, f.MaxNeire);
     }
 }

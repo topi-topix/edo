@@ -111,6 +111,8 @@
 - [面の輪郭ぎわの残差は物差しの話](terrace-rim-residual-is-the-ruler.md) — 失敗点が全部1セル以内なら造成の欠陥でない。均すと段が埋まり崖に盛土
 - [池が掘れていないの正体は水面の紛失と 2m 格子](pond-carved-but-water-lost.md) — ⛔掘り直さない。CreateNoCarve で水面だけ
 - [作業場の書き戻しは台帳0件で黙る](koba-writeback-ledger-empty.md) — 段別の邸は本体が台帳に載らない。Convert(自邸名)で拾う
+- [類型を何軒も建て直す作業場](typology-multi-parcel-koba.md) — 隣は20m以内だけ・残りは実体を足す。BuildParcel は自分で切り出すので wrote=0 が正常
+- [並びの区画のログの浮きは後の造成で古くなる](typology-log-stale-after-neighbor-regrade.md) — 共有辺の地表が動く。建て終えてから数え直す
 - [プレハブの grep で名が出ないのは正常](prefab-yaml-has-guids-not-names.md) — 参照は GUID。検めるのは LoadAssetAtPath で childCount
 
 ## 検査の読み方

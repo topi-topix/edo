@@ -1128,6 +1128,15 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
     const float GROUND_TOL = 0.01f;
     /// <summary>塀の下端の浮きの線[m] = 地面の線と同じ(2026-09-27 に 0.05 から改めた・§4「類型の塀の下 0.05 はこの線へそろえる」)。</summary>
     const float KAKOI_UKI_TOL = GROUND_TOL;
+    /// <summary>庭の駒のうち**剛体の据え物**(`NiwaSet.Stone` で据える物)の名の頭。検査で下端の全部を測る。
+    /// ⚠ 据える側(Niwa / Keidai の Put の名)と揃える ── 新しい据え物を足したらここにも足す。</summary>
+    static readonly string[] SUE_MONO = { "Ido", "Toro", "Kenntou", "Chozu", "Ishigumi", "Tobiishi" };
+    static bool IsSueMono(string name)
+    {
+        foreach (var h in SUE_MONO) if (name.StartsWith(h, System.StringComparison.Ordinal)) return true;
+        return false;
+    }
+
     /// <summary>当たりの相手 = 見えている地表(live terrain)。<see cref="EdoBuild.RootToBed"/> に渡す。</summary>
     static float GroundBed(float x, float z)
     {
@@ -1251,6 +1260,14 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 {
                     var rt = EdoBuild.RootToBed(t.gameObject, GroundBed, 0.1f);
                     if (!float.IsNaN(rt.hi)) dy = rt.hi > -rt.lo ? rt.hi : rt.lo;
+                }
+                // ⭐ 庭の**剛体の据え物**(井戸・灯籠・献灯・手水鉢・景石・飛石)も下端の全部を測る ── 坂で上手の 1 点が着いて
+                //    下手が浮いても Contact は 0 を返す(2026-09-29 EDO-0472: 十坊 8・9 の井戸が 0.75m 浮いて ⭕ だった)。
+                //    埋まりは根入れなので数えない(浮きだけを採る)。木・下草は根で据える物なので測らない。
+                if (grp.name == "Niwa" && IsSueMono(t.name))
+                {
+                    var rt = EdoBuild.RootToBed(t.gameObject, GroundBed, 0.05f);
+                    if (!float.IsNaN(rt.hi) && rt.hi > dy) dy = rt.hi;
                 }
                 // ⭐ 石垣の天端に載る塀は床(石の天端)で測る ── Contact は地形だけを見るので、天端の上の塀を地形からの「浮き」と数えた
                 //    (観理院の西 0.79m・2026-09-28)。塀は根入れで据えるので浮きだけを採る(埋まりは数えない)。

@@ -104,22 +104,50 @@ public static partial class EdoBuild
 
         // 1b. 近い棟の平場を一つの高さに束ねる(2026-09-28 EDO-0477 実測)。⛔ 棟ごとに中央値を採ると、縁取りが触れ合う
         //    隣の平場と数cm違い、あいだの格子が傾いて下端が浮く(観理院の客殿 0.024m・鐘楼 0.038m)。足あとの間が
-        //    縁取り 2 つぶんより近く、高さの差が PAD_MERGE_DY より小さい棟は、束の中で最も広い棟の高さへそろえる。
-        //    差が大きい棟は束ねない(段として残す ── 規則3 の系統差 ±0.25 を超える均しをしない)。当たる先: 類型の全区画。
+        //    縁取り 2 つぶんより近い棟は**同じ格子の節点を分け合う**ので、一つの高さでしか両方を平らにできない。
+        // ⭐ 束の高さは、どの棟も自分の地盤の中央値から ±PAD_SHIFT(規則3 の系統差)の内に収まる幅の中で、
+        //    **平らに取れない節点(SqueezeAt)が最も少ない高さ**を 1cm 刻みで選び、同じなら面積で重みを付けた平均に最も近い物を採る
+        //    (2026-09-29 EDO-0472 実測)。⛔ 2026-09-28 までは「差 0.30 未満なら最も広い棟の高さへ」だった ──
+        //    ① 差 0.33 の本堂と土蔵(十坊 7)が束ねられず、あいだの節点を土蔵の高さに取られて本堂の下端が 0.040m 浮いた。
+        //    ② 束ねた土蔵(十坊 6)が本堂の高さへ 0.13m 下げられ、区画の縁の法に届かない節点が出て 0.020m 浮いた。
+        //    差が 2×PAD_SHIFT を超える近い棟は束ねない(段として残す)── 置く段の硬い制約で離すべき物で、数えて刷る。
+        //    当たる先: GradePads を呼ぶ全区画(類型の全区画の棟)。
         int n = pads.Count; var grp = new int[n]; for (int k = 0; k < n; k++) grp[k] = k;
         Func<int, int> root = null; root = k => grp[k] == k ? k : (grp[k] = root(grp[k]));
+        int apart = 0;
         for (int a = 0; a < n; a++)
             for (int b2 = a + 1; b2 < n; b2++)
             {
-                if (Mathf.Abs(outp[a].y - outp[b2].y) >= PAD_MERGE_DY) continue;
                 if (PolyGap(pads[a], pads[b2]) >= 2f * margin) continue;
+                if (Mathf.Abs(outp[a].y - outp[b2].y) > 2f * PAD_SHIFT) { apart++; continue; }
                 grp[root(a)] = root(b2);
             }
         var areas = new float[n]; for (int k = 0; k < n; k++) areas[k] = Mathf.Abs(PolyArea(pads[k]));
-        var lead = new Dictionary<int, int>();
-        for (int k = 0; k < n; k++) { int r = root(k); if (!lead.ContainsKey(r) || areas[k] > areas[lead[r]]) lead[r] = k; }
         int merged = 0;
-        for (int k = 0; k < n; k++) { int l = lead[root(k)]; if (l != k) { outp[k].y = outp[l].y; merged++; } }
+        var groups = new Dictionary<int, List<int>>();
+        for (int k = 0; k < n; k++) { int r = root(k); if (!groups.ContainsKey(r)) groups[r] = new List<int>(); groups[r].Add(k); }
+        foreach (var g in groups.Values)
+        {
+            if (g.Count < 2) continue;
+            float lo = float.MinValue, hi2 = float.MaxValue, wsum = 0f, wy = 0f;
+            foreach (var k in g) { lo = Mathf.Max(lo, outp[k].y - PAD_SHIFT); hi2 = Mathf.Min(hi2, outp[k].y + PAD_SHIFT); wsum += areas[k]; wy += areas[k] * outp[k].y; }
+            float mean = wsum > 0f ? wy / wsum : outp[g[0]].y;
+            if (lo > hi2)
+            {   // 鎖で繋がって幅が無い束 ── 最も広い棟の高さへ(旧の作法)。数えて刷る
+                int l = g[0]; foreach (var k in g) if (areas[k] > areas[l]) l = k;
+                foreach (var k in g) if (k != l) { outp[k].y = outp[l].y; merged++; }
+                apart++;
+                continue;
+            }
+            float bestY = Mathf.Clamp(mean, lo, hi2); int bestSq = int.MaxValue;
+            var rings = new List<List<RingNode>>(); foreach (var k in g) rings.Add(PadRing(parcel, pads[k], margin));
+            for (float y = lo; y <= hi2 + 1e-4f; y += 0.01f)
+            {
+                int s2 = 0; foreach (var r in rings) s2 += SqueezeAt(r, y, fillRun, cutRun);
+                if (s2 < bestSq || (s2 == bestSq && Mathf.Abs(y - mean) < Mathf.Abs(bestY - mean))) { bestSq = s2; bestY = y; }
+            }
+            foreach (var k in g) { if (Mathf.Abs(outp[k].y - bestY) > 1e-4f) merged++; outp[k].y = bestY; }
+        }
 
         // 2. 区画の中の節点: 造成前の地盤へ戻し、最寄りの平場の法で挟み、縁の法で地山へ戻す
         int written = 0; float maxCut = 0f, maxFill = 0f;
@@ -160,9 +188,10 @@ public static partial class EdoBuild
             }
         td.SetHeightsDelayLOD(i0, j0, H); td.SyncHeightmap();
         int sq = 0; foreach (var hb in outp) sq += hb.squeezed;
-        report = string.Format("造成: 平場 {0} 面(うち隣へ束ねた {5})・節点 {1}(区画の中だけ・毎回造成前の地盤から)・最大の切土 {2:F2}m・盛土 {3:F2}m{4}",
+        report = string.Format("造成: 平場 {0} 面(うち隣へ束ねた {5})・節点 {1}(区画の中だけ・毎回造成前の地盤から)・最大の切土 {2:F2}m・盛土 {3:F2}m{4}{6}",
                                pads.Count, written, maxCut, maxFill,
-                               sq > 0 ? string.Format(" ⚠ 区画の縁に近く平らに取れない節点 {0}(土留めが要る所・P3)", sq) : "", merged);
+                               sq > 0 ? string.Format(" ⚠ 区画の縁に近く平らに取れない節点 {0}(土留めが要る所・P3)", sq) : "", merged,
+                               apart > 0 ? string.Format(" ⚠ 近いのに高さの差が {0:F2}m を超えて束ねられない平場 {1} 組", 2f * PAD_SHIFT, apart) : "");
         return outp;
     }
 
@@ -172,40 +201,113 @@ public static partial class EdoBuild
     /// 区画の北の角から 2.7m で 27 節点)。当たる先: 造成して建てる類型の全棟(寺社の本堂・附属、武家の御殿・長屋以外の棟)。</summary>
     public static int PadSqueeze(Vector2[] parcel, Vector2[] foot, float margin, float fillRun = 1.5f, float cutRun = 1.0f)
     {
-        var dem = BaseDem();
-        var t = T(); var td = t.terrainData; int res = td.heightmapResolution;
-        Vector3 tp = t.transform.position, ts = td.size;
-        float cell = Mathf.Max(ts.x, ts.z) / (res - 1);
-        margin = Mathf.Max(margin, cell * 1.415f);
-        float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
-        foreach (var p in foot) { mnx = Mathf.Min(mnx, p.x); mxx = Mathf.Max(mxx, p.x); mnz = Mathf.Min(mnz, p.y); mxz = Mathf.Max(mxz, p.y); }
-        int i0 = Mathf.FloorToInt((mnx - margin - tp.x) / ts.x * (res - 1)), i1 = Mathf.CeilToInt((mxx + margin - tp.x) / ts.x * (res - 1));
-        int j0 = Mathf.FloorToInt((mnz - margin - tp.z) / ts.z * (res - 1)), j1 = Mathf.CeilToInt((mxz + margin - tp.z) / ts.z * (res - 1));
-        var ys = new List<float>(); var ring = new List<Vector3>();
-        for (int j = j0; j <= j1; j++)
-            for (int i = i0; i <= i1; i++)
+        var ring = PadRing(parcel, foot, margin);
+        float med = RingMedian(ring);
+        return float.IsNaN(med) ? 0 : SqueezeAt(ring, med, fillRun, cutRun);
+    }
+
+    /// <summary>**置いた棟の平場と束ねても平場が取れるか**(2026-09-29 EDO-0472)。<paramref name="placed"/> = 既に置いた棟の壁体の足あと。
+    /// 縁取り 2 つぶんより近い棟は <see cref="GradePads"/> が一つの高さへ束ねるので、束の高さ(どの棟も自分の中央値から ±PAD_SHIFT の内)の
+    /// どれかで**束の全部**が平らに取れるかを見る。返り = 最も良い高さで取れない節点の数(0 なら取れる)。束の幅が無ければ(差 &gt; 2×PAD_SHIFT)取れない数を返す。
+    /// ⛔ 自分だけの中央値で見ると、置いた後の束ねで高さが動き、区画の縁の法に届かない節点が出て下端が浮く
+    /// (十坊 9 の物置 0.040m ── 自分の中央値では 0 節点、束ねた 8.60 では 3 節点)。当たる先: 類型の寺社の全棟(置く段の硬い制約)。</summary>
+    public static int PadSqueeze(Vector2[] parcel, Vector2[] foot, float margin, IList<Vector2[]> placed, float fillRun = 1.5f, float cutRun = 1.0f)
+    {
+        var ring = PadRing(parcel, foot, margin);
+        float med = RingMedian(ring);
+        if (float.IsNaN(med)) return 0;
+        float m2 = 2f * CellMargin(margin);
+        var rings = new List<List<RingNode>> { ring }; var meds = new List<float> { med };
+        if (placed != null)
+            foreach (var pf in placed)
             {
-                var q = NodeXZ(tp, ts, res, i, j);
-                float b = dem(q.x, q.y); if (float.IsNaN(b)) continue;
-                bool inside = EdoGeom.PIP(foot, q);
-                if (inside) ys.Add(b);
-                if (inside || EdoGeom.DistToPolyEdge(foot, q) <= margin) ring.Add(new Vector3(q.x, b, q.y));
+                if (PolyGap(foot, pf) >= m2) continue;
+                var r2 = PadRing(parcel, pf, margin); float md2 = RingMedian(r2);
+                if (float.IsNaN(md2)) continue;
+                rings.Add(r2); meds.Add(md2);
             }
-        if (ys.Count == 0) return 0;
-        ys.Sort(); float pad = ys[ys.Count / 2];
+        if (rings.Count == 1) return SqueezeAt(ring, med, fillRun, cutRun);
+        float lo = float.MinValue, hi = float.MaxValue;
+        foreach (var md in meds) { lo = Mathf.Max(lo, md - PAD_SHIFT); hi = Mathf.Min(hi, md + PAD_SHIFT); }
+        if (lo > hi) return ring.Count + 1;                                   // 束ねる幅が無い = 近すぎる段違い
+        int best = int.MaxValue;
+        for (float y = lo; y <= hi + 1e-4f && best > 0; y += 0.02f)
+        {
+            int sq = 0; foreach (var r in rings) { sq += SqueezeAt(r, y, fillRun, cutRun); if (sq >= best) break; }
+            if (sq < best) best = sq;
+        }
+        return best;
+    }
+
+    /// <summary>足あとの平場を高さ <paramref name="padY"/> にしたとき平らに取れない節点の数(0 なら取れる)。縁取りの内の節点ごとに:
+    /// ① 区画の中 ── 造成前の地盤から区画の縁の法(縁から EDGE_BERM は地山のまま)で届くか。
+    /// ② 区画の外 ── **今の地表**が平場の高さに揃っているか(造成は区画の外を書かない)。
+    /// ⭐ ② を造成前の地盤で見ない(2026-09-29 EDO-0472 実測: 十坊 9 の土蔵の角の格子に道の節点が掛かり、道は造成前より
+    ///    0.79m 掘り下げてあったのに「地山のまま = 平場の高さ」と数えて通し、下端が 0.038m 浮いた)。
+    /// 当たる先: <see cref="PadSqueeze(Vector2[],Vector2[],float,float,float)"/>(置く前の硬い制約)と <see cref="GradePads"/> の束ねの高さ選び ── 類型の全区画の棟。</summary>
+    static int SqueezeAt(List<RingNode> ring, float padY, float fillRun, float cutRun)
+    {
         int n = 0;
         foreach (var r in ring)
         {
-            var q = new Vector2(r.x, r.z);
-            // 区画の外の節点は触らない(地山のまま)= e 0 ── 地山が平場の高さに揃っていれば取れる
-            float e = EdoGeom.PIP(parcel, q) ? Mathf.Max(0f, EdoGeom.DistToPolyEdge(parcel, q) - EDGE_BERM) : 0f;
-            if (pad - r.y > e / fillRun + 0.01f || r.y - pad > e / cutRun + 0.01f) n++;
+            if (!r.inP) { if (Mathf.Abs(r.live - padY) > 0.01f) n++; continue; }
+            if (float.IsNaN(r.y)) continue;                                  // 正典の地盤が無い所は造成も触らない
+            if (padY - r.y > r.e / fillRun + 0.01f || r.y - padY > r.e / cutRun + 0.01f) n++;
         }
         return n;
     }
 
-    /// <summary>隣の平場と束ねる高さの差の上限。【確度 U】── 棟ごとの系統差 ±0.25(規則3)をまたがない幅。</summary>
-    public const float PAD_MERGE_DY = 0.30f;
+    static int SqueezeAt(Vector2[] parcel, Vector2[] foot, float margin, float padY, float fillRun, float cutRun)
+    { return SqueezeAt(PadRing(parcel, foot, margin), padY, fillRun, cutRun); }
+
+    /// <summary>縁取りの内の節点。y = 造成前の地盤(無ければ NaN)/ live = 今の地表 / inFoot = 足あとの中 /
+    /// inP = 区画の中 / e = 区画の縁の法が使える距離(縁から EDGE_BERM を引いた残り)。</summary>
+    struct RingNode { public float y, live, e; public bool inFoot, inP; }
+
+    static float CellMargin(float margin)
+    {
+        var td = T().terrainData; float cell = Mathf.Max(td.size.x, td.size.z) / (td.heightmapResolution - 1);
+        return Mathf.Max(margin, cell * 1.415f);
+    }
+
+    static float RingMedian(List<RingNode> ring)
+    {
+        var ys = new List<float>();
+        foreach (var r in ring) if (r.inFoot && !float.IsNaN(r.y)) ys.Add(r.y);
+        if (ys.Count == 0) return float.NaN;
+        ys.Sort(); return ys[ys.Count / 2];
+    }
+
+    static List<RingNode> PadRing(Vector2[] parcel, Vector2[] foot, float margin)
+    {
+        var dem = BaseDem();
+        var t = T(); var td = t.terrainData; int res = td.heightmapResolution;
+        Vector3 tp = t.transform.position, ts = td.size;
+        margin = CellMargin(margin);
+        float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
+        foreach (var p in foot) { mnx = Mathf.Min(mnx, p.x); mxx = Mathf.Max(mxx, p.x); mnz = Mathf.Min(mnz, p.y); mxz = Mathf.Max(mxz, p.y); }
+        int i0 = Mathf.Clamp(Mathf.FloorToInt((mnx - margin - tp.x) / ts.x * (res - 1)), 0, res - 1);
+        int i1 = Mathf.Clamp(Mathf.CeilToInt((mxx + margin - tp.x) / ts.x * (res - 1)), 0, res - 1);
+        int j0 = Mathf.Clamp(Mathf.FloorToInt((mnz - margin - tp.z) / ts.z * (res - 1)), 0, res - 1);
+        int j1 = Mathf.Clamp(Mathf.CeilToInt((mxz + margin - tp.z) / ts.z * (res - 1)), 0, res - 1);
+        var H = td.GetHeights(i0, j0, i1 - i0 + 1, j1 - j0 + 1);
+        var ring = new List<RingNode>();
+        for (int j = j0; j <= j1; j++)
+            for (int i = i0; i <= i1; i++)
+            {
+                var q = NodeXZ(tp, ts, res, i, j);
+                bool inside = EdoGeom.PIP(foot, q);
+                if (!inside && EdoGeom.DistToPolyEdge(foot, q) > margin) continue;
+                bool inP = EdoGeom.PIP(parcel, q);
+                ring.Add(new RingNode { y = dem(q.x, q.y), live = H[j - j0, i - i0] * ts.y + tp.y, inFoot = inside, inP = inP,
+                                        e = inP ? Mathf.Max(0f, EdoGeom.DistToPolyEdge(parcel, q) - EDGE_BERM) : 0f });
+            }
+        return ring;
+    }
+
+    /// <summary>束ねた平場が、棟ごとの地盤の中央値から動いてよい幅[m] = 規則3 の系統差 ±0.25。
+    /// 束の差がこの 2 倍までなら、どの棟も ±0.25 の内に収まる高さが取れる。</summary>
+    public const float PAD_SHIFT = 0.25f;
 
     static float PolyArea(Vector2[] p)
     {

@@ -59,10 +59,11 @@ public static class EdoGardenSurfacePaint
                        : "既に揃っている(計 " + have.Count + " 層)";
     }
 
-    static IEnumerable<NiwaGroundZone> Zones(string kind)
+    static IEnumerable<NiwaGroundZone> Zones(string kind, Transform only = null)
     {
         foreach (var z in Object.FindObjectsByType<NiwaGroundZone>(FindObjectsSortMode.None))
-            if (z.kind == kind && (z.points.Count > 0 || z.quads.Count >= 4)) yield return z;
+            if (z.kind == kind && (z.points.Count > 0 || z.quads.Count >= 4)
+                && (only == null || z.transform.IsChildOf(only))) yield return z;
     }
 
     // ───────────────────────── 点+半径の被覆 ─────────────────────────
@@ -180,7 +181,8 @@ public static class EdoGardenSurfacePaint
     [MenuItem("Edo/類型/庭の地表を塗る(白洲・苔・叩き土)")]
     public static void PaintMenu() => Debug.Log(Paint());
 
-    public static string Paint()
+    /// <param name="only">この根の下の印だけ塗る(類型の建て直しが自分の区画を塗る・EDO-0489)。null は全部。</param>
+    public static string Paint(Transform only = null)
     {
         var sb = new StringBuilder();
         sb.AppendLine(EnsureLayers());
@@ -193,14 +195,14 @@ public static class EdoGardenSurfacePaint
         Undo.RegisterCompleteObjectUndo(f.td, "庭の地表");
 
         int L = f.td.alphamapLayers;
-        int zoneN = 0, skipWater = 0, skipSteep = 0; float texelN = 0f;
+        int zoneN = 0, skipWater = 0, skipSteep = 0, grassOut = 0; float texelN = 0f;
         // ⭐ 塗る順は 叩き土 → 苔 → 白洲。地形は 4m/texel なので、裏庭(叩き土)や坪庭(苔)の印と参道の帯は
         //    同じ texel を分け合う。後に塗った方が勝つので、**参道の白洲を最後に**塗る(2026-09-23 sanbezaka_w1:
         //    白洲を先に塗ったら叩き土に上塗りされ、白砂利の乗りが 0.45 に落ちた)。
         foreach (var kind in new[] { "rinsho", "tataki", "moss", "shirasu" })
         {
             int zk = 0; float tk = 0f;
-            foreach (var z in Zones(kind))
+            foreach (var z in Zones(kind, only))
             {
                 zk++; zoneN++;
                 var quads = z.quads.Count >= 4 ? Quads(z) : null;
@@ -235,13 +237,25 @@ public static class EdoGardenSurfacePaint
                         tk += cov; texelN += cov;
                     }
                 f.td.SetAlphamaps(ix0, iz0, A);
+                // ⭐ 白洲と叩き土の上の草(detail)を抜く ── 塗りだけでは砂利の上に草の株が立ち、芝に見えた(観理院・EDO-0489)
+                if (kind == "shirasu" || kind == "tataki")
+                {
+                    if (quads != null) foreach (var q in quads) grassOut += EdoBuild.ClearDetailIn(q).changed;
+                    else if (z.radius > 0f)
+                        foreach (var pt in z.points)
+                        {
+                            float r = z.radius;
+                            grassOut += EdoBuild.ClearDetailIn(new[] { new Vector2(pt.x - r, pt.z - r), new Vector2(pt.x + r, pt.z - r),
+                                                                       new Vector2(pt.x + r, pt.z + r), new Vector2(pt.x - r, pt.z + r) }).changed;
+                        }
+                }
             }
             sb.AppendLine("  " + kind + ": " + zk + "印 " + tk.ToString("F1") + "texel");
         }
         f.terr.Flush(); EditorUtility.SetDirty(f.td); AssetDatabase.SaveAssets();
-        sb.AppendLine(string.Format("→ 印 {0} / 塗った texel {1:F1}(水面で見送り {2}・急斜面で見送り {3})",
-                                     zoneN, texelN, skipWater, skipSteep));
-        sb.AppendLine(Verify());
+        sb.AppendLine(string.Format("→ 印 {0} / 塗った texel {1:F1}(水面で見送り {2}・急斜面で見送り {3})・白洲と叩き土の草を抜いたセル {4}",
+                                     zoneN, texelN, skipWater, skipSteep, grassOut));
+        sb.AppendLine(Verify(only));
         return sb.ToString();
     }
 
@@ -251,7 +265,7 @@ public static class EdoGardenSurfacePaint
 
     /// <summary>塗った結果を地形から読み直し、印ごとに狙った層が十分乗っているか確かめる。
     /// ⛔ texel が足りない印は「未検査」— 合格と刷らない(規則19)。</summary>
-    public static string Verify()
+    public static string Verify(Transform only = null)
     {
         string err; var f = EdoSurfacePaint.OpenGarden(out err);
         if (f == null) return err;
@@ -259,7 +273,7 @@ public static class EdoGardenSurfacePaint
         int ok = 0, ng = 0, unchecked_ = 0, short_ = 0;
         foreach (var kind in new[] { "shirasu", "moss", "tataki", "rinsho" })
         {
-            foreach (var z in Zones(kind))
+            foreach (var z in Zones(kind, only))
             {
                 string nm0 = z.transform.parent != null ? z.transform.parent.parent != null
                     ? z.transform.parent.parent.name : z.transform.parent.name : z.name;

@@ -742,6 +742,9 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         // ── Stage 5: 植栽(EDO-0323)── ⭐ 参道の帯は**Stage 1 で実測した門構えの開口**から引く
         //    (⛔ 当て推量の GateWidth ではない)。庭の意匠は庭方の設計・EdoTypologyBuilder.Niwa.cs。
         log.Add(Niwa(s, root, poly, front, pad, gateC, gateHalf));
+        // ⭐ 置いた地表の印(白洲・叩き土・林床)をその場で地形へ塗る。⛔ 2026-09-29 まで塗りは別のメニューで、建て直すたびに
+        //    塗り忘れ、観理院の参道と本堂の前の白洲が芝のまま(白砂利の乗り 0.00)だった(施主指摘・EDO-0489)。
+        log.Add("  地表の塗り:\n" + EdoGardenSurfacePaint.Paint(root).TrimEnd().Replace("\n", "\n    "));
 
         // ── Stage 6: 検査(0件でも刷る・規則19) ──
         log.Add(Inspect(id, root, poly));

@@ -1,6 +1,6 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 d80e943c4ee3 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 f14196723c34 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
@@ -507,7 +507,7 @@
 | `EdoBuild.HullOfMat(tr, mat=…)` | `Vector2[]` |  | 駒(材 mat・null で全材)の実メッシュの平面の外形(XZ の凸包・世界座標)。 | SannoSashizuCheck(Check), SannoSha(Stage8_Ido) |
 | `EdoBuild.OpeningOf(tr, mat, y, n=…)` | `Vector2[]` | 断面 | 筒の口(輪になった駒の内周)を高さ y の断面から採る。 | SannoSha(Stage8_Ido) |
 | `TerrainCells`(struct) | — | | 地形のセル範囲の報告。 | |
-| `EdoBuild.ClearDetailIn(poly, cellOk=…)` | `TerrainCells` |  | 多角形に少しでも掛かる detail のセルを空にする(全層)。 ⟶ 返す: 掛かったセルと値の変わったセル | SannoSha(Stage8_Ido) |
+| `EdoBuild.ClearDetailIn(poly, cellOk=…)` | `TerrainCells` |  | 多角形に少しでも掛かる detail のセルを空にする(全層)。 ⟶ 返す: 掛かったセルと値の変わったセル | GardenSurfacePaint(Paint), SannoSha(Stage8_Ido) |
 | `EdoBuild.CutHole(opening, covers, why, joint=…)` | `TerrainCells` | 地面・駒どうし | 口の下の地形に穴を開ける(TerrainData の holes)。 | SannoSha(Stage8_Ido) |
 | `EdoBuild.FillHoles(cells)` | `int` |  | CutHole で抜いた範囲を塞ぐ(据え直しの前に)。 ⟶ 返す: 塞いだセルの数 | — |
 

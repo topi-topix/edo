@@ -215,6 +215,9 @@ public static partial class EdoBuild
                                             //   上限を超える坂には置かない(硬い制約・DropNeire で数える)。0 = 低木・下草(根で据える物・測らない)
                                             //   ⭐ 2026-09-29 EDO-0488 — **高木・中木も測る**(TREE_NEIRE_MAX)。自作の木に根張りを付けて
                                             //   幹の足が幅 1m 前後の平らな底になり、坂の下手でその縁が浮いて見えた(施主「根元が浮いている」)。
+        public float SlopeSinkK;            // >0 = **斜度で沈めを決める**(高木・中木 ── TREE_SLOPE_K)。据えた後、幹の足の**下手の縁**を
+                                            //   沈め(SinkLo〜Hi)+ 足の半径 × tanθ × これ だけ地中に入れる(<see cref="FootSlope"/> で θ を測る)。
+                                            //   上手の最深は TREE_BURY_MAX まで(越える坂には置かない・DropNeire)。0 = 測らない。
 
         /// <summary>木・低木・下草の幹の芯から区画の線と囲い・門構えの壁体までの控え[m](2026-09-27・EDO-0477 P5)。
         /// ⭐ 施主の規則: 幹の芯 ↔ 道辺 ≥ 2.0m(全層・低木も)・囲いのある辺は囲いの線から 2m(山王 EDO-0401/0409 の型)。
@@ -229,6 +232,14 @@ public static partial class EdoBuild
         /// <summary>高木・中木の根入れの上限[m]【確度 U】。幹の足の下端の全部が地面に着くまで沈める量の上限。
         /// 幹は丈 10m 超なので 1m 埋めても見えは崩れない(埋没の許しも 1.0・Put の急斜面の据え直しと同じ数)。</summary>
         public const float TREE_NEIRE_MAX = 1.0f;
+        /// <summary>**斜度で決める沈め**の係数【確度 U】(2026-09-29 EDO-0488 施主「斜面の斜度に合わせてどれだけ埋めるかを決める仕組み」)。
+        /// 下手の縁の埋まり = 沈め(TREE_SINK_LO〜HI)+ 足の半径 R × tanθ × これ。⭐ 坂では根張りの平らな底が地表と θ で開くので、
+        /// 下手ほど縁の上の膨らみまで地表に出る ── 0.5 は「下手の縁が、足の芯を通る地表の面から R·tanθ/2 下」= 底の傾きの半分を下手でも埋める量。
+        /// ⛔ 2026-09-29 まで下手の縁は**ちょうど地表**で止まり(根入れが沈めを食った)、斜面林のエノキの根元が浮いて見えた。</summary>
+        public const float TREE_SLOPE_K = 0.5f;
+        /// <summary>高木・中木の上手の最深の埋まり[m]【確度 U】。斜度の沈めを足した後の、幹の足の下端の最も深い所。
+        /// 丈 10m 超の幹なので 1.5m 埋めても見えは崩れない。越える坂(足の半径 0.5m で約 45°超)には置かない(硬い制約)。</summary>
+        public const float TREE_BURY_MAX = 1.5f;
         /// <summary>**高木**(囲いから幹で 2.0 / 軒から樹冠で 0.3)。塊の芯々は樹冠半径の和×0.45〜0.75 —
         /// ⭐ 三本の松が**株**に見える寄り(⛔ 0.7〜1.1 では芯々8〜11m で孤立木3本になる・検分⑥)。</summary>
         public static NiwaSet Tree
@@ -238,7 +249,7 @@ public static partial class EdoBuild
                 return new NiwaSet { ClearWall = TREE_KEEP, PadEave = 0.3f, SinkLo = TREE_SINK_LO, SinkHi = TREE_SINK_HI,
                                      ScaleLo = 0.88f, ScaleHi = 1.12f, SpaceLo = 0.45f, SpaceHi = 0.75f,
                                      Mutual = 0.42f, EdgeK = -1f, TrunkEdge = TREE_KEEP, Block = 0.25f, Tall = true,
-                                     NeireMax = TREE_NEIRE_MAX };
+                                     NeireMax = TREE_NEIRE_MAX, SlopeSinkK = TREE_SLOPE_K };
             }
         }
         /// <summary>**中木**(囲いから幹で 2.0 / 軒から樹冠で 0.3)。芯々 0.6〜0.9・Mutual 0.55(検分⑥)。</summary>
@@ -313,6 +324,41 @@ public static partial class EdoBuild
         return true;
     }
 
+    /// <summary>**幹の足の下の地表の傾き tanθ** と、足の半径 <paramref name="footR"/>[m](2026-09-29 EDO-0488)。
+    /// 足 = 下端から <see cref="ROOT_TOUCH"/> 以内の頂点(<see cref="RootToBed"/> が当たりに数える所と同じ)。その芯のまわりの
+    /// 半径 max(R, 0.5) の輪の 16 点と芯で <paramref name="bedAt"/> を引き、最小二乗の面の勾配を返す。
+    /// ⛔ ピボット・bounds の中心で芯を取らない(規則21)。足が測れない・地表が NaN なら NaN(呼び手は斜度の沈めを掛けない)。
+    /// 当たる先: <see cref="NiwaSet.SlopeSinkK"/> を持つ駒(高木・中木)の据え。</summary>
+    public static float FootSlope(GameObject go, Func<float, float, float> bedAt, out float footR)
+    {
+        footR = 0f;
+        var pts = new List<Vector3>(); float yb = float.MaxValue;
+        foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            var t = mf.transform;
+            foreach (var v in mf.sharedMesh.vertices) { var w = t.TransformPoint(v); pts.Add(w); if (w.y < yb) yb = w.y; }
+        }
+        if (pts.Count == 0) return float.NaN;
+        var sum = Vector2.zero; int n = 0;
+        foreach (var w in pts) if (w.y <= yb + ROOT_TOUCH) { sum += new Vector2(w.x, w.z); n++; }
+        if (n == 0) return float.NaN;
+        var c = sum / n;
+        foreach (var w in pts) if (w.y <= yb + ROOT_TOUCH) footR = Mathf.Max(footR, Vector2.Distance(c, new Vector2(w.x, w.z)));
+        float r = Mathf.Max(footR, 0.5f);
+        // 輪は芯に対して対称なので、面の勾配は Σ h·d / Σ d² で解ける(芯の高さは切片に入るだけ)
+        float sx = 0f, sz = 0f, dd = 0f;
+        for (int k = 0; k < 16; k++)
+        {
+            float a = k * Mathf.PI / 8f, dx = r * Mathf.Cos(a), dz = r * Mathf.Sin(a);
+            float h = bedAt(c.x + dx, c.y + dz);
+            if (float.IsNaN(h)) return float.NaN;
+            sx += h * dx; sz += h * dz; dd += dx * dx;
+        }
+        float gx = sx / dd, gz = sz / dd;   // Σdx² = Σdz²(対称な輪)
+        return Mathf.Sqrt(gx * gx + gz * gz);
+    }
+
     /// <summary>庭の地 — 「どこに置けるか」を実メッシュから解いて持つ。
     /// ⭐ 置くのは**帯と塊だけ**(§5-4 ①「庭域へ一様乱数で撒かない」)。この型は撒く役ではなく、
     /// 帯と塊を置こうとしたときに**退避と帯の禁足を実測で拒む**役。</summary>
@@ -342,6 +388,10 @@ public static partial class EdoBuild
         /// <c>DropNeire</c> = 沈める量が <see cref="NiwaSet.NeireMax"/> を超えて置かなかった数(最悪 <c>WorstNeire</c>)。</summary>
         public int Neire, DropNeire;
         public float MaxNeire, WorstNeire;
+        /// <summary><c>SlopeSink</c> = 斜度で沈めを足した高木・中木の数(<see cref="NiwaSet.SlopeSinkK"/>)・<c>MaxSlopeTan</c> = そのうち最も急な足元の tanθ。
+        /// 木の沈めは <c>Neire</c>/<c>MaxNeire</c>(上手の最深)にも数え、置けなかった木は <c>DropNeire</c>(上限は TREE_BURY_MAX)に入る。</summary>
+        public int SlopeSink;
+        public float MaxSlopeTan;
         // Put が区画の線で断ったときの控え — 越えた量と実樹冠(呼び手の Put が内へ寄せ直すのに使う)
         float _edgeNeed, _lastRR;
         public float WorstSteep;
@@ -568,6 +618,34 @@ public static partial class EdoBuild
                     go.transform.position -= new Vector3(0f, nr.hi, 0f);
                     Neire++; MaxNeire = Mathf.Max(MaxNeire, nr.hi);
                     rb = RB(go);
+                }
+            }
+            // ⭐ **斜度で沈めを決める**(高木・中木 ── 2026-09-29 EDO-0488 施主)。上の根入れは下手の縁を**ちょうど地表**へ合わせる
+            //    だけなので、決めた沈め(sink)は坂の下手で消え、根張りの縁が地表に出て浮いて見えた(斜面林のエノキ)。
+            //    足の下の地表の傾き θ を測り、下手の縁を 沈め + R·tanθ·K だけ地中へ入れる。上手の最深が TREE_BURY_MAX を越える坂には置かない。
+            //    当たる先: NiwaSet.Tree / Chuboku を使う全駒(類型の庭・屋敷林・斜面の林・明地の木立・縁の帯)。
+            if (o.SlopeSinkK > 0f)
+            {
+                float footR;
+                float tan = FootSlope(go, Ground, out footR);
+                var nr = RootToBed(go, Ground, 0.05f);
+                if (!float.IsNaN(tan) && !float.IsNaN(nr.hi))
+                {
+                    float want = sink + footR * tan * o.SlopeSinkK;            // 下手の縁の埋まり
+                    float more = nr.hi + want;                                   // nr.hi = 下手の縁 − 地表(≤0 で既に埋まっている)
+                    if (more > 0.005f)
+                    {
+                        float deepest = more - nr.lo;                            // 沈めた後の上手の最深の埋まり
+                        if (deepest > NiwaSet.TREE_BURY_MAX)
+                        {
+                            WorstNeire = Mathf.Max(WorstNeire, deepest);
+                            UnityEngine.Object.DestroyImmediate(go); DropNeire++; return null;
+                        }
+                        go.transform.position -= new Vector3(0f, more, 0f);
+                        SlopeSink++; MaxSlopeTan = Mathf.Max(MaxSlopeTan, tan);
+                        Neire++; MaxNeire = Mathf.Max(MaxNeire, deepest);
+                        rb = RB(go);
+                    }
                 }
             }
             float rr = Mathf.Max(rb.size.x, rb.size.z) * 0.5f;      // ⭐ 実バウンズで測り直す

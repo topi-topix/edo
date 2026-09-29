@@ -249,11 +249,15 @@ class EdoAppSceneStrip : IProcessSceneWithReport
         Debug.Log($"[書き出し] 下ごしらえ: 図の置き場 {dropped} 本と非表示の撤去物 {inactive} 塊を外した・地形の遠景を縮めた");
     }
 
-    /// <summary>非表示の塊(撤去物)を外す。動く部品(自作の MonoBehaviour)が下にある塊は、実行時に点く恐れがあるので残す。</summary>
+    /// <summary>非表示の塊(撤去物)を外す。動く部品(自作の MonoBehaviour)が下にある塊は、実行時に点く恐れがあるので残す。
+    /// ⛔ **プレハブの中の塊は外さない。** 2026-09-27 の初回の書き出しでプレハブの中の非表示 8 塊を消したところ、
+    ///   アプリが起動時に赤坂(level0)を読めず「corrupted / Position out of bounds」で落ちた(3 回とも同じ)。
+    ///   プレハブの繋がりを残したまま子を消すと、書き出したシーンの中の参照が食い違う疑いが濃い。</summary>
     static int DropInactive(Transform t)
     {
         if (!t.gameObject.activeSelf)
         {
+            if (PrefabUtility.IsPartOfPrefabInstance(t.gameObject)) return 0;
             if (t.GetComponentsInChildren<MonoBehaviour>(true).Length == 0) { Object.DestroyImmediate(t.gameObject); return 1; }
             return 0;
         }

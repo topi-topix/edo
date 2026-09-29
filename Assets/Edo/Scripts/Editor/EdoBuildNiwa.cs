@@ -213,6 +213,8 @@ public static partial class EdoBuild
         public float NeireMax;              // >0 = **剛体の据え物**(井戸・灯籠・景石・飛石)。下端の全部が地面に着くまで沈める根入れの上限[m]。
                                             //   ⭐ 坂では上手の 1 点が着いても下手が浮く(Contact は最寄りの 1 点)── 下端の最も浮いた所を測って沈める。
                                             //   上限を超える坂には置かない(硬い制約・DropNeire で数える)。0 = 低木・下草(根で据える物・測らない)
+                                            //   ⭐ 2026-09-29 EDO-0488 — **高木・中木も測る**(TREE_NEIRE_MAX)。自作の木に根張りを付けて
+                                            //   幹の足が幅 1m 前後の平らな底になり、坂の下手でその縁が浮いて見えた(施主「根元が浮いている」)。
 
         /// <summary>木・低木・下草の幹の芯から区画の線と囲い・門構えの壁体までの控え[m](2026-09-27・EDO-0477 P5)。
         /// ⭐ 施主の規則: 幹の芯 ↔ 道辺 ≥ 2.0m(全層・低木も)・囲いのある辺は囲いの線から 2m(山王 EDO-0401/0409 の型)。
@@ -220,15 +222,23 @@ public static partial class EdoBuild
         /// ⚠ 2m は PC の解像度の都合で将来外し得る(施主注記)── 外すときはこの一行だけ。</summary>
         public const float TREE_KEEP = 2.0f;
 
+        /// <summary>高木・中木の沈め[m]【確度 U】(2026-09-29 EDO-0488)。⭐ 根張りの平らな底と、いちばん張った縁
+        /// (地際から幹の太さ 0.2 倍まで)が**地中に入る**深さ。⛔ 旧 0.05〜0.12 では底の縁が地表に出て、
+        /// 平地でも「置いただけ」に見えた(観理院のエノキ・施主指摘)。据えは埋めて隠すのが基本(docs/oki-kata.md §4)。</summary>
+        public const float TREE_SINK_LO = 0.15f, TREE_SINK_HI = 0.25f;
+        /// <summary>高木・中木の根入れの上限[m]【確度 U】。幹の足の下端の全部が地面に着くまで沈める量の上限。
+        /// 幹は丈 10m 超なので 1m 埋めても見えは崩れない(埋没の許しも 1.0・Put の急斜面の据え直しと同じ数)。</summary>
+        public const float TREE_NEIRE_MAX = 1.0f;
         /// <summary>**高木**(囲いから幹で 2.0 / 軒から樹冠で 0.3)。塊の芯々は樹冠半径の和×0.45〜0.75 —
         /// ⭐ 三本の松が**株**に見える寄り(⛔ 0.7〜1.1 では芯々8〜11m で孤立木3本になる・検分⑥)。</summary>
         public static NiwaSet Tree
         {
             get
             {
-                return new NiwaSet { ClearWall = TREE_KEEP, PadEave = 0.3f, SinkLo = 0.05f, SinkHi = 0.12f,
+                return new NiwaSet { ClearWall = TREE_KEEP, PadEave = 0.3f, SinkLo = TREE_SINK_LO, SinkHi = TREE_SINK_HI,
                                      ScaleLo = 0.88f, ScaleHi = 1.12f, SpaceLo = 0.45f, SpaceHi = 0.75f,
-                                     Mutual = 0.42f, EdgeK = -1f, TrunkEdge = TREE_KEEP, Block = 0.25f, Tall = true };
+                                     Mutual = 0.42f, EdgeK = -1f, TrunkEdge = TREE_KEEP, Block = 0.25f, Tall = true,
+                                     NeireMax = TREE_NEIRE_MAX };
             }
         }
         /// <summary>**中木**(囲いから幹で 2.0 / 軒から樹冠で 0.3)。芯々 0.6〜0.9・Mutual 0.55(検分⑥)。</summary>

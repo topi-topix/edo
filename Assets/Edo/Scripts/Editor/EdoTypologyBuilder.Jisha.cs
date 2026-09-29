@@ -57,6 +57,7 @@ public static partial class EdoTypologyBuilder
         public string label;
         public GameObject go;
         public JMode mode;
+        public bool hyo;                      // 表の欄(kuri/graveyard/shoro/tacchu/kura)から起こした棟 ── 目標で足した棟と分けて数える(EDO-0464)
         public float[] wall = new float[4];   // 壁体の局所矩形 x0,x1,z0,z1
         public float[] roof = new float[4];   // 屋根込みの局所矩形
         public float yaw;                     // 既定の向き(度)
@@ -192,15 +193,15 @@ public static partial class EdoTypologyBuilder
             if (h == null) { dropped.Add(note); continue; }
             if (u == 0) hallNote = note + (string.IsNullOrEmpty(hallNote) ? "" : "(" + hallNote + ")");
             items.Add(new JItem { label = nm, go = h, mode = u == 0 ? JMode.Main : JMode.Near, yaw = yawMain, rank = u == 0 ? 0f : 3f + u });
-            if (s.kuri && units > 1) JAdd(items, dropped, g, "Kuri_" + u, kuriPath, JMode.Near, yawVK, 3.5f + u);
+            if (s.kuri && units > 1) JAdd(items, dropped, g, "Kuri_" + u, kuriPath, JMode.Near, yawVK, 3.5f + u, true);
         }
-        if (s.kuri && units == 1) JAdd(items, dropped, g, "Kuri", kuriPath, JMode.Near, yawVK, 3f);
-        if (s.graveyard) JAdd(items, dropped, g, "Bochi", EdoAssets.Own.Bochi(6f, 4f), JMode.Back, yawVK, 1f);
-        if (s.shoro || s.tokinokane) JAdd(items, dropped, g, "Shoro", EdoAssets.Own.Shoro(3f), JMode.Front, yawVK, 2f);
+        if (s.kuri && units == 1) JAdd(items, dropped, g, "Kuri", kuriPath, JMode.Near, yawVK, 3f, true);
+        if (s.graveyard) JAdd(items, dropped, g, "Bochi", EdoAssets.Own.Bochi(6f, 4f), JMode.Back, yawVK, 1f, true);
+        if (s.shoro || s.tokinokane) JAdd(items, dropped, g, "Shoro", EdoAssets.Own.Shoro(3f), JMode.Front, yawVK, 2f, true);
         for (int k = 0; k < Mathf.Clamp(s.tacchu, 0, 4); k++)
-            JAdd(items, dropped, g, "Tacchu" + k, EdoAssets.VK.SmallHouse, JMode.Near, yawVK, 4f + k);
+            JAdd(items, dropped, g, "Tacchu" + k, EdoAssets.VK.SmallHouse, JMode.Near, yawVK, 4f + k, true);
         for (int k = 0; k < Mathf.Clamp(s.kura, 0, 2) * units; k++)
-            JAdd(items, dropped, g, "Kura" + k, EdoAssets.Eg.Kura, JMode.Back, yawVK, 5f + k);
+            JAdd(items, dropped, g, "Kura" + k, EdoAssets.Eg.Kura, JMode.Back, yawVK, 5f + k, true);
 
         // 護摩堂(表の gomado・絵図に在る筆だけ)── 焼いた入母屋のうち 3x3間に最も近い小堂【間数 U】
         if (s.gomado)
@@ -461,6 +462,12 @@ public static partial class EdoTypologyBuilder
             kinds.Add(it.go != null && made.Contains(it.go) ? it.label : it.label + "(未建)");
         }
         string dr = dropped.Count > 0 ? "・⚠ " + string.Join(" / ", dropped.ToArray()) : "";
+        // ⭐ 表の欄から起こした棟が建たないのは、目標で足した棟(物置など)が建たないのと重さが違う(EDO-0464)。
+        //    ⛔ 両方を同じ「⚠ 収まらず未建」で刷ると、表の欄が姿に出ていないのに検査が ⭕ のまま見過ごされる(十坊の庫裏 2 坊)。
+        //    直しは表の欄の上書き(規則4)か置き方 ── 狭い坊は「主屋が庫裏を兼ねる」(kuri=false)と表に書く。
+        var hyoMiss = items.Where(i => i.hyo && (i.go == null || !made.Contains(i.go))).Select(i => i.label).ToList();
+        if (hyoMiss.Count > 0) dr += string.Format("・⚠ 表の欄が建たない {0}({1})── 表を上書きするか置き方を直す", hyoMiss.Count, string.Join("・", hyoMiss.ToArray()));
+        if (s.kind == "bo" && !s.kuri) dr += "・庫裏は主屋が兼ねる(表の kuri=false・典拠の「主屋(庫裏一体)」)";
         string ts = tally.Summary();
         if (!string.IsNullOrEmpty(ts)) dr += ts;
         if (enclN > 0) dr += string.Format("・囲いの長屋 {0} 駒を棟として避けた", enclN);
@@ -601,12 +608,12 @@ public static partial class EdoTypologyBuilder
 
     /// <summary>プレハブの駒を 1 つ起こして一覧へ足す。置けなかった理由は <paramref name="dropped"/> へ(黙って落とさない)。</summary>
     static void JAdd(List<JItem> items, List<string> dropped, Transform g, string name, string path,
-                     JMode mode, float yaw, float rank)
+                     JMode mode, float yaw, float rank, bool hyo = false)
     {
         try
         {
             var go = EdoBuild.Place(path, Vector3.zero, 0f, Vector3.one, g, name);
-            items.Add(new JItem { label = name, go = go, mode = mode, yaw = yaw, rank = rank });
+            items.Add(new JItem { label = name, go = go, mode = mode, yaw = yaw, rank = rank, hyo = hyo });
         }
         catch (Exception e) { dropped.Add(name + "の部材が読めない(" + e.Message + ")"); }
     }

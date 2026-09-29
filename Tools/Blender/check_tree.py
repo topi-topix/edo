@@ -166,6 +166,19 @@ def main():
         V.studio((h * 1.45, -h * 1.70, h * 0.68), (0, 0, h * 0.50), res=(1500, 1500))
         bpy.context.scene.camera.data.lens = 62
         V.render(os.path.join(SHOT, "tree_%s_near.png" % name.replace("Tree_", "").lower()))
+    elif mode == "trunk":
+        # ⭐ 2026-09-29 EDO-0488 — **幹と大枝の継ぎ目に寄る。**`near` は樹冠まで入れるので
+        #   12m の木だと幹の節の食い違い(筒の輪のずれ・曲がり目の角)が数 px にしかならない。
+        #   施主は目の高さの写真で見つけた ⇒ 目の高さから樹高の下 45% を撮る。
+        name = argv[1] if len(argv) > 1 else "Tree_Enoki_Small"
+        load(name)
+        mn, mx = V.bbox([o for o in bpy.data.objects if o.type == 'MESH'
+                         and re.search(r"LOD_?\d$", o.name.split('.')[0])])
+        h = mx.z - mn.z
+        hook()
+        V.studio((h * 0.55, -h * 0.62, 1.6), (0, 0, h * 0.24), res=(1500, 1500))
+        bpy.context.scene.camera.data.lens = 45
+        V.render(os.path.join(SHOT, "tree_%s_trunk.png" % name.replace("Tree_", "").lower()))
     elif mode == "cmp":
         # ⭐ **在庫と並べる。**引数で樹種を切り替える(既定は照葉低木)。
         key = argv[1] if len(argv) > 1 else "teiboku"
@@ -213,7 +226,7 @@ def main():
         bpy.context.scene.camera.data.lens = 40
         V.render(os.path.join(SHOT, "tree_%s_cmp.png" % key))
     else:
-        raise KeyError("mode は near / cmp")
+        raise KeyError("mode は near / trunk / cmp")
 
 
 main()

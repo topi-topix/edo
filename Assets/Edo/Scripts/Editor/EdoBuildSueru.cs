@@ -382,6 +382,30 @@ public static partial class EdoBuild
     }
     static int Quad(Vector2 d) { return d.x >= 0 ? (d.y >= 0 ? 0 : 3) : (d.y >= 0 ? 1 : 2); }
 
+    /// <summary>**差して載せる駒を、面一に埋めた受けへ据える**(井戸 = 板石敷の穴へ井筒を差し、井桁を縁石へ載せる)。
+    /// 受け <paramref name="bed"/> は先に <see cref="SeatFlush"/> で据えておく。順は山王社の前庭の井戸と同じ 2 巡:
+    /// 受けの天端の下 <paramref name="cutBelowTop"/> の断面で差す駒(材 <paramref name="plugSideMat"/>)の外周を穴の壁へ芯出し
+    /// (<see cref="CenterInOpening"/>)→ 載せる材 <paramref name="plugRestMat"/> の下端を受けの材 <paramref name="bedMat"/> の天端へ
+    /// (<see cref="RestOn"/>)。⭐ 触れている面そのもので決める ── 駒の基準点(井筒の底・ピボット)で高さを決めない。
+    /// 返り値 = null(据わった)か、据わらなかった理由。<paramref name="clearMin"/>/<paramref name="clearMax"/> = 穴の壁との離れ、
+    /// <paramref name="nTouch"/> = 載った当たりの点の数。
+    /// 当たる先: 類型の井戸(EdoTypologyBuilder.PutIdo・EDO-0490)。⚠ 山王の Stage「井戸」は同じ手順を自前で持つ(完成済みにつき触らない)。</summary>
+    public static string SeatPlugInBed(GameObject bed, string bedMat, GameObject plug, string plugSideMat, string plugRestMat,
+                                       float cutBelowTop, out float clearMin, out float clearMax, out int nTouch)
+    {
+        clearMin = clearMax = float.NaN; nTouch = 0;
+        for (int pass = 0; pass < 2; pass++)
+        {
+            float rise; Vector3 top; int n;
+            if (float.IsNaN(FlushGap(bed, bedMat, out rise, out top, out n))) return "受けの天端が測れない";
+            var sh = CenterInOpening(plug, plugSideMat, bed, null, top.y - cutBelowTop, 0.02f, out clearMin, out clearMax);
+            if (float.IsNaN(sh.x)) return "差す駒の外周か受けの穴が測れない(断面 y=" + (top.y - cutBelowTop).ToString("F2") + ")";
+            Vector3 at;
+            if (float.IsNaN(RestOn(plug, plugRestMat, bed, bedMat, 0f, out at, out nTouch))) return "載せる材と受けの天端が向き合わない";
+        }
+        return null;
+    }
+
     // ============================================================ 駒の下の地形(2026-09-23・EDO-0274)
     // ⭐ 埋め込んだ駒の下では地形の芝(detail)が駒を突き抜け、井戸・枡のように**口のある駒**の中は
     //    地形の面で塞がる。範囲は**据えた駒の実メッシュ**から出す(⛔ 指図の矩形・部材の寸法を写さない)。

@@ -461,7 +461,11 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         //    (規則1)なので、寝ているルートを見落とすと同名の2本目が生え、プレハブ資産がどちらの
         //    姿で焼かれたか分からなくなる(EDO-0296)。シーンのルートを直に舐めて拾う。
         var old = FindRoot(gname);
-        if (old != null) { if (!force) return "— " + gname + " は既にある(force で建て直す)"; UnityEngine.Object.DestroyImmediate(old); }
+        if (old != null && !force) return "— " + gname + " は既にある(force で建て直す)";
+        // ⭐ 古い井戸が抜いた地形の穴を塞ぐ(置き場が変わると穴が地面に残る・EDO-0490)。シーンに無ければ資産から読む
+        FillIdoHoles(old != null ? old
+            : AssetDatabase.LoadAssetAtPath<GameObject>(EdoYashikiPrefab.Dir + "/" + gname + ".prefab"));
+        if (old != null) UnityEngine.Object.DestroyImmediate(old);
         var root = Group(gname, null);
 
         var poly = EdoParcels.Get(id);

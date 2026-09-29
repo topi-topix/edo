@@ -241,7 +241,7 @@ public static partial class EdoTypologyBuilder
 
             var hallC = gateC + vDir * hv0 + uDir * hallUc;
             var katte = f.Cells.Where(p => Vector2.Dot(p - hallC, vDir) > 0f).ToList();
-            NiwaIdo(grp, f, katte, rnd, 1, want, got, log);
+            NiwaIdo(grp, f, katte, rnd, 1, JYaw(uDir), want, got, log);
         }
         log.Add(string.Format("    地表: 参道 = {0}・本堂の前の白洲 {1:F1}×{2:F1}m({3:F0}m²)・棟の軒から 3m の叩き土 {4}点・林床は林の足もと",
                               temple ? "白洲" : "叩き土", maeW, maeD, maeArea, tsuchi.Count));

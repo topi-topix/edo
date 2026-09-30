@@ -293,25 +293,6 @@ public static partial class EdoTypologyBuilder
         return L;
     }
 
-    /// <summary>門の**通り抜け**(柱間)[m] — 参道の帯(白洲)の幅を引くための代用値(検分③)。
-    /// ⛔ 門構えの全幅ではない(長屋門の両翼は長屋)。⛔ 部材の名から推し量らず、
-    /// <see cref="GatePath"/> に実在する綴りだけで引く(表に無い型は「他 = 1間」へ落とす)。
-    /// <list type="bullet">
-    /// <item>長屋門 2間 = 3.64m(`nagayamon`)</item>
-    /// <item>高麗門・薬医門・棟門 1.5間 = 2.73m(`hmon` / `yakuimon` / `munemon` /
-    ///   `kmon` — 在庫の `Eg.Kmon` も薬医門・<see cref="EdoAssets"/> の注記)</item>
-    /// <item>他(冠木門 `kabukimon`・小門 `komon`・山門 `sanmon`)1間 = 1.82m</item>
-    /// </list></summary>
-    static float GateThrough(string gate)
-    {
-        switch (gate)
-        {
-            case "nagayamon": return 2f * ES;
-            case "hmon": case "yakuimon": case "munemon": case "kmon": return 1.5f * ES;
-            default: return 1f * ES;
-        }
-    }
-
     static float Perimeter(Vector2[] poly)
     {
         float p = 0f;
@@ -376,25 +357,25 @@ public static partial class EdoTypologyBuilder
     {
         // ⭐ 帯の幅は**門の通り抜けの実開口**から。⛔ 門構え全体の幅を開口と呼ばない —
         //    長屋門は両翼が長屋(壁体)なので、全幅で白洲を引くと小さい区画は庭域が丸ごと消える。
-        var alongF = (front.b - front.a).normalized;
+        // ⭐ 通り口は**門の札**(EdoPartSpec.passage)から読む(EDO-0491)。⛔ 2026-09-29 まで門の実メッシュの帯の空き
+        //    (NiwaGateOpening)を測り、扉の閉じた駒では空きが出ず全区画が格ごとの柱間の表(GateThrough)へ落ちていた。
         GameObject monGo = null;
         var monGrp = root.Find("Mon");
         if (monGrp != null) foreach (Transform t in monGrp)
             if (t.name.StartsWith("Mon_")) { monGo = t.gameObject; break; }
-        float cproj; float opening = EdoBuild.NiwaGateOpening(monGo, alongF, out cproj);
-        if (!float.IsNaN(opening))
+        var sp = EdoBuild.SpecOf(monGo);
+        float opening;
+        if (sp != null && sp.passage != null)
         {
-            gateC = front.a + alongF * (cproj - Vector2.Dot(front.a, alongF));   // 開口の芯へ寄せる
-            openHow = string.Format("実測の通り抜け {0:F1}m", opening);
+            gateC = EdoPartSpec.PassageCenterWorld(sp, monGo.transform);
+            opening = (sp.passage.x1 - sp.passage.x0) * sp.unitScale;
+            openHow = string.Format("札の通り口 {0:F2}m", opening);
         }
         else
         {
-            // ⛔ 門構えの**全幅**で代用しない(検分③)。長屋門は両翼が長屋なので、全幅で引くと
-            //    白洲が片側 18.5m = 幅 37m になり、庭域を削って前庭の松の置き場まで潰す。
-            //    代用するのは**門の格ごとの通り抜け**(柱間)。28区画すべてで門扉が閉じた駒なので
-            //    空きの連なりが出ず、いまは全区画がこの道を通る。
-            opening = GateThrough(s.gate);
-            openHow = string.Format("⚠ 通り抜けが測れず 門の格({0})の柱間 {1:F2}m で代用", s.gate ?? "無指定", opening);
+            // 門を建てない型(kouyuu など)・札の無い門(建たずに退けられる)── 参道の帯は引かない幅にする
+            opening = 0f;
+            openHow = monGo == null ? "門なし" : "⛔ 門に札が無い";
         }
         // ⭐ 片側の上限 6.0m(実測できた場合も含む)— 武家屋敷の玄関前の白洲は 5〜10間【B】
         return Mathf.Min(opening * 0.5f + 1.5f, 6.0f);

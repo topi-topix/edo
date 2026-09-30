@@ -321,9 +321,71 @@ def box(name, size, center, mat=None, uv=None):
     return o
 
 
-def export_fbx(objs, path):
+# ---------------------------------------------------------------- 部材の札(EDO-0491)
+SPEC_DIR = os.path.join(REPO, "Assets", "Edo", "Data", "PartSpecs")
+SPEC_KINDS = ("gate", "bansho", "fence", "building")
+_spec_written = set()      # この処理の中で札を書いた FBX 名(拡張子なし)
+
+
+def _spec_default():
+    """`EdoPartSpec.Spec`(C#)と同じ欄・同じ並び。使わない欄は 0 / 空。"""
+    return {"prefab": "", "kind": "", "source": "", "unitScale": 1.0, "yBottom": 0.0,
+            "foot": [], "front": 0.0, "back": 0.0,
+            "jambL": {"x": 0.0, "z0": 0.0, "z1": 0.0, "y0": 0.0, "y1": 0.0},
+            "jambR": {"x": 0.0, "z0": 0.0, "z1": 0.0, "y0": 0.0, "y1": 0.0},
+            "passage": {"x0": 0.0, "x1": 0.0},
+            "eave": {"x0": 0.0, "x1": 0.0, "z0": 0.0, "z1": 0.0, "y0": 0.0, "y1": 0.0},
+            "faceOut": 0.0, "faceIn": 0.0, "copingOverhang": 0.0, "height": 0.0}
+
+
+def write_spec(fbx_path, spec):
+    """部材の**札**(取り合いのデータ)を `Assets/Edo/Data/PartSpecs/<FBX名>.json` へ書く。
+
+    ⭐ 値は**作図に使った変数から**出す(メッシュを測って書かない)。座標は Unity の資産の局所
+    (倍率を掛ける前・+X=走り/門口・+Y=上・+Z=外)。`foot` は [{"x":..,"y":..}] で y は局所の z。
+    Unity 側 `EdoPartSpec.Verify` が同じ手続きで実メッシュを測り、0.02m 以内で合うかを見張る。
+    `spec["prefab"]` が無ければ `fbx_path` の REPO 相対の道を入れる(BUZAI_OUT の staging から
+    焼くときは呼ぶ側が正典の道を入れること)。書いた JSON の道を返す。"""
+    import json
+    name = os.path.splitext(os.path.basename(fbx_path))[0]
+    d = _spec_default()
+    d.update(spec)
+    if d.get("kind") not in SPEC_KINDS:
+        raise ValueError("札の kind が不正: %r(%s)" % (d.get("kind"), "/".join(SPEC_KINDS)))
+    if not d.get("prefab"):
+        d["prefab"] = os.path.relpath(os.path.abspath(fbx_path), REPO).replace(os.sep, "/")
+    for k, v in list(d.items()):
+        if isinstance(v, float):
+            d[k] = round(v, 5)
+        elif isinstance(v, dict):
+            d[k] = {a: round(b, 5) for a, b in v.items()}
+    d["foot"] = [{"x": round(p["x"], 5), "y": round(p["y"], 5)} for p in d["foot"]]
+    os.makedirs(SPEC_DIR, exist_ok=True)
+    out = os.path.join(SPEC_DIR, name + ".json")
+    with open(out, "w", encoding="utf-8") as f:
+        json.dump(d, f, ensure_ascii=False, indent=4)
+        f.write("\n")
+    _spec_written.add(name)
+    print("[spec] 札 " + out)
+    return out
+
+
+def export_fbx(objs, path, kind=None, spec=None):
     """Unity 向け FBX 書き出し。マテリアル名は Village Kit のまま残すので
-    Unity 側で既存の .mat に Search&Remap できる。"""
+    Unity 側で既存の .mat に Search&Remap できる。
+
+    <kind> が gate / bansho / fence / building のとき、**札の無い書き出しは止める**(EDO-0491)。
+    `spec`(dict)を渡せばここで `write_spec` を呼ぶ。渡さなければ、同じ処理の中で先に
+    `write_spec(path, ...)` が呼ばれていること。kind を渡さない既存の呼び出しは今どおり。"""
+    if kind is not None:
+        if kind not in SPEC_KINDS:
+            raise ValueError("export_fbx の kind が不正: %r" % (kind,))
+        if spec is not None:
+            write_spec(path, dict(spec, kind=kind))
+        name = os.path.splitext(os.path.basename(path))[0]
+        if name not in _spec_written:
+            raise RuntimeError("⛔ 札の無い書き出し: %s(kind=%s)。write_spec を先に呼ぶか spec= を渡す"
+                               % (name, kind))
     os.makedirs(os.path.dirname(path), exist_ok=True)
     sel(objs if isinstance(objs, list) else [objs])
     bpy.ops.export_scene.fbx(

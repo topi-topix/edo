@@ -278,10 +278,18 @@ public static partial class EdoTypologyBuilder
         var monT = root.Find("Mon");
         if (monT != null)
         {
-            foreach (var w in EdoBuild.Body(monT, 1200, true))
-                gInRoof = Mathf.Max(gInRoof, Vector2.Dot(new Vector2(w.x, w.z) - gateC, vDir));
-            foreach (var w in EdoBuild.Body(monT, 1200, false))
-                gInWall = Mathf.Max(gInWall, Vector2.Dot(new Vector2(w.x, w.z) - gateC, vDir));
+            // ⭐ 門構えの張り出しは**札**から(EDO-0491)── 壁体 = 足元と背面・軒 = 軒込みの外形。⛔ Body(monT) で推し量らない。
+            foreach (Transform t in monT)
+            {
+                var sp = EdoBuild.SpecOf(t.gameObject);
+                if (sp == null) continue;   // 札の無い駒は Stage 1 で退けられて建っていない
+                var wall = EdoPartSpec.FootWorld(sp, t).ToList();
+                if (sp.jambL != null && sp.jambR != null) { wall.Add(EdoPartSpec.W(t, sp.jambL.x, sp.back)); wall.Add(EdoPartSpec.W(t, sp.jambR.x, sp.back)); }
+                foreach (var q in wall) gInWall = Mathf.Max(gInWall, Vector2.Dot(q - gateC, vDir));
+                var e = sp.eave;
+                foreach (var q in new[] { EdoPartSpec.W(t, e.x0, e.z0), EdoPartSpec.W(t, e.x1, e.z0), EdoPartSpec.W(t, e.x0, e.z1), EdoPartSpec.W(t, e.x1, e.z1) })
+                    gInRoof = Mathf.Max(gInRoof, Vector2.Dot(q - gateC, vDir));
+            }
             gInRoof = Mathf.Max(gInRoof, gInWall);
         }
 

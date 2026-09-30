@@ -108,50 +108,8 @@ public static partial class EdoBuild
         }
     }
 
-    /// <summary>門の**通り抜けの実開口**を実メッシュから測る[m]。⭐ 参道の帯(白洲)の幅はこれで決まる
-    /// (庭方 §5-0 c「門の実開口幅/2 + 1.5」)。⛔ 門構え全体の幅を開口と呼ばない — 長屋門は両翼が
-    /// 長屋(壁体)で、全幅を白洲にすると小さい区画では庭域が丸ごと消える。
-    ///
-    /// <para>測り方: 人の目の高さの帯(底 +0.5〜+1.8m)の実頂点を走り方向へ 0.25m の升で並べ、
-    /// **門の芯に最も近い空の連なり**を採る。⛔ 部材の名前や格式から推し量らない(規則21)。
-    /// 空きが見つからなければ NaN(呼び手が門構えの幅で代用し、そう刷る)。</para></summary>
-    public static float NiwaGateOpening(GameObject mon, Vector2 along, out float centerProj)
-    {
-        centerProj = float.NaN;
-        if (mon == null) return float.NaN;
-        var rb = RB(mon);
-        float yLo = rb.min.y + 0.5f, yHi = rb.min.y + 1.8f;
-        var pts = Body(mon.transform, 2000, true);
-        float mn = float.MaxValue, mx = float.MinValue;
-        var proj = new List<float>();
-        foreach (var w in pts)
-        {
-            if (w.y < yLo || w.y > yHi) continue;
-            float t = Vector2.Dot(new Vector2(w.x, w.z), along);
-            proj.Add(t); mn = Mathf.Min(mn, t); mx = Mathf.Max(mx, t);
-        }
-        if (proj.Count == 0 || mx - mn < 0.5f) return float.NaN;
-        const float BIN = 0.25f;
-        int n = Mathf.CeilToInt((mx - mn) / BIN) + 1;
-        var full = new bool[n];
-        foreach (var t in proj) full[Mathf.Clamp(Mathf.FloorToInt((t - mn) / BIN), 0, n - 1)] = true;
-        float mid = (mn + mx) * 0.5f;
-        float bestW = 0f, bestC = float.NaN, bestD = float.MaxValue;
-        int i = 0;
-        while (i < n)
-        {
-            if (full[i]) { i++; continue; }
-            int j = i; while (j < n && !full[j]) j++;
-            float a = mn + i * BIN, b = mn + j * BIN;
-            float w = b - a, c = (a + b) * 0.5f, d = Mathf.Abs(c - mid);
-            if (w >= 1.0f && (d < bestD || (Mathf.Abs(d - bestD) < 0.5f && w > bestW)))
-            { bestW = w; bestC = c; bestD = d; }
-            i = j;
-        }
-        if (bestW <= 0f) return float.NaN;
-        centerProj = bestC;
-        return bestW;
-    }
+    // NiwaGateOpening(門の実メッシュの帯の空きで通り口を測る)は 2026-09-29 に廃した ── 通り口は部材の札(EdoPartSpec.passage)が持つ(EDO-0491)。
+
 
     /// <summary>門の芯 <paramref name="gateC"/> から駒の**実外形**までの水平の離れ[m](外形の中なら 0)。
     /// ⭐ 前庭が取れているかを**建てる時点で**測るための物(EDO-0372)— 主屋が門の真裏に建つと、参道の

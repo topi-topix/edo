@@ -1,6 +1,8 @@
 """**通用口の棟門**を起こす。岡部筑前守上屋敷 `komon.Tsuyodo`(袋小路に開く勝手口)。
 
     blender --background --python Tools/Blender/build_munamon.py -- [--w 2.7] [--render]
+    blender --background --python Tools/Blender/build_munamon.py -- --w 2.727 --spec-only
+    (`--spec-only` = FBX を焼き直さず、部材の札 `Assets/Edo/Data/PartSpecs/<名>.json` だけ書く。EDO-0491)
 
 【なぜ新造するか】在庫の門は薬医門(`es_kmon`)・冠木門(`es_kabukimon`)・城門で、
   **棟門(二本の本柱の上に直に棟を載せる最も簡素な門)は無い**。通用口に薬医門を据えると
@@ -108,7 +110,8 @@ def leaf(m, P, x0, x1, hinge_x, ang, meet=None, top=None):
 
 
 def build(w=2.7, opened=False, name=None, post=None, kabuki=None, keats=None,
-          deep=None, noki=None, end=None, ridge=None, hikae=(), hikae_post=None):
+          deep=None, noki=None, end=None, ridge=None, hikae=(), hikae_post=None,
+          want_spec=False, spec_only=False, source=None):
     """棟門(既定)と、**控柱を足した薬医門・四脚門**を1本で起こす。
 
     ⭐ 2026-09-21(EDO-0318 ①)に引数を出した。⛔ **既定はすべて従来の定数**なので、
@@ -119,7 +122,11 @@ def build(w=2.7, opened=False, name=None, post=None, kabuki=None, keats=None,
                     左右対称の切妻で、控柱は後ろの流れの下に入る — これが薬医門の常法)
         `(-d, d)` → **四脚門**(本柱の前後に控柱4本。寺の山門の格)
       ⚠ 控柱を足したら <paramref name="deep"/> を **2*d + 軒の余地**まで広げること。
-        広げないと控柱が軒の外へ出て、雨ざらしの柱に見える。"""
+        広げないと控柱が軒の外へ出て、雨ざらしの柱に見える。
+
+    ⭐ **札**(EDO-0491): <paramref name="want_spec"/> なら `(o, name, spec)` を返す。
+      <paramref name="spec_only"/> なら**メッシュを起こさず** `(None, name, spec)` を返す
+      (出荷済みの FBX を焼き直さずに札だけを書く道)。札は `gate_spec()` が**作図の変数から**出す。"""
     post = POST if post is None else post
     kabuki = KABUKI if kabuki is None else kabuki
     keats = KEATS if keats is None else keats
@@ -129,6 +136,10 @@ def build(w=2.7, opened=False, name=None, post=None, kabuki=None, keats=None,
     ridge = RIDGE if ridge is None else ridge
     hikae_post = (post * 0.72) if hikae_post is None else hikae_post
     name = name or ("Munamon_" + N.fmt(w) + ("_Open" if opened else ""))
+    spec = gate_spec(name, w, opened, post, kabuki, keats, deep, noki, end, ridge,
+                     hikae, hikae_post, source)
+    if spec_only:
+        return None, name, spec
     P = N.palette()
     m = VM.Mesh()
     hx = w / 2.0                              # 門口の内法の半分
@@ -178,7 +189,7 @@ def build(w=2.7, opened=False, name=None, post=None, kabuki=None, keats=None,
     # ---- 板戸(両開き・内開き)。⚠ 開いた版は −Z へ振れる
     ang = OPEN_DEG if opened else 0.0
     # ⚠ **召し合わせに隙を取る。**2枚を突き付けると立面で1枚の板壁に見える
-    GAP = 0.012
+    GAP = LEAF_GAP
     leaf(m, P, -hx, -GAP, -hx, -ang, top=kabuki)
     leaf(m, P, GAP, hx, hx, ang, meet=GAP, top=kabuki)
 
@@ -200,7 +211,94 @@ def build(w=2.7, opened=False, name=None, post=None, kabuki=None, keats=None,
     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
     print("[munamon] %-22s 門口 %.2fm / 有効高 %.2f / 桁 %.2f / 瓦の大棟 %.3f / 控柱 %d本"
           % (name, w, kabuki, keats, apex, 2 * len(hikae)))
-    return o, name
+    return (o, name, spec) if want_spec else (o, name)
+
+
+# ---- 板戸の寸法(`leaf()` と同じ値。札の計算が読む)
+LEAF_GAP = 0.012                               # 召し合わせの隙(build の GAP)
+LEAF_Z1, LEAF_Z0 = -0.02, -0.065               # 扉の表・裏(leaf の z1, z0 = z1 − t)
+LEAF_ZF, LEAF_ZB = LEAF_Z1 + 0.045, LEAF_Z0 - 0.045   # 桟の外の面(表・裏)
+KUTSU, KUTSU_H = 0.24, 0.26                    # 本柱の沓石の半幅・敷居からの根入れ
+KUTSU_HK = 0.20                                # 控柱の沓石の半幅
+
+
+def _hull(pts):
+    """凸包(反時計回り・monotone chain)。pts = [(x, z)]"""
+    P = sorted(set(pts))
+    def cr(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    lo, hi = [], []
+    for p in P:
+        while len(lo) >= 2 and cr(lo[-2], lo[-1], p) <= 0:
+            lo.pop()
+        lo.append(p)
+    for p in reversed(P):
+        while len(hi) >= 2 and cr(hi[-2], hi[-1], p) <= 0:
+            hi.pop()
+        hi.append(p)
+    return lo[:-1] + hi[:-1]
+
+
+def gate_spec(name, w, opened, post, kabuki, keats, deep, noki, end, ridge,
+              hikae, hikae_post, source=None):
+    """門の**札**を**作図の変数から**出す(EDO-0491)。⛔ メッシュを測らない。
+
+    座標は Unity の資産の局所(+X=門口・+Z=外・原点=門の芯・敷居の高さ)。`build()` の
+    `VM.Mesh` の (走り, 高さ, 厚み) がそのまま (x, y, z) になる(⚠ Unity の取り込みで x は
+    反転するが、門は左右対称なので札の値は変わらない)。各欄の意味は `EdoPartSpec.Measure`:
+      yBottom = 沓石の底 / foot = 沓石の平面の凸包 / front・back = 袖の帯(底+0.30〜1.80)の z の端
+      jambL/R = 帯の中でいちばん内へ引っ込む段の x(= 本柱の外の面)/ passage = 本柱の内の面
+      eave = 軒込みの外接(けらば・軒の出・棟天端)"""
+    hx = w / 2.0
+    px = hx + post / 2.0
+    W = w + 2 * post + 0.72
+    hw, hd = W / 2.0, deep / 2.0
+    yb = -KUTSU_H
+    band0, band1 = yb + 0.30, yb + 1.80        # EdoPartSpec.BAND_LO / BAND_HI(帯の下端・上端)
+    # 足元 = 沓石(本柱・控柱)の平面
+    stones = [(s * px, 0.0, KUTSU) for s in (-1, 1)]
+    stones += [(s * px, dz, KUTSU_HK) for dz in hikae for s in (-1, 1)]
+    corners = [(cx + a * r, cz + b * r) for (cx, cz, r) in stones for a in (-1, 1) for b in (-1, 1)]
+    foot = [{"x": x, "y": z} for (x, z) in _hull(corners)]
+    # 帯の z の端: 沓石(帯の最下段 = 底+0.30 は沓石の天端 0.05 の下を切る)・本柱・控柱・敷居・板戸
+    zs = [z for (_x, z) in corners] + [post / 2, -post / 2, 0.16, -0.16, LEAF_ZF, LEAF_ZB]
+    for dz in hikae:
+        zs += [dz + hikae_post / 2, dz - hikae_post / 2]
+    if opened:                                 # 開いた扉は吊り元まわりに ±OPEN_DEG 振れる(内開き = −Z)
+        a = math.radians(OPEN_DEG)
+        c, sn = math.cos(a), math.sin(a)
+        for x in (-hx, -LEAF_GAP, LEAF_GAP, hx):
+            hinge = -hx if x < 0 else hx
+            ang_s = -sn if x < 0 else sn
+            for z in (LEAF_ZF, LEAF_ZB):
+                zs.append((x - hinge) * ang_s + z * c)
+    jx = hx + post                             # 本柱の外の面(帯の全段で最も内へ引っ込む)
+    # 脇の面の z = その x の ±0.15 に入る断面の点(本柱・沓石・控柱とその沓石・敷居の端)
+    jz = [post / 2, -post / 2]
+    if KUTSU - post / 2 <= 0.15:
+        jz += [KUTSU, -KUTSU]
+    for dz in hikae:
+        if KUTSU_HK - post / 2 <= 0.15:
+            jz += [dz + KUTSU_HK, dz - KUTSU_HK]
+        if post / 2 - hikae_post / 2 <= 0.15:
+            jz += [dz + hikae_post / 2, dz - hikae_post / 2]
+    jamb = lambda x: {"x": x, "z0": min(jz), "z1": max(jz), "y0": band0, "y1": band1}
+    src = source or ("blender:build_munamon.py build(w=%g, opened=%s, post=%g, kabuki=%g, keats=%g, "
+                     "deep=%g, noki=%g, ridge=%g, hikae=%s)"
+                     % (w, opened, post, kabuki, keats, deep, noki, ridge, tuple(hikae)))
+    return {
+        "prefab": "Assets/Edo/Models/Mon/%s.fbx" % name,
+        "kind": "gate", "source": src, "unitScale": 1.0,
+        "yBottom": yb, "foot": foot,
+        "front": max(zs), "back": min(zs),
+        "jambL": jamb(-jx), "jambR": jamb(jx),
+        "passage": {"x0": -hx, "x1": hx},
+        # ⚠ 開いた版は扉が軒の外(−Z)へ振れ出るので、外接は扉と沓石まで含める
+        "eave": {"x0": min(-hw - end, -px - KUTSU), "x1": max(hw + end, px + KUTSU),
+                 "z0": min(-hd - noki, min(zs)), "z1": max(hd + noki, max(zs)),
+                 "y0": yb, "y1": ridge},
+        "height": ridge - yb,
+    }
 
 
 def shots(o, key):
@@ -227,17 +325,22 @@ def shots(o, key):
 
 
 def main():
+    """`--spec-only` = FBX を焼き直さず札だけを書く(出荷済みの FBX は 2026-09-04 の Blender で焼いたもの)。"""
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     w = float(argv[argv.index("--w") + 1]) if "--w" in argv else 2.7
     for opened in (False, True):
+        if "--spec-only" in argv:
+            _o, name, spec = build(w, opened, spec_only=True)
+            V.write_spec(os.path.join(OUT, name + ".fbx"), spec)
+            continue
         V.reset()
-        o, name = build(w, opened)
+        o, name, spec = build(w, opened, want_spec=True)
         mn, mx = V.bbox([o])
         print("[munamon] %-18s Unity実寸 W(X)=%.3f  H(Y)=%.3f  D(Z)=%.3f   底=%.3f  面=%d"
               % (name, mx.x - mn.x, mx.z - mn.z, mx.y - mn.y, mn.z, len(o.data.polygons)))
         print("[munamon] %-18s 材質=%s" % (name, [mm.name for mm in o.data.materials]))
         path = os.path.join(OUT, name + ".fbx")
-        V.export_fbx([o], path)
+        V.export_fbx([o], path, kind="gate", spec=spec)
         print("[munamon] 書き出し " + path)
         if "--render" in argv:
             shots(o, "open" if opened else "shut")

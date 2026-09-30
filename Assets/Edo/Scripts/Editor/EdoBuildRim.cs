@@ -304,6 +304,21 @@ public static partial class EdoBuild
                     }
                 }
         }
+        /// <summary>(x, z) と <paramref name="r"/> 離れた 8 点の床の**最も高い所**(無ければ NaN)── 受けの駒の縁と目地は跨ぐ。
+        /// ⭐ 受けの駒の縁と、それに載る駒の縁が同じ線に揃う所(門構えの基壇の布石の表 = 門の札の foot の表・EDO-0491)で、
+        ///    縁の上の点を床の外と読んで外の地面からの「浮き」と数えた(西溜池2 の長屋門 1.22m・w1 の冠木門 0.04m)。
+        /// ⭐ 布石の石と石の目地(V の溝・幅 0.1m 未満・深さ 0.03m)も跨ぐ ── 門の敷居は目地の上に渡るので溝の底は当たりでない
+        ///    (2026-09-30 十坊0 ほか 0.02〜0.03m。塀の <c>GroundBedSpan</c> と同じ 5cm の跨ぎ)。</summary>
+        public float AtNear(float x, float z, float r)
+        {
+            float b = At(x, z);
+            for (int k = 0; k < 8; k++)
+            {
+                float a = k * Mathf.PI / 4f, nb = At(x + r * Mathf.Cos(a), z + r * Mathf.Sin(a));
+                if (!float.IsNaN(nb) && (float.IsNaN(b) || nb > b)) b = nb;
+            }
+            return b;
+        }
         /// <summary>(x, z) の真上の面の最も高い所(無ければ NaN)。</summary>
         public float At(float x, float z)
         {

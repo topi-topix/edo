@@ -138,8 +138,9 @@ public static partial class EdoBuild
     const float NAGAYA_GATE_TUCK = 0.25f;
 
     public static List<GameObject> NagayaRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward, float baseY,
-        Vector2 gapC, float gapHalf, string prefix, Vector2[] keepInside = null)
+        Vector2 gapC, float gapHalf, string prefix, Vector2[] keepInside = null, float gateTuck = NAGAYA_GATE_TUCK)
     {
+        // ⭐ gateTuck = 門の脇で鎖を門へ差す量。類型ビルダーは長屋の駒の札から渡す(EdoBuild.FenceBite・EDO-0491)。既定は従来の 0.25。
         bool followGround = NaturalMode; // 自然地形モードでは各ピースを地面に追従
         var made = new List<GameObject>();
         Vector2 dir = (B - A).normalized; float len = (B - A).magnitude;
@@ -198,7 +199,7 @@ public static partial class EdoBuild
             bool gateAtEnd = gapHalf > 0 && seg == segs[0] && segs.Count > 1 || gapHalf > 0 && segs.Count == 1 && seg[1] < len - 0.01f;
             bool gateAtStart = gapHalf > 0 && seg == segs[segs.Count - 1] && seg[0] > 0.01f;
             //    門の側は開口の縁から NAGAYA_GATE_TUCK だけ門へ差し込む(隙間 > めり込み ── 平面で斜めに 0.10〜0.19m 開いた)。
-            float tuck = (gateAtEnd || gateAtStart) ? NAGAYA_GATE_TUCK : 0f;
+            float tuck = (gateAtEnd || gateAtStart) ? gateTuck : 0f;
             float rem = L - total + tuck;
             float cursor = gateAtEnd ? seg[0] + rem : gateAtStart ? seg[0] - tuck : seg[0] + rem * 0.5f;
             if ((gateAtEnd || gateAtStart) && rem >= 0.30f)
@@ -1732,7 +1733,7 @@ public static partial class EdoBuild
     /// (<paramref name="bedAt"/> が NaN でない所 = 石の天端・見えている地表)だけで、足跡の中を <paramref name="step"/> 刻みに引き、
     /// 下端 − 相手 を返す(最大 &gt; 0 = 浮き・最小 = 最も深い根入れ)。跨ぎ(目地の上)は測らない。
     /// 当たる先: <see cref="PostBoardRunScribed"/> の地覆・柱(scribe=false)。以後、代(下へ延ばした部分)を持つ部材の据え全て。</summary>
-    public static Scribe RootToBed(GameObject go, Func<float, float, float> bedAt, float step = 0.01f)
+    public static Scribe RootToBed(GameObject go, Func<float, float, float> bedAt, float step = 0.01f, Func<MeshFilter, bool> only = null)
     {
         // ⭐ 測るのは**下端に届いている駒の足跡だけ**(2026-09-28 EDO-0477 施主「接すると決めた所以外をなぜ測る」)。
         //    ⛔ 2026-09-28 まで全メッシュの外形の四角を下端の高さで引き、棟では屋根の軒の出の下の地面まで「浮き」に数えた
@@ -1742,7 +1743,7 @@ public static partial class EdoBuild
         var boxes = new List<float[]>();   // 駒ごとの局所 [x0,x1,z0,z1,y0]
         foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
         {
-            if (mf.sharedMesh == null) continue;
+            if (mf.sharedMesh == null || (only != null && !only(mf))) continue;
             // ⭐ 足跡の箱は**下端から ROOT_TOUCH 以内の頂点**だけで作る(2026-09-28 EDO-0477)。
             //    ⛔ 全頂点の箱では、笠・軒と一体の 1 メッシュの駒(練塀 Dobei2m・長屋)で箱が笠の幅まで広がり、笠の下の
             //    石垣の見え面を「浮き 0.93m」と測って、観理院の西の石垣の上の塀を一続きごと 1m 沈めた。

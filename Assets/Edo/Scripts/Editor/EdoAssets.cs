@@ -2272,6 +2272,16 @@ public static class EdoAssets
         }
         public static string Munamon(float w) { return Munamon(w, false); }
 
+        /// <summary>**袖の無い冠木門**(旗本屋敷の表門・類型 gate=kabukimon。EDO-0491・施主裁定A 2026-09-30)。
+        /// 在庫 <see cref="Eg.Kabukimon"/> は袖塀を抱えて ES 後 8.05m あり、狭い接道に載らない。
+        /// 本柱2本+冠木+両開きの板扉(閉)だけ。屋根・袖なし — 袖の外の塀は本柱の外の面(札の jamb)へ突き付ける。
+        /// ローカル: 幅=X / 高さ=Y / 厚み=Z、**+Z = 外(道の側)**。ピボット = 門の芯・敷居レベル。倍率1。
+        /// 実寸 3.636(X) × 3.997(Y) × 0.480(Z)・門口 2.727(1.5間)・柱頭 3.737・**底は −0.260**(沓石)。
+        /// 札 `Assets/Edo/Data/PartSpecs/Kabukimon_NoSode_2.73.json`。remap は **Edo ▸ 類型 ▸ 新造部材のマテリアルをremap**。
+        /// ⚠ 仮置き【U】: 本柱 0.303角 / 冠木の鼻(全幅 2間で切った)/ 冠木の丈 0.40・見込 0.21 / 沓石。
+        /// 生成: blender --background --python Tools/Blender/build_kabukimon.py -- [--render]</summary>
+        public const string KabukimonNoSode = MonDir + "Kabukimon_NoSode_2.73.fbx";
+
         const string MonDir = "Assets/Edo/Models/Mon/";
 
         // ---------------------------------------------------------------- 丸太物(手すり・汀の杭)
@@ -3518,6 +3528,15 @@ public static class EdoAssets
         if (s != null) s = s.Trim().TrimEnd('f', 'F');
         return float.TryParse(s, System.Globalization.NumberStyles.Float,
                               System.Globalization.CultureInfo.InvariantCulture, out v) ? v : 0f;
+    }
+
+    /// <summary>**部材の札**(取り合いのデータ・EDO-0491)。部材ごとに一枚の JSON。→ <see cref="EdoPartSpec"/>、`docs/oki-kata.md` §8</summary>
+    public static class PartSpecs
+    {
+        /// <summary>札の置き場。ファイル名 = 部材の資産名(拡張子なし)+ `.json`。</summary>
+        public const string Dir   = "Assets/Edo/Data/PartSpecs/";
+        /// <summary>類型表の門の語 → 札のファイル名(C# の試験と Python の関門が同じ表を読む)。</summary>
+        public const string GateKinds = Dir + "gate_kinds.json";
     }
 
     /// <summary>シーン。</summary>

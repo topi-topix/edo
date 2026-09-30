@@ -56,3 +56,5 @@
 - [板塀の地覆と光付け](itabei-jifuku-scribe.md) — 代つきの直材を焼き EdoBuild で削る・uv2=d(uv)/dy・名の ".60" は番号に化ける(2026-09-27)
 - [野面の駒を H2.40 より深く焼く](nozura-deep-layout-shared-rng.md) — DEEP を上げると既存全駒の中の石が変わる。深い駒だけ別の型を引く(2026-09-28)
 - [並べる石積みの駒は端の稜を面取りしない](nunoishi-seamless-module-ends.md) — 目地は駒の中だけ・面取り1セグで三角形を抑える・写しは hide_render を継ぐ(2026-09-29)
+- [部材の札は作図の変数から・FBX は焼き直さず札だけ](part-spec-from-design-vars.md) — 帯の最下段は沓石を切る・開いた扉は外接を広げる・検算は (-x,z,-y)(2026-09-29)
+- [袖なし冠木門・obj の群の実測・扉の召し合わせの筋](kabukimon-nosode-and-leaf-meet-gap.md) — 頂点は g の前・leaf(meet=) は隙を塞がない・2間は鼻で吸う(2026-09-30)

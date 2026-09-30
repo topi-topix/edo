@@ -1,0 +1,57 @@
+{
+    "prefab": "Assets/Edo/Models/Mon/Kabukimon_NoSode_2.73.fbx",
+    "kind": "gate",
+    "source": "blender:build_kabukimon.py build(w=2.727, post=0.303, overall=3.636, top=3.737, kabuki=2.752+0.4, sode=none, opened=False)",
+    "unitScale": 1.0,
+    "yBottom": -0.26,
+    "foot": [
+        {
+            "x": -1.755,
+            "y": -0.24
+        },
+        {
+            "x": 1.755,
+            "y": -0.24
+        },
+        {
+            "x": 1.755,
+            "y": 0.24
+        },
+        {
+            "x": -1.755,
+            "y": 0.24
+        }
+    ],
+    "front": 0.24,
+    "back": -0.24,
+    "jambL": {
+        "x": -1.6665,
+        "z0": -0.24,
+        "z1": 0.24,
+        "y0": 0.04,
+        "y1": 1.54
+    },
+    "jambR": {
+        "x": 1.6665,
+        "z0": -0.24,
+        "z1": 0.24,
+        "y0": 0.04,
+        "y1": 1.54
+    },
+    "passage": {
+        "x0": -1.3635,
+        "x1": 1.3635
+    },
+    "eave": {
+        "x0": -1.818,
+        "x1": 1.818,
+        "z0": -0.24,
+        "z1": 0.24,
+        "y0": -0.26,
+        "y1": 3.737
+    },
+    "faceOut": 0.0,
+    "faceIn": 0.0,
+    "copingOverhang": 0.0,
+    "height": 3.997
+}

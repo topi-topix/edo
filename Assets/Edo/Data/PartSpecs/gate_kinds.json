@@ -1,0 +1,12 @@
+{
+  "kinds": [
+    { "kind": "kmon",      "spec": "k_mon" },
+    { "kind": "nagayamon", "spec": "nagayamon" },
+    { "kind": "hmon",      "spec": "h_mon" },
+    { "kind": "kabukimon", "spec": "kabukimon" },
+    { "kind": "komon",     "spec": "kido_open" },
+    { "kind": "munemon",   "spec": "Munamon_2.73" },
+    { "kind": "yakuimon",  "spec": "Typ_Yakuimon" },
+    { "kind": "sanmon",    "spec": "Typ_Sanmon" }
+  ]
+}

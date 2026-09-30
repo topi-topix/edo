@@ -62,9 +62,46 @@ public static partial class EdoBuild
     /// <para>節点の高さ = 造成前の地盤 b を、最寄りの平場 p(高さ)からの距離 d で [p − d/盛土の法, p + d/切土の法] に挟む
     /// (地盤が低ければ盛土の法 1:1.5 で、高ければ切土の法 1:1.0 で平場へ擦り付く)。さらに区画の縁からの距離 e で
     /// [b − e/切土の法, b + e/盛土の法] に挟み、縁で地山へ戻す(区画の外へ造成を出さない)。</para></summary>
-    public static List<Hiraba> GradePads(Vector2[] parcel, IList<Vector2[]> pads, float margin, out string report,
-                                         float fillRun = 1.5f, float cutRun = 1.0f)
+    /// <summary>門構えの平場(2026-09-30 EDO-0491)。<see cref="foot"/> = 門構えの足元(札の foot の凸包)、
+    /// <see cref="a"/>〜<see cref="b"/> = 区画の線の上で門構えが掛かる区間(表の辺への射影)。</summary>
+    public class MonPad { public Vector2[] foot; public Vector2 a, b; }
+
+    /// <summary>区画の縁への距離。ただし <paramref name="exA"/>〜<paramref name="exB"/>(辺の上の区間)は縁と見なさない。</summary>
+    static float DistToPolyEdgeExcept(Vector2[] poly, Vector2 q, Vector2 exA, Vector2 exB)
     {
+        float m = float.MaxValue;
+        for (int i = 0; i < poly.Length; i++)
+        {
+            Vector2 p0 = poly[i], p1 = poly[(i + 1) % poly.Length], d = p1 - p0; float L2 = d.sqrMagnitude;
+            if (L2 < 1e-8f) continue;
+            float L = Mathf.Sqrt(L2);
+            float ea = Mathf.Abs(d.x * (exA.y - p0.y) - d.y * (exA.x - p0.x)) / L, eb = Mathf.Abs(d.x * (exB.y - p0.y) - d.y * (exB.x - p0.x)) / L;
+            float ta = Vector2.Dot(exA - p0, d) / L2, tb = Vector2.Dot(exB - p0, d) / L2;
+            if (ea < 0.05f && eb < 0.05f && Mathf.Max(ta, tb) > 0f && Mathf.Min(ta, tb) < 1f)
+            {   // この辺(の線)に抜きの区間が載る ── 残りの二つの切れ端だけを縁とする
+                float lo = Mathf.Clamp01(Mathf.Min(ta, tb)), hi = Mathf.Clamp01(Mathf.Max(ta, tb));
+                if (lo > 1e-4f) { float e = EdoGeom.DistToEdge(q, p0, p0 + d * lo); if (!float.IsNaN(e) && e < m) m = e; }
+                if (hi < 1f - 1e-4f) { float e = EdoGeom.DistToEdge(q, p0 + d * hi, p1); if (!float.IsNaN(e) && e < m) m = e; }
+                continue;
+            }
+            float e2 = EdoGeom.DistToEdge(q, p0, p1);
+            if (!float.IsNaN(e2) && e2 < m) m = e2;
+        }
+        return m;
+    }
+
+    public static List<Hiraba> GradePads(Vector2[] parcel, IList<Vector2[]> pads, float margin, out string report,
+                                         float fillRun = 1.5f, float cutRun = 1.0f, MonPad mon = null)
+    {
+        // ⭐ 門構えの平場は別扱い(2026-09-30 EDO-0491・施主「門が浮いてます」)。門は区画の線に立つので、棟と同じに扱うと
+        //    縁の帯(EDGE_BERM)と縁の法に縛られて平らにならず、門の足元が坂のまま残った(西溜池2 で足元の地形 18.0〜21.4m・浮き 3.40m)。
+        //    高さ = 区画の線の上で門構えが掛かる区間の造成前の地盤の中央値(敷居を道の高さへ合わせる)。その区間だけ縁の帯と縁の法を外し、
+        //    内側へは法面で擦り付ける。区画の外(道)は触らない。当たる先: 門のある類型の全区画(門 8 種・番所)。
+        int monIdx = -1;
+        if (mon != null && mon.foot != null && mon.foot.Length >= 3)
+        {
+            var pl = new List<Vector2[]>(pads); pl.Add(mon.foot); pads = pl; monIdx = pads.Count - 1;
+        }
         var outp = new List<Hiraba>();
         var dem = BaseDem();
         var t = T(); var td = t.terrainData; int res = td.heightmapResolution;
@@ -102,6 +139,13 @@ public static partial class EdoBuild
             outp.Add(hb);
         }
 
+        if (monIdx >= 0)
+        {   // 門構えの平場の高さ = 区画の線の上の区間の地盤(0.25m 刻みの中央値)
+            var ys = new List<float>(); float L = Vector2.Distance(mon.a, mon.b); int ns = Mathf.Max(2, Mathf.CeilToInt(L / 0.25f) + 1);
+            for (int k = 0; k < ns; k++) { var q = Vector2.Lerp(mon.a, mon.b, k / (float)(ns - 1)); float b = dem(q.x, q.y); if (!float.IsNaN(b)) ys.Add(b); }
+            if (ys.Count > 0) { ys.Sort(); outp[monIdx].y = ys[ys.Count / 2]; }
+        }
+
         // 1b. 近い棟の平場を一つの高さに束ねる(2026-09-28 EDO-0477 実測)。⛔ 棟ごとに中央値を採ると、縁取りが触れ合う
         //    隣の平場と数cm違い、あいだの格子が傾いて下端が浮く(観理院の客殿 0.024m・鐘楼 0.038m)。足あとの間が
         //    縁取り 2 つぶんより近い棟は**同じ格子の節点を分け合う**ので、一つの高さでしか両方を平らにできない。
@@ -118,6 +162,7 @@ public static partial class EdoBuild
         for (int a = 0; a < n; a++)
             for (int b2 = a + 1; b2 < n; b2++)
             {
+                if (a == monIdx || b2 == monIdx) continue;              // 門構えの平場は道の高さで決まる ── 束ねない
                 if (PolyGap(pads[a], pads[b2]) >= 2f * margin) continue;
                 if (Mathf.Abs(outp[a].y - outp[b2].y) > 2f * PAD_SHIFT) { apart++; continue; }
                 grp[root(a)] = root(b2);
@@ -150,6 +195,12 @@ public static partial class EdoBuild
         }
 
         // 2. 区画の中の節点: 造成前の地盤へ戻し、最寄りの平場の法で挟み、縁の法で地山へ戻す
+        bool exOn = monIdx >= 0; Vector2 exA = Vector2.zero, exB = Vector2.zero;
+        if (exOn)
+        {
+            var dir = (mon.b - mon.a).normalized; float ext = margin + EDGE_BERM;
+            exA = mon.a - dir * ext; exB = mon.b + dir * ext;
+        }
         int written = 0; float maxCut = 0f, maxFill = 0f;
         for (int j = 0; j < h; j++)
             for (int i = 0; i < w; i++)
@@ -178,7 +229,8 @@ public static partial class EdoBuild
                 // 縁で地山へ戻す(区画の外へ出さない)。⭐ 縁から EDGE_BERM までは地山のまま残し、法はその内から起こす
                 //    (2026-09-28 EDO-0477 実測: 縁から法を起こすと、区画の線の上に立つ塀の足元の内側が削られ、
                 //    塀の厚み 0.42m のあいだで地面が 0.8m 落ちて塀の下端が浮いた ── 観理院 49/199 駒・最悪 0.76m)。
-                float e = Mathf.Max(0f, EdoGeom.DistToPolyEdge(parcel, q) - EDGE_BERM);
+                // ⭐ 門構えの区間(足元の幅 + 縁取り + 帯)は縁と見なさない ── 門の足元を道の高さで平らに取る(EDO-0491)
+                float e = Mathf.Max(0f, (exOn ? DistToPolyEdgeExcept(parcel, q, exA, exB) : EdoGeom.DistToPolyEdge(parcel, q)) - EDGE_BERM);
                 float y2 = Mathf.Clamp(y, b - e / cutRun, b + e / fillRun);
                 if (best >= 0 && bd <= 0f && Mathf.Abs(y2 - y) > 0.01f) outp[best].squeezed++;
                 y = y2;

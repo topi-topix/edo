@@ -71,12 +71,16 @@ public static class EdoAssets
 
         /// <summary>**材の無い edogoyomi の駒 → 同じフォルダの画像**(2026-09-28 EDO-0477 施主指摘「灯籠が真っ白」)。
         /// obj に .mtl が無く、取り込むと画像の無い灰白 0.906 の材になる。⭐ 在庫のパックは gitignore なので取り込みの設定(meta)は
-        /// 直さず、`EdoBuild.Place` が置くたびに Edo 側の材(画像を貼った Lit)を着せる。当たる先: 石灯籠(春日・雪見)を置く全邸。</summary>
+        /// 直さず、`EdoBuild.Place` が置くたびに Edo 側の材(画像を貼った Lit)を着せる。当たる先: 石灯籠(春日・雪見)を置く全邸。
+        /// 表店 shop01・shop02 も同じ(2026-10-01 EDO-0496 施主指摘「町屋が真っ白」)── obj の usemtl は 1 枚の画像
+        /// (shop01map / shop02map)を UV で割った作りで、取り込むと画像の無い材 30 枚になる。当たる先: 類型の町屋の表店すべて。</summary>
         public static readonly System.Collections.Generic.Dictionary<string, string> BareTex =
             new System.Collections.Generic.Dictionary<string, string>
             {
                 { ToroKasuga, TexToroKasuga },
                 { ToroYukimi, TexToroYukimi },
+                { Shop01, TexShop01 },
+                { Shop02, TexShop02 },
             };
 
         // 店先の小物

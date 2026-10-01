@@ -944,9 +944,21 @@ public static class EdoSannoSashizuCheck
                 const float tol = 0.05f;
                 var cells = new Dictionary<long, List<Vector2>>();
                 Func<float, float, long> key = (x, z) => ((long)Mathf.FloorToInt(x) << 32) ^ (uint)Mathf.FloorToInt(z);
+                // ⭐ 点は**幹の足の中心**(Stage7 は TreePivotForTrunk でピボットをずらして植える・EDO-0409)── 検めも幹の芯で測る。
+                //    ⛔ 2026-10-01 までピボットで測り、根張りを付けた木(EDO-0488)で幹とピボットが 5cm を超えて離れ、
+                //    2,191 本のうち 347 本しか数えなかった(EDO-0495)。
+                var footOf = new Dictionary<int, Vector2>(); var protos = td.treePrototypes;
                 foreach (var ti in td.treeInstances)
                 {
-                    float wx = tp.x + ti.position.x * td.size.x, wz = tp.z + ti.position.z * td.size.z;
+                    Vector2 fl;
+                    if (!footOf.TryGetValue(ti.prototypeIndex, out fl))
+                    {
+                        var pf = protos[ti.prototypeIndex].prefab;
+                        fl = pf == null ? Vector2.zero : EdoBuild.TrunkFootLocal(AssetDatabase.GetAssetPath(pf));
+                        footOf[ti.prototypeIndex] = fl;
+                    }
+                    var d3 = Quaternion.AngleAxis(ti.rotation * Mathf.Rad2Deg, Vector3.up) * new Vector3(fl.x * ti.widthScale, 0f, fl.y * ti.widthScale);
+                    float wx = tp.x + ti.position.x * td.size.x + d3.x, wz = tp.z + ti.position.z * td.size.z + d3.z;
                     if (wx < mnx - 1f || wx > mxx + 1f || wz < mnz - 1f || wz > mxz + 1f) continue;
                     long k = key(wx, wz); List<Vector2> l;
                     if (!cells.TryGetValue(k, out l)) cells[k] = l = new List<Vector2>();

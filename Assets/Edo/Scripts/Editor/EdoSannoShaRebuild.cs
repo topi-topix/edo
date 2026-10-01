@@ -2619,6 +2619,25 @@ public static class EdoSannoShaRebuild
         }
         return found;
     }
+    /// <summary>点が社の小道(指図 `fumotomichi[]`)の上か、その辺から <paramref name="keep"/> の内か。
+    /// `area` を持つ区間はその輪郭で、持たない区間は芯線から 幅/2(`w`・無ければ 4.5m)で測る。</summary>
+    static bool OnFumotomichi(Vector2 p, float keep)
+    {
+        foreach (var o in L(Doc, "fumotomichi"))
+        {
+            var d = o as Dictionary<string, object>; if (d == null) continue;
+            var area = Pts(L(d, "area"));
+            if (area.Count >= 3)
+            {
+                var a = area.ToArray();
+                if (EdoGeom.PIP(a, p) || EdoGeom.DistToPolyEdge(a, p) < keep) return true;
+                continue;
+            }
+            var c = Pts(L(d, "pts")); float half = (HasNum(d, "w") ? F(d, "w") : 4.5f) * 0.5f;
+            for (int i = 1; i < c.Count; i++) if (EdoGeom.DistToEdge(p, c[i - 1], c[i]) < half + keep) return true;
+        }
+        return false;
+    }
     /// <summary>道の芯線(算出物 `routes[].world` と指図 `fumotomichi[].pts`)を集める。</summary>
     static List<List<Vector2>> Michi()
     {
@@ -2983,7 +3002,10 @@ public static class EdoSannoShaRebuild
             // ⚠ 焼き直しで点の外接矩形が縮むと、前の植え付けの木が矩形の外に取り残される(柵の外に3本・EDO-0401 実測)
             //    ⇒ **社地(区画 sannosha_prec)の内**も外す。⛔ 他の敷地の木は区画の外なので触れない。
             bool inPrec = prec != null && EdoGeom.PIP(prec, new Vector2(wx, wz));
-            if ((inBox || inPrec) && mine.Contains(ti.prototypeIndex)) { removed++; continue; }
+            // ⚠ 社地の線や小道を引き直すと、前の植え付けの木が**道の上**に取り残される(北区間の谷底の道に 1 本・EDO-0495)
+            //    ⇒ 社の小道(指図 fumotomichi)の帯 + 幹の控え(TREE_KEEP)の内も外す。道は区画の外なので他の敷地の木ではない。
+            bool onMichi = OnFumotomichi(new Vector2(wx, wz), EdoBuild.NiwaSet.TREE_KEEP);
+            if ((inBox || inPrec || onMichi) && mine.Contains(ti.prototypeIndex)) { removed++; continue; }
             keep.Add(ti);
         }
 

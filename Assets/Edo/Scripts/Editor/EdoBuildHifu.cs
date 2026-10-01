@@ -34,6 +34,9 @@ using UnityEngine.Rendering;
 
 public static partial class EdoBuild
 {
+    /// <summary>植栽の点(幹の足)から地形の木のピボットまでのずれの上限[m] ── 縁の皮の穴を避ける升の半径(EDO-0495)。</summary>
+    const float PLANT_PIVOT_R = 0.40f;
+
     /// <summary>皮の GameObject の名の頭。<see cref="Drawn"/> はこの名の MeshFilter を皮と読む。</summary>
     public const string SKIN_PREFIX = "EdgeSkin_";
     /// <summary>皮のシェーダ(地形の本体・足し込みの写しに、層の値を Properties として足した物・Assets/Edo/Shaders/StochTerrain/)。</summary>
@@ -804,14 +807,19 @@ public static partial class EdoBuild
         // ⛔ 植栽の点(算出物の planting.points)の升も開けない ── 焼き直しで後から植える木は、この時点の treeInstances に
         //   まだ居ない。穴の升に植えると SetTreeInstances が黙って落とす(2026-09-25 実測: 前庭の帯の低木 4 本・EDO-0430)。
         //   硬い条件(許容0)。その升は地形のまま残し、皮はその縁で地形へ継ぐ(縁の点は地形に留まる)。
+        //   ⭐ 点は**幹の足**で、地形の木はピボット(= 点 − 幹の足のずれ・最大 0.32m 前後・TreePivotForTrunk)に立つ ──
+        //   点のまわり PLANT_PIVOT_R に掛かる升を全部残す。⛔ 2026-10-01 まで点の升だけ残し、ピボットが隣の穴の升に落ちた
+        //   木が 1 本消えた(山王の帯3 中木・EDO-0495)。当たる先: 縁の皮を張る全邸(山王・観理院・十坊の皮)。
         if (plantPoints != null)
             foreach (var pp in plantPoints)
-            {
-                var c = CK(CI(pp.x), CJ(pp.y));
-                if (treeCells.Contains(c)) continue;
-                treeCells.Add(c);
-                if (cells.Contains(c)) r.skipPlant++;
-            }
+                for (int dx = -1; dx <= 1; dx++)
+                    for (int dz = -1; dz <= 1; dz++)
+                    {
+                        var c = CK(CI(pp.x + dx * PLANT_PIVOT_R), CJ(pp.y + dz * PLANT_PIVOT_R));
+                        if (treeCells.Contains(c)) continue;
+                        treeCells.Add(c);
+                        if (cells.Contains(c)) r.skipPlant++;
+                    }
         foreach (var c in treeCells) if (cells.Remove(c)) { r.skipTree++; if (fillCells.Contains(c)) { overlay.Add(c); r.fillLostTree++; } }
         r.skipTree -= r.skipPlant;
         if (cells.Count == 0 && overlay.Count == 0) { r.mesh = "—"; return r; }

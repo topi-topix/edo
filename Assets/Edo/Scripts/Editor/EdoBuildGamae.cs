@@ -125,7 +125,7 @@ public static partial class EdoBuild
     }
 
     /// <summary>**表の辺の上で、門構えの幅の中の道がいちばん平らな所**(柔らかい: 狙い)を返す(2026-09-30 EDO-0491)。
-    /// 道の高さ = 区画の線の上の造成前の地盤(<see cref="BaseDem"/>・道は造成しない)。辺の上を 0.5m 刻みで動かし、幅 2×<paramref name="half"/> の中の
+    /// 道の高さ = <see cref="RoadY"/>(指図で造成すると決めた道は設計の高さ・他は区画の線の上の造成前の地盤。2026-09-30 EDO-0495)。辺の上を 0.5m 刻みで動かし、幅 2×<paramref name="half"/> の中の
     /// 高さの差(最大 − 最小)が最も小さい芯を採る。差が 0.05m 以内で並べば辺の中央に近い方。辺が門構えより短いか、中央の差が
     /// <see cref="STATION_MOVE_RANGE"/> 以下なら中央(既定)。
     /// ⭐ 門の敷居は水平なので、道が門の幅の中で傾くと下手の端が道から浮く ── 造成は区画の外(道)を触らないので、置き場で避ける
@@ -139,7 +139,7 @@ public static partial class EdoBuild
     public const float STATION_MOVE_RANGE = 1.0f;
     public static Vector2 FlattestStation(Vector2 a, Vector2 b, float half, out float range, out float rangeMid)
     {
-        var dem = BaseDem(); float L = Vector2.Distance(a, b); var d = (b - a) / Mathf.Max(L, 1e-4f);
+        Func<float, float, float> dem = RoadY; float L = Vector2.Distance(a, b); var d = (b - a) / Mathf.Max(L, 1e-4f);
         Func<float, float> span = c =>
         {
             float lo = float.MaxValue, hi = float.MinValue;

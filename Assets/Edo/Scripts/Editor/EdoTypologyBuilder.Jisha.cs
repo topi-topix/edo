@@ -38,6 +38,7 @@ public static partial class EdoTypologyBuilder
     const float JISHA_FRONT = 6.0f;   // 門から本堂の前面までの最小(前庭)
     const float JISHA_LANE  = 2.5f;   // 参道の帯の半幅(m)
     const float JISHA_GRID  = 1.5f;   // 候補点の格子(m)
+    const float JISHA_ALIGN_TOL = 3f; // 附属の向きと近い塀の角のずれの許し(度・狙い)【U】── 縁の向きの候補の重複を落とす幅と同じ
     const float JISHA_GAP_LOOSE = 1.0f;
     const float JISHA_GAP_TIGHT = 0.3f;   // 最後の手 — 軒どうしが触れかけるが棟どうしは離れている(めり込みは実測で弾く)
     // ⭐ 広さからの従属値(2026-09-27・EDO-0477 P4)。どれも【確度 U】── 考証方の目安(御府内寺社備考 B の 3 寺:
@@ -266,7 +267,7 @@ public static partial class EdoTypologyBuilder
             if ((poly[(i + 1) % poly.Length] - poly[i]).magnitude < 0.5f) continue;
             var n = EdoGeom.InwardNormal(poly, i);
             float y = JYaw(n);
-            foreach (var yy in new[] { y, y + 180f })
+            foreach (var yy in new[] { y, y + 180f, y + 90f, y - 90f })   // 平行も直角も(物置・蔵は塀に沿うか塀へ妻を向ける)
                 if (!edgeYaws.Any(e => Mathf.Abs(Mathf.DeltaAngle(e, yy)) < 3f)) edgeYaws.Add(yy);
         }
 
@@ -322,7 +323,7 @@ public static partial class EdoTypologyBuilder
             { dropped.Add(it.label + "の外形が測れない"); UnityEngine.Object.DestroyImmediate(it.go); continue; }
             var tmpl = it.go; tmpl.SetActive(false);   // 型紙(置くたびに複製し、退けた複製は PlaceBest が消す)
 
-            var cands = new List<JCand>();
+            var cands = new List<JCand>(); var skew = new List<JCand>();   // skew = 近い塀に揃わない向きの候補(揃う候補が無いときだけ使う)
             // ⭐ 本堂の表を門へ向けるのは**狙い**(柔らかい・EDO-0472)── 向けては収まらない境内(細長い平場を門の軸が縦に貫く
             //    智乗院)に限り、90° 振った向きで探し直す。⛔ 2026-09-28 まで向きは硬く、本堂を建てずに落とした。
             var yaws = it.mode == JMode.Main && hallTurn ? new List<float> { it.yaw + 90f, it.yaw - 90f } : new List<float> { it.yaw };
@@ -347,6 +348,27 @@ public static partial class EdoTypologyBuilder
                         if (gm < JISHA_GAP_TIGHT) continue;
                         if (lane != null && it.mode != JMode.Main && JSep(rc, lane) < 0.5f) continue;
                         var c = JCenter(wc);
+                        // ⭐ 附属は**いちばん近い区画の辺(塀)と平行か直角**に据える(2026-10-01 施主「塀と平行であったりすると思う」EDO-0495)。
+                        //    ⛔ それまで向きの候補は区画の全部の辺と門の辺から採り、置き場の点数だけで選んでいた ── 折れの多い敷地で
+                        //    遠い辺に揃った向きが選ばれ、蔵・物置が近くの塀から 20〜40° 振れて見えた(十坊・樹下 15 棟)。
+                        //    柔らかい条件(狙い): 揃う候補が一つも無いときだけ振れた候補から選んで ⚠。当たる先: 類型の寺社の附属の全棟(庫裏・蔵・物置・塔頭・鐘楼・墓地)。
+                        bool aligned = true;
+                        if (it.mode != JMode.Main)
+                        {
+                            int ne = -1; float nd = float.MaxValue;
+                            for (int ei = 0; ei < poly.Length; ei++)
+                            {
+                                var ea = poly[ei]; var eb = poly[(ei + 1) % poly.Length];
+                                if ((eb - ea).magnitude < 0.5f) continue;
+                                float d = EdoGeom.DistToEdge(c, ea, eb); if (d < nd) { nd = d; ne = ei; }
+                            }
+                            if (ne >= 0)
+                            {
+                                var ed = poly[(ne + 1) % poly.Length] - poly[ne];
+                                float dev = Mathf.Abs(Mathf.DeltaAngle(yaw, Mathf.Atan2(ed.x, ed.y) * Mathf.Rad2Deg)) % 90f;
+                                aligned = Mathf.Min(dev, 90f - dev) <= JISHA_ALIGN_TOL;
+                            }
+                        }
                         float vc = Vector2.Dot(c - gateC, vDir);
                         float sc; int tier = gm >= MIN_BLDG_GAP ? 0 : gm >= JISHA_GAP_LOOSE ? 1 : 2;
                         switch (it.mode)
@@ -369,9 +391,16 @@ public static partial class EdoTypologyBuilder
                         }
                         // ⭐ 揺らぎ(EDO-0476)── 附属は区画ごとの種で点数を ±JISHA_JITTER[m] 揺らす(本堂は軸に載せるので揺らさない)
                         if (it.mode != JMode.Main) sc += jitter * (float)(rng.NextDouble() * 2.0 - 1.0);
-                        cands.Add(new JCand { p = p, yaw = yaw, score = sc + tier * 1e4f });
+                        (aligned ? cands : skew).Add(new JCand { p = p, yaw = yaw, score = sc + tier * 1e4f });
                     }
                 }
+            if (cands.Count == 0 && skew.Count > 0)
+            {
+                cands = skew;
+                const string KA = "附属の向き(近い塀と平行か直角・許しの角°)";
+                tally.SoftTarget[KA] = JISHA_ALIGN_TOL;
+                EdoBuild.SeiyakuTally.Inc(tally.SoftShort, KA);   // ⚠ n棟は狙いに届かず(振れた向きで据えた)
+            }
             cands.Sort((a, b) => a.score.CompareTo(b.score));
 
             var itL = it;

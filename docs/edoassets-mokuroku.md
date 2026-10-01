@@ -165,7 +165,7 @@
 | `JG.BoxwoodSingle(i)` | 関数 | 柘植の一株(Single)。01..03・実寸 約1.0×0.8〜1.1×0.9m・120〜140ポリ。 | BuildRun(IkegakiRow) |
 | `JG.Fern(i)` | 関数 | 羊歯の下草。Spring/Fall × 01..02 | DoiBuilder.Niwa(Niwa_H_Shokusai・ResolveNiwaApi), MatsudairaDewa(ResolveApi・Stage7_Niwa), OkabeYashiki(PlantByKey), TypologyBuilder.Niwa(MomijiPalFor) |
 | `JG.Rock(i)` | 関数 | 庭石。01..03 | MatsudairaDewa(ResolveApi・Stage7_Niwa), MatsudairaDewaBuilder.Niwa(Stage6c_Ishigumi・Stage6d_Tenkei) |
-| `JG.Azalea(i)` | 関数 | 躑躅・皐月。⚠ A 02 は存在しない — 01 / 03 / 04 の3種 | MatsudairaDewa(ResolveApi・Stage7_Niwa), BuildRun(KuiRun) |
+| `JG.Azalea(i)` | 関数 | 躑躅・皐月。⚠ A 02 は存在しない — 01 / 03 / 04 の3種 | MatsudairaDewa(ResolveApi・Stage7_Niwa), BuildRun(OutsidePlot) |
 
 ## NM
 

@@ -90,6 +90,10 @@ public static partial class EdoBuild
         return m;
     }
 
+    /// <summary>足あとの節点が区画の縁の法に届かないとき、平場を優先して縁の法を急にしてよい差の上限[m]【U】(EDO-0495)。
+    /// 数cm は見えず、棟の浮き(許容0)を作らないほうを採る。これを越える差は置く段で退けるべき所として数える。</summary>
+    const float SQUEEZE_YIELD = 0.10f;
+
     public static List<Hiraba> GradePads(Vector2[] parcel, IList<Vector2[]> pads, float margin, out string report,
                                          float fillRun = 1.5f, float cutRun = 1.0f, MonPad mon = null)
     {
@@ -140,9 +144,9 @@ public static partial class EdoBuild
         }
 
         if (monIdx >= 0)
-        {   // 門構えの平場の高さ = 区画の線の上の区間の地盤(0.25m 刻みの中央値)
+        {   // 門構えの平場の高さ = 区画の線の上の区間の道の高さ(0.25m 刻みの中央値)。造成した道は設計の高さ(RoadY・2026-09-30 EDO-0495)
             var ys = new List<float>(); float L = Vector2.Distance(mon.a, mon.b); int ns = Mathf.Max(2, Mathf.CeilToInt(L / 0.25f) + 1);
-            for (int k = 0; k < ns; k++) { var q = Vector2.Lerp(mon.a, mon.b, k / (float)(ns - 1)); float b = dem(q.x, q.y); if (!float.IsNaN(b)) ys.Add(b); }
+            for (int k = 0; k < ns; k++) { var q = Vector2.Lerp(mon.a, mon.b, k / (float)(ns - 1)); float b = RoadY(q.x, q.y); if (!float.IsNaN(b)) ys.Add(b); }
             if (ys.Count > 0) { ys.Sort(); outp[monIdx].y = ys[ys.Count / 2]; }
         }
 
@@ -201,7 +205,7 @@ public static partial class EdoBuild
             var dir = (mon.b - mon.a).normalized; float ext = margin + EDGE_BERM;
             exA = mon.a - dir * ext; exB = mon.b + dir * ext;
         }
-        int written = 0; float maxCut = 0f, maxFill = 0f;
+        int written = 0, yielded = 0; float maxCut = 0f, maxFill = 0f;
         for (int j = 0; j < h; j++)
             for (int i = 0; i < w; i++)
             {
@@ -232,7 +236,15 @@ public static partial class EdoBuild
                 // ⭐ 門構えの区間(足元の幅 + 縁取り + 帯)は縁と見なさない ── 門の足元を道の高さで平らに取る(EDO-0491)
                 float e = Mathf.Max(0f, (exOn ? DistToPolyEdgeExcept(parcel, q, exA, exB) : EdoGeom.DistToPolyEdge(parcel, q)) - EDGE_BERM);
                 float y2 = Mathf.Clamp(y, b - e / cutRun, b + e / fillRun);
-                if (best >= 0 && bd <= 0f && Mathf.Abs(y2 - y) > 0.01f) outp[best].squeezed++;
+                // ⭐ 足あと(+縁取り)の節点は平場を優先する ── 縁の法に届かない差が SQUEEZE_YIELD 以下なら平場の高さのまま取り、
+                //    縁の法をその分だけ急にする(見えない数cm)。⛔ 2026-10-01 まで縁の法を優先し、束ねた平場の高さに 1 節点届かず
+                //    棟の下端が浮いた(十坊8 の物置 0.023m・EDO-0495)。差が大きい所は従前どおり数える(置く段で退けるべき所)。
+                //    当たる先: GradePads を呼ぶ全区画(類型の全区画の棟・門構え)。
+                if (best >= 0 && bd <= 0f && Mathf.Abs(y2 - y) > 0.01f)
+                {
+                    if (Mathf.Abs(y2 - y) <= SQUEEZE_YIELD) { yielded++; y2 = y; }
+                    else outp[best].squeezed++;
+                }
                 y = y2;
                 if (y < b) maxCut = Mathf.Max(maxCut, b - y); else maxFill = Mathf.Max(maxFill, y - b);
                 H[j, i] = Mathf.Clamp01((y - tp.y) / ts.y);
@@ -240,10 +252,11 @@ public static partial class EdoBuild
             }
         td.SetHeightsDelayLOD(i0, j0, H); td.SyncHeightmap();
         int sq = 0; foreach (var hb in outp) sq += hb.squeezed;
-        report = string.Format("造成: 平場 {0} 面(うち隣へ束ねた {5})・節点 {1}(区画の中だけ・毎回造成前の地盤から)・最大の切土 {2:F2}m・盛土 {3:F2}m{4}{6}",
+        report = string.Format("造成: 平場 {0} 面(うち隣へ束ねた {5})・節点 {1}(区画の中だけ・毎回造成前の地盤から)・最大の切土 {2:F2}m・盛土 {3:F2}m{4}{6}{7}",
                                pads.Count, written, maxCut, maxFill,
                                sq > 0 ? string.Format(" ⚠ 区画の縁に近く平らに取れない節点 {0}(土留めが要る所・P3)", sq) : "", merged,
-                               apart > 0 ? string.Format(" ⚠ 近いのに高さの差が {0:F2}m を超えて束ねられない平場 {1} 組", 2f * PAD_SHIFT, apart) : "");
+                               apart > 0 ? string.Format(" ⚠ 近いのに高さの差が {0:F2}m を超えて束ねられない平場 {1} 組", 2f * PAD_SHIFT, apart) : "",
+                               yielded > 0 ? string.Format("・平場を優先して縁の法を急にした節点 {0}({1:F2}m 以内)", yielded, SQUEEZE_YIELD) : "");
         return outp;
     }
 
@@ -270,20 +283,33 @@ public static partial class EdoBuild
         if (float.IsNaN(med)) return 0;
         float m2 = 2f * CellMargin(margin);
         var rings = new List<List<RingNode>> { ring }; var meds = new List<float> { med };
+        // ⭐ 束は**鎖で繋がる**(GradePads の union-find と同じ)── 自分に近い棟だけでなく、その棟に近い棟も束に入る。
+        //    ⛔ 2026-10-01 まで自分に直に近い棟しか見ず、物置↔庫裏↔本堂の鎖で束の高さが動き、縁の法に 1 節点届かず
+        //    下端が 0.023m 浮いた(十坊8 の物置・EDO-0495)。当たる先: 類型の寺社の全棟(置く段の硬い制約)。
         if (placed != null)
-            foreach (var pf in placed)
+        {
+            var inSet = new List<Vector2[]> { foot }; var left = new List<Vector2[]>(placed); bool grew = true;
+            while (grew)
             {
-                if (PolyGap(foot, pf) >= m2) continue;
-                var r2 = PadRing(parcel, pf, margin); float md2 = RingMedian(r2);
-                if (float.IsNaN(md2)) continue;
-                rings.Add(r2); meds.Add(md2);
+                grew = false;
+                for (int k = left.Count - 1; k >= 0; k--)
+                {
+                    var pf = left[k]; bool near = false;
+                    foreach (var f in inSet) if (PolyGap(f, pf) < m2) { near = true; break; }
+                    if (!near) continue;
+                    left.RemoveAt(k); inSet.Add(pf); grew = true;
+                    var r2 = PadRing(parcel, pf, margin); float md2 = RingMedian(r2);
+                    if (float.IsNaN(md2)) continue;
+                    rings.Add(r2); meds.Add(md2);
+                }
             }
+        }
         if (rings.Count == 1) return SqueezeAt(ring, med, fillRun, cutRun);
         float lo = float.MinValue, hi = float.MaxValue;
         foreach (var md in meds) { lo = Mathf.Max(lo, md - PAD_SHIFT); hi = Mathf.Min(hi, md + PAD_SHIFT); }
         if (lo > hi) return ring.Count + 1;                                   // 束ねる幅が無い = 近すぎる段違い
         int best = int.MaxValue;
-        for (float y = lo; y <= hi + 1e-4f && best > 0; y += 0.02f)
+        for (float y = lo; y <= hi + 1e-4f && best > 0; y += 0.01f)
         {
             int sq = 0; foreach (var r in rings) { sq += SqueezeAt(r, y, fillRun, cutRun); if (sq >= best) break; }
             if (sq < best) best = sq;

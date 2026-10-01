@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 19 本・メニュー 79・関数 652(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 19 本・メニュー 79・関数 653(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -20,7 +20,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 15 | 97 |
 | [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 17 | 101 |
 | [EdoSannoShaBuilder.cs](#edosannoshabuildercs) | 山王権現社(日枝神社)本体+樹下家邸+山王門前町ビルダー (2026-08-11。観理院は 2026-09-26 に類型へ移し削除) | 1 | 32 |
-| [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 13 | 101 |
+| [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 13 | 102 |
 | [EdoSanyashikiRebuild.cs](#edosanyashikirebuildcs) | 三屋敷(太田・加納・鍋島=松平肥前守)の区画を下書きv3へ更新 (2026-08-08) | 0 | 6 |
 | [EdoSekiBuilder.cs](#edosekibuildercs) | — | 1 | 8 |
 | [EdoShiomizakaRebuild.cs](#edoshiomizakarebuildcs) | 汐見坂(段坂)を新区割りの回廊へ敷き直す (2026-08-09) | 0 | 12 |
@@ -562,6 +562,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `SurfaceY(p)` | `float` |  | — |
 | `Stage5_MonTorii()` | `string` | 公 | 算出物 `gates` の芯・yaw・敷居の高さへ据える。 |
 | `ToriiPart()` | `string` |  | 石造明神鳥居の部材。⭐ まず `bom[鳥居].手当` を見る(正典は指図)。 |
+| `OnFumotomichi(p, keep)` | `bool` |  | 点が社の小道(指図 `fumotomichi[]`)の上か、その辺から keep の内か。 |
 | `Michi()` | `List<List<Vector2>>` |  | 道の芯線(算出物 `routes[].world` と指図 `fumotomichi[].pts`)を集める。 |
 | `ToriiFacing(p, face)` | `bool` |  | 鳥居の正面(部材の +Z)の向き。⭐ 指図は鳥居の yaw を書かない(座だけ)ので、 鳥居が載っている道の芯線の接線から引く ── 正面は境内から遠い側(参詣者が来る方)。 |
 | `ToriiNameOf(designName)` | `string` | 公 | 鳥居の名 → シーンの名(⛔ 部材のパスではない)。 |

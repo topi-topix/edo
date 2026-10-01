@@ -753,7 +753,12 @@ public static partial class EdoBuild
         if (j <= 0 || j >= js.Count - 1 || !breaks.Contains(j)) return 0f;
         Func<Vector3, Vector3, float> ang = (p, q) => Mathf.Atan2(q.y - p.y, Vector2.Distance(new Vector2(p.x, p.z), new Vector2(q.x, q.z)));
         float d = Mathf.Abs(ang(js[j], js[j + 1]) - ang(js[j - 1], js[j]));
-        return d < 1e-4f ? 0f : height * 0.5f * Mathf.Tan(d) + 0.02f;
+        if (d < 1e-4f) return 0f;
+        // ⭐ 重ねは隣の弦の半分まで(硬い)── 折れが急だと tan が膨らみ、駒が隣の弦を越えて走りの端(区画の角)の外へ出た
+        //    (十坊2 の西の辺の北の角で 2.24m・EDO-0495)。当たる先: 地形なりの板塀・生垣付き板塀・石垣+塀・練塀(DobeiRun/NeribeiRun)と旧山王の TW_*/SB_*。
+        Func<Vector3, Vector3, float> run = (p, q) => Vector2.Distance(new Vector2(p.x, p.z), new Vector2(q.x, q.z));
+        float cap = 0.5f * Mathf.Min(run(js[j - 1], js[j]), run(js[j], js[j + 1]));
+        return Mathf.Min(height * 0.5f * Mathf.Tan(Mathf.Min(d, 1.4f)) + 0.02f, cap);
     }
 
     /// <summary>弦 j0→j1 に張った駒の表(ローカル +Z)が <paramref name="outward"/> を向くか。</summary>
@@ -2056,6 +2061,23 @@ public static partial class EdoBuild
     /// 入れて、建て終えたら null に戻す。null なら避けない(棟の前の一巡目)。EDO-0475</summary>
     public static List<Bounds> PlantAvoid = null;
 
+    /// <summary>生垣・林縁帯の株を植えてよい区画の輪郭(世界の x,z)。囲いを建てる呼び手が入れて、建て終えたら null に戻す。
+    /// 条件は**硬い**(区域侵犯は許容0): 株の外接箱の足跡の四隅が一つでも輪郭の外に出る株は植えない。
+    /// ⛔ 2026-10-01 まで辺ごとに「塀の内へ寄せる」だけで隣の辺を見ず、鋭い角(十坊8 の 39°)や辺の端(十坊2)で
+    /// 株が隣の区画・道へ 1.2〜2.3m 出た(EDO-0495)。当たる先: 類型の生垣付き板塀(ita+ikegaki)と林縁帯の全区画。</summary>
+    public static Vector2[] PlantInside = null;
+
+    static bool OutsidePlot(GameObject go)
+    {
+        if (PlantInside == null || PlantInside.Length < 3) return false;
+        var b = RB(go);
+        const float m = 0.05f;   // 葉先の丸めの許し
+        foreach (var q in new[] { new Vector2(b.min.x + m, b.min.z + m), new Vector2(b.max.x - m, b.min.z + m),
+                                  new Vector2(b.max.x - m, b.max.z - m), new Vector2(b.min.x + m, b.max.z - m) })
+            if (!EdoGeom.PIP(PlantInside, q)) return true;
+        return false;
+    }
+
     /// <summary>生垣の後列(主)の一株の型。⭐ 設計は庭方(2026-09-29 EDO-0475・scratchpad の EDO0475_ikegaki_design)。
     /// 江戸の寺の生垣は濃緑小葉の常緑(マサキ・イヌツゲ・カシ)が類型【B】だが在庫に無く、**ツツジ(花無し・暗いオリーブ緑)で見立てる【P】**。
     /// 水平と高さの倍率の幅は型ごと(A04 は横に張るので水平を絞る)。</summary>
@@ -2251,7 +2273,7 @@ public static partial class EdoBuild
                     }
                 }
                 prevT = tc; prevHi = hi; prevW = w; prevK = k;          // 植えられなくても間は進める(同じ所で回らない)
-                if (HitsAvoid(go) || !RootPlant(go, CHORD_ROOT_MAX)) { UnityEngine.Object.DestroyImmediate(go); continue; }
+                if (HitsAvoid(go) || !RootPlant(go, CHORD_ROOT_MAX) || OutsidePlot(go)) { UnityEngine.Object.DestroyImmediate(go); continue; }
                 TintFoliage(go, IKE_TINT_BACK);
                 var p2 = new Vector2(go.transform.position.x, go.transform.position.z);
                 backT.Add(tc); backD.Add(dOf(p2));
@@ -2276,7 +2298,7 @@ public static partial class EdoBuild
                                Vector3.one * s, parent, nm);
                 if (go == null) return;
                 try { SeatOnGround(go, 0.03f, 300); } catch (Exception) { }
-                if (HitsAvoid(go) || !RootPlant(go, CHORD_ROOT_MAX)) { UnityEngine.Object.DestroyImmediate(go); return; }
+                if (HitsAvoid(go) || !RootPlant(go, CHORD_ROOT_MAX) || OutsidePlot(go)) { UnityEngine.Object.DestroyImmediate(go); return; }
                 TintFoliage(go, IKE_TINT_FRONT);
                 made++;
             };
@@ -2402,7 +2424,7 @@ public static partial class EdoBuild
                           Vector3.one, parent, prefix + "_" + made);
             if (go == null) continue;
             try { SeatOnGround(go, 0.05f, 300); } catch (Exception) { UnityEngine.Object.DestroyImmediate(go); continue; }
-            if (!RootPlant(go, RINEN_ROOT_MAX)) { UnityEngine.Object.DestroyImmediate(go); continue; }
+            if (!RootPlant(go, RINEN_ROOT_MAX) || OutsidePlot(go)) { UnityEngine.Object.DestroyImmediate(go); continue; }
             placed.Add(c);
             made++;
         }

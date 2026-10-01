@@ -461,6 +461,8 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         //   置き場の選びも前の巡の平場に引きずられない(二度建てても同じ姿)。⛔ 区画の外(道・隣)は触らない。
         string restoreNote;
         EdoBuild.GradePads(poly, new List<Vector2[]>(), 0f, out restoreNote);
+        // ⭐ 区画に接する道のうち、指図で造成すると決めた道(欄の zosei)を均す(冪等・区画の中は触らない・2026-09-30 EDO-0495)
+        string michiNote = EdoBuild.GradeMichiNear(poly);
         float spread, pad;
         try { pad = Pad(id, out spread); }
         catch (Exception ex) { return "⛔ " + id + ": 面の高さが測れない — " + ex.Message; }
@@ -468,6 +470,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         string frontWarn; var front = FrontEdge(s, edges, out frontWarn);
 
         var log = new List<string>();
+        if (!string.IsNullOrEmpty(michiNote)) log.Add("  " + michiNote);
         log.Add(string.Format("{0}: 面 y={1:F2}(区画内の自然地形の中央値 / 起伏 {2:F2}m。棟の下は Stage 4z で平場を採る)", id, pad, spread));
         if (frontWarn != null) log.Add("  ⚠ " + frontWarn);
         log.Add(string.Format("  辺 {0}: 接道 {1} / 隣と共有 {2}(うち当方持ち {3})", edges.Count,
@@ -548,6 +551,8 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         Action buildKakoi = () =>
         {
             for (int c = encl.childCount - 1; c >= 0; c--) UnityEngine.Object.DestroyImmediate(encl.GetChild(c).gameObject);
+            // ⭐ 生垣・林縁帯の株は区画の外へ出さない(硬い・EDO-0495)── 塀と同じ輪郭で退ける
+            EdoBuild.PlantInside = poly;
             kakoiNotes.Clear();
             // ⭐ 練塀は段塀で建てる(2026-09-29 EDO-0477 施主裁定1=B)── 続いた練塀の辺を一つの鎖にして区切りを引く
             //    (段を区画の角から離すため・角を挟んで座を揃えるため)。当たる先: 類型の全区画の練塀。
@@ -625,7 +630,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 }
             }
         };
-        buildKakoi();
+        try { buildKakoi(); } finally { EdoBuild.PlantInside = null; }
         log.Add("  囲い: " + string.Join(" / ", edges.Where(e => e.mine).Select(
             e => e.i + "=" + (machiyaFronts.Contains(e) ? "表店" : EnclosureFor(s, e, e == front))).ToArray()));
         foreach (var nt in kakoiNotes) log.Add("    " + nt);   // ⛔ 代用を黙って飲まない(規則7・19)
@@ -733,7 +738,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 // ⭐ 生垣の株は棟・門構えに芯を掛けない(EDO-0475)── 造成の後の建て直しでだけ効く(一巡目は棟がまだ無い)
                 EdoBuild.PlantAvoid = bldg.Where(g => g != null).Select(g => EdoBuild.RB(g))
                                           .Concat(gamae.Where(g => g != null).Select(g => EdoBuild.RB(g))).ToList();
-                try { buildKakoi(); } finally { EdoBuild.PlantAvoid = null; }
+                try { buildKakoi(); } finally { EdoBuild.PlantAvoid = null; EdoBuild.PlantInside = null; }
                 log.Add("    造成の後で棟 " + bldg.Count + "・門構え・囲いを据え直した");
                 // ⭐ 建て直した囲いの注記も刷る(⛔ 2026-09-28 まで一巡目の注記だけが載り、石垣の上の塀の座・寄せが記録に出なかった・規則19)
                 foreach (var nt in kakoiNotes) log.Add("      " + nt);

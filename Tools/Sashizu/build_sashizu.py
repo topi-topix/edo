@@ -1966,9 +1966,12 @@ class Checks(object):
         if not os.path.exists(fp):
             self.add("C31", "名指しの点の届き", "未検査 — 算出物が無い", "na")
             return
-        cl = ((json.load(open(fp, encoding="utf-8")).get("planting") or {}).get("clusters"))
+        pl = json.load(open(fp, encoding="utf-8")).get("planting")
+        # 旧い算出物は planting が点の並び(list)で、塊の記録を持たない(岡部 2026-10-01 AttributeError)
+        cl = pl.get("clusters") if isinstance(pl, dict) else None
         if cl is None:
-            self.add("C31", "名指しの点の届き", "未検査 — 算出物に `planting.clusters` の記録が無い", "na")
+            self.add("C31", "名指しの点の届き", "未検査 — 算出物に `planting.clusters` の記録が無い"
+                     "(planting が %s)" % type(pl).__name__, "na")
             return
         dr = [c for c in cl if c.get("dropped") is not None]
         sh = [c for c in cl if c.get("short")]

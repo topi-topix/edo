@@ -292,7 +292,7 @@
    "len": 14.223,
    "faces": "門前面の縁(南東隅)",
    "kind": "練塀+石垣基壇(当家)",
-   "neighbor": "山王門前町(安政期の版が描く帯・実見は未了)／樹下近江守邸"
+   "neighbor": "山王門前町(安政期の版が描く帯・実見は未了)"
   },
   {
    "i": 1,
@@ -439,7 +439,7 @@
    "len": 11.035,
    "faces": "南の土手の裾(造成しない)",
    "kind": "練塀+石垣基壇(当家)",
-   "neighbor": "常明院(社僧十坊)"
+   "neighbor": "区画なし(常明院と溜池の間の空き)"
   },
   {
    "i": 22,
@@ -569,7 +569,7 @@
    "uz": 0.99504,
    "vx": -0.99504,
    "vz": -0.09949,
-   "u0": -46,
+   "u0": -56,
    "u1": 34,
    "v0": -2,
    "v1": 172
@@ -12592,22 +12592,123 @@
  ],
  "reviews": {
   "kenzu": {
-   "at": "2026-09-03",
+   "at": "2026-10-01",
    "verdict": "fail",
-   "hash": "89d7e5e3bcc140fa",
-   "note": "検図5巡目 20件(致命3・重い11・軽い6)。前巡15件中13件は正しく入り、K183(内寄せの統一)は半分・K177(汀の横断)は断面を足しただけで中身が無い。致命=勝手動線が法肩の松4本を貫き竹垣の外を走る/平面に裁定8の新設物が無い/横断2本が堤葭蓮杭を描かない。重なり0件・断面の検算は全部成立・建蔽率11.6%"
+   "hash": "613bb74c41b98a77",
+   "note": "EDO-0502 引き直しの検分3巡で停止。高: 旧い南の線(主面・門前面の南の縁)が垂直の段(盛+5.38/切−5.60)・土留めか法面かの裁定待ち。中: 紅葉谷の83%が北の境の外。C04/C12/C16/C20 は従前から",
+   "chapters": {
+    "const": "cc748db69168",
+    "polygon": "3242fbe487bf",
+    "edges": "d2531a628b9b",
+    "grid": "ac8bc4e81d75",
+    "planes": "ca91fcc31c65",
+    "terraces": "f109406a9e72",
+    "terraceWalls": "4f53cda18c2b",
+    "certs": "0b3ca3ccc479",
+    "runs": "3d4d81405a55",
+    "fences": "364f719c53b2",
+    "gate": "af5a28aa6b80",
+    "komon": "8e4213de5dee",
+    "yagura": "4f53cda18c2b",
+    "munes": "a4bcd5f4c531",
+    "links": "8fa4419a19fa",
+    "gardens": "31e466909cdb",
+    "service": "ec05dd4ed69b",
+    "wells": "4645b5e17005",
+    "kaidans": "2c96b831b4bf",
+    "sando": "53d80dfa8bd0",
+    "sections": "dc179a97e380",
+    "slopeBands": "991af5e163f7",
+    "bom": "22e2b65e1b9e",
+    "grading": "3abef3b58381",
+    "edgeProfile": "806def280606",
+    "onarimon": "74234e98afe7",
+    "routes": "3e4b4907a5b4",
+    "han": "c9330b86f116",
+    "ramps": "5d4771c133f1",
+    "kekkai": "c050120fd5fa",
+    "nishi": "f31c705735d9",
+    "certSigs": "bba014a52845",
+    "roofs": "0fae07a9d674",
+    "plantAssets": "e84f724715c7",
+    "groundLayers": "cb0c56fb302c",
+    "py": "89dd938db821bb7f",
+    "md": "2b6a9ab405b08397"
+   },
+   "rounds": [
+    {
+     "at": "2026-10-01T23:10:22+09:00",
+     "verdict": "fail"
+    }
+   ]
   },
   "niwashi": {
-   "at": "2026-09-03",
+   "at": "2026-10-01",
    "verdict": "fail",
-   "hash": "32ad0ecbf2c75f36",
-   "note": "庭方6巡目(検分)17件(致命2・重い4・軽い11)。決定12件は全部 json に届いた。致命=横断 v155/162 で堤葭杭蓮が区画界の内側(+u)に描かれる(符号の誤り)/縦断に崖下の棟と坂が無い(K229 後半が未達)。K237/K240/K242 も closed なのに未達。平面(其十二)は今回いちばん良くなった。対岸から見た姿は目的(二層・松・榎)を果たせていない"
+   "hash": "3a21a51cb8db475b",
+   "note": "EDO-0502 検分3巡で停止。高: 書院の泉水の水尻が旧い北の境を通る/紅葉谷の84%が区画外。中: 北の土手・南の張り出しの植栽が未定。いずれも庭方の案あり・採否待ち",
+   "chapters": {
+    "gardens": "31e466909cdb",
+    "routes": "3e4b4907a5b4",
+    "py": "89dd938db821bb7f"
+   },
+   "rounds": [
+    {
+     "at": "2026-10-01T23:10:23+09:00",
+     "verdict": "fail"
+    }
+   ]
   },
   "kosho": {
-   "at": "2026-09-03",
+   "at": "2026-10-01",
    "verdict": "fail",
-   "hash": "70366a64cb415568",
-   "note": "考証6巡目 7件(致命1・重い3・軽い3)。⭐ 独立した新しい観点は0 — 全件が K211〜K228 の直しの写し残し/式の差替後の古い数値。18件は全件着地。新設の m 建て2検査と taigan_check は恒真でない。史料の追加なし。結論=尤もらしい(建った姿を変える指摘は一つも無い)"
+   "hash": "613bb74c41b98a77",
+   "note": "EDO-0502 検分3巡で停止。高: 新しい境(樹下・常明院・土井の谷筋)の囲いの持ち主が未決で二重の囲いになる・施主裁定待ち。低: kosho の辺0の注記に樹下が残る",
+   "chapters": {
+    "const": "cc748db69168",
+    "polygon": "3242fbe487bf",
+    "edges": "d2531a628b9b",
+    "grid": "ac8bc4e81d75",
+    "planes": "ca91fcc31c65",
+    "terraces": "f109406a9e72",
+    "terraceWalls": "4f53cda18c2b",
+    "certs": "0b3ca3ccc479",
+    "runs": "3d4d81405a55",
+    "fences": "364f719c53b2",
+    "gate": "af5a28aa6b80",
+    "komon": "8e4213de5dee",
+    "yagura": "4f53cda18c2b",
+    "munes": "a4bcd5f4c531",
+    "links": "8fa4419a19fa",
+    "gardens": "31e466909cdb",
+    "service": "ec05dd4ed69b",
+    "wells": "4645b5e17005",
+    "kaidans": "2c96b831b4bf",
+    "sando": "53d80dfa8bd0",
+    "sections": "dc179a97e380",
+    "slopeBands": "991af5e163f7",
+    "bom": "22e2b65e1b9e",
+    "grading": "3abef3b58381",
+    "edgeProfile": "806def280606",
+    "onarimon": "74234e98afe7",
+    "routes": "3e4b4907a5b4",
+    "han": "c9330b86f116",
+    "ramps": "5d4771c133f1",
+    "kekkai": "c050120fd5fa",
+    "nishi": "f31c705735d9",
+    "certSigs": "bba014a52845",
+    "roofs": "0fae07a9d674",
+    "plantAssets": "e84f724715c7",
+    "groundLayers": "cb0c56fb302c",
+    "py": "89dd938db821bb7f",
+    "md": "2b6a9ab405b08397"
+   },
+   "rounds": [
+    {
+     "at": "2026-10-01T23:10:23+09:00",
+     "verdict": "fail"
+    }
+   ]
   }
  },
  "kekkai": [
@@ -14523,5 +14624,6 @@
   "cert": "層の存在=A(L_grass のみ)/ 他3枚は**未登録**/ 割り当て=U",
   "certSig": "A/U"
  },
- "_notes": "⭐ **この指図の文章は `docs/Sashizu/okabe_notes/<章>.json` にある。**欄を直すときは同じ章の注記を先に読むこと(path がそのまま鍵)。戻すのは `python3 Tools/Sashizu/prose_split.py okabe --restore`。⛔ 文章をここへ書き戻さない — 値だけを置く欄にした(2026-09-21 施主指示)。"
+ "_notes": "⭐ **この指図の文章は `docs/Sashizu/okabe_notes/<章>.json` にある。**欄を直すときは同じ章の注記を先に読むこと(path がそのまま鍵)。戻すのは `python3 Tools/Sashizu/prose_split.py okabe --restore`。⛔ 文章をここへ書き戻さない — 値だけを置く欄にした(2026-09-21 施主指示)。",
+ "_reviews": "**検図関門。**この指図を誰が検めたか。⛔ 呼んだ側(普請奉行)が結果を書き戻す — 検分役は read-only で自分では書けない。`hash` はその検分が見た範囲の指紋で、指図を書き換えるとずれ、検分は自動で『検め直しが要る』になる。見張りは `python3 Tools/Sashizu/review_gate.py`。⛔ 関門が赤の指図を実装しない・赤のシーンをユーザーに見せない。"
 }

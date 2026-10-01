@@ -1,10 +1,10 @@
 {
  "_": "図の機械検査の結果。生成器が毎回書き、kansei_gate.py --init が読んで赤なら止める(EDO-0291)。⛔ 手で書かない — 図を焼き直せば入れ替わる。",
  "estate": "okabe",
- "at": "2026-10-01T22:48:54+09:00",
- "sashizu_sha": "cf825dca9cc7d9bd",
- "ng": 6,
- "na": 9,
+ "at": "2026-10-01T23:10:35+09:00",
+ "sashizu_sha": "72bcb56eaca7098f",
+ "ng": 5,
+ "na": 10,
  "rows": [
   {
    "id": "C01",
@@ -182,9 +182,9 @@
   },
   {
    "id": "C31",
-   "what": "(検査が落ちた)",
-   "res": "⛔ AttributeError: 'list' object has no attribute 'get'",
-   "status": "ng"
+   "what": "名指しの点の届き",
+   "res": "未検査 — 算出物に `planting.clusters` の記録が無い(planting が list)",
+   "status": "na"
   },
   {
    "id": "C32",
@@ -195,7 +195,7 @@
   {
    "id": "D01",
    "what": "文書の記法が字になっていないか",
-   "res": "12 件(母集団 44,047 字・引用の面 0 件は別枠)",
+   "res": "14 件(母集団 44,284 字・引用の面 0 件は別枠)",
    "status": "ng"
   }
  ]

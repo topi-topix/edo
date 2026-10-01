@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 19 本・メニュー 79・関数 658(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 19 本・メニュー 79・関数 659(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -31,7 +31,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoTypologyBuilder.Niwa.cs](#edotypologybuilderniwacs) | 類型の庭(Stage 5)— どの類型が何をどこへだけ。EDO-0323。 | 0 | 27 |
 | [EdoTypologyBuilder.Rim.cs](#edotypologybuilderrimcs) | 類型の崖の縁の石垣(Stage 4y・2026-09-28・EDO-0477 施主裁定A「石垣を積み、その上に塀」)。 | 0 | 2 |
 | [EdoTypologyBuilder.Yuragi.cs](#edotypologybuilderyuragics) | 類型ビルダー — 揺らぎ(EDO-0476・施主裁定 2026-09-27)。 | 0 | 21 |
-| [EdoTypologyBuilder.cs](#edotypologybuildercs) | 類型ビルダー — 区画の形(parcels.json)と類型表(typology.json)から、一本で建てる。 | 5 | 53 |
+| [EdoTypologyBuilder.cs](#edotypologybuildercs) | 類型ビルダー — 区画の形(parcels.json)と類型表(typology.json)から、一本で建てる。 | 5 | 54 |
 | [EdoYamatoRebuild.cs](#edoyamatorebuildcs) | 松平大和守(川越藩17万石)上屋敷の再建 v2 (2026-08-08) | 0 | 13 |
 
 ## EdoDoiBuilder.Niwa.cs
@@ -794,7 +794,8 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `DirVec(d)` | `Vector2` |  | — |
 | `FrontEdge(s, edges)` | `Edge` | 公 | 表門を載せる辺。 ⭐ 史料で読めた方位は、長さの都合より強い。 |
 | `FrontEdge(s, edges, warn)` | `Edge` | 公 | — |
-| `Seat(go, log)` | `bool` |  | 接地箇所を測って据える(EdoBuild.SeatOnGround)。 |
+| `ShopFront(poly, t, hull)` | `EdoBuild.MonPad` |  | 接地箇所を測って据える(EdoBuild.SeatOnGround)。 |
+| `Seat(go, log)` | `bool` |  | — |
 | `SeatGamae(go, log)` | `bool` |  | 門構えの駒を据える(EdoBuild.SeatGamae ── 札の contact の部材で当てる)。 |
 | `Pad(id, spread)` | `float` | 公 | 造成はしない(規則3・9)。区画内のハイトマップ格子点の高さの中央値を、据える面に採る。 |
 | `GatePathOf(g)` | `string` | 公 | 門の語 → 部材の道(札の試験 EdoPartSpecTests が読む)。 |

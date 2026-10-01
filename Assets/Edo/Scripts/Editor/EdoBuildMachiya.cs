@@ -135,6 +135,10 @@ public static partial class EdoBuild
         catch (Exception) { SeatBottom(go, Ground(at.x, at.y) - 0.05f); }
     }
 
+    /// <summary>表店を建ててよい道の縦の勾配の上限【U】(EDO-0503)。考証の実測で山王坂の門前は平均 7.8%・最急 約 10% ──
+    /// その坂には軒ごとの段で建つ。これを超える列の端は詰める。</summary>
+    public const float MACHIYA_MAX_GRADE = 0.15f;
+
     static float TuckIntoParcel(GameObject go, Vector2[] poly, Vector2 inward, float cap)
     {
         float moved = 0f;
@@ -214,6 +218,7 @@ public static partial class EdoBuild
         public int clashed;        // 先に建った列にめり込むので退けた駒(両側町の角)
         public int tucked;         // 区画の内へ折り込んだ駒
         public float tuckedM;      // 同・最大の折り込み量[m]
+        public float steepCutM;    // 道が急で列の端を詰めた長さ[m](EDO-0503・MACHIYA_MAX_GRADE)
         public List<List<GameObject>> houseList;   // 据えた軒ごとの駒(1 軒 = 1〜2 枚)── 暖簾を軒ごとに掛ける(EDO-0503 HangNoren)
         public string oursKind;    // 当方の駒を候補へ足したときのその名前(足さなければ null)
     }
@@ -392,6 +397,46 @@ public static partial class EdoBuild
             if (gT + gapHalf < len) segs.Add(new float[] { Mathf.Max(gT + gapHalf, 0f), len });
         }
         else segs.Add(new float[] { 0f, len });
+
+        // ⭐ 列の両端は**側の辺が鋭角に入る所**で、店の奥の隅が区画の外へ出る。先に端を内へ詰めておく(硬い: 区域侵犯 許容0)。
+        //    ⛔ 2026-10-02 まで詰めずに並べ、端の 1 枚が側の辺から 0.7m 出て(折り込みの上限 0.6m 超)丸ごと退けられ、
+        //    門前1 の木戸の脇に 7m の空きが残った(施主指摘)。詰める量 = 奥行いちばん深い駒の矩形が入るまで(0.05m 刻み・上限 4m)。
+        if (keepInside != null && stock.Count > 0)
+        {
+            float dMax = stock.Max(p => p.Measure().D);
+            var inw = -outward;
+            Func<float, float, bool> fits = (t0, t1) =>
+            {
+                foreach (var t in new[] { t0, t1 })
+                    foreach (var d in new[] { 0.05f, dMax * 0.5f, dMax })
+                        if (!EdoGeom.PIP(keepInside, sA + rdir * t + inw * d)) return false;
+                return true;
+            };
+            foreach (var sg in segs)
+            {
+                if (sg[0] <= 0.01f) { float k = 0f; while (k < 4f && !fits(sg[0] + k, sg[0] + k + 0.5f)) k += 0.05f; if (k > 0f && k < 4f) sg[0] += k + 0.02f; }
+                if (sg[1] >= len - 0.01f) { float k = 0f; while (k < 4f && !fits(sg[1] - k - 0.5f, sg[1] - k)) k += 0.05f; if (k > 0f && k < 4f) sg[1] -= k + 0.02f; }
+            }
+        }
+        // ⭐ 列の端で**道が急に落ちる所**には店を建てない(柔らかい: 列を詰めて ⚠ で刷る)── 店先の土間は軒ごとに道へ合わせるので、
+        //    道の縦の勾配が MACHIYA_MAX_GRADE を超える所では一軒の中で段が付けられない。急坂は町家の型ではない(EDO-0503 考証【B】:
+        //    石段・石垣の上の長屋は九段坂のような急坂の型で、8〜10% の坂には当てない)。
+        //    ⛔ 2026-10-02 まで詰めず、門前4 の東の端(道が 4m で 2m 落ちる)の店が布石 1.6m の上に載った。
+        {
+            Func<float, float> roadAt = tt => { var q = sA + rdir * tt + outward * 0.5f; return RoadY(q.x, q.y); };
+            Func<float, float, bool> steep = (t0, t1) =>
+            {
+                float y0 = roadAt(t0), y1 = roadAt(t1);
+                return !float.IsNaN(y0) && !float.IsNaN(y1) && Mathf.Abs(y1 - y0) / Mathf.Max(0.1f, t1 - t0) > MACHIYA_MAX_GRADE;
+            };
+            foreach (var sg in segs)
+            {
+                float k = 0f; while (sg[0] + k + 2f < sg[1] && steep(sg[0] + k, sg[0] + k + 2f)) k += 0.25f;
+                if (k > 0f) { sg[0] += k; tally.steepCutM += k; }
+                k = 0f; while (sg[1] - k - 2f > sg[0] && steep(sg[1] - k - 2f, sg[1] - k)) k += 0.25f;
+                if (k > 0f) { sg[1] -= k; tally.steepCutM += k; }
+            }
+        }
 
         // ⭐ 種は呼び手が区画ごとに渡す(EDO-0476)。⛔ 列の名(prefix)だけで種を作らない ── 2026-09-29 まで
         //    `prefix.GetHashCode()` で、名が "Omotedana0" の 24 区画が同じ順で同じ組を引いていた。

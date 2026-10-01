@@ -199,13 +199,9 @@ public static partial class EdoBuild
     /// <summary>棟の基壇の布石の天端を駒の下端より上げる量[m] ── 石の面のふくらみ・継ぎ目で下端の頂点が 0.013m 浮いて測れた
     /// (門前2 の shop01 4 棟・2026-10-02)。布石は駒の下端へ埋まる(部材どうしは数えない §4 ── 埋めて隠すのが基本)。</summary>
     public const float KIDAN_BITE = 0.03f;
-    static List<GameObject> KidanUnder(GameObject piece, Transform parent, Func<float, float, float> ground, bool needSpec, float bite, out string note)
+    static void EnsureKidanProbe()
     {
-        var made = new List<GameObject>(); note = null;
-        var sp = SpecOf(piece);
-        bool hasFoot = sp != null && sp.foot != null && sp.foot.Count >= 3;
-        if (needSpec && !hasFoot) { note = piece.name + ": 札の foot が無い ── 基壇を敷けない"; return made; }
-        if (_kidanLocal == null)
+        if (_kidanLocal != null) return;
         {   // 布石の外形と**天端の広さ**を一度だけ測る(天端は外形より表と背で 0.03m 内 ── 石の面のふくらみ)
             var probe = Place(EdoAssets.Own.Dobei2mNunoishi, Vector3.zero, 0f, Vector3.one, null, "_kidan_probe");
             var pb = RB(probe); float tx0 = float.MaxValue, tx1 = float.MinValue, tz0 = float.MaxValue, tz1 = float.MinValue;
@@ -225,6 +221,16 @@ public static partial class EdoBuild
             UnityEngine.Object.DestroyImmediate(probe);
             _kidanLocal = pb; _kidanTop = new Rect(tx0, tz0, tx1 - tx0, tz1 - tz0); _kidanTopY = topY;
         }
+    }
+
+    static List<GameObject> KidanUnder(GameObject piece, Transform parent, Func<float, float, float> ground, bool needSpec, float bite, out string note)
+    {
+        var made = new List<GameObject>(); note = null;
+        var sp = SpecOf(piece);
+        bool hasFoot = sp != null && sp.foot != null && sp.foot.Count >= 3;
+        if (needSpec && !hasFoot) { note = piece.name + ": 札の foot が無い ── 基壇を敷けない"; return made; }
+        EnsureKidanProbe();
+
         var kb = _kidanLocal.Value; var kt = _kidanTop;
         var tr = piece.transform; float sc = tr.lossyScale.x;
         float x0 = float.MaxValue, x1 = float.MinValue, z0 = float.MaxValue, z1 = float.MinValue;
@@ -304,6 +310,70 @@ public static partial class EdoBuild
             worst = Mathf.Max(worst, wb - gmin); used++;
         }
         if (made.Count > 0) note = string.Format("{0}: 基壇の布石 {1}/{2} 区画・{3} 駒(見え最大 {4:F2}m)", piece.name, used, n, made.Count, worst);
+        return made;
+    }
+
+    /// <summary>**切土の縁の土留め**(EDO-0503・考証【U】「表を道に揃え、背後を切って裏に土留」)。
+    /// 辺 <paramref name="a"/>→<paramref name="b"/>(<paramref name="outward"/> = 区画の外)の内側に、布石(<see cref="EdoAssets.Own.Dobei2mNunoishi"/>)の
+    /// 石積みを奥行 0.6m で並べる。区間ごとに、線の外の地面(造成しない地山)が内の地面より <paramref name="minDrop"/> を超えて高い所にだけ、
+    /// 天端 = 線の外の地面の最も高い所・下端 = 内の地面の最も低い所 − <see cref="KIDAN_EMBED"/>。区画の内に収まる(区域侵犯 0)。
+    /// ⛔ 2026-10-02 まで裏を切った筆では板塀が直に土を受けていた(門前4 の西端で外 0.6m に 0.59m・普請検査 fail)。
+    /// 名は <c>&lt;name&gt;_&lt;k&gt;_kidan_d</c>(検査は群 "Kiso" の "_kidan_" を根入れ・床に数える)。
+    /// 当たる先: 類型ビルダーで表店の裏を区画の線まで切った全区画(Stage 4z が呼ぶ)。</summary>
+    public static List<GameObject> DodomeAlongEdge(Vector2 a, Vector2 b, Vector2 outward, Transform parent, string name, float minDrop, out float worst,
+                                                   Vector2[] keepInside = null)
+    {
+        // ⭐ 据えるのは**造成で切った**区間だけ(内の地面が造成前の地盤より minDrop を超えて低い)── 地山のままの斜面に隣が高いだけの縁は
+        //    塀が斜面に立つのが自然(⛔ 2026-10-02 の初版は門前1 の切っていない縁にも 26 区間を積んだ)。
+        //    区画の外へ出る石は奥行を半分にし、それでも出れば据えない(区域侵犯 許容0)。据えた後で下端の全部を地面で測り、浮けば下へ伸ばす。
+        var made = new List<GameObject>(); worst = 0f;
+        var dem = BaseDem();
+        EnsureKidanProbe(); var kb = _kidanLocal.Value;
+        float L = (b - a).magnitude; if (L < 0.5f) return made;
+        var dir = (b - a) / L; var inw = -outward; const float D = 0.6f;
+        int n = Mathf.Max(1, Mathf.CeilToInt(L / kb.size.x - 0.01f)); float seg = L / n;
+        float yaw = Mathf.Atan2(outward.x, outward.y) * Mathf.Rad2Deg; var rot = Quaternion.Euler(0f, yaw, 0f);
+        for (int k = 0; k < n; k++)
+        {
+            float hOut = float.MinValue, hIn = float.MaxValue, cut = 0f;
+            for (float u = 0f; u <= seg + 1e-4f; u += 0.25f)
+            {
+                var q = a + dir * (k * seg + Mathf.Min(u, seg));
+                foreach (var o in new[] { 0.05f, 0.3f }) { var p = q + outward * o; float g = Ground(p.x, p.y); if (!float.IsNaN(g)) hOut = Mathf.Max(hOut, g); }
+                for (float v = 0.05f; v <= D + 0.2f + 1e-4f; v += 0.2f)
+                {
+                    var p = q + inw * v; float g = Ground(p.x, p.y); if (float.IsNaN(g)) continue;
+                    hIn = Mathf.Min(hIn, g); float nat = dem(p.x, p.y); if (!float.IsNaN(nat)) cut = Mathf.Max(cut, nat - g);
+                }
+            }
+            if (hOut == float.MinValue || hIn == float.MaxValue || hOut - hIn <= minDrop || cut <= minDrop) continue;
+            hOut += 0.05f;   // 天端は線の外の地面より上(0.25m 刻みの標本の間で土が石を 3cm 越えた・2026-10-02 普請検査)
+            float d = D;
+            if (keepInside != null)
+            {
+                Func<float, bool> inside = dd =>
+                {
+                    foreach (var uu in new[] { -KIDAN_SEAM - 0.02f, seg + KIDAN_SEAM + 0.02f }) foreach (var vv in new[] { 0.01f, dd + 0.03f })   // 継ぎの重ね・面のふくらみ込み
+                        if (!EdoGeom.PIP(keepInside, a + dir * (k * seg + uu) + inw * vv)) return false;
+                    return true;
+                };
+                if (!inside(d)) { d = D * 0.5f; if (!inside(d)) continue; }
+            }
+            float sx = (seg + KIDAN_SEAM) / kb.size.x, sz = d / kb.size.z, sy = (hOut - hIn + KIDAN_EMBED) / kb.size.y;
+            var c = a + dir * (k * seg + seg * 0.5f) + inw * (d * 0.5f + 0.01f);
+            GameObject st = null;
+            for (int it = 0; it < 4; it++)
+            {
+                if (st != null) UnityEngine.Object.DestroyImmediate(st);
+                st = Place(EdoAssets.Own.Dobei2mNunoishi, Vector3.zero, yaw, new Vector3(sx, sy, sz), parent, name + "_" + k + "_kidan_d");
+                var lc = new Vector3(kb.center.x * sx, kb.max.y * sy, kb.center.z * sz);
+                st.transform.position = new Vector3(c.x, hOut, c.y) - rot * lc;
+                var rr = RootToBed(st, Ground, 0.05f);
+                if (float.IsNaN(rr.hi) || rr.hi <= KIDAN_FLOAT_TOL) break;
+                sy += (rr.hi + KIDAN_EMBED) / kb.size.y;
+            }
+            made.Add(st); worst = Mathf.Max(worst, hOut - hIn);
+        }
         return made;
     }
 

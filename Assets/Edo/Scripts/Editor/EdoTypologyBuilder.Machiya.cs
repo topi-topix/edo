@@ -120,6 +120,17 @@ public static partial class EdoTypologyBuilder
             var second = roads.FirstOrDefault(e => e != first);
             if (second != null) outp.Add(second);
         }
+        // ⭐ 表の欄 extra_front: "N|S|E|W" ── 辻の角の筆で、もう一本の通り(その方角を向く接道辺)にも店を向ける(EDO-0503)。
+        //    two_sided の「長い順の 2 本目」は角の短い辺を拾って 1 軒だけ別向きに載ることがあった(EDO-0503 ⑤)ので、方角で名指す。
+        //    店が 2 軒(2 間×2)入らない辺は採らない。
+        string xf = S(d, "extra_front");
+        if (xf != null)
+        {
+            var dir = xf == "N" ? Vector2.up : xf == "S" ? Vector2.down : xf == "E" ? Vector2.right : Vector2.left;
+            var cand = roads.Where(e => !outp.Contains(e) && e.len >= 2f * 2f * KEN && Vector2.Dot(e.outward, dir) > 0.7f)
+                            .OrderByDescending(e => Vector2.Dot(e.outward, dir)).FirstOrDefault();
+            if (cand != null) outp.Add(cand);
+        }
         return outp;
     }
 
@@ -237,6 +248,9 @@ public static partial class EdoTypologyBuilder
                 log.Add(string.Format("      ⚠ 辺{0} の背後は実測 {1:F1}m しかない(表の depth_ken は {2}間={3:F1}m)"
                                     + " — 深い駒を候補から外した。表の奥行を検め直すこと",
                                       e.i, t.roomM, s.depthKen, depthM));
+            if (t.steepCutM > 0f)
+                log.Add(string.Format("      ⚠ 辺{0}: 道の縦の勾配が {1:P0} を超える列の端 {2:F1}m には店を建てない(急坂は町家の型でない・柔らかい)",
+                                      e.i, EdoBuild.MACHIYA_MAX_GRADE, t.steepCutM));
             if (t.tucked > 0)
                 log.Add(string.Format("      辺{0}: {1}枚を区画の内へ最大 {2:F2}m 折り込んだ(斜めの側辺を跨ぐ列の端・裁定A)",
                                       e.i, t.tucked, t.tuckedM));

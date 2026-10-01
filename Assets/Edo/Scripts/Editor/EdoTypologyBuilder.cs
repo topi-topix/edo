@@ -62,7 +62,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         public int hallW, hallD;
         // ⭐ 辺ごとの囲い(EDO-0468)。`enclosure_dir` = { "N": "nagaya", "S": "none", … } ── 辺の外向きに最も近い
         //    4 方位の値が `enclosure` に勝つ。書いていない方位は `enclosure` のまま。史料で辺ごとに違う区画だけに書く
-        //    (観理院: 名所図会で東と北に長屋・南は囲わない)。
+        //    (観理院: 名所図会で東と北に長屋・南は施主裁定で練塀 EDO-0500)。
         public Dictionary<string, string> encDir;
         // ⭐ 主屋の型(EDO-0327)。goten / omote_oku / ganko / ujigata / tanoji。
         //    ⛔ 2026-09-21 まで Plan() は rank でしか分岐せず、defaults の omoya は**足しても
@@ -595,7 +595,15 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 string kind = EnclosureFor(s, e, isFront);
                 string pre = kind + "_" + e.i;
                 if (kind == "nagaya")
-                    EdoBuild.NagayaRun(encl, e.a, e.b, e.outward, pad, gc, gh, pre, poly, nagayaTuck);   // 門へ差す量は長屋の駒の札から(EDO-0491)
+                {
+                    // ⭐ 隅の隣の辺を当方が塀で建てるなら、そこの端数を塀で埋めて閉じる(EDO-0500 ── 観理院の南東 1.02m)
+                    Func<Edge, bool> fenced = x => x != null && !(x.kind == EdgeKind.Shared && !x.mine) && !machiyaFronts.Contains(x)
+                                                    && EnclosureFor(s, x, x == front) != "nagaya" && EnclosureFor(s, x, x == front) != "none";
+                    var ePrev = edges.FirstOrDefault(x => x != e && (x.b - e.a).sqrMagnitude < 1e-4f);
+                    var eNext = edges.FirstOrDefault(x => x != e && (x.a - e.b).sqrMagnitude < 1e-4f);
+                    EdoBuild.NagayaRun(encl, e.a, e.b, e.outward, pad, gc, gh, pre, poly, nagayaTuck,   // 門へ差す量は長屋の駒の札から(EDO-0491)
+                                       fenced(ePrev), fenced(eNext));
+                }
                 else
                 {
                     // ⭐ 種別を run へ**渡す**(EDO-0324)。⛔ 2026-09-21 まで種別は捨てられていて、

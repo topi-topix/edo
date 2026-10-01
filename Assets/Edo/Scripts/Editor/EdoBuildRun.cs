@@ -149,7 +149,7 @@ public static partial class EdoBuild
     {
         public Vector2 key, face; public float psi = float.NaN, armX = -1f, armZ = -1f, baseY, deg = 90f;
         public bool tsumaX, tsumaZ;                                     // 腕の先が在庫の棟に継がない(門・塀の折れへ当たる)⇒ 妻で閉じる
-        public List<GameObject> nbrs = new List<GameObject>();          // 腕の先に継ぐ在庫の棟(足元の高さを揃える)
+        public GameObject nbrX, nbrZ;                                   // 腕の先に継ぐ在庫の棟(+X の腕・−Z の腕)
     }
     /// <summary>隅長屋の腕の下限[m](部材方の実測 4.79 ── 2 つ目の窓の先までは詰めない)。</summary>
     public const float NAGAYA_KADO_ARM_MIN = 4.80f;
@@ -171,29 +171,64 @@ public static partial class EdoBuild
             if (float.IsNaN(k.psi) || k.armX < 0f || k.armZ < 0f) { notes.Add(string.Format("隅({0:F1},{1:F1}) ⚠ 片方の腕しか無い ── 隅長屋を据えない", k.key.x, k.key.y)); continue; }
             // 腕は cm へ切り上げ(+0.5cm)── 腕の先を在庫の棟へ 0.5〜1.5cm 差して、丸めで隙を開けない(r7 で 7.5mm 開いた・隙は許容0)
             float aZ = Mathf.Ceil(k.armZ * 100f + 0.5f) / 100f, aX = Mathf.Ceil(k.armX * 100f + 0.5f) / 100f;
-            string tsuma = (k.tsumaZ ? "Z" : "") + (k.tsumaX ? "X" : "");
+            Func<bool, bool, string> tsumaOf = (z, x) => (z ? "Z" : "") + (x ? "X" : "");
+            Func<string, string> bakeCmd = t => string.Format("blender --background --python Tools/Blender/build_nagaya_kado.py -- --deg {0:F1} --arms {1:F2},{2:F2}{3} --render",
+                k.deg, aZ, aX, t.Length > 0 ? " --tsuma " + (t == "ZX" ? "both" : t == "Z" ? "negZ" : "posX") : "");
+            string tsuma = tsumaOf(k.tsumaZ, k.tsumaX);
             string path = EdoAssets.Own.NagayaKado(k.deg, aZ, aX, tsuma);
             if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
             {
-                notes.Add(string.Format("隅({0:F1},{1:F1}) ⛔ 隅長屋が焼いてない: blender --background --python Tools/Blender/build_nagaya_kado.py -- --deg {4:F1} --arms {2:F2},{3:F2}{5} --render",
-                                        k.key.x, k.key.y, aZ, aX, k.deg, tsuma.Length > 0 ? " --tsuma " + (tsuma == "ZX" ? "both" : tsuma == "Z" ? "negZ" : "posX") : ""));
+                notes.Add(string.Format("隅({0:F1},{1:F1}) ⛔ 隅長屋が焼いてない: {2}", k.key.x, k.key.y, bakeCmd(tsuma)));
                 continue;
             }
-            var go = Place(path, new Vector3(k.face.x, k.baseY, k.face.y), k.psi, Vector3.one, parent, prefix + "_kado" + i++);
-            if (NaturalMode)
+            Func<string, GameObject> placeSeat = p =>
             {
-                try { SeatOnGround(go, 0.10f, 600); } catch (System.Exception) { SeatBottom(go, k.baseY - 0.10f); }
-                var rt = RootToBed(go, Ground, 0.25f);
-                if (!float.IsNaN(rt.hi) && rt.hi > 0f) go.transform.position -= Vector3.up * rt.hi;
+                var g = Place(p, new Vector3(k.face.x, k.baseY, k.face.y), k.psi, Vector3.one, parent, prefix + "_kado" + i);
+                if (NaturalMode)
+                {
+                    try { SeatOnGround(g, 0.10f, 600); } catch (System.Exception) { SeatBottom(g, k.baseY - 0.10f); }
+                    var rt = RootToBed(g, Ground, 0.25f);
+                    if (!float.IsNaN(rt.hi) && rt.hi > 0f) g.transform.position -= Vector3.up * rt.hi;
+                }
+                else SeatBottom(g, k.baseY - 0.10f);
+                return g;
+            };
+            var go = placeSeat(path);
+            // ⭐ 坂の長屋は棟を段違いにして段を妻で閉じる(r8・EDO-0500 ── 低い方へ揃えると門の側で下段の窓が 0.30m 土に切られ、
+            //    門の屋根が隅長屋の上に出た。揃えずに別々に据えると 0.80m の段で切り口が覗いた)。
+            //    ⛔ ピボットで比べない(規則21)── 実メッシュの下端で段を測る。段が SEAT_STEP 以下なら低い方へ揃えて埋める。
+            const float SEAT_STEP = 0.10f;
+            float yb = RB(go).min.y;
+            bool stepX = k.nbrX != null && Mathf.Abs(RB(k.nbrX).min.y - yb) > SEAT_STEP;
+            bool stepZ = k.nbrZ != null && Mathf.Abs(RB(k.nbrZ).min.y - yb) > SEAT_STEP;
+            string t2 = tsumaOf(k.tsumaZ || stepZ, k.tsumaX || stepX);
+            if (t2 != tsuma)
+            {
+                string p2 = EdoAssets.Own.NagayaKado(k.deg, aZ, aX, t2);
+                if (AssetDatabase.LoadAssetAtPath<GameObject>(p2) == null)
+                    notes.Add(string.Format("隅({0:F1},{1:F1}) ⛔ 段の妻の版が焼いてない(段で切り口が覗く): {2}", k.key.x, k.key.y, bakeCmd(t2)));
+                else { UnityEngine.Object.DestroyImmediate(go); go = placeSeat(p2); tsuma = t2; yb = RB(go).min.y; }
             }
-            else SeatBottom(go, k.baseY - 0.10f);
-            // ⭐ 腕の先に継ぐ在庫の棟と土台の底を揃える ── 低い方へ(埋めて隠す・浮かせない)。別々に据えると角の盛り上がりで
-            //    屋根に 0.80m の段が付き、高い方の切り口と妻の三角が覗いた(r7・EDO-0500)。
-            var all = new List<GameObject> { go }; all.AddRange(k.nbrs.Where(n => n != null));
-            float yLo = all.Min(o => o.transform.position.y);
-            foreach (var o in all) o.transform.position = new Vector3(o.transform.position.x, yLo, o.transform.position.z);
-            notes.Add(string.Format("隅({0:F1},{1:F1}) 隅長屋 内角 {4:F1}°・腕 {2:F2}×{3:F2}m{5} を外面の交点へ据えた・継ぐ棟 {6} と土台を {7:F2} に揃えた",
-                                    k.key.x, k.key.y, aZ, aX, k.deg, tsuma.Length > 0 ? "・妻 " + tsuma : "", k.nbrs.Count, yLo));
+            i++;
+            string howX = "", howZ = "";
+            foreach (var nb in new[] { k.nbrX, k.nbrZ })
+            {
+                if (nb == null) continue;
+                float d = RB(nb).min.y - yb;
+                string how;
+                if (Mathf.Abs(d) <= SEAT_STEP)
+                {
+                    float lo = Mathf.Min(yb, RB(nb).min.y);
+                    nb.transform.position += Vector3.up * (lo - RB(nb).min.y);
+                    go.transform.position += Vector3.up * (lo - RB(go).min.y); yb = lo;
+                    how = string.Format("土台を {0:F2} に揃えた", lo);
+                }
+                else how = string.Format("段 {0:+0.00;-0.00}m を妻で閉じた", d);
+                if (nb == k.nbrX) howX = how; else howZ = how;
+            }
+            notes.Add(string.Format("隅({0:F1},{1:F1}) 隅長屋 内角 {4:F1}°・腕 {2:F2}×{3:F2}m{5} を外面の交点へ据えた(土台の下端 {6:F2})・北/−Z の継ぎ {7}・+X の継ぎ {8}",
+                                    k.key.x, k.key.y, aZ, aX, k.deg, tsuma.Length > 0 ? "・妻 " + tsuma : "", yb,
+                                    howZ.Length > 0 ? howZ : "なし", howX.Length > 0 ? howX : "なし"));
         }
         return notes;
     }
@@ -319,8 +354,8 @@ public static partial class EdoBuild
                         }
                         else SeatBottom(go, baseY - 0.10f);
                         made.Add(go); idx++; cur += m.W;
-                        if (k == 0 && kdLo != null) kdLo.nbrs.Add(go);
-                        if (k == nn - 1 && kdHi != null) kdHi.nbrs.Add(go);
+                        if (k == 0 && kdLo != null) kdLo.nbrZ = go;           // 低い s 端の隅 = 隅長屋の −Z の腕
+                        if (k == nn - 1 && kdHi != null) kdHi.nbrX = go;      // 高い s 端の隅 = 隅長屋の +X の腕
                     }
                     continue;
                 }

@@ -566,6 +566,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                                             && kindOf0(x) != "nagaya" && kindOf0(x) != "none";
             Func<Edge, bool> nagOf = x => x != null && !(x.kind == EdgeKind.Shared && !x.mine) && !machiyaFronts.Contains(x) && kindOf0(x) == "nagaya";
             var legs = new List<EdoBuild.NagayaLeg>();
+            var kados = new List<EdoBuild.NagayaKado>();   // 長屋どうしの出隅は隅長屋で納める(EDO-0500)
             foreach (var e in edges)
             {
                 if (e.kind == EdgeKind.Shared && !e.mine) continue;
@@ -575,8 +576,10 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 var eNext = edges.FirstOrDefault(x => x != e && (x.a - e.b).sqrMagnitude < 1e-4f);
                 EdoBuild.NagayaRun(encl, e.a, e.b, e.outward, pad, isFront ? gateC : Vector2.zero, isFront ? gateHalf : -1f,
                                    "nagaya_" + e.i, poly, nagayaTuck,          // 門へ差す量は長屋の駒の札から(EDO-0491)
-                                   fenced(ePrev), fenced(eNext), legs, nagOf(ePrev), nagOf(eNext));
+                                   fenced(ePrev), fenced(eNext), legs, nagOf(ePrev), nagOf(eNext), kados,
+                                   ePrev != null ? ePrev.outward : Vector2.zero, eNext != null ? eNext.outward : Vector2.zero);
             }
+            foreach (var nt in EdoBuild.NagayaKadoPlace(encl, kados, "nagaya")) kakoiNotes.Add(nt);
             // 塀の辺: 足のある隅で、辺の端を長屋の外面の線(足の芯)との交点へ移し、足の辺を継ぎ足す
             var fe = new List<Edge>(); var legKind = new Dictionary<Edge, string>();
             foreach (var e in edges) fe.Add(e);

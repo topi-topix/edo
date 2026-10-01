@@ -2424,6 +2424,42 @@ public static class EdoAssets
             return p.Substring(0, p.Length - 4) + "_A" + az + "x" + ax + ".fbx";
         }
 
+        /// <summary>**出隅の隅長屋**(L 字の長屋の角・EDO-0500 2026-10-01 観理院 北東の施主指摘 ── 妻を突っ込む納めは屋根が重なり窓が途中で切れた)。
+        /// 在庫 `knagaya01c` を周期のまま走りに延ばした帯を **pier(無地の壁)の芯で折った**物 ── 屋根は留めで一続き(外に隅棟・内に谷)。
+        /// 外隅の稜の両側に無地 0.77m ずつ・窓は切れない・各腕に窓 2 つ以上。
+        /// <paramref name="deg"/> = **出隅の内角**(0.1° 単位で綴る ── 90 は `90`・90.9 は `90p9`)。**+X の腕の向きは固定**、−Z の腕が内角で回る
+        /// (−Z の腕の向き = Unity XZ で (−cos φ, −sin φ)・φ = 180 − deg。90.9 なら (−0.0157, −0.9999))。
+        /// <paramref name="armPosX"/> = **+X の腕**(見え面 +Z)/ <paramref name="armNegZ"/> = **−Z の腕**(見え面 −X)の外隅から腕の先までの**外面の長さ**[m]
+        /// (cm の整数で綴る `RoundToInt(a·100)`。焼くときも cm に丸めた値を渡す ── 半 cm は Python と丸めが割れ得る)。
+        /// <paramref name="tsuma"/> = "" | "Z" | "X" | "ZX"(妻で閉じる腕 ⇒ `_TZ` 等)。
+        /// ピボット = **外隅の稜**(両腕の外面 = 足元の帯の最も外 = 海鼠の浮き彫りの表の交線)・**土台の底**。
+        /// 据え: position = 二辺の長屋の外面の線の交点 / yaw = **+X の腕の辺の外向き方位**(+Z が外)/ scale = 1(FBX は実寸 m)。
+        /// 奥行: 外面 → 内壁 3.133 / 軒の出 外 0.567・内 0.593(外面から内の軒先 3.726)/ 棟 5.445(妻つきは鬼まで 5.509)。
+        /// **妻の無い腕の先** = 在庫 `knagaya01c` の土台の端と同じ位相(先の一切れは素の棟の端そのもの)⇒ 在庫の棟を表を外へ向けてそのまま突き付ける
+        /// (+X の腕の先には在庫の棟の右端(表から見て)= 無地 0.571 の端、−Z の腕の先には左端 = 0.961 の端が当たる。表を外へ向ければ勝手にそうなる)。
+        /// **妻の腕の先** = 在庫 `knagaya01l/r` の妻の端(破風・鬼・妻壁)を継いだ物。腕の長さの位置 = **妻壁の外面**(`namako2` の浮き彫りの表)。
+        /// 土台の端は 0.030 内、**破風・鬼は 0.322 外へ出る**(区画の線・門の柱と当てるのは妻壁の外面・破風は軒と同じく越えてよい)。
+        /// 腕の端数は窓の数と無地の壁の詰めで吸う(窓・瓦・海鼠は伸ばさない)。作れる腕は **4.79m 以上**(上限なし)。
+        /// 詰め 0 の長さ(妻なし)は +X の腕 5.563 + 2.687k / −Z の腕 5.182 + 2.687k[m]。
+        /// 札(kind building)は `PartSpecs/<同名>.json`。材 `knagayamap` ⇒ `Edo/共通/隅部材のマテリアルをremap`。
+        /// 焼いてあるもの: **90_A600x600**(生成器の検め用)/ **90p9_A1005x919_TZ**(観理院 北東の当座・−Z の腕 = 北の腕の西の先が表門)。
+        ///   blender --background --python Tools/Blender/build_nagaya_kado.py -- --deg &lt;deg&gt; --arms &lt;negZ&gt;,&lt;posX&gt; [--tsuma negZ|posX|both] --render</summary>
+        public static string NagayaKado(float deg, float armNegZ, float armPosX, string tsuma)
+        {
+            int dd = UnityEngine.Mathf.RoundToInt(deg * 10f);
+            string d = dd % 10 == 0 ? (dd / 10).ToString() : (dd / 10) + "p" + (dd % 10);
+            return "Assets/Edo/Models/Kado/Nagaya_Kado_" + d + "_A" + UnityEngine.Mathf.RoundToInt(armNegZ * 100f)
+                 + "x" + UnityEngine.Mathf.RoundToInt(armPosX * 100f) + (string.IsNullOrEmpty(tsuma) ? "" : "_T" + tsuma) + ".fbx";
+        }
+
+        /// <summary><see cref="NagayaKado(float,float,float,string)"/> の 90°・妻なし(`Nagaya_Kado_90_A&lt;negZ&gt;x&lt;posX&gt;`)。
+        ///   blender --background --python Tools/Blender/build_nagaya_kado.py -- --arms &lt;negZ&gt;,&lt;posX&gt; --render</summary>
+        public static string NagayaKado90(float armNegZ, float armPosX)
+        {
+            return "Assets/Edo/Models/Kado/Nagaya_Kado_90_A" + UnityEngine.Mathf.RoundToInt(armNegZ * 100f)
+                 + "x" + UnityEngine.Mathf.RoundToInt(armPosX * 100f) + ".fbx";
+        }
+
         /// <summary>**片端を斜めの鉛直面で切った城の石垣の駒**(`JC.CastleWall` を走りに 2 枚つないだ 4.00m・丈 4.00・EDO-0430)。
         /// 局所座標は `Castle Wall` と同じ: 走り Z ∈ [−4.00, 0]・控え X = 0・見え面 −X(足 −2.40 / 天端 −1.40)・足元 Y = 0。
         /// ピボット = 切っていない 2 枚の枠の +Z 端・控え・足元(⛔ 切った端でピボットを決めない)。

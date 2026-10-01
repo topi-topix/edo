@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 351(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 353(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -38,9 +38,9 @@
 | `Eg.ToroKasuga` | string | `t_kasuga.obj` — 春日灯籠(edogoyomi `t_kasuga`)── 寺社の境内の献灯(本堂の前・参道の左右に一対)にだけ当てる (庭方の境内の設計 2026-09-27・EDO-0477 P5)。 | TypologyBuilder.Keidai(NiwaKeidai) |
 | `Eg.TexToroKasuga` | string | `t_kasuga.jpg` | — |
 | `Eg.BareTex` | System.Collections.Generic.Dictionary<string, string> | 材の無い edogoyomi の駒 → 同じフォルダの画像(2026-09-28 EDO-0477 施主指摘「灯籠が真っ白」)。 | Build(Place) |
-| `Eg.NorenSpec` | string | `noren.json` — 表店の暖簾・看板の店ごとの染め分け(EDO-0503 施主「全部同じ暖簾」)。 | BuildMachiya(NorenVariants・UraNagayaRun) |
+| `Eg.NorenSpec` | string | `noren.json` — 表店の暖簾・看板の店ごとの染め分け(EDO-0503 施主「全部同じ暖簾」)。 | BuildMachiya(MachiKidoAcross・NorenVariants) |
 | `Eg.NorenTex(shop, key)` | 関数 | — | BuildMachiya(NorenMaterial) |
-| `Eg.NorenMat(shop, key)` | 関数 | — | BuildMachiya(NorenMaterial・NorenVariants) |
+| `Eg.NorenMat(shop, key)` | 関数 | — | BuildMachiya(NorenKitMaterial・NorenMaterial・NorenVariants) |
 | `Eg.Shop01Taru` | string | `s01_taru.obj` — 店先の小物 | — |
 | `Eg.Shop01Oke` | string | `oke.obj` | — |
 | `Eg.TexShop01` | string | `shop01.jpg` — テクスチャ(マテリアル生成用) | SannoSha(Stage5_Monzencho) |
@@ -297,6 +297,8 @@
 | `Own.Kado(part, deg)` | 関数 | 折れ角のある隅の部材(留め継ぎ)。生成は Tools/Blender/build_kado.py。 | MatsudairaDewa(PlaceKado・RendBounds), BuildKado, OkabeYashiki(PlaceKado) |
 | `Own.IshigakiKado(deg, h)` | 関数 | 丈違いの石垣の隅(`Castle Wall` の留め継ぎ・丈 h m)。 | BuildKado(KadoArm), SannoSha(Stage3_Dodome) |
 | `Own.IshigakiKado(deg, h, armNegZ, armPosX)` | 関数 | 腕の短い石垣の隅(IshigakiKado と同じ留め継ぎ・同じ据え: position = 両腕の控えの線の交点 P・y = 天端 − h / yaw = 入りの run の駒の yaw / scale = 1)。 | BuildKado(KadoArm), SannoSha(Stage3_Dodome) |
+| `Own.NagayaKado(deg, armNegZ, armPosX, tsuma)` | 関数 | 出隅の隅長屋(L 字の長屋の角・EDO-0500 2026-10-01 観理院 北東の施主指摘 ── 妻を突っ込む納めは屋根が重なり窓が途中で切れた)。 | BuildRun(NagayaKadoPlace) |
+| `Own.NagayaKado90(armNegZ, armPosX)` | 関数 | NagayaKado の 90°・妻なし(`Nagaya_Kado_90_A&lt;negZ&gt;x&lt;posX&gt;`)。 | BuildRun(KadoAt) |
 | `Own.IshigakiKiri(deg, atPlusZ, faceLonger)` | 関数 | 片端を斜めの鉛直面で切った城の石垣の駒(`JC.CastleWall` を走りに 2 枚つないだ 4.00m・丈 4.00・EDO-0430)。 | — |
 | `Own.MShop01` | string | `M_Shop01.mat` | — |
 | `Own.MShop02` | string | `M_Shop02.mat` | — |

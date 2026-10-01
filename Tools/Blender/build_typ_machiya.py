@@ -83,6 +83,9 @@ END       = 0.11      # けらば(妻の軒の出)。⛔ 広げると隣の駒�
 SEAT      = 0.13      # 大棟を瓦へ食い込ませる量(README)
 RIDGE_SHOW = 0.19     # 大棟の熨斗の見え掛かり ⇒ 棟天端 = 瓦面 + 0.19
 BASE      = 0.08      # 土台石
+GABLE_SINK = 0.08     # 妻壁の天端を屋根面より下げる量。⚠ 瓦の格子は片側のけらばで平瓦の谷が来るので、
+                      #   屋根面ちょうどまで立てると谷から漆喰の白い筋が覗く(2間の駒で 2026-10-01 に実見)。
+                      #   外からは破風板(屋根面の下 0.117 まで)が隠す
 D2F       = 2.146     # 表屋(2階)の躯体の奥行【従属値】— 棟天端を Shop01 の 4.24 に合わせる値
 REAR_EAVE = 2.35      # 奥棟の軒桁(裏壁の通りでの屋根面)⚠ 上げると奥棟の棟が表屋の軒桁に迫る
 MISE_OUT  = 0.50      # 庇の先端が店先の柱通りより前へ出る量
@@ -442,7 +445,7 @@ def build(wKen=5.0, dM=4.0 * KEN, name=None):
         OB.mizukiri(m, P, URA_Z, MISE_Z, KOSHI_URA, sx, sg, 'z')
         for (z0, z1, y0, y1) in segs:
             OB.section(m, sx, sx + s * 0.10,
-                       [(z0, KOSHI_URA), (z1, KOSHI_URA), (z1, y1), (z0, y0)],
+                       [(z0, KOSHI_URA), (z1, KOSHI_URA), (z1, y1 - GABLE_SINK), (z0, y0 - GABLE_SINK)],
                        VM.sub(P['cuv'], 0.05, 0.05, 0.95, 0.95), WALL)
         OB.posts(m, P, [URA_Z + 0.25, REAR1_Z, MISE_Z - 0.25],
                  KOSHI_URA, REAR_EAVE, sx, sg, 'z')
@@ -486,7 +489,160 @@ def build(wKen=5.0, dM=4.0 * KEN, name=None):
           % (name, EAVE2_TIP, RIDGE_Y, RIDGE_Y + RIDGE_SHOW,
              URIDGE_Y, URIDGE_Y + RIDGE_SHOW, UEAVE_TIP))
     print("[machiya] %s 孤立頂点を落とした数 %d" % (name, n_loose))
+    build.last = dict(kei="zushi", hw=hw, hd=hd, mise_z=MISE_Z, ura_z=URA_Z,
+                      tana=True, eave_tip=EAVE2_TIP, ridge_top=RIDGE_Y + RIDGE_SHOW)
     return o, name
+
+
+# ═════════════════════════════ 平屋の小店(EDO-0503 ⑥)═════════════════════════════
+# 門前の小さな町に混ぜる**平屋の表店**(平入りの切妻1枚・2〜3間)。総二階/厨子二階の隣に並ぶと
+# 軒が一段下がり、通りの軒線が波打つ ⇒ 「全部同じ大きさと形」を崩す要の駒【U・一般類型】。
+# ⭐ 軒先 2.25 は在庫の 1階庇(先端 1.73 / 頂 2.361)の頂と揃う高さ ⇒ 厨子二階の隣でも庇の線が通る。
+# ⭐ 店先の軒の出を 0.60 と深くとる(庇を別に付けない平屋の店の作り)。裏は 0.21(Shop01 実測)。
+HIRA_EAVE   = 2.25    # 軒先(前後とも同じ高さ・平入りの切妻)
+HIRA_NOKI_F = 0.60    # 店先の軒の出
+OVER_Z_HIRA = 0.096   # 袖瓦の端が急勾配の軒先線より前へ出る量【実測 2026-10-01】
+
+
+def build_hiraya(wKen=2.0, dM=2.5 * KEN, name=None):
+    """平屋の表店1軒。wKen = 桁行[間]、dM = 奥行[m]。**どちらも軒の端から端(bbox)**。
+    立面の部品(格子・見世棚・大戸口・暖簾・下見板)は厨子二階の表店と同じ手で作る。"""
+    name = name or ("Typ_OmotedanaHira_%sx%sken" % (fmt(wKen), fmt(dM / KEN)))
+    P = OB.palette()
+    W = wKen * KEN
+    # ⚠ 前後とも急勾配の軒なので、袖瓦の端が軒先線より **0.096** 出る(厨子二階は前が緩い庇で
+    #   0.065・後が 0.096 ⇒ 平均 0.0805 = OVER_Z)。⛔ OVER_Z をそのまま使うと D が +0.031 膨らむ【実測】
+    hw, hd = W / 2.0 - OVER_X, dM / 2.0 - OVER_Z_HIRA
+    MISE_Z  = hd - HIRA_NOKI_F                       # 店先の柱通り
+    URA_Z   = -hd + NOKI                             # 裏壁
+    RIDGE_Z = 0.0                                    # 大棟(前後の軒先の中)
+    RIDGE_Y = HIRA_EAVE + hd * R.RATIO               # 瓦面の大棟
+    WF = HIRA_EAVE + HIRA_NOKI_F * R.RATIO           # 店先の壁の通りでの屋根面(軒桁)
+    WR = HIRA_EAVE + NOKI * R.RATIO                  # 裏壁の通りでの屋根面
+
+    m = VM.Mesh()
+    nbay = max(1, int(round(wKen)))
+    xs = [-hw + (2.0 * hw) * i / nbay for i in range(nbay + 1)]
+    bays = [(xs[i], xs[i + 1]) for i in range(len(xs) - 1)]
+
+    m.box(*rr(-hw - 0.10, hw + 0.10), y0=0.0, y1=BASE,                     # 土台石
+          z0=URA_Z - 0.10, z1=MISE_Z + 0.10,
+          uv=VM.sub(P['suv'], 0, 0, 1, 0.5), mat=STONE)
+
+    # ── 店先(+Z)──────────────────────────────────────────
+    for k, (a, b) in enumerate(bays):
+        if k == 0:                              # 大戸口
+            OB.plaster(m, P, *rr(a, b), y0=UCHI1, y1=WF, plane=MISE_Z, out=1, along='x')
+            tategu(m, P, a + 0.16, b - 0.16, BASE, UCHI1, MISE_Z, 1, n=2)
+            for xx in (a + 0.08, b - 0.08):
+                OB.shitami(m, P, *rr(xx - 0.08, xx + 0.08), y0=BASE, y1=UCHI1,
+                           plane=MISE_Z, out=1, along='x')
+        else:                                   # 見世
+            OB.shitami(m, P, *rr(a, b), y0=BASE, y1=KOSHI1, plane=MISE_Z, out=1, along='x')
+            OB.mizukiri(m, P, *rr(a, b), y=KOSHI1, plane=MISE_Z, out=1, along='x')
+            koshi_mado(m, P, a + 0.09, b - 0.09, KOSHI1 + 0.05, UCHI1, MISE_Z, 1, back='dark')
+            OB.plaster(m, P, *rr(a, b), y0=UCHI1, y1=WF, plane=MISE_Z, out=1, along='x')
+    if len(bays) > 1:
+        misedana(m, P, bays[1][0] + 0.05, bays[-1][1] - 0.05, MISE_Z, 1)
+    noren_bar(m, P, -hw + 0.06, hw - 0.06, MISE_Z, 1)
+    OB.posts(m, P, [-x for x in xs], BASE, WF, MISE_Z, 1, 'x')
+    m.box(*rr(-hw - 0.05, hw + 0.05), y0=UCHI1, y1=UCHI1 + 0.16,          # 店先の差鴨居
+          z0=MISE_Z - 0.17, z1=MISE_Z,
+          uv=VM.sub(P['wuv'], 0.20, 0.15, 0.95, 0.45), mat=WOOD)
+
+    # ── 裏(−Z)。勝手口 ─────────────────────────────────────
+    OB.shitami(m, P, *rr(-hw, hw), y0=BASE, y1=KOSHI_URA, plane=URA_Z, out=-1, along='x')
+    OB.mizukiri(m, P, *rr(-hw, hw), y=KOSHI_URA, plane=URA_Z, out=-1, along='x')
+    da0, da1 = xs[0] + 0.30, min(xs[0] + 1.25, xs[1] - 0.10)
+    OB.plaster(m, P, *rr(-hw, da0), y0=KOSHI_URA, y1=WR, plane=URA_Z, out=-1, along='x')
+    OB.plaster(m, P, *rr(da1, hw), y0=KOSHI_URA, y1=WR, plane=URA_Z, out=-1, along='x')
+    OB.plaster(m, P, *rr(da0, da1), y0=UCHI1, y1=WR, plane=URA_Z, out=-1, along='x')
+    tategu(m, P, da0, da1, BASE, UCHI1, URA_Z, -1, n=1)
+    for (a, b) in bays[1:]:
+        c = (a + b) / 2.0
+        koshi_mado(m, P, c - 0.40, c + 0.40, 1.05, 1.65, URA_Z, -1, pitch=0.12)
+    OB.posts(m, P, [-x for x in xs], KOSHI_URA, WR, URA_Z, -1, 'x')
+
+    # ── 妻(±X)。開口なし ────────────────────────────────────
+    prof = [(-hd, HIRA_EAVE), (RIDGE_Z, RIDGE_Y), (hd, HIRA_EAVE)]
+    segs = [(URA_Z, RIDGE_Z, WR, RIDGE_Y), (RIDGE_Z, MISE_Z, RIDGE_Y, WF)]
+    for sd in (-1, 1):
+        sx, sg = -sd * hw, -sd
+        OB.shitami(m, P, URA_Z, MISE_Z, BASE, KOSHI_URA, sx, sg, 'z')
+        OB.mizukiri(m, P, URA_Z, MISE_Z, KOSHI_URA, sx, sg, 'z')
+        for (z0, z1, y0, y1) in segs:
+            OB.section(m, sx, sx + sd * 0.10,
+                       [(z0, KOSHI_URA), (z1, KOSHI_URA), (z1, y1 - GABLE_SINK), (z0, y0 - GABLE_SINK)],
+                       VM.sub(P['cuv'], 0.05, 0.05, 0.95, 0.95), WALL)
+        OB.posts(m, P, [URA_Z + 0.25, MISE_Z - 0.25], KOSHI_URA, WR, sx, sg, 'z')
+    rake(m, P, hw, prof)
+
+    body = m.to_object(name + "_body", [P['wood'], P['wall'], P['stone'], P['shoji']])
+    _recalc(body)
+
+    ex0, ex1 = -hw - END, hw + END
+    pieces = [
+        _tiles(ex0, ex1, hd,  RIDGE_Z, HIRA_EAVE, R.RATIO, name + "_rS"),
+        _tiles(ex0, ex1, -hd, RIDGE_Z, HIRA_EAVE, R.RATIO, name + "_rN"),
+    ]
+    pieces += _ridge(ex0, ex1, RIDGE_Z, RIDGE_Y, name + "_omune")
+    pieces += _ridge_caps(P, ex0, ex1, RIDGE_Z, RIDGE_Y, name + "_omune")
+    pieces += _sode(ex0, ex1, prof, name)
+    pieces += kit_noren(bays, MISE_Z, name)
+
+    V.dedup_materials()
+    o = V.join([body] + [p for p in pieces if p], name)
+    n_loose = _clean_loose(o)
+    V.set_origin(o, (0.0, 0.0, 0.0))
+    V.sel([o])
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    print("[machiya] %s 平屋 通り Z=%+.3f / 柱通り %+.3f / 裏壁 %+.3f / 軒先 %.2f / 瓦面の大棟 %.3f(棟天端 %.3f)"
+          % (name, hd, MISE_Z, URA_Z, HIRA_EAVE, RIDGE_Y, RIDGE_Y + RIDGE_SHOW))
+    print("[machiya] %s 孤立頂点を落とした数 %d" % (name, n_loose))
+    build.last = dict(kei="hira", hw=hw, hd=hd, mise_z=MISE_Z, ura_z=URA_Z,
+                      tana=len(bays) > 1, eave_tip=HIRA_EAVE, ridge_top=RIDGE_Y + RIDGE_SHOW)
+    return o, name
+
+
+# ═════════════════════════════ 札(EDO-0491)═════════════════════════════
+def spec_from_design(o, wKen, dM, mn, mx, cmd):
+    """**札は作図の変数から**(`build.last`)。足元 = 土台石と見世棚の脚 / 正面・背面 = 帯(0.30〜1.80)の
+    最も外の面。⚠ 厨子二階の駒は 1階庇の先端 1.73 が帯に入るので正面は庇の瓦(軒先線+唇)。
+    書いたあと**同じ手続きでメッシュを切って突き合わせ**、0.02 を超えたら刷る(EdoPartSpec.Verify の前検め)。"""
+    L = build.last
+    hw, hd, mz, uz = L['hw'], L['hd'], L['mise_z'], L['ura_z']
+    fz1 = max(mz + 0.10, mz + TANA_OUT) if L['tana'] else mz + 0.10
+    foot = [{"x": -hw - 0.10, "y": uz - 0.10}, {"x": hw + 0.10, "y": uz - 0.10},
+            {"x": hw + 0.10, "y": fz1}, {"x": -hw - 0.10, "y": fz1}]
+    front = fz1
+    if L['kei'] == "zushi":      # 帯の上端 1.80 が 1階庇の軒瓦の唇(先端 1.73)を切る ⇒ 軒先線 + 0.024【実測定数】
+        front = max(front, hd + 0.024)
+    back = uz - 0.075            # 裏の下見板の下端(壁から 0.075 出る)。土台石は帯(0.30〜)の下
+    spec = {"source": "blender:build_typ_machiya.py(%s)" % cmd, "unitScale": 1.0, "yBottom": 0.0,
+            "foot": foot, "front": front, "back": back,
+            "eave": {"x0": -W2(wKen), "x1": W2(wKen), "z0": -dM / 2.0, "z1": dM / 2.0,
+                     "y0": 0.0, "y1": mx.z},
+            "height": mx.z}
+    # ── 前検め: 帯でメッシュを切る ──
+    import numpy as np
+    me = o.data
+    co = np.array([(-v.co.x, v.co.z, -v.co.y) for v in me.vertices])   # Unity (x,y,z)
+    zs_hi, zs_lo = [], []
+    for y in np.arange(0.30, 1.80 + 1e-4, 0.25):
+        for e in me.edges:
+            a, b = co[e.vertices[0]], co[e.vertices[1]]
+            if (a[1] - y) * (b[1] - y) <= 0 and abs(a[1] - b[1]) > 1e-9:
+                t = (y - a[1]) / (b[1] - a[1]); z = a[2] + (b[2] - a[2]) * t
+                zs_hi.append(z); zs_lo.append(z)
+    mf, mb = max(zs_hi), min(zs_lo)
+    print("[spec] 正面 設計 %+.3f / 実測 %+.3f(差 %+.3f)・背面 設計 %+.3f / 実測 %+.3f(差 %+.3f)%s"
+          % (front, mf, mf - front, back, mb, mb - back,
+             "" if max(abs(mf - front), abs(mb - back)) <= 0.02 else " ⛔ 0.02 を超える"))
+    return spec
+
+
+def W2(wKen):
+    return wKen * KEN / 2.0
 
 
 # ═════════════════════════════ 検証 ═════════════════════════════
@@ -672,41 +828,104 @@ def narabe(wKen=5.0, dM=4.0 * KEN):
     print("[machiya] 並べ比べ: Screenshots/typ_machiya_narabe_{elev,me}.png")
 
 
+def _import_eg(tag):
+    before = set(bpy.data.objects)
+    bpy.ops.wm.obj_import(filepath=os.path.join(V.REPO, "Assets", "edogoyomi", tag))
+    got = [o for o in bpy.data.objects if o not in before and o.type == 'MESH']
+    ref = V.join(got, "Eg_" + tag.split('/')[0])
+    V.sel([ref])
+    bpy.ops.transform.resize(value=(1.818,) * 3, center_override=(0, 0, 0))
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    return ref
+
+
+def narabe_ko():
+    """**小店の並べ比べ**(EDO-0503 ⑥)— 在庫 Shop01・当方の 2間/3間の厨子二階・平屋を
+    門前町の通りのように**軒を接して**一列に焼く。⛔ 何も書き出さない。
+    見るもの: 平屋の軒が隣の厨子二階の庇の線と揃うか・低い駒の棟が高い駒の妻に当たる所の納まり。"""
+    V.reset()
+    seq = [("eg", "es_shop01/shop01.obj"), ("hira", 2.0), ("zushi", 3.0), ("hira", 3.0),
+           ("zushi", 2.0), ("eg", "es_shop02/shop02.obj"), ("hira", 2.0), ("zushi", 2.0)]
+    xs = 0.0
+    for kind, arg in seq:
+        if kind == "eg":
+            o = _import_eg(arg)
+        elif kind == "hira":
+            o, _n = build_hiraya(arg, 2.5 * KEN, "nb_hira%d_%s" % (int(arg), fmt(xs)))
+        else:
+            o, _n = build(arg, 2.8 * KEN, "nb_zushi%d_%s" % (int(arg), fmt(xs)))
+        mn, mx = V.bbox([o])
+        o.location = (xs - mn.x, -(mn.y + mx.y) / 2.0 if kind == "eg" else 0.0, -mn.z)
+        bpy.context.view_layer.update()
+        V.sel([o]); bpy.ops.object.transform_apply(location=True, rotation=False, scale=False)
+        print("[machiya] 並べ %-6s %-5s W=%.3f H=%.3f D=%.3f" % (kind, arg if kind != "eg" else arg[:9],
+              mx.x - mn.x, mx.z - mn.z, mx.y - mn.y))
+        xs += (mx.x - mn.x)
+    V.hook_textures()
+    for tag in ("shop01", "shop02"):
+        _hook_eg(tag + "map", os.path.join(V.REPO, "Assets", "edogoyomi", "es_" + tag, tag + ".jpg"))
+    os.makedirs(SHOT, exist_ok=True)
+    bpy.ops.mesh.primitive_plane_add(size=300.0, location=(xs / 2.0, 0.0, -0.05))
+    V.studio((xs / 2.0, -80.0, 2.4), (xs / 2.0, 0.0, 2.4), ortho_scale=xs * 1.04, res=(2600, 700))
+    V.render(os.path.join(SHOT, "typ_machiya_ko_narabe_elev.png"))
+    V.studio((-6.0, -14.0, 1.60), (xs * 0.40, 0.0, 2.2), res=(2000, 950))
+    V.render(os.path.join(SHOT, "typ_machiya_ko_narabe_me.png"))
+    V.studio((xs * 0.35, -16.0, 14.0), (xs * 0.35, 0.0, 2.0), res=(2000, 1000))
+    V.render(os.path.join(SHOT, "typ_machiya_ko_narabe_fukan.png"))
+    print("[machiya] 並べ比べ: Screenshots/typ_machiya_ko_narabe_{elev,me,fukan}.png")
+
+
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     words = [a for a in argv if not a.startswith("--")]
     wKen = float(argv[argv.index("--ken") + 1]) if "--ken" in argv else 5.0
-    dM = float(argv[argv.index("--okuyuki") + 1]) if "--okuyuki" in argv else 4.0 * KEN
+    kei = argv[argv.index("--kei") + 1] if "--kei" in argv else "zushi"
+    dflt = 2.5 * KEN if kei == "hira" else 4.0 * KEN
+    dM = float(argv[argv.index("--okuyuki") + 1]) if "--okuyuki" in argv else dflt
     if "axis" in words:
         V.reset(); axis_check(); return
     if "narabe" in words:
         narabe(wKen, dM); return
+    if "narabe_ko" in words:
+        narabe_ko(); return
     V.reset()
     if not axis_check():
         print("[machiya] ⛔ 軸の写像が期待と違う。止める")
         return
     V.reset()
-    name = ("Typ_Omotedana_%sken" % fmt(wKen) if abs(dM - 4.0 * KEN) < 1e-3
-            else "Typ_Omotedana_%sx%sken" % (fmt(wKen), fmt(dM / KEN)))
-    o, name = build(wKen, dM, name)
+    if kei == "hira":
+        name = "Typ_OmotedanaHira_%sx%sken" % (fmt(wKen), fmt(dM / KEN))
+        key = "hira_%sx%s" % (fmt(wKen), fmt(dM / KEN))
+        o, name = build_hiraya(wKen, dM, name)
+    else:
+        name = ("Typ_Omotedana_%sken" % fmt(wKen) if abs(dM - 4.0 * KEN) < 1e-3
+                else "Typ_Omotedana_%sx%sken" % (fmt(wKen), fmt(dM / KEN)))
+        key = (fmt(wKen) if abs(dM - 4.0 * KEN) < 1e-3
+               else "%sx%s" % (fmt(wKen), fmt(dM / KEN)))
+        o, name = build(wKen, dM, name)
     mn, mx = V.bbox([o])
     print("[machiya] %-26s Unity実寸 W(X)=%6.3f H(Y)=%6.3f D(Z)=%6.3f 底=%+.3f 面=%d 頂点=%d"
           % (name, mx.x - mn.x, mx.z - mn.z, mx.y - mn.y, mn.z,
              len(o.data.polygons), len(o.data.vertices)))
     print("[machiya] %-26s 材質=%s" % (name, [mm.name for mm in o.data.materials]))
-    print("[machiya] %-26s Shop01(ES後 W4.926 H4.250 D4.031・棟天端 4.236)との差: "
-          "W %+.3f / H %+.3f / D %+.3f"
-          % (name, (mx.x - mn.x) - 4.926, (mx.z - mn.z) - 4.250, (mx.y - mn.y) - 4.031))
+    print("[machiya] %-26s 軒先 %.3f / 棟天端 %.3f"
+          % (name, build.last['eave_tip'], build.last['ridge_top']))
     # ⛔ **食う幅と奥行は注文どおりか** — `MachiyaRun` は軒込みの bbox を積む(ShopModule.W)。
     eW, eD = (mx.x - mn.x) - wKen * KEN, (mx.y - mn.y) - dM
     print("[machiya] %-26s 注文との差 W %+.4f / D %+.4f ⇒ %s"
           % (name, eW, eD, "⭕" if max(abs(eW), abs(eD)) < 0.006 else "⛔ OVER_X/OVER_Z を直す"))
     verify(o, wKen, dM)
     if "--render" in argv:
-        shots(o, fmt(wKen) if abs(dM - 4.0 * KEN) < 1e-3
-              else "%sx%s" % (fmt(wKen), fmt(dM / KEN)), (mn, mx))   # ⚠ 書き出しの前に撮る
-    V.export_fbx([o], os.path.join(OUT, name + ".fbx"))
-    print("[machiya] 書き出し " + os.path.join(OUT, name + ".fbx"))
+        shots(o, key, (mn, mx))   # ⚠ 書き出しの前に撮る
+    path = os.path.join(OUT, name + ".fbx")
+    cmd = "--kei %s --ken %s --okuyuki %.4f" % (kei, fmt(wKen), dM)
+    sp = spec_from_design(o, wKen, dM, mn, mx, cmd)
+    # ⚠ 札の置き場 `Assets/Edo/Data/PartSpecs` が他の窓の claim 中なら、環境変数 SPEC_DIR で
+    #   scratchpad へ書いて後で移す(2026-10-01 EDO-0503 で踏んだ)。
+    if os.environ.get("SPEC_DIR"):
+        V.SPEC_DIR = os.environ["SPEC_DIR"]
+    V.export_fbx([o], path, kind="building", spec=sp)
+    print("[machiya] 書き出し " + path)
 
 
 main()

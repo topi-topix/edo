@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 348(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 351(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -26,8 +26,8 @@
 | `Eg.Kidobanya` | string | `kidobanya.obj` | — |
 | `Eg.Jishinban` | string | `jishinban.obj` | TypologyBuilder.Inari(Inari), TypologyBuilder.Machiya(Machiya) |
 | `Eg.Hinomiyagura` | string | `hinomiyagura.obj` | Typology(Plan) |
-| `Eg.Shop01` | string | `shop01.obj` | BuildMachiya(MachiyaRun), SannoSha, TypologyBuilder.Machiya(Machiya) |
-| `Eg.Shop02` | string | `shop02.obj` | BuildMachiya(MachiyaRun), SannoSha, TypologyBuilder.Machiya(Machiya) |
+| `Eg.Shop01` | string | `shop01.obj` | BuildMachiya(HangNoren・MachiyaRun), SannoSha, TypologyBuilder.Machiya(Machiya) |
+| `Eg.Shop02` | string | `shop02.obj` | BuildMachiya(HangNoren・MachiyaRun), SannoSha, TypologyBuilder.Machiya(Machiya) |
 | `Eg.DobeiCenter` | string | `s_hei_center.obj` — 塀 | BuildRun, Doi(RemapKido), OkabeYashiki(BindDonorMaterials), PartSpec(Bake) |
 | `Eg.DobeiCorner` | string | `s_hei_corner.obj` | — |
 | `Eg.Itabei5` | string | `itabei5.obj` | SannoSha(BuiltSegs・RemapSannoShinzo・Stage4_Kakoi), MatsudairaDewa(ItabeiRun・PlaceItabeiSpan), OkabeYashiki(AssetByKey) |
@@ -38,6 +38,9 @@
 | `Eg.ToroKasuga` | string | `t_kasuga.obj` — 春日灯籠(edogoyomi `t_kasuga`)── 寺社の境内の献灯(本堂の前・参道の左右に一対)にだけ当てる (庭方の境内の設計 2026-09-27・EDO-0477 P5)。 | TypologyBuilder.Keidai(NiwaKeidai) |
 | `Eg.TexToroKasuga` | string | `t_kasuga.jpg` | — |
 | `Eg.BareTex` | System.Collections.Generic.Dictionary<string, string> | 材の無い edogoyomi の駒 → 同じフォルダの画像(2026-09-28 EDO-0477 施主指摘「灯籠が真っ白」)。 | Build(Place) |
+| `Eg.NorenSpec` | string | `noren.json` — 表店の暖簾・看板の店ごとの染め分け(EDO-0503 施主「全部同じ暖簾」)。 | BuildMachiya(NorenVariants・UraNagayaRun) |
+| `Eg.NorenTex(shop, key)` | 関数 | — | BuildMachiya(NorenMaterial) |
+| `Eg.NorenMat(shop, key)` | 関数 | — | BuildMachiya(NorenMaterial・NorenVariants) |
 | `Eg.Shop01Taru` | string | `s01_taru.obj` — 店先の小物 | — |
 | `Eg.Shop01Oke` | string | `oke.obj` | — |
 | `Eg.TexShop01` | string | `shop01.jpg` — テクスチャ(マテリアル生成用) | SannoSha(Stage5_Monzencho) |

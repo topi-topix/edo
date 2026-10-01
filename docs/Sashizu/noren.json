@@ -1,0 +1,25 @@
+{
+  "_": "表店の暖簾と看板の店ごとの染め分け(EDO-0503)。焼くのは Tools/Unity/bake_noren.py、掛けるのは EdoBuild.HangNoren。color は暖簾の地色 RGB、mark は印の型(hishi/maru/yama/kaku/igeta/none)、mark_char は印の中の一字、yago は長暖簾の芯の大きな文字、trade_text は長暖簾の脇の小さな文字、kanban は置き看板の文字(/で2行)。ippan=true の店は、類型表の区画に noren の欄が無い町屋(町屋・代地・新町・田町)の既定の候補。⛔ 屋号は史料に無いので作らない ── 文字は商いの名だけ(考証方 2026-10-01: 山王門前の屋号は典拠なし【U】)。⛔ 確度の無い店を既成事実にしない(規則7)",
+  "_colors": "暖簾の色の慣例(一般類型・U): 藍・紺=一般の商家、白=菓子・薬、柿渋・茶=煙草・荒物 [考証方 EDO-0503 項3]",
+  "variants": [
+    {"key": "chaya_a",  "trade": "水茶屋",   "color": [196, 172, 122], "mark": "yama",  "mark_char": "茶", "yago": "御休処", "trade_text": "山王", "kanban": "御休処/山王茶屋", "ippan": false, "cert": "U", "src": "[町名由来板 永田町二丁目]B「茶屋が点在」/ 本来は暖簾でなく葦簀・掛行灯。葦簀の駒が無いので葦簀色の暖簾で代える(U)"},
+    {"key": "chaya_b",  "trade": "水茶屋",   "color": [184, 160, 112], "mark": "maru",  "mark_char": "休", "yago": "山王茶屋", "trade_text": "御茶", "kanban": "御茶/御休処", "ippan": false, "cert": "U", "src": "同上"},
+    {"key": "dango",    "trade": "団子・餅", "color": [232, 228, 214], "mark": "maru",  "mark_char": "団", "yago": "だんご", "trade_text": "山王餅", "kanban": "だんご/山王餅", "ippan": false, "cert": "U", "src": "参詣客向けの一般類型(考証方 EDO-0503 項2・3)"},
+    {"key": "hana",     "trade": "花・線香", "color": [40, 52, 86],    "mark": "hishi", "mark_char": "花", "yago": "御花", "trade_text": "線香", "kanban": "御花/線香", "ippan": false, "cert": "U", "src": "同上"},
+    {"key": "kashi",    "trade": "菓子",     "color": [234, 230, 218], "mark": "kaku",  "mark_char": "菓", "yago": "御菓子", "trade_text": "上菓子", "kanban": "御菓子/御干菓子", "ippan": true, "cert": "U", "src": "同上"},
+    {"key": "soba",     "trade": "蕎麦",     "color": [30, 38, 66],    "mark": "maru",  "mark_char": "そ", "yago": "生蕎麦", "trade_text": "手打", "kanban": "生蕎麦/御膳", "ippan": true, "cert": "U", "src": "同上"},
+    {"key": "ofuda",    "trade": "御札・土産", "color": [230, 226, 212], "mark": "yama", "mark_char": "王", "yago": "御守", "trade_text": "山王", "kanban": "御守/御札所", "ippan": false, "cert": "U", "src": "同上"},
+    {"key": "aramono",  "trade": "荒物",     "color": [148, 82, 42],   "mark": "igeta", "mark_char": "",   "yago": "荒物", "trade_text": "御品々", "kanban": "荒物/諸色", "ippan": true, "cert": "U", "src": "近隣武家向けの日用品の一般類型(同 項2)"},
+    {"key": "tabako",   "trade": "煙草",     "color": [124, 74, 44],   "mark": "hishi", "mark_char": "た", "yago": "たばこ", "trade_text": "国分", "kanban": "御たばこ/きざみ", "ippan": true, "cert": "U", "src": "同上"},
+    {"key": "komamono", "trade": "小間物",   "color": [44, 56, 92],    "mark": "maru",  "mark_char": "小", "yago": "小間物", "trade_text": "紅白粉", "kanban": "小間物/紅白粉", "ippan": true, "cert": "U", "src": "同上"},
+    {"key": "sake",     "trade": "酒",       "color": [34, 44, 74],    "mark": "yama",  "mark_char": "酒", "yago": "御酒", "trade_text": "銘酒", "kanban": "御酒/銘酒", "ippan": true, "cert": "U", "src": "同上"},
+    {"key": "yaoya",    "trade": "八百屋",   "color": [50, 62, 96],    "mark": "kaku",  "mark_char": "八", "yago": "青物", "trade_text": "八百屋", "kanban": "青物/前栽物", "ippan": true, "cert": "U", "src": "同上"},
+    {"key": "tofu",     "trade": "豆腐",     "color": [40, 50, 80],    "mark": "maru",  "mark_char": "豆", "yago": "豆腐", "trade_text": "とうふ", "kanban": "豆腐/油揚", "ippan": true, "cert": "U", "src": "同上"},
+    {"key": "sumi",     "trade": "薪炭",     "color": [112, 70, 42],   "mark": "kaku",  "mark_char": "炭", "yago": "薪炭", "trade_text": "御炭", "kanban": "薪炭/御炭", "ippan": true, "cert": "U", "src": "同上"},
+    {"key": "kome",     "trade": "米",       "color": [36, 46, 78],    "mark": "igeta", "mark_char": "米", "yago": "米", "trade_text": "搗米", "kanban": "搗米/御米", "ippan": true, "cert": "U", "src": "同上"},
+    {"key": "kamiyui",  "trade": "髪結床",   "color": [228, 224, 210], "mark": "maru",  "mark_char": "床", "yago": "髪結", "trade_text": "御床", "kanban": "髪結/御床", "ippan": true, "cert": "U", "src": "同上 / 田町の業種 [文政町方書上](typology.json tamachi の source)。本来は障子に絵看板で暖簾は掛けない(U)"},
+    {"key": "konya",    "trade": "紺屋",     "color": [26, 34, 70],    "mark": "hishi", "mark_char": "紺", "yago": "紺屋", "trade_text": "御染物", "kanban": "御染物/紺屋", "ippan": true, "cert": "B", "src": "田町の業種 [文政町方書上](typology.json tamachi の source)"},
+    {"key": "kappa",    "trade": "合羽",     "color": [140, 86, 46],   "mark": "yama",  "mark_char": "合", "yago": "合羽", "trade_text": "雨具", "kanban": "合羽/雨具", "ippan": true, "cert": "B", "src": "同上"},
+    {"key": "yakushu",  "trade": "薬種",     "color": [236, 232, 220], "mark": "kaku",  "mark_char": "薬", "yago": "薬種", "trade_text": "生薬", "kanban": "薬種/生薬", "ippan": true, "cert": "B", "src": "同上"}
+  ]
+}

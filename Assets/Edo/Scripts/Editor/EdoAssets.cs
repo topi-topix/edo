@@ -83,6 +83,13 @@ public static class EdoAssets
                 { Shop02, TexShop02 },
             };
 
+        /// <summary>**表店の暖簾・看板の店ごとの染め分け**(EDO-0503 施主「全部同じ暖簾」)。正典は <see cref="NorenSpec"/>
+        /// (屋号・業種・地色・印・文字・典拠)。画像は `Tools/Unity/bake_noren.py` が在庫の shop01/shop02 の画像から
+        /// 暖簾と看板の四角だけを塗り替えて焼く。掛けるのは `EdoBuild.HangNoren`(軒ごと・隣で同じ店を続けない)。</summary>
+        public const string NorenSpec = "docs/Sashizu/noren.json";
+        public static string NorenTex(string shop, string key) { return "Assets/Edo/Textures/Noren/" + shop + "_" + key + ".jpg"; }
+        public static string NorenMat(string shop, string key) { return "Assets/Edo/Materials/Noren/M_Noren_" + shop + "_" + key + ".mat"; }
+
         // 店先の小物
         public const string Shop01Taru  = "Assets/edogoyomi/es_shop01/s01_taru.obj";
         public const string Shop01Oke   = "Assets/edogoyomi/es_shop01/oke.obj";

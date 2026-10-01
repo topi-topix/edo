@@ -36,6 +36,25 @@ public static partial class EdoTypologyBuilder
     /// <summary>その間口の表店を**当方で起こしてあるか**を資産の有無で見て、あれば**深い順**に返す
     /// (深い版 → 詰めた版)。⭐ 幅の数字(5)をここへ書かない — 4間の駒を焼けば黙って効く。
     /// 無ければ null(在庫の 2 点だけで建つ)。</summary>
+    /// <summary>この区画の表店に掛けてよい暖簾(noren.json の key)。表の `noren` の欄(業種の割り当て・重複は軒数の比)が
+    /// あればそれ、無ければ noren.json の `ippan: true` の店すべて(町屋・代地・新町・田町の既定)。EDO-0503。</summary>
+    static string[] NorenKeysFor(Spec s)
+    {
+        object v; var d = s.raw;
+        if (d != null && d.TryGetValue("noren", out v) && v is List<object>)
+        {
+            var l = new List<string>();
+            foreach (var o in (List<object>)v) if (o != null) l.Add(o.ToString());
+            if (l.Count > 0) return l.ToArray();
+        }
+        var ip = new List<string>();
+        foreach (var nv in EdoBuild.NorenVariants())
+        {
+            object f; if (nv.TryGetValue("ippan", out f) && f != null && f.ToString().ToLowerInvariant() == "true") ip.Add(nv["key"].ToString());
+        }
+        return ip.ToArray();
+    }
+
     static string[] OmotedanaFor(int maguchiKen)
     {
         var l = new List<string>();
@@ -106,6 +125,7 @@ public static partial class EdoTypologyBuilder
         float worstJoint = float.NaN, worstWallGap = 0f, worstFace = float.NaN, restSum = 0f;
         int kinds = 0;
         var oursUsed = new HashSet<string>();
+        var allHouses = new List<List<GameObject>>();   // 暖簾を軒ごとに掛ける(EDO-0503)
 
         for (int k = 0; k < fronts.Count; k++)
         {
@@ -117,6 +137,7 @@ public static partial class EdoTypologyBuilder
                                 "Omotedana" + k, k == 0 ? lead : null, ours, poly,
                                 k == 0 ? null : built, out t, YuTanaSeed(s, "Omotedana" + k)));
             clashed += t.clashed;
+            if (t.houseList != null) allHouses.AddRange(t.houseList);
             if (k == 0) roomFirst = t.roomM;
             shopDeep = Mathf.Max(shopDeep, t.shopD);
             totalPieces += t.pieces; totalHouses += t.houses; wantTotal += t.wantHouses;
@@ -142,6 +163,7 @@ public static partial class EdoTypologyBuilder
                                       e.i, t.tucked, t.tuckedM));
         }
 
+        log.Add("    " + EdoBuild.HangNoren(allHouses, NorenKeysFor(s), EdoBuild.Seed(s.id + ":noren")));
         log.Insert(0, string.Format("  町屋: 表店 {0}軒 / 駒 {1}枚 — 接道辺 {2}本({3})",
             totalHouses, totalPieces, fronts.Count, s.twoSided ? "両側町" : "片側町"));
         if (ours != null)

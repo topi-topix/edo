@@ -211,6 +211,7 @@ public static partial class EdoBuild
         public int clashed;        // 先に建った列にめり込むので退けた駒(両側町の角)
         public int tucked;         // 区画の内へ折り込んだ駒
         public float tuckedM;      // 同・最大の折り込み量[m]
+        public List<List<GameObject>> houseList;   // 据えた軒ごとの駒(1 軒 = 1〜2 枚)── 暖簾を軒ごとに掛ける(EDO-0503 HangNoren)
         public string oursKind;    // 当方の駒を候補へ足したときのその名前(足さなければ null)
     }
 
@@ -317,6 +318,7 @@ public static partial class EdoBuild
     {
         var made = new List<GameObject>();
         tally = new MachiyaTally();
+        tally.houseList = new List<List<GameObject>>();
         Vector2 dir = (B - A).normalized; float len = (B - A).magnitude;
         tally.edgeLen = len; tally.maguchiM = maguchiM;
         tally.wantHouses = Mathf.FloorToInt(len / Mathf.Max(0.5f, maguchiM));
@@ -474,7 +476,7 @@ public static partial class EdoBuild
                     tally.wallGapM = Mathf.Max(tally.wallGapM, (m.hi - m.wHi) + (m.wLo - m.lo));
                     cursor += m.W + JOINT;            // 継ぎ目は軒の実寸 + 髪一筋
                 }
-                if (houseGo.Count > 0) tally.houses++;
+                if (houseGo.Count > 0) { tally.houses++; tally.houseList.Add(houseGo); }
                 cursor += roji;
             }
         }
@@ -629,5 +631,73 @@ public static partial class EdoBuild
             if (!float.IsNaN(g) && (float.IsNaN(wallGap) || g < wallGap)) wallGap = g;
         }
         return made;
+    }
+
+    // ───────────────────────── 暖簾(EDO-0503)─────────────────────────
+    static List<Dictionary<string, object>> _noren;
+    /// <summary>`docs/Sashizu/noren.json` の店の一覧(<see cref="EdoAssets.Eg.NorenSpec"/>)。</summary>
+    public static List<Dictionary<string, object>> NorenVariants()
+    {
+        if (_noren != null) return _noren;
+        _noren = new List<Dictionary<string, object>>();
+        var root = EdoMiniJson.Parse(System.IO.File.ReadAllText(EdoAssets.Eg.NorenSpec)) as Dictionary<string, object>;
+        object vs; if (root == null || !root.TryGetValue("variants", out vs)) return _noren;
+        foreach (var o in (List<object>)vs) { var d = o as Dictionary<string, object>; if (d != null) _noren.Add(d); }
+        return _noren;
+    }
+
+    /// <summary>**表店に軒ごとの暖簾を掛ける。**<paramref name="keys"/> は掛けてよい店(noren.json の key・重複は軒数の比)。
+    /// 種で並べ替えた順に**一巡ずつ**配り、隣の軒と同じ店は続けない。1 軒(駒 1〜2 枚)は同じ店。
+    /// 当たる先: 在庫の表店 shop01・shop02 の駒だけ(当方の Typ_Omotedana はキットの材なので触らない)。
+    /// 材は `EdoAssets.Eg.NorenMat` に一度だけ起こす。画像が無ければ ⚠ を返して素の材(BareTex)のまま。</summary>
+    public static string HangNoren(List<List<GameObject>> houses, string[] keys, int seed)
+    {
+        if (houses == null || houses.Count == 0 || keys == null || keys.Length == 0) return "暖簾: 掛ける軒が無い";
+        var rnd = new System.Random(seed);
+        var deck = new List<string>(); string prev = null; int hung = 0; var missing = new HashSet<string>();
+        var count = new Dictionary<string, int>();
+        foreach (var house in houses)
+        {
+            if (deck.Count == 0) { deck.AddRange(keys); for (int i = deck.Count - 1; i > 0; i--) { int j = rnd.Next(i + 1); var t = deck[i]; deck[i] = deck[j]; deck[j] = t; } }
+            int pick = 0;
+            while (pick < deck.Count - 1 && deck[pick] == prev) pick++;   // 隣と同じ店を続けない
+            string key = deck[pick]; deck.RemoveAt(pick); prev = key;
+            bool any = false;
+            foreach (var go in house)
+            {
+                var src = PrefabUtility.GetCorrespondingObjectFromOriginalSource(go);
+                string sp = src != null ? AssetDatabase.GetAssetPath(src) : null;
+                string shop = sp == EdoAssets.Eg.Shop01 ? "shop01" : sp == EdoAssets.Eg.Shop02 ? "shop02" : null;
+                if (shop == null) continue;
+                var m = NorenMaterial(shop, key);
+                if (m == null) { missing.Add(shop + "_" + key); continue; }
+                foreach (var r in go.GetComponentsInChildren<Renderer>(true))
+                {
+                    var ms = r.sharedMaterials;
+                    for (int i = 0; i < ms.Length; i++) ms[i] = m;
+                    r.sharedMaterials = ms;
+                }
+                any = true;
+            }
+            if (any) { hung++; int c; count.TryGetValue(key, out c); count[key] = c + 1; }
+        }
+        var parts = new List<string>(); foreach (var kv in count) parts.Add(kv.Key + "×" + kv.Value);
+        return "暖簾: " + hung + "/" + houses.Count + " 軒に掛けた(" + string.Join(" ", parts.ToArray()) + ")"
+             + (missing.Count > 0 ? " / ⚠ 画像が無い " + string.Join(",", new List<string>(missing).ToArray()) + " ── python3 Tools/Unity/bake_noren.py" : "");
+    }
+
+    static Material NorenMaterial(string shop, string key)
+    {
+        string mp = EdoAssets.Eg.NorenMat(shop, key);
+        var m = AssetDatabase.LoadAssetAtPath<Material>(mp);
+        if (m != null) return m;
+        var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(EdoAssets.Eg.NorenTex(shop, key));
+        if (tex == null) return null;
+        m = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+        m.SetTexture("_BaseMap", tex); m.mainTexture = tex;
+        m.SetFloat("_Smoothness", 0.15f);
+        System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(mp));
+        AssetDatabase.CreateAsset(m, mp);
+        return m;
     }
 }

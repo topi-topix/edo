@@ -199,6 +199,10 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
             if (hall != null && hall.Length >= 2) { s.hallW = hall[0]; s.hallD = hall[1]; }
             var ed = d.TryGetValue("enclosure_dir", out var edo) ? edo as Dictionary<string, object> : null;
             if (ed != null) s.encDir = ed.Where(q => q.Value is string).ToDictionary(q => q.Key, q => (string)q.Value);
+            // ⭐ 町屋の門(EDO-0503 考証方): 表の gate が空なら、裏長屋のある町は**路地木戸**(komon)・無い町は**門を置かない**。
+            //    ⛔ 2026-10-01 まで空の gate が GatePath の既定=冠木門(武家・寺社の門)へ落ち、表店の列の真ん中に立っていた。
+            if (s.type == "machiya" && string.IsNullOrEmpty(s.gate))
+                s.gate = I(d, "ura_nagaya", -1) == 0 ? "none" : "komon";
             _table[kv.Key] = s;
         }
     }
@@ -500,7 +504,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         EdoBuild.Gamae gm = null;
         GameObject mon = null;
         var bansho = new List<GameObject>();
-        if (s.type != "kouyuu" || s.building == "hikeshi")
+        if ((s.type != "kouyuu" || s.building == "hikeshi") && s.gate != "none")
         {
             var gp = PickGatePath(s, edges); var gs = EdoPartSpec.Get(gp);
             if (gp != GatePath(s.gate)) log.Add("  門 " + s.gate + ": 在庫の駒は接道辺に載らない ── 同じ型の小さい駒 " + System.IO.Path.GetFileNameWithoutExtension(gp) + " を採った");

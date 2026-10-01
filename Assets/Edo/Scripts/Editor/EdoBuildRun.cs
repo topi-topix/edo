@@ -137,13 +137,21 @@ public static partial class EdoBuild
     /// <summary>長屋の鎖を門の開口の縁から門へ差し込む量[m](隙間 &gt; めり込み・EDO-0468)。【U】門の柱と長屋の妻の厚みの内。</summary>
     const float NAGAYA_GATE_TUCK = 0.25f;
 
+    /// <summary>長屋の鎖の端から隅まで、隣の塀を折って回す足(EDO-0500)。corner = 区画の隅・chainEnd = 鎖の端(どちらも辺の線の上)・
+    /// inset = 長屋の外面が線から内へ入る量[m]・outward = 長屋の辺の外向き。</summary>
+    public class NagayaLeg { public Vector2 corner, chainEnd, outward; public float inset; }
+
     public static List<GameObject> NagayaRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward, float baseY,
         Vector2 gapC, float gapHalf, string prefix, Vector2[] keepInside = null, float gateTuck = NAGAYA_GATE_TUCK,
-        bool closeA = false, bool closeB = false)
+        bool closeA = false, bool closeB = false, List<NagayaLeg> legs = null, bool nagA = false, bool nagB = false)
     {
-        // ⭐ closeA / closeB = 端 A / B の隅で隣の辺が**塀**(長屋でない・囲わないでない)。そこの端数は塀で埋めて閉じる
-        //    (2026-10-01 観理院 EDO-0500 ── 門の無い辺は鎖を中央へ寄せ、端数は「隣の辺の駒と重なって閉じる」と見込んでいたが、
-        //    重なるのは隣も長屋のときだけ。隣が練塀だと南東の隅に 1.02m の素通しが開いた)。
+        // ⭐ nagA / nagB = 端 A / B の隅の隣が**長屋**。鎖も埋めの塀も、隣の長屋の外面の線(この辺と同じ入り)より隅の側へ出さない
+        //    ── 二本の長屋の外面が隅の一点で出会う L に納める(2026-10-01 観理院 北東 EDO-0500 ── 東の長屋の北の妻が
+        //    北の長屋の面より 1.6m 北へ飛び出し、北の長屋の埋めの低い塀が東の長屋の面から 3.6m 突き出ていた・施主指摘)。
+        // ⭐ closeA / closeB = 端 A / B の隅で隣の辺が**塀**(長屋でない・囲わないでない)。そこの端数は長屋の側で埋めず、
+        //    `legs` へ「隅の点・鎖の端・長屋の外面の入り」を返す ── 隣の塀を長屋の外面の線で折り、鎖の端まで**同じ塀**で回す
+        //    (呼び手が塀の鎖に足を足す)。2026-10-01 観理院 EDO-0500 ── 中央寄せの端数は隣も長屋のときだけ重なって閉じ、
+        //    隣が練塀だと南東に 1.02m の素通し。低い板塀で埋めると練塀と丈が合わず、練塀の端が長屋の面より 1.5m 出た(施主指摘)。
         // ⭐ gateTuck = 門の脇で鎖を門へ差す量。類型ビルダーは長屋の駒の札から渡す(EdoBuild.FenceBite・EDO-0491)。既定は従来の 0.25。
         bool followGround = NaturalMode; // 自然地形モードでは各ピースを地面に追従
         var made = new List<GameObject>();
@@ -154,7 +162,8 @@ public static partial class EdoBuild
         Vector2 negRight = new Vector2(-Mathf.Cos(rad), Mathf.Sin(rad));
         Vector2 sA = A; Vector2 rdir = dir;
         bool closeLo = closeA, closeHi = closeB;       // 走りの s=0 / s=len の端
-        if (Vector2.Dot(dir, negRight) < 0) { sA = B; rdir = -dir; closeLo = closeB; closeHi = closeA; }
+        bool nagLo = nagA, nagHi = nagB;
+        if (Vector2.Dot(dir, negRight) < 0) { sA = B; rdir = -dir; closeLo = closeB; closeHi = closeA; nagLo = nagB; nagHi = nagA; }
         // 開口で区間を割る(壁の実面を開口の縁で止める。旧実装の±3.9m逃げは廃止=門の開口幅を保つ)
         var segs = new List<float[]>();
         if (gapHalf > 0)
@@ -164,6 +173,23 @@ public static partial class EdoBuild
             if (gT + gapHalf < len) segs.Add(new float[] { Mathf.Max(gT + gapHalf, 0f), len });
         }
         else segs.Add(new float[] { 0f, len });
+        // 隣が長屋の隅は、外面の入り(駒を一つ線の上に仮置きして実メッシュの足元の帯で測る)だけ区間を詰める
+        float lim0 = 0f, lim1 = len, nagDepth = 0f;   // nagDepth = 長屋の壁の奥行(隣の長屋の胴が隅の端数を覆う長さ)
+        if ((nagLo || nagHi) && segs.Count > 0)
+        {
+            var pm = sA + rdir * (len * 0.5f);
+            var probe = Place(PKnagayaC, new Vector3(pm.x, baseY, pm.y), psi, new Vector3(ES, ES, ES), parent, prefix + "_probe");
+            VerifyFlipOutward(new List<GameObject> { probe }, outward, prefix);
+            float pMn, pMx; float py0 = RB(probe).min.y; var pou = outward.normalized;
+            ProjExtent(probe, pou, py0 - 0.01f, py0 + 1.0f,
+                       nm => { var l = nm.ToLower(); return l.Contains("wall") || l.Contains("namako") || l.Contains("dodai"); }, out pMn, out pMx);
+            UnityEngine.Object.DestroyImmediate(probe);
+            float ins = pMx > float.MinValue ? Mathf.Max(0f, Vector2.Dot(sA, pou) - pMx) : 0f;
+            nagDepth = pMx > float.MinValue ? pMx - pMn : 0f;
+            if (nagLo) lim0 = ins;
+            if (nagHi) lim1 = len - ins;
+            segs = segs.Select(q => new[] { Mathf.Max(q[0], lim0), Mathf.Min(q[1], lim1) }).Where(q => q[1] > q[0]).ToList();
+        }
         var mc = NagayaMeasure(PKnagayaC);
         var ml = NagayaMeasure(PKnagayaL);
         var mr = NagayaMeasure(PKnagayaR);
@@ -171,7 +197,7 @@ public static partial class EdoBuild
         int idx = 0;                                   // 命名は run 通しの prefix_k(従来互換)
         int fill = 0;
         var fillRuns = new List<List<GameObject>>();   // 門の脇の端数を埋めた塀(鎖を建ててから外面を長屋の外面へ合わせる)
-        var fillSpan = new List<float[]>();            // 各 fill の [s0, s1](走りの道のり)── 隅で塀に閉じる端を寄せ直す(EDO-0500)
+        var legS = new List<float[]>();                // 塀で回す足 [隅の s, 鎖の端の s](EDO-0500)
         foreach (var seg in segs)
         {
             float L = seg[1] - seg[0];
@@ -202,36 +228,28 @@ public static partial class EdoBuild
             // ⭐ 門の脇は鎖を開口の縁へ突き付け、端数は隅の側へ寄せて塀で埋める(2026-09-28 観理院 EDO-0468 ──
             //    中央寄せでは表門の両脇に 1.0〜1.2m、隅に 1.24m の素通しが開いた。隙は許容0)。
             //    門の無い区間は従来どおり中央寄せ(端数は両隅が受ける・隣の辺の駒と重なって閉じる)。
-            bool gateAtEnd = gapHalf > 0 && seg == segs[0] && segs.Count > 1 || gapHalf > 0 && segs.Count == 1 && seg[1] < len - 0.01f;
-            bool gateAtStart = gapHalf > 0 && seg == segs[segs.Count - 1] && seg[0] > 0.01f;
+            bool gateAtEnd = gapHalf > 0 && seg == segs[0] && segs.Count > 1 || gapHalf > 0 && segs.Count == 1 && seg[1] < lim1 - 0.01f;
+            bool gateAtStart = gapHalf > 0 && seg == segs[segs.Count - 1] && seg[0] > lim0 + 0.01f;
             //    門の側は開口の縁から NAGAYA_GATE_TUCK だけ門へ差し込む(隙間 > めり込み ── 平面で斜めに 0.10〜0.19m 開いた)。
             float tuck = (gateAtEnd || gateAtStart) ? gateTuck : 0f;
             float rem = L - total + tuck;
             float cursor = gateAtEnd ? seg[0] + rem : gateAtStart ? seg[0] - tuck : seg[0] + rem * 0.5f;
-            // ⭐ 門の無い区間で、端の隅の隣が塀なら端数をその隅へ寄せて塀で埋める(閉じる隅が両方なら s の高い側へ)。
-            //    端数が 0.30 に満たないときは鎖をその隅へ突き付ける(端数は向かいの長屋の隅が重なって受ける)。
-            bool cLo = !gateAtEnd && !gateAtStart && closeLo && seg[0] < 0.01f;
-            bool cHi = !gateAtEnd && !gateAtStart && closeHi && seg[1] > len - 0.01f;
-            bool fillLo = false, fillHi = false;
-            if (cLo || cHi)
-            {
-                bool toHi = cHi;                           // 端数を受ける隅
-                if (rem >= 0.30f) { cursor = toHi ? seg[0] : seg[0] + rem; fillHi = toHi; fillLo = !toHi; }
-                else cursor = toHi ? seg[0] + rem : seg[0];
-            }
-            if (fillLo || fillHi)
-            {
-                float f0 = fillLo ? seg[0] : seg[0] + total, f1 = fillLo ? seg[0] + rem : seg[1];
-                var fl = DobeiRun(parent, sA + rdir * f0, sA + rdir * f1, outward, prefix + "_fill" + fill, followGround, baseY, Vector2.zero, -1);
-                fillRuns.Add(fl); fillSpan.Add(new[] { f0, f1 });
-                fill++;
-            }
-            if ((gateAtEnd || gateAtStart) && rem >= 0.30f)
+            // ⭐ 端の隅の隣が塀なら、端数はその隅へ寄せて長屋の側では埋めない(隣の塀が回って来る・legs)。両方なら中央。
+            bool useLegs = legs != null;
+            bool cLo = useLegs && closeLo && seg[0] < lim0 + 0.01f && !gateAtStart;
+            bool cHi = useLegs && closeHi && seg[1] > lim1 - 0.01f && !gateAtEnd;
+            if (!gateAtEnd && !gateAtStart && (cLo ^ cHi)) cursor = cHi ? seg[0] : seg[0] + rem;
+            if (cLo) legS.Add(new[] { 0f, cursor });
+            if (cHi) legS.Add(new[] { len, cursor + total });
+            // 隣が長屋の隅へ寄せた端数は、隣の長屋の胴(奥行)に収まるなら埋めない ── 低い塀が長屋の妻の前に覗く(北東 EDO-0500)
+            bool hidByNag = gateAtEnd && nagLo && seg[0] < lim0 + 0.01f && rem <= nagDepth
+                         || gateAtStart && nagHi && seg[1] > lim1 - 0.01f && rem <= nagDepth;
+            if ((gateAtEnd && !cLo || gateAtStart && !cHi) && rem >= 0.30f && !hidByNag)
             {
                 float f0 = gateAtEnd ? seg[0] : seg[1] - (rem - tuck), f1 = gateAtEnd ? seg[0] + rem : seg[1];
                 if (gateAtStart) f0 = cursor + total;
                 var fl = DobeiRun(parent, sA + rdir * f0, sA + rdir * f1, outward, prefix + "_fill" + fill, followGround, baseY, Vector2.zero, -1);
-                fillRuns.Add(fl); fillSpan.Add(new[] { f0, f1 });
+                fillRuns.Add(fl);
                 fill++;
             }
             for (int k = 0; k < n; k++)
@@ -286,68 +304,27 @@ public static partial class EdoBuild
             var ou = outward.normalized;
             ProjExtent(made[Mathf.Min(1, made.Count - 1)], ou, y0 - 0.01f, y0 + 1.0f,
                        nm => { var l = nm.ToLower(); return l.Contains("wall") || l.Contains("namako") || l.Contains("dodai"); }, out nMn, out nMx);
-            // 一本の fill を長屋の外面へ寄せ、寄せた量(最初の駒)を返す
-            Func<List<GameObject>, float> align = run =>
-            {
-                float d0 = float.NaN;
-                foreach (var p in run)
-                {
-                    float fMn, fMx; float py = RB(p).min.y;
-                    ProjExtent(p, ou, py - 0.01f, py + 1.0f, nm => true, out fMn, out fMx);
-                    if (fMx > float.MinValue) { p.transform.position -= new Vector3(ou.x, 0f, ou.y) * (fMx - nMx); if (float.IsNaN(d0)) d0 = fMx - nMx; }
-                    // 寄せた先の地面で据え直す(根入れ ── 下端のいちばん浮いた所まで沈める)
-                    if (followGround) { var rt = RootToBed(p, Ground, 0.10f); if (!float.IsNaN(rt.hi) && rt.hi > 0f) p.transform.position -= Vector3.up * rt.hi; }
-                }
-                return d0;
-            };
             if (nMx > float.MinValue)
-                for (int r = 0; r < fillRuns.Count; r++)
-                {
-                    float d = align(fillRuns[r]);
-                    // ⭐ 隅で塀に閉じる端は、寄せた後の線が**隣の辺の線**と交わる所まで延ばし・詰める(2026-10-01 観理院 EDO-0500 ──
-                    //    隣の辺が斜めだと、線の上の隅の点で止めた端は内へ寄せた後に隣の塀から離れた。北西 0.247m)。
-                    //    両方の面(外・内)が隣の線に届く道のりを採る ── 隣の塀の厚みの中で止まる。
-                    var sp = fillSpan[r];
-                    bool atLo = closeLo && sp[0] < 0.01f, atHi = closeHi && sp[1] > len - 0.01f;
-                    if (keepInside == null || float.IsNaN(d) || !(atLo || atHi) || fillRuns[r].Count == 0) continue;
-                    var C = sA + rdir * (atHi ? len : 0f);
-                    Vector2 m = Vector2.zero; float best = 1f;
-                    for (int i = 0; i < keepInside.Length; i++)
+                foreach (var run in fillRuns)
+                    foreach (var p in run)
                     {
-                        if ((keepInside[i] - C).sqrMagnitude > 0.05f * 0.05f) continue;
-                        var a0 = keepInside[(i + keepInside.Length - 1) % keepInside.Length]; var a1 = keepInside[(i + 1) % keepInside.Length];
-                        foreach (var q in new[] { a0, a1 })
-                        {
-                            var md = (q - C).normalized; float par = Mathf.Abs(Vector2.Dot(md, rdir));
-                            if (par < best) { best = par; m = md; }
-                        }
+                        float fMn, fMx; float py = RB(p).min.y;
+                        ProjExtent(p, ou, py - 0.01f, py + 1.0f, nm => true, out fMn, out fMx);
+                        if (fMx > float.MinValue) p.transform.position -= new Vector3(ou.x, 0f, ou.y) * (fMx - nMx);
+                        // 寄せた先の地面で据え直す(根入れ ── 下端のいちばん浮いた所まで沈める)
+                        if (followGround) { var rt = RootToBed(p, Ground, 0.10f); if (!float.IsNaN(rt.hi) && rt.hi > 0f) p.transform.position -= Vector3.up * rt.hi; }
                     }
-                    float mo = Vector2.Dot(m, ou);
-                    if (m == Vector2.zero || Mathf.Abs(mo) < 0.2f) continue;
-                    float eMn = float.MaxValue, eMx = float.MinValue;
-                    foreach (var p in fillRuns[r])
-                    {
-                        float a, b; float py = RB(p).min.y;
-                        ProjExtent(p, ou, py - 0.01f, py + 1.0f, nm => true, out a, out b);
-                        if (b > float.MinValue) { eMn = Mathf.Min(eMn, a); eMx = Mathf.Max(eMx, b); }
-                    }
-                    if (eMx <= eMn) continue;
-                    float cO = Vector2.Dot(C, ou), tC = atHi ? len : 0f, tEnd = tC;
-                    bool first = true;
-                    foreach (var f in new[] { eMn, eMx })
-                    {
-                        float t = tC + (f - cO) / mo * Vector2.Dot(m, rdir);
-                        if (first) { tEnd = t; first = false; } else tEnd = atHi ? Mathf.Max(tEnd, t) : Mathf.Min(tEnd, t);
-                    }
-                    if (Mathf.Abs(tEnd - tC) < 0.005f) continue;   // 直交する隣(南東)はそのまま
-                    float t0 = atLo ? tEnd : sp[0], t1 = atHi ? tEnd : sp[1];
-                    if (t1 - t0 < 0.3f) continue;
-                    string nm0 = fillRuns[r][0].name; int us = nm0.LastIndexOf('_'); string pre2 = us > 0 ? nm0.Substring(0, us) : nm0;
-                    foreach (var p in fillRuns[r]) if (p != null) UnityEngine.Object.DestroyImmediate(p);
-                    var sh = -ou * d;                          // 寄せた量の線で建て直し、もう一度面で合わせる
-                    fillRuns[r] = DobeiRun(parent, sA + rdir * t0 + sh, sA + rdir * t1 + sh, outward, pre2, followGround, baseY, Vector2.zero, -1);
-                    align(fillRuns[r]);
-                }
+        }
+        // ⭐ 塀で回す足: 長屋の外面(足元の帯)が区画の線からどれだけ内に入るかを実メッシュで測って返す(EDO-0500)
+        if (legs != null && made.Count > 0 && legS.Count > 0)
+        {
+            float nMn, nMx; float y0 = RB(made[0]).min.y;
+            var ou = outward.normalized;
+            ProjExtent(made[Mathf.Min(1, made.Count - 1)], ou, y0 - 0.01f, y0 + 1.0f,
+                       nm => { var l = nm.ToLower(); return l.Contains("wall") || l.Contains("namako") || l.Contains("dodai"); }, out nMn, out nMx);
+            if (nMx > float.MinValue)
+                foreach (var ls in legS)
+                    legs.Add(new NagayaLeg { corner = sA + rdir * ls[0], chainEnd = sA + rdir * ls[1], inset = Vector2.Dot(sA, ou) - nMx, outward = ou });
         }
         return made;
     }

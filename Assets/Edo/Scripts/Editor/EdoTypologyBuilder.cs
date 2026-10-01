@@ -554,19 +554,66 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
             // ⭐ 生垣・林縁帯の株は区画の外へ出さない(硬い・EDO-0495)── 塀と同じ輪郭で退ける
             EdoBuild.PlantInside = poly;
             kakoiNotes.Clear();
+            // ⭐ 長屋の辺を先に建てる(EDO-0500)── 隅の隣が当方の塀なら、長屋は端数を埋めず「足」を返す。塀の辺は
+            //    長屋の外面の線で折り、足(外面の線に沿って鎖の端まで)を塀の鎖に足して**同じ塀**で回す。
+            //    ⛔ 2026-10-01 まで: 練塀は区画の隅まで行き、長屋との間を低い板塀で埋めた ── 丈が合わず練塀の端が 1.5m 出た(施主指摘)。
+            Func<Edge, string> kindOf0 = x => machiyaFronts.Contains(x) ? "表店" : EnclosureFor(s, x, x == front);
+            Func<Edge, bool> fenced = x => x != null && !(x.kind == EdgeKind.Shared && !x.mine) && !machiyaFronts.Contains(x)
+                                            && kindOf0(x) != "nagaya" && kindOf0(x) != "none";
+            Func<Edge, bool> nagOf = x => x != null && !(x.kind == EdgeKind.Shared && !x.mine) && !machiyaFronts.Contains(x) && kindOf0(x) == "nagaya";
+            var legs = new List<EdoBuild.NagayaLeg>();
+            foreach (var e in edges)
+            {
+                if (e.kind == EdgeKind.Shared && !e.mine) continue;
+                if (machiyaFronts.Contains(e) || kindOf0(e) != "nagaya") continue;
+                bool isFront = (e == front);
+                var ePrev = edges.FirstOrDefault(x => x != e && (x.b - e.a).sqrMagnitude < 1e-4f);
+                var eNext = edges.FirstOrDefault(x => x != e && (x.a - e.b).sqrMagnitude < 1e-4f);
+                EdoBuild.NagayaRun(encl, e.a, e.b, e.outward, pad, isFront ? gateC : Vector2.zero, isFront ? gateHalf : -1f,
+                                   "nagaya_" + e.i, poly, nagayaTuck,          // 門へ差す量は長屋の駒の札から(EDO-0491)
+                                   fenced(ePrev), fenced(eNext), legs, nagOf(ePrev), nagOf(eNext));
+            }
+            // 塀の辺: 足のある隅で、辺の端を長屋の外面の線(足の芯)との交点へ移し、足の辺を継ぎ足す
+            var fe = new List<Edge>(); var legKind = new Dictionary<Edge, string>();
+            foreach (var e in edges) fe.Add(e);
+            float lhOut, lhIn;
+            foreach (var lg in legs)
+            {
+                int k = fe.FindIndex(x => !(x.kind == EdgeKind.Shared && !x.mine) && kindOf0(x) != "nagaya" && kindOf0(x) != "none"
+                                          && ((x.a - lg.corner).sqrMagnitude < 1e-4f || (x.b - lg.corner).sqrMagnitude < 1e-4f));
+                if (k < 0) continue;
+                var fx = fe[k]; string fk = kindOf0(fx);
+                EdoBuild.FenceFaceOffsets(fk, out lhOut, out lhIn);
+                bool endAtB = (fx.b - lg.corner).sqrMagnitude < 1e-4f;
+                var fd = endAtB ? (fx.a - fx.b).normalized : (fx.b - fx.a).normalized;   // 隅から辺の奥へ
+                float dn = Vector2.Dot(fd, lg.outward);
+                if (Mathf.Abs(dn) < 0.2f) { kakoiNotes.Add("辺" + fx.i + " ⚠ 長屋の辺とほぼ平行で折れない ── 足を回さない"); continue; }
+                float off = lg.inset + lhOut;                                   // 足の芯 = 長屋の外面から塀の外の半厚だけ内
+                var P1 = lg.corner + fd * (-off / dn);
+                var rd = (lg.chainEnd - lg.corner).normalized; float tEnd = Vector2.Dot(lg.chainEnd - lg.corner, rd);
+                var P2 = lg.corner - lg.outward * off + rd * Mathf.Max(tEnd + 0.05f, Vector2.Dot(P1 - lg.corner, rd) + 0.30f);   // 妻へ 0.05 差す
+                var nf = new Edge { i = fx.i, a = endAtB ? fx.a : P1, b = endAtB ? P1 : fx.b, outward = fx.outward, kind = fx.kind, neighbour = fx.neighbour, mine = fx.mine };
+                nf.len = (nf.b - nf.a).magnitude; nf.mid = (nf.a + nf.b) * 0.5f;
+                var leg = new Edge { i = 100 + fx.i, a = endAtB ? P1 : P2, b = endAtB ? P2 : P1, outward = lg.outward, kind = fx.kind, neighbour = fx.neighbour, mine = true };
+                leg.len = (leg.b - leg.a).magnitude; leg.mid = (leg.a + leg.b) * 0.5f;
+                fe[k] = nf; fe.Insert(endAtB ? k + 1 : k, leg); legKind[leg] = fk;
+                legKind[nf] = fk;                                               // 移した辺は向きでなく元の辺の種別を引き継ぐ
+                kakoiNotes.Add(string.Format("辺{0} 隅で長屋の外面(線から {1:F2}m 内)へ折り、長屋の妻まで {2:F2}m 回す(足 辺{3})", fx.i, lg.inset, leg.len, leg.i));
+            }
+            Func<Edge, string> kindOf = x => legKind.ContainsKey(x) ? legKind[x] : kindOf0(x);
             // ⭐ 練塀は段塀で建てる(2026-09-29 EDO-0477 施主裁定1=B)── 続いた練塀の辺を一つの鎖にして区切りを引く
             //    (段を区画の角から離すため・角を挟んで座を揃えるため)。当たる先: 類型の全区画の練塀。
             var danOf = new Dictionary<Edge, KeyValuePair<float, List<EdoBuild.DanSec>>>();
             {
-                Func<Edge, bool> isDan = x => !(x.kind == EdgeKind.Shared && !x.mine) && !machiyaFronts.Contains(x) && EnclosureFor(s, x, x == front) == "dobei";
+                Func<Edge, bool> isDan = x => !(x.kind == EdgeKind.Shared && !x.mine) && !machiyaFronts.Contains(x) && kindOf(x) == "dobei";
                 var done = new HashSet<Edge>();
-                foreach (var e0 in edges)
+                foreach (var e0 in fe)
                 {
                     if (done.Contains(e0) || !isDan(e0)) continue;
                     var head = e0; int guard = 0;
-                    while (guard++ < edges.Count)
+                    while (guard++ < fe.Count)
                     {
-                        var pv = edges.FirstOrDefault(x => x != head && isDan(x) && (x.b - head.a).sqrMagnitude < 1e-4f);
+                        var pv = fe.FirstOrDefault(x => x != head && isDan(x) && (x.b - head.a).sqrMagnitude < 1e-4f);
                         if (pv == null || pv == e0) break;
                         head = pv;
                     }
@@ -574,7 +621,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                     while (true)
                     {
                         var last = chain[chain.Count - 1];
-                        var nx = edges.FirstOrDefault(x => !done.Contains(x) && isDan(x) && (x.a - last.b).sqrMagnitude < 1e-4f);
+                        var nx = fe.FirstOrDefault(x => !done.Contains(x) && isDan(x) && (x.a - last.b).sqrMagnitude < 1e-4f);
                         if (nx == null) break;
                         chain.Add(nx); done.Add(nx);
                     }
@@ -585,26 +632,16 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                     kakoiNotes.Add("辺" + string.Join("・", chain.Select(x => x.i.ToString()).ToArray()) + " " + dn);
                 }
             }
-            foreach (var e in edges)
+            foreach (var e in fe)
             {
                 if (e.kind == EdgeKind.Shared && !e.mine) continue;         // 隣が持つ辺は建てない
                 if (machiyaFronts.Contains(e)) { kakoiNotes.Add("辺" + e.i + " 囲わない — 表店の列が通りを受ける"); continue; }
-                bool isFront = (e == front);
+                bool isFront = edges.Contains(e) ? e == front : (front != null && e.i == front.i);
                 var gc = isFront ? gateC : Vector2.zero;
                 var gh = isFront ? gateHalf : -1f;
-                string kind = EnclosureFor(s, e, isFront);
+                string kind = kindOf(e);
+                if (kind == "nagaya") continue;                              // 長屋は先に建てた
                 string pre = kind + "_" + e.i;
-                if (kind == "nagaya")
-                {
-                    // ⭐ 隅の隣の辺を当方が塀で建てるなら、そこの端数を塀で埋めて閉じる(EDO-0500 ── 観理院の南東 1.02m)
-                    Func<Edge, bool> fenced = x => x != null && !(x.kind == EdgeKind.Shared && !x.mine) && !machiyaFronts.Contains(x)
-                                                    && EnclosureFor(s, x, x == front) != "nagaya" && EnclosureFor(s, x, x == front) != "none";
-                    var ePrev = edges.FirstOrDefault(x => x != e && (x.b - e.a).sqrMagnitude < 1e-4f);
-                    var eNext = edges.FirstOrDefault(x => x != e && (x.a - e.b).sqrMagnitude < 1e-4f);
-                    EdoBuild.NagayaRun(encl, e.a, e.b, e.outward, pad, gc, gh, pre, poly, nagayaTuck,   // 門へ差す量は長屋の駒の札から(EDO-0491)
-                                       fenced(ePrev), fenced(eNext));
-                }
-                else
                 {
                     // ⭐ 種別を run へ**渡す**(EDO-0324)。⛔ 2026-09-21 まで種別は捨てられていて、
                     //    ita / dobei / ita+ikegaki / ishigaki+hei / yarai / boji / kui が全部おなじ板塀で建っていた。
@@ -616,7 +653,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                     var ed = (e.b - e.a).normalized;
                     if (cliffLen >= 1f) kakoiNotes.Add(string.Format("辺{0} 崖の面 {1:F0}m を囲わない(塀が崖を登る{2})", e.i, cliffLen, dan ? "" : "・内の半分が崖の面に掛かる所"));
                     // ⭐ 区画の角は頂点の先へ延ばして口を閉じる(EdoBuild.CornerReach・EDO-0477 P2 隅)
-                    float reA, reB; CornerReaches(edges, e, kind, out reA, out reB);
+                    float reA, reB; CornerReaches(fe, e, kind, out reA, out reB);
                     for (int si = 0; si < spans.Count; si++)
                     {
                         var sa = e.a + ed * (spans[si][0] - (spans[si][0] < 1e-3f ? reA : 0f));

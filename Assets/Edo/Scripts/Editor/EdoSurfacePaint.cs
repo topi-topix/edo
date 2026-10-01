@@ -13,7 +13,12 @@ using UnityEngine;
 ///    (0 件を「合格」と読まない — texel 数が足りない区画は「未検査」と刷る)。
 ///
 /// surface の語彙(類型表 §kouyuu): <c>grass</c>=刈られた草地 / <c>grass+kiribatake</c>=草地に桐畑の踏み跡 /
-/// <c>dirt</c>=踏み固めた土(干場は草の混じる土・矢場は露地・火消屋敷は屋敷地の土)。
+/// <c>dirt</c>=踏み固めた土(干場は草の混じる土・矢場は露地・火消屋敷は屋敷地の土)/
+/// <c>keidai</c>=寺社の掃き清めた土(類型表 defaults.jisha の坊・寺・社家。山王社の指図の recipes.keidai と同じ割合)。
+///
+/// ⭐ 塗るのは表に <c>surface</c> がある区画すべて(公有地に限らない・EDO-0498)。寺社の区画を塗ったら、同じ区画の庭の
+///    地表(<see cref="EdoGardenSurfacePaint"/>)を続けて塗り直す — 下地が庭の白洲・苔を上書きしたままにしない。
+///    塗りは前の塗りを残さず置き換える(敷地割を引き直したあとの旧い塗り・溜池の底の塗りの取り残しを消すため)。
 /// </summary>
 public static class EdoSurfacePaint
 {
@@ -44,24 +49,44 @@ public static class EdoSurfacePaint
             if (kind == "hoshiba") { b = Mathf.Lerp(0.42f, 0.60f, noise); g = 0.10f; }   // 干場=踏み固め土(反物を干す庭。旧 Stage4_Splat の塗りを写した)
             else { b = Mathf.Lerp(0.58f, 0.74f, noise); g = 0.04f; }                      // 矢場の露地・火消屋敷の屋敷地
         }
+        else if (surface == "keidai")         // 寺社の境内・住坊の地面=掃き清めた土(山王社 recipes.keidai と同じ・庭方 B)
+        { b = Mathf.Lerp(0.20f, 0.30f, noise); g = Mathf.Lerp(0.08f, 0.22f, macro); }
         else return false;
         d = Mathf.Max(0f, 1f - g - b);
         return true;
     }
 
     // ---- 水面(WaterBody の輪郭) — 中の texel は塗らない ----
-    internal static List<Vector2[]> WaterPolys()
+    internal static List<Vector2[]> WaterPolys() { List<float> ys; return WaterPolys(out ys); }
+
+    internal static List<Vector2[]> WaterPolys(out List<float> levels)
     {
-        var res = new List<Vector2[]>();
+        var res = new List<Vector2[]>(); levels = new List<float>();
         foreach (var wb in Object.FindObjectsByType<WaterBody>(FindObjectsSortMode.None))
         {
             if (wb.outline == null || wb.outline.Count < 3) continue;
             var poly = new Vector2[wb.outline.Count];
             for (int i = 0; i < poly.Length; i++)
             { var w = wb.transform.TransformPoint(wb.outline[i]); poly[i] = new Vector2(w.x, w.z); }
-            res.Add(poly);
+            res.Add(poly); levels.Add(wb.waterY);
         }
         return res;
+    }
+
+    /// <summary>岸を盛った所を水と読まない遊び[m]。地面が水位+これ以上なら輪郭の中でも陸。</summary>
+    internal const float WET_TOL = 0.05f;
+
+    /// <summary>この点が水面の下か ── 水域の輪郭の内**かつ**地面が水位より低い(EDO-0498)。
+    /// ⭐ 輪郭だけで読むと、岸を盛って区画にした所(十坊の裏・溜池の東岸を寄せた所)が水のまま塗り残る。</summary>
+    internal static bool Wet(Frame f, Vector2 p)
+    {
+        for (int i = 0; i < f.water.Count; i++)
+        {
+            if (!EdoGeom.PIP(f.water[i], p)) continue;
+            float y = f.terr.SampleHeight(new Vector3(p.x, 0f, p.y)) + f.tp.y;
+            if (y < f.waterY[i] + WET_TOL) return true;
+        }
+        return false;
     }
 
     internal static bool InAny(List<Vector2[]> polys, Vector2 p)
@@ -75,7 +100,7 @@ public static class EdoSurfacePaint
     internal class Frame
     {
         public Terrain terr; public TerrainData td; public Vector3 tp, ts; public int res; public float cell;
-        public int iD, iG, iB, iShirasu, iMoss; public List<Vector2[]> water;
+        public int iD, iG, iB, iShirasu, iMoss, iMoat; public List<Vector2[]> water; public List<float> waterY;
     }
 
     static Frame OpenRaw(out string err)
@@ -87,8 +112,8 @@ public static class EdoSurfacePaint
         f.td = f.terr.terrainData; f.tp = f.terr.transform.position; f.ts = f.td.size;
         f.res = f.td.alphamapResolution; f.cell = f.ts.x / f.res;
         f.iD = LayerIndex(f.td, "dirt"); f.iG = LayerIndex(f.td, "grass"); f.iB = LayerIndex(f.td, "bare");
-        f.iShirasu = LayerIndex(f.td, "shirasu"); f.iMoss = LayerIndex(f.td, "moss");
-        f.water = WaterPolys();
+        f.iShirasu = LayerIndex(f.td, "shirasu"); f.iMoss = LayerIndex(f.td, "moss"); f.iMoat = LayerIndex(f.td, "moat");
+        f.water = WaterPolys(out f.waterY);
         return f;
     }
 
@@ -130,41 +155,49 @@ public static class EdoSurfacePaint
             {
                 var p = new Vector2(f.tp.x + (ix + (sx + 0.5f) / SUB) * f.cell, f.tp.z + (iz + (sz + 0.5f) / SUB) * f.cell);
                 if (!EdoGeom.PIP(poly, p)) continue;
-                if (InAny(f.water, p)) { drowned++; continue; }
+                if (Wet(f, p)) { drowned++; continue; }
                 inside++;
             }
         wet = drowned > 0 && inside == 0;
         return inside / (float)(SUB * SUB);
     }
 
-    static IEnumerable<EdoTypologyBuilder.Spec> Kouyuu()
+    /// <summary>表に surface がある区画(図から起こした区画は除く)。<paramref name="only"/> は区画 id の頭(カンマ区切り・null で全部)。</summary>
+    static IEnumerable<EdoTypologyBuilder.Spec> Surfaced(string only = null)
     {
         EdoTypologyBuilder.LoadTable();      // 表を書き換えたあとの再実行に備え、毎回読み直す
+        var heads = string.IsNullOrEmpty(only) ? null : only.Split(',');
         foreach (var s in EdoTypologyBuilder.Table.Values)
-            if (s.type == "kouyuu" && !s.Hand) yield return s;
+        {
+            if (string.IsNullOrEmpty(s.surface) || s.Hand) continue;
+            if (heads != null && System.Array.FindIndex(heads, h => s.id.StartsWith(h.Trim())) < 0) continue;
+            yield return s;
+        }
     }
 
     // ───────────────────────── 塗る ─────────────────────────
-    [MenuItem("Edo/土地利用/公有地の地表を塗る(類型表の surface)")]
+    [MenuItem("Edo/土地利用/区画の地表を塗る(類型表の surface)")]
     public static void PaintMenu() { Debug.Log(Paint()); }
 
-    public static string Paint()
+    public static string Paint(string only = null)
     {
         string err; var f = Open(out err); if (f == null) return err;
         var sb = new StringBuilder();
-        string bk = EdoLandUse.SaveSplatBackup(f.td, "kouyuu");
+        string bk = EdoLandUse.SaveSplatBackup(f.td, "parcel_surface");
         sb.AppendLine("退避: " + bk);
-        Undo.RegisterCompleteObjectUndo(f.td.alphamapTextures, "公有地の地表");
-        Undo.RegisterCompleteObjectUndo(f.td, "公有地の地表");
+        Undo.RegisterCompleteObjectUndo(f.td.alphamapTextures, "区画の地表");
+        Undo.RegisterCompleteObjectUndo(f.td, "区画の地表");
 
         int L = f.td.alphamapLayers;
-        foreach (var s in Kouyuu())
+        bool jisha = false;
+        foreach (var s in Surfaced(only))
         {
             var poly = EdoParcels.Get(s.id);
             if (poly == null) { sb.AppendLine("  ✗ " + s.id + " — 区画が parcels.json に無い"); continue; }
             float td0, tg0, tb0;
             if (!Recipe(s.surface, s.kind, 0.5f, 0.5f, out td0, out tg0, out tb0))
-            { sb.AppendLine("  ✗ " + s.id + " — surface='" + s.surface + "' の塗り方が無い(語彙は grass / grass+kiribatake / dirt)"); continue; }
+            { sb.AppendLine("  ✗ " + s.id + " — surface='" + s.surface + "' の塗り方が無い(語彙は grass / grass+kiribatake / dirt / keidai)"); continue; }
+            if (s.type == "jisha") jisha = true;
 
             int ix0, iz0, ix1, iz1; PixelRect(f, poly, out ix0, out iz0, out ix1, out iz1);
             int w = ix1 - ix0 + 1, h = iz1 - iz0 + 1;
@@ -199,46 +232,49 @@ public static class EdoSurfacePaint
             EdoLandUse.RebuildGrass(f.terr, f.td, mask);
         }
         f.terr.Flush(); EditorUtility.SetDirty(f.td); AssetDatabase.SaveAssets();
-        sb.AppendLine(Verify());
+        if (jisha) sb.AppendLine("庭の地表を塗り直す(下地の上へ): " + EdoGardenSurfacePaint.Paint());
+        sb.AppendLine(Verify(only));
         return sb.ToString();
     }
 
     // ───────────────────────── 検める(実測) ─────────────────────────
-    [MenuItem("Edo/土地利用/公有地の地表を検める")]
+    [MenuItem("Edo/土地利用/区画の地表を検める")]
     public static void VerifyMenu() { Debug.Log(Verify()); }
 
     /// <summary>塗った結果を地形から読み直し、区画ごとに表の surface と突き合わせる。
     /// ⛔ texel が <see cref="MIN_TEXELS"/> 未満の区画は「未検査」— 合格と刷らない(規則19)。</summary>
-    public static string Verify()
+    public static string Verify(string only = null)
     {
         string err; var f = Open(out err); if (f == null) return err;
-        var sb = new StringBuilder("地表の突き合わせ(公有地):\n");
+        var sb = new StringBuilder("地表の突き合わせ(区画の surface):\n");
         int ng = 0, unchecked_ = 0, ok = 0;
-        foreach (var s in Kouyuu())
+        foreach (var s in Surfaced(only))
         {
             var poly = EdoParcels.Get(s.id); if (poly == null) { ng++; sb.AppendLine("  ✗ " + s.id + " 区画なし"); continue; }
             int ix0, iz0, ix1, iz1; PixelRect(f, poly, out ix0, out iz0, out ix1, out iz1);
             int w = ix1 - ix0 + 1, h = iz1 - iz0 + 1;
             var A = f.td.GetAlphamaps(ix0, iz0, w, h);
-            double sD = 0, sG = 0, sB = 0; int n = 0;
+            double sD = 0, sG = 0, sB = 0, sR = 0; int n = 0;
             for (int zz = 0; zz < h; zz++)
                 for (int xx = 0; xx < w; xx++)
                 {
                     bool wet, steep;
                     if (Coverage(f, poly, ix0 + xx, iz0 + zz, out wet, out steep) < 0.999f) continue;   // 全面が区画の内の texel だけ数える
-                    sD += A[zz, xx, f.iD]; sG += A[zz, xx, f.iG]; sB += A[zz, xx, f.iB]; n++;
+                    sD += A[zz, xx, f.iD]; sG += A[zz, xx, f.iG]; sB += A[zz, xx, f.iB];
+                    if (f.iMoat >= 0) sR += A[zz, xx, f.iMoat]; n++;
                 }
             if (n < MIN_TEXELS)
             { unchecked_++; sb.AppendLine("  ？ " + s.id + " 未検査 — 全面が区画内の texel が " + n + "(分解能 " + f.cell.ToString("F1") + "m/texel)"); continue; }
-            float mD = (float)(sD / n), mG = (float)(sG / n), mB = (float)(sB / n);
+            float mD = (float)(sD / n), mG = (float)(sG / n), mB = (float)(sB / n), mR = (float)(sR / n);
             bool pass;
             if ((s.surface ?? "").Contains("kiribatake")) pass = mG >= 0.45f;
             else if (s.surface == "grass") pass = mG >= 0.60f;
             else if (s.surface == "dirt") pass = mB + mD >= 0.85f && mG <= 0.15f;
+            else if (s.surface == "keidai") pass = mR <= 0.02f && mG <= 0.30f;   // 庭の白洲・苔が上に載るので土+裸では測らない ── 池の底(泥)が残らず・草地でないこと
             else pass = false;
             if (pass) ok++; else ng++;
             sb.AppendLine("  " + (pass ? "⭕" : "✗") + " " + s.id + " [" + s.surface + "] n=" + n
-                + " 土=" + mD.ToString("F2") + " 草=" + mG.ToString("F2") + " 裸=" + mB.ToString("F2"));
+                + " 土=" + mD.ToString("F2") + " 草=" + mG.ToString("F2") + " 裸=" + mB.ToString("F2") + (mR > 0.005f ? " 泥=" + mR.ToString("F2") : ""));
         }
         sb.AppendLine("  → 合格 " + ok + " / 不合格 " + ng + " / 未検査 " + unchecked_);
         return sb.ToString();

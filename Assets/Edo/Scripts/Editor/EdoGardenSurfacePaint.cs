@@ -132,7 +132,7 @@ public static class EdoGardenSurfacePaint
                 var p = new Vector2(f.tp.x + (ix + (sx + 0.5f) / SUB) * f.cell, f.tp.z + (iz + (sz + 0.5f) / SUB) * f.cell);
                 if (!EdoSurfacePaint.InAny(quads, p)) continue;
                 if (clip != null && !EdoGeom.PIP(clip, p)) continue;
-                if (EdoSurfacePaint.InAny(f.water, p)) continue;
+                if (EdoSurfacePaint.Wet(f, p)) continue;
                 inside++;
             }
         return inside / (float)(SUB * SUB);
@@ -224,7 +224,7 @@ public static class EdoGardenSurfacePaint
                         else
                         {
                             if (!NearAny(z.points, z.radius, wx, wz)) continue;
-                            if (EdoSurfacePaint.InAny(f.water, new Vector2(wx, wz))) { skipWater++; continue; }
+                            if (EdoSurfacePaint.Wet(f, new Vector2(wx, wz))) { skipWater++; continue; }
                             cov = 1f;
                         }
                         if (cov <= 0f) continue;

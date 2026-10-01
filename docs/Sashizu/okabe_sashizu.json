@@ -5090,6 +5090,322 @@
    "layerCert": "**U** — 割り当ては当方の設計判断(層そのものの実在は在庫が持つ)",
    "trunkFromRoad": 2.0,
    "noMidslopeFence": true
+  },
+  {
+   "name": "NiwaHigashiGakeS",
+   "label": "東の崖の樹林(南翼)",
+   "grid": "shukaku",
+   "u0": -41.0,
+   "v0": 23.9,
+   "u1": -6.0,
+   "v1": 44.0,
+   "rects": [
+    [
+     -41.0,
+     23.9,
+     -15.5,
+     44.0
+    ],
+    [
+     -15.5,
+     23.9,
+     -10.5,
+     40.8
+    ],
+    [
+     -10.5,
+     23.9,
+     -6.0,
+     39.4
+    ]
+   ],
+   "clip": "parcel",
+   "on": "地なり",
+   "kind": "jurin",
+   "katteFree": false,
+   "layer": "L_grass",
+   "trunkFromRoad": 2.0,
+   "trunkFromRoutes": [
+    "R_Katte"
+   ],
+   "noMidslopeFence": true,
+   "shokusai": [
+    {
+     "layer": "高木",
+     "species": "シイ・アラカシ",
+     "share": 0.9,
+     "pitchMin": 2.5,
+     "pitchMax": 4.0,
+     "cert": "@garden.shokusai"
+    },
+    {
+     "layer": "高木",
+     "species": "クロマツ",
+     "share": 0.1,
+     "where": "法肩寄り v≧35・u≧−20 の林縁に疎らに",
+     "pitchMin": 4.0,
+     "pitchMax": 7.0,
+     "cert": "@garden.shokusai"
+    },
+    {
+     "layer": "中木",
+     "species": "モチノキ・ヤブツバキ",
+     "share": 0.15,
+     "where": "u≧−12 の林縁で厚く",
+     "cert": "@garden.shokusai"
+    },
+    {
+     "layer": "下草",
+     "species": "アオキ・ヤブラン",
+     "cert": "@garden.shokusai"
+    }
+   ],
+   "cert": "@garden.shokusai",
+   "layerCert": "**U** — 割り当ては当方の設計判断(層そのものの実在は在庫が持つ)"
+  },
+  {
+   "name": "NiwaSandoWaki",
+   "label": "参道脇の芝の法面",
+   "grid": "shukaku",
+   "u0": -6.0,
+   "v0": 23.9,
+   "u1": 6.0,
+   "v1": 39.4,
+   "rects": [
+    [
+     -6.0,
+     23.9,
+     -1.5,
+     39.4
+    ],
+    [
+     1.5,
+     23.9,
+     6.0,
+     39.4
+    ]
+   ],
+   "clip": "parcel",
+   "on": "地なり",
+   "kind": "kansho",
+   "katteFree": false,
+   "layer": "L_grass",
+   "trunkFromStairEdge": 2.0,
+   "noMidslopeFence": true,
+   "shokusai": [
+    {
+     "layer": "高木",
+     "species": "クロマツ",
+     "n": 5,
+     "pts": [
+      [
+       -3.2,
+       27.0
+      ],
+      [
+       -4.6,
+       33.0
+      ],
+      [
+       -5.4,
+       37.0
+      ],
+      [
+       3.4,
+       30.0
+      ],
+      [
+       5.2,
+       36.0
+      ]
+     ],
+     "note": "南3・北2の不等辺。芯は|u|≧2.6(石段の端から2m)",
+     "cert": "@garden.shokusai"
+    },
+    {
+     "layer": "刈込",
+     "species": "サツキ",
+     "kabu": [
+      7,
+      5
+     ],
+     "h": 0.6,
+     "ranges": [
+      [
+       -5.8,
+       24.5,
+       -3.0,
+       27.0
+      ],
+      [
+       3.0,
+       25.5,
+       5.8,
+       28.5
+      ]
+     ],
+     "note": "法尻に大小2塊。位置と大きさを左右で違える",
+     "cert": "@garden.shokusai"
+    },
+    {
+     "layer": "下草",
+     "species": "ノシバ",
+     "cert": "@garden.shokusai"
+    }
+   ],
+   "cert": "@garden.shokusai",
+   "layerCert": "**U** — 割り当ては当方の設計判断(層そのものの実在は在庫が持つ)"
+  },
+  {
+   "name": "NiwaHigashiGakeN",
+   "label": "東の崖の樹林(北翼)",
+   "grid": "shukaku",
+   "u0": 6.0,
+   "v0": 23.9,
+   "u1": 24.5,
+   "v1": 42.4,
+   "rects": [
+    [
+     6.0,
+     23.9,
+     10.5,
+     40.0
+    ],
+    [
+     10.5,
+     23.9,
+     16.5,
+     42.4
+    ],
+    [
+     16.5,
+     23.9,
+     17.5,
+     39.4
+    ],
+    [
+     17.5,
+     37.6,
+     24.5,
+     39.4
+    ]
+   ],
+   "clip": "parcel",
+   "on": "地なり",
+   "kind": "jurin",
+   "katteFree": false,
+   "layer": "L_grass",
+   "trunkFromRoad": 2.0,
+   "trunkFromRoutes": [
+    "R_Ramp",
+    "R_Katte"
+   ],
+   "trunkFromMizo": 1.0,
+   "noMidslopeFence": true,
+   "shokusai": [
+    {
+     "layer": "高木",
+     "species": "シイ・アラカシ",
+     "share": 0.7,
+     "pitchMin": 2.5,
+     "pitchMax": 4.0,
+     "cert": "@garden.shokusai"
+    },
+    {
+     "layer": "高木",
+     "species": "ムクノキ・エノキ",
+     "share": 0.3,
+     "pitchMin": 2.5,
+     "pitchMax": 4.0,
+     "cert": "@garden.shokusai"
+    },
+    {
+     "layer": "中木",
+     "species": "モチノキ・ヤブツバキ",
+     "share": 0.15,
+     "where": "坂の下手側(v小)に厚く",
+     "cert": "@garden.shokusai"
+    },
+    {
+     "layer": "下草",
+     "species": "アオキ・ヤブラン",
+     "cert": "@garden.shokusai"
+    }
+   ],
+   "cert": "@garden.shokusai",
+   "layerCert": "**U** — 割り当ては当方の設計判断(層そのものの実在は在庫が持つ)"
+  },
+  {
+   "name": "NiwaHokutoNori",
+   "label": "北東の法面",
+   "grid": "shukaku",
+   "u0": 24.5,
+   "v0": 22.6,
+   "u1": 34.0,
+   "v1": 56.0,
+   "rects": [
+    [
+     31.5,
+     22.6,
+     34.0,
+     25.6
+    ],
+    [
+     27.5,
+     25.6,
+     34.0,
+     37.6
+    ],
+    [
+     24.5,
+     37.6,
+     34.0,
+     56.0
+    ]
+   ],
+   "clip": "parcel",
+   "on": "地なり",
+   "kind": "jurin",
+   "katteFree": false,
+   "layer": "L_grass",
+   "trunkFromRoad": 2.0,
+   "trunkFromRoutes": [
+    "R_Ramp",
+    "R_Katte"
+   ],
+   "noMidslopeFence": true,
+   "shokusai": [
+    {
+     "layer": "高木",
+     "species": "シイ・アラカシ",
+     "share": 0.7,
+     "pitchMin": 2.5,
+     "pitchMax": 4.0,
+     "cert": "@garden.shokusai"
+    },
+    {
+     "layer": "高木",
+     "species": "ムクノキ・エノキ",
+     "share": 0.3,
+     "pitchMin": 2.5,
+     "pitchMax": 4.0,
+     "cert": "@garden.shokusai"
+    },
+    {
+     "layer": "中木",
+     "species": "モチノキ・ヤブツバキ",
+     "share": 0.15,
+     "where": "坂の下手側(v小)に厚く",
+     "cert": "@garden.shokusai"
+    },
+    {
+     "layer": "下草",
+     "species": "アオキ・ヤブラン",
+     "cert": "@garden.shokusai"
+    }
+   ],
+   "cert": "@garden.shokusai",
+   "layerCert": "**U** — 割り当ては当方の設計判断(層そのものの実在は在庫が持つ)"
   }
  ],
  "service": [

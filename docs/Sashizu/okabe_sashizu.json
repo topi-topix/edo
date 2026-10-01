@@ -1001,39 +1001,16 @@
        80.0
       ],
       [
-       19.5,
+       18.6,
        80.0
       ],
       [
-       19.5,
+       18.6,
        100.0
       ],
       [
        12.0,
        100.0
-      ]
-     ],
-     "cert": "@garden.grading"
-    },
-    {
-     "name": "H_Momijidani",
-     "label": "奥の紅葉谷",
-     "poly": [
-      [
-       18.0,
-       88.0
-      ],
-      [
-       25.5,
-       88.0
-      ],
-      [
-       25.5,
-       102.0
-      ],
-      [
-       18.0,
-       102.0
       ]
      ],
      "cert": "@garden.grading"
@@ -2777,38 +2754,42 @@
      },
      "mizo": [
       [
-       22.0,
-       68.0,
-       21.4
+       20.0,
+       67.5,
+       21.9
       ],
       [
-       25.0,
-       67.0,
+       22.0,
+       66.0,
+       19.7
+      ],
+      [
+       22.0,
+       58.0,
        19.4
+      ],
+      [
+       22.0,
+       50.0,
+       18.6
+      ],
+      [
+       22.0,
+       42.0,
+       17.7
+      ],
+      [
+       22.0,
+       38.0,
+       13.7
+      ],
+      [
+       22.0,
+       34.0,
+       12.9
       ]
      ],
-     "houjiri": [
-      [
-       24.0,
-       67.0,
-       19.4
-      ],
-      [
-       25.0,
-       50.0,
-       18.95
-      ],
-      [
-       25.5,
-       40.0,
-       15.97
-      ],
-      [
-       29.7,
-       39.3,
-       17.2
-      ]
-     ]
+     "houjiri": []
     },
     "sokodoi": {
      "sill": 22.45,
@@ -3568,7 +3549,7 @@
    "grid": "shukaku",
    "u0": 12.0,
    "v0": 80.0,
-   "u1": 19.5,
+   "u1": 18.6,
    "v1": 100.0,
    "clip": "parcel",
    "on": "地なり",
@@ -3630,6 +3611,35 @@
        82.5
       ]
      ],
+     "cert": "@garden.shokusai"
+    },
+    {
+     "layer": "中木",
+     "species": "イロハカエデ",
+     "n": 5,
+     "pts": [
+      [
+       17.3,
+       96.8
+      ],
+      [
+       18.1,
+       97.6
+      ],
+      [
+       17.2,
+       98.6
+      ],
+      [
+       18.0,
+       90.6
+      ],
+      [
+       17.4,
+       84.6
+      ]
+     ],
+     "group": "3本の塊+1本+1本(紅葉谷から移した5本)",
      "cert": "@garden.shokusai"
     },
     {
@@ -3741,63 +3751,6 @@
      "W": 0.5625,
      "cert": "@garden.niwa"
     }
-   ],
-   "layer": "L_grass",
-   "layerCert": "**U** — 割り当ては当方の設計判断(層そのものの実在は在庫が持つ)"
-  },
-  {
-   "name": "NiwaMomijidani",
-   "label": "奥の紅葉谷",
-   "grid": "shukaku",
-   "u0": 19.5,
-   "v0": 88.0,
-   "u1": 25.5,
-   "v1": 102.0,
-   "clip": "parcel",
-   "on": "地なり",
-   "kind": "kansho",
-   "katteFree": true,
-   "cert": "@garden.niwa",
-   "shokusai": [
-    {
-     "layer": "中木",
-     "species": "イロハカエデ",
-     "n": 5,
-     "cert": "@garden.shokusai"
-    },
-    {
-     "layer": "下草",
-     "species": "シダ・ヤブラン",
-     "cert": "@garden.shokusai"
-    }
-   ],
-   "rects": [
-    [
-     19.5,
-     88.0,
-     25.5,
-     102.0
-    ]
-   ],
-   "polys": [
-    [
-     [
-      19.5,
-      102.0
-     ],
-     [
-      25.5,
-      102.0
-     ],
-     [
-      25.5,
-      88.0
-     ],
-     [
-      19.5,
-      88.0
-     ]
-    ]
    ],
    "layer": "L_grass",
    "layerCert": "**U** — 割り当ては当方の設計判断(層そのものの実在は在庫が持つ)"
@@ -4953,6 +4906,123 @@
    ],
    "layer": "L_dirt",
    "layerCert": "**U** — 割り当ては当方の設計判断(層そのものの実在は在庫が持つ)"
+  },
+  {
+   "name": "NiwaKitaDote",
+   "label": "北の土手の樹林",
+   "grid": "shukaku",
+   "u0": 16.5,
+   "v0": 44.0,
+   "u1": 24.5,
+   "v1": 80.0,
+   "clip": "parcel",
+   "on": "地なり",
+   "kind": "jurin",
+   "katteFree": false,
+   "cert": "@garden.shokusai",
+   "shokusai": [
+    {
+     "layer": "高木",
+     "species": "シイ・アラカシ",
+     "share": 0.7,
+     "pitchMin": 2.5,
+     "pitchMax": 4.0,
+     "cert": "@garden.shokusai"
+    },
+    {
+     "layer": "高木",
+     "species": "ムクノキ・エノキ",
+     "share": 0.3,
+     "pitchMin": 2.5,
+     "pitchMax": 4.0,
+     "cert": "@garden.shokusai"
+    },
+    {
+     "layer": "下草",
+     "species": "アオキ・ヤブラン",
+     "cert": "@garden.shokusai"
+    }
+   ],
+   "rects": [
+    [
+     16.5,
+     44.0,
+     24.5,
+     62.0
+    ],
+    [
+     19.5,
+     62.0,
+     24.5,
+     80.0
+    ]
+   ],
+   "layer": "L_grass",
+   "layerCert": "**U** — 割り当ては当方の設計判断(層そのものの実在は在庫が持つ)",
+   "trunkFromMizo": 1.0
+  },
+  {
+   "name": "NiwaMinamiDote",
+   "label": "南の土手の樹林",
+   "grid": "shukaku",
+   "u0": -54.0,
+   "v0": 8.0,
+   "u1": -27.0,
+   "v1": 152.0,
+   "clip": "parcel",
+   "on": "地なり",
+   "kind": "jurin",
+   "katteFree": false,
+   "cert": "@garden.shokusai",
+   "shokusai": [
+    {
+     "layer": "高木",
+     "species": "シイ・アラカシ",
+     "pitchMin": 2.5,
+     "pitchMax": 4.0,
+     "cert": "@garden.shokusai"
+    },
+    {
+     "layer": "中木",
+     "species": "モチノキ・ヤブツバキ",
+     "cert": "@garden.shokusai"
+    },
+    {
+     "layer": "下草",
+     "species": "アオキ・ヤブラン",
+     "cert": "@garden.shokusai"
+    }
+   ],
+   "rects": [
+    [
+     -54.0,
+     8.0,
+     -44.5,
+     24.0
+    ],
+    [
+     -54.0,
+     24.0,
+     -41.0,
+     79.0
+    ],
+    [
+     -54.0,
+     79.0,
+     -37.5,
+     117.0
+    ],
+    [
+     -54.0,
+     117.0,
+     -27.0,
+     152.0
+    ]
+   ],
+   "layer": "L_grass",
+   "layerCert": "**U** — 割り当ては当方の設計判断(層そのものの実在は在庫が持つ)",
+   "trunkFromRoad": 2.0,
+   "noMidslopeFence": true
   }
  ],
  "service": [
@@ -14625,5 +14695,9 @@
   "certSig": "A/U"
  },
  "_notes": "⭐ **この指図の文章は `docs/Sashizu/okabe_notes/<章>.json` にある。**欄を直すときは同じ章の注記を先に読むこと(path がそのまま鍵)。戻すのは `python3 Tools/Sashizu/prose_split.py okabe --restore`。⛔ 文章をここへ書き戻さない — 値だけを置く欄にした(2026-09-21 施主指示)。",
- "_reviews": "**検図関門。**この指図を誰が検めたか。⛔ 呼んだ側(普請奉行)が結果を書き戻す — 検分役は read-only で自分では書けない。`hash` はその検分が見た範囲の指紋で、指図を書き換えるとずれ、検分は自動で『検め直しが要る』になる。見張りは `python3 Tools/Sashizu/review_gate.py`。⛔ 関門が赤の指図を実装しない・赤のシーンをユーザーに見せない。"
+ "_reviews": "**検図関門。**この指図を誰が検めたか。⛔ 呼んだ側(普請奉行)が結果を書き戻す — 検分役は read-only で自分では書けない。`hash` はその検分が見た範囲の指紋で、指図を書き換えるとずれ、検分は自動で『検め直しが要る』になる。見張りは `python3 Tools/Sashizu/review_gate.py`。⛔ 関門が赤の指図を実装しない・赤のシーンをユーザーに見せない。",
+ "_rounds_ack": {
+  "at": "2026-10-01T23:28:16+09:00",
+  "quote": "1=Ａ、2=Ａ、3=Ａ"
+ }
 }

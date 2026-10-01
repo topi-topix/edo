@@ -37,6 +37,7 @@ public static partial class EdoTypologyBuilder
     /// <summary>小店(2・3間)の奥行[間]: 厨子二階 2.8 / 平屋 2.5(`Own.Typ.Omotedana` / `OmotedanaHira` の注記・EDO-0503 ⑥)。
     /// 門前4(奥行 5.8m)にも収まる浅さ。⚠ 焼き増したらここも足す。</summary>
     const float OMOTEDANA_KO_KEN = 2.8f;
+    const float OMOTEDANA_HIRA_KEN = 2.5f;
 
     /// <summary>その間口の表店を**当方で起こしてあるか**を資産の有無で見て、あれば**深い順**に返す
     /// (深い版 → 詰めた版)。⭐ 幅の数字(5)をここへ書かない — 4間の駒を焼けば黙って効く。
@@ -86,7 +87,8 @@ public static partial class EdoTypologyBuilder
         var l = new List<string>();
         foreach (var p in new[] { EdoAssets.Own.Typ.Omotedana(maguchiKen),
                                   EdoAssets.Own.Typ.Omotedana(maguchiKen, OMOTEDANA_SHALLOW_KEN),
-                                  EdoAssets.Own.Typ.Omotedana(maguchiKen, OMOTEDANA_KO_KEN) })      // 小店の厨子二階(EDO-0503 ⑥)
+                                  EdoAssets.Own.Typ.Omotedana(maguchiKen, OMOTEDANA_KO_KEN),      // 小店の厨子二階(EDO-0503 ⑥)
+                                  EdoAssets.Own.Typ.OmotedanaHira(maguchiKen, OMOTEDANA_HIRA_KEN) }) // 小店の平屋
             if (UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(p) != null) l.Add(p);
         return l.Count > 0 ? l.ToArray() : null;
     }
@@ -119,6 +121,54 @@ public static partial class EdoTypologyBuilder
             if (second != null) outp.Add(second);
         }
         return outp;
+    }
+
+    /// <summary>**町木戸**(EDO-0503 ②)。表の欄 <c>machi_kido: {"with": "&lt;隣の区画&gt;", "end": "N|S|E|W"}</c> を読み、
+    /// この区画と隣の区画の**角どうしの組**(間が道幅 4〜20m)のうち、その方角の端の組へ木戸を横に渡す。
+    /// ⭐ 道幅は角の実測で決め、駒はその幅で焼いた物を引く(<c>EdoAssets.Own.MachiKido</c>)。無ければ ⛔ で建てない(硬い)。
+    /// 据えるのは <see cref="EdoBuild.MachiKidoAcross"/>(親柱の外面を角へ突き付ける)。+Z(外)は二区画の重心から離れる向き。
+    /// 置き場は "Michi"(道の上の物 — 区画の外にあるのが正しい)。</summary>
+    static string MachiKido(Spec s, Transform root, Vector2[] poly)
+    {
+        object o;
+        if (s.raw == null || !s.raw.TryGetValue("machi_kido", out o) || !(o is Dictionary<string, object>)) return null;
+        var d = (Dictionary<string, object>)o;
+        string other = S(d, "with"), end = (S(d, "end") ?? "S").ToUpperInvariant();
+        var q = other != null ? EdoParcels.Get(other) : null;
+        if (q == null || q.Length < 3) return "    ⛔ 町木戸: 表の machi_kido.with の区画が引けない — " + (other ?? "(空)");
+        Vector2 dir = end == "N" ? Vector2.up : end == "E" ? Vector2.right : end == "W" ? Vector2.left : Vector2.down;
+        // ① その方角の端を測り(組の中点の最も先)、② 端から 2m 以内の組のうち**最も狭い**組を口とする
+        //    (端の角が一筆に二つ並ぶと、遠い方の角どうしを渡して道幅を倍に取る ── 2026-10-02 門前1 で 19.92m を拾った)。
+        float best = float.NegativeInfinity;
+        foreach (var p in poly)
+            foreach (var r in q)
+            {
+                float w = (r - p).magnitude;
+                if (w >= 4f && w <= 20f) best = Mathf.Max(best, Vector2.Dot((p + r) * 0.5f, dir));
+            }
+        bool found = false; Vector2 a = Vector2.zero, b = Vector2.zero; float narrow = float.PositiveInfinity;
+        foreach (var p in poly)
+            foreach (var r in q)
+            {
+                float w = (r - p).magnitude;
+                if (w < 4f || w > 20f || Vector2.Dot((p + r) * 0.5f, dir) < best - 2f) continue;
+                if (w < narrow) { narrow = w; a = p; b = r; found = true; }
+            }
+        if (!found) return "    ⛔ 町木戸: " + other + " との間に道幅 4〜20m の角の組が無い";
+        Vector2 cen = Vector2.zero;
+        foreach (var p in poly) cen += p;
+        foreach (var r in q) cen += r;
+        cen /= (poly.Length + q.Length);
+        Vector2 away = ((a + b) * 0.5f - cen).normalized;
+        float haba = Mathf.Round((b - a).magnitude * 100f) / 100f;
+        float keisha = EdoBuild.MachiKidoKeisha(a, b, away);       // 道の横断の下がり(柱の足元が勾配なりに伸びる版を引く)
+        string path = EdoAssets.Own.MachiKido(haba, keisha);
+        if (UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
+            return string.Format("    ⛔ 町木戸: 道幅 {0:F2}m・横断の下がり {1:F2}m の駒が未焼き(建てない)— blender --background --python Tools/Blender/build_machikido.py -- --haba {0:F2} --keisha {1:F2}", haba, keisha);
+        string note;
+        var go = EdoBuild.MachiKidoAcross(Group("Michi", root), path, a, b, away, "MachiKido_" + other, out note, keisha);
+        return string.Format("    町木戸: {0} との間の {1} の口(道幅 {2:F2}m・横断の下がり {5:F2}m)に{3} — {4}",
+                             other, end, haba, go != null ? "据えた" : "⛔ 据えなかった", note, keisha);
     }
 
     /// <summary>**Stage 3m — 町屋。**表店の列(接道辺 1〜2 本)・自身番屋・裏長屋。
@@ -193,6 +243,8 @@ public static partial class EdoTypologyBuilder
         }
 
         log.Add("    " + EdoBuild.HangNoren(allHouses, NorenKeysFor(s), EdoBuild.Seed(s.id + ":noren")));
+        string kido = MachiKido(s, root, poly);
+        if (kido != null) log.Add(kido);
         log.Insert(0, string.Format("  町屋: 表店 {0}軒 / 駒 {1}枚 — 接道辺 {2}本({3}){4}",
             totalHouses, totalPieces, fronts.Count, s.twoSided ? "両側町" : "片側町",
             mix != null ? "・間口は軒ごとに " + string.Join("/", mix.Select(k => k.ToString()).ToArray()) + "間から引く(表の maguchi_mix)" : ""));

@@ -182,9 +182,29 @@ public static partial class EdoBuild
     public const float KIDAN_SEAM = 0.02f;
     public static List<GameObject> GamaeKidan(GameObject piece, Transform parent, Func<float, float, float> ground, out string note)
     {
+        return KidanUnder(piece, parent, ground, true, 0f, out note);
+    }
+
+    /// <summary>**棟の下手の浮きを布石の基壇で受ける**(EDO-0503・2026-10-02 施主の規則「浮き 許容0」)。
+    /// 型は <see cref="GamaeKidan"/> と同じ(布石の天端 = 駒の下端・下端 = 区画ごとの最も低い地面 − <see cref="KIDAN_EMBED"/>)。
+    /// 違うのは足あと: 札が無い駒(在庫の表店 shop01・02)でも、**下端から 0.10m 以内の頂点**の外接矩形(局所)で覆う。
+    /// 表(+Z)は駒の表の頂点の線より外へ出さない ── 表店は店先の面を区画の線に置くので、布石も線の内に留まる(区域侵犯 許容0)。
+    /// 当たる先: 類型ビルダーの Stage 4z で造成の後に浮いた棟すべて(町屋の表店・寺の堂・武家の付属屋 ── 一続きの御殿は除く)。
+    /// 名は <c>&lt;駒&gt;_kidan_&lt;k&gt;</c>(検査は群 "Kiso" の "_kidan_" を床・根入れに数える)。</summary>
+    public static List<GameObject> BuildingKidan(GameObject piece, Transform parent, Func<float, float, float> ground, out string note)
+    {
+        return KidanUnder(piece, parent, ground, false, KIDAN_BITE, out note);
+    }
+
+    /// <summary>棟の基壇の布石の天端を駒の下端より上げる量[m] ── 石の面のふくらみ・継ぎ目で下端の頂点が 0.013m 浮いて測れた
+    /// (門前2 の shop01 4 棟・2026-10-02)。布石は駒の下端へ埋まる(部材どうしは数えない §4 ── 埋めて隠すのが基本)。</summary>
+    public const float KIDAN_BITE = 0.03f;
+    static List<GameObject> KidanUnder(GameObject piece, Transform parent, Func<float, float, float> ground, bool needSpec, float bite, out string note)
+    {
         var made = new List<GameObject>(); note = null;
         var sp = SpecOf(piece);
-        if (sp == null || sp.foot == null || sp.foot.Count < 3) { note = piece.name + ": 札の foot が無い ── 基壇を敷けない"; return made; }
+        bool hasFoot = sp != null && sp.foot != null && sp.foot.Count >= 3;
+        if (needSpec && !hasFoot) { note = piece.name + ": 札の foot が無い ── 基壇を敷けない"; return made; }
         if (_kidanLocal == null)
         {   // 布石の外形と**天端の広さ**を一度だけ測る(天端は外形より表と背で 0.03m 内 ── 石の面のふくらみ)
             var probe = Place(EdoAssets.Own.Dobei2mNunoishi, Vector3.zero, 0f, Vector3.one, null, "_kidan_probe");
@@ -208,8 +228,8 @@ public static partial class EdoBuild
         var kb = _kidanLocal.Value; var kt = _kidanTop;
         var tr = piece.transform; float sc = tr.lossyScale.x;
         float x0 = float.MaxValue, x1 = float.MinValue, z0 = float.MaxValue, z1 = float.MinValue;
-        foreach (var f in sp.foot) { x0 = Mathf.Min(x0, f.x); x1 = Mathf.Max(x1, f.x); z0 = Mathf.Min(z0, f.y); z1 = Mathf.Max(z1, f.y); }
-        float zFront = z1;                                           // 札の foot の表(区画の線の内 ── PlaceGamae が保つ)
+        if (hasFoot) foreach (var f in sp.foot) { x0 = Mathf.Min(x0, f.x); x1 = Mathf.Max(x1, f.x); z0 = Mathf.Min(z0, f.y); z1 = Mathf.Max(z1, f.y); }
+        float zFront = hasFoot ? z1 : float.NaN;                     // 札の foot の表(区画の線の内 ── PlaceGamae が保つ)。札が無ければ下端の頂点の表
         float wb = GamaeBottom(piece);                               // 駒の当たりの下端(実測 ── 札の contact の部材)
         // ⭐ 地面へ下りている頂点(下端から 0.10m)も覆う ── 在庫の門は札の foot(帯 0.3〜1.8m の壁の線)の外へ礎・敷石が出る
         //    (⛔ 2026-09-30 の初版は foot だけを覆い、覆いの外の頂点で浮きを測り続けた)。地面との当たりは実測でよい(docs/oki-kata.md §8)
@@ -227,6 +247,8 @@ public static partial class EdoBuild
                     x0 = Mathf.Min(x0, lx); x1 = Mathf.Max(x1, lx); z0 = Mathf.Min(z0, lz); z1 = Mathf.Max(z1, lz);
                 }
             }
+            if (x0 > x1) { note = piece.name + ": 下端の頂点が無い ── 基壇を敷けない"; return made; }
+            if (float.IsNaN(zFront)) zFront = z1;
             float mg = 0.02f / sc; x0 -= mg; x1 += mg; z0 -= mg; z1 += mg;
             // ⛔ 布石は札の foot の表より外(道)へ出さない(区域侵犯 許容0)── 天端の平らな面だけ 0.01m 越す: 門の下端の頂点が
             //    foot の表の線ちょうどに立つので、線で止めると表の縁の頂点が天端の縁のふくらみ(0.023m 下がる)に載って浮いて測れた
@@ -245,7 +267,7 @@ public static partial class EdoBuild
         {   // 天端の芯を (走り u, 奥 v)・天端 = wb へ
             var st = Place(EdoAssets.Own.Dobei2mNunoishi, Vector3.zero, yaw, new Vector3(sx, sy, sz), parent, nm);
             var lc = new Vector3(kt.center.x * sx, _kidanTopY * sy, kt.center.y * sz);   // 天端の平らな面を wb へ(石の頭の凸は門の下端へ埋まる・§0a)
-            var want = o + ax * u + az * v; want.y = wb;
+            var want = o + ax * u + az * v; want.y = wb + bite;
             st.transform.position = want - rot * lc;
             return st;
         };
@@ -260,10 +282,25 @@ public static partial class EdoBuild
                     float g = ground(q.x, q.z); if (!float.IsNaN(g)) gmin = Mathf.Min(gmin, g);
                 }
             if (gmin == float.MaxValue || wb - gmin <= KIDAN_FLOAT_TOL) continue;
-            float h = wb - gmin + KIDAN_EMBED, sy = Mathf.Max(1f, h / kb.size.y), sx = (seg + KIDAN_SEAM) / kt.width, uc = k * seg + seg * 0.5f;
-            made.Add(put(uc, D - dF * 0.5f, sx, dF / kt.height, sy, piece.name + "_kidan_" + k));
+            float h = wb + bite - gmin + KIDAN_EMBED, sy = Mathf.Max(1f, h / kb.size.y), sx = (seg + KIDAN_SEAM) / kt.width, uc = k * seg + seg * 0.5f;
+            // ⭐ 据えた石の**下端の全部**を地面で測り、浮けばその分だけ下へ伸ばす(天端は動かない)── 0.25m 刻みの標本は坂の下手の縁の
+            //    下がりを拾わず、石の底が地表から 0.063m 浮いた(門前3・4 の 4 駒・2026-10-02 普請検査)。
+            Func<float, float, float, string, GameObject> putDeep = (v, sz, sy0, nm) =>
+            {
+                float syk = sy0; GameObject st = null;
+                for (int it = 0; it < 4; it++)
+                {
+                    if (st != null) UnityEngine.Object.DestroyImmediate(st);
+                    st = put(uc, v, sx, sz, syk, nm);
+                    var rr = RootToBed(st, ground, 0.05f);
+                    if (float.IsNaN(rr.hi) || rr.hi <= KIDAN_FLOAT_TOL) break;
+                    syk += (rr.hi + KIDAN_EMBED) / kb.size.y;
+                }
+                return st;
+            };
+            made.Add(putDeep(D - dF * 0.5f, dF / kt.height, sy, piece.name + "_kidan_" + k));
             float dB = D - dF + 0.10f;                                   // 奥の塊(表の一列へ 0.10m 重ねる)
-            if (D - dF > 0.02f) made.Add(put(uc, dB * 0.5f, sx, dB / kt.height, sy, piece.name + "_kidan_" + k + "b"));
+            if (D - dF > 0.02f) made.Add(putDeep(dB * 0.5f, dB / kt.height, sy, piece.name + "_kidan_" + k + "b"));
             worst = Mathf.Max(worst, wb - gmin); used++;
         }
         if (made.Count > 0) note = string.Format("{0}: 基壇の布石 {1}/{2} 区画・{3} 駒(見え最大 {4:F2}m)", piece.name, used, n, made.Count, worst);

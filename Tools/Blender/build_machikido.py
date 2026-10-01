@@ -6,6 +6,18 @@
     (`--spec-only` = FBX を焼き直さず札だけ書く。札の置き場は既定 `Assets/Edo/Data/PartSpecs/`、
      環境変数 `BUZAI_SPEC_OUT` で振り替えられる。FBX の置き場は `BUZAI_OUT` で振り替えられる)
     任意: --kuguri L|R|none(潜りを付ける袖。既定 L = −X)/ --shut(大戸を閉じた版 `_Shut`)
+    任意: --keisha <m>(道の横断勾配。**−X 端から +X 端への地面の下がり**[m・Unity 局所]。
+          正 = +X が低い / 負 = −X が低い。出力 `MachiKido_<haba>_k<keisha>`(負は `km`)。EDO-0503)
+
+【勾配の版(--keisha)】地面は局所 X について一直線 g(X) = −keisha·X/haba と見る(Z には平ら)。
+  ・**ピボット = 足形の中心(X=0)の地面の高さ**。呼ぶ側は中心の地面にピボットを置いて据える。
+  ・柱の足元はその位置の地面まで(沓石・掘立の根入れ 0.26 はそこから測る)。沓石は柱の芯の地面に水平に据える。
+  ・冠木・笠木(門の頭)は**水平のまま**。親柱は頭を揃え、足だけを伸び縮みさせる。
+  ・大戸の敷居・扉の下端は勾配なり(開いた扉は吊り元の地面から 0.06 上で止め、頭は冠木の下端)。
+  ・袖(端柱・中柱・地覆・格子・袖の笠木・潜り)は**全体を勾配なりに縦に剪断**する(竪は鉛直のまま)。
+  ・札: foot(平面)は勾配0と同じ。yBottom = 下手の端柱の根 = −0.26 − |keisha|/2。
+    jamb の帯は**その端の地面**から 0.30〜1.80。追加の欄 `keisha` / `ground`(地面の線)/ `contactPts`
+    (各柱の芯の地面 = 当たりの点・局所 x,y,z)を書く。
 
 【なぜ新造するか】在庫の `edogoyomi/es_kido/kido_open.obj`(`Eg.KidoOpen`)は ES=1.818 倍で
   W4.66 × H1.78 × D1.29 — 路地木戸の寸法で、通りの口には低く狭い。町木戸は道幅いっぱいを塞ぐので
@@ -62,6 +74,21 @@ KUG_W, KUG_H = 0.909, 1.515                # 潜りの口 3尺 × 5尺【U】
 NEIRE     = 0.26       # 袖の柱の根入れ(掘立)= 沓石の根入れと揃える
 OPEN_DEG  = 90.0       # 大戸の振れ角(内開き・親柱の真後ろへ畳む)【U】
 SILL = (-0.04, 0.06, 0.16)
+KEISHA = 0.0           # 道の横断勾配(build の引数で上書き)。−X 端 → +X 端の下がり[m]
+
+
+def ground_u(X, haba, keisha):
+    """Unity 局所 X の地面の高さ(ピボット = X=0 の地面 = 0)"""
+    return -keisha * X / haba
+
+
+def warp(m, i0, ya, fa, yb, fb):
+    """m.v[i0:] の高さを y の一次で動かす: y=ya で fa(x)・y=yb で fb(x) だけ上げる(間は線形・外は端の値)。
+    x は**メッシュの走り**(Unity X = −x)。竪は鉛直のまま、上下の縁だけが傾く。"""
+    for v in m.v[i0:]:
+        t = 0.0 if yb == ya else min(1.0, max(0.0, (v.z - ya) / (yb - ya)))
+        a, b = fa(v.x), fb(v.x)
+        v.z += a + (b - a) * t
 
 
 def main_opening(haba):
@@ -84,14 +111,17 @@ def layout(haba, kuguri="L"):
     return dict(O=O, hx=hx, px=hx + OYA / 2, ox=ox, ex=ex, ei=ei, sode=sode, kug=kug)
 
 
-def name_of(haba, opened=True):
-    return "MachiKido_" + N.fmt(haba) + ("" if opened else "_Shut")
+def name_of(haba, opened=True, keisha=0.0):
+    k = ""
+    if abs(keisha) >= 0.005:
+        k = "_k" + ("m" if keisha < 0 else "") + N.fmt(abs(keisha))
+    return "MachiKido_" + N.fmt(haba) + k + ("" if opened else "_Shut")
 
 
-def build(haba, kuguri="L", opened=True, name=None, want_spec=False, spec_only=False):
+def build(haba, kuguri="L", opened=True, name=None, want_spec=False, spec_only=False, keisha=0.0):
     L = layout(haba, kuguri)
-    name = name or name_of(haba, opened)
-    spec = kido_spec(name, haba, L, opened)
+    name = name or name_of(haba, opened, keisha)
+    spec = kido_spec(name, haba, L, opened, keisha)
     if spec_only:
         return None, name, spec
     P = N.palette()
@@ -103,32 +133,50 @@ def build(haba, kuguri="L", opened=True, name=None, want_spec=False, spec_only=F
     bar_uv  = VM.sub(wuv, 0.60, 0.10, 0.95, 0.90)
     hx, px, ox, ex, ei = L['hx'], L['px'], L['ox'], L['ex'], L['ei']
     oh = OYA / 2.0
+    gm = lambda x: ground_u(-x, haba, keisha)      # メッシュの走り x の地面(Unity X = −x)
+    zero = lambda x: 0.0
 
     # ---- 親柱(沓石の上)・冠木・笠木
     for s in (-1, 1):
+        gp = gm(s * px)
+        i0 = len(m.v)
         m.box(s * px - B.KUTSU, s * px + B.KUTSU, -B.KUTSU_H, 0.05, -B.KUTSU, B.KUTSU,
               VM.sub(P['suv'], 0, 0, 1, 0.5), STONE)
+        warp(m, i0, 0.0, lambda x, g=gp: g, 1.0, lambda x, g=gp: g)    # 沓石は柱の芯の地面に水平
+        i0 = len(m.v)
         m.box(s * px - oh, s * px + oh, 0.02, TOP, -oh, oh, post_uv, WOOD)
+        warp(m, i0, 0.02, lambda x, g=gp: g, TOP, zero)                # 頭を揃え足だけ伸縮
     kn = ox + NOSE
     kd = KABUKI_D / 2.0
     m.box(-kn, kn, KABUKI_Y0, KABUKI_Y0 + KABUKI_H, -kd, kd, beam_uv, WOOD)
     m.box(-kn - 0.05, kn + 0.05, TOP, TOP + KASA[0], -KASA[1], KASA[1],
           VM.sub(wuv, 0.25, 0.55, 0.95, 0.80), WOOD)
-    # 大戸の敷居
+    # 大戸の敷居(勾配なり)
+    i0 = len(m.v)
     m.box(-px, px, SILL[0], SILL[1], -SILL[2], SILL[2], rail_uv, WOOD)
-    # 大戸(両開き・内開き)。頭は冠木の下端まで(隙を作らない)
+    warp(m, i0, 0.0, gm, 1.0, gm)
+    # 大戸(両開き・内開き)。頭は冠木の下端まで(隙を作らない)・下端は勾配なり
     ang = OPEN_DEG if opened else 0.0
-    B.leaf(m, P, -hx, -B.LEAF_GAP, -hx, -ang, top=KABUKI_Y0)
-    B.leaf(m, P, B.LEAF_GAP, hx, hx, ang, meet=B.LEAF_GAP, top=KABUKI_Y0)
+    for (a0, a1, hg, an, mt) in ((-hx, -B.LEAF_GAP, -hx, -ang, None),
+                                 (B.LEAF_GAP, hx, hx, ang, B.LEAF_GAP)):
+        i0 = len(m.v)
+        B.leaf(m, P, a0, a1, hg, an, meet=mt, top=KABUKI_Y0)
+        if opened:     # 振れた扉は吊り元の地面に合わせる
+            warp(m, i0, 0.06, lambda x, g=gm(hg): g, KABUKI_Y0, zero)
+        else:
+            warp(m, i0, 0.06, gm, KABUKI_Y0, zero)
     if not opened:     # 閉じた版は召し合わせの隙の真後ろに定規縁(build_kabukimon と同じ)
+        i0 = len(m.v)
         m.box(-B.LEAF_GAP - 0.03, B.LEAF_GAP + 0.03, 0.06, KABUKI_Y0,
               B.LEAF_Z0 - 0.032, B.LEAF_Z0, VM.sub(wuv, 0.66, 0.05, 0.74, 0.95), WOOD)
+        warp(m, i0, 0.06, gm, KABUKI_Y0, zero)
 
     # ---- 袖(両側)。端柱・中柱は掘立、地覆・笠木・竪格子
     ky0, ky1 = SODE_TOP - SODE_KASA[0], SODE_TOP
     jz = JIFUKU[1]
     bz = 0.022                          # 竪子の半見込
     for s in (-1, 1):
+        i_sode = len(m.v)               # 袖は全部まとめて勾配なりに剪断する(下の warp)
         a, b = ox, ei                   # 格子を張る区間(|x|)
         def X(u0, u1):
             return (min(s * u0, s * u1), max(s * u0, s * u1))
@@ -173,21 +221,44 @@ def build(haba, kuguri="L", opened=True, name=None, want_spec=False, spec_only=F
         for (u0, u1) in bays:
             x0, x1 = X(u0, u1)
             m.koshi(x0, x1, JIFUKU[0], ky0, -bz, bz, bar_uv, WOOD, pitch=0.15, bar=0.02, yoko=2)
+        warp(m, i_sode, 0.0, gm, 1.0, gm)
     o = m.to_object(name, [P['wood'], P['wall'], P['stone']])
     V.sel([o])
     bpy.ops.object.material_slot_remove_unused()
     V.dedup_materials()
     V.set_origin(o, (0.0, 0.0, 0.0))
-    print("[machikido] %s 全幅 %.3f / 大戸 %.3f / 袖 %.3f×2 / 潜り %s / 内法 %.3f / 笠木 %.3f"
-          % (name, haba, L['O'], L['sode'], L['kug'] or "なし", KABUKI_Y0, TOP + KASA[0]))
+    print("[machikido] %s 全幅 %.3f / 大戸 %.3f / 袖 %.3f×2 / 潜り %s / 内法 %.3f / 笠木 %.3f / 勾配 %+.3f"
+          % (name, haba, L['O'], L['sode'], L['kug'] or "なし", KABUKI_Y0, TOP + KASA[0], keisha))
     return (o, name, spec) if want_spec else (o, name)
 
 
-def kido_spec(name, haba, L, opened):
-    """札を**作図の変数から**出す(build_kabukimon.gate_spec と同じ手続き)。⛔ メッシュを測らない。"""
+def _post_xs(L):
+    """地面に着く柱の芯(|x|・メッシュの走り)と名。袖の割りは build と同じ手続き。"""
+    ox, ei, ex = L['ox'], L['ei'], L['ex']
+    out = [("oya", L['px']), ("hashi", ex - EP / 2)]
+    for s in (-1, 1):
+        a = ox
+        if (L['kug'] == "L" and s < 0) or (L['kug'] == "R" and s > 0):
+            a = ox + KUG_W + MP
+            out.append(("hodate" + ("L" if s < 0 else "R"), s * (ox + KUG_W + MP / 2)))
+        span = ei - a
+        n = max(1, int(math.ceil((span + 1e-6) / KEN)))
+        w = (span - (n - 1) * MP) / n
+        u = a
+        for i in range(n - 1):
+            u += w
+            out.append(("naka" + ("L" if s < 0 else "R"), s * (u + MP / 2)))
+            u += MP
+    return out
+
+
+def kido_spec(name, haba, L, opened, keisha=0.0):
+    """札を**作図の変数から**出す(build_kabukimon.gate_spec と同じ手続き)。⛔ メッシュを測らない。
+    勾配の版: 座標は Unity 局所(X = −メッシュの走り)・ピボット = X=0 の地面。"""
     hx, px, ex = L['hx'], L['px'], L['ex']
-    yb = -B.KUTSU_H                                   # = −NEIRE
-    band0, band1 = yb + 0.30, yb + 1.80
+    g = lambda X: ground_u(X, haba, keisha)
+    yb = -B.KUTSU_H + min(g(-ex), g(ex))              # 下手の端柱の根(勾配0なら −NEIRE)
+    band0, band1 = -B.KUTSU_H + 0.30, -B.KUTSU_H + 1.80   # 各端の地面からの帯(下の jamb で足す)
     corners = [(s * px + a * B.KUTSU, b * B.KUTSU) for s in (-1, 1) for a in (-1, 1) for b in (-1, 1)]
     corners += [(s * ex, b * EP / 2) for s in (-1, 1) for b in (-1, 1)]
     corners += [(s * (ex - EP), b * EP / 2) for s in (-1, 1) for b in (-1, 1)]
@@ -204,11 +275,13 @@ def kido_spec(name, haba, L, opened):
                 zs.append((x - hinge) * ang_s + z * c)
     # 脇の面 = 端柱の外の面(帯の全段で最も外 = 区画の角に接する面)。z は端柱の見込
     jz = [EP / 2, -EP / 2]
-    jamb = lambda x: {"x": x, "z0": min(jz), "z1": max(jz), "y0": band0, "y1": band1}
+    jamb = lambda x: {"x": x, "z0": min(jz), "z1": max(jz), "y0": band0 + g(x), "y1": band1 + g(x)}
     src = ("blender:build_machikido.py build(haba=%g, main=%g, kuguri=%s, opened=%s, oya=%g, ep=%g, "
-           "kabuki=%g+%g, top=%g, sode=%g)" % (haba, L['O'], L['kug'], opened, OYA, EP,
-                                               KABUKI_Y0, KABUKI_H, TOP + KASA[0], SODE_TOP))
-    return {
+           "kabuki=%g+%g, top=%g, sode=%g%s)" % (haba, L['O'], L['kug'], opened, OYA, EP,
+                                               KABUKI_Y0, KABUKI_H, TOP + KASA[0], SODE_TOP,
+                                               (", keisha=%g" % keisha) if keisha else ""))
+    ytop = max(TOP + KASA[0], SODE_TOP + max(g(-ex), g(ex)))
+    d = {
         "prefab": "Assets/Edo/Models/Mon/%s.fbx" % name,
         "kind": "gate", "source": src, "unitScale": 1.0,
         "yBottom": yb, "foot": foot,
@@ -217,10 +290,21 @@ def kido_spec(name, haba, L, opened):
         "passage": {"x0": -hx, "x1": hx},
         "eave": {"x0": -ex, "x1": ex,
                  "z0": min(zs + [-KASA[1]]), "z1": max(zs + [KASA[1]]),
-                 "y0": yb, "y1": TOP + KASA[0]},
+                 "y0": yb, "y1": ytop},
         "faceOut": 0.0, "faceIn": 0.0, "copingOverhang": 0.0,
-        "height": TOP + KASA[0] - yb,
+        "height": ytop - yb,
     }
+    if keisha:
+        d["keisha"] = keisha
+        d["pivot"] = "X=0 の地面(足形の中心の地盤)"
+        d["ground"] = {"x0": -ex, "y0": g(-ex), "x1": ex, "y1": g(ex)}
+        pts = []
+        for (nm, xm) in _post_xs(L):
+            for s in ((-1, 1) if nm in ("oya", "hashi") else (1,)):
+                X = -(s * xm)                         # メッシュの走り → Unity X
+                pts.append({"name": nm.rstrip("LR"), "x": round(X, 5), "y": round(g(X), 5), "z": 0.0})
+        d["contactPts"] = sorted(pts, key=lambda p: p["x"])
+    return d
 
 
 # ---------------------------------------------------------------- 検め画像
@@ -248,7 +332,23 @@ def _magenta_world():
     w.node_tree.nodes["Background"].inputs[0].default_value = (1.0, 0.0, 1.0, 1)
 
 
-def shots(o, spec, key):
+def _earth(keisha, haba, half=8.0, depth=6.0):
+    """検め画像だけの地面(勾配なり)。⛔ 書き出さない・材を付けない。Blender x の地面 = keisha·x/haba"""
+    vs, fs = [], []
+    for bx in (-half, half):
+        for by in (-depth, depth):
+            vs += [(bx, by, keisha * bx / haba), (bx, by, -4.0)]
+    # 0..7 = (x-,y-,top)(x-,y-,bot)(x-,y+,top)(x-,y+,bot)(x+,y-,top)(x+,y-,bot)(x+,y+,top)(x+,y+,bot)
+    fs = [(0, 4, 6, 2), (1, 3, 7, 5), (0, 1, 5, 4), (2, 6, 7, 3), (0, 2, 3, 1), (4, 5, 7, 6)]
+    me = bpy.data.meshes.new("Earth")
+    me.from_pydata(vs, [], fs)
+    me.update()
+    e = bpy.data.objects.new("Earth", me)
+    bpy.context.collection.objects.link(e)
+    return e
+
+
+def shots(o, spec, key, keisha=0.0, haba=None):
     V.hook_textures()
     os.makedirs(SHOT, exist_ok=True)
     mn, mx = V.bbox([o])
@@ -268,6 +368,22 @@ def shots(o, spec, key):
     kx = -(spec["passage"]["x1"] + OYA + KUG_W / 2)
     V.studio((kx - 1.2, mn.y - 4.0, 1.4), (kx, 0.0, 1.0), res=(1400, 1100))
     V.render(os.path.join(SHOT, "machikido_%s_kuguri.png" % key))
+    if keisha:
+        # ④' 勾配なりの地面を入れて: 正面(マゼンタ — 足元の浮きが抜けて見える)・外の斜め・内の斜め
+        e = _earth(keisha, haba, half=W * 0.5 + 2.0)
+        V.studio((c.x, mn.y - W * 2.0, c.z), (c.x, c.y, c.z), ortho_scale=W * 1.06, res=(1800, 900))
+        _magenta_world()
+        V.render(os.path.join(SHOT, "machikido_%s_jiban_elev.png" % key))
+        V.studio((mn.x - W * 0.25, mn.y - W * 1.0, 2.2), (c.x, c.y, H * 0.30), res=(1800, 1100))
+        V.render(os.path.join(SHOT, "machikido_%s_jiban_3d.png" % key))
+        V.studio((mx.x + W * 0.25, mx.y + W * 1.0, 2.4), (c.x, c.y, H * 0.30), res=(1800, 1100))
+        V.render(os.path.join(SHOT, "machikido_%s_jiban_ura.png" % key))
+        # 足元の寄り(下手の端・上手の端・大戸の口)
+        for tag, bx in (("shimote", mn.x + 0.9), ("kamite", mx.x - 0.9), ("kuchi", 0.0)):
+            gz = keisha * bx / haba
+            V.studio((bx - 1.6, mn.y - 3.2, gz + 1.0), (bx, 0.0, gz + 0.3), res=(1200, 900))
+            V.render(os.path.join(SHOT, "machikido_%s_ashi_%s.png" % (key, tag)))
+        bpy.data.objects.remove(e, do_unlink=True)
     # ⑤ 札の線を重ねる(真上寄りの斜め・正面)
     ov = K.overlay(spec)
     V.studio((c.x, mn.y - W * 2.0, c.z), (c.x, c.y, c.z), ortho_scale=W * 1.06, res=(1800, 900))
@@ -293,18 +409,19 @@ def main():
     haba = opt("--haba", 10.54, float)
     kug = opt("--kuguri", "L")
     opened = "--shut" not in argv
+    keisha = opt("--keisha", 0.0, float)
     if "--spec-only" in argv:
-        _o, name, spec = build(haba, kug, opened, spec_only=True)
+        _o, name, spec = build(haba, kug, opened, spec_only=True, keisha=keisha)
         V.write_spec(os.path.join(OUT, name + ".fbx"), spec)
         return
     V.reset()
-    o, name, spec = build(haba, kug, opened, want_spec=True)
+    o, name, spec = build(haba, kug, opened, want_spec=True, keisha=keisha)
     mn, mx = V.bbox([o])
     print("[machikido] %s Unity実寸 W(X)=%.3f  H(Y)=%.3f  D(Z)=%.3f  底=%.3f  面=%d"
           % (name, mx.x - mn.x, mx.z - mn.z, mx.y - mn.y, mn.z, len(o.data.polygons)))
     print("[machikido] 材質=%s" % [mm.name for mm in o.data.materials])
     if "--render" in argv:
-        shots(o, spec, N.fmt(haba) + ("" if opened else "_shut"))
+        shots(o, spec, name[len("MachiKido_"):].lower(), keisha=keisha, haba=haba)
     path = os.path.join(OUT, name + ".fbx")
     V.export_fbx([o], path, kind="gate", spec=spec)
     print("[machikido] 書き出し " + path)

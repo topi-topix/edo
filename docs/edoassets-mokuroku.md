@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 353(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 356(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -289,6 +289,8 @@
 | `Own.Munamon(w, opened)` | 関数 | 通用口の棟門(岡部邸 `komon.Tsuyodo` — 袋小路に開く勝手口)。 | OkabeYashiki(AssetByKey), Typology(GatePath) |
 | `Own.Munamon(w)` | 関数 | — | OkabeYashiki(AssetByKey), Typology(GatePath) |
 | `Own.KabukimonNoSode` | string | 袖の無い冠木門(旗本屋敷の表門・類型 gate=kabukimon。 | Typology(GateChoices) |
+| `Own.MachiKido(haba)` | 関数 | 町木戸(町境・参道の口を夜に閉じる木戸。 | TypologyBuilder.Machiya(MachiKido・MachiyaFrontEdges), BuildMachiya(UraNagayaRun) |
+| `Own.MachiKido(haba, keisha)` | 関数 | 道の横断勾配に追従する町木戸。keisha = −X 端から +X 端への地面の下がり[m] (正 = +X が低い)。 | TypologyBuilder.Machiya(MachiKido・MachiyaFrontEdges), BuildMachiya(UraNagayaRun) |
 | `Own.MarutaTesuri` | string | 丸太の手すり 1スパン(岡部邸 `routes.R_Katte.outsideRail.tesuri`)。 | OkabeYashiki(AssetByKey) |
 | `Own.MarutaTesuriPost` | string | 手すりの run の端に足す柱1本。ピボット = 柱の芯・地盤レベル。 | OkabeYashiki(AssetByKey・PlaceTesuri) |
 | `Own.Kui(dia)` | 関数 | 汀の杭 1本(岡部邸 `nishi.kuiretsu`)。 | OkabeYashiki(AssetByKey・PlaceKuiretsu・ReportNishiRest), BuildRun(FenceRun・KuiRun) |
@@ -317,7 +319,7 @@
 | `Own.MatsudairaOmotemon` | string | `Matsudaira_Omotemon.fbx` — 松江松平邸の表門 — 屋根なしの冠木門(角柱・冠木・内開きの板戸)。 | MatsudairaDewa(Stage5_Mon) |
 | `Own.Sodebei(len, kuguri=…)` | 関数 | 袖塀(長さ可変・潜り戸つき)— 表門の脇で外周を塞ぐ練塀。 | MatsudairaDewa(Stage5_Mon) |
 | `Own.Dobei2m` | string | `Dobei2m.fbx` — 練塀(築地塀)の一体物 — 腰の下見板・貫・白漆喰・本瓦の両流れが1駒に焼いてある (`Tools/Blender/build_dobei.py`)。 | BuildRun(NeribeiRun・NeribeiStepRun), BuildRim(FenceFaceOffsets), TypologyBuilder.Rim(Rim) |
-| `Own.Dobei2mNunoishi` | string | `Dobei2m_Nunoishi.fbx` — Dobei2m の下に据える布石(腰の石) — 切石の布積み 4段の1駒(EDO-0477)。 | BuildGamae(FlattestStation・GamaeKidan), BuildRun(DanPlan・NeribeiStepRun) |
+| `Own.Dobei2mNunoishi` | string | `Dobei2m_Nunoishi.fbx` — Dobei2m の下に据える布石(腰の石) — 切石の布積み 4段の1駒(EDO-0477)。 | BuildGamae(FlattestStation・KidanUnder), BuildRun(DanPlan・NeribeiStepRun) |
 | `Own.Dobei2mEnd` | string | `Dobei2m_End.fbx` — Dobei2m の妻を塞いだ端部(x=0 側の小口に袖瓦を葺いて閉じた駒。 | BuildRun(NeribeiRun・NeribeiStepRun), BuildGamae(FenceEndPiece), PartSpec(Bake) |
 | `Own.MatsudairaBansho(w)` | 関数 | 松江松平邸の表門の番所 — 向唐破風・出格子・切石畳出の基壇。 | MatsudairaDewa(Stage5_Mon) |
 | `Own.MatsudairaBanshoBodyBand` | float[] | ⭐⭐ 番所の「躯体」を測るための帯 — ピボット(= 走りの芯・基壇の下端)からの 局所 y[m]。 | MatsudairaDewa(Stage5_Mon) |
@@ -347,6 +349,7 @@
 | `Own.Typ.Takeyarai` | string | 竹矢来(たけやらい)— 2間モジュールの透ける囲い(類型共用・EDO-0363)。 | BuildRun(FenceRun・NeribeiStepRun), BuildGamae(FenceEndPiece), PartSpec(Bake) |
 | `Own.Typ.Omotedana(wKen)` | 関数 | 表店(おもてだな)— 町屋24町の通りに面して並ぶ2階建ての商家(類型共用)。 | TypologyBuilder.Machiya(OmotedanaFor), BuildMachiya |
 | `Own.Typ.Omotedana(wKen, dKen)` | 関数 | 奥行を詰めた表店。背後の余地が 4間(7.272m)に足りない筆で使う。 | TypologyBuilder.Machiya(OmotedanaFor), BuildMachiya |
+| `Own.Typ.OmotedanaHira(wKen, dKen)` | 関数 | 平屋の小店(厨子二階の無い表店・裏通りや門前の端の店)。 | TypologyBuilder.Machiya(OmotedanaFor) |
 
 ## Own(続き)
 

@@ -147,10 +147,12 @@ public static partial class EdoBuild
     }
 
     /// <summary>駒の**壁体**が区画の外へ 1 点でも出ているか。遊びは無し —
-    /// 塀と違って建物は境界線の上に立つ物ではない(規則4「区域侵犯は許容0」)。</summary>
+    /// 塀と違って建物は境界線の上に立つ物ではない(規則4「区域侵犯は許容0」)。
+    /// ⭐ 測り方は類型ビルダーの検査(<c>EdoTypologyBuilder.OutsideBy</c>)と同じ <see cref="BodyExRoof"/>・600 点。
+    /// ⛔ 2026-10-02 まで Body(400, false) で測っていて、検査だけが 0.07m の侵犯を拾った(門前1 の平屋の小店・EDO-0503)。</summary>
     static bool OutsideParcelStrict(Transform t, Vector2[] poly)
     {
-        foreach (var w in Body(t, 400, false))
+        foreach (var w in BodyExRoof(t, 600))
             if (!EdoGeom.PIP(poly, new Vector2(w.x, w.z))) return true;
         return false;
     }
@@ -663,7 +665,21 @@ public static partial class EdoBuild
     /// 外(+Z)は <paramref name="away"/>(町の外 = 区画の無い側)へ向ける。高さは <see cref="SeatGamae"/>(札の当たり)。
     /// 【硬い】札の脇の面の間隔と角どうしの距離の差が 0.02m を超えたら**建てない**(隙か区域侵犯になる)── 幅を焼き直す。
     /// 返り値の <paramref name="note"/> に脇の面と角の差・据えた高さ・浮きを刷る(規則19)。</summary>
-    public static GameObject MachiKidoAcross(Transform parent, string path, Vector2 a, Vector2 b, Vector2 away, string name, out string note)
+    /// <summary>町木戸の口の**横断の下がり**[m](木戸の局所 −X 端 → +X 端・正 = +X が低い・0.05 刻み)。
+    /// 向きは <see cref="MachiKidoAcross"/> と同じ決め方(X = 角どうしの線・+Z = away の側)。地面は両角から 0.3m 内で採る。
+    /// 呼ぶ側はこの値で <c>EdoAssets.Own.MachiKido(haba, keisha)</c> の駒を引く(EDO-0503)。</summary>
+    public static float MachiKidoKeisha(Vector2 a, Vector2 b, Vector2 away)
+    {
+        var ab = (b - a).normalized; var n = new Vector2(-ab.y, ab.x);
+        if (Vector2.Dot(n, away) < 0f) n = -n;
+        var lx = new Vector2(n.y, -n.x);
+        var aL = Vector2.Dot(a - b, lx) < 0f ? a : b; var aR = aL == a ? b : a;
+        var pL = aL + lx * 0.3f; var pR = aR - lx * 0.3f;
+        float drop = (Ground(pL.x, pL.y) - Ground(pR.x, pR.y)) * (b - a).magnitude / Mathf.Max(0.1f, (pR - pL).magnitude);
+        return Mathf.Round(drop / 0.05f) * 0.05f;
+    }
+
+    public static GameObject MachiKidoAcross(Transform parent, string path, Vector2 a, Vector2 b, Vector2 away, string name, out string note, float keisha = 0f)
     {
         var sp = EdoPartSpec.Get(path);
         if (sp == null || sp.jambL == null || sp.jambR == null) { note = "⛔ 町木戸: 札が無い/脇の面が無い — " + System.IO.Path.GetFileName(path); return null; }
@@ -671,17 +687,33 @@ public static partial class EdoBuild
         float span = (sp.jambR.x - sp.jambL.x) * s, road = (b - a).magnitude;
         if (Mathf.Abs(span - road) > 0.02f)
         { note = string.Format("⛔ 町木戸: 札の脇の面の間隔 {0:F3}m と道の角どうし {1:F3}m が合わない(差 {2:+0.000;-0.000}m)── この幅で焼き直す(建てない)", span, road, span - road); return null; }
-        var n = away.normalized;
+        // ⭐ 木戸の X(幅)は**角どうしを結ぶ線**そのもの、+Z はその法線のうち away の側。
+        //    ⛔ away から X を起こさない — 二区画の重心から離れる向きは口の線に直交しないので、
+        //    片方の親柱が角から 2.555m 離れた(2026-10-02 門前1)。
+        var ab = (b - a).normalized;
+        var n = new Vector2(-ab.y, ab.x);
+        if (Vector2.Dot(n, away) < 0f) n = -n;
         float ry = Mathf.Atan2(n.x, n.y) * Mathf.Rad2Deg;
-        var lx = new Vector2(n.y, -n.x);                       // ローカル +X の世界での向き
+        var lx = new Vector2(n.y, -n.x);                       // ローカル +X の世界での向き(= ±ab)
         var aL = Vector2.Dot(a - b, lx) < 0f ? a : b;           // jambL(−X)が触れる角
         float zc = (sp.jambL.z0 + sp.jambL.z1) * 0.5f * s;
         var p2 = aL - lx * (sp.jambL.x * s) - n * zc;
         var go = Place(path, new Vector3(p2.x, Ground(p2.x, p2.y), p2.y), ry, Vector3.one * s, parent, name);
-        SeatGamae(go, 4000);
+        // ⭐ 勾配の版(<paramref name="keisha"/>≠0)は**ピボット = 足形の中心の地面**で焼いてある(柱の足元が勾配なりに伸びる)──
+        //    中心の地面へピボットを置く。⛔ SeatGamae(最下点で当てる)を通すと下手の柱の根で当たり、全体が沈む(部材方 2026-10-02)。
+        if (Mathf.Abs(keisha) >= 0.025f)
+        {
+            var c = go.transform.position; go.transform.position = new Vector3(c.x, Ground(c.x, c.z), c.z);
+        }
+        else SeatGamae(go, 4000);
         var jl = EdoPartSpec.JambWorld(go.transform, sp.jambL); var jr = EdoPartSpec.JambWorld(go.transform, sp.jambR);
         var bL = aL == a ? b : a;
         var r = RootToBed(go, Ground, 0.1f, GamaeContact(go));
+        if (!float.IsNaN(r.hi) && r.hi > 0.01f && Mathf.Abs(keisha) >= 0.025f)
+        {   // 実際の地面は勾配の直線より上に曲がる所がある(±5cm)── 浮いた分だけ下げる(根入れが深くなるだけ)
+            go.transform.position -= new Vector3(0f, r.hi, 0f);
+            r = RootToBed(go, Ground, 0.1f, GamaeContact(go));
+        }
         note = string.Format("  町木戸: 道幅 {0:F2}m を塞いだ・脇の面と角の差 {1:F3}m / {2:F3}m・敷居 y={3:F2}・当たりの浮き {4:F3}m(硬い ±0.01){5}",
                              road, (jl - aL).magnitude, (jr - bL).magnitude, go.transform.position.y,
                              float.IsNaN(r.hi) ? 0f : Mathf.Max(0f, r.hi), (!float.IsNaN(r.hi) && r.hi > 0.01f) ? " ⛔ 道の傾きで下手が浮く" : "");

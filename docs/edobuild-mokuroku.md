@@ -1,11 +1,11 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 a35ab1bbb4ac -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 0a9748e43260 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
 
-- 公開関数 280 本(注釈なし 24)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
+- 公開関数 282 本(注釈なし 25)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
 - 同じ道具が刷る目録: 邸ビルダーのメニュー → Stage と中の関数 `docs/builder-mokuroku.md` / 部材の名 `docs/edoassets-mokuroku.md`。
 - 札: **硬** = 注釈に「硬い/許容0」・**柔** = 「柔らかい/狙い」がある(判定ではなく注釈の語)。相手の札(地面・駒どうし・天端・床・断面・面・隅・区域)も注釈の語を拾っただけ。
 - 呼んでいる所 = 定義のファイルの外で `EdoBuild.<名>(` と書いている C# ファイル(`Edo` と `Builder/Rebuild` を落とした名)と、その中の呼んでいる関数(Stage)。同じ名の多重定義はまとめて数える。`EdoBuild` の中どうしの呼び出しは載せない。
@@ -17,7 +17,7 @@
 | ファイル | 何の道具か(ファイル冒頭の注釈) | 当たる先 | 関数 |
 |---|---|---|---|
 | [EdoBuild.cs](#edobuildcs) | 配置・資産系の共有基盤 (Phase 2c, 2026-08-26) | — | 44 |
-| [EdoBuildGamae.cs](#edobuildgamaecs) | ══════════════════════════════════════════════════════════════════════ | — | 14 |
+| [EdoBuildGamae.cs](#edobuildgamaecs) | ══════════════════════════════════════════════════════════════════════ | — | 15 |
 | [EdoBuildGoten.cs](#edobuildgotencs) | 御殿複合(表向・中奥・奥向の3核)を組む — EdoBuild の一部(規則21「置く・測る・突き付ける・据えるは | — | 3 |
 | [EdoBuildHifu.cs](#edobuildhifucs) | 縁の皮 — 地形に穴を開け、穴の縁から部材の面までを皮のメッシュで描く (EdoBuild の partial・2026-09-24・EDO-0430) | 切通しの石段(山王の女坂・男坂・参道の階)・天端を地盤に揃えた土留め(山王・土井・岡部の郭)・ 造成した面の縁(全邸の段の縁)。 | 12 |
 | [EdoBuildInari.cs](#edobuildinarics) | 稲荷 — 小祠と鳥居を据える (EdoBuild の partial・2026-09-21・EDO-0326) | — | 3 |
@@ -25,7 +25,7 @@
 | [EdoBuildJisha.cs](#edobuildjishacs) | 寺社の本堂(と坊・社家の主屋)を、間数ごとに焼いた入母屋で組む — EdoBuild の一部(規則21)。 | — | 1 |
 | [EdoBuildJun.cs](#edobuildjuncs) | 部材を依存の順に解き、変えた所から後だけ流し直す (EdoBuild の partial・2026-09-26・EDO-0455) | 山王社の建て直し(EdoSannoShaRebuild の Stage0〜9)。 | 0 |
 | [EdoBuildKado.cs](#edobuildkadocs) | 隅部材(留め継ぎ)の据え — EdoBuild の partial (2026-09-21・EDO-0289 ②) | — | 28 |
-| [EdoBuildMachiya.cs](#edobuildmachiyacs) | 町屋の表店の run — EdoBuild の一部(規則21「置く・測る・突き付ける・据えるは EdoBuild の関数だけ」)。 | — | 10 |
+| [EdoBuildMachiya.cs](#edobuildmachiyacs) | 町屋の表店の run — EdoBuild の一部(規則21「置く・測る・突き付ける・据えるは EdoBuild の関数だけ」)。 | — | 11 |
 | [EdoBuildMichi.cs](#edobuildmichics) | EdoBuild — 道の造成(縦断を設計して道の面を均す)。2026-09-30・EDO-0495(施主裁定②「小道を造成する」)。 | 指図の道の欄に `zosei` を持つ道(今は山王の麓の道 南西区間 = 十坊の小道だけ)。 | 4 |
 | [EdoBuildMuki.cs](#edobuildmukics) | 向き(正面)の解き — EdoBuild の partial (2026-09-22・EDO-0261 ③) | — | 7 |
 | [EdoBuildNiwa.cs](#edobuildniwacs) | 庭の置き方 — 類型の庭(Stage 5・EDO-0323)が使う「置く・測る・据える」だけ。 | — | 16 |
@@ -111,7 +111,7 @@
 | 関数 | 返す | 札 | 何をするか(注釈の一文目) | 呼んでいる所 |
 |---|---|---|---|---|
 | `EdoBuild.GATE_BURY_MAX` | `float` |  | 塀の端を門構えへ埋める量[m](§0a「埋めて隠す」・山王の勝手口の bite と同じ作法)。 | — |
-| `EdoBuild.SpecOf(go)` | `EdoPartSpec.Spec` |  | 置いた駒の札(資産の道から引く)。札の無い駒は null。 | Typology(BuildParcel・GamaeJointReport・SpecOutsideBy), TypologyBuilder.Jisha(JishaOmoya), TypologyBuilder.Niwa(SandoAxis) |
+| `EdoBuild.SpecOf(go)` | `EdoPartSpec.Spec` |  | 置いた駒の札(資産の道から引く)。札の無い駒は null。 | Typology(BuildParcel・GamaeJointReport・MichiInsideBy…), TypologyBuilder.Jisha(JishaOmoya), TypologyBuilder.Niwa(SandoAxis) |
 | `EdoBuild.GroundOrBed(bed)` | `Func<float, float, float>` | 地面・床 | 床 = 地面と bed(縁と目地は 5cm 跨ぐ・BedIndex.AtNear)の高い方。 | Typology(BuildParcel・IsSueMono) |
 | `EdoBuild.GamaeContact(piece)` | `Func<MeshFilter, bool>` | 地面 | 門構えの駒の地面との当たりの部材(札の contact)。 | Typology(BuildParcel・Inspect) |
 | `EdoBuild.GamaeBottom(piece)` | `float` |  | 門構えの駒の当たりの下端[世界 y](GamaeContact の部材の最下点・無ければ外形の最下点)。 | — |
@@ -128,6 +128,8 @@
 | `EdoBuild.KIDAN_BULGE` | `float` | 硬 地面・天端・床・区域 | 門構えの駒の下に布石の基壇を敷く(2026-09-30 EDO-0491・施主「門が浮いてます」)。 | — |
 | `EdoBuild.KIDAN_SEAM` | `float` | 駒どうし・天端・床・区域 | 布石の区画どうしの天端の重ね[m] ── 天端の縁と縁を突き付けると、継ぎ目の一点で下の目地を床に読む(2026-09-30 十坊0 0.165m)。 | — |
 | `EdoBuild.GamaeKidan(piece, parent, ground, note)` | `List<GameObject>` |  | ⚠ 注釈なし | Typology(BuildParcel) |
+| `EdoBuild.BuildingKidan(piece, parent, ground, note)` | `List<GameObject>` | 硬 地面・天端・床・区域 | 棟の下手の浮きを布石の基壇で受ける(EDO-0503・2026-10-02 施主の規則「浮き 許容0」)。 | Typology(BuildParcel) |
+| `EdoBuild.KIDAN_BITE` | `float` | 駒どうし・天端 | 棟の基壇の布石の天端を駒の下端より上げる量[m] ── 石の面のふくらみ・継ぎ目で下端の頂点が 0.013m 浮いて測れた (門前2 の shop01 4 棟・2026-10-02)。 | — |
 | `Gamae`(class) | — | | 門構えを置いた結果。⭐ `passageC`(通り口の芯)と `gapC/gapHalf`(塀の口)を分けて持つ ── 番所が片方だけの門構えでは二つがずれる(⛔ 2026-09-29 まで一つの gateC が両方を兼… | |
 | `EdoBuild.PlaceGamae(mon, bansho, A, B, outward, center, poly, faceOut, bite, fenceDepth)` | `Gamae` | 硬・柔 区域 | 門構えを札で置く(硬い: 札が無ければ例外 ── 呼ぶ側は ⛔ を刷ってその門構えを退ける)。 | Typology(BuildParcel) |
 | `EdoBuild.DenseSection(tr, y, step=…)` | `List<Vector3>` | 断面 | 水平断面を線分として取り、step 刻みで点を埋める(世界座標)。 | — |
@@ -335,7 +337,8 @@
 | `EdoBuild.TileWidths(target, widths, joint, res=…)` | `int[]` |  | 列の残り長さを、繰り返し使える棟の実寸の組合せで埋める計画(掲示板 EDO-0362 §1d の型)。 | — |
 | `EdoBuild.MachiyaRun(parent, A, B, outward, baseY, maguchiM, maxDepthM, gapC, gapHalf, prefix, leadPath, ours, keepInside, avoid, tally, seed=…, maguchiMix=…)` | `List<GameObject>` | 硬 面・区域 | <summary>表店の列。辺 A→B に、通りへ店先を向けた町屋を軒を接して並べる。 | TypologyBuilder.Machiya(Machiya) |
 | `EdoBuild.UraNagayaRun(parent, A, B, outward, baseY, insetM, cap, prefix, keepInside, avoid, dropped, wallGap, gapM, munewari=…)` | `List<GameObject>` | 床 | <summary>裏長屋(裏店)の列。表店の列の背後に、路地を挟んで棟を並べる。 | TypologyBuilder.Machiya(UraNagaya) |
-| `EdoBuild.MachiKidoAcross(parent, path, a, b, away, name, note)` | `GameObject` | 硬 区域 | 道を塞ぐ町木戸を、道の両側の角 a・b の間に据える。 | — |
+| `EdoBuild.MachiKidoKeisha(a, b, away)` | `float` | 硬 地面・区域 | 道を塞ぐ町木戸を、道の両側の角 a・b の間に据える。 | TypologyBuilder.Machiya(MachiKido) |
+| `EdoBuild.MachiKidoAcross(parent, path, a, b, away, name, note, keisha=…)` | `GameObject` |  | ⚠ 注釈なし | Assets(Munamon), TypologyBuilder.Machiya(MachiKido) |
 | `EdoBuild.NorenVariants()` | `List<Dictionary<string, object>>` |  | `docs/Sashizu/noren.json` の店の一覧(EdoAssets.Eg.NorenSpec)。 | TypologyBuilder.Machiya(NorenKeysFor) |
 | `EdoBuild.HangNoren(houses, keys, seed)` | `string` |  | 表店に軒ごとの暖簾を掛ける。keys は掛けてよい店(noren.json の key・重複は軒数の比)。 | TypologyBuilder.Machiya(Machiya) |
 
@@ -646,7 +649,7 @@ EdoBuild — 造成(平場を採る)。2026-09-27・EDO-0477 P1(山王 Stage1_Gr
 | `EdoParcels.IsDirty` | `bool` |  | ⚠ 注釈なし | — |
 | `EdoParcels.Save()` | `void` |  | ⚠ 注釈なし | ParcelTool(AutoSave・DrawHud・FinishDrawing…), ParcelWindow(FrameOn・Refresh) |
 | `EdoParcels.Find(id)` | `Parcel` |  | ⚠ 注釈なし | ParcelTool(PopUndo), Typology(Edges) |
-| `EdoParcels.Get(id)` | `Vector2[]` | 区域 | 区画のポリゴンを引く。無ければ 例外を投げずに null を返し、警告を出す (LoadAssetAtPath と同じ作法。 | SannoSha(InUngradedParcel・Stage1_Grade・Stage7_Shaso…), Doi(In・KomonIshigakiQA), Typology(BuildParcel・Edges・Pad), OkabeYashiki(C), SurfacePaint(Paint・Verify) ほか5 |
+| `EdoParcels.Get(id)` | `Vector2[]` | 区域 | 区画のポリゴンを引く。無ければ 例外を投げずに null を返し、警告を出す (LoadAssetAtPath と同じ作法。 | SannoSha(InUngradedParcel・Stage1_Grade・Stage7_Shaso…), Typology(BuildParcel・Edges・MichiInsideBy…), Doi(In・KomonIshigakiQA), OkabeYashiki(C), SurfacePaint(Paint・Verify) ほか6 |
 | `EdoParcels.GetByPrefix(prefix)` | `List<Vector2[]>` | 区域 | json に無ければ fallback を返す。 | SannoSha(Stage6_Splat_Retired・Stage7_Keidairin) |
 | `EdoParcels.GetOr(id, fallback)` | `Vector2[]` |  | ⚠ 注釈なし | — |
 | `EdoParcels.Add(id, label, category, color, pts)` | `Parcel` |  | ⚠ 注釈なし | ParcelTool(FinishDrawing), ParcelWindow(FrameOn) |

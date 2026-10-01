@@ -2293,6 +2293,28 @@ public static class EdoAssets
         /// 生成: blender --background --python Tools/Blender/build_kabukimon.py -- [--render]</summary>
         public const string KabukimonNoSode = MonDir + "Kabukimon_NoSode_2.73.fbx";
 
+        /// <summary>**町木戸**(町境・参道の口を夜に閉じる木戸。EDO-0503・切絵図 S で山王門前の二ノ鳥居東の辻)。
+        /// 親柱2本+冠木+両開きの扉+潜り戸。屋根なし。⚠ 路地木戸(kido_open・高さ 1.78)とは別物。
+        /// ローカル: 幅=X(道を横切る)/ 高さ=Y / 厚み=Z。ピボット = 道の芯・地盤レベル。倍率1。
+        /// 10.54 の実寸 W10.540 × H3.335(地上 3.075・底 −0.26)× D2.046。札の jamb ±W/2・通り口 ±1.818。
+        /// 道幅ごとに焼く: blender --background --python Tools/Blender/build_machikido.py -- --haba &lt;道幅m&gt;
+        /// 据えるのは <c>EdoBuild.MachiKidoAcross</c>(両脇の区画の角へ親柱の外面を突き付ける)。</summary>
+        public static string MachiKido(float haba)
+        {
+            return MonDir + "MachiKido_" + haba.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + ".fbx";
+        }
+
+        /// <summary>**道の横断勾配に追従する町木戸。**<paramref name="keisha"/> = −X 端から +X 端への地面の下がり[m]
+        /// (正 = +X が低い)。0.05m 刻みで焼く。柱の足元が勾配なりに伸び、冠木・笠木は水平。ピボット = 足形の中心(X=0)の地面。
+        /// 生成: blender --background --python Tools/Blender/build_machikido.py -- --haba &lt;道幅m&gt; --keisha &lt;下がりm&gt;</summary>
+        public static string MachiKido(float haba, float keisha)
+        {
+            if (System.Math.Abs(keisha) < 0.025f) return MachiKido(haba);
+            var ci = System.Globalization.CultureInfo.InvariantCulture;
+            return MonDir + "MachiKido_" + haba.ToString("0.##", ci) + "_k" + (keisha < 0f ? "m" : "")
+                 + System.Math.Abs(keisha).ToString("0.00", ci) + ".fbx";
+        }
+
         const string MonDir = "Assets/Edo/Models/Mon/";
 
         // ---------------------------------------------------------------- 丸太物(手すり・汀の杭)
@@ -2867,6 +2889,16 @@ public static class EdoAssets
         public static string Omotedana(float wKen, float dKen)
         {
             return MachiyaDir + "Typ_Omotedana_" + Len2(wKen) + "x" + Len2(dKen) + "ken.fbx";
+        }
+
+        /// <summary>**平屋の小店**(厨子二階の無い表店・裏通りや門前の端の店)。EDO-0503。
+        /// 焼いてあるのは **2×2.5間(W3.636 × H3.671 × D4.545)** と **3×2.5間(W5.454)**。
+        /// 向き・ピボット・材は <see cref="Omotedana(float)"/> と同じ(+Z = 店先・足形の中心・地盤レベル・暖簾は `Noren 2`)。
+        /// 札 `Assets/Edo/Data/PartSpecs/Typ_OmotedanaHira_&lt;W&gt;x&lt;D&gt;ken.json`。remap は **Edo ▸ 類型 ▸ 新造部材のマテリアルをremap**。
+        /// 生成: blender --background --python Tools/Blender/build_typ_machiya.py -- --kei hira --ken &lt;間&gt; --okuyuki &lt;奥行m&gt;</summary>
+        public static string OmotedanaHira(float wKen, float dKen)
+        {
+            return MachiyaDir + "Typ_OmotedanaHira_" + Len2(wKen) + "x" + Len2(dKen) + "ken.fbx";
         }
         }
 

@@ -753,13 +753,37 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 // ⭐ 造成の後で棟を据え直して測る(EDO-0472)。⛔ 2026-09-28 まで棟は削りの前にだけ据えて測り、
                 //    削りで足元が下がった棟(十坊 智乗院の物置 0.79m)を黙って残した。棟は地面の ±0.01 の内(docs/oki-kata.md §4)
                 //    ── 埋めて消さない(埋没に数わる)。浮けば ⛔ で刷り、置き場か平場を直す。
+                // ⭐ 浮いた棟は**布石の基壇で受ける**(EdoBuild.BuildingKidan・門構えと同じ型・EDO-0503)── 造成は区画の縁で地山へ戻し、
+                //    道は造成しないので、店先を区画の線に置く表店は縁の下りで下手が浮く(⛔ 2026-10-02 まで門前2 で 15/15 棟・最大 1.13m)。
+                //    一続きの御殿(子が複数の複合)は棟ごとに測る別の輪なので除く。
+                var kiso = root.Find("Kiso"); if (kiso != null) UnityEngine.Object.DestroyImmediate(kiso.gameObject);
+                Transform kisoG = null; int kisoN = 0; float kisoWorst = 0f;
                 for (int k = 0; k < bldg.Count; k++)
                 {
                     Seat(bldg[k], log);
-                    var rt2 = EdoBuild.RootToBed(bldg[k], GroundBed, 0.1f);
+                    var rt2 = EdoBuild.RootToBed(bldg[k], EdoBuild.Ground, 0.1f);
+                    // ⭐ 据えは間引いた頂点の当たりなので、間引きが拾わなかった高い所へ下端が埋まる(門前2 で 0.099m)── 全部の下端で測って上げる
+                    if (!float.IsNaN(rt2.lo) && rt2.lo < -GROUND_TOL)
+                    {
+                        bldg[k].transform.position -= new Vector3(0f, rt2.lo, 0f);
+                        rt2 = EdoBuild.RootToBed(bldg[k], EdoBuild.Ground, 0.1f);
+                    }
                     if (float.IsNaN(rt2.hi) || rt2.hi <= GROUND_TOL) continue;
+                    if (!(bldg[k].name == "Goten" && bldg[k].transform.childCount > 1))
+                    {
+                        if (kisoG == null) kisoG = Group("Kiso", root);
+                        string kn; var ks = EdoBuild.BuildingKidan(bldg[k], kisoG, EdoBuild.Ground, out kn);
+                        if (ks.Count > 0)
+                        {
+                            kisoN++; kisoWorst = Mathf.Max(kisoWorst, rt2.hi);
+                            rt2 = EdoBuild.RootToBed(bldg[k], EdoBuild.GroundOrBed(new EdoBuild.BedIndex(ks)), 0.1f);
+                            if (float.IsNaN(rt2.hi) || rt2.hi <= GROUND_TOL) continue;
+                        }
+                        else if (kn != null) log.Add("    ⚠ " + kn);
+                    }
                     log.Add(string.Format("    ⛔ 棟 {0}: 造成と石垣の前の削りの後で下端が {1:F3}m 浮く(線 ±0.01)── 置き場か平場を直す", bldg[k].name, rt2.hi));
                 }
+                if (kisoN > 0) log.Add(string.Format("    布石の基壇: 浮いた棟 {0} を受けた(見え最大 {1:F2}m・EdoBuild.BuildingKidan)", kisoN, kisoWorst));
                 var ya = root.Find("Yashiro");                  // 町屋の稲荷(Stage 3m で建つ・棟の群の外)
                 if (ya != null) foreach (Transform y in ya) Seat(y.gameObject, log);
                 if (mon != null)
@@ -1169,6 +1193,24 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         return over;
     }
 
+    /// <summary>道の上の物(群 "Michi" — 町木戸)が**区画の内へ**入り込んだ量[m](硬い・許容0)。
+    /// 足元は札の foot で測る。相手はこの区画と、名前の末尾の区画(<c>MachiKido_&lt;隣の区画&gt;</c>)。
+    /// 親柱の外面は角へ突き付けるので境界上 0.02m までは入り込みに数えない。札の無い駒は NaN(⛔)。EDO-0503。</summary>
+    static float MichiInsideBy(Vector2[] poly, Transform t)
+    {
+        var sp = EdoBuild.SpecOf(t.gameObject);
+        if (sp == null || sp.foot == null || sp.foot.Count < 3) return float.NaN;
+        var polys = new List<Vector2[]> { poly };
+        int us = t.name.IndexOf('_');
+        var other = us > 0 ? EdoParcels.Get(t.name.Substring(us + 1)) : null;
+        if (other != null && other.Length >= 3) polys.Add(other);
+        float into = 0f;
+        foreach (var q in EdoPartSpec.FootWorld(sp, t))
+            foreach (var pg in polys)
+                if (EdoGeom.PIP(pg, q)) into = Mathf.Max(into, EdoGeom.DistToPolyEdge(pg, q) - 0.02f);
+        return Mathf.Max(0f, into);
+    }
+
     static float OutsideBy(Vector2[] poly, List<Vector3> pts)
     {
         float over = 0f;
@@ -1356,6 +1398,8 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         var monG = root.Find("Mon");
         var monKidan = monG == null ? new List<GameObject>() : monG.Cast<Transform>().Where(t => t.name.Contains("_kidan_")).Select(t => t.gameObject).ToList();
         beds.AddRange(monKidan);
+        var kisoQ = root.Find("Kiso");                  // 棟の基壇の布石(EdoBuild.BuildingKidan・EDO-0503)も床
+        if (kisoQ != null) beds.AddRange(kisoQ.Cast<Transform>().Select(t => t.gameObject));
         _bedMon = monKidan.GroupBy(k => k.name.Substring(0, k.name.IndexOf("_kidan_")))
                           .ToDictionary(gr => gr.Key, gr => new EdoBuild.BedIndex(gr.ToList()));
         _bedX = beds.Count > 0 ? new EdoBuild.BedIndex(beds) : null;
@@ -1380,11 +1424,12 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 Vector3 foot3; Vector2 foot;
                 float outD = grp.name == "Niwa" && EdoBuild.TrunkFootWorld(t.gameObject, out foot3)
                     ? (EdoGeom.PIP(poly, foot = new Vector2(foot3.x, foot3.z)) ? 0f : EdoGeom.DistToPolyEdge(poly, foot))
+                    : grp.name == "Michi" ? MichiInsideBy(poly, t)   // 道の上の物(町木戸)は逆に**区画の内へ**入った量で(EDO-0503)
                     : grp.name == "Mon" && !t.name.Contains("_kidan_") ? SpecOutsideBy(poly, t)   // 門構えは札の足元で(軒は越えてよい・EDO-0491)。基壇の布石は壁体で
                     : OutsideBy(poly, t, false);
-                float tolT = grp.name == "Mon" && t.name.Contains("_kidan_") ? EdoBuild.KIDAN_BULGE : tol;   // 基壇の布石は表の面のふくらみだけ
+                float tolT = (grp.name == "Mon" || grp.name == "Kiso") && t.name.Contains("_kidan_") ? EdoBuild.KIDAN_BULGE : tol;   // 基壇の布石は表の面のふくらみだけ
                 if (float.IsNaN(outD) || outD > tolT) { outside++; if (!float.IsNaN(outD) && outD > worstOut) { worstOut = outD; worstOutName = grp.name + "/" + t.name; } }   // 札の無い門構えは測れない = ⛔(黙って通さない)
-                float eaveD = OutsideBy(poly, t, true);
+                float eaveD = grp.name == "Michi" ? 0f : OutsideBy(poly, t, true);   // 道の上の物は区画の外が正しい
                 if (eaveD > tol) { eaveOut++; worstEave = Mathf.Max(worstEave, eaveD); }
                 // ⛔ 「底(bounds.min.y) − 中心の真下の地形」で測らない(2026-09-20 施主指摘)。
                 //    接地は底とは限らず(斜面では上手側の頂点が先に着く)、複数あり得る。
@@ -1396,8 +1441,8 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 //    一様な間引きが根元の頂点を落とし、+0.97m の「浮き」が全頂点では −0.29m だった
                 //    (2026-09-22 todablock。EDO-0323 の指摘)。全区画を精密に測ると 79 区画が終わらないので、
                 //    ここだけ。測り直した値が本当の値 — 間引きの値で ⛔ を出さない(規則19)。
-                bool kidanPiece = grp.name == "Mon" && t.name.Contains("_kidan_");       // 門構えの基壇の布石(根入れ)
-                bool rooted = grp.name == "Kakoi" || grp.name == "Niwa" || grp.name == "Ishigaki" || kidanPiece;   // 石垣は根入れ 0.22 と見付の余りを地中へ   // 根入れで据える物(埋没を数えない)
+                bool kidanPiece = (grp.name == "Mon" || grp.name == "Kiso") && t.name.Contains("_kidan_");       // 門構えの基壇の布石(根入れ)
+                bool rooted = grp.name == "Kakoi" || grp.name == "Niwa" || grp.name == "Ishigaki" || grp.name == "Michi" || kidanPiece;   // 石垣は根入れ 0.22 と見付の余りを地中へ   // 根入れで据える物(埋没を数えない)
                 if ((!rooted && dy < -GROUND_TOL) || dy > GROUND_TOL)
                     dy = EdoBuild.Contact(t.gameObject, out at, out nc, 0.01f, 60000);
                 // ⭐ 棟(御殿の複合を除く)は**下端の全部**を測る(§0a)── Contact(上の測り直しも)は最寄りの 1 点なので、斜面で下手が浮いても 0 を返す。
@@ -1412,10 +1457,18 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                                                 kidanPiece ? null : EdoBuild.GamaeContact(t.gameObject));
                     if (!float.IsNaN(rt.hi)) dy = kidanPiece ? Mathf.Max(dy, rt.hi) : (rt.hi > -rt.lo ? rt.hi : rt.lo);
                 }
+                if (grp.name == "Kiso")
+                {   // 棟の基壇の布石は下端の全部を地面で測る(浮きだけ・埋まりは根入れ)── ⛔ Contact の最寄り 1 点だと坂の下手の浮きを 0 と刷った(EDO-0503)
+                    var rk = EdoBuild.RootToBed(t.gameObject, EdoBuild.Ground, 0.05f);
+                    if (!float.IsNaN(rk.hi)) dy = Mathf.Max(dy, rk.hi);
+                }
                 if (grp.name == "Tatemono" && t.name != "Goten")
                 {
+                    // 浮きは床(地面と布石)で・埋まりは地面だけで測る ── 布石が棟の下端へ食うのは部材どうし(数えない §4・EdoBuild.KIDAN_BITE)
                     var rt = EdoBuild.RootToBed(t.gameObject, GroundBed, 0.1f);
-                    if (!float.IsNaN(rt.hi)) dy = rt.hi > -rt.lo ? rt.hi : rt.lo;
+                    var rg = _bedX != null ? EdoBuild.RootToBed(t.gameObject, EdoBuild.Ground, 0.1f) : rt;
+                    float lo = float.IsNaN(rg.lo) ? 0f : rg.lo;
+                    if (!float.IsNaN(rt.hi)) dy = rt.hi > -lo ? rt.hi : lo;
                 }
                 // ⭐ 庭の**剛体の据え物**(井戸・灯籠・献灯・手水鉢・景石・飛石)も下端の全部を測る ── 坂で上手の 1 点が着いて
                 //    下手が浮いても Contact は 0 を返す(2026-09-29 EDO-0472: 十坊 8・9 の井戸が 0.75m 浮いて ⭕ だった)。

@@ -1,0 +1,57 @@
+{
+    "prefab": "Assets/Edo/Models/Machiya/Typ_OmotedanaHira_3x2.5ken.fbx",
+    "kind": "building",
+    "source": "blender:build_typ_machiya.py(--kei hira --ken 3 --okuyuki 4.5450)",
+    "unitScale": 1.0,
+    "yBottom": 0.0,
+    "foot": [
+        {
+            "x": -2.657,
+            "y": -2.0665
+        },
+        {
+            "x": 2.657,
+            "y": -2.0665
+        },
+        {
+            "x": 2.657,
+            "y": 1.9965
+        },
+        {
+            "x": -2.657,
+            "y": 1.9965
+        }
+    ],
+    "front": 1.9965,
+    "back": -2.0415,
+    "jambL": {
+        "x": 0.0,
+        "z0": 0.0,
+        "z1": 0.0,
+        "y0": 0.0,
+        "y1": 0.0
+    },
+    "jambR": {
+        "x": 0.0,
+        "z0": 0.0,
+        "z1": 0.0,
+        "y0": 0.0,
+        "y1": 0.0
+    },
+    "passage": {
+        "x0": 0.0,
+        "x1": 0.0
+    },
+    "eave": {
+        "x0": -2.727,
+        "x1": 2.727,
+        "z0": -2.2725,
+        "z1": 2.2725,
+        "y0": 0.0,
+        "y1": 3.67126
+    },
+    "faceOut": 0.0,
+    "faceIn": 0.0,
+    "copingOverhang": 0.0,
+    "height": 3.67126
+}

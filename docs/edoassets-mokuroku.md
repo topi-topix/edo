@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 356(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 357(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -300,6 +300,7 @@
 | `Own.IshigakiKado(deg, h)` | 関数 | 丈違いの石垣の隅(`Castle Wall` の留め継ぎ・丈 h m)。 | BuildKado(KadoArm), SannoSha(Stage3_Dodome) |
 | `Own.IshigakiKado(deg, h, armNegZ, armPosX)` | 関数 | 腕の短い石垣の隅(IshigakiKado と同じ留め継ぎ・同じ据え: position = 両腕の控えの線の交点 P・y = 天端 − h / yaw = 入りの run の駒の yaw / scale = 1)。 | BuildKado(KadoArm), SannoSha(Stage3_Dodome) |
 | `Own.NagayaKado(deg, armNegZ, armPosX, tsuma)` | 関数 | 出隅の隅長屋(L 字の長屋の角・EDO-0500 2026-10-01 観理院 北東の施主指摘 ── 妻を突っ込む納めは屋根が重なり窓が途中で切れた)。 | BuildRun(NagayaKadoPlace) |
+| `Own.NagayaTsuma2(len)` | 関数 | 両端とも妻で閉じた一棟の長屋(真っ直ぐ・折らない)。 | BuildRun(OutsideParcel・SwapTsuma2) |
 | `Own.NagayaKado90(armNegZ, armPosX)` | 関数 | NagayaKado の 90°・妻なし(`Nagaya_Kado_90_A&lt;negZ&gt;x&lt;posX&gt;`)。 | BuildRun(KadoAt) |
 | `Own.IshigakiKiri(deg, atPlusZ, faceLonger)` | 関数 | 片端を斜めの鉛直面で切った城の石垣の駒(`JC.CastleWall` を走りに 2 枚つないだ 4.00m・丈 4.00・EDO-0430)。 | — |
 | `Own.MShop01` | string | `M_Shop01.mat` | — |

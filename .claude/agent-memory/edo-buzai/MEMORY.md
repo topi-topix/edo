@@ -61,4 +61,5 @@
 - [隅長屋は帯を pier の芯で折る・札の帯の最下段](nagaya-kado90-fold-and-spec-band.md) — 素の棟の端は 0.571/0.961 で非対称。jambL は地の箱 0.030(2026-10-01)
 - [門前の小店(2・3間・平屋)と zsh の引数](machiya-small-shops-hira-and-zsh-quoting.md) — "$a" は割れず5間を上書き・平屋 OVER_Z 0.096・妻壁を 0.08 下げる(2026-10-01)
 - [町木戸を幅の引数で焼く・札を scratchpad へ振る](machikido-width-param-and-spec-staging.md) — BUZAI_SPEC_OUT・大戸は 90° で親柱の裏へ・端柱は掘立(2026-10-01)
-- [町木戸の横断勾配の版](machikido-keisha-warp.md) — 平らに組んで warp で縦剪断・Verify は斜めの足元を測れない(2026-10-02)
+- [町木戸の横断勾配の版](machikido-keisha-warp.md) — 平らに組んで warp で縦剪断・Verify は斜めの足元を測れない・在庫の妻の端に素通しの隙(seal_gable)(2026-10-02)
+- [両端妻の一棟 Nagaya_Tsuma2](nagaya-tsuma2-straight.md) — --straight・長さは妻壁の外面どうし・NagayaOmote と定義が違う・在庫の妻の端に素通しの隙(seal_gable)(2026-10-02)

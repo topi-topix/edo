@@ -7,6 +7,11 @@
         # 内角 90.9°(+X の腕は固定・−Z の腕が回る)・−Z の腕の先を妻(knagaya01r の妻の端)で閉じる → Nagaya_Kado_90p9_A1005x919_TZ
         # 名前: 内角は 0.1° 単位(90 → `90`・90.9 → `90p9`)・腕は cm・妻は `_TZ` / `_TX` / `_TZX`(EdoAssets.Own.NagayaKado と同じ綴り)
         # 妻の腕の長さは**妻壁の外面**(namako2 の表)まで。土台の端は 0.030 内・破風と鬼は 0.322 外へ出る。
+    blender --background --python Tools/Blender/build_nagaya_kado.py -- --straight 8.07 --render
+        # 折らない真っ直ぐの一棟を**両端とも妻**で閉じる(−X 端 = knagaya01r の妻・+X 端 = knagaya01l の妻)→ Models/Nagaya/Nagaya_Tsuma2_L807
+        # 長さ = 妻壁の外面どうし。ピボット = 長さの中央・外面(海鼠の浮き彫りの表)・土台の底。表 = Unity +Z(在庫 01c と同じ向き)。隅棟なし。
+        # 観理院 表門の西脇で、孤立した区間に妻の無い c が置かれて両端の小口が開いた(施主指摘 2026-10-02)ための版。
+    blender --background --python Tools/Blender/build_nagaya_kado.py -- --straight-range      # 作れる長さ(1.28m〜)
 
 【なぜ要るか】観理院(類型 sannosha_kanri)の北東で、北辺と東辺の長屋が直角に出会う。
   `EdoBuild.NagayaRun` は各辺の鎖の端に妻(l/r)を置いて片方の妻をもう片方の躯体に突っ込むので、
@@ -184,6 +189,42 @@ def measure_tsuma(s, gl, gr):
     s.r_kera = min(span(gr[k], 0)[0] for k in gr if k.startswith("n_kera") or k.startswith("n_oni"))
     s.kera_out = (s.l_kera - s.e_l) * ES                # 破風が妻壁の外面より外へ出る量
     return s
+
+
+def seal_gable(gl, gr, s):
+    """在庫 l/r の妻の端の**素通しの隙**を塞ぐ(検査 r9 2026-10-02・観理院 隅長屋 +X の妻)。
+    素の妻は ①海鼠の帯(h 0.31〜2.22)で長手の地の箱 `n_namako` が妻壁の外面の 0.036m 手前で終わり、
+    妻の浮き彫り `namako2` は外面から 0.026m までの裏の無い殻 ⇒ 間に幅 0.010 の縦の隙が躯体を貫いて開く。
+    ②その上の白壁 `n_wall` の妻の面は外面より 0.033 引っ込む ⇒ 外面に突き付けた隣の棟との間に隙が出る。
+    ⇒ `n_namako` の端を浮き彫りの殻の中(外面から 0.013 obj)まで延ばし、`n_wall` の妻の端(水切りの帯ごと)を
+      外面へ揃える。外面・長さ・破風・土台の端(札の値)は変えない。measure_tsuma の後に呼ぶ。"""
+    for g, e, sg in ((gl, s.e_l, +1), (gr, s.e_r, -1)):
+        for name, to in (("n_namako", e - sg * 0.013), ("n_wall", e)):
+            me = g[name].data
+            for v in me.vertices:
+                if sg * (v.co.x - e) > -0.025:
+                    v.co.x = to
+            me.update()
+        # ③(検査 r10)n_namako の端を殻の中で止めただけだと、端から外面までの 0.024m の帯に長手の面が無く、
+        #   面に直角に見ると浮き彫りの殻の裏が見える(目地の交点ごとの小穴)。
+        #   ⇒ 端の面を複製して殻の中に残し、元の端の面を外面まで押し出してその蓋だけ消す
+        #     (= 長手の外・内・上・下の面だけが外面まで届き、浮き彫りの窪みは今までどおり見える)。
+        me = g["n_namako"].data
+        bm = bmesh.new(); bm.from_mesh(me)
+        bm.normal_update()
+        x_cap = e - sg * 0.013
+        caps = [f for f in bm.faces if sg * f.normal.x > 0.99 and all(abs(v.co.x - x_cap) < 1e-5 for v in f.verts)]
+        if len(caps) != 1:
+            raise SystemExit("[nagaya_kado] ⛔ seal_gable: n_namako の端の面が %d 枚(1 枚の筈)" % len(caps))
+        bmesh.ops.duplicate(bm, geom=[caps[0]])
+        ext = bmesh.ops.extrude_face_region(bm, geom=[caps[0]])
+        nv = [v for v in ext["geom"] if isinstance(v, bmesh.types.BMVert)]
+        for v in nv:
+            v.co.x = e
+        nf = [f for f in ext["geom"] if isinstance(f, bmesh.types.BMFace)]
+        bmesh.ops.delete(bm, geom=nf, context='FACES_ONLY')
+        bmesh.ops.delete(bm, geom=[caps[0]], context='FACES_ONLY')
+        bm.to_mesh(me); bm.free(); me.update()
 
 
 def periodic_source(g, s, ncopy=2):
@@ -423,6 +464,7 @@ def build(aB, aA, deg=90.0, tsu=(), render=False):
     V.dedup_materials()
     s = measure(g)
     measure_tsuma(s, gl, gr)
+    seal_gable(gl, gr, s)
     mune_src = dup(g["n_mune"], "mune_tpl")
     print("[nagaya_kado] 素: 棟 %.4f bay %.5f (%.4fm) 窓 %.4fm pier %.4fm / 外隅 = pier の芯 x=%.4f"
           % (s.W, s.bay, s.bay * ES, 2 * s.wh * ES, s.P * ES, s.p))
@@ -666,6 +708,240 @@ def narabe(o, nm, aA, aB, deg, tsu):
         cam = (tip[0] - out[0] * 9.0 + along[0] * 6.0, tip[1] - out[1] * 9.0 + along[1] * 6.0, 6.0)
         V.studio(cam, (tip[0] - out[0] * 1.5, tip[1] - out[1] * 1.5, 3.0), res=(1500, 1100))
         V.render(os.path.join(SHOT, "%s_tsuma_%s_ura.png" % (nm, tag)))
+        # 妻と長手の壁の継ぎ目を、外の面・内の面に直交して正射影で(背景マゼンタ ⇒ 縦の隙があれば桃色の線が出る)
+        for side_tag, sgn in (("soto", 1.0), ("uchi", -1.0)):
+            c0 = (tip[0] - out[0] * 1.5, tip[1] - out[1] * 1.5)
+            cam = (c0[0] + sgn * out[0] * 12.0, c0[1] + sgn * out[1] * 12.0, 2.2)
+            V.studio(cam, (c0[0], c0[1], 2.2), ortho_scale=3.0, res=(1200, 1400))
+            bg((1.0, 0.0, 1.0, 1.0))
+            V.render(os.path.join(SHOT, "%s_tsuma_%s_seam_%s_magenta.png" % (nm, tag, side_tag)))
+        # 妻を正面(走りの向き)から
+        cam = (tip[0] + along[0] * 12.0 - out[0] * 1.5, tip[1] + along[1] * 12.0 - out[1] * 1.5, 2.6)
+        V.studio(cam, (tip[0] - out[0] * 1.5, tip[1] - out[1] * 1.5, 2.6), ortho_scale=7.0, res=(1200, 1100))
+        bg((1.0, 0.0, 1.0, 1.0))
+        V.render(os.path.join(SHOT, "%s_tsuma_%s_shomen_magenta.png" % (nm, tag)))
+
+
+# ---------------------------------------------------------------- 真っ直ぐ・両端妻(--straight)
+OUT_N = V.out_dir(os.path.join(V.REPO, "Assets/Edo/Models/Nagaya"))
+
+
+def straight_consts(s, gl, gr):
+    """両端妻の一棟の定数(obj 単位)。窓の切片は帯の真ん中の窓 s.win[1] から取る。
+    妻の一切れ y は破風・鬼・妻壁(l/r にだけある部材)の内端より 0.01 内から切る(破風を切らない)。"""
+    ww = s.win[1]
+    k = dict(ww=ww, wW=ww[1] - ww[0],
+             availL=ww[0] - s.win[0][1] - 0.02, availR=s.win[2][0] - ww[1] - 0.02)
+    gable = lambda g: [g[n] for n in g if n.startswith("n_kera") or n.startswith("n_oni") or n == "namako2"]
+    # 妻の側だけ壁(n_wall)が内へ引かれている ⇒ その端より内で切る(素の c の壁が妻壁の中へ突き出さないように)
+    k["ymin_l"] = max(s.e_l - min(span(o, 0)[0] for o in gable(gl)), s.e_l - span(gl["n_wall"], 0)[1]) + 0.01
+    k["ymin_r"] = max(max(span(o, 0)[1] for o in gable(gr)) - s.e_r, span(gr["n_wall"], 0)[0] - s.e_r) + 0.01
+    for side, key, T in ((+1, "l", s.T_l), (-1, "r", s.T_r)):
+        ymin = k["ymin_" + key]
+        avail = k["availR"] if side > 0 else k["availL"]
+        k["tip_" + key] = (ymin + 0.01, (T - 0.01) + avail)          # 先の無地の取れる幅
+    return k
+
+
+def solve_straight(s, k, L_m):
+    """L[m](妻壁の外面どうし)→ (窓の数 n, 中の pier の詰め ε, 左の先の無地, 右の先の無地)。obj 単位。
+    詰め ε は中の pier と両端の無地に一様に配る(端が範囲を外れたら端を止めて残りを pier へ)。"""
+    a = L_m / ES
+    best = None
+    for n in range(1, 60):
+        base = s.T_r + s.T_l + n * k["wW"] + (n - 1) * s.P
+        D = base - a
+        e = D / (n + 1)
+        lo_r, hi_r = k["tip_r"]; lo_l, hi_l = k["tip_l"]
+        tr = min(max(s.T_r - e, lo_r), hi_r)
+        tl = min(max(s.T_l - e, lo_l), hi_l)
+        if n == 1:
+            rest = a - k["wW"] - tr - tl
+            if abs(rest) > 1e-6:                        # 端だけで吸う: 両端に半分ずつ
+                tr2, tl2 = tr + rest / 2, tl + rest / 2
+                if not (lo_r <= tr2 <= hi_r and lo_l <= tl2 <= hi_l):
+                    continue
+                tr, tl = tr2, tl2
+            ep = 0.0
+        else:
+            ep = (base - a - (s.T_r - tr) - (s.T_l - tl)) / (n - 1)
+            if not (P_MIN <= s.P - ep <= P_MAX):
+                continue
+        sc = max(abs(ep), abs(s.T_r - tr), abs(s.T_l - tl))
+        if best is None or sc < best[0]:
+            best = (sc, n, ep, tr, tl)
+    return None if best is None else best[1:]
+
+
+def build_straight(L_m, render=False):
+    """折らない真っ直ぐの帯を、−x 端に knagaya01r の妻・+x 端に knagaya01l の妻を継いで閉じる。
+    ピボット = 長さの中央・外面(海鼠の浮き彫りの表)の線・土台の底。表 = Unity +Z(在庫 knagaya01c と同じ向き)。"""
+    V.reset()
+    g = read_module()
+    gl = read_module("knagaya01l")
+    gr = read_module("knagaya01r")
+    V.dedup_materials()
+    s = measure(g)
+    measure_tsuma(s, gl, gr)
+    k = straight_consts(s, gl, gr)
+    seal_gable(gl, gr, s)
+    print("[nagaya_tsuma2] 妻の一切れの下限: l %.4fm / r %.4fm(破風・鬼・妻壁の内端から)/ 先の無地の範囲 l %.3f〜%.3fm r %.3f〜%.3fm"
+          % (k["ymin_l"] * ES, k["ymin_r"] * ES, k["tip_l"][0] * ES, k["tip_l"][1] * ES, k["tip_r"][0] * ES, k["tip_r"][1] * ES))
+    print("[nagaya_tsuma2] 素の妻の端の無地: l %.4fm / r %.4fm  窓 %.4fm  pier %.4fm"
+          % (s.T_l * ES, s.T_r * ES, k["wW"] * ES, s.P * ES))
+    pl = solve_straight(s, k, L_m)
+    if pl is None:
+        raise SystemExit("[nagaya_tsuma2] ⛔ 長さ %.3fm は作れない(--straight-range で範囲を見る)" % L_m)
+    n, ep, tr, tl = pl
+    a = L_m / ES
+    Pp = s.P - ep
+    print("[nagaya_tsuma2] 長さ %.3fm: 窓 %d / 中の無地 %.4fm(ε %+.4fm)/ 先の無地 −X %.4fm(素 %.4f)・+X %.4fm(素 %.4f)"
+          % (L_m, n, Pp * ES, ep * ES, tr * ES, s.T_r * ES, tl * ES, s.T_l * ES))
+    mod, src = periodic_source(g, s)
+    lmod = V.join(list(gl.values()), "lmod")
+    rmod = V.join(list(gr.values()), "rmod")
+    ww = k["ww"]; wc = (ww[0] + ww[1]) * 0.5
+    y_r = max(k["ymin_r"], min(tr * 0.5, s.T_r - 0.01))
+    y_l = max(k["ymin_l"], min(tl * 0.5, s.T_l - 0.01))
+    y_r = min(y_r, tr - 0.01); y_l = min(y_l, tl - 0.01)
+    pieces = []
+    for j in range(1, n + 1):
+        uc = tr + k["wW"] * 0.5 + (j - 1) * (k["wW"] + Pp)
+        lb = Pp * 0.5 if j > 1 else tr - y_r
+        rb = Pp * 0.5 if j < n else tl - y_l
+        if lb > ww[0] - s.win[0][1] or rb > s.win[2][0] - ww[1]:
+            raise SystemExit("[nagaya_tsuma2] ⛔ 窓 %d の無地が素の pier を越える(%.3f/%.3f)" % (j, lb, rb))
+        pieces.append(take(src, ww[0] - lb, ww[1] + rb, uc - wc, "w%d" % j))
+    pieces.append(take(rmod, s.e_r - 2.0, s.e_r + y_r, 0.0 - s.e_r, "tsumaR"))
+    pieces.append(take(lmod, s.e_l - y_l, s.e_l + 2.0, a - s.e_l, "tsumaL"))
+    o = V.join(pieces, "strip")
+    o.data.transform(Matrix.Translation((-a * 0.5, -s.y_f, -s.z_bot)))
+    o.data.update()
+    bm = bmesh.new(); bm.from_mesh(o.data)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=2e-4)
+    clean(bm)
+    bm.to_mesh(o.data); bm.free(); o.data.update()
+    nb = None
+    if render:                                          # 向きの検め用: 在庫の knagaya01c を +X の先へ 2m 離して並べる
+        nb = dup(mod, "nb")
+        nb.data.transform(Matrix.Translation((a * 0.5 + 2.0 / ES - s.d0, -s.y_f, -s.z_bot))); nb.data.update()
+    for ob in (src, mod, lmod, rmod):
+        bpy.data.objects.remove(ob, do_unlink=True)
+    # 向き: 表(素の +y)を Blender −Y(= Unity +Z)へ。Z まわり 180° の**回転**(隅長屋の +X の腕と同じ)
+    F = Matrix.Scale(ES, 4) @ Matrix(((-1, 0, 0, 0), (0, -1, 0, 0), (0, 0, 1, 0), (0, 0, 0, 1)))
+    for ob in [o] + ([nb] if nb else []):
+        ob.data.transform(F); ob.data.update()
+    nm = "Nagaya_Tsuma2_L%d" % int(math.floor(L_m * 100 + 0.5))
+    o.name = nm; o.data.name = nm
+    me = o.data
+    xs = [-v.co.x for v in me.vertices]; ys = [v.co.z for v in me.vertices]; zs = [-v.co.y for v in me.vertices]
+    print("[nagaya_tsuma2] 出来上がり(Unity 局所 m): X[%.3f, %.3f] Y[%.3f, %.3f] Z[%.3f, %.3f]  面 %d  材 %s"
+          % (min(xs), max(xs), min(ys), max(ys), min(zs), max(zs), len(me.polygons),
+             sorted(m.name for m in me.materials if m)))
+    path = os.path.join(OUT_N, nm + ".fbx")
+    spec = make_spec_straight(s, L_m, o, path)
+    V.export_fbx([o], path, kind="building", spec=spec)
+    print("[nagaya_tsuma2] wrote %s" % path)
+    if render:
+        nb.hide_render = True
+        shots_straight(o, nm, L_m)
+        nb.hide_render = False
+        hook()
+        V.studio((L_m * 0.2 + 3.0, -14.0, 4.0), (L_m * -0.5 - 3.0, 0.0, 2.6), res=(1900, 1000))
+        V.render(os.path.join(SHOT, "%s_narabe.png" % nm))
+    return o, path
+
+
+def make_spec_straight(s, L_m, o, path):
+    """札。値は作図の変数(素の実測 × ES と長さ L)から。Unity 局所・倍率 1。+X 端 = l の妻・−X 端 = r の妻。
+    帯の最下段(+0.30m)は浮き彫りの下端(+0.3016)より下 ⇒ 外面は地の箱まで引っ込み、端は妻の帯の最下段の端。"""
+    h2 = L_m * 0.5
+    dO = (s.y_f - s.y_dodai_out) * ES
+    dI = (s.y_f - s.y_dodai_in) * ES
+    kf = (s.y_koshi - s.y_f) * ES
+    jb = (s.y_f - s.y_namako_box) * ES
+    Dn = (s.y_f - s.y_namako_box_in) * ES
+    z_relief = 0.3016
+    xl_low, xr_low = (s.e_r - s.r_foot) * ES, (s.l_foot - s.e_l) * ES      # 最下段で端が外へ出る量(負 = 内)
+    secs = []
+    h = 0.30
+    while h <= 1.80 + 1e-6:
+        low = h < z_relief
+        x0 = -h2 - (xl_low if low else 0.0)
+        x1 = h2 + (xr_low if low else 0.0)
+        secs.append((x0, x1, -jb if low else 0.0, -Dn))
+        h += 0.25
+    front = max(kf, max(c[2] for c in secs))
+    back = min(c[3] for c in secs)
+    jl = max(c[0] for c in secs)
+    jr = min(c[1] for c in secs)
+    fx0 = -h2 - (s.e_r - s.r_dodai) * ES
+    fx1 = h2 + (s.l_dodai - s.e_l) * ES
+    foot = [(fx0, -dO), (fx1, -dO), (fx1, -dI), (fx0, -dI)]
+    me = o.data
+    xs = [-v.co.x for v in me.vertices]; zs = [-v.co.y for v in me.vertices]; hs = [v.co.z for v in me.vertices]
+    rel = os.path.relpath(os.path.join(V.REPO, "Assets/Edo/Models/Nagaya", os.path.basename(path)), V.REPO)
+    return dict(prefab=rel.replace(os.sep, "/"),
+                source="blender:build_nagaya_kado.py(--straight %g)" % L_m,
+                unitScale=1.0, yBottom=0.0, foot=[dict(x=x, y=z) for x, z in foot],
+                front=front, back=back,
+                jambL=dict(x=jl, z0=back, z1=0.0, y0=0.30, y1=1.80),
+                jambR=dict(x=jr, z0=back, z1=0.0, y0=0.30, y1=1.80),
+                eave=dict(x0=min(xs), x1=max(xs), z0=min(zs), z1=max(zs), y0=0.0, y1=max(hs)),
+                faceOut=0.0, faceIn=-(s.y_f - s.y_wall_in) * ES, height=max(hs))
+
+
+def shots_straight(o, nm, L_m):
+    """Blender の最終座標: 走り = −x が Unity +X(l の妻)/ 表 = −y(Unity +Z)。"""
+    hook()
+    os.makedirs(SHOT, exist_ok=True)
+    h2 = L_m * 0.5
+    V.studio((h2 * 0.9, -13.0, 4.0), (0.0, 1.0, 2.6), res=(1800, 1000))            # ① 表から斜め
+    V.render(os.path.join(SHOT, "%s_omote.png" % nm))
+    V.studio((-h2 * 0.9, 15.0, 7.0), (0.0, -1.0, 2.6), res=(1800, 1000))           # ② 裏から斜め上
+    V.render(os.path.join(SHOT, "%s_ura.png" % nm))
+    for tag, sx in (("PX", -1.0), ("MX", 1.0)):                                       # ③ 妻を斜めから(Unity +X 端 / −X 端)
+        V.studio((sx * (h2 + 6.5), -6.0, 3.5), (sx * (h2 - 1.0), 1.0, 3.0), res=(1500, 1100))
+        V.render(os.path.join(SHOT, "%s_tsuma_%s.png" % (nm, tag)))
+        V.studio((sx * (h2 + 6.5), 8.0, 5.0), (sx * (h2 - 1.0), 1.0, 3.0), res=(1500, 1100))
+        bg((1.0, 0.0, 1.0, 1.0))
+        V.render(os.path.join(SHOT, "%s_tsuma_%s_ura_magenta.png" % (nm, tag)))
+        bg((0.05, 0.05, 0.05, 1.0))
+    V.studio((h2 + 12.0, 1.6, 2.0), (0.0, 1.6, 2.6), ortho_scale=7.5, res=(1200, 1100))   # ④ 小口を正面から(素通しが無いか)
+    bg((1.0, 0.0, 1.0, 1.0))
+    V.render(os.path.join(SHOT, "%s_koguchi_MX_magenta.png" % nm))
+    V.studio((-(h2 + 12.0), 1.6, 2.0), (0.0, 1.6, 2.6), ortho_scale=7.5, res=(1200, 1100))
+    V.render(os.path.join(SHOT, "%s_koguchi_PX_magenta.png" % nm))
+
+
+def print_range_straight():
+    V.reset()
+    g = read_module()
+    gl = read_module("knagaya01l")
+    gr = read_module("knagaya01r")
+    s = measure(g)
+    measure_tsuma(s, gl, gr)
+    k = straight_consts(s, gl, gr)
+    ok, a = [], 0.5
+    while a <= 30.0001:
+        ok.append((a, solve_straight(s, k, a) is not None))
+        a = round(a + 0.01, 2)
+    segs, cur = [], None
+    for a, f in ok:
+        if f and cur is None:
+            cur = [a, a]
+        elif f:
+            cur[1] = a
+        elif cur is not None:
+            segs.append(cur); cur = None
+    if cur:
+        segs.append(cur)
+    print("[nagaya_tsuma2] 作れる長さ(m・妻壁の外面どうし): %s" % ", ".join("%.2f〜%.2f" % (a, b) for a, b in segs))
+    print("[nagaya_tsuma2] 破風・鬼の出(妻壁の外面から): %.4fm" % s.kera_out)
+    for a in (3.0, 4.0, 5.0, 6.0, 7.91, 8.07, 10.0, 12.0):
+        pl = solve_straight(s, k, a)
+        if pl:
+            print("    L=%.3f → 窓 %d / ε %+.3fm / 先の無地 −X %.3f +X %.3fm" % (a, pl[0], pl[1] * ES, pl[2] * ES, pl[3] * ES))
 
 
 def print_range(s_only=True):
@@ -699,6 +975,12 @@ def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     if "--range" in argv:
         print_range()
+        return
+    if "--straight-range" in argv:
+        print_range_straight()
+        return
+    if "--straight" in argv:
+        build_straight(float(argv[argv.index("--straight") + 1]), render="--render" in argv)
         return
     arms = (6.0, 6.0)
     if "--arms" in argv:

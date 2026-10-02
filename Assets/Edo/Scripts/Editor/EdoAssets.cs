@@ -2474,6 +2474,22 @@ public static class EdoAssets
                  + "x" + UnityEngine.Mathf.RoundToInt(armPosX * 100f) + (string.IsNullOrEmpty(tsuma) ? "" : "_T" + tsuma) + ".fbx";
         }
 
+        /// <summary>**両端とも妻で閉じた一棟の長屋**(真っ直ぐ・折らない)。在庫は l(片妻)/ r(片妻)/ c(妻なし)しか無く、
+        /// 孤立した短い区間に c を置くと両端の小口が開いて中が素通しになる(観理院 表門の西脇・施主指摘 2026-10-02)。
+        /// 在庫 `knagaya01c` の帯を窓の数と無地の壁の詰めで <paramref name="len"/> に合わせ、−X 端に `knagaya01r`・+X 端に `knagaya01l` の妻の端
+        /// (破風・鬼・妻壁)を継いだ物。窓・瓦・海鼠は伸ばさない。隅棟は無い。
+        /// <paramref name="len"/> = **妻壁の外面どうし**(namako2 の浮き彫りの表)[m]。破風・鬼は各端 0.322 外へ出る(全幅 len + 0.644)・土台の端は 0.030 内。
+        /// 作れる長さ 1.28m 以上(3m 未満は窓 1 つ)。名前は cm の整数(`Nagaya_Tsuma2_L807` = 8.07m)。
+        /// ピボット = **長さの中央・外面(足元の海鼠の浮き彫りの表 = 隅長屋のピボットと同じ面)の線上・土台の底**(⛔ 表長屋 NagayaOmote の「壁の外面・全幅 len」とは定義が違う)。
+        /// 向き: 表(窓・海鼠の面)= **+Z**、在庫 `knagaya01c` を ES で置いたときと同じ向き。軒は +Z へ 0.596・躯体は −Z へ内壁 3.133 / 内の軒先 3.756。
+        /// 据え: position = 区間の中点(外面の線の上)/ yaw = 外向き法線の方位 / scale = 1(FBX は実寸 m)。高さ 5.509(鬼まで)。
+        /// 札(kind building)は `PartSpecs/<同名>.json`。材 `knagayamap` ⇒ `Edo/長屋/表長屋のマテリアルをremap`。
+        ///   blender --background --python Tools/Blender/build_nagaya_kado.py -- --straight &lt;長さm&gt; --render</summary>
+        public static string NagayaTsuma2(float len)
+        {
+            return NagayaDir + "Nagaya_Tsuma2_L" + ((long)System.Math.Floor((double)len * 100.0 + 0.5)) + ".fbx";
+        }
+
         /// <summary><see cref="NagayaKado(float,float,float,string)"/> の 90°・妻なし(`Nagaya_Kado_90_A&lt;negZ&gt;x&lt;posX&gt;`)。
         ///   blender --background --python Tools/Blender/build_nagaya_kado.py -- --arms &lt;negZ&gt;,&lt;posX&gt; --render</summary>
         public static string NagayaKado90(float armNegZ, float armPosX)

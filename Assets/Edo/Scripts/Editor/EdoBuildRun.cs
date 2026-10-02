@@ -298,6 +298,7 @@ public static partial class EdoBuild
         int fill = 0;
         var fillRuns = new List<List<GameObject>>();   // 門の脇の端数を埋めた塀(鎖を建ててから外面を長屋の外面へ合わせる)
         var legS = new List<float[]>();                // 塀で回す足 [隅の s, 鎖の端の s](EDO-0500)
+        var lone = new List<GameObject>();             // 孤立1棟(妻の無い c)── 両端妻へ差し替える(EDO-0500)
         foreach (var seg in segs)
         {
             float L = seg[1] - seg[0];
@@ -450,11 +451,16 @@ public static partial class EdoBuild
                     idx++; cursor += m.W; continue;
                 }
                 made.Add(go); idx++;
+                if (n == 1) lone.Add(go);
                 cursor += m.W;                         // 継ぎ目は必ず面一
             }
         }
         // namako(表)が外向きかを数値検証、逆なら180°回して面位置を復元
         if (made.Count > 0) VerifyFlipOutward(made, outward, prefix);
+        // ⭐ 区間に在庫の一棟しか入らない「孤立1棟」は妻の無い c だと両端が切り口のまま中が素通しに見える
+        //    (2026-10-02 施主指摘・観理院 表門の西脇 nagaya_7_0・EDO-0500)。両端妻の一棟へ差し替える。
+        for (int i = 0; i < made.Count; i++)
+            if (lone.Contains(made[i])) made[i] = SwapTsuma2(made[i], rdir, outward, prefix);
         // ⭐ 端数の塀の外面を長屋の壁の外面へ合わせる(規則5 面で合わせる・2026-09-28 観理院 EDO-0468 ──
         //    塀は区画の線の上、長屋の壁は線から内に立ち、隅で 0.65〜1.7m 開いた)。足元の帯(下端から 1.0m)で測る ── 笠と軒は外へ出るので拾わない。
         if (made.Count > 0 && fillRuns.Count > 0)
@@ -462,7 +468,7 @@ public static partial class EdoBuild
             float nMn, nMx; float y0 = RB(made[0]).min.y;
             var ou = outward.normalized;
             ProjExtent(made[Mathf.Min(1, made.Count - 1)], ou, y0 - 0.01f, y0 + 1.0f,
-                       nm => { var l = nm.ToLower(); return l.Contains("wall") || l.Contains("namako") || l.Contains("dodai"); }, out nMn, out nMx);
+                       NagBand(made[Mathf.Min(1, made.Count - 1)]), out nMn, out nMx);
             if (nMx > float.MinValue)
                 foreach (var run in fillRuns)
                     foreach (var p in run)
@@ -480,7 +486,7 @@ public static partial class EdoBuild
             float nMn, nMx; float y0 = RB(made[0]).min.y;
             var ou = outward.normalized;
             ProjExtent(made[Mathf.Min(1, made.Count - 1)], ou, y0 - 0.01f, y0 + 1.0f,
-                       nm => { var l = nm.ToLower(); return l.Contains("wall") || l.Contains("namako") || l.Contains("dodai"); }, out nMn, out nMx);
+                       NagBand(made[Mathf.Min(1, made.Count - 1)]), out nMn, out nMx);
             if (nMx > float.MinValue)
                 foreach (var ls in legS)
                     legs.Add(new NagayaLeg { corner = sA + rdir * ls[0], chainEnd = sA + rdir * ls[1], inset = Vector2.Dot(sA, ou) - nMx, outward = ou });
@@ -499,6 +505,44 @@ public static partial class EdoBuild
             if (!EdoGeom.PIP(poly, q) && EdoGeom.DistToPolyEdge(poly, q) > 0.60f) return true;
         }
         return false;
+    }
+
+    /// <summary>孤立1棟の在庫 c を両端妻の一棟(<see cref="EdoAssets.Own.NagayaTsuma2"/>)へ差し替える(EDO-0500)。
+    /// 置き場は c の駒の実メッシュで決める ── 足元の帯(下端から 1.0m)の走りの両端の中央・外面(帯の最も外)・下端を測り、
+    /// 差し替えた駒の同じ帯をそこへ突き付ける(規則21: 基準点で合わせない)。長さは c の帯の長さを cm に切り上げ(隙より埋め)。
+    /// 焼いてなければ c のまま残し、焼く手を警告に出す。</summary>
+    static GameObject SwapTsuma2(GameObject c, Vector2 rdir, Vector2 outward, string prefix)
+    {
+        var ou = outward.normalized; var rd = rdir.normalized;
+        Func<string, bool> band = nm => { var l = nm.ToLower(); return l.Contains("wall") || l.Contains("namako") || l.Contains("dodai"); };
+        float y0 = RB(c).min.y, s0, s1, o0, o1;
+        ProjExtent(c, rd, y0 - 0.01f, y0 + 1.0f, band, out s0, out s1);
+        ProjExtent(c, ou, y0 - 0.01f, y0 + 1.0f, band, out o0, out o1);
+        if (s1 <= s0) return c;
+        float len = Mathf.Ceil((s1 - s0) * 100f) / 100f;
+        string path = EdoAssets.Own.NagayaTsuma2(len);
+        if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
+        {
+            Debug.LogWarning(prefix + ": ⛔ 両端妻の長屋が焼いてない(孤立1棟 " + c.name + " は c のまま): blender --background --python Tools/Blender/build_nagaya_kado.py -- --straight " + len.ToString("F2") + " --render");
+            return c;
+        }
+        var t = Place(path, c.transform.position, c.transform.eulerAngles.y, Vector3.one, c.transform.parent, c.name);
+        float ty0 = RB(t).min.y, u0, u1, v0, v1;
+        ProjExtent(t, rd, ty0 - 0.01f, ty0 + 1.0f, null, out u0, out u1);
+        ProjExtent(t, ou, ty0 - 0.01f, ty0 + 1.0f, null, out v0, out v1);
+        float ds = (s0 + s1) * 0.5f - (u0 + u1) * 0.5f, dout = o1 - v1;
+        t.transform.position += new Vector3(rd.x * ds + ou.x * dout, y0 - ty0, rd.y * ds + ou.y * dout);
+        UnityEngine.Object.DestroyImmediate(c);
+        return t;
+    }
+
+    /// <summary>長屋の駒の足元の帯(壁・海鼠・土台)を拾う名前の篩。両端妻の一棟は FBX が一つのメッシュで
+    /// 駒の根(名前は nagaya_k)に載るので篩わない(帯は高さの窓 下端+1.0m で切る)。</summary>
+    static Func<string, bool> NagBand(GameObject probe)
+    {
+        var mf = probe.GetComponentInChildren<MeshFilter>();
+        if (mf != null && mf.sharedMesh != null && mf.sharedMesh.name.StartsWith("Nagaya_Tsuma2")) return null;
+        return nm => { var l = nm.ToLower(); return l.Contains("wall") || l.Contains("namako") || l.Contains("dodai"); };
     }
 
     static void VerifyFlipOutward(List<GameObject> mods, Vector2 outward, string prefix)

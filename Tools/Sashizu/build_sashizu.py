@@ -1381,7 +1381,8 @@ class Checks(object):
                         prev = y
                     for m in M.munes:
                         # 室を持つ棟(御殿)は中を歩く。室の無い棟(蔵・長屋・厩)を貫くのが欠陥
-                        if not m.rooms and pip(m.poly, u, v) and edge_dist((u, v), m.poly) > 0.5:
+                        # ⭕ 車寄のような吹き放しの棟は `munes[].toori`(通り抜ける理由)を持てば数えない(2026-10-03)
+                        if not m.rooms and not m.raw.get("toori") and pip(m.poly, u, v) and edge_dist((u, v), m.poly) > 0.5:
                             pierce += 1
             mg = max(grades) if grades else 0.0
             note = []
@@ -1702,6 +1703,9 @@ class Checks(object):
                     continue
                 if any(seg_dist((xw, zw), r.a, r.b) < 1.0 for r in M.runs):
                     continue                              # 基壇石垣・塀の座が受ける
+                if any(g.edge == e and g.s is not None and g.w and g.plan.get("monD")
+                       and abs(s * M.edge_len(e) - g.s) <= g.w / 2 + 0.5 for g in M.gates):
+                    continue                              # 区画線に建つ長屋門の基壇が受ける(外周の長屋 run と同じ形・2026-10-03)
                 if any(seg_dist((u, v), w2.a, w2.b) * M.KEN < 1.0 for w2 in M.walls):
                     continue                              # 区画線の上の土留め(terraceWalls)が受ける【検図 2026-09-23 中】
                 if any(k2.poly and edge_dist((u, v), k2.poly) * M.KEN < 1.0 for k2 in M.kaidans) or self._on_ramp(u, v):

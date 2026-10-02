@@ -154,7 +154,10 @@ public static partial class EdoBuild
         foreach (var l in rojiLines) MarkLine(blocked, l[0], l[1], idx, cell, nx);
         var used = new HashSet<int>(); var msgs = new List<string>();
         int rad = Mathf.CeilToInt(halfBody / cell - 1e-3f);
-        for (int pass = 0; pass < 12; pass++)
+        // ⭐ 繰り返しは必ず止まる(施主 2026-10-03「無限ループに陥らないか」): 一巡ごとに候補を一つ使い切り(同じ候補は二度採らない)、
+        //    候補が尽きるか、道筋を横切る候補が無ければ ⚠ を刷って抜ける。さらに巡の上限 MAX_GATES で打ち切り、上限に当たれば ⚠ を刷る。
+        const int MAX_GATES = 12; bool closed = false;
+        for (int pass = 0; pass < MAX_GATES; pass++)
         {
             var pass_ = Dilate(blocked, nx, nz, rad);
             var par = new int[N]; for (int k = 0; k < N; k++) par[k] = -2;
@@ -172,7 +175,7 @@ public static partial class EdoBuild
                     if (inside[m] && distFront(ctr(m)) > yardD) { hit = m; break; }
                 }
             }
-            if (hit < 0) break;
+            if (hit < 0) { closed = true; break; }
             var path = new HashSet<int>(); for (int k = hit; k >= 0; k = par[k]) path.Add(k);
             int pick = -1;
             for (int c = 0; c < cands.Count; c++)
@@ -185,7 +188,7 @@ public static partial class EdoBuild
             {
                 var hc = ctr(hit);
                 msgs.Add(string.Format("⚠ 通りから裏庭へ抜ける道({0:F1},{1:F1})を横切る二つの駒の間が見つからず塞げない", hc.x, hc.y));
-                break;
+                closed = true; break;
             }
             used.Add(pick);
             MarkLine(blocked, cands[pick].a, cands[pick].b, idx, cell, nx);
@@ -198,6 +201,7 @@ public static partial class EdoBuild
             g.len = (g.b - g.a).magnitude;
             gates.Add(g);
         }
+        if (!closed) msgs.Add(string.Format("⚠ 柵を {0} 本立てても裏庭へ抜ける道が残る(上限で打ち切り)", MAX_GATES));
         note = string.Format("隙の口: 裏庭の深さ {0:F1}m(店の奥行 +0.5)・候補 {1}・路地口 {2}(塞がない)・塞いだ口 {3}{4}{5}",
             yardD, cands.Count, rojiLines.Count, gates.Count,
             gates.Count > 0 ? "(" + string.Join(" / ", gates.Select(x => x.between + " " + x.len.ToString("F2") + "m").ToArray()) + ")" : "",

@@ -2246,8 +2246,13 @@ public static partial class EdoBuild
                 //    地覆の下端を当たりの最も高い地面へ揃える(埋めて隠す)。⛔ 沈めないと地覆が 0.16〜0.25m 浮いた(2026-10-02 実測)。
                 const float NEIRE = 0.26f;
                 foreach (var g in made) { try { SeatOnGround(g, NEIRE, 1200); } catch (Exception) { } }
+                // ⭐ 一続きの柵は天端を一直線に揃える ── 据わった駒のうち最も低い高さへ下げ、坂の上手の駒は余分に埋める
+                //    (施主 2026-10-03「高さがガタついてる」「少し地面に埋めてしまってもいい」)。⛔ 駒ごとに坂なりに据えると天端が段々になった。
+                //    ⛔ 足元の地面をならす型は採らない ── 擦り付けが先に建てた隣の板塀の足元まで届き、浮かせた(門前1 で 0.55m)。
+                float lowY = made.Count > 0 ? made.Min(g => g.transform.position.y) : 0f, sunk = 0f;
+                foreach (var g in made) { sunk = Mathf.Max(sunk, g.transform.position.y - lowY); var p = g.transform.position; p.y = lowY; g.transform.position = p; }
                 float h = made.Count > 0 ? RB(made[0]).size.y - NEIRE : float.NaN;
-                note = string.Format("竪格子の柵 {0}枚(地上の丈 {1:F2}m・根入れ {2:F2})", made.Count, h, NEIRE);
+                note = string.Format("竪格子の柵 {0}枚(地上の丈 {1:F2}m・根入れ {2:F2}・天端を揃えて上手を最大 {3:F2}m 余分に埋めた)", made.Count, h, NEIRE, sunk);
                 return made;
             }
 

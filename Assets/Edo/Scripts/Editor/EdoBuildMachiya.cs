@@ -139,10 +139,12 @@ public static partial class EdoBuild
     ///    その妻の端から 0.3m 以内の**角の柱の表の面**の線からの奥行 ── 柵の外の面をそこへ揃える(<see cref="FenceRunFlush"/>)。
     ///    ⛔ 2026-10-03 まで庇・軒の飾りまで店の体として測り、柵の芯が庇の先(線の上)に立って、0.49m 奥の柱との間に
     ///    隙が空いた(門前1 の辻の角・施主「接する位置の考え方が誤ってます」)。
+    /// ⭐ <paramref name="minGap"/> は半間(3尺=0.909)【B】── 裏長屋の路地の幅の下限が3尺で、それより狭い隙は人の通る口ではない。
+    ///    ⛔ 2026-10-03 まで 0.3 で、辻の角の店の妻の脇の幅 0.68m の行き止まりに柵を 1 枚立てた(門前1・施主「余計なところについた柵」)。
     /// ⭐ 空きが有るかは庇・軒まで含めて測る(庇の下は店先=通りの続きで塞がない)。端と引きだけを壁体で測る。
     /// 当たる先: 類型ビルダーの囲い(表店の辺の端を竪格子の柵で閉じる)── 町屋の全区画。</summary>
     public static List<float[]> FrontEndGaps(Vector2 A, Vector2 B, Vector2 outward, List<GameObject> shops,
-                                             float band = 2.0f, float minGap = 0.3f, float embed = 0.10f,
+                                             float band = 2.0f, float minGap = 0.909f, float embed = 0.10f,
                                              float yLo = 0.3f, float yHi = 1.4f)
     {
         var dir = (B - A).normalized; float len = (B - A).magnitude; var inw = -outward;

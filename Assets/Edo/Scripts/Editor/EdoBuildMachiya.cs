@@ -129,64 +129,11 @@ public static partial class EdoBuild
         return false;
     }
 
-    /// <summary>**表店の辺の端の空き**(EDO-0503)── 辺 A→B のうち、店の**壁体**が店先の帯
-    /// (線から内へ <paramref name="band"/> m)に掛かっていない**両端**の区間を、走りの座標 [t0, t1, 引き] で返す。
-    /// 店の側の端は <paramref name="embed"/> だけ店へ食い込ませる(閉じは「隙間 &gt; めり込み」)。<paramref name="minGap"/> 以下の空きは返さない。
-    /// どの店も掛からない辺は辺全部を返す(引き 0)。⛔ 列の中の路地(軒と軒の間)は返さない ── 路地口は町の型。
-    /// ⭐ 測る相手は辺を問わず渡された店の全部(角では隣の辺の列の妻が端を受ける)。
-    /// ⭐ 測るのは柵が触れる所 ── 店の屋根を外した実メッシュ(<see cref="BodyExRoof"/>)のうち、地面から
-    ///    <paramref name="yLo"/>〜<paramref name="yHi"/> の**庇より下の帯**だけ。端 t は妻の壁の面、引き(3つ目)は
-    ///    その妻の端から 0.3m 以内の**角の柱の表の面**の線からの奥行 ── 柵の外の面をそこへ揃える(<see cref="FenceRunFlush"/>)。
-    ///    ⛔ 2026-10-03 まで庇・軒の飾りまで店の体として測り、柵の芯が庇の先(線の上)に立って、0.49m 奥の柱との間に
-    ///    隙が空いた(門前1 の辻の角・施主「接する位置の考え方が誤ってます」)。
-    /// ⭐ <paramref name="minGap"/> は半間(3尺=0.909)【B】── 裏長屋の路地の幅の下限が3尺で、それより狭い隙は人の通る口ではない。
-    ///    ⛔ 2026-10-03 まで 0.3 で、辻の角の店の妻の脇の幅 0.68m の行き止まりに柵を 1 枚立てた(門前1・施主「余計なところについた柵」)。
-    /// ⭐ 空きが有るかは庇・軒まで含めて測る(庇の下は店先=通りの続きで塞がない)。端と引きだけを壁体で測る。
-    /// 当たる先: 類型ビルダーの囲い(表店の辺の端を竪格子の柵で閉じる)── 町屋の全区画。</summary>
-    public static List<float[]> FrontEndGaps(Vector2 A, Vector2 B, Vector2 outward, List<GameObject> shops,
-                                             float band = 2.0f, float minGap = 0.909f, float embed = 0.10f,
-                                             float yLo = 0.3f, float yHi = 1.4f)
-    {
-        var dir = (B - A).normalized; float len = (B - A).magnitude; var inw = -outward;
-        // 空きの有無は庇・軒まで含めて測る ── 庇の下は通りの続き(店先)で、柵で塞がない。
-        float cLo = float.PositiveInfinity, cHi = float.NegativeInfinity;
-        var pts = new List<Vector2>();                                   // (t, d) ── 庇より下の帯の壁体
-        foreach (var g in shops)
-        {
-            if (g == null) continue;
-            foreach (var w in Body(g.transform, 4000, true))
-            {
-                var q = new Vector2(w.x, w.z) - A;
-                float d = Vector2.Dot(q, inw); if (d < -0.3f || d > band) continue;
-                float t = Vector2.Dot(q, dir); if (t < -0.5f || t > len + 0.5f) continue;
-                cLo = Mathf.Min(cLo, t); cHi = Mathf.Max(cHi, t);
-            }
-            foreach (var w in BodyExRoof(g.transform, 4000))
-            {
-                float gy = Ground(w.x, w.z);
-                if (w.y < gy + yLo || w.y > gy + yHi) continue;
-                var q = new Vector2(w.x, w.z) - A;
-                float d = Vector2.Dot(q, inw); if (d < -0.3f || d > band) continue;
-                float t = Vector2.Dot(q, dir); if (t < -0.5f || t > len + 0.5f) continue;
-                pts.Add(new Vector2(t, d));
-            }
-        }
-        var r = new List<float[]>();
-        if (float.IsInfinity(cLo)) { r.Add(new[] { 0f, len, 0f }); return r; }
-        if (pts.Count == 0) { pts.Add(new Vector2(cLo, 0f)); pts.Add(new Vector2(cHi, 0f)); }
-        float lo = pts.Min(p => p.x), hi = pts.Max(p => p.x);         // 妻の壁の面(柵の端が触れる所)
-        float dLo = Mathf.Max(0f, pts.Where(p => p.x <= lo + 0.3f).Min(p => p.y));
-        float dHi = Mathf.Max(0f, pts.Where(p => p.x >= hi - 0.3f).Min(p => p.y));
-        if (cLo > minGap) r.Add(new[] { 0f, Mathf.Min(len, lo + embed), dLo });
-        if (len - cHi > minGap) r.Add(new[] { Mathf.Max(0f, hi - embed), len, dHi });
-        return r;
-    }
-
     /// <summary>**柵の外の面を、線から内へ <paramref name="faceDepth"/> の面へ揃えて建てる**(EDO-0503)。
     /// <see cref="FenceRun"/> で一度建て、据えた駒の実メッシュから外の面(<paramref name="outward"/> 側の最も外)を測り、
     /// ずれていれば壊して、ずれの分だけ線を引いて建て直す(据えは型ごとの <see cref="FenceRun"/> の中のまま)。
     /// ⛔ 駒の基準点や厚みの札で寄せない(規則21)── 測った面で寄せる。
-    /// 当たる先: 表店の列の端の柵(店の角の柱の面へ揃える)── 町屋の全区画。</summary>
+    /// 当たる先: 通りから裏手へ抜ける隙の柵(EdoBuild.SukimaGates)── 町屋の全区画。</summary>
     public static List<GameObject> FenceRunFlush(Transform parent, Vector2 A, Vector2 B, Vector2 outward, string kind,
         float baseY, string prefix, float faceDepth, out string note)
     {

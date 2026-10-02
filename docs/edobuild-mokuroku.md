@@ -1,6 +1,6 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 77eb364e44a4 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 a4c86d32f5a1 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
@@ -25,7 +25,7 @@
 | [EdoBuildJisha.cs](#edobuildjishacs) | 寺社の本堂(と坊・社家の主屋)を、間数ごとに焼いた入母屋で組む — EdoBuild の一部(規則21)。 | — | 1 |
 | [EdoBuildJun.cs](#edobuildjuncs) | 部材を依存の順に解き、変えた所から後だけ流し直す (EdoBuild の partial・2026-09-26・EDO-0455) | 山王社の建て直し(EdoSannoShaRebuild の Stage0〜9)。 | 0 |
 | [EdoBuildKado.cs](#edobuildkadocs) | 隅部材(留め継ぎ)の据え — EdoBuild の partial (2026-09-21・EDO-0289 ②) | — | 28 |
-| [EdoBuildMachiya.cs](#edobuildmachiyacs) | 町屋の表店の run — EdoBuild の一部(規則21「置く・測る・突き付ける・据えるは EdoBuild の関数だけ」)。 | — | 13 |
+| [EdoBuildMachiya.cs](#edobuildmachiyacs) | 町屋の表店の run — EdoBuild の一部(規則21「置く・測る・突き付ける・据えるは EdoBuild の関数だけ」)。 | — | 12 |
 | [EdoBuildMichi.cs](#edobuildmichics) | EdoBuild — 道の造成(縦断を設計して道の面を均す)。2026-09-30・EDO-0495(施主裁定②「小道を造成する」)。 | 指図の道の欄に `zosei` を持つ道(今は山王の麓の道 南西区間 = 十坊の小道だけ)。 | 4 |
 | [EdoBuildMuki.cs](#edobuildmukics) | 向き(正面)の解き — EdoBuild の partial (2026-09-22・EDO-0261 ③) | — | 7 |
 | [EdoBuildNiwa.cs](#edobuildniwacs) | 庭の置き方 — 類型の庭(Stage 5・EDO-0323)が使う「置く・測る・据える」だけ。 | — | 16 |
@@ -35,6 +35,7 @@
 | [EdoBuildRun.cs](#edobuildruncs) | 囲いの run — 長屋・土塀・板塀を辺に沿って並べる (EdoBuild の partial・2026-09-21) | — | 35 |
 | [EdoBuildSeiyaku.cs](#edobuildseiyakucs) | 制約の二種 — 硬い制約(関門)と柔らかい制約(狙い)を、置く側の共通の層で使い分ける(EDO-0372・施主 2026-09-23)。 | — | 1 |
 | [EdoBuildSueru.cs](#edobuildsuerucs) | 埋め込む駒・差し込む駒・載せる駒を据える (EdoBuild の partial・2026-09-23・EDO-0274) | 山王の前庭の井戸(板石敷・井筒+井桁・井戸屋形)。 | 16 |
+| [EdoBuildSukima.cs](#edobuildsukimacs) | EdoBuildSukima.cs — 建物と隣の構造物の間の隙のうち、通りから裏手(敷地の内側)へ抜ける物だけを柵で塞ぐ(EDO-0503)。 | 類型ビルダーの町屋の囲い(表店の列の端・角・後ろの棟との間)── 町屋の全区画。 | 1 |
 | [EdoBuildUeru.cs](#edobuilduerucs) | 植木を斜面に据える (EdoBuild の partial・2026-09-23・EDO-0401) | SeatPlant を呼ぶ所すべて(今は山王の社叢の下層と名指しの木 = Stage7_Shaso だけ)。 | 10 |
 | [EdoBuildZosei.cs](#edobuildzoseics) | EdoBuild — 造成(平場を採る)。2026-09-27・EDO-0477 P1(山王 Stage1_Grade と松江松平 DesignY の型を、図を持たない区画へ)。 | 類型ビルダーで建てる全区画(武家・寺社・町屋・公有地)。 | 5 |
 | [EdoGeom.cs](#edogeomcs) | 純幾何ヘルパの共有置き場 (Phase 2c, 2026-08-26) | — | 7 |
@@ -331,7 +332,6 @@
 | `ShopModule`(struct) | — | | 表店の駒の寸法(ES 倍・ピボットからの片寄せ込み)。 | |
 | `ShopPiece`(struct) | — | | 表店の駒 1 種 = パス+倍率。⭐ 測る倍率と置く倍率を分けて持てない形にした — edogoyomi は ES 倍、 当方で起こした駒は実寸(1 倍)で、片方だけ取り違えると 1.8 倍(または 0.55 倍)の町屋… | |
 | `EdoBuild.EdgeDepth(poly, A, B, outward)` | `float` | 硬 区域 | 辺の背後に実際に何 m あるか。辺の上の 9 点から敷地の内へ歩いて、区画の外へ出るまでの 距離の中央値。 | — |
-| `EdoBuild.FrontEndGaps(A, B, outward, shops, band=…, minGap=…, embed=…, yLo=…, yHi=…)` | `List<float[]>` | 地面・床・区域 | 表店の辺の端の空き(EDO-0503)── 辺 A→B のうち、店の壁体が店先の帯 (線から内へ band m)に掛かっていない両端の区間を、走りの座標 [t0, t1, 引き] で返す。 | Typology(BuildParcel) |
 | `EdoBuild.FenceRunFlush(parent, A, B, outward, kind, baseY, prefix, faceDepth, note)` | `List<GameObject>` | 区域 | 柵の外の面を、線から内へ faceDepth の面へ揃えて建てる(EDO-0503)。 | Typology(BuildParcel) |
 | `EdoBuild.MACHIYA_MAX_GRADE` | `float` |  | 表店を建ててよい道の縦の勾配の上限【U】(EDO-0503)。 | — |
 | `EdoBuild.ShopMeasure(path)` | `ShopModule` |  | 在庫の edogoyomi の駒(ES 倍で使う物)を測る。 | TypologyBuilder.Machiya(Machiya) |
@@ -582,6 +582,15 @@ EdoBuild — 道の造成(縦断を設計して道の面を均す)。2026-09-30�
 |---|---|---|---|---|
 | `CrestTuck`(struct) | — | | TuckUnderCrest の報告。 | |
 | `EdoBuild.TuckUnderCrest(pieces, mat, depth=…, minGap=…, inset=…, coTol=…, faces=…, measureOnly=…, crestBand=…)` | `CrestTuck` | 硬・柔 地面・天端・面 | 天端を地表と同じ高さに据えた駒の下の地形を納める。 | SannoSha(HifuMeasure・Stage2_Kaidan・Stage3_Dodome) |
+
+## EdoBuildSukima.cs
+
+EdoBuildSukima.cs — 建物と隣の構造物の間の隙のうち、通りから裏手(敷地の内側)へ抜ける物だけを柵で塞ぐ(EDO-0503)。
+
+| 関数 | 返す | 札 | 何をするか(注釈の一文目) | 呼んでいる所 |
+|---|---|---|---|---|
+| `SukimaGate`(struct) | — | | 塞ぐ口 ── 柵の線 a→b と、通りの側の向き。 | |
+| `EdoBuild.SukimaGates(poly, fronts, root, note, cell=…, halfBody=…, yLo=…, yHi=…, maxGate=…, embed=…, maxGrade=…)` | `List<SukimaGate>` | 区域 | 通りから裏手へ抜ける隙だけを見つけて、塞ぐ柵の線を返す(EDO-0503・施主 2026-10-03)。 | Typology(BuildParcel) |
 
 ## EdoBuildUeru.cs
 

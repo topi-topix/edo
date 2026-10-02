@@ -129,33 +129,31 @@ public static partial class EdoBuild
         return false;
     }
 
-    /// <summary>**表店の辺の端の空き**(EDO-0503)── 辺 A→B のうち、店の**壁体**(屋根を外した実メッシュ)が店先の帯
-    /// (線から内へ <paramref name="band"/> m)に掛かっていない**両端**の区間を、走りの座標 [t0, t1] で返す。
-    /// 店の側の端は <paramref name="embed"/> だけ店へ食い込ませる(閉じは「隙間 &gt; めり込み」)。<paramref name="minGap"/> 以下の空きは返さない。
-    /// どの店も掛からない辺は辺全部を返す。⛔ 列の中の路地(軒と軒の間)は返さない ── 路地口は町の型。
-    /// ⭐ 測る相手は辺を問わず渡された店の全部(角では隣の辺の列の妻が端を受ける)。
-    /// 当たる先: 類型ビルダーの囲い(表店の辺の端を竪格子の柵で閉じる)── 町屋の全区画。</summary>
-    public static List<float[]> FrontEndGaps(Vector2 A, Vector2 B, Vector2 outward, List<GameObject> shops,
-                                             float band = 2.0f, float minGap = 0.3f, float embed = 0.10f)
+    /// <summary>**柵の外の面を、線から内へ <paramref name="faceDepth"/> の面へ揃えて建てる**(EDO-0503)。
+    /// <see cref="FenceRun"/> で一度建て、据えた駒の実メッシュから外の面(<paramref name="outward"/> 側の最も外)を測り、
+    /// ずれていれば壊して、ずれの分だけ線を引いて建て直す(据えは型ごとの <see cref="FenceRun"/> の中のまま)。
+    /// ⛔ 駒の基準点や厚みの札で寄せない(規則21)── 測った面で寄せる。
+    /// 当たる先: 通りから裏手へ抜ける隙の柵(EdoBuild.SukimaGates)── 町屋の全区画。</summary>
+    public static List<GameObject> FenceRunFlush(Transform parent, Vector2 A, Vector2 B, Vector2 outward, string kind,
+        float baseY, string prefix, float faceDepth, out string note)
     {
-        var dir = (B - A).normalized; float len = (B - A).magnitude; var inw = -outward;
-        float lo = float.PositiveInfinity, hi = float.NegativeInfinity;
-        foreach (var g in shops)
+        var inw = -outward; float shift = faceDepth; List<GameObject> made = null; note = null; float err = 0f;
+        for (int pass = 0; pass < 2; pass++)
         {
-            if (g == null) continue;
-            foreach (var w in Body(g.transform, 800, false))
-            {
-                var q = new Vector2(w.x, w.z) - A;
-                float d = Vector2.Dot(q, inw); if (d < -0.3f || d > band) continue;
-                float t = Vector2.Dot(q, dir); if (t < -0.5f || t > len + 0.5f) continue;
-                lo = Mathf.Min(lo, t); hi = Mathf.Max(hi, t);
-            }
+            if (made != null) foreach (var g in made) if (g != null) UnityEngine.Object.DestroyImmediate(g);
+            made = FenceRun(parent, A + inw * shift, B + inw * shift, outward, kind, baseY, Vector2.zero, -1f, prefix, out note);
+            float face = float.NegativeInfinity;                       // 線から外への出 ── 外の面
+            foreach (var g in made)
+                foreach (var w in Body(g.transform, 2000, true))
+                    face = Mathf.Max(face, Vector2.Dot(new Vector2(w.x, w.z) - A, outward));
+            if (float.IsInfinity(face)) break;
+            err = face + faceDepth;                                    // 揃えたい外の面は −faceDepth
+            if (Mathf.Abs(err) < 0.005f) break;
+            shift += err;
         }
-        var r = new List<float[]>();
-        if (float.IsInfinity(lo)) { r.Add(new[] { 0f, len }); return r; }
-        if (lo > minGap) r.Add(new[] { 0f, Mathf.Min(len, lo + embed) });
-        if (len - hi > minGap) r.Add(new[] { Mathf.Max(0f, hi - embed), len });
-        return r;
+        if (faceDepth > 0f)
+            note += string.Format("・外の面を店の角の柱の面(線から {0:F2}m 奥)へ揃えた(残差 {1:+0.000;-0.000})", faceDepth, err);
+        return made;
     }
 
     static void Seat2(GameObject go, Vector2 at)

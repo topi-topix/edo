@@ -665,30 +665,9 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 if (e.kind == EdgeKind.Shared && !e.mine) continue;         // 隣が持つ辺は建てない
                 if (machiyaFronts.Contains(e))
                 {
-                    // ⭐ 表店の辺は店の列が通りを受ける。ただし**列の端の空き**(角・隣の棟との間)は竪格子の柵で閉じる(EDO-0503)
-                    //    ── ⛔ 2026-10-02 まで辺ごと囲わず、門前1 の辻の角で店と岡部の角の間 2.8m から裏庭へ素通しに入れた(施主指摘)。
-                    //    店はまだ無い一巡目は囲わない(造成の後の二巡目で、据えた店の実メッシュから端を測る)。
-                    var tat0 = root.Find("Tatemono");
-                    var shops = tat0 == null ? new List<GameObject>()
-                              : tat0.Cast<Transform>().Where(t => t.name.StartsWith("Omotedana", StringComparison.Ordinal)).Select(t => t.gameObject).ToList();
-                    if (shops.Count == 0) { kakoiNotes.Add("辺" + e.i + " 囲わない — 表店の列が通りを受ける"); continue; }
-                    var gaps = EdoBuild.FrontEndGaps(e.a, e.b, e.outward, shops);
-                    if (gaps.Count == 0) { kakoiNotes.Add("辺" + e.i + " 囲わない — 表店の列が端まで通りを受ける"); continue; }
-                    // 型は町木戸の袖と同じ竪格子の柵【U】(施主 2026-10-02「柵とか竹垣レベル」「木の柵じゃない？」
-                    // 「門前町の入り口の区切りで使ってるような仕切り」── 板塀・建仁寺垣は重すぎる)。
-                    string hk = "tategoshi";
-                    float hA, hB; CornerReaches(fe, e, hk, out hA, out hB);
-                    var hd = (e.b - e.a).normalized; float sum = 0f;
-                    for (int gi = 0; gi < gaps.Count; gi++)
-                    {
-                        var ga = e.a + hd * (gaps[gi][0] - (gaps[gi][0] < 1e-3f ? hA : 0f));
-                        var gb = e.a + hd * (gaps[gi][1] + (gaps[gi][1] > e.len - 1e-3f ? hB : 0f));
-                        string hn;
-                        EdoBuild.FenceRun(encl, ga, gb, e.outward, hk, pad, Vector2.zero, -1f, hk + "_" + e.i + "h" + gi, out hn);
-                        if (!string.IsNullOrEmpty(hn)) kakoiNotes.Add("辺" + e.i + " " + hn);
-                        sum += gaps[gi][1] - gaps[gi][0];
-                    }
-                    kakoiNotes.Add(string.Format("辺{0} 表店の列の端の空き {1} か所(計 {2:F1}m)を {3} で閉じた", e.i, gaps.Count, sum, hk));
+                    // ⭐ 表店の辺は店の列が通りを受ける ── 辺そのものは囲わない。通りから裏手へ抜ける隙だけを、
+                    //    囲いを建て終えた後で EdoBuild.SukimaGates が塞ぐ(下・EDO-0503 施主 2026-10-03)。
+                    kakoiNotes.Add("辺" + e.i + " 囲わない — 表店の列が通りを受ける");
                     continue;
                 }
                 bool isFront = edges.Contains(e) ? e == front : (front != null && e.i == front.i);
@@ -726,6 +705,26 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                         EdoBuild.FenceRun(encl, sa, sb2, e.outward, kind, pad, gateHere ? gc : Vector2.zero, gateHere ? gh : -1f,
                                           spans.Count == 1 ? pre : pre + "s" + si, out note, ds);
                         if (!string.IsNullOrEmpty(note)) kakoiNotes.Add("辺" + e.i + " " + note);
+                    }
+                }
+            }
+            // ⭐ 通りから裏手(敷地の内側)へ抜ける隙だけを竪格子の柵で塞ぐ(EDO-0503・施主 2026-10-03「建物と隣の構造物の間に
+            //    すき間があり、さらに裏手に敷地の内側に入るようになっているときにふさぐ」)。相手は左右・後ろの棟、区画の端では
+            //    隣の区画の建物・塀・石垣・区画の線。⛔ 2026-10-03 まで表店の辺の端の空きの幅で決め、行き止まりにも柵を立てた。
+            //    店はまだ無い一巡目は塞がない(造成の後の二巡目で、据えた駒の実メッシュから測る)。
+            {
+                var tat0 = root.Find("Tatemono");
+                bool anyShop = tat0 != null && tat0.Cast<Transform>().Any(t => t.name.StartsWith("Omotedana", StringComparison.Ordinal));
+                if (anyShop && machiyaFronts.Count > 0)
+                {
+                    var fr = machiyaFronts.Select(x => new[] { x.a, x.b, x.outward }).ToList();
+                    string sn; var gs = EdoBuild.SukimaGates(poly, fr, root, out sn);
+                    kakoiNotes.Add(sn);
+                    for (int gi = 0; gi < gs.Count; gi++)
+                    {
+                        string hn;
+                        EdoBuild.FenceRunFlush(encl, gs[gi].a, gs[gi].b, gs[gi].outward, "tategoshi", pad, "sukima_" + gi, 0f, out hn);
+                        if (!string.IsNullOrEmpty(hn)) kakoiNotes.Add("隙の口" + gi + "(" + gs[gi].between + ") " + hn);
                     }
                 }
             }

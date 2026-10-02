@@ -129,6 +129,35 @@ public static partial class EdoBuild
         return false;
     }
 
+    /// <summary>**表店の辺の端の空き**(EDO-0503)── 辺 A→B のうち、店の**壁体**(屋根を外した実メッシュ)が店先の帯
+    /// (線から内へ <paramref name="band"/> m)に掛かっていない**両端**の区間を、走りの座標 [t0, t1] で返す。
+    /// 店の側の端は <paramref name="embed"/> だけ店へ食い込ませる(閉じは「隙間 &gt; めり込み」)。<paramref name="minGap"/> 以下の空きは返さない。
+    /// どの店も掛からない辺は辺全部を返す。⛔ 列の中の路地(軒と軒の間)は返さない ── 路地口は町の型。
+    /// ⭐ 測る相手は辺を問わず渡された店の全部(角では隣の辺の列の妻が端を受ける)。
+    /// 当たる先: 類型ビルダーの囲い(表店の辺の端を建仁寺垣で閉じる)── 町屋の全区画。</summary>
+    public static List<float[]> FrontEndGaps(Vector2 A, Vector2 B, Vector2 outward, List<GameObject> shops,
+                                             float band = 2.0f, float minGap = 0.3f, float embed = 0.10f)
+    {
+        var dir = (B - A).normalized; float len = (B - A).magnitude; var inw = -outward;
+        float lo = float.PositiveInfinity, hi = float.NegativeInfinity;
+        foreach (var g in shops)
+        {
+            if (g == null) continue;
+            foreach (var w in Body(g.transform, 800, false))
+            {
+                var q = new Vector2(w.x, w.z) - A;
+                float d = Vector2.Dot(q, inw); if (d < -0.3f || d > band) continue;
+                float t = Vector2.Dot(q, dir); if (t < -0.5f || t > len + 0.5f) continue;
+                lo = Mathf.Min(lo, t); hi = Mathf.Max(hi, t);
+            }
+        }
+        var r = new List<float[]>();
+        if (float.IsInfinity(lo)) { r.Add(new[] { 0f, len }); return r; }
+        if (lo > minGap) r.Add(new[] { 0f, Mathf.Min(len, lo + embed) });
+        if (len - hi > minGap) r.Add(new[] { Mathf.Max(0f, hi - embed), len });
+        return r;
+    }
+
     static void Seat2(GameObject go, Vector2 at)
     {
         try { SeatOnGround(go, 0.05f, 600); }
@@ -216,6 +245,7 @@ public static partial class EdoBuild
         public float roomM;        // 辺の背後に**実際に**あった奥行[m](表の depth_ken とは別)
         public float shopD;        // 据えた表店の**壁体**が境界線から奥へ食った最大[m](⛔ 在庫の駒の寸法で代用しない)
         public int clashed;        // 先に建った列にめり込むので退けた駒(両側町の角)
+        public int abutted;        // 先に建った列の駒へ区間の端を突き付けた数(角を空けない・EDO-0503)
         public int tucked;         // 区画の内へ折り込んだ駒
         public float tuckedM;      // 同・最大の折り込み量[m]
         public float steepCutM;    // 道が急で列の端を詰めた長さ[m](EDO-0503・MACHIYA_MAX_GRADE)
@@ -438,6 +468,40 @@ public static partial class EdoBuild
             }
         }
 
+        // ⭐ 後に建てる列(両側町・辻の角の extra_front)は、**先に建った列の駒が占める所**まで区間を詰め、
+        //    その端へ軒を突き付けて並べる(柔らかい: 狙いは隙0・軒の出の分は残る)。測るのは先の駒の**実メッシュ**
+        //    (屋根込み=軒の出まで)を、この辺の店の奥行の帯に落とした走りの座標。⛔ 外接箱・ピボットで測らない(規則21)。
+        //    ⛔ 2026-10-02 まで詰めずに中寄せで並べ、角の 1 軒が先の列にめり込んで退けられ、残った軒との間に
+        //    2.4m の空きが残った(門前1 の辻の角・施主指摘「東側に変なすき間」)。
+        var abutLo = new bool[segs.Count]; var abutHi = new bool[segs.Count];
+        if (avoid != null && avoid.Count > 0 && stock.Count > 0)
+        {
+            float band = stock.Max(p => p.Measure().D) + 0.3f;
+            var inw = -outward;
+            var pts = new List<Vector2>();
+            foreach (var o in avoid)
+                if (o != null)
+                    foreach (var w in Body(o.transform, 800, true))
+                    {
+                        var q = new Vector2(w.x, w.z) - sA;
+                        float dd = Vector2.Dot(q, inw);
+                        if (dd >= -0.5f && dd <= band) pts.Add(new Vector2(Vector2.Dot(q, rdir), dd));
+                    }
+            for (int si = 0; si < segs.Count; si++)
+            {
+                var sg = segs[si]; float mid = (sg[0] + sg[1]) * 0.5f;
+                float lo = float.NaN, hi = float.NaN;
+                foreach (var p in pts)
+                {
+                    if (p.x < sg[0] - 1f || p.x > sg[1] + 1f) continue;
+                    if (p.x < mid) lo = float.IsNaN(lo) ? p.x : Mathf.Max(lo, p.x);
+                    else hi = float.IsNaN(hi) ? p.x : Mathf.Min(hi, p.x);
+                }
+                if (!float.IsNaN(hi)) { sg[1] = Mathf.Min(sg[1], hi - 0.05f); abutHi[si] = true; tally.abutted++; }
+                if (!float.IsNaN(lo)) { sg[0] = Mathf.Max(sg[0], lo + 0.05f); abutLo[si] = true; tally.abutted++; }
+            }
+        }
+
         // ⭐ 種は呼び手が区画ごとに渡す(EDO-0476)。⛔ 列の名(prefix)だけで種を作らない ── 2026-09-29 まで
         //    `prefix.GetHashCode()` で、名が "Omotedana0" の 24 区画が同じ順で同じ組を引いていた。
         var rnd = new System.Random(seed >= 0 ? seed : Seed(prefix));
@@ -445,8 +509,9 @@ public static partial class EdoBuild
         int idx = 0;
         ShopPiece? lead = leadPath != null ? (ShopPiece?)ShopPiece.Kit(leadPath) : null;   // 頭の 1 枚は最初の区間の最初の軒でだけ使う
 
-        foreach (var seg in segs)
+        for (int si = 0; si < segs.Count; si++)
         {
+            var seg = segs[si];
             float segLen = seg[1] - seg[0];
             if (segLen < 1.0f) continue;
 
@@ -489,7 +554,10 @@ public static partial class EdoBuild
             float rest = slack - roji * (rows.Count + 1);
             tally.rojiM = Mathf.Max(tally.rojiM, roji); tally.restM += rest;
 
-            float cursor = seg[0] + rest * 0.5f + roji;
+            // 先の列へ突き付ける端には路地も余りも置かない(片端だけ突き付けるとき、余りは反対の端へ寄せる)
+            float cursor = (abutHi[si] && !abutLo[si]) ? seg[0] + rest + 2f * roji
+                         : (abutLo[si] && !abutHi[si]) ? seg[0]
+                         : seg[0] + rest * 0.5f + roji;
             foreach (var row in rows)
             {
                 var houseGo = new List<GameObject>();

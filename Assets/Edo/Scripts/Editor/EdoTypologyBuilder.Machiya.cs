@@ -227,6 +227,8 @@ public static partial class EdoTypologyBuilder
                                 "Omotedana" + k, k == 0 ? lead : null, ours, poly,
                                 k == 0 ? null : built, out t, YuTanaSeed(s, "Omotedana" + k), mixM));
             clashed += t.clashed;
+            if (t.abutted > 0)
+                log.Add(string.Format("      辺{0}: 先に建った列の駒へ区間の端を {1} か所突き付けた(角を空けない・軒の出の分の隙は残る)", e.i, t.abutted));
             if (t.houseList != null) allHouses.AddRange(t.houseList);
             if (k == 0) roomFirst = t.roomM;
             shopDeep = Mathf.Max(shopDeep, t.shopD);

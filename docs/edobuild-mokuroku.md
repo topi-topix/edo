@@ -1,11 +1,11 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 28560357fdb7 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 277ec92fa706 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
 
-- 公開関数 283 本(注釈なし 25)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
+- 公開関数 285 本(注釈なし 25)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
 - 同じ道具が刷る目録: 邸ビルダーのメニュー → Stage と中の関数 `docs/builder-mokuroku.md` / 部材の名 `docs/edoassets-mokuroku.md`。
 - 札: **硬** = 注釈に「硬い/許容0」・**柔** = 「柔らかい/狙い」がある(判定ではなく注釈の語)。相手の札(地面・駒どうし・天端・床・断面・面・隅・区域)も注釈の語を拾っただけ。
 - 呼んでいる所 = 定義のファイルの外で `EdoBuild.<名>(` と書いている C# ファイル(`Edo` と `Builder/Rebuild` を落とした名)と、その中の呼んでいる関数(Stage)。同じ名の多重定義はまとめて数える。`EdoBuild` の中どうしの呼び出しは載せない。
@@ -25,14 +25,14 @@
 | [EdoBuildJisha.cs](#edobuildjishacs) | 寺社の本堂(と坊・社家の主屋)を、間数ごとに焼いた入母屋で組む — EdoBuild の一部(規則21)。 | — | 1 |
 | [EdoBuildJun.cs](#edobuildjuncs) | 部材を依存の順に解き、変えた所から後だけ流し直す (EdoBuild の partial・2026-09-26・EDO-0455) | 山王社の建て直し(EdoSannoShaRebuild の Stage0〜9)。 | 0 |
 | [EdoBuildKado.cs](#edobuildkadocs) | 隅部材(留め継ぎ)の据え — EdoBuild の partial (2026-09-21・EDO-0289 ②) | — | 28 |
-| [EdoBuildMachiya.cs](#edobuildmachiyacs) | 町屋の表店の run — EdoBuild の一部(規則21「置く・測る・突き付ける・据えるは EdoBuild の関数だけ」)。 | — | 11 |
+| [EdoBuildMachiya.cs](#edobuildmachiyacs) | 町屋の表店の run — EdoBuild の一部(規則21「置く・測る・突き付ける・据えるは EdoBuild の関数だけ」)。 | — | 12 |
 | [EdoBuildMichi.cs](#edobuildmichics) | EdoBuild — 道の造成(縦断を設計して道の面を均す)。2026-09-30・EDO-0495(施主裁定②「小道を造成する」)。 | 指図の道の欄に `zosei` を持つ道(今は山王の麓の道 南西区間 = 十坊の小道だけ)。 | 4 |
 | [EdoBuildMuki.cs](#edobuildmukics) | 向き(正面)の解き — EdoBuild の partial (2026-09-22・EDO-0261 ③) | — | 7 |
 | [EdoBuildNiwa.cs](#edobuildniwacs) | 庭の置き方 — 類型の庭(Stage 5・EDO-0323)が使う「置く・測る・据える」だけ。 | — | 16 |
 | [EdoBuildNozura.cs](#edobuildnozuracs) | 野面の乱積みの土留めを一本の折れ線へ据える — EdoBuild の partial(2026-09-25・EDO-0430) | — | 9 |
 | [EdoBuildOsameru.cs](#edobuildosamerucs) | 寄せて測るを収まるまで回す (EdoBuild の partial・2026-09-26・EDO-0454) | 類型ビルダーの番所→門(EdoTypologyBuilder Stage 1・2b)。 | 2 |
 | [EdoBuildRim.cs](#edobuildrimcs) | 崖の縁の土留め — 区画の線の上に立つ塀の真下を削って野面の石垣を積み、塀を天端に載せる (EdoBuild の partial・2026-09-28・EDO-0477) | 類型の全区画で、区画の縁の外が平場より高い所(崖の縁の寺社・武家の山際)。 | 6 |
-| [EdoBuildRun.cs](#edobuildruncs) | 囲いの run — 長屋・土塀・板塀を辺に沿って並べる (EdoBuild の partial・2026-09-21) | — | 34 |
+| [EdoBuildRun.cs](#edobuildruncs) | 囲いの run — 長屋・土塀・板塀を辺に沿って並べる (EdoBuild の partial・2026-09-21) | — | 35 |
 | [EdoBuildSeiyaku.cs](#edobuildseiyakucs) | 制約の二種 — 硬い制約(関門)と柔らかい制約(狙い)を、置く側の共通の層で使い分ける(EDO-0372・施主 2026-09-23)。 | — | 1 |
 | [EdoBuildSueru.cs](#edobuildsuerucs) | 埋め込む駒・差し込む駒・載せる駒を据える (EdoBuild の partial・2026-09-23・EDO-0274) | 山王の前庭の井戸(板石敷・井筒+井桁・井戸屋形)。 | 16 |
 | [EdoBuildUeru.cs](#edobuilduerucs) | 植木を斜面に据える (EdoBuild の partial・2026-09-23・EDO-0401) | SeatPlant を呼ぶ所すべて(今は山王の社叢の下層と名指しの木 = Stage7_Shaso だけ)。 | 10 |
@@ -331,6 +331,7 @@
 | `ShopModule`(struct) | — | | 表店の駒の寸法(ES 倍・ピボットからの片寄せ込み)。 | |
 | `ShopPiece`(struct) | — | | 表店の駒 1 種 = パス+倍率。⭐ 測る倍率と置く倍率を分けて持てない形にした — edogoyomi は ES 倍、 当方で起こした駒は実寸(1 倍)で、片方だけ取り違えると 1.8 倍(または 0.55 倍)の町屋… | |
 | `EdoBuild.EdgeDepth(poly, A, B, outward)` | `float` | 硬 区域 | 辺の背後に実際に何 m あるか。辺の上の 9 点から敷地の内へ歩いて、区画の外へ出るまでの 距離の中央値。 | — |
+| `EdoBuild.FrontEndGaps(A, B, outward, shops, band=…, minGap=…, embed=…)` | `List<float[]>` | 床・区域 | 表店の辺の端の空き(EDO-0503)── 辺 A→B のうち、店の壁体(屋根を外した実メッシュ)が店先の帯 (線から内へ band m)に掛かっていない両端の区間を、走りの座標 [t0, t1] で返す。 | Typology(BuildParcel) |
 | `EdoBuild.MACHIYA_MAX_GRADE` | `float` |  | 表店を建ててよい道の縦の勾配の上限【U】(EDO-0503)。 | — |
 | `EdoBuild.ShopMeasure(path)` | `ShopModule` |  | 在庫の edogoyomi の駒(ES 倍で使う物)を測る。 | TypologyBuilder.Machiya(Machiya) |
 | `EdoBuild.OwnMeasure(path)` | `ShopModule` |  | 当方で起こした駒(実寸で使う物 = 倍率 1)を測る。 | TypologyBuilder.Machiya(UraNagaya) |
@@ -522,6 +523,7 @@ EdoBuild — 道の造成(縦断を設計して道の面を均す)。2026-09-30�
 | `EdoBuild.SCRIBE_REFINE_PASSES` | `int` |  | ⚠ 注釈なし | — |
 | `EdoBuild.SplitEdges(m, want)` | `int` | 面 | 辺を半分に割る(光付けの割り足し・2026-09-27 EDO-0437)。 ⟶ 返す: 割った辺の数 | — |
 | `EdoBuild.ScribeToBed(go, bedAt, meshName, step=…)` | `Scribe` | 駒どうし・天端・床 | 部材の下端を床へ光付けする(削り合わせ・2026-09-27 EDO-0437 施主裁定 案A)。 | — |
+| `EdoBuild.RecentreInBand(go, s, bedAt, tol, maxSink=…)` | `bool` | 硬 天端・床・区域 | 浮きと根入れの帯の真ん中へ据える(硬い ±tol)。 | Typology(BuildParcel) |
 | `EdoBuild.RootToBed(go, bedAt, step=…, only=…)` | `Scribe` | 地面・天端 | 根入れで据える(埋めて隠す・2026-09-27 施主「基本は埋める、違和感が見える所だけ光付け」── docs/oki-kata.md §0a)。 | Typology(BuildParcel・Inspect) |
 | `EdoBuild.PostBoardRunScribed(parent, A, B, outward, prefix, postPath, boardPath, jifukuPath, bedAt, pair, log, scribe=…)` | `List<GameObject>` | 地面・駒どうし・天端・床・断面 | 柱・板・地覆の組で板塀の run を張り、地覆と柱の下端を床へ光付けする(2026-09-27・EDO-0437 施主裁定 案A「板を石の天端・地面まで下ろす」)。 | SannoSha(Stage4_Kakoi) |
 | `EdoBuild.SeatPanelOnBed(go, A, dir, mn, mx, bedAt, root)` | `void` | 地面・床 | 板塀の駒を描かれた地表の弦に張って据える(2026-09-26・EDO-0437 第5巡)。 | — |

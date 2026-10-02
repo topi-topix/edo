@@ -1989,6 +1989,24 @@ public static partial class EdoBuild
         }
     }
 
+    /// <summary>**浮きと根入れの帯の真ん中へ据える**(硬い ±<paramref name="tol"/>)。<see cref="RootToBed"/> で測った下端 − 相手 の
+    /// 最小・最大の幅が 2×tol に収まるなら、駒を幅の真ん中まで上下に動かして測り直し true を返す(<paramref name="s"/> は測り直した値)。
+    /// 収まらなければ動かさず false。⭐ 下端の最も低い当たりを 0 に揃えると、高い当たりの側に幅ぶんの浮きが残る
+    /// (2026-10-02 新町 rb の表店 0.012m)。当たる先: 類型ビルダーの造成の後の棟の据え直し(全区画の棟・基壇で受けた棟も)。</summary>
+    /// <param name="maxSink">帯に収まらないとき、浮きを消すために相手へ沈めてよい深さ[m](0 なら沈めない)。
+    /// 布石の基壇で受けた棟は石の天端の起伏が帯を超えるので、浮きの分だけ下げて石へ埋める(据えは埋めて隠すが基本・2026-09-27 施主)。</param>
+    public static bool RecentreInBand(GameObject go, ref Scribe s, Func<float, float, float> bedAt, float tol, float maxSink = 0f)
+    {
+        if (float.IsNaN(s.lo) || float.IsNaN(s.hi)) return false;
+        float mid;
+        if (s.hi - s.lo <= 2f * tol) mid = (s.hi + s.lo) * 0.5f;
+        else if (maxSink > 0f && s.lo - (s.hi - tol * 0.5f) >= -maxSink) mid = s.hi - tol * 0.5f;
+        else return false;
+        go.transform.position -= new Vector3(0f, mid, 0f);
+        s = RootToBed(go, bedAt, 0.1f);
+        return !float.IsNaN(s.hi) && s.hi <= tol && s.lo >= -Mathf.Max(tol, maxSink);
+    }
+
     /// <summary>**根入れで据える**(埋めて隠す・2026-09-27 施主「基本は埋める、違和感が見える所だけ光付け」── docs/oki-kata.md §0a)。
     /// 部材の形は変えない(共有のメッシュのまま)。下端(局所の最も低い y)より下は相手(石・地面)の中に隠れる。測るのは**当たり**
     /// (<paramref name="bedAt"/> が NaN でない所 = 石の天端・見えている地表)だけで、足跡の中を <paramref name="step"/> 刻みに引き、
@@ -2214,6 +2232,17 @@ public static partial class EdoBuild
                 float h = made.Count > 0 ? RB(made[0]).size.y : float.NaN;   // ⭐ 据えた駒の実メッシュから測る
                 note = string.Format("竹矢来 {0}枚(駒の丈 {1:F2}m・見付の充実率30.4% — 板塀・穂垣の100%と20m先でも判別可・EDO-0363)",
                                      made.Count, h);
+                return made;
+            }
+
+            case "kenninji":
+            {
+                // 建仁寺垣(丈 1.5・割竹の目隠しの垣)── 町屋の表店の列の端の空きを閉じる型(EDO-0503 施主「柵とか竹垣レベル」)。
+                // 両面の実寸FBX(EdoAssets.Own.KenninjiGaki)。⚠ 端柱は足さない ── この型の端は店の妻と隣の塀へ食い込ませて隠す。
+                var made = PanelRun(parent, A, B, outward, prefix, EdoAssets.Own.KenninjiGaki(1.5f), gapC, gapHalf,
+                                    pair: false, unitScale: 1f);
+                float h = made.Count > 0 ? RB(made[0]).size.y : float.NaN;
+                note = string.Format("建仁寺垣 {0}枚(駒の丈 {1:F2}m)", made.Count, h);
                 return made;
             }
 

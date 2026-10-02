@@ -663,7 +663,33 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
             foreach (var e in fe)
             {
                 if (e.kind == EdgeKind.Shared && !e.mine) continue;         // 隣が持つ辺は建てない
-                if (machiyaFronts.Contains(e)) { kakoiNotes.Add("辺" + e.i + " 囲わない — 表店の列が通りを受ける"); continue; }
+                if (machiyaFronts.Contains(e))
+                {
+                    // ⭐ 表店の辺は店の列が通りを受ける。ただし**列の端の空き**(角・隣の棟との間)は建仁寺垣で閉じる(EDO-0503)
+                    //    ── ⛔ 2026-10-02 まで辺ごと囲わず、門前1 の辻の角で店と岡部の角の間 2.8m から裏庭へ素通しに入れた(施主指摘)。
+                    //    店はまだ無い一巡目は囲わない(造成の後の二巡目で、据えた店の実メッシュから端を測る)。
+                    var tat0 = root.Find("Tatemono");
+                    var shops = tat0 == null ? new List<GameObject>()
+                              : tat0.Cast<Transform>().Where(t => t.name.StartsWith("Omotedana", StringComparison.Ordinal)).Select(t => t.gameObject).ToList();
+                    if (shops.Count == 0) { kakoiNotes.Add("辺" + e.i + " 囲わない — 表店の列が通りを受ける"); continue; }
+                    var gaps = EdoBuild.FrontEndGaps(e.a, e.b, e.outward, shops);
+                    if (gaps.Count == 0) { kakoiNotes.Add("辺" + e.i + " 囲わない — 表店の列が端まで通りを受ける"); continue; }
+                    // 型は建仁寺垣【U】── 町家の脇の目隠しは板塀より軽い竹垣が通例(施主 2026-10-02「柵とか竹垣レベル」)。
+                    string hk = "kenninji";
+                    float hA, hB; CornerReaches(fe, e, hk, out hA, out hB);
+                    var hd = (e.b - e.a).normalized; float sum = 0f;
+                    for (int gi = 0; gi < gaps.Count; gi++)
+                    {
+                        var ga = e.a + hd * (gaps[gi][0] - (gaps[gi][0] < 1e-3f ? hA : 0f));
+                        var gb = e.a + hd * (gaps[gi][1] + (gaps[gi][1] > e.len - 1e-3f ? hB : 0f));
+                        string hn;
+                        EdoBuild.FenceRun(encl, ga, gb, e.outward, hk, pad, Vector2.zero, -1f, hk + "_" + e.i + "h" + gi, out hn);
+                        if (!string.IsNullOrEmpty(hn)) kakoiNotes.Add("辺" + e.i + " " + hn);
+                        sum += gaps[gi][1] - gaps[gi][0];
+                    }
+                    kakoiNotes.Add(string.Format("辺{0} 表店の列の端の空き {1} か所(計 {2:F1}m)を {3} で閉じた", e.i, gaps.Count, sum, hk));
+                    continue;
+                }
                 bool isFront = edges.Contains(e) ? e == front : (front != null && e.i == front.i);
                 var gc = isFront ? gateC : Vector2.zero;
                 var gh = isFront ? gateHalf : -1f;
@@ -806,6 +832,10 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                         rt2 = EdoBuild.RootToBed(bldg[k], EdoBuild.Ground, 0.1f);
                     }
                     if (float.IsNaN(rt2.hi) || rt2.hi <= GROUND_TOL) continue;
+                    // ⭐ 浮きと埋まりの幅が許容の帯(±GROUND_TOL)に収まるなら、帯の真ん中へ下げて据える(硬い ±0.01 の内)。
+                    //    ⛔ 2026-10-02 まで下端を 0 に揃えて止め、新町 rb の表店が 0.012m 浮いたまま ⛔ になった
+                    //    (最も低い当たりを 0 にすると、高い当たりの側に帯の幅ぶんの浮きが残る)。
+                    if (EdoBuild.RecentreInBand(bldg[k], ref rt2, EdoBuild.Ground, GROUND_TOL)) continue;
                     if (!(bldg[k].name == "Goten" && bldg[k].transform.childCount > 1))
                     {
                         if (kisoG == null) kisoG = Group("Kiso", root);
@@ -813,8 +843,10 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                         if (ks.Count > 0)
                         {
                             kisoN++; kisoWorst = Mathf.Max(kisoWorst, rt2.hi);
-                            rt2 = EdoBuild.RootToBed(bldg[k], EdoBuild.GroundOrBed(new EdoBuild.BedIndex(ks)), 0.1f);
+                            var bed = EdoBuild.GroundOrBed(new EdoBuild.BedIndex(ks));
+                            rt2 = EdoBuild.RootToBed(bldg[k], bed, 0.1f);
                             if (float.IsNaN(rt2.hi) || rt2.hi <= GROUND_TOL) continue;
+                            if (EdoBuild.RecentreInBand(bldg[k], ref rt2, bed, GROUND_TOL, 0.05f)) continue;   // 石の天端へは 0.05m まで埋めてよい
                         }
                         else if (kn != null) log.Add("    ⚠ " + kn);
                     }

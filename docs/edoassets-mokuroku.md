@@ -382,7 +382,7 @@
 | `Own.Ikegaki(end)` | 関数 | 刈込の生垣モジュール(ツゲ・マサキの見立て・1 間 × 1.90m × 0.80m、葉カード・材 M_FJG_Plant_Boxwood_01_Spring・LOD1)。 | MatsudairaDewaBuilder.Niwa(Stage6d_Tenkei) |
 | `Own.YotsumeGaki(h)` | 関数 | 四つ目垣 1スパン(1間)。親柱1 + 立子5 + 胴縁(h1.2 で4段 / h0.9 で3段)+ 棕櫚縄の結び。 | DoiBuilder.Niwa(Niwa_G_Kaki・ResolveNiwaApi), OkabeYashiki(PlaceNiwaItem・PlaceTakegaki), Doi(PlaceTakegaki) |
 | `Own.YotsumeGakiPost(h)` | 関数 | 四つ目垣の run の +X 端に足す親柱1本。 | DoiBuilder.Niwa(Niwa_G_Kaki・ResolveNiwaApi), OkabeYashiki(PlaceNiwaItem・PlaceTakegaki), Doi(PlaceTakegaki) |
-| `Own.KenninjiGaki(h)` | 関数 | 建仁寺垣 1スパン(1間)。親柱1 + 胴縁3(裏)+ 割竹の立子35枚を隙間なく + 押縁3段 + 玉縁 + 結び12。 | DoiBuilder.Niwa(Niwa_G_Kaki・ResolveNiwaApi), OkabeYashiki(PlaceNiwaItem) |
+| `Own.KenninjiGaki(h)` | 関数 | 建仁寺垣 1スパン(1間)。親柱1 + 胴縁3(裏)+ 割竹の立子35枚を隙間なく + 押縁3段 + 玉縁 + 結び12。 | DoiBuilder.Niwa(Niwa_G_Kaki・ResolveNiwaApi), BuildRun(FenceRun), OkabeYashiki(PlaceNiwaItem) |
 | `Own.KenninjiGakiPost(h)` | 関数 | 建仁寺垣の run の +X 端に足す親柱1本。 | DoiBuilder.Niwa(Niwa_G_Kaki・ResolveNiwaApi), OkabeYashiki(PlaceNiwaItem) |
 | `Own.DoiNagayamon` | string | 土井邸の表門 = 長屋門(片番所 格子付・片潜門)。 | Doi(GateSpan・Stage2_Perimeter) |
 | `Own.DoiUmaya` | string | 厩 5.5×7間(土井邸 `munes.Umaya`)。 | Doi(PlaceUmaya) |

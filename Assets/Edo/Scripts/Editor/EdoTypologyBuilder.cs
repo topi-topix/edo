@@ -846,7 +846,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                             var bed = EdoBuild.GroundOrBed(new EdoBuild.BedIndex(ks));
                             rt2 = EdoBuild.RootToBed(bldg[k], bed, 0.1f);
                             if (float.IsNaN(rt2.hi) || rt2.hi <= GROUND_TOL) continue;
-                            if (EdoBuild.RecentreInBand(bldg[k], ref rt2, bed, GROUND_TOL, 0.05f)) continue;   // 石の天端へは 0.05m まで埋めてよい
+                            if (EdoBuild.RecentreInBand(bldg[k], ref rt2, bed, GROUND_TOL, 0.08f)) continue;   // 石の天端へは 0.08m まで埋めてよい(石の面の凹凸が 0.06m 超ある ── chos_0 の裏長屋で幅 0.064m・埋めて隠すが基本)
                         }
                         else if (kn != null) log.Add("    ⚠ " + kn);
                     }

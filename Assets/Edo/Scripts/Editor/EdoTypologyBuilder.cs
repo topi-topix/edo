@@ -715,7 +715,9 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
             {
                 var tat0 = root.Find("Tatemono");
                 bool anyShop = tat0 != null && tat0.Cast<Transform>().Any(t => t.name.StartsWith("Omotedana", StringComparison.Ordinal));
-                if (anyShop && machiyaFronts.Count > 0)
+                // ⛔ 2026-10-03 施主裁定A: 隙の柵は機械が探して建てない(区画ごとに数か所ずつ出て、指摘しきれない)。町木戸(Michi)は別で残す。
+                const bool SUKIMA_FENCE = false;
+                if (SUKIMA_FENCE && anyShop && machiyaFronts.Count > 0)
                 {
                     var fr = machiyaFronts.Select(x => new[] { x.a, x.b, x.outward }).ToList();
                     string sn; var gs = EdoBuild.SukimaGates(poly, fr, root, out sn);

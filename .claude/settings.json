@@ -42,6 +42,12 @@
             "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/edo_precheck_assembly.sh",
             "timeout": 10,
             "statusMessage": "アセンブリの鮮度"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/edo_mcp_long_guard.py",
+            "timeout": 10,
+            "statusMessage": "長い処理の直呼び"
           }
         ]
       }

@@ -2245,14 +2245,27 @@ public static partial class EdoBuild
                 // ⭐ 駒は掘立の根入れ 0.26 を持つ(札 yBottom −0.26)。PanelRun は下端を地面に当てるので、根入れぶん沈めて
                 //    地覆の下端を当たりの最も高い地面へ揃える(埋めて隠す)。⛔ 沈めないと地覆が 0.16〜0.25m 浮いた(2026-10-02 実測)。
                 const float NEIRE = 0.26f;
-                foreach (var g in made) { try { SeatOnGround(g, NEIRE, 1200); } catch (Exception) { } }
-                // ⭐ 一続きの柵は天端を一直線に揃える ── 据わった駒のうち最も低い高さへ下げ、坂の上手の駒は余分に埋める
+                foreach (var g in made)
+                {
+                    try { SeatOnGround(g, NEIRE, 1200); } catch (Exception) { }
+                    // 駒の幅の中で地面が下がる所でも浮かせない ── 下端と地面の隙の最大(hi)が根入れ −NEIRE を超えれば、その分沈める
+                    //   ⛔ 坂の柵で 0.221m 浮いた(門前3・2026-10-03)
+                    var sc = RootToBed(g, Ground, 0.05f);
+                    if (!float.IsNaN(sc.hi) && sc.hi > -NEIRE + 0.002f) g.transform.position += Vector3.down * (sc.hi + NEIRE);
+                }
+                // ⭐ 一続きの柵は天端を一直線に揃える ── 最も低い駒の高さへ下げ、坂の上手は余分に埋める
                 //    (施主 2026-10-03「高さがガタついてる」「少し地面に埋めてしまってもいい」)。⛔ 駒ごとに坂なりに据えると天端が段々になった。
+                //    ただし段差が LEVEL_MAX を超える坂では一直線にしない(上手が 1.5m 埋まった・門前3)── 駒ごとの段のまま据える。
                 //    ⛔ 足元の地面をならす型は採らない ── 擦り付けが先に建てた隣の板塀の足元まで届き、浮かせた(門前1 で 0.55m)。
-                float lowY = made.Count > 0 ? made.Min(g => g.transform.position.y) : 0f, sunk = 0f;
-                foreach (var g in made) { sunk = Mathf.Max(sunk, g.transform.position.y - lowY); var p = g.transform.position; p.y = lowY; g.transform.position = p; }
+                const float LEVEL_MAX = 0.30f;
+                float lowY = made.Count > 0 ? made.Min(g => g.transform.position.y) : 0f;
+                float rise = made.Count > 0 ? made.Max(g => g.transform.position.y) - lowY : 0f;
+                bool level = rise <= LEVEL_MAX;
+                if (level) foreach (var g in made) { var p = g.transform.position; p.y = lowY; g.transform.position = p; }
                 float h = made.Count > 0 ? RB(made[0]).size.y - NEIRE : float.NaN;
-                note = string.Format("竪格子の柵 {0}枚(地上の丈 {1:F2}m・根入れ {2:F2}・天端を揃えて上手を最大 {3:F2}m 余分に埋めた)", made.Count, h, NEIRE, sunk);
+                note = string.Format("竪格子の柵 {0}枚(地上の丈 {1:F2}m・根入れ {2:F2}・{3})", made.Count, h, NEIRE,
+                                     level ? string.Format("天端を揃えて上手を最大 {0:F2}m 余分に埋めた", rise)
+                                           : string.Format("坂で段差 {0:F2}m が {1:F2} を超えるので駒ごとの段で据えた", rise, LEVEL_MAX));
                 return made;
             }
 

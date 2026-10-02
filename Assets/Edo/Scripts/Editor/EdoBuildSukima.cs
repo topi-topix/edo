@@ -9,7 +9,7 @@
 //   1. 区画の周りを升目に割り、地面から 0.3〜1.4m の帯にある**立った面**(壁・柱・塀・石垣の三角形)が掛かる升を、
 //      その駒の持ち物として埋める(屋根・庇・地表は寝ているので掛からない)。
 //   2. 区画の外は、表店の辺の外(通り)だけを空け、それ以外の線の外は塞ぐ(隣の敷地)。人の登れない急な斜面
-//      (勾配 0.75 超 ≒ 37°【U】)も塞ぐ相手にする(施主 2026-10-03「地形そのものということもありえる」)。
+//      (1m の差で測った勾配 1.0 超 = 45°【U】・⛔ 0.75 を 0.2m の差で測ると造成の縁の高さ 1m 余りの緩い法を崖と取り、門前3 で 6m の柵を野へ張った)も塞ぐ相手にする(施主 2026-10-03「地形そのものということもありえる」)。
 //   3. 人の肩の半幅だけ埋めた升を太らせ、通れる升だけを残す。
 //   4. 通りから、店の奥行より深い所(裏庭)まで、通れる升をたどる。⛔ 同じ列の店と店の間は路地(町の型)なので、
 //      たどる前に口を仮に塞いでおく(路地口は柵で塞がない)。
@@ -33,7 +33,7 @@ public static partial class EdoBuild
     /// <paramref name="fronts"/> は表店の辺(a, b, outward)。<paramref name="root"/> は区画の組(Tatemono・Kakoi を測る)。
     /// 区画の外の駒(隣の敷地の石垣・塀・棟)もシーンから拾って相手にする。</summary>
     public static List<SukimaGate> SukimaGates(Vector2[] poly, List<Vector2[]> fronts, Transform root, out string note,
-        float cell = 0.20f, float halfBody = 0.30f, float yLo = 0.3f, float yHi = 1.4f, float maxGate = 8f, float embed = 0.10f, float maxGrade = 0.75f)
+        float cell = 0.20f, float halfBody = 0.30f, float yLo = 0.3f, float yHi = 1.4f, float maxGate = 8f, float embed = 0.10f, float maxGrade = 1.0f)
     {
         var gates = new List<SukimaGate>();
         float x0 = poly.Min(p => p.x) - 2f, z0 = poly.Min(p => p.y) - 2f;
@@ -63,6 +63,7 @@ public static partial class EdoBuild
             var mf = mr.GetComponent<MeshFilter>(); if (mf == null || mf.sharedMesh == null) continue;
             Transform own = OwnerOf(mr.transform, root);
             if (own == null) continue;
+            if (mr.GetComponentInParent<LODGroup>() != null) continue;           // 在庫の木(LOD 付き)は口の相手にしない(⛔ 桐畑の桐を相手に柵を立てた・台地北 r2)
             if (own.name.StartsWith("sukima_", StringComparison.Ordinal)) continue;     // 前の巡の柵は相手にしない
             int oi;
             if (!ownerOf.TryGetValue(own, out oi)) { oi = owners.Count; owners.Add(own); ownerOf[own] = oi; }
@@ -90,7 +91,7 @@ public static partial class EdoBuild
         for (int k = 0; k < N; k++)
         {
             if (occ[k] >= 0) continue;
-            var c = ctr(k); float h = cell;
+            var c = ctr(k); float h = 0.5f;                                   // 1m の差で測る(造成の縁の細い急な筋を拾わない)
             float gx = (Ground(c.x + h, c.y) - Ground(c.x - h, c.y)) / (2f * h);
             float gz = (Ground(c.x, c.y + h) - Ground(c.x, c.y - h)) / (2f * h);
             if (Mathf.Sqrt(gx * gx + gz * gz) > maxGrade) occ[k] = SLOPE;

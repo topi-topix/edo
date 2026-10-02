@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 357(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 359(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -367,8 +367,10 @@
 | `Own.Noshibei(len)` | 関数 | のし塀(熨斗瓦を載せた白壁の袖塀)。岡部邸の結界 `kekkai` の7本。 | OkabeYashiki(AssetByKey) |
 | `Own.Kido(w)` | 関数 | 結界の木戸(のし塀 `kekkai[].gap` の開口を塞ぐ)。 | Doi(KomonAsset), DoiBuilder.Niwa(ResolveNiwaApi), OkabeYashiki(AssetByKey) |
 | `Own.HoriKido` | string | `HoriKido.fbx` — 汀の柵の潜り(`nishi.saku.kuguri`・辺5 の s=55.7)。 | OkabeYashiki(AssetByKey) |
-| `Own.HoriSaku` | string | `HoriSaku.fbx` — 汀の木柵 1スパン(`fences[0]` F_Hori・辺5 の全長 s0〜80.589)。 | OkabeYashiki(PlaceFences) |
+| `Own.HoriSaku` | string | `HoriSaku.fbx` — 汀の木柵 1スパン(`fences[0]` F_Hori・辺5 の全長 s0〜80.589)。 | BuildRun(FenceRun), OkabeYashiki(PlaceFences) |
 | `Own.HoriSakuPost` | string | `HoriSakuPost.fbx` — 汀の木柵の端の杭。⛔ 足さないと run の最後の板が宙で終わる。 | OkabeYashiki(PlaceFences) |
+| `Own.TategoshiSaku(h=…)` | 関数 | 竪格子の柵 1間(EDO-0503・町屋の表店の列の端に残った空き 1〜3m を閉じる仕切り)。 | BuildRun(FenceRun) |
+| `Own.TategoshiSakuPost(h=…)` | 関数 | 竪格子の柵の端柱(TategoshiSaku の run の +X 端を受ける柱1本・笠木つき)。 | — |
 | `Own.ItabeiIta` | string | `Itabei_Ita_1.410.fbx` — 板塀の板(柱なし)1間。在庫の板塀 Eg.Itabei5(柱と板が一体の 5間の駒)を 柱と板に分けた組の板の方(2026-09-26・EDO-0437 山王 前庭の南の板塀 `Ita_ZSE`)。 | SannoSha(Stage4_Kakoi) |
 | `Own.ItabeiHashira` | string | `Itabei_Hashira_N0.30.fbx` — 板塀の柱1本(ItabeiIta と組・2026-09-26・EDO-0437)。 | — |
 | `Own.ItabeiJifuku` | string | `Itabei_Jifuku_1.410_Hk0.60.fbx` — 板塀の地覆(板の下の横木)1間・光付けの代つき(2026-09-27・EDO-0437 施主裁定 案A「板を石の天端・地面まで下ろす」)。 | BuildRun(PostBoardRun), SannoSha(Stage4_Kakoi) |

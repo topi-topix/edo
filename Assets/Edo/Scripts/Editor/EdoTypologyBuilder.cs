@@ -665,7 +665,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 if (e.kind == EdgeKind.Shared && !e.mine) continue;         // 隣が持つ辺は建てない
                 if (machiyaFronts.Contains(e))
                 {
-                    // ⭐ 表店の辺は店の列が通りを受ける。ただし**列の端の空き**(角・隣の棟との間)は建仁寺垣で閉じる(EDO-0503)
+                    // ⭐ 表店の辺は店の列が通りを受ける。ただし**列の端の空き**(角・隣の棟との間)は竪格子の柵で閉じる(EDO-0503)
                     //    ── ⛔ 2026-10-02 まで辺ごと囲わず、門前1 の辻の角で店と岡部の角の間 2.8m から裏庭へ素通しに入れた(施主指摘)。
                     //    店はまだ無い一巡目は囲わない(造成の後の二巡目で、据えた店の実メッシュから端を測る)。
                     var tat0 = root.Find("Tatemono");
@@ -674,8 +674,9 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                     if (shops.Count == 0) { kakoiNotes.Add("辺" + e.i + " 囲わない — 表店の列が通りを受ける"); continue; }
                     var gaps = EdoBuild.FrontEndGaps(e.a, e.b, e.outward, shops);
                     if (gaps.Count == 0) { kakoiNotes.Add("辺" + e.i + " 囲わない — 表店の列が端まで通りを受ける"); continue; }
-                    // 型は建仁寺垣【U】── 町家の脇の目隠しは板塀より軽い竹垣が通例(施主 2026-10-02「柵とか竹垣レベル」)。
-                    string hk = "kenninji";
+                    // 型は町木戸の袖と同じ竪格子の柵【U】(施主 2026-10-02「柵とか竹垣レベル」「木の柵じゃない？」
+                    // 「門前町の入り口の区切りで使ってるような仕切り」── 板塀・建仁寺垣は重すぎる)。
+                    string hk = "tategoshi";
                     float hA, hB; CornerReaches(fe, e, hk, out hA, out hB);
                     var hd = (e.b - e.a).normalized; float sum = 0f;
                     for (int gi = 0; gi < gaps.Count; gi++)

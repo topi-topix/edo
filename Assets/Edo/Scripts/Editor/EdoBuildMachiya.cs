@@ -134,7 +134,7 @@ public static partial class EdoBuild
     /// 店の側の端は <paramref name="embed"/> だけ店へ食い込ませる(閉じは「隙間 &gt; めり込み」)。<paramref name="minGap"/> 以下の空きは返さない。
     /// どの店も掛からない辺は辺全部を返す。⛔ 列の中の路地(軒と軒の間)は返さない ── 路地口は町の型。
     /// ⭐ 測る相手は辺を問わず渡された店の全部(角では隣の辺の列の妻が端を受ける)。
-    /// 当たる先: 類型ビルダーの囲い(表店の辺の端を建仁寺垣で閉じる)── 町屋の全区画。</summary>
+    /// 当たる先: 類型ビルダーの囲い(表店の辺の端を竪格子の柵で閉じる)── 町屋の全区画。</summary>
     public static List<float[]> FrontEndGaps(Vector2 A, Vector2 B, Vector2 outward, List<GameObject> shops,
                                              float band = 2.0f, float minGap = 0.3f, float embed = 0.10f)
     {

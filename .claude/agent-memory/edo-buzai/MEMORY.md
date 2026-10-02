@@ -64,3 +64,4 @@
 - [町木戸の横断勾配の版](machikido-keisha-warp.md) — 平らに組んで warp で縦剪断・Verify は斜めの足元を測れない・在庫の妻の端に素通しの隙(seal_gable)(2026-10-02)
 - [両端妻の一棟 Nagaya_Tsuma2](nagaya-tsuma2-straight.md) — --straight・長さは妻壁の外面どうし・NagayaOmote と定義が違う・在庫の妻の端に素通しの隙(seal_gable)(2026-10-02)
 - [VM のスープに recalc を掛けると面がでたらめに裏返る](soup-recalc-flips-faces.md) — orient_outward で部品ごと・外から撃って裏面は素通りで数える(2026-10-02)
+- [竪格子の柵の駒と HoriSaku の走りの向き](tategoshi-saku-module-and-hori-saku-axis.md) — 袖は machikido.sode_* を共用・HoriSaku の杭は実は +X・fence 札の笠木の出(2026-10-02)

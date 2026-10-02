@@ -3108,6 +3108,28 @@ public static class EdoAssets
         /// 生成: blender --background --python Tools/Blender/build_hori_saku.py -- post</summary>
         public const string HoriSakuPost = "Assets/Edo/Models/Hei/HoriSakuPost.fbx";
 
+        /// <summary>**竪格子の柵 1間**(EDO-0503・町屋の表店の列の端に残った空き 1〜3m を閉じる仕切り)。
+        /// 町木戸 <see cref="MachiKido(float)"/> の**袖と同じ意匠**(柱 5寸角の掘立・地覆・袖の笠木・竪子 芯々 0.152・横子2段)を
+        /// 1スパンの駒にした物。袖の部品は `build_machikido.sode_*` を共用(意匠を直すなら両方焼き直す)。
+        /// ローカル: 幅=X(走り)/ 高さ=Y / 厚み=Z。+Z = 見え面(通り側・格子は表裏対称・両面の実体)。倍率1。
+        /// ピボット = **スパンの中心・地盤レベル**。柱は **−X 端**(外の面 x = −0.909)⇒ **bbox の X がちょうど 1.818**。
+        /// 実寸 W1.818 × H(h+0.26)× D0.150・**底 y = −0.26**(根入れ)・天端 y = h。⛔ `SeatBottom` で据えない — y=0 を地盤へ。
+        /// 重ねずに 1.818 ちょうどのピッチで突き付け、+X 端に <see cref="TategoshiSakuPost"/> を足す。札 `PartSpecs/TategoshiSaku_&lt;h&gt;.json`(fence)。
+        /// 焼いてある丈: 2.12(7尺・町木戸の袖と同じ)/ 1.82。材 `wood` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_tategoshi_saku.py -- --h &lt;丈m&gt; [--render]</summary>
+        public static string TategoshiSaku(float h = 2.12f)
+        {
+            return "Assets/Edo/Models/Hei/TategoshiSaku_" + h.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + ".fbx";
+        }
+
+        /// <summary>**竪格子の柵の端柱**(<see cref="TategoshiSaku"/> の run の +X 端を受ける柱1本・笠木つき)。
+        /// ピボット = **柱の +X 面・地盤レベル**(柱は x ∈ [−0.150, 0])。実寸 W0.150 × H(h+0.26)× D0.150・底 y = −0.26。
+        /// 生成: blender --background --python Tools/Blender/build_tategoshi_saku.py -- --h &lt;丈m&gt;</summary>
+        public static string TategoshiSakuPost(float h = 2.12f)
+        {
+            return "Assets/Edo/Models/Hei/TategoshiSakuPost_" + h.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + ".fbx";
+        }
+
         /// <summary>**板塀の板(柱なし)1間**。在庫の板塀 <see cref="Eg.Itabei5"/>(柱と板が一体の 5間の駒)を
         /// 柱と板に分けた組の板の方(2026-09-26・EDO-0437 山王 前庭の南の板塀 `Ita_ZSE`)。柱 <see cref="ItabeiHashira"/> を
         /// 1本ずつ床に据え、その間にこれを掛ける。貫3段・羽目板7枚(表裏交互)・笠木。**材・見付・UV は元の駒と同一**

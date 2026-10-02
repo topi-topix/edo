@@ -2235,6 +2235,34 @@ public static partial class EdoBuild
                 return made;
             }
 
+            case "tategoshi":
+            {
+                // 竪格子の柵(町木戸の袖と同じ意匠・丈 2.12=7尺)── 町屋の表店の列の端の空きを閉じる型
+                // (EDO-0503 施主「門前町の入り口の区切りで使ってるような仕切り」)。両面の実寸FBX・1間ちょうど(EdoAssets.Own.TategoshiSaku)。
+                // ⚠ 端柱は足さない ── 端は店の妻と隣の塀へ食い込ませて隠す。
+                var made = PanelRun(parent, A, B, outward, prefix, EdoAssets.Own.TategoshiSaku(2.12f), gapC, gapHalf,
+                                    pair: false, unitScale: 1f);
+                // ⭐ 駒は掘立の根入れ 0.26 を持つ(札 yBottom −0.26)。PanelRun は下端を地面に当てるので、根入れぶん沈めて
+                //    地覆の下端を当たりの最も高い地面へ揃える(埋めて隠す)。⛔ 沈めないと地覆が 0.16〜0.25m 浮いた(2026-10-02 実測)。
+                const float NEIRE = 0.26f;
+                foreach (var g in made) { try { SeatOnGround(g, NEIRE, 1200); } catch (Exception) { } }
+                float h = made.Count > 0 ? RB(made[0]).size.y - NEIRE : float.NaN;
+                note = string.Format("竪格子の柵 {0}枚(地上の丈 {1:F2}m・根入れ {2:F2})", made.Count, h, NEIRE);
+                return made;
+            }
+
+            case "mokusaku":
+            {
+                // 木柵(杭と横板の板柵・丈 1.52)── 町屋の表店の列の端の空きを閉じる型(EDO-0503 施主「木の柵じゃない？」)。
+                // 両面の実寸FBX(EdoAssets.Own.HoriSaku)。⛔ 丸太の腰高柵(SakuKoshidaka)は材が灰色で鉄柵に見えた(2026-10-02 実見)。
+                // ⚠ 端柱は足さない ── 端は店の妻と隣の塀へ食い込ませて隠す。
+                var made = PanelRun(parent, A, B, outward, prefix, EdoAssets.Own.HoriSaku, gapC, gapHalf,
+                                    pair: false, unitScale: 1f);
+                float h = made.Count > 0 ? RB(made[0]).size.y : float.NaN;
+                note = string.Format("木柵 {0}枚(駒の丈 {1:F2}m)", made.Count, h);
+                return made;
+            }
+
             case "kenninji":
             {
                 // 建仁寺垣(丈 1.5・割竹の目隠しの垣)── 町屋の表店の列の端の空きを閉じる型(EDO-0503 施主「柵とか竹垣レベル」)。

@@ -74,6 +74,10 @@ KUG_W, KUG_H = 0.909, 1.515                # 潜りの口 3尺 × 5尺【U】
 NEIRE     = 0.26       # 袖の柱の根入れ(掘立)= 沓石の根入れと揃える
 OPEN_DEG  = 90.0       # 大戸の振れ角(内開き・親柱の真後ろへ畳む)【U】
 SILL = (-0.04, 0.06, 0.16)
+SODE_BZ    = 0.022     # 袖の竪子の半見込
+SODE_PITCH = 0.15      # 竪子のピッチ(m.koshi の目安。区間ごとに等分)
+SODE_BAR   = 0.02      # 竪子の半見付
+SODE_YOKO  = 2         # 横子の本数
 KEISHA = 0.0           # 道の横断勾配(build の引数で上書き)。−X 端 → +X 端の下がり[m]
 
 
@@ -89,6 +93,37 @@ def warp(m, i0, ya, fa, yb, fb):
         t = 0.0 if yb == ya else min(1.0, max(0.0, (v.z - ya) / (yb - ya)))
         a, b = fa(v.x), fb(v.x)
         v.z += a + (b - a) * t
+
+
+# ---------------------------------------------------------------- 袖の竪格子(共用)
+# ⭐ 袖の意匠はここだけに書く。`build_tategoshi_saku.py`(表店の列の端を閉じる 1間の柵・EDO-0503)も
+#    これを呼ぶ。⛔ 同じ意匠を別のスクリプトへ写さない。座標はすべて VM.Mesh の走り x(Unity X = −x)。
+def sode_uvs(wuv):
+    """袖の材の UV 矩形(柱・笠木・地覆・竪子)。⛔ 一点貼りにしない"""
+    return dict(post=VM.sub(wuv, 0.10, 0.02, 0.42, 0.98),
+                beam=VM.sub(wuv, 0.20, 0.15, 0.95, 0.50),
+                rail=VM.sub(wuv, 0.30, 0.10, 0.85, 0.30),
+                bar=VM.sub(wuv, 0.60, 0.10, 0.95, 0.90))
+
+
+def sode_post(m, x0, x1, top, sq, uv):
+    """袖の柱(掘立・根入れ NEIRE)。頭 = 笠木の下端 top・見込 sq"""
+    m.box(x0, x1, -NEIRE, top, -sq / 2, sq / 2, uv['post'], WOOD)
+
+
+def sode_kasagi(m, x0, x1, top, uv):
+    """袖の笠木。天端 = top"""
+    m.box(x0, x1, top - SODE_KASA[0], top, -SODE_KASA[1], SODE_KASA[1], uv['beam'], WOOD)
+
+
+def sode_jifuku(m, x0, x1, uv):
+    m.box(x0, x1, 0.0, JIFUKU[0], -JIFUKU[1], JIFUKU[1], uv['rail'], WOOD)
+
+
+def sode_koshi(m, x0, x1, ky0, uv):
+    """地覆の天端から笠木の下端 ky0 までの竪格子"""
+    m.koshi(x0, x1, JIFUKU[0], ky0, -SODE_BZ, SODE_BZ, uv['bar'], WOOD,
+            pitch=SODE_PITCH, bar=SODE_BAR, yoko=SODE_YOKO)
 
 
 def main_opening(haba):
@@ -127,10 +162,8 @@ def build(haba, kuguri="L", opened=True, name=None, want_spec=False, spec_only=F
     P = N.palette()
     m = VM.Mesh()
     wuv = P['wuv']
-    post_uv = VM.sub(wuv, 0.10, 0.02, 0.42, 0.98)
-    beam_uv = VM.sub(wuv, 0.20, 0.15, 0.95, 0.50)
-    rail_uv = VM.sub(wuv, 0.30, 0.10, 0.85, 0.30)
-    bar_uv  = VM.sub(wuv, 0.60, 0.10, 0.95, 0.90)
+    SU = sode_uvs(wuv)
+    post_uv, beam_uv, rail_uv, bar_uv = SU['post'], SU['beam'], SU['rail'], SU['bar']
     hx, px, ox, ex, ei = L['hx'], L['px'], L['ox'], L['ex'], L['ei']
     oh = OYA / 2.0
     gm = lambda x: ground_u(-x, haba, keisha)      # メッシュの走り x の地面(Unity X = −x)
@@ -173,8 +206,7 @@ def build(haba, kuguri="L", opened=True, name=None, want_spec=False, spec_only=F
 
     # ---- 袖(両側)。端柱・中柱は掘立、地覆・笠木・竪格子
     ky0, ky1 = SODE_TOP - SODE_KASA[0], SODE_TOP
-    jz = JIFUKU[1]
-    bz = 0.022                          # 竪子の半見込
+    bz = SODE_BZ
     for s in (-1, 1):
         i_sode = len(m.v)               # 袖は全部まとめて勾配なりに剪断する(下の warp)
         a, b = ox, ei                   # 格子を張る区間(|x|)
@@ -182,19 +214,19 @@ def build(haba, kuguri="L", opened=True, name=None, want_spec=False, spec_only=F
             return (min(s * u0, s * u1), max(s * u0, s * u1))
         # 端柱(外の面 = 区画の角)
         x0, x1 = X(ei, ex)
-        m.box(x0, x1, -NEIRE, ky0, -EP / 2, EP / 2, post_uv, WOOD)
+        sode_post(m, x0, x1, ky0, EP, SU)
         # 笠木・地覆は親柱の面から端柱の外の面まで(⛔ 外へ出さない — 区画の角に食い込む)
         x0, x1 = X(ox, ex)
-        m.box(x0, x1, ky0, ky1, -SODE_KASA[1], SODE_KASA[1], beam_uv, WOOD)
+        sode_kasagi(m, x0, x1, ky1, SU)
         x0, x1 = X(ox, ei)
-        m.box(x0, x1, 0.0, JIFUKU[0], -jz, jz, rail_uv, WOOD)
+        sode_jifuku(m, x0, x1, SU)
         # 潜り(この袖に付くなら親柱の脇)
         bays = []
         if (L['kug'] == "L" and s < 0) or (L['kug'] == "R" and s > 0):
             k0, k1 = ox, ox + KUG_W
             # 方立(潜りの戸当たり側)
             x0, x1 = X(k1, k1 + MP)
-            m.box(x0, x1, -NEIRE, ky0, -MP / 2, MP / 2, post_uv, WOOD)
+            sode_post(m, x0, x1, ky0, MP, SU)
             # 潜りの地覆は切る(戸の下は敷居)— 敷居を据え直す
             x0, x1 = X(k0, k1)
             m.box(x0, x1, SILL[0], SILL[1], -0.10, 0.10, rail_uv, WOOD)
@@ -216,11 +248,11 @@ def build(haba, kuguri="L", opened=True, name=None, want_spec=False, spec_only=F
             u += w
             if i < n - 1:
                 x0, x1 = X(u, u + MP)
-                m.box(x0, x1, -NEIRE, ky0, -MP / 2, MP / 2, post_uv, WOOD)
+                sode_post(m, x0, x1, ky0, MP, SU)
                 u += MP
         for (u0, u1) in bays:
             x0, x1 = X(u0, u1)
-            m.koshi(x0, x1, JIFUKU[0], ky0, -bz, bz, bar_uv, WOOD, pitch=0.15, bar=0.02, yoko=2)
+            sode_koshi(m, x0, x1, ky0, SU)
         warp(m, i_sode, 0.0, gm, 1.0, gm)
     o = m.to_object(name, [P['wood'], P['wall'], P['stone']])
     V.sel([o])

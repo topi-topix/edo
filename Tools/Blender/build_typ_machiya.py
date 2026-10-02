@@ -49,7 +49,12 @@
   ・`VM.Mesh.box` は **Unity X = −走り**。左右非対称なので立面レンダでは気づけない
     ⇒ `rr()` を必ず通し、`axis` で写像を**焼いて**確かめてから組む。
   ・`m.box` に **z0 > z1 を渡すと面が全部内向き**になる(Unity では消える)。
-    `OB.shitami` は out<0 でそう呼ぶので、躯体は **焼く前に法線を取り直す**(`_recalc`)。
+    `OB.shitami` は out<0 でそう呼ぶので、躯体は **焼く前に面の向きを直す**。
+  ・⛔⛔ その直しに `bmesh.ops.recalc_face_normals` を使わない。`VM.Mesh` は頂点を溶接しない
+    **面のスープ**なので島が面1枚ずつになり、向きがでたらめに決まる — 妻壁の漆喰・下見板・
+    水切りが裏返り、**妻から背景が抜けた**(施主指摘 2026-10-02・EDO-0503)。
+    ⭕ `VM.orient_outward(body, m.gid)` — 部品(箱・断面の押し出し)ごとに重心から外へ向ける。
+    検めは `verify` ④(妻へ外から撃ち、最初の**表向きの**面が壁の厚みの中にあるか)。
   ・`clip_convex` の bisect は**孤立頂点を残す** ⇒ 測る前に掃除する(`_clean_loose`)。
 """
 import bpy, sys, os, math
@@ -125,16 +130,6 @@ def axis_check():
           "Z %.3f..%.3f(期待 3..4)⇒ %s"
           % (ux0, ux1, mn.z, mx.z, uz0, uz1, "⭕" if ok else "⛔ 写像が違う"))
     return ok
-
-
-def _recalc(o):
-    """**法線を外向きに取り直す。** ⛔ 省かない — `OB.shitami` は out<0 のとき
-    `m.box` に z0>z1 を渡すので、躯体の裏面・妻面の箱が**全部内向き**で焼ける
-    (Blender の EEVEE は裏面も描くので**レンダでは気づけない**。Unity で消える)。"""
-    import bmesh
-    bm = bmesh.new(); bm.from_mesh(o.data)
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    bm.to_mesh(o.data); bm.free(); o.data.update()
 
 
 def _clean_loose(o):
@@ -458,7 +453,7 @@ def build(wKen=5.0, dM=4.0 * KEN, name=None):
           uv=VM.sub(P['wuv'], 0.30, 0.55, 0.85, 0.80), mat=WOOD)
 
     body = m.to_object(name + "_body", [P['wood'], P['wall'], P['stone'], P['shoji']])
-    _recalc(body)
+    print("[machiya] %s 面を部品の外へ向け直した数 %d" % (name, VM.orient_outward(body, m.gid)))
 
     # ── 瓦 ────────────────────────────────────────────────────
     ex0, ex1 = -hw - END, hw + END
@@ -489,7 +484,7 @@ def build(wKen=5.0, dM=4.0 * KEN, name=None):
           % (name, EAVE2_TIP, RIDGE_Y, RIDGE_Y + RIDGE_SHOW,
              URIDGE_Y, URIDGE_Y + RIDGE_SHOW, UEAVE_TIP))
     print("[machiya] %s 孤立頂点を落とした数 %d" % (name, n_loose))
-    build.last = dict(kei="zushi", hw=hw, hd=hd, mise_z=MISE_Z, ura_z=URA_Z,
+    build.last = dict(kei="zushi", hw=hw, hd=hd, mise_z=MISE_Z, ura_z=URA_Z, sil=segs,
                       tana=True, eave_tip=EAVE2_TIP, ridge_top=RIDGE_Y + RIDGE_SHOW)
     return o, name
 
@@ -578,7 +573,7 @@ def build_hiraya(wKen=2.0, dM=2.5 * KEN, name=None):
     rake(m, P, hw, prof)
 
     body = m.to_object(name + "_body", [P['wood'], P['wall'], P['stone'], P['shoji']])
-    _recalc(body)
+    print("[machiya] %s 面を部品の外へ向け直した数 %d" % (name, VM.orient_outward(body, m.gid)))
 
     ex0, ex1 = -hw - END, hw + END
     pieces = [
@@ -599,7 +594,7 @@ def build_hiraya(wKen=2.0, dM=2.5 * KEN, name=None):
     print("[machiya] %s 平屋 通り Z=%+.3f / 柱通り %+.3f / 裏壁 %+.3f / 軒先 %.2f / 瓦面の大棟 %.3f(棟天端 %.3f)"
           % (name, hd, MISE_Z, URA_Z, HIRA_EAVE, RIDGE_Y, RIDGE_Y + RIDGE_SHOW))
     print("[machiya] %s 孤立頂点を落とした数 %d" % (name, n_loose))
-    build.last = dict(kei="hira", hw=hw, hd=hd, mise_z=MISE_Z, ura_z=URA_Z,
+    build.last = dict(kei="hira", hw=hw, hd=hd, mise_z=MISE_Z, ura_z=URA_Z, sil=segs,
                       tana=len(bays) > 1, eave_tip=HIRA_EAVE, ridge_top=RIDGE_Y + RIDGE_SHOW)
     return o, name
 
@@ -731,7 +726,57 @@ def verify(o, wKen, dM):
                 bad3.append((round(ux, 1), round(uy, 2), n))
     print("[machiya] 検証③ 通り→奥の貫通 %s"
           % ("⭕ どの高さも2面以上" if not bad3 else "⚠ " + str(bad3[:8])))
-    return not miss and not bad2
+    n4 = tsuma_audit(o)
+    return not miss and not bad2 and n4 == 0
+
+
+def tsuma_audit(o, step=0.03):
+    """④ **妻へ外から撃ち、背景が抜けないか数える**(Unity の裏面カリングと同じ読み)。
+    妻壁があるべき範囲 = `build.last['sil']`(柱通り〜裏壁・地上 0.10〜屋根の線)の格子を、
+    外 1m から 真横 / 前後へ斜め ±0.6 / 上から斜め 0.4 の4方向で撃つ。
+    ⭐ **裏向きの面は素通り**させる(カリングで描かれない)。最初の**表向きの**面が
+      壁の厚みの中(|x| ≥ 柱通り − 0.25)に無ければ「抜け」。
+    ⛔ 「当たったか」だけで数えない — 裏返った面にも光線は当たる(2026-10-02 に
+      ②が ⭕ のまま、施主の目には妻が抜けていた)。"""
+    import mathutils
+    L = build.last
+    hw = L['hw']
+    inv = o.matrix_world.inverted(); r3 = inv.to_3x3()
+
+    def front(orig, d):
+        p = inv @ mathutils.Vector(orig); dl = (r3 @ mathutils.Vector(d)).normalized()
+        for _ in range(40):
+            ok, loc, nor, idx = o.ray_cast(p, dl, distance=60.0)
+            if not ok:
+                return None
+            if nor.dot(dl) < 0:
+                return o.matrix_world @ loc
+            p = loc + dl * 1e-4
+        return None
+
+    dirs = [(0.0, 0.0), (0.6, 0.0), (-0.6, 0.0), (0.0, -0.4)]     # (dz, dy) / 1m
+    bad, tot = [], 0
+    for s in (-1, 1):
+        for (z0, z1, y0, y1) in L['sil']:
+            nz = max(1, int((z1 - z0) / step))
+            for i in range(nz):
+                uz = z0 + (z1 - z0) * (i + 0.5) / nz
+                yr = y0 + (y1 - y0) * (uz - z0) / (z1 - z0)
+                ny = max(1, int((yr - 0.10) / step))
+                for j in range(ny):
+                    uy = 0.10 + (yr - 0.10) * (j + 0.5) / ny
+                    for (dz, dy) in dirs:
+                        tot += 1
+                        # Unity の点 (s·(hw+1), uy−dy, uz−dz) から (−s, dy, dz) へ
+                        orig = (-(s * (hw + 1.0)), -(uz - dz), uy - dy)
+                        dB = (s, -dz, dy)
+                        h = front(orig, dB)
+                        if h is None or abs(h.x) < hw - 0.25:
+                            bad.append((s, round(uy, 2), round(uz, 2), dz, dy))
+    print("[machiya] 検証④ 妻へ外から(裏面は素通り)%d 本中 抜け %d %s"
+          % (tot, len(bad), "⭕" if not bad else "⛔ " + str(bad[:10])))
+    tsuma_audit.last = (tot, len(bad))
+    return len(bad)
 
 
 def ratio_fix(w, h, res):
@@ -764,6 +809,42 @@ def shots(o, key, box):
     V.studio((c.x + Wd * 0.22, mn.y - r * 0.42, 1.55), (c.x + Wd * 0.10, c.y, 1.30),
              res=(1900, 1050))
     V.render(os.path.join(SHOT, "typ_machiya_%s_mise.png" % key))
+
+
+def tsuma_shots(o, key, box):
+    """**妻の抜けをマゼンタの背景で刷る**(memory: magenta-background-finds-holes)。
+    両妻 × 斜め前 / 真横 / 斜め後の 6 枚。⭐ 材に**裏面カリング**を掛ける(Unity と同じ読み)。
+    ⛔ 地面を敷かない — 足元の抜けが地面の色に化ける。"""
+    V.hook_textures()
+    for m_ in o.data.materials:
+        if m_:
+            m_.use_backface_culling = True
+    for ob in list(bpy.data.objects):
+        if ob.type == 'MESH' and ob is not o:
+            ob.hide_render = True
+    mn, mx = box
+    c = (mn + mx) * 0.5
+    r = max(mx.x - mn.x, mx.z - mn.z, mx.y - mn.y)
+    out = []
+    for sd, tag in ((1, "mX"), (-1, "pX")):        # Blender +X = Unity −X
+        ex = mx.x if sd > 0 else mn.x
+        for vw, (dy, hz) in (("mae", (-1.0, 0.55)), ("yoko", (0.0, 0.45)), ("ushiro", (1.0, 0.55))):
+            for ob in list(bpy.data.objects):
+                if ob.type in ('CAMERA', 'LIGHT'):
+                    bpy.data.objects.remove(ob)
+            cam = (ex + sd * r * 1.5, c.y + dy * r * 1.2, (mx.z - mn.z) * hz + 0.6)
+            V.studio(cam, (c.x + sd * (mx.x - mn.x) * 0.35, c.y, (mx.z - mn.z) * 0.45), res=(900, 650))
+            # ⚠ 世界の色をマゼンタにすると**光までマゼンタ**になり材が全部染まって読めない(2026-10-02)。
+            #   ⭕ 透明で刷り、後でマゼンタの上に合成する(抜け = アルファ < 1 の画素)
+            bpy.context.scene.render.film_transparent = True
+            bpy.context.scene.render.image_settings.color_mode = 'RGBA'
+            pth = os.path.join(SHOT, "typ_machiya_%s_tsuma_%s_%s.png" % (key, tag, vw))
+            V.render(pth)
+            out.append(pth)
+    for m_ in o.data.materials:
+        if m_:
+            m_.use_backface_culling = False
+    return out
 
 
 def _hook_eg(mat_name, jpg):
@@ -917,6 +998,10 @@ def main():
     verify(o, wKen, dM)
     if "--render" in argv:
         shots(o, key, (mn, mx))   # ⚠ 書き出しの前に撮る
+    if "--render" in argv or "--tsuma" in argv:
+        tsuma_shots(o, key, (mn, mx))
+    if "tsuma_only" in words:
+        return
     path = os.path.join(OUT, name + ".fbx")
     cmd = "--kei %s --ken %s --okuyuki %.4f" % (kei, fmt(wKen), dM)
     sp = spec_from_design(o, wKen, dM, mn, mx, cmd)

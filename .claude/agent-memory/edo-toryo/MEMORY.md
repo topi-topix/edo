@@ -39,6 +39,7 @@
 - [測って置く。事後に寄せる関数を持たない](measure-dont-nudge.md) — 帯の頂点では門柱が消えて偽の穴。閉じは三角形で測る
 - [段を跨ぐ渡廊下は区間に割る](roka-dan-step-joint.md) — 段の柱は低い側。折れ目に 0.19m の口(雨押えの部材が無い)
 - [設計面を地形へ写す二つの罠](grade-transfer-cliff-and-dropped-cells.md) — 石垣の見え面を双一次で跨がない・縮めた設計面の外に前の巡の切盛が残る
+- [区画を引き直すと焼いていない算出物の欄が線の外に据わる](stale-impl-after-parcel-redraw.md) — 岡部の杭列 484 個が 4〜11m 外。RetireOutsidePoly で退ける
 - [区画の線を動かすと前の造成が隣に残る](prev-grade-left-in-neighbor-after-parcel-move.md) — Stage1_Grade(prev) が類型の区画も戻す。隣の塀が浮く恐れ
 - [造成は変わった段だけ流し直す](regrade-only-the-changed-block.md) — 全面だと築山と池が平らに戻り掘り直せない
 - [番所はピボットが奥行の芯・部材は片手](bansho-pivot-and-protrude.md) — protrude は躯体の外面の越える量。対に振らないと袖塀へ 0.22 めり込む

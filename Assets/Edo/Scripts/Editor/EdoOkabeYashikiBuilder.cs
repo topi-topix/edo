@@ -1921,7 +1921,9 @@ public static class EdoOkabeYashikiBuilder
             wait.Add("法肩の竹垣: 焼いていない丈 " + string.Join(" / ", new List<string>(noH).ToArray())
                    + "m の run を据えなかった(⛔ 近い丈へ寄せない — 見透しの遮蔽が丈で決まる)"
                    + " → build_okabe_niwa.py -- yotsumegaki");
-        return "法肩の竹垣: " + made + " スパン + 親柱 " + posts + " / " + runs + " 本";
+        int outR = EdoBuild.RetireOutsidePoly(grp, Poly, wait, "法肩の竹垣(算出物 rails)");   // 硬い・区域(EDO-0502)
+        return "法肩の竹垣: " + made + " スパン + 親柱 " + posts + " / " + runs + " 本"
+             + (outR > 0 ? "(区画の外の " + outR + " 個を退けた)" : "");
     }
 
     // ---------------------------------------------------------------- 石段
@@ -2042,6 +2044,7 @@ public static class EdoOkabeYashikiBuilder
             // ⚠ **部材ごとに据え方が違う**(ピボットも正規化の軸も別)。⛔ 一律に置かない。
             var sub = Group("Niwa/" + kind.Replace("(", "_").Replace(")", "").Replace("・", "_"));
             int n0 = PlaceNiwaItem(sub, g, kind, key, pts, missing, wait);
+            n0 -= EdoBuild.RetireOutsidePoly(sub, Poly, wait, "庭 " + kind + "(算出物 gardens)");   // 硬い・区域(EDO-0502)
             made += n0;
             if (n0 == 0 && !missing.ContainsKey(key)) skipped++;
         }
@@ -2893,7 +2896,9 @@ public static class EdoOkabeYashikiBuilder
         if (missing.Count > 0)
             wait.Add("汀の杭: 焼かれていない径 " + string.Join(" / ", new List<string>(missing).ToArray())
                    + " → build_maruta.py -- kui");
-        return "汀の杭列: " + made + " 本(貫 " + nuki + ")";
+        // ⛔ 算出物の汀線が区画の外なら**建てない**(硬い・区域侵犯 許容0・EDO-0502)── 杭と貫を実メッシュで測って退ける
+        int outK = EdoBuild.RetireOutsidePoly(grp, Poly, wait, "汀の杭列(算出物 kui)");
+        return "汀の杭列: " + (made + nuki - outK) + " 個(杭 " + made + "・貫 " + nuki + " を据え、区画の外の " + outK + " 個を退けた)";
     }
 
     // ---------------------------------------------------------------- 残り(地表・部材待ち)

@@ -780,6 +780,34 @@ public static partial class EdoBuild
         return float.NaN;
     }
 
+    /// <summary>**硬い(許容0)・区域**: 群の直下の駒のうち、壁体(屋根を除く実頂点 <see cref="BodyExRoof"/>)が
+    /// 区画の多角形の外へ出た物を**退ける**(消す)。返すのは退けた数。<paramref name="note"/> へ
+    /// 「何を・何個・最も外へ出た量」を一行で積む(呼ぶ側が ★ で刷る)。
+    /// ⭐ 算出物(焼いた点・線)から据える駒のための門 ── 区画を引き直した後に焼き直していない欄
+    ///   (EDO-0502 岡部: 汀の杭列 242 本が新しい線の 4.3〜10.1m 外)を建てずに済ませる。
+    /// ⛔ 寄せない・引かない(事後に寄せる関数ではない)。⛔ 区画の線の上に立つ囲い(塀・石垣・柵)には使わない
+    ///   ── あれは線に沿って納める物で、<see cref="KeepInsidePoly"/> の担当。</summary>
+    public static int RetireOutsidePoly(Transform group, Vector2[] poly, List<string> note, string label, float tol = 0f)
+    {
+        if (group == null || poly == null) return 0;
+        var gone = new List<GameObject>(); float worst = 0f; string worstName = null;
+        foreach (Transform c in group)
+        {
+            if (!c.gameObject.activeInHierarchy) continue;
+            var pts = BodyExRoof(c, 600);
+            if (pts.Count == 0) continue;
+            float o = OutsideBy(pts, poly, Vector2.zero);
+            if (o <= tol) continue;
+            gone.Add(c.gameObject);
+            if (o > worst) { worst = o; worstName = c.name; }
+        }
+        foreach (var g in gone) UnityEngine.Object.DestroyImmediate(g);
+        if (gone.Count > 0 && note != null)
+            note.Add(label + ": 区画の外へ出た " + gone.Count + " 個を退けた(最も外 " + worst.ToString("F2")
+                     + "m @" + worstName + ")── 硬い・区域侵犯 許容0");
+        return gone.Count;
+    }
+
     /// <summary>点群を <paramref name="off"/> だけずらしたとき、多角形の外へ出る最大距離[m](0 = 全部内側)。</summary>
     static float OutsideBy(List<Vector3> pts, Vector2[] poly, Vector2 off)
     {

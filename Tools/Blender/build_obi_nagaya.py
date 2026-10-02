@@ -202,6 +202,8 @@ def door_leaves(m, P, x0, x1, y0, y1, plane, out, n=2):
 def section(m, xa, xb, pts, uv, mat):
     """(厚み z, 高さ y) の4点断面を 走り xa..xb へ押し出す(破風板・妻壁・裏板)。
     ⚠ 4点固定 — Mesh は quad/tri しか積まないので n 角形は分けて渡すこと。"""
+    if hasattr(m, "group"):
+        m.group()                 # 押し出し1つ = 凸の部品1つ(`VM.orient_outward` が使う)
     A = [(xa, p[1], p[0]) for p in pts]
     B = [(xb, p[1], p[0]) for p in pts]
     m.quad(A, uv, mat)

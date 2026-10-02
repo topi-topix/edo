@@ -99,6 +99,8 @@ PARTS = {
     #   (DobeiRun)。隅部材もその組から起こさないと直線材と質感・厚みが揃わない。
     "dobei":    dict(kit="PAIR", src=os.path.join(ROOT, "Assets/edogoyomi/es_dobei/s_hei_center.obj"),
                      out="Dobei_Kado", axis="x", thk="keep", origin="pivot", flip=True, pitch=1.645),
+    # ⚠ 90° の出隅で腕の先へ在庫の棟を突き付けるなら build_nagaya_kado.py(帯を pier の芯で折る・腕の長さ可変)。
+    #   ここの鏡映の留めは片方の腕の先の位相が素の棟の端と合わない(素の端の無地が 0.571/0.961 と非対称)。
     "nagaya":   dict(kit="OBJ", src=os.path.join(ROOT, "Assets/edogoyomi/es_knagaya/knagaya01c.obj"),
                      out="Nagaya_Kado", axis="x", thk="keep", origin="pivot", flip=True,
                      ridge="n_mune", pitch=4.296),

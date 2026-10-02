@@ -12,6 +12,8 @@
 //   two_sided   … 表店を建てる接道辺の本数(false=1本 / true=長い順に2本)
 //   maguchi_ken … 1 軒の間口。軒数 = 辺長 ÷ 間口(⛔ 棟数を直に書かない)。
 //                 その間口の駒を当方で起こしてあれば(5間 = `Own.Typ.Omotedana`)候補へ足す(EDO-0355)
+//   maguchi_mix … 軒ごとに引く間口[間]の候補(例 [2,3,4,5])。在れば maguchi_ken に代わって軒ごとに効く。
+//                 小さな町は間口 2〜5 間が混ざる ── 一つに揃えると同じ駒が等間隔に並ぶ(EDO-0503 ⑥)
 //   depth_ken   … 表店列の背後の帯の深さ。深い駒を外す関門にもなる(桐畑の代地は 5 間しかない)
 //   pattern     … "none" なら表店列を建てない
 //   ura_nagaya  … 裏長屋の棟数の上限。数でなければ奥行から割った列を全部建てる。0 なら建てない
@@ -32,15 +34,61 @@ public static partial class EdoTypologyBuilder
     /// <summary>焼いてある**奥行を詰めた版**の奥行[間]。`EdoAssets.Own.Typ.Omotedana(float,float)` の注記の
     /// 5×3.85間。⚠ 焼き増したらここも足す — 無い駒は下の存在検査で落ちるので、足し忘れは詰め版が使われないだけ。</summary>
     const float OMOTEDANA_SHALLOW_KEN = 3.85f;
+    /// <summary>小店(2・3間)の奥行[間]: 厨子二階 2.8 / 平屋 2.5(`Own.Typ.Omotedana` / `OmotedanaHira` の注記・EDO-0503 ⑥)。
+    /// 門前4(奥行 5.8m)にも収まる浅さ。⚠ 焼き増したらここも足す。</summary>
+    const float OMOTEDANA_KO_KEN = 2.8f;
+    const float OMOTEDANA_HIRA_KEN = 2.5f;
 
     /// <summary>その間口の表店を**当方で起こしてあるか**を資産の有無で見て、あれば**深い順**に返す
     /// (深い版 → 詰めた版)。⭐ 幅の数字(5)をここへ書かない — 4間の駒を焼けば黙って効く。
     /// 無ければ null(在庫の 2 点だけで建つ)。</summary>
+    /// <summary>この区画の表店に掛けてよい暖簾(noren.json の key)。表の `noren` の欄(業種の割り当て・重複は軒数の比)が
+    /// あればそれ、無ければ noren.json の `ippan: true` の店すべて(町屋・代地・新町・田町の既定)。EDO-0503。</summary>
+    static string[] NorenKeysFor(Spec s)
+    {
+        object v; var d = s.raw;
+        if (d != null && d.TryGetValue("noren", out v) && v is List<object>)
+        {
+            var l = new List<string>();
+            foreach (var o in (List<object>)v) if (o != null) l.Add(o.ToString());
+            if (l.Count > 0) return l.ToArray();
+        }
+        var ip = new List<string>();
+        foreach (var nv in EdoBuild.NorenVariants())
+        {
+            object f; if (nv.TryGetValue("ippan", out f) && f != null && f.ToString().ToLowerInvariant() == "true") ip.Add(nv["key"].ToString());
+        }
+        return ip.ToArray();
+    }
+
+    /// <summary>表の `maguchi_mix`(軒ごとに引く間口[間]の候補)。無い・1 つ以下なら null。EDO-0503 ⑥。</summary>
+    static int[] MaguchiMix(Spec s)
+    {
+        object v; var d = s.raw;
+        if (d == null || !d.TryGetValue("maguchi_mix", out v) || !(v is List<object>)) return null;
+        var l = new List<int>();
+        foreach (var o in (List<object>)v)
+        {
+            double x; if (o != null && double.TryParse(o.ToString(), out x) && x >= 1) l.Add((int)Math.Round(x));
+        }
+        return l.Count > 1 ? l.ToArray() : null;
+    }
+
+    /// <summary>間口の候補すべてについて、当方で起こした駒を集める(幅ごとに深い順)。無ければ null。</summary>
+    static string[] OmotedanaFor(int[] kens)
+    {
+        var l = new List<string>();
+        foreach (var k in kens.Distinct()) { var o = OmotedanaFor(k); if (o != null) l.AddRange(o); }
+        return l.Count > 0 ? l.ToArray() : null;
+    }
+
     static string[] OmotedanaFor(int maguchiKen)
     {
         var l = new List<string>();
         foreach (var p in new[] { EdoAssets.Own.Typ.Omotedana(maguchiKen),
-                                  EdoAssets.Own.Typ.Omotedana(maguchiKen, OMOTEDANA_SHALLOW_KEN) })
+                                  EdoAssets.Own.Typ.Omotedana(maguchiKen, OMOTEDANA_SHALLOW_KEN),
+                                  EdoAssets.Own.Typ.Omotedana(maguchiKen, OMOTEDANA_KO_KEN),      // 小店の厨子二階(EDO-0503 ⑥)
+                                  EdoAssets.Own.Typ.OmotedanaHira(maguchiKen, OMOTEDANA_HIRA_KEN) }) // 小店の平屋
             if (UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(p) != null) l.Add(p);
         return l.Count > 0 ? l.ToArray() : null;
     }
@@ -72,7 +120,66 @@ public static partial class EdoTypologyBuilder
             var second = roads.FirstOrDefault(e => e != first);
             if (second != null) outp.Add(second);
         }
+        // ⭐ 表の欄 extra_front: "N|S|E|W" ── 辻の角の筆で、もう一本の通り(その方角を向く接道辺)にも店を向ける(EDO-0503)。
+        //    two_sided の「長い順の 2 本目」は角の短い辺を拾って 1 軒だけ別向きに載ることがあった(EDO-0503 ⑤)ので、方角で名指す。
+        //    店が 2 軒(2 間×2)入らない辺は採らない。
+        string xf = S(d, "extra_front");
+        if (xf != null)
+        {
+            var dir = xf == "N" ? Vector2.up : xf == "S" ? Vector2.down : xf == "E" ? Vector2.right : Vector2.left;
+            var cand = roads.Where(e => !outp.Contains(e) && e.len >= 2f * 2f * KEN && Vector2.Dot(e.outward, dir) > 0.7f)
+                            .OrderByDescending(e => Vector2.Dot(e.outward, dir)).FirstOrDefault();
+            if (cand != null) outp.Add(cand);
+        }
         return outp;
+    }
+
+    /// <summary>**町木戸**(EDO-0503 ②)。表の欄 <c>machi_kido: {"with": "&lt;隣の区画&gt;", "end": "N|S|E|W"}</c> を読み、
+    /// この区画と隣の区画の**角どうしの組**(間が道幅 4〜20m)のうち、その方角の端の組へ木戸を横に渡す。
+    /// ⭐ 道幅は角の実測で決め、駒はその幅で焼いた物を引く(<c>EdoAssets.Own.MachiKido</c>)。無ければ ⛔ で建てない(硬い)。
+    /// 据えるのは <see cref="EdoBuild.MachiKidoAcross"/>(親柱の外面を角へ突き付ける)。+Z(外)は二区画の重心から離れる向き。
+    /// 置き場は "Michi"(道の上の物 — 区画の外にあるのが正しい)。</summary>
+    static string MachiKido(Spec s, Transform root, Vector2[] poly)
+    {
+        object o;
+        if (s.raw == null || !s.raw.TryGetValue("machi_kido", out o) || !(o is Dictionary<string, object>)) return null;
+        var d = (Dictionary<string, object>)o;
+        string other = S(d, "with"), end = (S(d, "end") ?? "S").ToUpperInvariant();
+        var q = other != null ? EdoParcels.Get(other) : null;
+        if (q == null || q.Length < 3) return "    ⛔ 町木戸: 表の machi_kido.with の区画が引けない — " + (other ?? "(空)");
+        Vector2 dir = end == "N" ? Vector2.up : end == "E" ? Vector2.right : end == "W" ? Vector2.left : Vector2.down;
+        // ① その方角の端を測り(組の中点の最も先)、② 端から 2m 以内の組のうち**最も狭い**組を口とする
+        //    (端の角が一筆に二つ並ぶと、遠い方の角どうしを渡して道幅を倍に取る ── 2026-10-02 門前1 で 19.92m を拾った)。
+        float best = float.NegativeInfinity;
+        foreach (var p in poly)
+            foreach (var r in q)
+            {
+                float w = (r - p).magnitude;
+                if (w >= 4f && w <= 20f) best = Mathf.Max(best, Vector2.Dot((p + r) * 0.5f, dir));
+            }
+        bool found = false; Vector2 a = Vector2.zero, b = Vector2.zero; float narrow = float.PositiveInfinity;
+        foreach (var p in poly)
+            foreach (var r in q)
+            {
+                float w = (r - p).magnitude;
+                if (w < 4f || w > 20f || Vector2.Dot((p + r) * 0.5f, dir) < best - 2f) continue;
+                if (w < narrow) { narrow = w; a = p; b = r; found = true; }
+            }
+        if (!found) return "    ⛔ 町木戸: " + other + " との間に道幅 4〜20m の角の組が無い";
+        Vector2 cen = Vector2.zero;
+        foreach (var p in poly) cen += p;
+        foreach (var r in q) cen += r;
+        cen /= (poly.Length + q.Length);
+        Vector2 away = ((a + b) * 0.5f - cen).normalized;
+        float haba = Mathf.Round((b - a).magnitude * 100f) / 100f;
+        float keisha = EdoBuild.MachiKidoKeisha(a, b, away);       // 道の横断の下がり(柱の足元が勾配なりに伸びる版を引く)
+        string path = EdoAssets.Own.MachiKido(haba, keisha);
+        if (UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
+            return string.Format("    ⛔ 町木戸: 道幅 {0:F2}m・横断の下がり {1:F2}m の駒が未焼き(建てない)— blender --background --python Tools/Blender/build_machikido.py -- --haba {0:F2} --keisha {1:F2}", haba, keisha);
+        string note;
+        var go = EdoBuild.MachiKidoAcross(Group("Michi", root), path, a, b, away, "MachiKido_" + other, out note, keisha);
+        return string.Format("    町木戸: {0} との間の {1} の口(道幅 {2:F2}m・横断の下がり {5:F2}m)に{3} — {4}",
+                             other, end, haba, go != null ? "据えた" : "⛔ 据えなかった", note, keisha);
     }
 
     /// <summary>**Stage 3m — 町屋。**表店の列(接道辺 1〜2 本)・自身番屋・裏長屋。
@@ -98,7 +205,9 @@ public static partial class EdoTypologyBuilder
         var g = Group("Tatemono", root);
         // 自身番屋は**列の頭に 1 軒ぶん**として差す(⛔ 区画の中へ単独で散らさない)。
         string lead = s.jishinban ? EdoAssets.Eg.Jishinban : null;
-        string[] ours = OmotedanaFor(s.maguchiKen);           // 表の間口の駒を起こしてあれば候補へ足す
+        int[] mix = MaguchiMix(s);                             // 軒ごとに引く間口(EDO-0503 ⑥)
+        float[] mixM = mix != null ? mix.Select(k => k * KEN).ToArray() : null;
+        string[] ours = mix != null ? OmotedanaFor(mix) : OmotedanaFor(s.maguchiKen);   // 表の間口の駒を起こしてあれば候補へ足す
         int totalPieces = 0, totalHouses = 0, wantTotal = 0, dropped = 0, clashed = 0;
         var built = new List<GameObject>();       // 先に建った列(両側町の角で取り合う)
         float roomFirst = 0f;                     // 辺0の背後の**実測**の奥行[m](裏長屋の割りに効かせる)
@@ -106,6 +215,7 @@ public static partial class EdoTypologyBuilder
         float worstJoint = float.NaN, worstWallGap = 0f, worstFace = float.NaN, restSum = 0f;
         int kinds = 0;
         var oursUsed = new HashSet<string>();
+        var allHouses = new List<List<GameObject>>();   // 暖簾を軒ごとに掛ける(EDO-0503)
 
         for (int k = 0; k < fronts.Count; k++)
         {
@@ -115,8 +225,11 @@ public static partial class EdoTypologyBuilder
             built.AddRange(EdoBuild.MachiyaRun(g, e.a, e.b, e.outward, pad, maguchiM, depthM,
                                 hasGate ? gateC : Vector2.zero, hasGate ? gateHalf : -1f,
                                 "Omotedana" + k, k == 0 ? lead : null, ours, poly,
-                                k == 0 ? null : built, out t, YuTanaSeed(s, "Omotedana" + k)));
+                                k == 0 ? null : built, out t, YuTanaSeed(s, "Omotedana" + k), mixM));
             clashed += t.clashed;
+            if (t.abutted > 0)
+                log.Add(string.Format("      辺{0}: 先に建った列の駒へ区間の端を {1} か所突き付けた(角を空けない・軒の出の分の隙は残る)", e.i, t.abutted));
+            if (t.houseList != null) allHouses.AddRange(t.houseList);
             if (k == 0) roomFirst = t.roomM;
             shopDeep = Mathf.Max(shopDeep, t.shopD);
             totalPieces += t.pieces; totalHouses += t.houses; wantTotal += t.wantHouses;
@@ -137,13 +250,20 @@ public static partial class EdoTypologyBuilder
                 log.Add(string.Format("      ⚠ 辺{0} の背後は実測 {1:F1}m しかない(表の depth_ken は {2}間={3:F1}m)"
                                     + " — 深い駒を候補から外した。表の奥行を検め直すこと",
                                       e.i, t.roomM, s.depthKen, depthM));
+            if (t.steepCutM > 0f)
+                log.Add(string.Format("      ⚠ 辺{0}: 道の縦の勾配が {1:P0} を超える列の端 {2:F1}m には店を建てない(急坂は町家の型でない・柔らかい)",
+                                      e.i, EdoBuild.MACHIYA_MAX_GRADE, t.steepCutM));
             if (t.tucked > 0)
                 log.Add(string.Format("      辺{0}: {1}枚を区画の内へ最大 {2:F2}m 折り込んだ(斜めの側辺を跨ぐ列の端・裁定A)",
                                       e.i, t.tucked, t.tuckedM));
         }
 
-        log.Insert(0, string.Format("  町屋: 表店 {0}軒 / 駒 {1}枚 — 接道辺 {2}本({3})",
-            totalHouses, totalPieces, fronts.Count, s.twoSided ? "両側町" : "片側町"));
+        log.Add("    " + EdoBuild.HangNoren(allHouses, NorenKeysFor(s), EdoBuild.Seed(s.id + ":noren")));
+        string kido = MachiKido(s, root, poly);
+        if (kido != null) log.Add(kido);
+        log.Insert(0, string.Format("  町屋: 表店 {0}軒 / 駒 {1}枚 — 接道辺 {2}本({3}){4}",
+            totalHouses, totalPieces, fronts.Count, s.twoSided ? "両側町" : "片側町",
+            mix != null ? "・間口は軒ごとに " + string.Join("/", mix.Select(k => k.ToString()).ToArray()) + "間から引く(表の maguchi_mix)" : ""));
         if (ours != null)
             log.Add(string.Format("    当方の駒を候補へ足した: {0}(間口 {1}間・実寸で据える)",
                 oursUsed.Count > 0 ? string.Join(" / ", oursUsed.ToArray()) : "⚠ どの辺も奥行に収まらず足せなかった", s.maguchiKen));

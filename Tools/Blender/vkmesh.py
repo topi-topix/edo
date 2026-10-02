@@ -21,6 +21,15 @@ class Mesh(object):
 
     def __init__(self):
         self.v, self.f, self.uv, self.mi = [], [], [], []
+        # 面ごとの「部品の番号」(box・断面の押し出し1つ = 1部品)。`orient_outward` が
+        # 部品の重心から外へ面を向け直すのに使う。⛔ bmesh の recalc_face_normals は
+        # **溶接しない面のスープ**では向きを決められず、面ごとにでたらめに裏返す
+        # (2026-10-02 表店の妻壁が背景へ抜けた・EDO-0503)。
+        self.gid, self._g = [], 0
+
+    def group(self):
+        """ここから先の面を新しい部品として数える(閉じた凸の部品の始まりで呼ぶ)。"""
+        self._g += 1
 
     def quad(self, pts, uv, mat=0):
         """pts は論理座標 (走り, 高さ, 厚み)。Blender は Z が上なので入れ替える"""
@@ -30,6 +39,7 @@ class Mesh(object):
         u0, v0, u1, v1 = uv
         self.uv += [(u0, v0), (u1, v0), (u1, v1), (u0, v1)]
         self.mi.append(mat)
+        self.gid.append(self._g)
 
     def quad_uvs(self, pts, uvs, mat=0):
         """4隅の UV を**直に**与える四角形。⚠ `quad` は u=第1軸 / v=第2軸に固定なので、
@@ -41,6 +51,7 @@ class Mesh(object):
         self.f.append([i, i + 1, i + 2, i + 3])
         self.uv += list(uvs)
         self.mi.append(mat)
+        self.gid.append(self._g)
 
     def tri_uvs(self, pts, uvs, mat=0):
         """3隅の UV を直に与える三角形(`quad_uvs` の三角版)。ファン三角形の中心のように
@@ -50,6 +61,7 @@ class Mesh(object):
         self.f.append([i, i + 1, i + 2])
         self.uv += list(uvs)
         self.mi.append(mat)
+        self.gid.append(self._g)
 
     def tri(self, pts, uv, mat=0):
         i = len(self.v)
@@ -58,9 +70,11 @@ class Mesh(object):
         u0, v0, u1, v1 = uv
         self.uv += [(u0, v0), (u1, v0), ((u0 + u1) / 2, v1)]
         self.mi.append(mat)
+        self.gid.append(self._g)
 
     def box(self, x0, x1, y0, y1, z0, z1, uv, mat=0):
         """直方体。走り x・高さ y・厚み z"""
+        self.group()
         self.quad([(x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1)], uv, mat)
         self.quad([(x1, y0, z0), (x0, y0, z0), (x0, y1, z0), (x1, y1, z0)], uv, mat)
         self.quad([(x1, y0, z1), (x1, y0, z0), (x1, y1, z0), (x1, y1, z1)], uv, mat)
@@ -126,6 +140,35 @@ class Mesh(object):
         o = bpy.data.objects.new(name, me)
         bpy.context.collection.objects.link(o)
         return o
+
+
+def orient_outward(o, gid):
+    """**部品(凸)ごとに、面を部品の重心から外へ向け直す。** `gid` = `Mesh.gid`
+    (`to_object` は面の順を保つので、ポリゴンの番号と1対1)。
+    ⛔ `bmesh.ops.recalc_face_normals` で代えない — 溶接しないスープでは島が面1枚ずつに
+      なり、向きがでたらめになる(表店の妻壁の漆喰・下見板が裏返って背景が抜けた)。
+    戻り値 = 裏返した面の数。"""
+    me = o.data
+    if len(gid) != len(me.polygons):
+        raise ValueError("gid %d と面 %d が合わない" % (len(gid), len(me.polygons)))
+    acc = {}
+    for p, g in zip(me.polygons, gid):
+        c, n = acc.get(g, (Vector((0, 0, 0)), 0))
+        for vi in p.vertices:
+            c = c + me.vertices[vi].co
+        acc[g] = (c, n + len(p.vertices))
+    cen = {g: c / n for g, (c, n) in acc.items()}
+    flip = []
+    for p, g in zip(me.polygons, gid):
+        if p.normal.dot(p.center - cen[g]) < -1e-7:
+            flip.append(p.index)
+    if flip:
+        import bmesh
+        bm = bmesh.new(); bm.from_mesh(me)
+        bm.faces.ensure_lookup_table()
+        bmesh.ops.reverse_faces(bm, faces=[bm.faces[i] for i in flip], flip_multires=False)
+        bm.to_mesh(me); bm.free(); me.update()
+    return len(flip)
 
 
 def sub(uv, u0, v0, u1, v1):

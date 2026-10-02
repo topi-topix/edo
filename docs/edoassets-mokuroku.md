@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 348(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 359(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -26,8 +26,8 @@
 | `Eg.Kidobanya` | string | `kidobanya.obj` | — |
 | `Eg.Jishinban` | string | `jishinban.obj` | TypologyBuilder.Inari(Inari), TypologyBuilder.Machiya(Machiya) |
 | `Eg.Hinomiyagura` | string | `hinomiyagura.obj` | Typology(Plan) |
-| `Eg.Shop01` | string | `shop01.obj` | BuildMachiya(MachiyaRun), SannoSha, TypologyBuilder.Machiya(Machiya) |
-| `Eg.Shop02` | string | `shop02.obj` | BuildMachiya(MachiyaRun), SannoSha, TypologyBuilder.Machiya(Machiya) |
+| `Eg.Shop01` | string | `shop01.obj` | BuildMachiya(HangNoren・MachiyaRun), SannoSha, TypologyBuilder.Machiya(Machiya) |
+| `Eg.Shop02` | string | `shop02.obj` | BuildMachiya(HangNoren・MachiyaRun), SannoSha, TypologyBuilder.Machiya(Machiya) |
 | `Eg.DobeiCenter` | string | `s_hei_center.obj` — 塀 | BuildRun, Doi(RemapKido), OkabeYashiki(BindDonorMaterials), PartSpec(Bake) |
 | `Eg.DobeiCorner` | string | `s_hei_corner.obj` | — |
 | `Eg.Itabei5` | string | `itabei5.obj` | SannoSha(BuiltSegs・RemapSannoShinzo・Stage4_Kakoi), MatsudairaDewa(ItabeiRun・PlaceItabeiSpan), OkabeYashiki(AssetByKey) |
@@ -38,6 +38,9 @@
 | `Eg.ToroKasuga` | string | `t_kasuga.obj` — 春日灯籠(edogoyomi `t_kasuga`)── 寺社の境内の献灯(本堂の前・参道の左右に一対)にだけ当てる (庭方の境内の設計 2026-09-27・EDO-0477 P5)。 | TypologyBuilder.Keidai(NiwaKeidai) |
 | `Eg.TexToroKasuga` | string | `t_kasuga.jpg` | — |
 | `Eg.BareTex` | System.Collections.Generic.Dictionary<string, string> | 材の無い edogoyomi の駒 → 同じフォルダの画像(2026-09-28 EDO-0477 施主指摘「灯籠が真っ白」)。 | Build(Place) |
+| `Eg.NorenSpec` | string | `noren.json` — 表店の暖簾・看板の店ごとの染め分け(EDO-0503 施主「全部同じ暖簾」)。 | BuildMachiya(MachiKidoAcross・NorenVariants) |
+| `Eg.NorenTex(shop, key)` | 関数 | — | BuildMachiya(NorenMaterial) |
+| `Eg.NorenMat(shop, key)` | 関数 | — | BuildMachiya(NorenKitMaterial・NorenMaterial・NorenVariants) |
 | `Eg.Shop01Taru` | string | `s01_taru.obj` — 店先の小物 | — |
 | `Eg.Shop01Oke` | string | `oke.obj` | — |
 | `Eg.TexShop01` | string | `shop01.jpg` — テクスチャ(マテリアル生成用) | SannoSha(Stage5_Monzencho) |
@@ -286,6 +289,8 @@
 | `Own.Munamon(w, opened)` | 関数 | 通用口の棟門(岡部邸 `komon.Tsuyodo` — 袋小路に開く勝手口)。 | OkabeYashiki(AssetByKey), Typology(GatePath) |
 | `Own.Munamon(w)` | 関数 | — | OkabeYashiki(AssetByKey), Typology(GatePath) |
 | `Own.KabukimonNoSode` | string | 袖の無い冠木門(旗本屋敷の表門・類型 gate=kabukimon。 | Typology(GateChoices) |
+| `Own.MachiKido(haba)` | 関数 | 町木戸(町境・参道の口を夜に閉じる木戸。 | TypologyBuilder.Machiya(MachiKido・MachiyaFrontEdges), BuildMachiya(UraNagayaRun) |
+| `Own.MachiKido(haba, keisha)` | 関数 | 道の横断勾配に追従する町木戸。keisha = −X 端から +X 端への地面の下がり[m] (正 = +X が低い)。 | TypologyBuilder.Machiya(MachiKido・MachiyaFrontEdges), BuildMachiya(UraNagayaRun) |
 | `Own.MarutaTesuri` | string | 丸太の手すり 1スパン(岡部邸 `routes.R_Katte.outsideRail.tesuri`)。 | OkabeYashiki(AssetByKey) |
 | `Own.MarutaTesuriPost` | string | 手すりの run の端に足す柱1本。ピボット = 柱の芯・地盤レベル。 | OkabeYashiki(AssetByKey・PlaceTesuri) |
 | `Own.Kui(dia)` | 関数 | 汀の杭 1本(岡部邸 `nishi.kuiretsu`)。 | OkabeYashiki(AssetByKey・PlaceKuiretsu・ReportNishiRest), BuildRun(FenceRun・KuiRun) |
@@ -294,6 +299,9 @@
 | `Own.Kado(part, deg)` | 関数 | 折れ角のある隅の部材(留め継ぎ)。生成は Tools/Blender/build_kado.py。 | MatsudairaDewa(PlaceKado・RendBounds), BuildKado, OkabeYashiki(PlaceKado) |
 | `Own.IshigakiKado(deg, h)` | 関数 | 丈違いの石垣の隅(`Castle Wall` の留め継ぎ・丈 h m)。 | BuildKado(KadoArm), SannoSha(Stage3_Dodome) |
 | `Own.IshigakiKado(deg, h, armNegZ, armPosX)` | 関数 | 腕の短い石垣の隅(IshigakiKado と同じ留め継ぎ・同じ据え: position = 両腕の控えの線の交点 P・y = 天端 − h / yaw = 入りの run の駒の yaw / scale = 1)。 | BuildKado(KadoArm), SannoSha(Stage3_Dodome) |
+| `Own.NagayaKado(deg, armNegZ, armPosX, tsuma)` | 関数 | 出隅の隅長屋(L 字の長屋の角・EDO-0500 2026-10-01 観理院 北東の施主指摘 ── 妻を突っ込む納めは屋根が重なり窓が途中で切れた)。 | BuildRun(NagayaKadoPlace) |
+| `Own.NagayaTsuma2(len)` | 関数 | 両端とも妻で閉じた一棟の長屋(真っ直ぐ・折らない)。 | BuildRun(OutsideParcel・SwapTsuma2) |
+| `Own.NagayaKado90(armNegZ, armPosX)` | 関数 | NagayaKado の 90°・妻なし(`Nagaya_Kado_90_A&lt;negZ&gt;x&lt;posX&gt;`)。 | BuildRun(KadoAt) |
 | `Own.IshigakiKiri(deg, atPlusZ, faceLonger)` | 関数 | 片端を斜めの鉛直面で切った城の石垣の駒(`JC.CastleWall` を走りに 2 枚つないだ 4.00m・丈 4.00・EDO-0430)。 | — |
 | `Own.MShop01` | string | `M_Shop01.mat` | — |
 | `Own.MShop02` | string | `M_Shop02.mat` | — |
@@ -312,7 +320,7 @@
 | `Own.MatsudairaOmotemon` | string | `Matsudaira_Omotemon.fbx` — 松江松平邸の表門 — 屋根なしの冠木門(角柱・冠木・内開きの板戸)。 | MatsudairaDewa(Stage5_Mon) |
 | `Own.Sodebei(len, kuguri=…)` | 関数 | 袖塀(長さ可変・潜り戸つき)— 表門の脇で外周を塞ぐ練塀。 | MatsudairaDewa(Stage5_Mon) |
 | `Own.Dobei2m` | string | `Dobei2m.fbx` — 練塀(築地塀)の一体物 — 腰の下見板・貫・白漆喰・本瓦の両流れが1駒に焼いてある (`Tools/Blender/build_dobei.py`)。 | BuildRun(NeribeiRun・NeribeiStepRun), BuildRim(FenceFaceOffsets), TypologyBuilder.Rim(Rim) |
-| `Own.Dobei2mNunoishi` | string | `Dobei2m_Nunoishi.fbx` — Dobei2m の下に据える布石(腰の石) — 切石の布積み 4段の1駒(EDO-0477)。 | BuildGamae(FlattestStation・GamaeKidan), BuildRun(DanPlan・NeribeiStepRun) |
+| `Own.Dobei2mNunoishi` | string | `Dobei2m_Nunoishi.fbx` — Dobei2m の下に据える布石(腰の石) — 切石の布積み 4段の1駒(EDO-0477)。 | BuildGamae(DodomeAlongEdge・EnsureKidanProbe・FlattestStation…), BuildRun(DanPlan・NeribeiStepRun) |
 | `Own.Dobei2mEnd` | string | `Dobei2m_End.fbx` — Dobei2m の妻を塞いだ端部(x=0 側の小口に袖瓦を葺いて閉じた駒。 | BuildRun(NeribeiRun・NeribeiStepRun), BuildGamae(FenceEndPiece), PartSpec(Bake) |
 | `Own.MatsudairaBansho(w)` | 関数 | 松江松平邸の表門の番所 — 向唐破風・出格子・切石畳出の基壇。 | MatsudairaDewa(Stage5_Mon) |
 | `Own.MatsudairaBanshoBodyBand` | float[] | ⭐⭐ 番所の「躯体」を測るための帯 — ピボット(= 走りの芯・基壇の下端)からの 局所 y[m]。 | MatsudairaDewa(Stage5_Mon) |
@@ -342,6 +350,7 @@
 | `Own.Typ.Takeyarai` | string | 竹矢来(たけやらい)— 2間モジュールの透ける囲い(類型共用・EDO-0363)。 | BuildRun(FenceRun・NeribeiStepRun), BuildGamae(FenceEndPiece), PartSpec(Bake) |
 | `Own.Typ.Omotedana(wKen)` | 関数 | 表店(おもてだな)— 町屋24町の通りに面して並ぶ2階建ての商家(類型共用)。 | TypologyBuilder.Machiya(OmotedanaFor), BuildMachiya |
 | `Own.Typ.Omotedana(wKen, dKen)` | 関数 | 奥行を詰めた表店。背後の余地が 4間(7.272m)に足りない筆で使う。 | TypologyBuilder.Machiya(OmotedanaFor), BuildMachiya |
+| `Own.Typ.OmotedanaHira(wKen, dKen)` | 関数 | 平屋の小店(厨子二階の無い表店・裏通りや門前の端の店)。 | TypologyBuilder.Machiya(OmotedanaFor) |
 
 ## Own(続き)
 
@@ -358,8 +367,10 @@
 | `Own.Noshibei(len)` | 関数 | のし塀(熨斗瓦を載せた白壁の袖塀)。岡部邸の結界 `kekkai` の7本。 | OkabeYashiki(AssetByKey) |
 | `Own.Kido(w)` | 関数 | 結界の木戸(のし塀 `kekkai[].gap` の開口を塞ぐ)。 | Doi(KomonAsset), DoiBuilder.Niwa(ResolveNiwaApi), OkabeYashiki(AssetByKey) |
 | `Own.HoriKido` | string | `HoriKido.fbx` — 汀の柵の潜り(`nishi.saku.kuguri`・辺5 の s=55.7)。 | OkabeYashiki(AssetByKey) |
-| `Own.HoriSaku` | string | `HoriSaku.fbx` — 汀の木柵 1スパン(`fences[0]` F_Hori・辺5 の全長 s0〜80.589)。 | OkabeYashiki(PlaceFences) |
+| `Own.HoriSaku` | string | `HoriSaku.fbx` — 汀の木柵 1スパン(`fences[0]` F_Hori・辺5 の全長 s0〜80.589)。 | BuildRun(FenceRun), OkabeYashiki(PlaceFences) |
 | `Own.HoriSakuPost` | string | `HoriSakuPost.fbx` — 汀の木柵の端の杭。⛔ 足さないと run の最後の板が宙で終わる。 | OkabeYashiki(PlaceFences) |
+| `Own.TategoshiSaku(h=…)` | 関数 | 竪格子の柵 1間(EDO-0503・町屋の表店の列の端に残った空き 1〜3m を閉じる仕切り)。 | BuildRun(FenceRun) |
+| `Own.TategoshiSakuPost(h=…)` | 関数 | 竪格子の柵の端柱(TategoshiSaku の run の +X 端を受ける柱1本・笠木つき)。 | — |
 | `Own.ItabeiIta` | string | `Itabei_Ita_1.410.fbx` — 板塀の板(柱なし)1間。在庫の板塀 Eg.Itabei5(柱と板が一体の 5間の駒)を 柱と板に分けた組の板の方(2026-09-26・EDO-0437 山王 前庭の南の板塀 `Ita_ZSE`)。 | SannoSha(Stage4_Kakoi) |
 | `Own.ItabeiHashira` | string | `Itabei_Hashira_N0.30.fbx` — 板塀の柱1本(ItabeiIta と組・2026-09-26・EDO-0437)。 | — |
 | `Own.ItabeiJifuku` | string | `Itabei_Jifuku_1.410_Hk0.60.fbx` — 板塀の地覆(板の下の横木)1間・光付けの代つき(2026-09-27・EDO-0437 施主裁定 案A「板を石の天端・地面まで下ろす」)。 | BuildRun(PostBoardRun), SannoSha(Stage4_Kakoi) |
@@ -373,7 +384,7 @@
 | `Own.Ikegaki(end)` | 関数 | 刈込の生垣モジュール(ツゲ・マサキの見立て・1 間 × 1.90m × 0.80m、葉カード・材 M_FJG_Plant_Boxwood_01_Spring・LOD1)。 | MatsudairaDewaBuilder.Niwa(Stage6d_Tenkei) |
 | `Own.YotsumeGaki(h)` | 関数 | 四つ目垣 1スパン(1間)。親柱1 + 立子5 + 胴縁(h1.2 で4段 / h0.9 で3段)+ 棕櫚縄の結び。 | DoiBuilder.Niwa(Niwa_G_Kaki・ResolveNiwaApi), OkabeYashiki(PlaceNiwaItem・PlaceTakegaki), Doi(PlaceTakegaki) |
 | `Own.YotsumeGakiPost(h)` | 関数 | 四つ目垣の run の +X 端に足す親柱1本。 | DoiBuilder.Niwa(Niwa_G_Kaki・ResolveNiwaApi), OkabeYashiki(PlaceNiwaItem・PlaceTakegaki), Doi(PlaceTakegaki) |
-| `Own.KenninjiGaki(h)` | 関数 | 建仁寺垣 1スパン(1間)。親柱1 + 胴縁3(裏)+ 割竹の立子35枚を隙間なく + 押縁3段 + 玉縁 + 結び12。 | DoiBuilder.Niwa(Niwa_G_Kaki・ResolveNiwaApi), OkabeYashiki(PlaceNiwaItem) |
+| `Own.KenninjiGaki(h)` | 関数 | 建仁寺垣 1スパン(1間)。親柱1 + 胴縁3(裏)+ 割竹の立子35枚を隙間なく + 押縁3段 + 玉縁 + 結び12。 | DoiBuilder.Niwa(Niwa_G_Kaki・ResolveNiwaApi), BuildRun(FenceRun), OkabeYashiki(PlaceNiwaItem) |
 | `Own.KenninjiGakiPost(h)` | 関数 | 建仁寺垣の run の +X 端に足す親柱1本。 | DoiBuilder.Niwa(Niwa_G_Kaki・ResolveNiwaApi), OkabeYashiki(PlaceNiwaItem) |
 | `Own.DoiNagayamon` | string | 土井邸の表門 = 長屋門(片番所 格子付・片潜門)。 | Doi(GateSpan・Stage2_Perimeter) |
 | `Own.DoiUmaya` | string | 厩 5.5×7間(土井邸 `munes.Umaya`)。 | Doi(PlaceUmaya) |

@@ -90,13 +90,51 @@ public static partial class EdoBuild
         return m;
     }
 
+    /// <summary>区画の縁への距離。<paramref name="exs"/> の各区間(辺の上の [a, b])は縁と見なさない(門構え・表店の店先)。
+    /// 区間が一つなら <see cref="DistToPolyEdgeExcept"/> と同じ。</summary>
+    static float DistToPolyEdgeExceptAll(Vector2[] poly, Vector2 q, List<Vector2[]> exs)
+    {
+        if (exs.Count == 1) return DistToPolyEdgeExcept(poly, q, exs[0][0], exs[0][1]);
+        float m = float.MaxValue;
+        for (int i = 0; i < poly.Length; i++)
+        {
+            Vector2 p0 = poly[i], p1 = poly[(i + 1) % poly.Length], d = p1 - p0; float L2 = d.sqrMagnitude;
+            if (L2 < 1e-8f) continue;
+            float L = Mathf.Sqrt(L2);
+            var cuts = new List<Vector2>();   // この辺の上で抜く [lo, hi](辺の比)
+            foreach (var ex in exs)
+            {
+                float ea = Mathf.Abs(d.x * (ex[0].y - p0.y) - d.y * (ex[0].x - p0.x)) / L, eb = Mathf.Abs(d.x * (ex[1].y - p0.y) - d.y * (ex[1].x - p0.x)) / L;
+                float ta = Vector2.Dot(ex[0] - p0, d) / L2, tb = Vector2.Dot(ex[1] - p0, d) / L2;
+                if (ea < 0.05f && eb < 0.05f && Mathf.Max(ta, tb) > 0f && Mathf.Min(ta, tb) < 1f)
+                    cuts.Add(new Vector2(Mathf.Clamp01(Mathf.Min(ta, tb)), Mathf.Clamp01(Mathf.Max(ta, tb))));
+            }
+            if (cuts.Count == 0) { float e2 = EdoGeom.DistToEdge(q, p0, p1); if (!float.IsNaN(e2) && e2 < m) m = e2; continue; }
+            cuts.Sort((x, y) => x.x.CompareTo(y.x));
+            float cur = 0f;
+            foreach (var c in cuts)
+            {
+                if (c.x > cur + 1e-4f) { float e = EdoGeom.DistToEdge(q, p0 + d * cur, p0 + d * c.x); if (!float.IsNaN(e) && e < m) m = e; }
+                cur = Mathf.Max(cur, c.y);
+            }
+            if (cur < 1f - 1e-4f) { float e = EdoGeom.DistToEdge(q, p0 + d * cur, p1); if (!float.IsNaN(e) && e < m) m = e; }
+        }
+        return m;
+    }
+
     /// <summary>足あとの節点が区画の縁の法に届かないとき、平場を優先して縁の法を急にしてよい差の上限[m]【U】(EDO-0495)。
     /// 数cm は見えず、棟の浮き(許容0)を作らないほうを採る。これを越える差は置く段で退けるべき所として数える。</summary>
     const float SQUEEZE_YIELD = 0.10f;
 
     public static List<Hiraba> GradePads(Vector2[] parcel, IList<Vector2[]> pads, float margin, out string report,
-                                         float fillRun = 1.5f, float cutRun = 1.0f, MonPad mon = null)
+                                         float fillRun = 1.5f, float cutRun = 1.0f, MonPad mon = null, IList<MonPad> faced = null)
     {
+        // ⭐ **通りに面する棟**(表店)は門構えと同じ扱い(EDO-0503・2026-10-02 施主「町家のために 2.6m の石垣は本当か」)。
+        //    <paramref name="faced"/>[k] が非 null の棟 k は、平場の高さ = その棟の店先が掛かる区画の線の上の区間の**道の高さ**、
+        //    隣の棟と束ねない(軒ごとに段を付ける)、店先の区間は縁の帯と縁の法を外す。
+        //    史実: 坂に面した町家は軒ごとに店先の土間を道に合わせ段々に下げる。布石の見えは 0.45m 以下・上限 0.9m【B 一般類型】。
+        //    ⛔ 2026-10-02 まで表店も束ねて一つの高さに均し、坂の下手で布石の見えが 2.6m(門前4)になった。
+        //    当たる先: 類型の町屋の全区画の表店(呼び手が渡す)。
         // ⭐ 門構えの平場は別扱い(2026-09-30 EDO-0491・施主「門が浮いてます」)。門は区画の線に立つので、棟と同じに扱うと
         //    縁の帯(EDGE_BERM)と縁の法に縛られて平らにならず、門の足元が坂のまま残った(西溜池2 で足元の地形 18.0〜21.4m・浮き 3.40m)。
         //    高さ = 区画の線の上で門構えが掛かる区間の造成前の地盤の中央値(敷居を道の高さへ合わせる)。その区間だけ縁の帯と縁の法を外し、
@@ -150,6 +188,16 @@ public static partial class EdoBuild
             if (ys.Count > 0) { ys.Sort(); outp[monIdx].y = ys[ys.Count / 2]; }
         }
 
+        var facedIdx = new HashSet<int>();
+        if (faced != null)
+            for (int k = 0; k < faced.Count && k < outp.Count; k++)
+            {
+                var fm = faced[k]; if (fm == null) continue;
+                var ys = new List<float>(); float L = Vector2.Distance(fm.a, fm.b); int ns = Mathf.Max(2, Mathf.CeilToInt(L / 0.25f) + 1);
+                for (int k2 = 0; k2 < ns; k2++) { var q = Vector2.Lerp(fm.a, fm.b, k2 / (float)(ns - 1)); float b = RoadY(q.x, q.y); if (!float.IsNaN(b)) ys.Add(b); }
+                if (ys.Count > 0) { ys.Sort(); outp[k].y = ys[ys.Count / 2]; facedIdx.Add(k); }
+            }
+
         // 1b. 近い棟の平場を一つの高さに束ねる(2026-09-28 EDO-0477 実測)。⛔ 棟ごとに中央値を採ると、縁取りが触れ合う
         //    隣の平場と数cm違い、あいだの格子が傾いて下端が浮く(観理院の客殿 0.024m・鐘楼 0.038m)。足あとの間が
         //    縁取り 2 つぶんより近い棟は**同じ格子の節点を分け合う**ので、一つの高さでしか両方を平らにできない。
@@ -167,6 +215,7 @@ public static partial class EdoBuild
             for (int b2 = a + 1; b2 < n; b2++)
             {
                 if (a == monIdx || b2 == monIdx) continue;              // 門構えの平場は道の高さで決まる ── 束ねない
+                if (facedIdx.Contains(a) || facedIdx.Contains(b2)) continue;   // 表店は軒ごとに道の高さ ── 束ねない(段を付ける)
                 if (PolyGap(pads[a], pads[b2]) >= 2f * margin) continue;
                 if (Mathf.Abs(outp[a].y - outp[b2].y) > 2f * PAD_SHIFT) { apart++; continue; }
                 grp[root(a)] = root(b2);
@@ -199,13 +248,19 @@ public static partial class EdoBuild
         }
 
         // 2. 区画の中の節点: 造成前の地盤へ戻し、最寄りの平場の法で挟み、縁の法で地山へ戻す
-        bool exOn = monIdx >= 0; Vector2 exA = Vector2.zero, exB = Vector2.zero;
-        if (exOn)
+        var exs = new List<Vector2[]>();
+        if (monIdx >= 0)
         {
             var dir = (mon.b - mon.a).normalized; float ext = margin + EDGE_BERM;
-            exA = mon.a - dir * ext; exB = mon.b + dir * ext;
+            exs.Add(new[] { mon.a - dir * ext, mon.b + dir * ext });
         }
-        int written = 0, yielded = 0; float maxCut = 0f, maxFill = 0f;
+        foreach (var k in facedIdx)
+        {   // 表店の店先の区間(縁取りぶん延ばす ── 隣の店との間の節点も道の高さ側で取る)
+            var fm = faced[k]; var dir = (fm.b - fm.a).normalized; float ext = margin;
+            exs.Add(new[] { fm.a - dir * ext, fm.b + dir * ext });
+        }
+        bool exOn = exs.Count > 0;
+        int written = 0, yielded = 0; float maxCut = 0f, maxFill = 0f, edgeCut = 0f;
         for (int j = 0; j < h; j++)
             for (int i = 0; i < w; i++)
             {
@@ -234,8 +289,12 @@ public static partial class EdoBuild
                 //    (2026-09-28 EDO-0477 実測: 縁から法を起こすと、区画の線の上に立つ塀の足元の内側が削られ、
                 //    塀の厚み 0.42m のあいだで地面が 0.8m 落ちて塀の下端が浮いた ── 観理院 49/199 駒・最悪 0.76m)。
                 // ⭐ 門構えの区間(足元の幅 + 縁取り + 帯)は縁と見なさない ── 門の足元を道の高さで平らに取る(EDO-0491)
-                float e = Mathf.Max(0f, (exOn ? DistToPolyEdgeExcept(parcel, q, exA, exB) : EdoGeom.DistToPolyEdge(parcel, q)) - EDGE_BERM);
+                float e = Mathf.Max(0f, (exOn ? DistToPolyEdgeExceptAll(parcel, q, exs) : EdoGeom.DistToPolyEdge(parcel, q)) - EDGE_BERM);
                 float y2 = Mathf.Clamp(y, b - e / cutRun, b + e / fillRun);
+                // ⭐ 表店の足あと(+縁取り)の節点は**縁でも平場の高さ**(切土のみ)── 背後が高い筆は裏を区画の線まで切り、
+                //    線の上の塀が段塀の布石で土留めを兼ねる(EDO-0503 考証【U】「表を道に揃え、背後を切って裏に土留」)。
+                //    ⛔ 縁で地山へ戻すと、奥行 6m の筆で背後が 2.5m 高い門前4 の店が奥で当たり、店先が 2.5m 浮いた。盛土は従前どおり縁で戻す。
+                if (best >= 0 && bd <= 0f && facedIdx.Contains(best) && y < b) { if (y2 > y) edgeCut = Mathf.Max(edgeCut, y2 - y); y2 = y; }
                 // ⭐ 足あと(+縁取り)の節点は平場を優先する ── 縁の法に届かない差が SQUEEZE_YIELD 以下なら平場の高さのまま取り、
                 //    縁の法をその分だけ急にする(見えない数cm)。⛔ 2026-10-01 まで縁の法を優先し、束ねた平場の高さに 1 節点届かず
                 //    棟の下端が浮いた(十坊8 の物置 0.023m・EDO-0495)。差が大きい所は従前どおり数える(置く段で退けるべき所)。
@@ -256,7 +315,8 @@ public static partial class EdoBuild
                                pads.Count, written, maxCut, maxFill,
                                sq > 0 ? string.Format(" ⚠ 区画の縁に近く平らに取れない節点 {0}(土留めが要る所・P3)", sq) : "", merged,
                                apart > 0 ? string.Format(" ⚠ 近いのに高さの差が {0:F2}m を超えて束ねられない平場 {1} 組", 2f * PAD_SHIFT, apart) : "",
-                               yielded > 0 ? string.Format("・平場を優先して縁の法を急にした節点 {0}({1:F2}m 以内)", yielded, SQUEEZE_YIELD) : "");
+                               yielded > 0 ? string.Format("・平場を優先して縁の法を急にした節点 {0}({1:F2}m 以内)", yielded, SQUEEZE_YIELD) : "")
+               + (edgeCut > 0f ? string.Format("・表店の裏を区画の線まで切った(縁での切り 最大 {0:F2}m ── 線の上の塀の布石が土留め)", edgeCut) : "");
         return outp;
     }
 

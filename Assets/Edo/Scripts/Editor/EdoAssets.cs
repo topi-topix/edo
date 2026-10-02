@@ -83,6 +83,13 @@ public static class EdoAssets
                 { Shop02, TexShop02 },
             };
 
+        /// <summary>**表店の暖簾・看板の店ごとの染め分け**(EDO-0503 施主「全部同じ暖簾」)。正典は <see cref="NorenSpec"/>
+        /// (屋号・業種・地色・印・文字・典拠)。画像は `Tools/Unity/bake_noren.py` が在庫の shop01/shop02 の画像から
+        /// 暖簾と看板の四角だけを塗り替えて焼く。掛けるのは `EdoBuild.HangNoren`(軒ごと・隣で同じ店を続けない)。</summary>
+        public const string NorenSpec = "docs/Sashizu/noren.json";
+        public static string NorenTex(string shop, string key) { return "Assets/Edo/Textures/Noren/" + shop + "_" + key + ".jpg"; }
+        public static string NorenMat(string shop, string key) { return "Assets/Edo/Materials/Noren/M_Noren_" + shop + "_" + key + ".mat"; }
+
         // 店先の小物
         public const string Shop01Taru  = "Assets/edogoyomi/es_shop01/s01_taru.obj";
         public const string Shop01Oke   = "Assets/edogoyomi/es_shop01/oke.obj";
@@ -2286,6 +2293,28 @@ public static class EdoAssets
         /// 生成: blender --background --python Tools/Blender/build_kabukimon.py -- [--render]</summary>
         public const string KabukimonNoSode = MonDir + "Kabukimon_NoSode_2.73.fbx";
 
+        /// <summary>**町木戸**(町境・参道の口を夜に閉じる木戸。EDO-0503・切絵図 S で山王門前の二ノ鳥居東の辻)。
+        /// 親柱2本+冠木+両開きの扉+潜り戸。屋根なし。⚠ 路地木戸(kido_open・高さ 1.78)とは別物。
+        /// ローカル: 幅=X(道を横切る)/ 高さ=Y / 厚み=Z。ピボット = 道の芯・地盤レベル。倍率1。
+        /// 10.54 の実寸 W10.540 × H3.335(地上 3.075・底 −0.26)× D2.046。札の jamb ±W/2・通り口 ±1.818。
+        /// 道幅ごとに焼く: blender --background --python Tools/Blender/build_machikido.py -- --haba &lt;道幅m&gt;
+        /// 据えるのは <c>EdoBuild.MachiKidoAcross</c>(両脇の区画の角へ親柱の外面を突き付ける)。</summary>
+        public static string MachiKido(float haba)
+        {
+            return MonDir + "MachiKido_" + haba.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + ".fbx";
+        }
+
+        /// <summary>**道の横断勾配に追従する町木戸。**<paramref name="keisha"/> = −X 端から +X 端への地面の下がり[m]
+        /// (正 = +X が低い)。0.05m 刻みで焼く。柱の足元が勾配なりに伸び、冠木・笠木は水平。ピボット = 足形の中心(X=0)の地面。
+        /// 生成: blender --background --python Tools/Blender/build_machikido.py -- --haba &lt;道幅m&gt; --keisha &lt;下がりm&gt;</summary>
+        public static string MachiKido(float haba, float keisha)
+        {
+            if (System.Math.Abs(keisha) < 0.025f) return MachiKido(haba);
+            var ci = System.Globalization.CultureInfo.InvariantCulture;
+            return MonDir + "MachiKido_" + haba.ToString("0.##", ci) + "_k" + (keisha < 0f ? "m" : "")
+                 + System.Math.Abs(keisha).ToString("0.00", ci) + ".fbx";
+        }
+
         const string MonDir = "Assets/Edo/Models/Mon/";
 
         // ---------------------------------------------------------------- 丸太物(手すり・汀の杭)
@@ -2415,6 +2444,58 @@ public static class EdoAssets
             string p = IshigakiKado(deg, h);
             if (az == 200 && ax == 200) return p;
             return p.Substring(0, p.Length - 4) + "_A" + az + "x" + ax + ".fbx";
+        }
+
+        /// <summary>**出隅の隅長屋**(L 字の長屋の角・EDO-0500 2026-10-01 観理院 北東の施主指摘 ── 妻を突っ込む納めは屋根が重なり窓が途中で切れた)。
+        /// 在庫 `knagaya01c` を周期のまま走りに延ばした帯を **pier(無地の壁)の芯で折った**物 ── 屋根は留めで一続き(外に隅棟・内に谷)。
+        /// 外隅の稜の両側に無地 0.77m ずつ・窓は切れない・各腕に窓 2 つ以上。
+        /// <paramref name="deg"/> = **出隅の内角**(0.1° 単位で綴る ── 90 は `90`・90.9 は `90p9`)。**+X の腕の向きは固定**、−Z の腕が内角で回る
+        /// (−Z の腕の向き = Unity XZ で (−cos φ, −sin φ)・φ = 180 − deg。90.9 なら (−0.0157, −0.9999))。
+        /// <paramref name="armPosX"/> = **+X の腕**(見え面 +Z)/ <paramref name="armNegZ"/> = **−Z の腕**(見え面 −X)の外隅から腕の先までの**外面の長さ**[m]
+        /// (cm の整数で綴る `RoundToInt(a·100)`。焼くときも cm に丸めた値を渡す ── 半 cm は Python と丸めが割れ得る)。
+        /// <paramref name="tsuma"/> = "" | "Z" | "X" | "ZX"(妻で閉じる腕 ⇒ `_TZ` 等)。
+        /// ピボット = **外隅の稜**(両腕の外面 = 足元の帯の最も外 = 海鼠の浮き彫りの表の交線)・**土台の底**。
+        /// 据え: position = 二辺の長屋の外面の線の交点 / yaw = **+X の腕の辺の外向き方位**(+Z が外)/ scale = 1(FBX は実寸 m)。
+        /// 奥行: 外面 → 内壁 3.133 / 軒の出 外 0.567・内 0.593(外面から内の軒先 3.726)/ 棟 5.445(妻つきは鬼まで 5.509)。
+        /// **妻の無い腕の先** = 在庫 `knagaya01c` の土台の端と同じ位相(先の一切れは素の棟の端そのもの)⇒ 在庫の棟を表を外へ向けてそのまま突き付ける
+        /// (+X の腕の先には在庫の棟の右端(表から見て)= 無地 0.571 の端、−Z の腕の先には左端 = 0.961 の端が当たる。表を外へ向ければ勝手にそうなる)。
+        /// **妻の腕の先** = 在庫 `knagaya01l/r` の妻の端(破風・鬼・妻壁)を継いだ物。腕の長さの位置 = **妻壁の外面**(`namako2` の浮き彫りの表)。
+        /// 土台の端は 0.030 内、**破風・鬼は 0.322 外へ出る**(区画の線・門の柱と当てるのは妻壁の外面・破風は軒と同じく越えてよい)。
+        /// 腕の端数は窓の数と無地の壁の詰めで吸う(窓・瓦・海鼠は伸ばさない)。作れる腕は **4.79m 以上**(上限なし)。
+        /// 詰め 0 の長さ(妻なし)は +X の腕 5.563 + 2.687k / −Z の腕 5.182 + 2.687k[m]。
+        /// 札(kind building)は `PartSpecs/<同名>.json`。材 `knagayamap` ⇒ `Edo/共通/隅部材のマテリアルをremap`。
+        /// 焼いてあるもの: **90_A600x600**(生成器の検め用)/ **90p9_A1005x919_TZ**(観理院 北東の当座・−Z の腕 = 北の腕の西の先が表門)。
+        ///   blender --background --python Tools/Blender/build_nagaya_kado.py -- --deg &lt;deg&gt; --arms &lt;negZ&gt;,&lt;posX&gt; [--tsuma negZ|posX|both] --render</summary>
+        public static string NagayaKado(float deg, float armNegZ, float armPosX, string tsuma)
+        {
+            int dd = UnityEngine.Mathf.RoundToInt(deg * 10f);
+            string d = dd % 10 == 0 ? (dd / 10).ToString() : (dd / 10) + "p" + (dd % 10);
+            return "Assets/Edo/Models/Kado/Nagaya_Kado_" + d + "_A" + UnityEngine.Mathf.RoundToInt(armNegZ * 100f)
+                 + "x" + UnityEngine.Mathf.RoundToInt(armPosX * 100f) + (string.IsNullOrEmpty(tsuma) ? "" : "_T" + tsuma) + ".fbx";
+        }
+
+        /// <summary>**両端とも妻で閉じた一棟の長屋**(真っ直ぐ・折らない)。在庫は l(片妻)/ r(片妻)/ c(妻なし)しか無く、
+        /// 孤立した短い区間に c を置くと両端の小口が開いて中が素通しになる(観理院 表門の西脇・施主指摘 2026-10-02)。
+        /// 在庫 `knagaya01c` の帯を窓の数と無地の壁の詰めで <paramref name="len"/> に合わせ、−X 端に `knagaya01r`・+X 端に `knagaya01l` の妻の端
+        /// (破風・鬼・妻壁)を継いだ物。窓・瓦・海鼠は伸ばさない。隅棟は無い。
+        /// <paramref name="len"/> = **妻壁の外面どうし**(namako2 の浮き彫りの表)[m]。破風・鬼は各端 0.322 外へ出る(全幅 len + 0.644)・土台の端は 0.030 内。
+        /// 作れる長さ 1.28m 以上(3m 未満は窓 1 つ)。名前は cm の整数(`Nagaya_Tsuma2_L807` = 8.07m)。
+        /// ピボット = **長さの中央・外面(足元の海鼠の浮き彫りの表 = 隅長屋のピボットと同じ面)の線上・土台の底**(⛔ 表長屋 NagayaOmote の「壁の外面・全幅 len」とは定義が違う)。
+        /// 向き: 表(窓・海鼠の面)= **+Z**、在庫 `knagaya01c` を ES で置いたときと同じ向き。軒は +Z へ 0.596・躯体は −Z へ内壁 3.133 / 内の軒先 3.756。
+        /// 据え: position = 区間の中点(外面の線の上)/ yaw = 外向き法線の方位 / scale = 1(FBX は実寸 m)。高さ 5.509(鬼まで)。
+        /// 札(kind building)は `PartSpecs/<同名>.json`。材 `knagayamap` ⇒ `Edo/長屋/表長屋のマテリアルをremap`。
+        ///   blender --background --python Tools/Blender/build_nagaya_kado.py -- --straight &lt;長さm&gt; --render</summary>
+        public static string NagayaTsuma2(float len)
+        {
+            return NagayaDir + "Nagaya_Tsuma2_L" + ((long)System.Math.Floor((double)len * 100.0 + 0.5)) + ".fbx";
+        }
+
+        /// <summary><see cref="NagayaKado(float,float,float,string)"/> の 90°・妻なし(`Nagaya_Kado_90_A&lt;negZ&gt;x&lt;posX&gt;`)。
+        ///   blender --background --python Tools/Blender/build_nagaya_kado.py -- --arms &lt;negZ&gt;,&lt;posX&gt; --render</summary>
+        public static string NagayaKado90(float armNegZ, float armPosX)
+        {
+            return "Assets/Edo/Models/Kado/Nagaya_Kado_90_A" + UnityEngine.Mathf.RoundToInt(armNegZ * 100f)
+                 + "x" + UnityEngine.Mathf.RoundToInt(armPosX * 100f) + ".fbx";
         }
 
         /// <summary>**片端を斜めの鉛直面で切った城の石垣の駒**(`JC.CastleWall` を走りに 2 枚つないだ 4.00m・丈 4.00・EDO-0430)。
@@ -2825,6 +2906,16 @@ public static class EdoAssets
         {
             return MachiyaDir + "Typ_Omotedana_" + Len2(wKen) + "x" + Len2(dKen) + "ken.fbx";
         }
+
+        /// <summary>**平屋の小店**(厨子二階の無い表店・裏通りや門前の端の店)。EDO-0503。
+        /// 焼いてあるのは **2×2.5間(W3.636 × H3.671 × D4.545)** と **3×2.5間(W5.454)**。
+        /// 向き・ピボット・材は <see cref="Omotedana(float)"/> と同じ(+Z = 店先・足形の中心・地盤レベル・暖簾は `Noren 2`)。
+        /// 札 `Assets/Edo/Data/PartSpecs/Typ_OmotedanaHira_&lt;W&gt;x&lt;D&gt;ken.json`。remap は **Edo ▸ 類型 ▸ 新造部材のマテリアルをremap**。
+        /// 生成: blender --background --python Tools/Blender/build_typ_machiya.py -- --kei hira --ken &lt;間&gt; --okuyuki &lt;奥行m&gt;</summary>
+        public static string OmotedanaHira(float wKen, float dKen)
+        {
+            return MachiyaDir + "Typ_OmotedanaHira_" + Len2(wKen) + "x" + Len2(dKen) + "ken.fbx";
+        }
         }
 
         // ---------------------------------------------------------------- 岡部邸の附属屋・結界
@@ -3016,6 +3107,28 @@ public static class EdoAssets
         /// 実寸 0.110 × 1.520 × 0.110(**底 −0.120** = 根入れ)。
         /// 生成: blender --background --python Tools/Blender/build_hori_saku.py -- post</summary>
         public const string HoriSakuPost = "Assets/Edo/Models/Hei/HoriSakuPost.fbx";
+
+        /// <summary>**竪格子の柵 1間**(EDO-0503・町屋の表店の列の端に残った空き 1〜3m を閉じる仕切り)。
+        /// 町木戸 <see cref="MachiKido(float)"/> の**袖と同じ意匠**(柱 5寸角の掘立・地覆・袖の笠木・竪子 芯々 0.152・横子2段)を
+        /// 1スパンの駒にした物。袖の部品は `build_machikido.sode_*` を共用(意匠を直すなら両方焼き直す)。
+        /// ローカル: 幅=X(走り)/ 高さ=Y / 厚み=Z。+Z = 見え面(通り側・格子は表裏対称・両面の実体)。倍率1。
+        /// ピボット = **スパンの中心・地盤レベル**。柱は **−X 端**(外の面 x = −0.909)⇒ **bbox の X がちょうど 1.818**。
+        /// 実寸 W1.818 × H(h+0.26)× D0.150・**底 y = −0.26**(根入れ)・天端 y = h。⛔ `SeatBottom` で据えない — y=0 を地盤へ。
+        /// 重ねずに 1.818 ちょうどのピッチで突き付け、+X 端に <see cref="TategoshiSakuPost"/> を足す。札 `PartSpecs/TategoshiSaku_&lt;h&gt;.json`(fence)。
+        /// 焼いてある丈: 2.12(7尺・町木戸の袖と同じ)/ 1.82。材 `wood` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_tategoshi_saku.py -- --h &lt;丈m&gt; [--render]</summary>
+        public static string TategoshiSaku(float h = 2.12f)
+        {
+            return "Assets/Edo/Models/Hei/TategoshiSaku_" + h.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + ".fbx";
+        }
+
+        /// <summary>**竪格子の柵の端柱**(<see cref="TategoshiSaku"/> の run の +X 端を受ける柱1本・笠木つき)。
+        /// ピボット = **柱の +X 面・地盤レベル**(柱は x ∈ [−0.150, 0])。実寸 W0.150 × H(h+0.26)× D0.150・底 y = −0.26。
+        /// 生成: blender --background --python Tools/Blender/build_tategoshi_saku.py -- --h &lt;丈m&gt;</summary>
+        public static string TategoshiSakuPost(float h = 2.12f)
+        {
+            return "Assets/Edo/Models/Hei/TategoshiSakuPost_" + h.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + ".fbx";
+        }
 
         /// <summary>**板塀の板(柱なし)1間**。在庫の板塀 <see cref="Eg.Itabei5"/>(柱と板が一体の 5間の駒)を
         /// 柱と板に分けた組の板の方(2026-09-26・EDO-0437 山王 前庭の南の板塀 `Ita_ZSE`)。柱 <see cref="ItabeiHashira"/> を

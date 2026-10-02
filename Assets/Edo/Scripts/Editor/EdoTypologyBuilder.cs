@@ -684,7 +684,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                         var ga = e.a + hd * (gaps[gi][0] - (gaps[gi][0] < 1e-3f ? hA : 0f));
                         var gb = e.a + hd * (gaps[gi][1] + (gaps[gi][1] > e.len - 1e-3f ? hB : 0f));
                         string hn;
-                        EdoBuild.FenceRun(encl, ga, gb, e.outward, hk, pad, Vector2.zero, -1f, hk + "_" + e.i + "h" + gi, out hn);
+                        EdoBuild.FenceRunFlush(encl, ga, gb, e.outward, hk, pad, hk + "_" + e.i + "h" + gi, gaps[gi][2], out hn);
                         if (!string.IsNullOrEmpty(hn)) kakoiNotes.Add("辺" + e.i + " " + hn);
                         sum += gaps[gi][1] - gaps[gi][0];
                     }

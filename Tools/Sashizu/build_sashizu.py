@@ -3153,8 +3153,8 @@ def build(est, deep=False, out=None):
     plate(h, nx(), "断面", "目的: 段と棟の高さの関係 ／ 左の小図の朱線が切り位置・「左」が断面図の左端 ／ 黒=造成前 朱=造成後")
     if M.sections:
         for i, s in enumerate(M.sections):
-            h.append('<div class="secrow"><div class="key">%s</div><div class="sec"><h4>%s</h4><div class="fig">%s</div></div></div>'
-                     % (F.keyplan(i), esc(s.name), F.section(s, i)))
+            h.append('<div class="secbox"><h4>%s</h4><div class="secrow"><div class="key">%s</div><div class="sec">%s</div></div></div>'
+                     % (esc(s.name), F.keyplan(i), F.section(s, i)))
     else:
         h.append('<p class="cap">⛔ sections が無い — 断面は規則3の必須図。</p>')
     h.append("</div>")

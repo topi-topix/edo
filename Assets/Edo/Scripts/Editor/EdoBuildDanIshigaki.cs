@@ -30,6 +30,24 @@ public static partial class EdoBuild
         public Func<Vector2, Vector2, Vector2> lowHint;
     }
 
+    /// <summary>**見付に合う丈の城の石垣の直線の駒**(2026-10-03・EDO-0502)。見付 ≤ 4.00(+0.01)なら素の <c>JC.CastleWall</c>、
+    /// 越えれば焼いてある丈違いの駒(<c>EdoAssets.Own.IshigakiChoku</c>・4.5〜8.0 を 0.5 刻み)のうち見付以上の最小。
+    /// 据えは素と同じ(<see cref="PlaceCrestWall"/> が天端を実測の最上点へ合わせるので y = 天端 − 丈)。
+    /// 条件: 柔らかい ── 焼いた丈が見付に届かなければ最も高い駒で建てて、底の浮きは PlaceCrestWall の ★ が刷る。
+    /// 当たる先: 城の石垣の段の土留めで見付が 4m を超える所(岡部 TW_Kado_Shumen 見付 4.11〜4.50)。山王 Stage3 は専用版で未適用。</summary>
+    public static string CastleWallOfExpose(float expose)
+    {
+        if (expose <= 4.01f) return EdoAssets.JC.CastleWall;
+        string root = System.IO.Directory.GetParent(Application.dataPath).FullName, last = null;
+        for (float h = 4.5f; h <= 8.01f; h += 0.5f)
+        {
+            string p = EdoAssets.Own.IshigakiChoku(h);
+            if (!System.IO.File.Exists(System.IO.Path.Combine(root, p))) continue;
+            last = p; if (h >= expose - 0.01f) return p;
+        }
+        return last ?? EdoAssets.JC.CastleWall;
+    }
+
     /// <summary>**段の土留めを天端の折れ線へ据える**(城の石垣・野面の乱積み)。
     /// <para>硬い(許容0): ① 駒の天端 = 区間の天端(実測の最上点・誤差 0.001)② 全体が地表の下に来る駒は置かない(<see cref="CrestAboveGround"/>)
     /// ③ 駒の底が見え面の前の地表より上(浮き > 0.01m)なら ★ で刷る(丈を伸ばさない・二段築か地盤かは呼び手=設計の話)。
@@ -268,11 +286,22 @@ public static partial class EdoBuild
     /// 一番下の駒は地面へ埋まる分だけ根入れ(埋めて隠す)。<paramref name="maxN"/> 段を積んでも届かなければ ⚠ を <paramref name="warn"/> へ。
     /// 当たる先: 下の面へ張り出す石段(指図 kaidans[] で、足元の面の外まで段が出る物)。全邸の石段の据え(PlaceKaidanAB)が呼べる。
     /// ⟶ 返す: 積んだ駒の数</summary>
-    public static int StackDownToGround(GameObject top, string path, Transform parent, string name, int maxN, List<string> warn)
+    public static int StackDownToGround(GameObject top, string path, Transform parent, string name, int maxN, List<string> warn,
+                                        Func<float, float, float> drawnAt = null)
     {
         if (top == null) return 0;
         int n = 0; var cur = top; Vector3 at; int cnt;
-        float gap = Contact(cur, out at, out cnt);
+        // ⭐ drawnAt(描かれた地表 ── 縁の皮が描く面の高さ)を渡されたら、駒の底の四隅と芯の**最も浮く所**で測る
+        //   (2026-10-03 EDO-0502 第6巡: 地形の 2m 格子の盛りに触れて止まり、皮が描く北東の郭の面 13.10 から 1.07m 浮いた)。
+        Func<GameObject, float> gapOf = g =>
+        {
+            if (drawnAt == null) return Contact(g, out at, out cnt);
+            var b = RB(g); float worst = float.NaN;
+            foreach (var q in new[] { new Vector2(b.min.x, b.min.z), new Vector2(b.min.x, b.max.z), new Vector2(b.max.x, b.min.z), new Vector2(b.max.x, b.max.z), new Vector2(b.center.x, b.center.z) })
+            { float gy = drawnAt(q.x, q.y); if (float.IsNaN(gy)) continue; float d = b.min.y - gy; if (float.IsNaN(worst) || d > worst) worst = d; }
+            return worst;
+        };
+        float gap = gapOf(cur);
         while (!float.IsNaN(gap) && gap > 0.005f && n < maxN)
         {
             var b = RB(cur);
@@ -282,7 +311,7 @@ public static partial class EdoBuild
             var nb = RB(go);
             go.transform.position += new Vector3(b.center.x - nb.center.x, b.min.y - nb.max.y, b.center.z - nb.center.z);
             n++; cur = go;
-            gap = Contact(cur, out at, out cnt);
+            gap = gapOf(cur);
         }
         if (!float.IsNaN(gap) && gap > 0.005f && warn != null)
             warn.Add("段石 " + top.name + ": " + maxN + " 段積んでも地面まで " + gap.ToString("F2") + "m 届かない");

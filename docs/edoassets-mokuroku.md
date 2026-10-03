@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 371(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 376(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -123,7 +123,7 @@
 
 | 名 | 種 | 中身・注釈の一文目 | 使っている所 |
 |---|---|---|---|
-| `JC.CastleWall` | string | `Castle Wall.prefab` | OkabeYashiki(Pivot・PlaceIshigaki・Stage2b_Dan), BuildIshidan, Doi(Stage3_Ishigaki), MatsudairaDewa(Stage3_Ishigaki) ほか3 |
+| `JC.CastleWall` | string | `Castle Wall.prefab` | OkabeYashiki(Pivot・PlaceIshigaki・Stage2b_Dan), BuildDanIshigaki(CastleWallOfExpose), BuildIshidan, Doi(Stage3_Ishigaki) ほか4 |
 | `JC.CastleWallCorner` | string | `Castle Wall Corner.prefab` | Yamato |
 | `JC.CastleWall4x12Mesh` | string | `Castle Wall 4x12.fbx` | IshigakiFit |
 | `JC.GateDoorCastleL` | string | `Gate Castle Door L.fbx` — 小門用(1.5×2.8)。対で開口 3.0m ちょうど。 | — |
@@ -278,6 +278,8 @@
 | `Own.NagayaOmote2FKutai(len)` | 関数 | 躯体の長さ = 呼び寸法の表長屋(二階)(EDO-0502 2026-10-03)。 | BuildTsugime(BodySpanAlong) |
 | `Own.KutaiOf(path)` | 関数 | 表長屋・門長屋のパスを、躯体 = 呼び寸法の版(`_kutai`)へ読み替える(在れば)。 | OkabeYashiki(GateInNagaya・PlaceOmoteNagaya) |
 | `Own.NagayaOmoteMonKutai(len, gateFromLeft, nikai)` | 関数 | 躯体の長さ = 呼び寸法の門長屋(NagayaOmote2FKutai の口抜き版)。 | — |
+| `Own.NagayaOmote2FKutaiMiter(len, thL, thR)` | 関数 | 外へ折れる区画の角で留めた表長屋(躯体 = 呼び寸法・二階)。 | OkabeYashiki(Stage2_Perimeter) |
+| `Own.NagayaOmoteMonKutaiMiter(len, gateFromLeft, nikai, thL, thR)` | 関数 | NagayaOmoteMonKutai の端の妻壁を区画の線の折れ(全角 thL = −X 端・thR = +X 端・度)の二等分の面へ寝かせた版 (NagayaOmote2FKutaiMiter の門長屋版)。 | — |
 | `Own.NagayaOmote(len, tsuma)` | 関数 | tsuma=false は両端を突き付けにした版(`--ends none`)。 | OkabeYashiki(AssetByKey・PlaceOmoteNagaya), Doi(Stage2_Perimeter), MatsudairaDewa(Stage2_Perimeter), NagayaOmote |
 | `Own.ObiNagaya(wKen, dKen)` | 関数 | 崖下の詰人長屋(岡部邸 `service` の N1/N2、`roofs.ObiNagaya`)。 | OkabeYashiki(AssetByKey・ReportNishiRest), TypologyBuilder.Jisha(JishaOmoya) |
 | `Own.ObiNagaya(wKen)` | 関数 | 梁間は家臣長屋の規約どおり 2.5間(`const.nagayaD` = 4.545m)固定。 | OkabeYashiki(AssetByKey・ReportNishiRest), TypologyBuilder.Jisha(JishaOmoya) |
@@ -307,6 +309,9 @@
 | `Own.Kado(part, deg, armIn, armOut, armFull)` | 関数 | 腕の短い隅(Kado と同じ留め継ぎ・同じ据え・同じ s)。 | BuildKado(KadoGauge), MatsudairaDewa(PlaceKado・RendBounds), OkabeYashiki(PlaceKado) |
 | `Own.IshigakiKado(deg, h)` | 関数 | 丈違いの石垣の隅(`Castle Wall` の留め継ぎ・丈 h m)。 | BuildKado(KadoArm), OkabeYashiki(Stage2b_Dan), SannoSha(Stage3_Dodome) |
 | `Own.IshigakiKado(deg, h, armNegZ, armPosX)` | 関数 | 腕の短い石垣の隅(IshigakiKado と同じ留め継ぎ・同じ据え: position = 両腕の控えの線の交点 P・y = 天端 − h / yaw = 入りの run の駒の yaw / scale = 1)。 | BuildKado(KadoArm), OkabeYashiki(Stage2b_Dan), SannoSha(Stage3_Dodome) |
+| `Own.IshigakiKado2(deg1, deg2, mid, h, armNegZ, armPosX)` | 関数 | 二重折れの石垣の隅(`Castle Wall` の留め継ぎを二つ一体に)。 | BuildKado(PlaceRunKado), OkabeYashiki(Stage2b_Dan) |
+| `Own.IshigakiChoku(h)` | 関数 | 丈違いの城の石垣の直線の駒(`JC.CastleWall` 1 枚・走り 2.00 を丈 h m へ下へ継いだ物)。 | BuildDanIshigaki(CastleWallOfExpose) |
+| `Own.DobeiKiri(deg, faceLonger)` | 関数 | 端を隣の辺の線で斜めに切った練塀の駒(`DobeiRun` の組 = `s_hei_center` 表裏2枚を実寸で 1 枚分・走り 2.990)。 | OkabeYashiki(KiriEnd・MiterOf) |
 | `Own.NagayaKado(deg, armNegZ, armPosX, tsuma)` | 関数 | 出隅の隅長屋(L 字の長屋の角・EDO-0500 2026-10-01 観理院 北東の施主指摘 ── 妻を突っ込む納めは屋根が重なり窓が途中で切れた)。 | BuildRun(NagayaKadoPlace) |
 | `Own.NagayaTsuma2(len)` | 関数 | 両端とも妻で閉じた一棟の長屋(真っ直ぐ・折らない)。 | BuildRun(OutsideParcel・SwapTsuma2) |
 | `Own.NagayaKado90(armNegZ, armPosX)` | 関数 | NagayaKado の 90°・妻なし(`Nagaya_Kado_90_A&lt;negZ&gt;x&lt;posX&gt;`)。 | BuildRun(KadoAt) |

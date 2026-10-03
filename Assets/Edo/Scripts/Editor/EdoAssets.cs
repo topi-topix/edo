@@ -2081,6 +2081,26 @@ public static class EdoAssets
                  + "_mon" + Len2(gateFromLeft) + (nikai ? "_2f" : "") + "_kutai.fbx";
         }
 
+        /// <summary>**外へ折れる区画の角で留めた表長屋**(躯体 = 呼び寸法・二階)。<see cref="NagayaOmote2FKutai"/> の端の妻壁を、区画の線の折れ
+        /// (全角 thL = −X 端・thR = +X 端・度)の二等分の面へ寝かせた版。据えは素の _kutai と同じ(走りの中心・土台の底・壁の外面・犬走り 0.30 内)。
+        /// 留めの軸 = 壁の外面の 0.30 外(区画の線)。綴りは 0.1° の整数 `_m89x36`。札 = PartSpecs(脇の面は背の角)。
+        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- 17.569 --body --floors 2 --miter 8.930 3.597 --render</summary>
+        public static string NagayaOmote2FKutaiMiter(float len, float thL, float thR)
+        {
+            string p = NagayaOmote2FKutai(len);
+            return p.Substring(0, p.Length - 4) + "_m" + UnityEngine.Mathf.RoundToInt(thL * 10f) + "x" + UnityEngine.Mathf.RoundToInt(thR * 10f) + ".fbx";
+        }
+
+        /// <summary><see cref="NagayaOmoteMonKutai"/> の端の妻壁を区画の線の折れ(全角 thL = −X 端・thR = +X 端・度)の二等分の面へ寝かせた版
+        /// (<see cref="NagayaOmote2FKutaiMiter"/> の門長屋版)。据えは素の _kutai と同じ。綴りは 0.1° の整数 `_m101x0`。札 = PartSpecs。
+        /// **20.07・mon4.07・2f・m101x0**: 岡部 N18(裏門の門長屋・−X 端が頂点 18 の折れ 10.06°)。
+        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- 20.07 --body --gate 4.07 2.727 2.8 --floors 2 --miter 10.059 0 --render</summary>
+        public static string NagayaOmoteMonKutaiMiter(float len, float gateFromLeft, bool nikai, float thL, float thR)
+        {
+            string p = NagayaOmoteMonKutai(len, gateFromLeft, nikai);
+            return p.Substring(0, p.Length - 4) + "_m" + UnityEngine.Mathf.RoundToInt(thL * 10f) + "x" + UnityEngine.Mathf.RoundToInt(thR * 10f) + ".fbx";
+        }
+
         /// <summary>tsuma=false は両端を突き付けにした版(`--ends none`)。鎖の途中の一本に使う。</summary>
         public static string NagayaOmote(float len, bool tsuma)
         {
@@ -2512,6 +2532,53 @@ public static class EdoAssets
             if (az == 200 && ax == 200) return p;
             return p.Substring(0, p.Length - 4) + "_A" + az + "x" + ax + ".fbx";
         }
+        // EDO-0502: **A19x200**(40.219° × 4.00/4.50): 岡部 TW_Kado_Shumen の P1 ── −Z の腕が石段 K_Dan の口まで 0.19。上の 4m は H0400 と頂点一致。
+        //   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 40.219 --h 4.5 --arms 0.19,2.0 --render
+        //   IshigakiKado2 の **H4.50** 版も同じ(--h 4.5)。
+
+        /// <summary>**二重折れの石垣の隅**(`Castle Wall` の留め継ぎを二つ一体に)。天端の前の縁で <paramref name="mid"/> m しか離れない
+        /// 出隅二つ(<paramref name="deg1"/> → <paramref name="deg2"/>)。据え = 一つ目の折れの両脇の背の線の交点 P・y = 天端 − h / yaw = 中の区間を
+        /// 局所 −Z へ(局所 −X = 中の区間の見え面)── PlaceRunKado が一つ目の折れに素の隅を据えるのと同じ P・yaw。
+        /// armNegZ = 二つ目の折れの背の交点 Q から先の小口まで(負 = Q の手前)/ armPosX = P から一つ目の折れの出の腕の小口まで。
+        /// **43×37・L0.64・A-3x142**: 岡部 TW_Kado_Shumen の P4/P5(中の区間・#4 の区間・#2 の直線材を兼ねる)。材 stone wall。
+        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 42.509 --deg2 36.693 --mid 0.6364 --h 4 --arms -0.027,1.4195 --render</summary>
+        public static string IshigakiKado2(float deg1, float deg2, float mid, float h, float armNegZ, float armPosX)
+        {
+            return "Assets/Edo/Models/Kado/Ishigaki_Kado2_"
+                 + UnityEngine.Mathf.RoundToInt(deg1).ToString("00") + "_" + UnityEngine.Mathf.RoundToInt(deg2).ToString("00")
+                 + "_L" + UnityEngine.Mathf.RoundToInt(mid * 100f).ToString("000")
+                 + "_H" + UnityEngine.Mathf.RoundToInt(h * 100f).ToString("0000")
+                 + "_A" + UnityEngine.Mathf.RoundToInt(armNegZ * 100f) + "x" + UnityEngine.Mathf.RoundToInt(armPosX * 100f) + ".fbx";
+        }
+
+        /// <summary>**丈違いの城の石垣の直線の駒**(`JC.CastleWall` 1 枚・走り 2.00 を丈 <paramref name="h"/> m へ下へ継いだ物)。
+        /// 局所は `Castle Wall` と同じ(走り Z ∈ [−2.00, 0]・背 X = 0・見え面 −X・天端の前の縁 X = −1.40・足元 Y = 0)。
+        /// 上の 4.00m は素と頂点まで同じ(2026-10-03 実測・差 0)── 違うのは足元だけ: 段を 1m ずつ勾配 0.25 のまま継ぎ、
+        /// 端数は足元を水平に切り落とす(⛔ 引き伸ばさない)。面の足は背から 2.40 + 0.25·(h − 4)。
+        /// 据え: CastleWall と同じ position・yaw / **y = 天端 − h** / scale = 1。材 `stone wall`(.meta を写せば remap 不要)。
+        /// **H0450**: 岡部 TW_Kado_Shumen(見付 4.42〜4.50・丈 4.0 だと底が 0.5 浮いた)。
+        ///   blender --background --python Tools/Blender/build_kado.py -- --straight --h 4.5 --render</summary>
+        public static string IshigakiChoku(float h)
+        {
+            return "Assets/Edo/Models/Kado/Ishigaki_Choku_H" + UnityEngine.Mathf.RoundToInt(h * 100f).ToString("0000") + ".fbx";
+        }
+
+        /// <summary>**端を隣の辺の線で斜めに切った練塀の駒**(`DobeiRun` の組 = `s_hei_center` 表裏2枚を実寸で 1 枚分・走り 2.990)。
+        /// 区画の角で隣の辺が斜めに来るとき、直角の端では深い側の角が先に線に当たり見え面に楔の口が残る(岡部 辺0 の始め 0.053)。
+        /// 局所(Unity): +X = 切る端(角の側)・+Z = 見え面(区画の外)・足元 Y = 0。**ピボット = 切り口と壁体の外面(腰の石垣の表)の交点**。
+        /// 直角の端は X = −2.990・壁体は Z ∈ [−0.637, 0]・DobeiRun の横の基準(表の駒の外接の中央)は Z = −0.219。
+        /// <paramref name="deg"/> = 切り口の線が走りとなす角(深さ w で走りへ w·cot(deg) 退く・IshigakiKiri と同じ測り方)/
+        /// <paramref name="faceLonger"/> = 見え面の側が長い(`L`)。切り口の壁体は断面(腰の石垣・板の帯)で塞いである。屋根は切りっぱなし。
+        /// 据え: position = 犬走りへ寄せた後の外面の線と隣の辺の線の交点 / yaw = 外向き法線の方位 / scale = 1 / 底 = DobeiRun と同じ座。
+        /// 残りの run は直角の端(X = −2.990)から DobeiRun で継ぐ。札(fence)= PartSpecs/同名.json。材 `s_heimap` ⇒ `Edo/共通/隅部材のマテリアルをremap`。
+        /// **849_L**: 岡部 SE_Hei の始め(頂点 0・隣は辺41)/ **255_L**: S_Hei_21 の終わり(頂点 25・隣は辺25)。
+        ///   blender --background --python Tools/Blender/build_dobei_kiri.py -- &lt;deg&gt; [--S] --render</summary>
+        public static string DobeiKiri(float deg, bool faceLonger)
+        {
+            return "Assets/Edo/Models/Kado/Dobei_Kiri_" + UnityEngine.Mathf.RoundToInt(UnityEngine.Mathf.Abs(deg) * 10f).ToString("000")
+                 + "_" + (faceLonger ? "L" : "S") + ".fbx";
+        }
+
 
         /// <summary>**出隅の隅長屋**(L 字の長屋の角・EDO-0500 2026-10-01 観理院 北東の施主指摘 ── 妻を突っ込む納めは屋根が重なり窓が途中で切れた)。
         /// 在庫 `knagaya01c` を周期のまま走りに延ばした帯を **pier(無地の壁)の芯で折った**物 ── 屋根は留めで一続き(外に隅棟・内に谷)。

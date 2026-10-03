@@ -906,7 +906,7 @@ class Checks(object):
 
     def c04(self):
         M = self.M
-        rows, bad, seated, seat_vis, seat_at_all = [], [], [], [], []
+        rows, bad, seated, seat_vis, seat_at_all, soft = [], [], [], [], [], []
         worst = 0.0
         # 面ごとの許容(planes[].devEnvelopeM)と名指しの例外(planes[].devEnvelopeExceptions)は欄が持つ
         env = {}
@@ -1021,7 +1021,10 @@ class Checks(object):
                 bad.append("⛔%s **系統差 %+.2f m**(面の引き方。ばらつきは ±%.2f)"
                            % (b.name, med, spread))
             elif y_seat is None and pc < 100.0:
-                bad.append("%s ばらつき ±%.2f m が許容 %.2f を超える(%.0f%%)" % (b.name, spread, tol, pc))
+                # ⭐ 凹凸は**柔らかい**(△ 狙い未達・不合格に数えない)── 系統差が通っていれば面は導かれており、
+                #   凹凸は造成で均されて建つ姿に出ない(施主指示 2026-10-03・EDO-0551)。硬いのは系統差だけ。
+                soft.append("△%s ばらつき ±%.2f m が狙い %.2f を超える(%.0f%%・系統差 %+.2f は通過)"
+                            % (b.name, spread, tol, pc, med))
         # ⛔ 検査を緩めた宣言は黙って通さない — 施主の言葉が要る(完成条件の render と同じ作法)
         for x in exc_raw:
             if isinstance(x, dict) and (x.get("quote") or "").strip():
@@ -1043,10 +1046,12 @@ class Checks(object):
             bad.append("⚠〔基壇の見えと削り(造成後の地盤)〕%s" % "・".join(seat_vis))
         real = [q for q in bad if not q.startswith("⚠〔基壇")]
         res = "不合格 %d 棟 / 最大 %.2f m" % (len(real), worst)
+        if soft:
+            res += " / 凹凸が狙い超え %d 棟(△・系統差は通過)" % len(soft)
         if seat_vis:
             res += "(基壇に載る棟を除く)/ 基壇の見えの丈の最大 %.2f m(造成後の地盤)" % max(
                 float(q.split("見え ", 1)[1].split("〜", 1)[1].split("・", 1)[0]) for q in seat_vis)
-        self.add("C04", what, res, "ok" if not real else "ng", bad[:12])
+        self.add("C04", what, res, "ng" if real else ("soft" if soft else "ok"), (real + soft + [q for q in bad if q not in real])[:12])
 
     # C05 段差の受け
     def c05(self):

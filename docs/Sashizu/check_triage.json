@@ -57,7 +57,7 @@
   },
   "C04": {
    "title": "面と地形の差",
-   "measures": "棟の下で |設計面 − 自然地形| ≤ 0.5m(規則3)",
+   "measures": "棟の下の系統差(足元の自然地形の中央値と面の差)≤ 0.25m は硬い(⛔)。凹凸(ばらつき)が 0.5m を超えるのは柔らかい(△・EDO-0551)",
    "from_checks": [
     "doi:mune_fit_check",
     "sanno:plane_dev_check"

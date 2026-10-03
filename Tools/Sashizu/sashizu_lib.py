@@ -1936,3 +1936,137 @@ def edashita_over_road(pt, rec, is_road, road_y, need_m, own_poly=None, n_ang=24
                              "shortM": round(need - have, 3), "at": [round(p[0], 2), round(p[1], 2)]}
         rin = r
     return worst
+
+
+# ================================================================ 植栽の散布(共通 ── EDO-0502)
+#   ⭐ 山王(`impl_sanno.scatter_pts`)と岡部(`impl_okabe.bake_planting`)が同じ撒き方を使う。
+#   ⛔ 邸ごとに写しを持たない ── 種・本数の配り方・芯々の採り方が邸で違うと、検査(C25〜C30)の前提が崩れる。
+
+def plant_rnd(d, name, lay):
+    """撒く乱数の種 ── **`planting.plantRule.seed` の宣言そのもの**(「帯・区の名 + '/' + 層の名」)。
+
+    ⛔ 時刻や連番で振らない(流し直すたびに木が動くと検証レンダが比較できない)。
+    ⛔ 宣言が無ければ止める — 種の出所が指図に無いまま撒くと、**同じ指図から別の林**が出る。
+    戻り (random.Random, 種の語)。
+    """
+    import random
+    if not (((d.get("planting") or {}).get("plantRule") or {}).get("seed")):
+        raise SystemExit("`planting.plantRule.seed` の宣言が無い — 撒く種の出所が指図に無い")
+    key = "%s/%s" % (name, lay)
+    return random.Random(int(_hashlib.sha256(key.encode("utf-8")).hexdigest()[:16], 16)), key
+
+
+def apportion(vals, tot):
+    """実数の列 `vals` を、和が `tot` になる整数へ**最大剰余法**で配る。
+
+    ⛔ 帯ごとに丸めない — 帯ごとに丸めると和が予算表と食い違い、「焼いた点の数 = 図が刷った本数」の検査が立たない。
+    """
+    fl = [int(math.floor(max(0.0, v))) for v in vals]
+    rest = tot - sum(fl)
+    order = sorted(range(len(vals)), key=lambda i: (-(max(0.0, vals[i]) - fl[i]), i))
+    for i in order[:max(0, rest)]:
+        fl[i] += 1
+    return fl
+
+
+def scatter_take(rnd, cells, n, rmin, seeded=(), other=(), rx=0.0, accept=None):
+    """候補のセルから **n 点**を決定論的に採る。芯々の下限は `rmin`(セルと同じ単位)。
+
+    ⭐ **層をまたぐ幹の芯々 `rx` は硬い(許容0)**【EDO-0420 2026-09-23】── `other` は**別の層**で位置の決まった幹。
+      ⛔ `rx` は `rmin` と違って**緩めない** ── 採りきれなければ `got < want` で名乗る。
+    ⭕ 位置は**セルの中心のまま**(⛔ 揺らぎを足さない ── 中心を外すと退避へはみ出す)。
+    ⚠ 採りきれなければ `rmin` を 0.9 倍して採り直す(柔らかい条件)。**緩めた回数は記録に残す**。
+    ⭐ `accept(p)` があれば、芯々を満たした候補を**さらにその口で**採るか決める(硬い制約 ── 道の上の枝下など)。
+    戻り (点, 実際の rmin, 緩めた回数)。
+    """
+    cs = list(cells)
+    rnd.shuffle(cs)
+    if other and rx > 0:
+        go = {}
+        for q in other:
+            go.setdefault((int(math.floor(q[0] / rx)), int(math.floor(q[1] / rx))), []).append(q)
+
+        def _clear(p):
+            c = (int(math.floor(p[0] / rx)), int(math.floor(p[1] / rx)))
+            return not any((p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 < rx * rx
+                           for a in range(c[0] - 1, c[0] + 2) for b in range(c[1] - 1, c[1] + 2)
+                           for q in go.get((a, b), ()))
+        cs = [p for p in cs if _clear(p)]
+    fix = [tuple(q) for q in seeded]
+    r, relax = float(rmin), 0
+    while True:
+        gr, out = {}, []
+        for q in fix:
+            gr.setdefault((int(math.floor(q[0] / r)), int(math.floor(q[1] / r))), []).append(q)
+        for p in cs:
+            c = (int(math.floor(p[0] / r)), int(math.floor(p[1] / r)))
+            ok = True
+            for a in range(c[0] - 1, c[0] + 2):
+                for b in range(c[1] - 1, c[1] + 2):
+                    for q in gr.get((a, b), ()):
+                        if (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 < r * r:
+                            ok = False
+                            break
+                    if not ok: break
+                if not ok: break
+            if not ok: continue
+            if accept is not None and not accept(p): continue
+            gr.setdefault(c, []).append(p)
+            out.append(p)
+            if len(out) >= n: return out, r, relax
+        if len(out) >= n or relax >= 40 or r < 1e-3:
+            return out, r, relax
+        r *= 0.9
+        relax += 1
+
+
+_PART_RE = re.compile(r"^\s*([A-Za-z]+)\.([A-Za-z]+)\(([^)]*)\)\s*(.*)$")
+
+
+def plant_part(s):
+    """指図の `planting.parts` の一行(`Own.Matsu(Mid|Big,1..3) クロマツ` の書式)を読む。
+
+    戻り {fam, name, sizes[], idx[], note, detail} か None(読めない行)。
+    ・括弧の第1項は大きさの選択肢(`|` 区切り)、第2項は個体の範囲(`1..3`)。大きさを持たない部材
+      (`JG.Fern(1|2)`)は第1項が個体になる ── 呼び手は `sizes` を個体として読む。
+    ・`detail` は行の末尾の語(地形の詳細メッシュで撒く層 ── 点としては焼かない)。
+    """
+    m = _PART_RE.match(s or "")
+    if not m: return None
+    fam, nm, inner, rest = m.groups()
+    args = [a.strip() for a in inner.split(",")]
+    sizes = [x for x in (args[0].split("|") if args and args[0] else []) if x]
+    idx = [1]
+    if len(args) > 1 and ".." in args[1]:
+        a, b = args[1].split("..", 1)
+        idx = list(range(int(a), int(b) + 1))
+    elif len(args) > 1 and args[1].isdigit():
+        idx = [int(args[1])]
+    return {"fam": fam, "name": nm, "sizes": sizes, "idx": idx, "note": rest.strip(),
+            "detail": "detail" in rest.split()}
+
+
+def grid_sampler(g):
+    """算出物の世界格子(`graded` ── x0・z0・step・nx・nz・h[行][列]、None = 区画の外)を**双一次**で引く関数。
+
+    ⭐ 実装(`EdoOkabeYashikiBuilder.WGrid.At`)と同じ読み方 ── 四隅のうち値のある節点だけで重みを割る。
+    戻り f(x, z) → y か None。
+    """
+    x0, z0, st, nx, nz, H = g["x0"], g["z0"], g["step"], g["nx"], g["nz"], g["h"]
+
+    def at(x, z):
+        fx, fz = (x - x0) / st, (z - z0) / st
+        i0, j0 = int(math.floor(fx)), int(math.floor(fz))
+        tx, tz = fx - i0, fz - j0
+        acc = wt = 0.0
+        for dj in (0, 1):
+            for di in (0, 1):
+                i, j = i0 + di, j0 + dj
+                if i < 0 or i >= nx or j < 0 or j >= nz: continue
+                v = H[j][i]
+                if v is None: continue
+                w = (1.0 - tx if di == 0 else tx) * (1.0 - tz if dj == 0 else tz)
+                acc += v * w
+                wt += w
+        return acc / wt if wt > 1e-9 else None
+    return at

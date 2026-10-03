@@ -4851,74 +4851,16 @@ def _seed_rnd(d, name, lay):
 
 
 def _apportion(vals, tot):
-    """実数の列 `vals` を、和が `tot` になる整数へ**最大剰余法**で配る。
-
-    ⛔ 帯ごとに丸めない — 帯ごとに丸めると和が予算表(`plant_budget`)と食い違い、
-    「焼いた点の数 = 図が刷った本数」の検査が立たなくなる。
-    """
-    fl = [int(math.floor(max(0.0, v))) for v in vals]
-    rest = tot - sum(fl)
-    order = sorted(range(len(vals)), key=lambda i: (-(max(0.0, vals[i]) - fl[i]), i))
-    for i in order[:max(0, rest)]:
-        fl[i] += 1
-    return fl
+    """最大剰余法の配り ── 正典は `sashizu_lib.apportion`(岡部と共有・EDO-0502)。"""
+    import sashizu_lib as L
+    return L.apportion(vals, tot)
 
 
 def _scatter_take(rnd, cells, n, rmin, seeded=(), other=(), rx=0.0, accept=None):
-    """候補のセル(uv)から **n 点**を決定論的に採る。芯々の下限は `rmin`[間]。
-
-    ⭐ **層をまたぐ幹の芯々 `rx`[間] は硬い(許容0)**【EDO-0420 2026-09-23】── `other` は
-      **別の層**で位置の決まった幹。⚠ 層ごとの散布は同じ候補の格子を使うので、
-      層を知らないと中木と低木が**同じセルの中心**に立つ(茂り前から 48 組・5fc26763 で 57 組)。
-      ⛔ `rx` は `rmin` と違って**緩めない** ── 採りきれなければ `got < want` で名乗る。
-
-    ⭕ 位置は**セルの中心のまま**(⛔ 揺らぎを足さない)── セルは退避を引いた面の走査結果で、
-      中心を外すと退避へはみ出す点が出る(図が測った面と別物になる)。
-    ⚠ 採りきれなければ `rmin` を 0.9 倍して採り直す。**緩めた回数は記録に残す**
-      (⛔ 黙って詰めない — 密度と芯々が両立しないことは指図の側の欠陥である)。
-    ⭐ `accept(p)` があれば、芯々を満たした候補を**さらにその口で**採るか決める(道の上の枝下 ── 硬い制約。
-      木を起こしてから測るので、起こした行は呼び手が `accept.memo` から引く)。
-    戻り (点, 実際の rmin, 緩めた回数)。
-    """
-    cs = list(cells)
-    rnd.shuffle(cs)
-    if other and rx > 0:
-        go = {}
-        for q in other:
-            go.setdefault((int(math.floor(q[0] / rx)), int(math.floor(q[1] / rx))), []).append(q)
-
-        def _clear(p):
-            c = (int(math.floor(p[0] / rx)), int(math.floor(p[1] / rx)))
-            return not any((p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 < rx * rx
-                           for a in range(c[0] - 1, c[0] + 2) for b in range(c[1] - 1, c[1] + 2)
-                           for q in go.get((a, b), ()))
-        cs = [p for p in cs if _clear(p)]
-    fix = [tuple(q) for q in seeded]
-    r, relax = float(rmin), 0
-    while True:
-        gr, out = {}, []
-        for q in fix:
-            gr.setdefault((int(math.floor(q[0] / r)), int(math.floor(q[1] / r))), []).append(q)
-        for p in cs:
-            c = (int(math.floor(p[0] / r)), int(math.floor(p[1] / r)))
-            ok = True
-            for a in range(c[0] - 1, c[0] + 2):
-                for b in range(c[1] - 1, c[1] + 2):
-                    for q in gr.get((a, b), ()):
-                        if (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 < r * r:
-                            ok = False
-                            break
-                    if not ok: break
-                if not ok: break
-            if not ok: continue
-            if accept is not None and not accept(p): continue
-            gr.setdefault(c, []).append(p)
-            out.append(p)
-            if len(out) >= n: return out, r, relax
-        if len(out) >= n or relax >= 40 or r < 1e-3:
-            return out, r, relax
-        r *= 0.9
-        relax += 1
+    """候補のセルから n 点を決定論的に採る ── 正典は `sashizu_lib.scatter_take`(岡部と共有・EDO-0502)。
+    ⛔ ここへ写しを戻さない(邸ごとに撒き方が分かれると検査 C25〜C30 の前提が崩れる)。"""
+    import sashizu_lib as L
+    return L.scatter_take(rnd, cells, n, rmin, seeded=seeded, other=other, rx=rx, accept=accept)
 
 
 def cross_layer_trunk_min(d):

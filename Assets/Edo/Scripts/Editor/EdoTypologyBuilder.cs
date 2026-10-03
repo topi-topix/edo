@@ -654,7 +654,22 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                         chain.Add(nx); done.Add(nx);
                     }
                     var pts = new List<Vector2> { chain[0].a }; foreach (var x in chain) pts.Add(x.b);
-                    string dn; var plan = EdoBuild.DanPlan(pts, out dn);
+                    // ⭐ 門の口を鎖の道のりで渡す ── 区切りは門の柱で切る(EDO-0514)。⛔ 渡さないと門が平らな区間の片寄りに立った(樹下の表門)
+                    var gaps = new List<Vector2>();
+                    {
+                        float cg = 0f;
+                        foreach (var x in chain)
+                        {
+                            bool xFront = edges.Contains(x) ? x == front : (front != null && x.i == front.i);
+                            if (xFront && gateHalf > 0f)
+                            {
+                                float gt = Vector2.Dot(gateC - x.a, (x.b - x.a).normalized);
+                                if (gt + gateHalf > 0f && gt - gateHalf < x.len) gaps.Add(new Vector2(cg + gt - gateHalf, cg + gt + gateHalf));
+                            }
+                            cg += x.len;
+                        }
+                    }
+                    string dn; var plan = EdoBuild.DanPlan(pts, out dn, gaps);
                     float c0 = 0f;
                     foreach (var x in chain) { danOf[x] = new KeyValuePair<float, List<EdoBuild.DanSec>>(c0, plan); c0 += x.len; }
                     kakoiNotes.Add("辺" + string.Join("・", chain.Select(x => x.i.ToString()).ToArray()) + " " + dn);

@@ -2673,7 +2673,7 @@ class Fig(object):
         self.vol = vol
         return self.frame(o)
 
-    def section(self, s, idx, w=980, hgt=230, pad=44):
+    def section(self, s, idx, w=980, hgt=330, pad=44):
         M = self.M
         n = 360
         nat, des, ins = [], [], []
@@ -2830,7 +2830,7 @@ class Fig(object):
     def keyplan(self, idx):
         """断面の横に置く小さな配置図。その断面の切り位置だけを太く、左端(図の左)に「左」。"""
         M = self.M
-        k = Fig(M, W=300, pad=6)
+        k = Fig(M, W=420, pad=6)
         k.numbering()
         o = k.base()
         for t in M.terraces:
@@ -3056,6 +3056,24 @@ def kosho_html(prose):
     return "".join(out)
 
 
+# 図を押すと拡大表示(施主 2026-10-03「図が小さすぎる・拡大縮小できるように」)。
+#   ＋/− とホイールで倍率、ドラッグで移動、Esc か背景で閉じる。外部の読み込みは無い。
+ZOOM_JS = """<div id="zv" hidden><div id="zvbar"><button type="button" data-z="-">−</button><span id="zvp">100%</span>
+<button type="button" data-z="+">＋</button><button type="button" data-z="0">全体</button><button type="button" data-z="x">閉じる ✕</button></div>
+<div id="zvc"><div id="zvi"></div></div></div>
+<script>(function(){var v=document.getElementById('zv'),c=document.getElementById('zvc'),i=document.getElementById('zvi'),p=document.getElementById('zvp'),z=1;
+function set(n){z=Math.max(.5,Math.min(8,n));i.style.width=(z*100)+'%';p.textContent=Math.round(z*100)+'%';}
+function open(svg){i.innerHTML='';var k=svg.cloneNode(true);k.removeAttribute('style');k.style.width='100%';k.style.height='auto';k.style.display='block';i.appendChild(k);set(1);v.hidden=false;c.scrollTop=0;c.scrollLeft=0;}
+function close(){v.hidden=true;i.innerHTML='';}
+document.querySelectorAll('.fig svg, .secrow svg').forEach(function(s){s.style.cursor='zoom-in';s.addEventListener('click',function(){open(s);});});
+v.querySelectorAll('button').forEach(function(b){b.addEventListener('click',function(e){e.stopPropagation();var d=b.dataset.z;if(d==='+')set(z*1.4);else if(d==='-')set(z/1.4);else if(d==='0')set(1);else close();});});
+c.addEventListener('wheel',function(e){if(!e.ctrlKey&&!e.metaKey&&!e.altKey)return;e.preventDefault();set(z*(e.deltaY<0?1.15:1/1.15));},{passive:false});
+var dr=null;c.addEventListener('mousedown',function(e){dr=[e.clientX,e.clientY,c.scrollLeft,c.scrollTop];c.style.cursor='grabbing';});
+window.addEventListener('mouseup',function(){dr=null;c.style.cursor='grab';});
+window.addEventListener('mousemove',function(e){if(!dr)return;c.scrollLeft=dr[2]-(e.clientX-dr[0]);c.scrollTop=dr[3]-(e.clientY-dr[1]);});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!v.hidden)close();});})();</script>"""
+
+
 def sec_mark(s, i):
     """断面の印。名が「断面イ …」なら「イ」、無ければ通し番号。"""
     m = re.match(r"\s*断面\s*(\S)", s.name or "")
@@ -3218,6 +3236,7 @@ def build(est, deep=False, out=None):
     h.append('<p class="foot">%s 指図の写し ／ 設計値 <code>docs/Sashizu/%s_sashizu.json</code> ／ 文章 <code>docs/Sashizu/%s_kosho.md</code> ／ '
              '地盤 <code>%s</code> ／ 生成器 <code>Tools/Sashizu/build_sashizu.py</code>(全邸共通)。⛔ 生成器は実装を読まない。</p>'
              % (esc(title), est, est, M.dem_name))
+    h.append(ZOOM_JS)
     h.append("</div>")
     # ── 文書の記法(D01)。⛔ **図の字面だけを見る検査は構造的に 0 を返し続ける** —
     #   欠陥は html の本文と表に出る(掲示板 EDO-0178)。⚠ この物差し(svg_layout.doc_markup)は

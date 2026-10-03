@@ -23,3 +23,8 @@ metadata:
 3. **症状**(同日・9列の柱): 柱の足元に白い四角。**原因**: 柱の「代」の側面の uv が u 0.068〜0.288 に張られ、
    材 itabei の地図の u 0.25〜0.27 が白い列(代の帯の標本の 9% が白)。地覆の帯(u 0.858〜0.975)は白 0。
    **対処**: 部材方の uv の置き場の話。光付けの後は足元を近接で撮り、白・桃色を目で見る(接地の数が合格でも出る)。
+
+4. **再発**(2026-10-03 EDO-0535 松江松平 N_Nagaya_E1 が桃色): `Models/Nagaya` の FBX 84 本中 12 本が remap(knagayamap)在りで材 null。
+   ForceUpdate で 12 本とも直り、.meta は変わらず(Library だけの話)。再 import で console に
+   「Importer(FBXImporter) generated inconsistent result」が 12 本分出る ── 取り込みが非決定的で、いつかまた null に戻り得る。
+   ⚠ 共通の remap メニュー(`Edo/共通/附属屋・門・木のマテリアルをremap`)は `Models/Nagaya` を見ない。長屋は folder ごと材 null を数えて ForceUpdate。

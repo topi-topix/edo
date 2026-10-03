@@ -12544,5 +12544,27 @@
  ],
  "assetRequests": [],
  "_notes": "⭐ **この指図の文章は `docs/Sashizu/matsudaira_dewa_notes/<章>.json` にある。**欄を直すときは同じ章の注記を先に読むこと(path がそのまま鍵)。戻すのは `python3 Tools/Sashizu/prose_split.py matsudaira_dewa --restore`。⛔ 文章をここへ書き戻さない — 値だけを置く欄にした(2026-09-21 施主指示)。",
- "_renumber": "2026-10-03 EDO-0535: 区画の付け替え(2026-10-01 施主裁定・EDO-0502)で 15 頂点 → 24 頂点。旧辺 k≥4 = 新辺 k+9・旧頂点 Pk(k≥4) = 新 P(k+9)。旧辺 0〜3(土井境)は新辺 0〜12。外周の章(runs・joints・chains・gate・komon・yagura・kado・perimeterClosure)の文中の「辺N」「PN」は振り直した。⚠ それ以外の章の文中の辺・隅の番号は旧番号のまま。edgeProfiles 0〜12 は base_dem.json から引き直した"
+ "_renumber": "2026-10-03 EDO-0535: 区画の付け替え(2026-10-01 施主裁定・EDO-0502)で 15 頂点 → 24 頂点。旧辺 k≥4 = 新辺 k+9・旧頂点 Pk(k≥4) = 新 P(k+9)。旧辺 0〜3(土井境)は新辺 0〜12。外周の章(runs・joints・chains・gate・komon・yagura・kado・perimeterClosure)の文中の「辺N」「PN」は振り直した。⚠ それ以外の章の文中の辺・隅の番号は旧番号のまま。edgeProfiles 0〜12 は base_dem.json から引き直した",
+ "boundaryNatural": {
+  "band": 1.818,
+  "spans": [
+   [
+    3,
+    0,
+    6.52
+   ],
+   [
+    4,
+    0,
+    8.02
+   ],
+   [
+    5,
+    0,
+    2.0
+   ]
+  ],
+  "why": "谷の頭で主郭の平場 Shukaku(27.0)の盛りが新しい土井境の線の際まで流れ込み、線の上の練塀が内の地表に最大1.9m埋まった(普請検査 2026-10-03)。線から内1間は造成前の地盤へ戻し、平場へは切土の法 1:1.0 で摺り付ける(規則3・9 造成は最小)",
+  "cert": "U(普請方 2026-10-03・EDO-0535)"
+ }
 }

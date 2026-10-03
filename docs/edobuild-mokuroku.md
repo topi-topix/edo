@@ -1,6 +1,6 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 d27cffdc8ad0 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 a8e7cfa8dc6b -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
@@ -602,7 +602,7 @@ EdoBuild — 坂の路盤(折れ線の芯と縦断で道の面を均し、盛土
 | `EdoBuild.ContactPts(pa, pb, dir, at, count, tol=…, cell=…)` | `float` | 面 | 二つの頂点の集まりが触れている箇所(Contact の中身)。 ⟶ 返す: 最小の隙(負 = めり込み)・NaN = 向き合っていない | — |
 | `EdoBuild.RestGap(mover, moverMat, bed, bedMat, at, count, tol=…)` | `float` | 天端・床 | 載る駒と受ける駒が鉛直に触れている箇所(材で絞る・null で全材)。 ⟶ 返す: 最小の隙[m](負 = めり込み・NaN = 上下に重ならない)、 at = その所、count = 最小から tol 以内の点の数 | — |
 | `EdoBuild.RestOn(mover, moverMat, bed, bedMat, gap, at, count)` | `float` | 床 | 受けの上に載せる。RestGap が gap(0 = 接触)になる高さへ 鉛直に動かす。 ⟶ 返す: 動かした量[m](上下に重ならなければ NaN で動かさない) | SannoSha(Stage8_Ido) |
-| `EdoBuild.FlushGap(go, mat, rise, at, count, cell=…, tol=…)` | `float` | 地面・天端 | 天端を地表に揃えて埋める駒の、天端と地表の差。 ⟶ 返す: 最小(負 = 天端が土に埋まっている)、 rise = 最大(天端が地表から出ている量) | SannoSha(Stage8_Ido), TypologyBuilder.Niwa(PutIdo) |
+| `EdoBuild.FlushGap(go, mat, rise, at, count, cell=…, tol=…)` | `float` | 地面・天端 | 天端を地表に揃えて埋める駒の、天端と地表の差。 ⟶ 返す: 最小(負 = 天端が土に埋まっている)、 rise = 最大(天端が地表から出ている量) | MatsudairaDewa(Stage6_Zosaku), SannoSha(Stage8_Ido), TypologyBuilder.Niwa(PutIdo) |
 | `EdoBuild.SeatFlush(go, mat, proud, rise, cell=…)` | `float` | 地面・天端 | 天端を地表に揃えて埋める。FlushGap の最小が proud (+ = 地表から出す量・0 = 面一)になる高さへ動かす。 ⟶ 返す: 動かした量[m] | SannoSha(Stage8_Ido), TypologyBuilder.Niwa(PutIdo) |
 | `EdoBuild.CenterInOpening(plug, plugMat, socket, socketMat, y, margin, clearMin, clearMax)` | `Vector2` | 床・断面 | 差す駒を相手の穴へ芯出しする。高さ y で、差す駒(材 plugMat)の 断面の外周と、受ける駒(材 socketMat)の断面のうち差す駒の外周から margin 以内にある物(= 穴の壁)を取り、両方の外形の中点を… ⟶ 返す: 動かした量(XZ・測れなければ NaN で動かさない) | SannoSha(Stage8_Ido) |
 | `EdoBuild.CenterOnBed(mover, moverMat, yMover, bed, bedMat, yBed, reach, worstFoot)` | `Vector2` | 床・断面 | 足(柱)を受け(礎石)へ芯出しする。載る駒(材 moverMat)の高さ yMover の 断面(= 足の実形)と、受ける駒(材 bedMat)の高さ yBed の断面のうち 足の外形から reach 以内の物(= 受け… ⟶ 返す: 動かした量(XZ・測れなければ NaN で動かさない) | SannoSha(Stage8_Ido) |

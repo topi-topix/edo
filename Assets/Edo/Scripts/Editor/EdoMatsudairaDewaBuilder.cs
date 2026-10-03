@@ -273,6 +273,30 @@ public static partial class EdoMatsudairaDewaBuilder
     /// 何度流しても同じ結果になる(冪等)。</summary>
     public static float DesignY(Vector2 p)
     {
+        float y = DesignYRaw(p);
+        // ⭐ 区画の線の際の「地山へ戻す帯」(指図 `boundaryNatural`・EDO-0535 普請方 2026-10-03)。
+        //   平場の盛り・擦り付けが線の際まで流れ込むと、線の上の塀が内の地表に埋まる(谷の頭で最大 1.9m)。
+        //   帯の中は造成前の地盤、帯の外は切土の法 1:batterCut で平場へ摺り付ける。⛔ 盛る向きにだけ効く(地山より下げた所は触らない)。
+        //   当たる先: 指図が帯を宣言した辺の区間すべて(当邸は土井境の谷の頭 辺3・辺4・辺5 の頭)。
+        if (Has(D, "boundaryNatural"))
+        {
+            var bn = O(D["boundaryNatural"]);
+            float band = F(bn["band"]), dB = float.MaxValue;
+            foreach (var so in A(bn["spans"]))
+            {
+                var sp = A(so); int e = (int)F(sp[0]);
+                dB = Mathf.Min(dB, DistSeg(p, EdgePt(e, F(sp[1])), EdgePt(e, F(sp[2]))));
+            }
+            if (dB < band + 30f)
+            {
+                float yN = NaturalY(p.x, p.y);
+                if (y > yN) y = Mathf.Min(y, yN + Mathf.Max(0f, dB - band) / Mathf.Max(0.5f, BatterCut));
+            }
+        }
+        return y;
+    }
+    static float DesignYRaw(Vector2 p)
+    {
         var f = Grid;
         Vector2 g = f.L(p);
         // ① 段(矩形・グリッド座標)。中なら距離0。あわせて縁の最寄り点も出す(土留めの判定に使う)。
@@ -370,6 +394,40 @@ public static partial class EdoMatsudairaDewaBuilder
             for (int z = 0; z < hres; z++) for (int x = 0; x < hres; x++) w.Write(H[z, x]);
         }
         return "退避 " + hres + "x" + hres + " → " + bin;
+    }
+
+    // ---------------------------------------------------------------- Stage1c 線際の帯を地山へ戻す
+    /// <summary>**指図 `boundaryNatural` の帯だけを、造成前の地盤へ下げ直す**(EDO-0535)。Stage1 を全部流すと
+    /// 築山(1b)・御泉水(6a)の地形が消えるので、帯とその摺り付け(1:batterCut)が効く所だけを `Min(いま, 設計面)` で下げる。
+    /// 冪等(下げるだけ・設計面は退避した造成前の地盤から)。⛔ 区画の外は EditHeights が触らない。</summary>
+    [MenuItem("Edo/松平出羽守上屋敷/1c 線際の帯を地山へ戻す")]
+    public static void Stage1cMenu() { Debug.Log("[Matsudaira] " + Stage1c_BoundaryNatural()); }
+    public static string Stage1c_BoundaryNatural()
+    {
+        if (!Has(D, "boundaryNatural")) return "指図に boundaryNatural が無い";
+        var bn = O(D["boundaryNatural"]);
+        float reach = F(bn["band"]) + 6f;          // 帯 + 摺り付け(平場との差 ≤ 約3m を 1:1)の余裕
+        Vector2 mn = new Vector2(float.MaxValue, float.MaxValue), mx = -mn;
+        var segs = new List<Vector2[]>();
+        foreach (var so in A(bn["spans"]))
+        {
+            var sp = A(so); int e = (int)F(sp[0]);
+            var a = EdgePt(e, F(sp[1])); var b = EdgePt(e, F(sp[2]));
+            segs.Add(new[] { a, b });
+            mn = Vector2.Min(mn, Vector2.Min(a, b)); mx = Vector2.Max(mx, Vector2.Max(a, b));
+        }
+        Stage0_Backup();
+        string r = EditHeights(mn - Vector2.one * reach, mx + Vector2.one * reach, (wx, wz, cur) =>
+        {
+            var q = new Vector2(wx, wz); float d = float.MaxValue;
+            foreach (var sg in segs) d = Mathf.Min(d, DistSeg(q, sg[0], sg[1]));
+            if (d > reach) return float.NaN;
+            float y = DesignY(q);
+            if (y > DesignYRaw(q) - 0.005f) return float.NaN;   // 帯が効いていない所(築山・野筋ほか)は触らない
+            return y < cur - 0.005f ? y : float.NaN;           // 下げるだけ
+        }, "線際の帯を地山へ戻す");
+        Mark("1c_boundaryNatural", r);
+        return r;
     }
 
     // ---------------------------------------------------------------- Stage1 造成
@@ -2879,9 +2937,13 @@ public static partial class EdoMatsudairaDewaBuilder
                     // 平面: 実メッシュの中心を開口の中心へ / 鉛直: 実メッシュの底を設計地盤へ
                     var bb2 = EdoBuild.RB(go);
                     go.transform.position += new Vector3(c.x - bb2.center.x, DesignY(c) - bb2.min.y, c.y - bb2.center.z);
+                    // 足元の浮きは許容0 ── 設計地盤でなく描かれた地表で測り、浮いた分だけ根入れ(EdoBuild.RootToBed・EDO-0535 NJ_Taki_Kido 最大0.371)
+                    var kr = EdoBuild.RootToBed(go, (x, z) => TerrainY(x, z), 0.05f);
+                    if (!float.IsNaN(kr.hi) && kr.hi > 0.005f) go.transform.position -= new Vector3(0f, kr.hi, 0f);
                     // 板塀が空ける「穴」は、指図の a/b ではなく**据えた実メッシュの走り方向の伸び**で取る
                     var bb3 = EdoBuild.RB(go);
-                    float half = ProjSpan(go, dir) * 0.5f;
+                    // 穴は木戸の実メッシュより両端 0.05m 狭く空け、板塀を門柱へ呑ませる(継ぎ目の隙は許容0・EDO-0535 で 0.03m 開いた)
+                    float half = ProjSpan(go, dir) * 0.5f - 0.05f;
                     Vector2 mc = new Vector2(bb3.center.x, bb3.center.z);
                     for (int ki = 0; ki < kido.Count; ki++)
                         if (Vector2.Distance((kido[ki][0] + kido[ki][1]) * 0.5f, c) < 0.05f)
@@ -2999,7 +3061,7 @@ public static partial class EdoMatsudairaDewaBuilder
                 float gw = F(k["w"]);
                 int gacross = Mathf.Max(1, Mathf.RoundToInt(gw / 1.98f));
                 bool upFromA = gyb > gya;
-                float gSink = 0f;
+                float gSink = 0f, gRaise = 0f, gBothMax = 0f; int gBoth = 0;
                 var gmod = AssetDatabase.LoadAssetAtPath<GameObject>(EdoAssets.Own.DanishiStep);
                 if (gmod == null) { sb.AppendLine("⚠ 段石が無い: " + EdoAssets.Own.DanishiStep); continue; }
                 for (int i = 0; i < gn; i++)
@@ -3046,6 +3108,21 @@ public static partial class EdoMatsudairaDewaBuilder
                             go.transform.position -= new Vector3(0f, rt.hi, 0f);
                             gSink = Mathf.Max(gSink, rt.hi);
                         }
+                        // 天端が山手の土に埋まる分だけ上げる(EdoBuild.FlushGap・EDO-0535 普請検査: K_Takimi 9/16駒 最大0.254)。
+                        //   蹴上は乱れる(自然石の乱れ段)。上げて下手が浮くなら石の厚みで両方は満たせない ── 浮きを優先して戻し ★ に数える。
+                        float gRise; Vector3 gAt; int gCnt;
+                        float gGap = EdoBuild.FlushGap(go, null, out gRise, out gAt, out gCnt);
+                        if (!float.IsNaN(gGap) && gGap < -0.005f)
+                        {
+                            go.transform.position += new Vector3(0f, -gGap, 0f);
+                            var rt2 = EdoBuild.RootToBed(go, (x, z) => TerrainY(x, z), 0.05f);
+                            if (!float.IsNaN(rt2.hi) && rt2.hi > 0.005f)
+                            {
+                                go.transform.position -= new Vector3(0f, -gGap, 0f);
+                                gBoth++; gBothMax = Mathf.Max(gBothMax, -gGap);
+                            }
+                            else gRaise = Mathf.Max(gRaise, -gGap);
+                        }
                         nDan++;
                     }
                 }
@@ -3053,6 +3130,8 @@ public static partial class EdoMatsudairaDewaBuilder
                               + " 踏面" + gfumi.ToString("F3") + " 走り" + ghor.ToString("F2")
                               + " (" + Mathf.Min(gya, gyb).ToString("F2") + "→" + Mathf.Max(gya, gyb).ToString("F2") + ")"
                               + (gSink > 0f ? " 下手の浮きを根入れで消した最大 " + gSink.ToString("F3") + "m" : "")
+                              + (gRaise > 0f ? " 山手の埋まりを上げて消した最大 " + gRaise.ToString("F3") + "m" : "")
+                              + (gBoth > 0 ? "  ★ 横勾配が石の厚みを超え、浮きと埋まりを両方は消せない " + gBoth + "駒(埋まり最大 " + gBothMax.ToString("F3") + "m ── 地形を均すか段の通りを庭方へ)" : "")
                               + (Has(k, "orikaeshi") && !Has(k, "via")
                                  ? "  ⚠ orikaeshi=" + F(k["orikaeshi"]) + " なのに via が無い(折れ点が指図に無い→指図方へ)" : ""));
                 continue;

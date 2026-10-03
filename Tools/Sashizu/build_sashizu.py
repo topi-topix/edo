@@ -2856,6 +2856,36 @@ def build(est, deep=False, out=None):
         h.append(tbl(["役割", "要否", "棟・区画", "確度", "*覚"],
                      [[p.role, p.need or "—", "、".join(p.by) if p.by else "—", p.cert,
                        "*" + _cut(p.note or "", 160)] for p in M.program]))
+    # ⭐ 邸内の垣・柵・排水・地表の塗り分け(欄があるときだけ・土井 2026-10-03)── 入れた設計値は同じ巡で刷る(規則19)。
+    #   垣は `pts` があれば配置図に描かれる(runs と同じ帯)。関係(rel)だけの物は「図に無し」と刷る
+    fz = [f for f in (M.d.get("fences") or []) if isinstance(f, dict)]
+    fn = [f for f in (M.d.get("fencesNone") or []) if isinstance(f, dict)]
+    if fz or fn:
+        h.append(tbl(["邸内の垣・柵", "種別", "丈 m", "*据える所(関係)", "部材", "図", "確度"],
+                     [[f.get("label") or f.get("name"), f.get("kind", ""), fmt(f.get("h")), "*" + _cut(f.get("rel", ""), 140),
+                       _cut(f.get("part", "") or "—", 60), "配置図(目安)" if f.get("pts") else "無し", f.get("cert", "")] for f in fz] +
+                     [[f.get("label") or f.get("name"), "立てない", "—", "*" + _cut(f.get("rel", ""), 140), "—", "—", f.get("cert", "")] for f in fn]))
+    dr = [x for x in (M.d.get("drains") or []) if isinstance(x, dict)]
+    if dr:
+        def _from(x):
+            fr = x.get("from") or {}
+            if isinstance(fr, dict):
+                return "、".join(fr.get("munes") or []) + ((" " + fr["face"]) if fr.get("face") else "")
+            return str(fr)
+        h.append(tbl(["排水", "種別", "*受ける所", "*落とす先", "勾配", "確度"],
+                     [[x.get("name"), x.get("kind", ""), "*" + _cut(_from(x) or x.get("rule", ""), 100),
+                       "*" + _cut(((x.get("outlet") or {}).get("to") if isinstance(x.get("outlet"), dict) else x.get("outlet")) or "—", 120),
+                       ("%.0f%%" % (x["slope"] * 100)) if isinstance(x.get("slope"), (int, float)) else "—",
+                       _cut(x.get("acc", ""), 40)] for x in dr]))
+    sf = M.d.get("surface") if isinstance(M.d.get("surface"), dict) else None
+    if sf and sf.get("zones"):
+        rc = sf.get("recipes") or {}
+        h.append(tbl(["地表の区", "範囲", "塗り(層 [下限, 上限] ・ rest)"],
+                     [[z.get("name", ""), z.get("area", ""),
+                       " ／ ".join("%s %s" % (k, v if isinstance(v, str) else "[%s]" % ", ".join("%.2f" % q for q in v))
+                                  for k, v in (rc.get(z.get("recipe")) or {}).items() if k != "acc")] for z in sf["zones"]]))
+        if sf.get("pending"):
+            h.append('<p class="cap">⚠ %s</p>' % esc(sf["pending"]))
     h.append("</div>")
 
     # 其七 検査

@@ -426,6 +426,27 @@ public static partial class EdoMatsudairaDewaBuilder
             if (y > DesignYRaw(q) - 0.005f) return float.NaN;   // 帯が効いていない所(築山・野筋ほか)は触らない
             return y < cur - 0.005f ? y : float.NaN;           // 下げるだけ
         }, "線際の帯を地山へ戻す");
+        // 帯の近くの植栽は下げた地表へ据え直す(EDO-0535 普請検査 2巡目: 木戸の北の 7本が最大 1.485m 浮いた)。
+        //   ⛔ ピボットで合わせない ── 実メッシュの最も低い所を描かれた地表へ(EdoBuild.SeatOnGround)。
+        //   ⛔ 入れ物を駒と読まない(棟梁の罠 retire-outside-walk-and-restore)── プレハブの実体の根だけを数える。
+        int reseat = 0; float worst = 0f;
+        var niwa = Group("Niwa");
+        foreach (var tr in niwa.GetComponentsInChildren<Transform>(true))
+        {
+            if (!PrefabUtility.IsAnyPrefabInstanceRoot(tr.gameObject) || tr == niwa) continue;
+            bool holder = false;                                   // 中にプレハブの根を持つ物は入れ物(駒ではない)
+            foreach (Transform ch in tr.GetComponentsInChildren<Transform>(true))
+                if (ch != tr && PrefabUtility.IsAnyPrefabInstanceRoot(ch.gameObject)) { holder = true; break; }
+            if (holder) continue;
+            var q = new Vector2(tr.position.x, tr.position.z); float d = float.MaxValue;
+            foreach (var sg in segs) d = Mathf.Min(d, DistSeg(q, sg[0], sg[1]));
+            if (d > reach) continue;
+            float before = tr.position.y;
+            try { EdoBuild.SeatOnGround(tr.gameObject, 0.05f, 2000); } catch (Exception) { continue; }
+            float mv = Mathf.Abs(tr.position.y - before);
+            if (mv > 0.005f) { reseat++; worst = Mathf.Max(worst, mv); }
+        }
+        r += string.Format(" / 植栽を下げた地表へ据え直した {0} 本(最大 {1:F3}m)", reseat, worst);
         Mark("1c_boundaryNatural", r);
         return r;
     }
@@ -2942,8 +2963,8 @@ public static partial class EdoMatsudairaDewaBuilder
                     if (!float.IsNaN(kr.hi) && kr.hi > 0.005f) go.transform.position -= new Vector3(0f, kr.hi, 0f);
                     // 板塀が空ける「穴」は、指図の a/b ではなく**据えた実メッシュの走り方向の伸び**で取る
                     var bb3 = EdoBuild.RB(go);
-                    // 穴は木戸の実メッシュより両端 0.05m 狭く空け、板塀を門柱へ呑ませる(継ぎ目の隙は許容0・EDO-0535 で 0.03m 開いた)
-                    float half = ProjSpan(go, dir) * 0.5f - 0.05f;
+                    // 穴は木戸の実メッシュより両端 0.10m 狭く空け、板塀を門柱へ呑ませる(継ぎ目の隙は許容0・EDO-0535 で 0.03〜0.043m 開いた。0.05 では表の板に隙が残った)
+                    float half = ProjSpan(go, dir) * 0.5f - 0.10f;
                     Vector2 mc = new Vector2(bb3.center.x, bb3.center.z);
                     for (int ki = 0; ki < kido.Count; ki++)
                         if (Vector2.Distance((kido[ki][0] + kido[ki][1]) * 0.5f, c) < 0.05f)
@@ -4235,8 +4256,10 @@ public static partial class EdoMatsudairaDewaBuilder
                                 string name, int depth)
     {
         Vector2 pL = A2 + dir * t0, pR = A2 + dir * t1;
-        float gL = DesignY(pL), gR = DesignY(pR);
-        if (depth < 4 && Mathf.Abs(gL - gR) > 0.3f && (t1 - t0) > 0.3f)
+        // ⭐ 座は**描かれた地表**で測る(EDO-0535: 設計面で測ると、地形を下げた谷の頭で板が最大 0.70 埋まり 0.155 浮いた)。
+        //   当たる先: 当邸の中仕切の板塀すべて。分ける閾は 0.15m(⛔ 0.3m だと斜面で埋まりが残る)。
+        float gL = TerrainY(pL.x, pL.y), gR = TerrainY(pR.x, pR.y);
+        if (depth < 5 && Mathf.Abs(gL - gR) > 0.15f && (t1 - t0) > 0.3f)
         {
             float tm = (t0 + t1) * 0.5f;
             return PlaceItabeiSpan(parent, A2, dir, nrm, t0, tm, spanES, sy, yaw, name + "a", depth + 1)
@@ -4256,6 +4279,8 @@ public static partial class EdoMatsudairaDewaBuilder
             var b = EdoBuild.RB(go);
             Vector2 tgt = c + nrm * (side == 0 ? 0.06f : -0.06f);
             go.transform.position += new Vector3(tgt.x - b.center.x, y - 0.08f - b.min.y, tgt.y - b.center.z);
+            var rt = EdoBuild.RootToBed(go, (x, z) => TerrainY(x, z), 0.05f);     // 浮きは許容0 ── 根入れで消す
+            if (!float.IsNaN(rt.hi) && rt.hi > 0.005f) go.transform.position -= new Vector3(0f, rt.hi, 0f);
             made++;
         }
         return made;

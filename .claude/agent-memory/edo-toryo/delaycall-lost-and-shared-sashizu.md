@@ -14,3 +14,7 @@ metadata:
 **Why:** 指図の claim は同じセッション ID の親も握るので門番は止めない。
 **How to apply:** 流す直前に `shasum` と impl の src を突き合わせ、git log で HEAD の動きを確かめる。
 積みが城の石垣でない土留め(`masonry` 欄)は Stage3 が退ける(2026-09-25 追加)。[[castlewall-face-is-local-minus-x]]
+
+③ 2026-10-03 EDO-0535: 渡された直後に別窓(EDO-0554)が `kansei --reopen`(図から起こし直す)で phase を design へ戻していた。
+関門の無い Stage1c は流れ(植栽 15 本を据え直し)、Stage6 で初めて ⛔ 検図関門が赤。**着手前に `review_gate.py <邸>` と
+kansei の history の末尾を見る** ── 関門を持たない Stage(1c・地形だけの段)から流すと半端に建つ。

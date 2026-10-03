@@ -1,6 +1,6 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 22f3e66deee2 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 2dc7fed3d948 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
@@ -515,14 +515,14 @@ EdoBuildQueue.cs — 長い建て直しを MCP の 1 回の呼び出しの中で
 | `EdoBuild.DAN_BURY` | `float` |  | ⚠ 注釈なし | — |
 | `EdoBuild.DAN_BURY_MAX` | `float` |  | ⚠ 注釈なし | — |
 | `EdoBuild.DAN_STONE_EMBED` | `float` |  | ⚠ 注釈なし | — |
+| `EdoBuild.DAN_GATE_SODE` | `float` |  | ⚠ 注釈なし | — |
 | `EdoBuild.DAN_CORNER_CLEAR` | `float` |  | ⚠ 注釈なし | — |
 | `EdoBuild.DAN_FLAT_NEAR` | `float` |  | ⚠ 注釈なし | — |
 | `EdoBuild.DAN_FLAT_ALONG` | `float` |  | ⚠ 注釈なし | — |
 | `EdoBuild.DAN_FLAT_MARGIN` | `float` |  | ⚠ 注釈なし | — |
 | `EdoBuild.DAN_FLAT_TOL` | `float` |  | ⚠ 注釈なし | — |
 | `DanSec`(struct) | — | | 段塀の一区間(鎖の道のり a〜b・塀の座 W = 塀の下端の高さ)。 | |
-| `EdoBuild.DanPlan(chain, note, gates=…)` | `List<DanSec>` | 硬・柔 地面・区域 | 折れ線(区画の辺の鎖)に段塀の区切りと座を引く。 | Typology(BuildParcel) |
-| `EdoBuild.DAN_GATE_CLEAR` | `float` |  | ⚠ 注釈なし | — |
+| `EdoBuild.DanPlan(chain, note, gates=…)` | `List<DanSec>` | 硬 地面・床・区域 | 折れ線(区画の辺の鎖)に段塀の区切りと座を引く。 | Typology(BuildParcel) |
 | `EdoBuild.NeribeiStepRun(parent, A, B, outward, prefix, secs, gapC, gapHalf, note)` | `List<GameObject>` | 地面・天端 | 練塀を段塀で建てる。secs は A からの道のりの区間(座 W)。 | — |
 | `EdoBuild.PanelRun(parent, A, B, outward, prefix, assetPath, gapC, gapHalf, pair=…, unitScale=…, beds=…, bedAt=…, splitPost=…, splitBoard=…)` | `List<GameObject>` |  | <remarks>据えは DobeiRun と同じ — 触れている箇所を測る(規則21)。 | — |
 | `EdoBuild.PostBoardRun(parent, A, B, outward, prefix, postPath, boardPath, bedAt, root, pair=…)` | `List<GameObject>` | 駒どうし・床・断面 | 柱と板を分けた組で板塀の run を張る(2026-09-26・EDO-0437 第7巡)。 | — |

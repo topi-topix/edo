@@ -654,7 +654,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                         chain.Add(nx); done.Add(nx);
                     }
                     var pts = new List<Vector2> { chain[0].a }; foreach (var x in chain) pts.Add(x.b);
-                    // ⭐ 門の口を鎖の道のりで渡す ── 区切りは門の柱で切る(EDO-0514)。⛔ 渡さないと門が平らな区間の片寄りに立った(樹下の表門)
+                    // ⭐ 門の口を鎖の道のりで渡す ── 門は水平な区間の真ん中に立ち、左右 3間 は区切らない(EDO-0514 案A)。⛔ 渡さないと門が平らな区間の片寄りに立った(樹下の表門)
                     var gaps = new List<Vector2>();
                     {
                         float cg = 0f;

@@ -1,15 +1,15 @@
 {
  "_": "図の機械検査の結果。生成器が毎回書き、kansei_gate.py --init が読んで赤なら止める(EDO-0291)。⛔ 手で書かない — 図を焼き直せば入れ替わる。",
  "estate": "matsudaira_dewa",
- "at": "2026-10-03T21:49:48+09:00",
- "sashizu_sha": "aba11bcaf68c9c17",
- "ng": 10,
- "na": 6,
+ "at": "2026-10-03T22:16:13+09:00",
+ "sashizu_sha": "dae5350089532b37",
+ "ng": 3,
+ "na": 9,
  "rows": [
   {
    "id": "C01",
-   "what": "重なり 0 — 棟・廊下・附属屋・石段・実形の庭の総当たり 946 組",
-   "res": "2 件 (割り当ての矩形の庭 14 は除く)",
+   "what": "重なり 0 — 棟・廊下・附属屋・石段・実形の庭の総当たり 990 組",
+   "res": "1 件 (割り当ての矩形の庭 14 は除く)",
    "status": "ng"
   },
   {
@@ -32,7 +32,7 @@
   },
   {
    "id": "C05",
-   "what": "段差の受け — 高さの違う段が接する縁(区画の内側)1401 点に、土留め・石段・囲いが 1m 以内",
+   "what": "段差の受け — 高さの違う段が接する縁(区画の内側)1326 点に、土留め・石段・囲いが 1m 以内",
    "res": "受けの無い点 0",
    "status": "ok"
   },
@@ -45,8 +45,8 @@
   {
    "id": "C07",
    "what": "外周の閉じ — 当家が持つ辺 857 m を 0.25m 刻みで歩き、塀・長屋・門で塞がっているか(隅と門の袖の取り合い 4 区間は Unity で測る)",
-   "res": "隙間 74.3 m(3 区間)",
-   "status": "ng"
+   "res": "隙間 0.0 m(0 区間) ・宣言で閉じた区間 89.7 m(perimeterClosure)",
+   "status": "ok"
   },
   {
    "id": "C08",
@@ -69,13 +69,13 @@
   {
    "id": "C11",
    "what": "石段 7 — 段数×蹴上が落差と閉じ、蹴上 ≤ 0.30(屋敷内)、足元と天端が段の高さ",
-   "res": "0 件 / 未検査 6",
+   "res": "0 件 / 未検査 5",
    "status": "ok"
   },
   {
    "id": "C12",
    "what": "道の勾配と繋がり — 動線 21 の縦断(造成後)が 20% 以下、室を貫かず、両端が門・棟・庭・道に着く",
-   "res": "6 件",
+   "res": "3 件",
    "status": "ng"
   },
   {
@@ -93,8 +93,8 @@
   {
    "id": "C15",
    "what": "庭の点景と見所 — 築山 3 が区画の中で棟・水と重ならず、見所 10 の視線(名指しの的か向き 8 間)を棟が遮らない",
-   "res": "1 件",
-   "status": "ng"
+   "res": "0 件",
+   "status": "ok"
   },
   {
    "id": "C16",
@@ -134,9 +134,9 @@
   },
   {
    "id": "C22",
-   "what": "図の成立 — 断面 12 が区画を切り、読めなかった欄が無い",
-   "res": "1 件",
-   "status": "ng"
+   "what": "図の成立 — 断面 14 が区画を切り、読めなかった欄が無い",
+   "res": "0 件",
+   "status": "ok"
   },
   {
    "id": "C24",
@@ -158,21 +158,21 @@
   },
   {
    "id": "C27",
-   "what": "(検査が落ちた)",
-   "res": "⛔ AttributeError: 'list' object has no attribute 'get'",
-   "status": "ng"
+   "what": "堂の外面から林の幹",
+   "res": "未検査 — `planting.clearance.keidai.doRinKen` の宣言が無い",
+   "status": "na"
   },
   {
    "id": "C28",
-   "what": "(検査が落ちた)",
-   "res": "⛔ AttributeError: 'list' object has no attribute 'get'",
-   "status": "ng"
+   "what": "塊どうしの間",
+   "res": "未検査 — `gardens[].clusterGapMin`・`planting.clusterGapMin` の宣言が無い",
+   "status": "na"
   },
   {
    "id": "C29",
-   "what": "(検査が落ちた)",
-   "res": "⛔ AttributeError: 'list' object has no attribute 'get'",
-   "status": "ng"
+   "what": "塀・土留めの内の幹",
+   "res": "未検査 — `planting.bandDef.avoid.kakoiLineFrom` の宣言が無い",
+   "status": "na"
   },
   {
    "id": "C30",
@@ -195,8 +195,8 @@
   {
    "id": "D01",
    "what": "文書の記法が字になっていないか",
-   "res": "6 件(母集団 67,998 字・引用の面 0 件は別枠)",
-   "status": "ng"
+   "res": "0 件(母集団 57,649 字・引用の面 0 件は別枠)",
+   "status": "ok"
   }
  ]
 }

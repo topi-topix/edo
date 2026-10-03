@@ -22,6 +22,7 @@ import json
 import math
 import statistics
 import os
+import re
 import sys
 import time
 
@@ -650,8 +651,10 @@ class Model(object):
                     if m.get("target") == "migiwa":
                         w = next((x for x in self.water if x.host == g["name"]), None)
                         tgt = centroid(w.pts) if w else None
+                    dr = m.get("dir") if m.get("dir") in ("+u", "-u", "+v", "-v") else None   # 向きだけの見所(土井の庭)
                     self.views.append(Obj(name="%s#%s" % (g["name"], m.get("no", "")), label=m.get("label", "見所"),
-                                          uv=(m["u"], m["v"]), dr=None, eye=m.get("eyeY"), target=tgt, raw=m))
+                                          uv=(m["u"], m["v"]), dr=dr, eye=m.get("eyeY"), target=tgt, raw=m,
+                                          draw=isinstance(g.get("enro"), dict)))
         # 築山
         self.mounds = []
         tk = d.get("tsukiyama")
@@ -660,6 +663,27 @@ class Model(object):
             if sk:
                 self.mounds.append(Obj(name=t.get("name", "築山"), label=t.get("label", "築山"), poly=[tuple(q) for q in sk],
                                        top=(t.get("u"), t.get("v")), y=t.get("y")))
+        # 庭の細部(dict 形の欄を持つ庭だけ ── 土井。岡部の list 形は読まない=他邸の図は変えない)
+        self.islands, self.gpaths, self.bridges = [], [], []
+        for g in d.get("gardens", []) or []:
+            if not isinstance(g, dict):
+                continue
+            for t in (g.get("tsukiyama") if isinstance(g.get("tsukiyama"), list) else []):
+                if isinstance(t, dict) and isinstance(t.get("skirt"), list) and len(t["skirt"]) >= 3:
+                    self.mounds.append(Obj(name=t.get("name", "築山"), label=t.get("label") or t.get("name", "築山"),
+                                           poly=[tuple(q[:2]) for q in t["skirt"]], top=None, y=t.get("top")))
+            nk = g.get("nakajima")
+            if isinstance(nk, dict) and isinstance(nk.get("pts"), list) and len(nk["pts"]) >= 3:
+                self.islands.append(Obj(name=g["name"] + ".nakajima", label="中島", poly=[tuple(q[:2]) for q in nk["pts"]]))
+            en = g.get("enro")
+            if isinstance(en, dict):
+                shu = en.get("shu")
+                pp = isinstance(shu, dict) and (shu.get("pts") or shu.get("meyasu_pts"))
+                if pp and len(pp) >= 2:
+                    self.gpaths.append(Obj(name=g["name"] + ".enro", pts=[tuple(q[:2]) for q in pp], w=shu.get("w")))
+                for h in en.get("hashi") or []:
+                    if isinstance(h, dict) and h.get("a") and h.get("b"):
+                        self.bridges.append(Obj(name=h.get("kata", "橋"), a=tuple(h["a"][:2]), b=tuple(h["b"][:2]), w=h.get("w")))
         # 土留め
         self.walls = []
         for w in d.get("terraceWalls", []) or []:
@@ -2372,6 +2396,23 @@ class Fig(object):
             o.append('<path d="%s" fill="var(--tsuki)" stroke="var(--ink)" stroke-width=".6" opacity=".85"/>' % self.uvpath(m.poly))
         for w in self.M.water:
             o.append('<path d="%s" fill="var(--ike)" stroke="var(--ink)" stroke-width=".7"/>' % self.uvpath(w.pts))
+        # 庭の細部(土井の dict 形の欄があるときだけ ── 中島・園路・橋・見所)
+        M = self.M
+        for i in getattr(M, "islands", []):
+            o.append('<path d="%s" fill="var(--niwa)" stroke="var(--ink)" stroke-width=".7"/>' % self.uvpath(i.poly))
+        for pth in getattr(M, "gpaths", []):
+            o.append('<path d="%s" fill="none" stroke="var(--roka)" stroke-width="1.4" stroke-dasharray="4 2"/>' % self.uvpath(pth.pts, False))
+        for b in getattr(M, "bridges", []):
+            o.append('<path d="%s" fill="none" stroke="var(--ink)" stroke-width="2.6"/>' % self.uvpath([b.a, b.b], False))
+        for m in M.mounds:
+            if m.y is not None and m.top is None:
+                c = centroid(m.poly)
+                o.append(self.txt(*M.W(*c), s="%s %.1f" % (m.label, m.y), cls="mu"))
+        for v in M.views:
+            if getattr(v, "draw", False):
+                x, z = M.W(*v.uv)
+                o.append('<circle cx="%.1f" cy="%.1f" r="3.2" fill="var(--shu)" stroke="var(--paper)" stroke-width="1"/>' % (self.X(x), self.Y(z)))
+                o.append(self.txt(x, z, s="見%s" % str(v.raw.get("no", "")), cls="mu", dy=-5))
 
     def runs(self, o):
         M = self.M
@@ -2529,6 +2570,14 @@ class Fig(object):
             o.append('<path d="%s" fill="none" stroke="var(--ink)" stroke-width=".7" stroke-dasharray="3 2"/>' % self.uvpath(b.poly))
         for t in M.terraces:
             o.append('<path d="%s" fill="none" stroke="var(--ink)" stroke-width="1"%s/>' % (self.uvpath(t.poly), self.clip() if t.clip else ""))
+        # 庭の土量(土井の dict 形の doryo があるときだけ): 池の掘削=汀線・築山の盛土=裾を輪郭で重ねる
+        if any(isinstance(g, dict) and isinstance(g.get("doryo"), dict) for g in M.d.get("gardens", []) or []):
+            for w in M.water:
+                o.append('<path d="%s" fill="none" stroke="#2E5E86" stroke-width="1.6"/>' % self.uvpath(w.pts))
+                o.append(self.txt(*M.W(*centroid(w.pts)), s="池 掘", cls="mu"))
+            for m in M.mounds:
+                o.append('<path d="%s" fill="none" stroke="#9A4A1E" stroke-width="1.6" stroke-dasharray="4 2"/>' % self.uvpath(m.poly))
+                o.append(self.txt(*M.W(*centroid(m.poly)), s="%s 盛" % m.label, cls="mu"))
         self.vol = vol
         return self.frame(o)
 
@@ -2742,6 +2791,16 @@ def build(est, deep=False, out=None):
         tc += r[2]
         rows.append([k, "{:,.0f}".format(r[4]), "{:,.0f}".format(r[0]), "%.2f" % r[1], "{:,.0f}".format(r[2]), "%.2f" % r[3]])
     rows.append(["<b>合計</b>", "—", "<b>{:,.0f}</b>".format(tf), "—", "<b>{:,.0f}</b>".format(tc), "差引 {:+,.0f} m³".format(tf - tc)])
+    for g in M.d.get("gardens", []) or []:          # 庭の土量(土井の dict 形の doryo があるときだけ・庭方の設計値)
+        dr = g.get("doryo") if isinstance(g, dict) else None
+        if not isinstance(dr, dict):
+            continue
+        num = lambda t: (re.search(r"約\s*([\d,]+)\s*m³", str(t or "")) or [None, None])[1]
+        k, m_ = num(dr.get("kussaku")), num(dr.get("mori"))
+        if k:
+            rows.append(["庭 %s 池の掘削(設計値)" % g.get("name", ""), "—", "—", "—", k, "—"])
+        if m_:
+            rows.append(["庭 %s 築山の盛土(設計値)" % g.get("name", ""), "—", m_, "—", "—", "—"])
     h.append(tbl(["段", "面積 m²", "盛土 m³", "最大盛 m", "切土 m³", "最大切 m"], rows))
     if getattr(C, "rows_c04", None):
         # ⭐ **系統差が先**(面の引き方)。ばらつきと |Δ|≤0.5 は従(地面の凹凸)。EDO-0290

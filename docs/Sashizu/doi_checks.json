@@ -1,15 +1,15 @@
 {
  "_": "図の機械検査の結果。生成器が毎回書き、kansei_gate.py --init が読んで赤なら止める(EDO-0291)。⛔ 手で書かない — 図を焼き直せば入れ替わる。",
  "estate": "doi",
- "at": "2026-10-03T16:15:09+09:00",
- "sashizu_sha": "5e652d90a9bf217c",
+ "at": "2026-10-03T17:02:32+09:00",
+ "sashizu_sha": "d2fdb6eae18e33f5",
  "ng": 4,
  "na": 9,
  "rows": [
   {
    "id": "C01",
    "what": "重なり 0 — 棟・廊下・附属屋・石段・実形の庭の総当たり 231 組",
-   "res": "0 件 (割り当ての矩形の庭 3 は除く)",
+   "res": "0 件 ",
    "status": "ok"
   },
   {
@@ -98,8 +98,8 @@
   },
   {
    "id": "C16",
-   "what": "植栽の在庫と本数 — 名指しした部材 4 が目録(asset-index.tsv)・Assets/・EdoAssets.cs のどれかに実在する",
-   "res": "無い 1",
+   "what": "植栽の在庫と本数 — 名指しした部材 14 が目録(asset-index.tsv)・Assets/・EdoAssets.cs のどれかに実在する",
+   "res": "無い 4",
    "status": "ng"
   },
   {
@@ -111,7 +111,7 @@
   {
    "id": "C18",
    "what": "地盤の出所 — 造成前の地盤が正本 base_dem.json から来て、派生物が古くなく、隣家の指図が動いていない",
-   "res": "地盤 = doi_edo_world.json / 正本 base_dem と一致する点 1243 / 1321(94%)。差は復元(近代の掘削を戻した)所 / ⚠ 隣家 okabe の指図が動いた(記録 d6739efe032a2765 → 今 b30147f75be0c35c) / ⚠ 隣家 matsudaira_dewa の指図が動いた(記録 3a1c85ede84856c9 → 今 8d3913876025e08e)",
+   "res": "地盤 = doi_edo_world.json / 正本 base_dem と一致する点 1243 / 1321(94%)。差は復元(近代の掘削を戻した)所 / ⚠ 隣家 okabe の指図が動いた(記録 d6739efe032a2765 → 今 567a385f1059c195) / ⚠ 隣家 matsudaira_dewa の指図が動いた(記録 3a1c85ede84856c9 → 今 8d3913876025e08e)",
    "status": "ng"
   },
   {
@@ -147,19 +147,19 @@
   {
    "id": "C25",
    "what": "道際の幹",
-   "res": "未検査 — `planting.bandDef.avoid.kyoukaiRoadM` の宣言が無い",
+   "res": "未検査 — 撒いた点が無い",
    "status": "na"
   },
   {
    "id": "C26",
    "what": "囲いの内の幹",
-   "res": "未検査 — `planting.bandDef.avoid.kakoiInsideM` の宣言が無い",
+   "res": "未検査 — 撒いた点が無い",
    "status": "na"
   },
   {
    "id": "C27",
    "what": "堂の外面から林の幹",
-   "res": "未検査 — `planting.clearance.keidai.doRinKen` の宣言が無い",
+   "res": "未検査 — 撒いた点が無い",
    "status": "na"
   },
   {
@@ -171,13 +171,13 @@
   {
    "id": "C29",
    "what": "塀・土留めの内の幹",
-   "res": "未検査 — `planting.bandDef.avoid.kakoiLineFrom` の宣言が無い",
+   "res": "未検査 — 撒いた点が無い",
    "status": "na"
   },
   {
    "id": "C30",
    "what": "道の上の枝下",
-   "res": "未検査 — `planting.bandDef.avoid.edaShitaOverRoadM` の宣言が無い",
+   "res": "未検査 — 撒いた点が無い",
    "status": "na"
   },
   {
@@ -195,7 +195,7 @@
   {
    "id": "D01",
    "what": "文書の記法が字になっていないか",
-   "res": "12 件(母集団 33,382 字・引用の面 0 件は別枠)",
+   "res": "2 件(母集団 34,289 字・引用の面 0 件は別枠)",
    "status": "ng"
   }
  ]

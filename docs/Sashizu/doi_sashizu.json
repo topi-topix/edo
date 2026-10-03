@@ -3436,7 +3436,26 @@
     "大池・堂塔・畑(下屋敷の語彙)"
    ],
    "acc": "UserData/EDO0533/doi_niwa_A_design.json(庭方 2026-10-03)",
-   "uvUnit": "この庭の pts・skirt・a/b・meyasu の u,v はすべて間(grid.shukaku・1間=1.818m)。m ではない"
+   "uvUnit": "この庭の pts・skirt・a/b・meyasu の u,v はすべて間(grid.shukaku・1間=1.818m)。m ではない",
+   "poly": [
+    [
+     -25,
+     50
+    ],
+    [
+     -10,
+     50
+    ],
+    [
+     -10,
+     72
+    ],
+    [
+     -25,
+     72
+    ]
+   ],
+   "polyNote": "u0..v1 の矩形と同じ(地表の塗り手 EdoSashizuSurfacePaint が poly だけを読むため)"
   },
   {
    "name": "G_Okuniwa",
@@ -3628,7 +3647,26 @@
     "開花木",
     "池・流れ(水源を立てない)"
    ],
-   "acc": "UserData/EDO0533/doi_niwa_A_design.json(庭方 2026-10-03)+ 細部(庭方 2026-10-03 第2)"
+   "acc": "UserData/EDO0533/doi_niwa_A_design.json(庭方 2026-10-03)+ 細部(庭方 2026-10-03 第2)",
+   "poly": [
+    [
+     -8,
+     57
+    ],
+    [
+     0,
+     57
+    ],
+    [
+     0,
+     72
+    ],
+    [
+     -8,
+     72
+    ]
+   ],
+   "polyNote": "u0..v1 の矩形と同じ(地表の塗り手 EdoSashizuSurfacePaint が poly だけを読むため)"
   },
   {
    "name": "G_Shirasu",
@@ -3637,7 +3675,26 @@
    "u0": 2,
    "v0": 28,
    "u1": 10,
-   "v1": 34
+   "v1": 34,
+   "poly": [
+    [
+     2,
+     28
+    ],
+    [
+     10,
+     28
+    ],
+    [
+     10,
+     34
+    ],
+    [
+     2,
+     34
+    ]
+   ],
+   "polyNote": "u0..v1 の矩形と同じ(地表の塗り手 EdoSashizuSurfacePaint が poly だけを読むため)"
   }
  ],
  "akichi": [
@@ -4420,25 +4477,58 @@
  ],
  "slopeBands": [
   {
-   "name": "法肩〜上部",
+   "name": "帯1 法肩〜上部",
    "from": 0.0,
    "to": 0.33,
-   "veg": "黒松(疎)+雑木の樹林",
-   "asset": "JG.PineBig01-03 / JC.Azalea・Boxwood(下草)"
+   "veg": "松(肩寄り・不等間隔)+常緑中木+常緑低木+下草の樹林",
+   "assets": [
+    "Own.Matsu",
+    "Own.Jouryoku",
+    "Own.Teiboku",
+    "JG.Fern"
+   ],
+   "per100From": "plantRule.bands[その帯]",
+   "hard": "裸地を残さない・肩に柵を立てない",
+   "acc": "A [橋本・堀1998]/B"
   },
   {
-   "name": "中部",
+   "name": "帯2 中部",
    "from": 0.33,
    "to": 0.7,
-   "veg": "低木・下草",
-   "asset": "JC.Azalea01/03 / JG.Boxwood01"
+   "veg": "常緑中木(主)+松と落葉を散らす+低木の連続+下草の樹林",
+   "assets": [
+    "Own.Jouryoku",
+    "Own.Matsu",
+    "Own.Keyaki",
+    "Own.Mukunoki",
+    "Own.Teiboku",
+    "JG.Fern"
+   ],
+   "per100From": "plantRule.bands[その帯]",
+   "hard": "裸地を残さない・途中に柵を置かない",
+   "acc": "B/U"
   },
   {
-   "name": "下部〜裾",
+   "name": "帯3 下部〜裾(林縁)",
    "from": 0.7,
    "to": 1.0,
-   "veg": "草地",
-   "asset": "スプラット(草)のみ・高木を置かない"
+   "veg": "落葉高木(地山の所・盛土 0.8m 以下)+常緑中木+林縁のマント(低木の帯・つる)+ソデ(下草)",
+   "assets": [
+    "Own.Keyaki",
+    "Own.Mukunoki",
+    "Own.Enoki",
+    "Own.Jouryoku",
+    "Own.Teiboku",
+    "Own.TsuruKizuta",
+    "EdoAssets.NM.GrassMeadow"
+   ],
+   "per100From": "plantRule.bands[その帯]",
+   "rinen": "法尻から 1間 は低木と下草まで【柔】── 平場に林が被さらないように",
+   "hard": "裸地を残さない",
+   "acc": "B(林縁のマント・ソデ=一般)/U"
+  },
+  {
+   "_": "旧 slopeBands(帯2『低木・下草』・帯3『草地のみ・高木を置かない』)は施主の『斜面は木でしっかり覆う』と食い違うので差し替えた。[名所図会・溜池] の『上=樹林/下=草地』は溜池の東岸の図で、この敷地の崖には当てない"
   }
  ],
  "program": [
@@ -6609,7 +6699,7 @@
    "name": "辺12 北端の妻の背 ↔ 谷頭の土手",
    "kind": "法面(+野面 H1.50 一段で妻の背を返す)",
    "batter": "切 1:1.0",
-   "veg": "芝",
+   "veg": "低木と下草(林方 2026-10-03・旧 芝)",
    "cert": "U",
    "acc": "UserData/EDO0533/ishigaki_design.md(石垣の意匠役 2026-10-03) #2"
   },
@@ -6617,7 +6707,7 @@
    "name": "表の道の両脇",
    "kind": "法面",
    "batter": "切 1:1.0 / 盛 1:1.5",
-   "veg": "芝",
+   "veg": "盛の法は低木と下草・切の法の肩の外に松(planting.viewClusters 表の道の上の額縁)(林方 2026-10-03・旧 芝)",
    "note": "段・石段なし",
    "cert": "U",
    "acc": "UserData/EDO0533/ishigaki_design.md(石垣の意匠役 2026-10-03) #6"
@@ -6626,7 +6716,7 @@
    "name": "谷頭 ↔ 台地の崖・表長屋の背・厩",
    "kind": "法面(地形なり)",
    "batter": "地形なり",
-   "veg": "樹林と芝(slopeBands)",
+   "veg": "樹林(planting の帯 南の崖・台地の南東の崖・表長屋の背の低地/slopeBands)",
    "cert": "A[菊地2003]",
    "acc": "UserData/EDO0533/ishigaki_design.md(石垣の意匠役 2026-10-03) #8"
   },
@@ -6643,7 +6733,7 @@
    "name": "台地(泉水)・稲荷 ↔ 岡部・西の谷底",
    "kind": "法面",
    "batter": "盛 1:1.5",
-   "veg": "樹林",
+   "veg": "樹林(松・常緑・低木。落葉は盛土 0.8m 以下 ── planting.slopeRule)",
    "hard": "隣家の辺に土留めを立てない・法尻は区画の内",
    "cert": "U 設計値",
    "acc": "UserData/EDO0533/ishigaki_design.md(石垣の意匠役 2026-10-03) #10",
@@ -6681,7 +6771,8 @@
     ]
    ],
    "ptsNote": "目安(普請奉行 2026-10-03 が rel から起こした図の線)。正は rel ── 実装は面と棟を測って据える",
-   "partCert": "U(横木の段の高さは目安・史料なし)"
+   "partCert": "U(横木の段の高さは目安・史料なし)",
+   "src": "区域と格=庭方の下案を普請奉行が採った(U・2026-10-03)/形=部材方。庭の外の囲いの系(分担の訂正 EDO-0410)"
   },
   {
    "name": "F05",
@@ -6704,7 +6795,8 @@
     ]
    ],
    "ptsNote": "目安(普請奉行 2026-10-03 が rel から起こした図の線)。正は rel ── 実装は面と棟を測って据える。北の斜めの縁と南の縁の柵は rel だけ(図に描いていない)",
-   "partCert": "U(横木の段の高さは目安・史料なし)"
+   "partCert": "U(横木の段の高さは目安・史料なし)",
+   "src": "区域と格=庭方の下案を普請奉行が採った(U・2026-10-03)/形=部材方。庭の外の囲いの系(分担の訂正 EDO-0410)"
   },
   {
    "name": "F07",
@@ -6724,7 +6816,8 @@
      5.5
     ]
    ],
-   "ptsNote": "目安(普請奉行 2026-10-03 が rel から起こした図の線)。正は rel ── 実装は面と棟を測って据える"
+   "ptsNote": "目安(普請奉行 2026-10-03 が rel から起こした図の線)。正は rel ── 実装は面と棟を測って据える",
+   "src": "区域と格=庭方の下案を普請奉行が採った(U・2026-10-03)/形=部材方。庭の外の囲いの系(分担の訂正 EDO-0410)"
   },
   {
    "name": "F09",
@@ -6761,7 +6854,8 @@
      76.25
     ]
    ],
-   "ptsNote": "目安(普請奉行 2026-10-03 が rel から起こした図の線)。正は rel ── 実装は面と棟を測って据える"
+   "ptsNote": "目安(普請奉行 2026-10-03 が rel から起こした図の線)。正は rel ── 実装は面と棟を測って据える",
+   "src": "区域と格=庭方の下案を普請奉行が採った(U・2026-10-03)/形=部材方。庭の外の囲いの系(分担の訂正 EDO-0410)"
   }
  ],
  "fencesNone": [
@@ -6771,21 +6865,24 @@
    "kind": "置かない",
    "rel": "台地・馬場・谷頭の平場の肩には柵を立てない。肩の縁取りは植生の役の林に任せる",
    "why": "肩に沿う動線が無い(建物と庭が肩から引いている)。施主の決め『斜面の途中に柵を置かない』と、林で縁取る作り(皇居の濠の土手)に合わせる",
-   "cert": "U(判断)"
+   "cert": "U(判断)",
+   "src": "普請奉行の判断(庭方の下案を採った・U)"
   },
   {
    "name": "F08",
    "label": "表長屋の背の路地",
    "kind": "置かない",
    "rel": "路地と崖・谷頭の間は垣を立てない(縁取りは植生の役の林縁)",
-   "cert": "U(判断)"
+   "cert": "U(判断)",
+   "src": "普請奉行の判断(庭方の下案を採った・U)"
   },
   {
    "name": "F10",
    "label": "家中長屋の区",
    "kind": "追加しない",
    "rel": "奥の塀(既存 runs)と北の境の長屋で足りる",
-   "cert": "U(判断)"
+   "cert": "U(判断)",
+   "src": "普請奉行の判断(庭方の下案を採った・U)"
   }
  ],
  "drains": [
@@ -6922,8 +7019,159 @@
   }
  ],
  "surface": {
-  "_": "庭の区域の内だけ。全体の recipes・zones は植生の役が持つ ── 同じ読み手(EdoSashizuSurfacePaint)へ足すときは、庭の zones を最後に重ねる(後が勝つ)。1 texel=4m のため延段・飛石・雨落ちは塗り分けない",
+  "_": "地表の塗り分け。読み手 EdoSashizuSurfacePaint。zones は後が勝つ ── 庭の zones を最後に重ねる。幅 4m 未満(雨落ち・犬走り・溝・幅1間の坂・供待の足元の小段・林縁のソデ・摺り付けの法)は塗り分けず周りの値のまま。白洲・叩き・道・平場の型は普請奉行が敷く場所の仮置き(U)で、型は考証方と決める。林方の設計(2026-10-03)を写した",
+  "extent": [
+   "polygon"
+  ],
   "recipes": {
+   "rinsho": {
+    "moss": [
+     0.1,
+     0.2
+    ],
+    "grass": [
+     0.2,
+     0.35
+    ],
+    "dirt": "rest",
+    "acc": "B(閉じた樹冠の下の落葉土)/U(割合 ── 岡部の林床と揃えて境を見せない)"
+   },
+   "tanizoko": {
+    "moss": [
+     0.2,
+     0.35
+    ],
+    "grass": [
+     0.2,
+     0.35
+    ],
+    "dirt": "rest",
+    "acc": "B(湿った谷底は苔が増える)/U(割合)"
+   },
+   "yashikiji": {
+    "bare": [
+     0.25,
+     0.35
+    ],
+    "grass": [
+     0.05,
+     0.12
+    ],
+    "dirt": "rest",
+    "acc": "U(仮置き)"
+   },
+   "okumuki": {
+    "bare": [
+     0.15,
+     0.25
+    ],
+    "grass": [
+     0.12,
+     0.2
+    ],
+    "dirt": "rest",
+    "acc": "U(仮置き ── 奥向は人の出入りが少ない)"
+   },
+   "kadonouchi": {
+    "bare": [
+     0.32,
+     0.42
+    ],
+    "grass": [
+     0.02,
+     0.06
+    ],
+    "dirt": "rest",
+    "acc": "U(仮置き)"
+   },
+   "sakamichi": {
+    "bare": [
+     0.55,
+     0.75
+    ],
+    "grass": [
+     0.02,
+     0.08
+    ],
+    "dirt": "rest",
+    "acc": "U(仮置き)"
+   },
+   "umaya": {
+    "bare": [
+     0.45,
+     0.6
+    ],
+    "grass": [
+     0.02,
+     0.06
+    ],
+    "dirt": "rest",
+    "acc": "U(仮置き ── 踏み荒らした土)"
+   },
+   "baba": {
+    "bare": [
+     0.35,
+     0.5
+    ],
+    "grass": [
+     0.05,
+     0.12
+    ],
+    "dirt": "rest",
+    "acc": "U(仮置き)"
+   },
+   "nagaya": {
+    "bare": [
+     0.3,
+     0.45
+    ],
+    "grass": [
+     0.08,
+     0.18
+    ],
+    "dirt": "rest",
+    "acc": "U(仮置き)"
+   },
+   "kura": {
+    "bare": [
+     0.35,
+     0.5
+    ],
+    "grass": [
+     0.04,
+     0.1
+    ],
+    "dirt": "rest",
+    "acc": "U(仮置き)"
+   },
+   "yashikibayashi": {
+    "grass": [
+     0.4,
+     0.6
+    ],
+    "moss": [
+     0.03,
+     0.08
+    ],
+    "bare": [
+     0.05,
+     0.12
+    ],
+    "dirt": "rest",
+    "acc": "U(開いた屋敷林の下の草)"
+   },
+   "jari": {
+    "shirasu": [
+     0.7,
+     0.82
+    ],
+    "bare": [
+     0.15,
+     0.25
+    ],
+    "dirt": "rest",
+    "acc": "U(仮置き)"
+   },
    "kokeji": {
     "moss": [
      0.45,
@@ -6951,27 +7199,788 @@
   },
   "zones": [
    {
+    "name": "庭の外の林の全部",
+    "area": "polygon",
+    "recipe": "rinsho"
+   },
+   {
+    "name": "台地(表向)",
+    "area": "terrace:Daichi",
+    "recipe": "yashikiji",
+    "by": "普請奉行(敷く場所)・型は仮(U)"
+   },
+   {
+    "name": "奥向",
+    "area": "terrace:Okumuki",
+    "recipe": "okumuki",
+    "by": "普請奉行・型は仮(U)"
+   },
+   {
+    "name": "門の内",
+    "area": "terrace:MonNoUchi",
+    "recipe": "kadonouchi",
+    "by": "普請奉行・型は仮(U)"
+   },
+   {
+    "name": "供待の平場",
+    "area": "terrace:TomomachiHiraba",
+    "recipe": "kadonouchi",
+    "by": "普請奉行・型は仮(U)"
+   },
+   {
+    "name": "厩の平場",
+    "area": "terrace:UmayaHiraba",
+    "recipe": "umaya",
+    "by": "普請奉行・型は仮(U)"
+   },
+   {
+    "name": "谷頭の平場",
+    "area": "terrace:Tanigashira",
+    "recipe": "nagaya",
+    "by": "普請奉行・型は仮(U)"
+   },
+   {
+    "name": "馬場",
+    "area": "terrace:Baba",
+    "recipe": "baba",
+    "by": "普請奉行・型は仮(U)"
+   },
+   {
+    "name": "家中長屋(一)",
+    "area": "terrace:Za_KachuK1",
+    "recipe": "nagaya",
+    "by": "普請奉行・型は仮(U)"
+   },
+   {
+    "name": "家中長屋(二)",
+    "area": "terrace:Za_KachuK2",
+    "recipe": "nagaya",
+    "by": "普請奉行・型は仮(U)"
+   },
+   {
+    "name": "家中長屋(三)",
+    "area": "terrace:Za_KachuK3",
+    "recipe": "nagaya",
+    "by": "普請奉行・型は仮(U)"
+   },
+   {
+    "name": "土蔵(一)",
+    "area": "terrace:Za_Kura1",
+    "recipe": "kura",
+    "by": "普請奉行・型は仮(U)"
+   },
+   {
+    "name": "土蔵(二)",
+    "area": "terrace:Za_Kura2",
+    "recipe": "kura",
+    "by": "普請奉行・型は仮(U)"
+   },
+   {
+    "name": "御駕籠蔵",
+    "area": "terrace:Za_Kagogura",
+    "recipe": "kura",
+    "by": "普請奉行・型は仮(U)"
+   },
+   {
+    "name": "表の道",
+    "area": "ramp:R_OmoteSaka",
+    "recipe": "sakamichi",
+    "by": "普請奉行・型は仮(U)"
+   },
+   {
+    "name": "白洲(玄関前)",
+    "area": "garden:G_Shirasu",
+    "recipe": "jari",
+    "by": "普請奉行・型は仮(U)"
+   },
+   {
     "name": "泉水",
     "area": "garden:G_Sensui",
     "recipe": "sensui",
+    "by": "庭方",
     "note": "汀・州浜・水面は WaterBaker と庭の作りが上書き"
    },
    {
     "name": "奥庭",
     "area": "garden:G_Okuniwa",
-    "recipe": "kokeji"
+    "recipe": "kokeji",
+    "by": "庭方"
    }
   ],
-  "extent": [
-   "garden:G_Sensui",
-   "garden:G_Okuniwa"
+  "zonesPending": [
+   {
+    "name": "西の谷底",
+    "recipe": "tanizoko",
+    "areaFrom": "akichi NishiTanizoko の底(地盤の勾配 0.1 未満)",
+    "meyasuUV": "u≈−12〜20, v≈96〜区画の西の端",
+    "pending": "akichi に区域の形が無い ── 指図方が akichi[NishiTanizoko] に形を足すまで林床(rinsho)のまま",
+    "insertAfter": "庭の外の林の全部"
+   },
+   {
+    "name": "表長屋の背の低地",
+    "recipe": "yashikibayashi",
+    "areaFrom": "表長屋の背の路地の内側 → 崖の裾",
+    "meyasuUV": "u≈−24〜−5, v≈3〜17",
+    "pending": "区域の形が無い",
+    "insertAfter": "西の谷底"
+   },
+   {
+    "name": "表長屋の背の路地",
+    "recipe": "sakamichi",
+    "areaFrom": "michi[UraRoji](幅 2〜3間)",
+    "pending": "塗り手の michi: は fumotomichi を読む ── 土井の michi は読めない。幅 2間(3.6m)なら 4m 未満で塗り分けない",
+    "insertAfter": "表長屋の背の低地"
+   },
+   {
+    "name": "溜り",
+    "recipe": "kadonouchi",
+    "areaFrom": "akichi[Tamari](15〜25坪)",
+    "pending": "akichi に矩形が無い",
+    "insertAfter": "表長屋の背の路地"
+   }
   ],
-  "pending": "庭の外の recipes・zones(白洲・門の内・表の道・厩・馬場・路地・法面・林床)は植生の役(EDO-0410)が設計する ── 施主裁定 2026-10-03"
+  "rinenNote": "法尻のソデ(草地)・法肩・摺り付けの法は 1間 前後で 4m 未満 ── 塗り分けない(林床か隣の面のまま)。下草の detail で草地に見せる",
+  "layers": "L_grass・L_dirt・L_bare・L_moss・L_shirasu(Assets/Edo/Terrain/layers/)",
+  "acc": "U(割合)/B(閉じた林の下=落葉土)"
  },
  "shokuseiHandoff": {
   "from": "庭方 2026-10-03",
   "text": "植生の役へ渡す制約(庭方の持ち場の外・参考): drains の溝・落とし口・玉石の受けから幹の芯 0.75間【硬】/稲荷の玉垣 F09 の内に木を置かない【硬】/馬場の埒 F04・厩の柵 F05 の線上と開口に木を置かない【硬】/奥庭の西の生垣の外 1間 と泉水の西の生垣の外 1間 は低木まで(柔)",
   "slopeBands": "旧 slopeBands の帯2「低木・下草」・帯3「草地のみ」は施主の『斜面は木でしっかり覆う』と食い違う ── 植生の役が設計し直す",
-  "planting": "屋敷全体の planting(西の谷底・崖と法面・屋敷まわりの木)は未設計 ── 植生の役(EDO-0410)待ち・施主裁定 2026-10-03"
+  "planting": "屋敷全体の planting(西の谷底・崖と法面・屋敷まわりの木)は未設計 ── 植生の役(EDO-0410)待ち・施主裁定 2026-10-03",
+  "done": "林方が受けて planting・surface・slopeBands に設計した(2026-10-03)"
+ },
+ "planting": {
+  "_": "林方の設計(2026-10-03・施主裁定 EDO-0410)。庭の区画 gardens[*] の内は庭方 ── ここは外だけ。値は山王・岡部を前例にしていない(欄の形だけ倣う・規則8)。岡部の谷筋と同じ値を使う所は『境を挟んで林が一続きに見える』ための意匠の判断で、典拠ではない。座標は書かない ── meyasuUV は図の読みの目安で、正は関係(rel)",
+  "parts": {
+   "_": "5層。大きさ(変種)は scaleRule.sizeRule が丈から選ぶ。asset は C16 が読む名。【硬】Own.Broadleaf・開花木(桜・梅・桃)・竹を含めない。⛔ 1層を1個体で埋めない(i=1..3 を混ぜる)",
+   "松": [
+    {
+     "api": "Own.Matsu(\"{size}\")",
+     "asset": "Own.Matsu",
+     "prefab": "Tree_Matsu_{size}",
+     "species": "クロマツ(林の松)",
+     "w": 1
+    },
+    {
+     "api": "Own.Matsu(\"{size}\", 2)",
+     "asset": "Own.Matsu",
+     "prefab": "Tree_Matsu_{size}_02",
+     "species": "クロマツ(林の松)",
+     "w": 1
+    },
+    {
+     "api": "Own.Matsu(\"{size}\", 3)",
+     "asset": "Own.Matsu",
+     "prefab": "Tree_Matsu_{size}_03",
+     "species": "クロマツ(林の松)",
+     "w": 1
+    }
+   ],
+   "落葉": [
+    {
+     "api": "Own.Keyaki(\"{size}\")",
+     "asset": "Own.Keyaki",
+     "prefab": "Tree_Keyaki_{size}",
+     "species": "ケヤキ",
+     "w": 1
+    },
+    {
+     "api": "Own.Keyaki(\"{size}\", 2)",
+     "asset": "Own.Keyaki",
+     "prefab": "Tree_Keyaki_{size}_02",
+     "species": "ケヤキ",
+     "w": 1
+    },
+    {
+     "api": "Own.Mukunoki(\"{size}\")",
+     "asset": "Own.Mukunoki",
+     "prefab": "Tree_Mukunoki_{size}",
+     "species": "ムクノキ",
+     "w": 1
+    },
+    {
+     "api": "Own.Mukunoki(\"{size}\", 2)",
+     "asset": "Own.Mukunoki",
+     "prefab": "Tree_Mukunoki_{size}_02",
+     "species": "ムクノキ",
+     "w": 1
+    },
+    {
+     "api": "Own.Enoki(\"{size}\")",
+     "asset": "Own.Enoki",
+     "prefab": "Tree_Enoki_{size}",
+     "species": "エノキ",
+     "w": 1
+    },
+    {
+     "api": "Own.Enoki(\"{size}\", 3)",
+     "asset": "Own.Enoki",
+     "prefab": "Tree_Enoki_{size}_03",
+     "species": "エノキ",
+     "w": 1
+    }
+   ],
+   "中木": [
+    {
+     "api": "Own.Jouryoku(\"{size}\")",
+     "asset": "Own.Jouryoku",
+     "prefab": "Tree_Jouryoku_{size}",
+     "species": "常緑広葉(スダジイ・シラカシ・タブの見立て)",
+     "w": 1
+    },
+    {
+     "api": "Own.Jouryoku(\"{size}\", 2)",
+     "asset": "Own.Jouryoku",
+     "prefab": "Tree_Jouryoku_{size}_02",
+     "species": "常緑広葉",
+     "w": 1
+    },
+    {
+     "api": "Own.Jouryoku(\"{size}\", 3)",
+     "asset": "Own.Jouryoku",
+     "prefab": "Tree_Jouryoku_{size}_03",
+     "species": "常緑広葉",
+     "w": 1
+    }
+   ],
+   "低木": [
+    {
+     "api": "Own.Teiboku(\"{size}\")",
+     "asset": "Own.Teiboku",
+     "prefab": "Tree_Teiboku_{size}",
+     "species": "常緑照葉低木(サカキ・アオキ・ヤブツバキの見立て・花なし)",
+     "w": 1,
+     "detail": true
+    },
+    {
+     "api": "Own.Teiboku(\"{size}\", 2)",
+     "asset": "Own.Teiboku",
+     "prefab": "Tree_Teiboku_{size}_02",
+     "species": "常緑照葉低木",
+     "w": 1,
+     "detail": true
+    },
+    {
+     "api": "Own.Teiboku(\"{size}\", 3)",
+     "asset": "Own.Teiboku",
+     "prefab": "Tree_Teiboku_{size}_03",
+     "species": "常緑照葉低木",
+     "w": 1,
+     "detail": true
+    }
+   ],
+   "下草": [
+    {
+     "api": "JG.Fern(1)",
+     "asset": "JG.Fern",
+     "prefab": "Plant_PaintedFern_Spring_01",
+     "species": "シダ(緑葉)",
+     "w": 1,
+     "detail": true
+    },
+    {
+     "api": "JG.Fern(2)",
+     "asset": "JG.Fern",
+     "prefab": "Plant_PaintedFern_Spring_02",
+     "species": "シダ(緑葉)",
+     "w": 1,
+     "detail": true
+    },
+    {
+     "api": "NM.GrassMeadow(\"01\", \"\", 1)",
+     "asset": "EdoAssets.NM.GrassMeadow",
+     "prefab": "prefab_Terrain_grass_meadow_01_1",
+     "species": "草(林縁のソデ)",
+     "w": 2,
+     "detail": true
+    }
+   ],
+   "つる": {
+    "_": "【柔】林縁の高木の幹に名指しで絡める(層の散布の外)。藤は使わない(花の印象・藤棚専用)",
+    "parts": [
+     {
+      "api": "Own.TsuruKizuta(i)",
+      "asset": "Own.TsuruKizuta",
+      "species": "キヅタ"
+     },
+     {
+      "api": "Own.TsuruTeika(i)",
+      "asset": "Own.TsuruTeika",
+      "species": "テイカカズラ"
+     }
+    ],
+    "rule": "林縁(法尻・平場の縁に面する帯3)の高木の幹 5 本に 1 本の目安・幹径 0.40〜0.85m の幹だけ",
+    "acc": "U"
+   },
+   "hM": {
+    "松": [
+     10.0,
+     13.0
+    ],
+    "落葉_谷底": [
+     13.0,
+     16.0
+    ],
+    "落葉_斜面": [
+     11.0,
+     14.0
+    ],
+    "中木": [
+     5.0,
+     8.2
+    ],
+    "中木_林縁": [
+     3.6,
+     5.8
+    ],
+    "低木": [
+     1.2,
+     2.4
+    ],
+    "soft": "丈は狙い(在庫の素の丈 × scaleY ≤ 1.1 で届く範囲)",
+    "acc": "U(在庫の実寸 ── 松 Mid10.5/Big12.5・ケヤキ13〜16・ムク10〜14・エノキ11〜16・常緑3.6/5.8/8.2・低木1.2〜2.4)/B(百五十年を経た屋敷の大木として穏当)"
+   },
+   "forbidden": [
+    "EdoAssets.Own.Broadleaf",
+    "開花木(桜・梅・桃・藤)",
+    "竹(孟宗・真竹・竹叢)",
+    "外来種・幕末以降の渡来種"
+   ],
+   "acc": "B(台地の斜面林=シイ・カシ+ケヤキ・ムク・エノキの一般類型)/A(武家地の水辺・斜面の緑は松を交えた樹林・竹は例外 [橋本・堀1998])/A(崖に竹を当てない [竹と斜面])"
+  },
+  "bandDef": {
+   "topFrom": "隣る面の y(terraces[].y)── 面の無い所は地山の肩(造成前の地盤 base_dem で勾配 0.25 を超え始める線)",
+   "toe": "区画の線 polygon か、下の面(terraces)の縁",
+   "t": "(top − セルの地盤)/(top − 法尻)",
+   "exclude": [
+    "terraces[*](面の上は屋敷地)",
+    "gardens[*](庭方)",
+    "ramps[*] の敷き",
+    "routes[*] の芯 ± 0.5間",
+    "akichi[Tamari]",
+    "michi[UraRoji]"
+   ],
+   "bands": {
+    "西の谷の斜面(地山)": {
+     "rel": "台地・馬場・奥向の西の肩 → 西の谷底の縁(akichi NishiTanizoko の斜面)",
+     "meyasuUV": "v≈82〜96 の全幅",
+     "acc": "施主裁定(樹林のまま・道を付けない)"
+    },
+    "西の谷底(湿った低地)": {
+     "rel": "akichi NishiTanizoko の底(造成前の地盤で斜面の勾配が 0.1 を切る所)",
+     "meyasuUV": "v≈96〜区画の西の端・地盤 ≈14〜15m",
+     "acc": "施主裁定(樹林のまま)"
+    },
+    "南の崖(谷頭・岡部の谷筋)": {
+     "rel": "台地(表役所・書院の下)の南の肩 → 谷頭の平場の縁と、岡部の谷筋に沿う区画の線",
+     "meyasuUV": "u≈−32〜−9, v≈28〜52",
+     "acc": "akichi Gake・slopes #3"
+    },
+    "台地の南東の崖(厩・門の内へ)": {
+     "rel": "台地の南東の肩 → 厩の平場・門の内の北の口・表の道の西の脇",
+     "meyasuUV": "u≈−10〜11, v≈20〜30",
+     "acc": "akichi Gake・slopes #3"
+    },
+    "泉水の南の外法(盛土)": {
+     "rel": "庭の区画 G_Sensui の南の縁の外 → 岡部の区画の線(法尻は区画の内)",
+     "meyasuUV": "u≈−28〜−25, v≈52〜72",
+     "acc": "slopes #5"
+    },
+    "表長屋の背の低地(屋敷林)": {
+     "rel": "表長屋の背の路地の内側 → 谷頭・厩の平場の崖の裾",
+     "meyasuUV": "u≈−24〜−5, v≈3〜17",
+     "acc": "U"
+    },
+    "稲荷の杜": {
+     "rel": "稲荷社の座の外 → 西の谷の斜面の肩・岡部の区画の線・泉水の西の生垣の外",
+     "meyasuUV": "u≈−25〜−13, v≈72〜82",
+     "acc": "B(屋敷稲荷に杜=一般)"
+    }
+   },
+   "densityAdopted": "plantRule.bands[].per100",
+   "invariants": {
+    "裸地": "0(林の帯の地表は低木か下草で全面を覆う)",
+    "hard": true
+   },
+   "avoid": {
+    "layers": [
+     "松",
+     "落葉",
+     "中木",
+     "低木"
+    ],
+    "kyoukaiRoadM": 2.0,
+    "kyoukaiRoadLayers": [
+     "松",
+     "落葉",
+     "中木",
+     "低木"
+    ],
+    "kyoukaiRoadRule": "道辺(辺11〜13・三べ坂)から全層の幹の芯 2.0m 以上内。樹冠は測らない",
+    "kakoiInsideM": 2.0,
+    "kakoiFacingRoadM": 8.0,
+    "kakoiLineFrom": "kyoukaiRoadM",
+    "kakoiLineTamagaki": false,
+    "dodomeCrestDepthM": {
+     "城の石垣": 1.4,
+     "野面の乱積み": 1.048
+    },
+    "dodomeCrestDepthAcc": "A(部材の実測 ── 同じ部材 SannoNozura・城の石垣の駒を使うので値は部材の物。山王の値を前例にしたのではない)",
+    "edaShitaOverRoadM": 4.0,
+    "kaidanShoulderKen": {
+     "松": 1.5,
+     "落葉": 1.5,
+     "中木": 1.0,
+     "低木": 0.5
+    },
+    "rampRule": "表の道 R_OmoteSaka は 芯から(w/2 + その層の肩 kaidanShoulderKen)。幅 1間の坂(R_Tomomachi・R_Tsuyomon・R_Baba・R_Inari)と routes の動線は 芯から(0.5間 + kattemichiShoulderKen)",
+    "kattemichiShoulderKen": {
+     "松": 0.5,
+     "落葉": 0.5,
+     "中木": 0.4,
+     "低木": 0.25
+    },
+    "edaShitaOverRampM": {
+     "hard": 3.0,
+     "soft": 4.0,
+     "on": "表の道・馬の道(R09・R10)・馬場の走路の上",
+     "why": "騎乗の頭 約2.5m+0.5 が許容0、駕籠と見えの抜けで 4.0 を狙う"
+    },
+    "drainKen": 0.75,
+    "drainRule": "drains の溝・落とし口・張り石の筋・玉石の受けから全層の幹の芯 0.75間【硬・庭方の申し送り】",
+    "fenceRule": "馬場の埒 F04・厩の柵 F05 の線上と開口(2間)に置かない。線から幹の芯 0.5間【硬・庭方の申し送り】/稲荷の玉垣 F09 の内に置かない【硬】・線から高木・中木 1.0間・低木 0.25間【柔】",
+    "hard": true,
+    "acc": "施主の決め(2026-09-23・裁定B 2026-09-25)。2.0m・4.0m は施主指示であって前例ではない。肩の値は U(設計値)"
+   }
+  },
+  "plantRule": {
+   "seed": "帯・区の名 + '/' + 層の名",
+   "packRatio": 0.7,
+   "crossLayerTrunkMinM": 1.0,
+   "crossLayerTrunkMinRule": "【硬】層の違う幹の芯どうしの下限。樹冠は重なってよい",
+   "spacingRule": "宣言の無い層の芯々の下限 = √(100 / 密度) × packRatio",
+   "bands": {
+    "西の谷の斜面(地山)": {
+     "per100": {
+      "松": 0.5,
+      "落葉": 0.6,
+      "中木": 2.2,
+      "低木": 6.5,
+      "下草": 12
+     },
+     "松": "肩寄り(t<0.4)に多く、帯全体にも散らす",
+     "落葉": "下半(t>0.5)",
+     "nMeyasu": "面積 約2,400m² → 松12・落葉14・中木53・低木156",
+     "soft": "本数は狙い",
+     "acc": "A(斜面の緑=松を交えた樹林 [橋本・堀1998])/B(台地の斜面林の構成)/U(密度)"
+    },
+    "西の谷底(湿った低地)": {
+     "per100": {
+      "松": 0,
+      "落葉": 1.0,
+      "中木": 1.6,
+      "低木": 4.5,
+      "下草": 14
+     },
+     "落葉": "ケヤキ・ムクノキを主に、エノキを交える(湿った肥えた谷底の落葉高木)",
+     "中木": "タブ・シラカシの見立て",
+     "uke": "玉石の受けの芯から 0.75間 は置かない【硬】・1.5間 内は低木と下草だけ【柔】",
+     "nMeyasu": "面積 約950m² → 落葉10・中木15・低木43",
+     "soft": "本数は狙い",
+     "acc": "B(谷底の湿った低地=ムク・エノキ・ケヤキ・タブの一般類型)/U(密度)",
+     "pendingRef": "ハンノキ(湿地の木)は在庫に無い ── 受けの周りに 2〜3本を置くなら部材方へ(必須ではない)"
+    },
+    "南の崖(谷頭・岡部の谷筋)": {
+     "per100": {
+      "松": 0.6,
+      "落葉": 0.4,
+      "中木": 2.2,
+      "低木": 6.5,
+      "下草": 12
+     },
+     "松": "肩寄り・不等間隔",
+     "落葉": "法尻寄り・地山の所だけ",
+     "why": "岡部の『崖の林(地山)』と同じ値 ── 谷筋を挟んで林が一続きに見えるように(見えの判断・典拠ではない)",
+     "nMeyasu": "面積 約1,250m² → 松8・落葉5・中木28・低木81",
+     "soft": "本数は狙い",
+     "acc": "A [橋本・堀1998]/B/U(密度)"
+    },
+    "台地の南東の崖(厩・門の内へ)": {
+     "per100": {
+      "松": 0.8,
+      "落葉": 0.3,
+      "中木": 2.0,
+      "低木": 6.5,
+      "下草": 12
+     },
+     "松": "肩に多く ── 門の内から見上げる台地の縁の輪郭を松で作る",
+     "nMeyasu": "面積 約700m² → 松6・落葉2・中木14・低木45",
+     "soft": "本数は狙い",
+     "acc": "B(台地の縁に松)/U(密度)"
+    },
+    "泉水の南の外法(盛土)": {
+     "per100": {
+      "松": 0.8,
+      "落葉": 0,
+      "中木": 2.2,
+      "低木": 6.5,
+      "下草": 12
+     },
+     "why": "盛土 1:1.5 に根の張る落葉の大木は置かず、松と常緑で閉じる。庭の主峰・副峰の背の常緑(庭方)へ続けて境を消す",
+     "nishi": "泉水の西の生垣の外 1間 は低木まで【柔・庭方の申し送り】",
+     "soft": "本数は狙い",
+     "acc": "U"
+    },
+    "表長屋の背の低地(屋敷林)": {
+     "per100": {
+      "松": 0,
+      "落葉": 0.3,
+      "中木": 1.0,
+      "低木": 2.0,
+      "下草": 6
+     },
+     "rule": "崖の裾(谷頭・厩の土留めの下)へ寄せ、路地・溜り・井戸・惣後架の側は開ける。常緑の中木で表長屋の背を隠し、ケヤキ・エノキを 2〜3本抜く",
+     "nMeyasu": "植えられる面 約700m² → 落葉2・中木7・低木14",
+     "soft": "本数は狙い",
+     "acc": "B(屋敷まわりの常緑の帯=一般類型)/U"
+    },
+    "稲荷の杜": {
+     "rule": "常緑の中木(Big)5〜7 本を社の東(泉水との間)と西(谷の肩)に群にし、神木 1(namedTrees)。低木 6〜10 を林縁に。社の背(南)は区画の線の 2.0m 退避で植えられない。社の正面(北・R_Inari の取り付き)は 1間 の口の前を空ける",
+     "kakoi": "玉垣 F09 の内 0【硬】",
+     "drain": "泉水の水尻の落とし溝(社地より 3間以上北)から 0.75間【硬】",
+     "acc": "B(屋敷稲荷の杜=一般)/U(本数・配り)"
+    },
+    "馬場の西の縁": {
+     "rule": "西の谷の斜面の帯の肩に重なる。松を不等間隔 芯々 4〜7m で一列+帯の中木。埒 F04 と溝 D5 の退避の外",
+     "edaShita": "走路の上の枝下 bandDef.avoid.edaShitaOverRampM",
+     "east": "馬場の東の縁(奥の塀との間 2間・R08)は植えない(幅 4m 未満の通り)",
+     "acc": "B(馬場の縁の並木=一般)/U(列・芯々)"
+    },
+    "北の境の長屋の前・家中長屋・土蔵": {
+     "rule": "北の境の長屋の前は、長屋の内面から(軒の出+1.0m)と表の道の退避の間が 2間 以上ある所だけ中木を芯々 6〜9m 不等。足りない所は下草。家中長屋の棟間(2間)は植えない。家中長屋の西の妻と奥の塀の間の法面は低木と下草。土蔵のまわりは clearance.kura",
+     "acc": "U"
+    },
+    "谷頭の平場・厩の平場": {
+     "rule": "面の上には名指しの木のほか植えない(面は使う所)。面の縁の外は南の崖の帯",
+     "acc": "U"
+    }
+   },
+   "keepoutFrom": {
+    "区画の境・囲い・土留め": "bandDef.avoid",
+    "坂・動線": "bandDef.avoid.rampRule",
+    "溝・受け": "bandDef.avoid.drainRule",
+    "埒・柵・玉垣": "bandDef.avoid.fenceRule",
+    "棟・面の縁・井戸": "planting.clearance"
+   },
+   "crownRule": {
+    "takagi": {
+     "basis": "幹の芯",
+     "edaShitaFrom": "目録 asset-index.tsv の edashita × scaleY",
+     "idoCrownClear": true
+    },
+    "chuboku": {
+     "basis": "幹の芯"
+    }
+   },
+   "placement": {
+    "松": "TerrainTree",
+    "落葉": "TerrainTree",
+    "中木": "TerrainTree",
+    "低木": "DetailMesh",
+    "下草": "DetailMesh",
+    "namedTrees": "GameObject"
+   },
+   "forbidden": [
+    "Assets/Edo/Terrain/details/BroadleafTree.prefab",
+    "EdoAssets.Own.Broadleaf"
+   ],
+   "acc": "U(設計値)"
+  },
+  "clearance": {
+   "keidai": {
+    "doRinKen": 2.0,
+    "doRinKenBandLayers": [
+     "松",
+     "落葉",
+     "中木"
+    ],
+    "doRinKenOf": [
+     "munes"
+    ],
+    "rule": "御殿(munes)の外面から林の高木・中木の幹の芯 2.0間【硬】",
+    "why": "軒の出 0.9m + 雨落ち溝と退避(0.75間)+ 余裕 ≒ 3.6m",
+    "pendingRef": "C27 は『社叢 帯』の名の帯と keidai の塊だけを拾う ── 土井では未検査になる(拾う帯の名の読み替えが要る)",
+    "acc": "U(設計値)"
+   },
+   "nagaya": {
+    "高木・中木": "長屋(表長屋・北の境の長屋・家中長屋・平家長屋)の壁の外面から 軒の出+1.0m",
+    "低木": "壁の外面から 0.6m",
+    "hard": true,
+    "acc": "U"
+   },
+   "kura": {
+    "高木・中木": "土蔵・御駕籠蔵・厩の壁の外面から 2.0間",
+    "低木": "1.0間",
+    "why": "火と荷捌き・馬の出入り",
+    "hard": true,
+    "acc": "U"
+   },
+   "wells": {
+    "rule": "樹冠を井戸(Ido_Tsuyo)に掛けない",
+    "hard": true,
+    "acc": "U"
+   },
+   "terraceEdge": {
+    "高木・中木": "面の縁(法肩)から外へ 0.5m は幹を置かない(肩を崩さない)・面の上は名指しの木だけ",
+    "hard": true,
+    "acc": "U"
+   },
+   "niwa": {
+    "rule": "庭の区画の縁から外 1間 は低木と下草まで(庭の見えを林が食わない)",
+    "soft": true,
+    "acc": "U(庭方の申し送り『生垣の外 1間 は低木まで』を区画の全周へ)"
+   },
+   "acc": "U(設計値)"
+  },
+  "clusterGapMin": 3.0,
+  "clusterGapMinDef": "林の塊(viewClusters)どうしの、違う塊の幹の芯どうしの最小の離れ[間]【柔】",
+  "clusterGapPendingRef": "C28 は gardens[].clusterGapMin だけを読む ── ここの値は未検査",
+  "viewClusters": [
+   {
+    "name": "表の道の上の額縁",
+    "rel": "R_OmoteSaka の上端(台地の縁)の両脇、坂の芯から(w/2 + 1.5間)の外",
+    "mix": "松4(左右2ずつ)",
+    "role": "門の内から坂を見上げたとき、台地の縁を松で額縁にする",
+    "hFrom": "台地の南東の崖の帯の松の丈",
+    "edaShitaFrom": "bandDef.avoid.edaShitaOverRampM",
+    "soft": "本数と左右は狙い",
+    "acc": "U"
+   },
+   {
+    "name": "稲荷の杜",
+    "rel": "plantRule.bands[稲荷の杜]",
+    "mix": "中木5〜7+神木1",
+    "acc": "B/U"
+   }
+  ],
+  "slopeRule": {
+   "natural": "地山の斜面(西の谷・南の崖・南東の崖)は全層で覆う(帯1〜3)【硬: 斜面は木で覆う・途中に柵を置かない】",
+   "engineered": {
+    "onSlope": [
+     "下草(連続)",
+     "常緑照葉低木"
+    ],
+    "rule": "造成の法面(盛1:1.5・切1:1.0)は低木と下草で覆い、高木・中木は法肩の外の地山へ寄せる。盛土の深さが fillDepthMaxM を超える所に高木を立てない",
+    "suritsuke": "落差 1.5m 未満・幅 4m 未満の摺り付け(台地↔奥向・座の縁)は芝のまま【柔】── 屋敷の中の段で、林ではない"
+   },
+   "species": [
+    "サカキ",
+    "アオキ",
+    "ヤブツバキ(花の季節ではない)"
+   ],
+   "spacingKen": 1.0,
+   "stagger": "千鳥",
+   "slopeMax": 1.0,
+   "midSlopeFence": "置かない【硬・施主 2026-09-06】",
+   "fillDepthMaxM": {
+    "落葉": 0.8,
+    "松": 1.5,
+    "中木": 2.3
+   },
+   "fillDepthSoft": true,
+   "priority": "斜面を覆う(硬)が盛土の深さ(柔)に勝つ ── 高木が立てない所も低木と下草で覆う",
+   "slopesVegProposal": {
+    "#1 辺12 北端の妻の背↔谷頭の土手": "芝 → 低木と下草",
+    "#2 表の道の両脇": "芝 → 盛の法は低木と下草・切の法の肩の外に松(viewClusters)",
+    "#3 谷頭↔台地の崖・表長屋の背・厩": "樹林(新しい slopeBands)",
+    "#4 台地↔奥向・長局・土蔵・家中長屋・馬場の縁": "芝のまま(摺り付け)",
+    "#5 台地(泉水)・稲荷↔岡部・西の谷底": "樹林(松・常緑・低木。落葉は盛土 0.8m 以下)"
+   },
+   "acc": "U(設計判断)/P(盛土の深さは図の算出)"
+  },
+  "namedTrees": [
+   {
+    "name": "表の道の上り口の松",
+    "layer": "松",
+    "kind": "クロマツ",
+    "near": "R_OmoteSaka の上端(台地の縁に着く所)の南の脇(崖の側)・坂の芯から(w/2 + 1.5間)・法肩から内 1.0m 以上",
+    "role": "門の内から見上げる坂の上の目印",
+    "hFrom": "台地の南東の崖の帯の松の丈の上端",
+    "meyasuUV": "u≈9, v≈25",
+    "acc": "U(位置=意匠)"
+   },
+   {
+    "name": "稲荷の神木",
+    "layer": "落葉",
+    "kind": "ケヤキ",
+    "near": "社の東の脇(泉水の側)・玉垣 F09 から 1.5間 以上・区画の線から 2.0m 以上・泉水の水尻の落とし溝から 0.75間 以上",
+    "role": "社の目印・杜の主",
+    "hFrom": "Own.Keyaki Mid の丈",
+    "meyasuUV": "u≈−22.5, v≈73.5",
+    "acc": "B(屋敷稲荷に神木=一般)/U(位置)",
+    "why": "社の背(南)と西は区画の線まで 1間 足らずで 2.0m の退避に入る"
+   },
+   {
+    "name": "谷底の大木",
+    "layer": "落葉",
+    "kind": "ケヤキ",
+    "near": "西の谷底の東寄り・玉石の受けから 3間 以上",
+    "role": "馬場の西の縁と奥向から谷を見下ろしたときの主",
+    "hFrom": "Own.Keyaki Big の丈",
+    "meyasuUV": "u≈0, v≈99",
+    "acc": "U"
+   },
+   {
+    "name": "谷頭の榎",
+    "layer": "落葉",
+    "kind": "エノキ",
+    "near": "谷頭の平場の西の縁の外(崖の裾)・平家長屋(二)の妻から(軒の出+1.0m)以上・区画の線から 2.0m 以上",
+    "role": "長屋の前の木陰",
+    "hFrom": "Own.Enoki Small の丈",
+    "meyasuUV": "u≈−20, v≈31",
+    "acc": "B(長屋・井戸端の榎=一般)/U(位置)"
+   },
+   {
+    "name": "溜りの榎",
+    "layer": "落葉",
+    "kind": "エノキ",
+    "near": "通用門の内の溜りの西の縁・御駕籠蔵から 2.0間・樹冠を井戸に掛けない",
+    "role": "荷捌きの木陰・通用門を入って最初に見える木",
+    "hFrom": "Own.Enoki Small の丈",
+    "acc": "U"
+   }
+  ],
+  "noPlant": [
+   {
+    "what": "面(terraces)の上 ── 表向・奥向・門の内・供待・厩・谷頭・馬場の走路・各座",
+    "except": "namedTrees",
+    "hard": true
+   },
+   {
+    "what": "白洲 G_Shirasu・表長屋の背の路地 UraRoji・溜り Tamari・坂と動線の敷き",
+    "hard": true
+   },
+   {
+    "what": "道辺から 2.0m・塀・囲いの実体から 2.0m・道に面する土留めから 2.0m(面さない土留めは天端の奥の縁まで)",
+    "hard": true
+   },
+   {
+    "what": "玉垣 F09 の内・埒 F04 と柵 F05 の線上と開口・溝と受けの 0.75間",
+    "hard": true
+   },
+   {
+    "what": "西の谷底に道を付けない(林の中の踏み分けも描かない)",
+    "hard": true
+   },
+   {
+    "what": "区画の外(岡部・松江松平の地形と林は触らない)",
+    "hard": true
+   },
+   {
+    "what": "庭の区画の内(庭方)",
+    "hard": true
+   }
+  ]
  }
 }

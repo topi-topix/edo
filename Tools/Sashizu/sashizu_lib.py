@@ -544,6 +544,40 @@ def _walled(we, edge, w):
     return False
 
 
+def band_ramp_at(r, K, u, v):
+    """折れ線 `pts` の坂で **`graded: true` を名乗るもの**(帯そのものが造成後の地盤)の、
+    (芯線からの距離 m, 芯線の最寄りの点の踏面の高さ)。名乗らない坂(岡部の路盤)は None。
+
+    踏面は `ys`(頂点ごと。null は道のりで内挿)か、無ければ `y0`→`y1` を道のりで内挿。
+    端は帯の幅の半分で丸める(芯線の端点からの距離)。⚠ 2026-10-03 土井: 表の道を折れ線で振ったのに
+    造成の式が `u0..v1` 式の坂しか読まず、振った線が切盛図にも断面にも出なかった。"""
+    if not r.get("graded") or not isinstance(r.get("pts"), list) or len(r["pts"]) < 2:
+        return None
+    P = [tuple(q[:2]) for q in r["pts"]]
+    S = [0.0]
+    for a, b in zip(P, P[1:]):
+        S.append(S[-1] + math.hypot(b[0] - a[0], b[1] - a[1]))
+    ys = list(r.get("ys") or [r["y0"]] + [None] * (len(P) - 2) + [r["y1"]])
+    known = [(S[i], y) for i, y in enumerate(ys) if y is not None]
+    best, bs = 1e18, 0.0
+    for i, (a, b) in enumerate(zip(P, P[1:])):
+        du_, dv_ = b[0] - a[0], b[1] - a[1]
+        L2 = du_ * du_ + dv_ * dv_
+        q = 0.0 if L2 < 1e-12 else max(0.0, min(1.0, ((u - a[0]) * du_ + (v - a[1]) * dv_) / L2))
+        dd = math.hypot(u - (a[0] + q * du_), v - (a[1] + q * dv_))
+        if dd < best:
+            best, bs = dd, S[i] + q * (S[i + 1] - S[i])
+    y = known[0][1]
+    for (s0, y0_), (s1, y1_) in zip(known, known[1:]):
+        if s0 - 1e-9 <= bs <= s1 + 1e-9:
+            y = y0_ + (y1_ - y0_) * ((bs - s0) / ((s1 - s0) or 1.0))
+            break
+    else:
+        if bs > known[-1][0]:
+            y = known[-1][1]
+    return best * K, y
+
+
 def ramp_y(d, u, v):
     """土の斜路の踏面。⚠ `stair_y` は `kaidans` しか見ておらず、**斜路がどこにも存在しなかった**
     (2026-08-25 検図11巡 中-1: 図が出す「厩の動線の最急 1:2.2」は斜路ではなく
@@ -551,7 +585,11 @@ def ramp_y(d, u, v):
     K = d["const"]["ken"]
     for r in d.get("ramps", []):
         if "u0" not in r:
-            continue          # 折れ線 `pts` 式の坂(岡部)は斜面の中の路盤 — 地盤は別勘定
+            # 折れ線 `pts` 式の坂(岡部)は斜面の中の路盤 — 地盤は別勘定。`graded: true` を名乗る坂だけ帯が地盤
+            br = band_ramp_at(r, d["const"]["ken"], u, v)
+            if br is not None and br[0] <= r["w"] / 2.0 + 1e-9:
+                return br[1]
+            continue
         u0, u1 = min(r["u0"], r["u1"]), max(r["u0"], r["u1"])
         v0, v1 = min(r["v0"], r["v1"]), max(r["v0"], r["v1"])
         if not (u0 - 1e-9 <= u <= u1 + 1e-9 and v0 - 1e-9 <= v <= v1 + 1e-9):
@@ -809,6 +847,21 @@ def graded_y(d, u, v, nat, in_parcel, walled=None):
         if t["y"] + cap / bc < nat:
             continue                                   # cap の内で現地形に着かない
         g = min(g, t["y"] + dm / bc)                   # 切土の法が日の目を見る
+    # 帯が地盤の坂(`graded: true`)の両脇も法面で摺り付ける(盛 1:batterFill / 切 1:batterCut)。
+    for r in d.get("ramps", []):
+        br = band_ramp_at(r, K, u, v) if "u0" not in r else None
+        if br is None:
+            continue
+        dm = br[0] - r["w"] / 2.0
+        if dm <= 0 or dm > cap:
+            continue
+        yf = br[1] - dm / bf
+        if yf > nat:
+            g = max(g, yf)
+            floor = max(floor, yf)
+        yc = br[1] + dm / bc
+        if yc < nat:
+            g = min(g, yc)
     # ⚠ 切土の法面が**盛土の要求する下限を割らない**ようにする。
     #   低い段の切土が高い段の縁の下を掘り、縁に受けの無い段差を作っていた
     #   (2026-08-24 検図: 書院の郭の南縁で 0.89m)。

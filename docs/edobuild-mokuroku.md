@@ -1,6 +1,6 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 79ac38949c2e -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 488c9ce83940 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
@@ -293,10 +293,10 @@
 | 関数 | 返す | 札 | 何をするか(注釈の一文目) | 呼んでいる所 |
 |---|---|---|---|---|
 | `EdoBuild.KadoDeg(poly, vertex)` | `float` | 区域 | 隅の折れ角[°]を区画から測る。入りの走り(頂点の手前の辺)から出の走り(次の辺)への旋回で、 左へ曲がれば負・右へ曲がれば正。 | MatsudairaDewa(PlaceKado), OkabeYashiki(PlaceKado) |
-| `EdoBuild.KadoGauge(path, armFull, faceDepth)` | `bool` | 隅 | 留め継ぎの隅部材の素の寸法を、焼いた FBX の実メッシュから測る(実体化しない・局所 = 据える前の部材の単位)。 | OkabeYashiki(PlaceKado) |
-| `EdoBuild.KadoArms(poly, vertex, isKado, outNormal, scale, armFullLocal, faceDepthLocal, faceIn, bodyIn, stepLocal, minArm, armsLocal, note)` | `bool` | 硬 隅・区域 | 短い辺で隅部材の腕を選ぶ。頂点 vertex の隅の (入りの腕, 出の腕) を局所の長さで返す (`EdoAssets.Own.Kado(part, deg, armIn, armOut, armFull)` へそのま… | OkabeYashiki(PlaceKado) |
+| `EdoBuild.KadoGauge(path, armFull, faceDepth)` | `bool` | 隅 | 留め継ぎの隅部材の素の寸法を、焼いた FBX の実メッシュから測る(実体化しない・局所 = 据える前の部材の単位)。 | MatsudairaDewa(PlaceKado), OkabeYashiki(PlaceKado) |
+| `EdoBuild.KadoArms(poly, vertex, isKado, outNormal, scale, armFullLocal, faceDepthLocal, faceIn, bodyIn, stepLocal, minArm, armsLocal, note)` | `bool` | 硬 隅・区域 | 短い辺で隅部材の腕を選ぶ。頂点 vertex の隅の (入りの腕, 出の腕) を局所の長さで返す (`EdoAssets.Own.Kado(part, deg, armIn, armOut, armFull)` へそのま… | MatsudairaDewa(PlaceKado), OkabeYashiki(PlaceKado) |
 | `EdoBuild.KadoFace(kc, poly, e1, outNormal, target, wallT, moved, note)` | `bool` | 隅・区域 | 隅部材の両腕の外面を、平行移動だけで target(区画線から外向きへ。 ⟶ 返す: 動かした量(xz) | MatsudairaDewa(AlignInubashiri), OkabeYashiki(FitKado) |
-| `EdoBuild.KadoArm(kc, poly, e1, outNormal, target, wallT, seatDrop, h, l)` | `bool` |  | 据えた隅部材の「腕」が、接する二辺の s をどこまで覆っているかを実メッシュで測る。 | MatsudairaDewa(KadoArmSpan), OkabeYashiki(FitKado) |
+| `EdoBuild.KadoArm(kc, poly, e1, outNormal, target, wallT, seatDrop, h, l)` | `bool` |  | 据えた隅部材の「腕」が、接する二辺の s をどこまで覆っているかを実メッシュで測る。 | MatsudairaDewa(KadoArmSpan・Stage3_Ishigaki), OkabeYashiki(FitKado) |
 | `EdoBuild.PlaceRunKado(runA, nA, runB, nB, pathOf, groundAt, parent, name, tol, note, convex=…, abut=…, armPathOf=…, farA=…, farB=…)` | `GameObject` | 硬 地面・天端・面・隅 | 石垣の run の出隅へ隅の駒を据える(2026-09-25・EDO-0430)。 | — |
 | `EdoBuild.ARM_OVER` | `float` | 硬 面・隅 | 隅の腕の長さを、相手の実測から焼いてある駒の中で選ぶ(2026-09-26・EDO-0437)。 | — |
 | `EdoBuild.KadoArmNeeds(kc, P, yLo, yHi, armX, armZ, abut, full, needX, byX, needZ, byZ)` | `void` | 隅 | 隅の駒の各腕へ入る相手の走りの最小を測る(2026-09-26・EDO-0437 第7巡)。 | — |
@@ -435,7 +435,7 @@ EdoBuild — 道の造成(縦断を設計して道の面を均す)。2026-09-30�
 | `NozuraWall`(class) | — | | 野面の土留めの一本(隅と段の境で折れ・継ぐ)。 | |
 | `EdoBuild.PlaceNozuraRun(w, groundAt, probe, parent, name, log)` | `List<KeyValuePair<GameObject, Vector2>>` | 地面・駒どうし・天端・床・面・隅 | 野面の乱積みの土留めを据える(2026-09-25・EDO-0430)。 ⟶ 返す: 据えた駒と見え面の向き | — |
 | `EdoBuild.RayToBodies(bodies, o, d, maxDist)` | `float` | 駒どうし・面 | 走りの端を相手の駒の実面まで延ばす(2026-09-25・EDO-0430)。 | — |
-| `EdoBuild.ReachToBodies(from, toward, bodies, halfT, yLo, yHi, maxReach)` | `float` |  | ⚠ 注釈なし | SannoSha(SakuRun・ShiftRunToCutShoulder) |
+| `EdoBuild.ReachToBodies(from, toward, bodies, halfT, yLo, yHi, maxReach)` | `float` |  | ⚠ 注釈なし | SannoSha(SakuRun・ShiftRunToCutShoulder), MatsudairaDewa(Stage6_Zosaku) |
 | `EdoBuild.RetractEndFromBodies(end, inward, bodies, halfT, yLo, yHi, maxBack)` | `float` | 硬 駒どうし・面・隅 | 走りの端が相手の駒の中に在るなら、相手の実面まで詰める(ReachToBodies の逆向き・2026-09-26・EDO-0430)。 | SannoSha(RetractRunEndsFromWalls) |
 | `EdoBuild.RetractEndToBedEdge(end, inward, beds, halfT, yTop, maxBack, groundAt)` | `float` | 硬 地面・駒どうし・天端・床 | 受けの駒の天端の上に立つ走りの端を、受けの駒が足の下に在る所まで詰める(2026-09-26・EDO-0437 第6巡)。 | SannoSha(RetractRunEndsFromWalls) |
 | `EdoBuild.BedTopAt(p, beds, yTop)` | `float` |  | 点 p の真上から下ろした光線が beds の上向きの面に最初に当たる高さ(当たらなければ NaN)。 | SannoSha(AbutStairsToWalls・RetractRunEndsFromWalls) |

@@ -3034,7 +3034,8 @@
     }
    },
    "cert": "B([橋本・堀1998]A の崖の植生・皇居の濠の土手は施主の目安)",
-   "certSig": "B"
+   "certSig": "B",
+   "supersededBy": "planting(2026-10-03 林方)── 植えるのは planting の帯。この欄は記録として残す"
   }
  ],
  "service": [
@@ -5619,7 +5620,7 @@
    "L_dirt",
    "参道。⛔ 敷石は当面置かない(**U**)"
   ],
-  "cert": "層の存在=A(L_grass のみ)/ 他3枚は**未登録**/ 割り当て=U",
+  "cert": "層の存在=A(L_grass・L_dirt・L_bare・L_moss・L_shirasu は Assets/Edo/Terrain/layers/ に在る・林方 2026-10-03 確認)/ 割り当ては surface.zones が正 = U",
   "certSig": "A/U"
  },
  "_notes": "⭐ **この指図の文章は `docs/Sashizu/okabe_notes/<章>.json` にある。**欄を直すときは同じ章の注記を先に読むこと(path がそのまま鍵)。戻すのは `python3 Tools/Sashizu/prose_split.py okabe --restore`。⛔ 文章をここへ書き戻さない — 値だけを置く欄にした(2026-09-21 施主指示)。",
@@ -6071,5 +6072,409 @@
    "cert": "**U**(施主指示 2026-10-03『どちらかというと、米倉や蔵などを通用門近くに集めて、西の平場に長屋を集める方が自然では？』→『それで進めてください。図も更新してください。』 ── 東の平場の南の残り(長屋 E11〜E23 を戻した残りの帯・薪蔵から 2間・長屋から 1間)。普請奉行の決め)/ 存在=A([西川1959]『作事普請関係の建物や土蔵』── 御殿を囲む中間帯)",
    "certSig": "U/A"
   }
- ]
+ ],
+ "planting": {
+  "parts": {
+   "_": "形は山王と同じ5層。丈から大きさを選ぶ(scaleRule.sizeRule)。硬い: Own.Broadleaf・開花木・竹を含めない",
+   "松": [
+    "Own.Matsu(Mid|Big,1..3) クロマツ"
+   ],
+   "落葉": [
+    "Own.Keyaki(Small|Mid,1..3)",
+    "Own.Enoki(Small|Mid,1..3)",
+    "Own.Mukunoki(Small|Mid,1..3)"
+   ],
+   "中木": [
+    "Own.Jouryoku(Big|Mid,1..3) 常緑(スダジイ・シラカシ・タブの見立て)"
+   ],
+   "低木": [
+    "Own.Teiboku(H16|H20|H24,1..3) detail"
+   ],
+   "下草": [
+    "JG.Fern(1|2) detail",
+    "NM.GrassMeadow(01) w2 detail"
+   ],
+   "acc": "B(台地の斜面林=シイ・カシ+ケヤキ・ムク・エノキの一般類型)/S(松が樹冠帯の全体に散る=[名所図会・溜池])"
+  },
+  "bandDef": {
+   "topFrom": "隣る面の y(terraces[].y)",
+   "toe": "区画の境 polygon か下の面の縁",
+   "t": "(top−セルの地盤)/(top−法尻)",
+   "exclude": [
+    "terraces[*]",
+    "gardens[NiwaShoin]",
+    "gardens[Hakusu]",
+    "ramps[*] の敷き",
+    "akichi[SakujiOkiba]"
+   ],
+   "bands": {
+    "崖の林(地山)": "主面と西・東の平場の間の崖、主面の北の縁(土井境)── 盛土0.8m以下の所",
+    "土手の林(盛土)": "主面の南の土手(二階長屋の背)・東の崖の裾の盛土",
+    "外法の林(盛土・溜池側)": "西の平場の外の法(木柵 辺25まで)",
+    "屋敷林(平場の中)": "西の平場の外の肩・北の縁の内・東の平場の南の練塀の内"
+   },
+   "densityAdopted": "bands[].per100 の値(下の plantRule)",
+   "invariants": {
+    "裸地": "0(法の全面を低木か下草が覆う)"
+   },
+   "avoid": {
+    "layers": [
+     "松",
+     "落葉",
+     "中木",
+     "低木"
+    ],
+    "kyoukaiRoadM": 2.0,
+    "kyoukaiRoadLayers": [
+     "松",
+     "落葉",
+     "中木",
+     "低木"
+    ],
+    "kakoiInsideM": 2.0,
+    "kakoiFacingRoadM": 8.0,
+    "kakoiLineFrom": "kyoukaiRoadM",
+    "kakoiLineTamagaki": false,
+    "dodomeCrestDepthM": {
+     "城の石垣": 1.4,
+     "野面の乱積み": 1.048
+    },
+    "edaShitaOverRoadM": 4.0,
+    "kaidanShoulderKen": {
+     "松": 1.5,
+     "落葉": 1.5,
+     "中木": 1.0,
+     "低木": 0.5
+    },
+    "hard": true,
+    "acc": "施主の決め(2026-09-23・裁定B 2026-09-25)。値は施主指示であって前例ではない"
+   }
+  },
+  "plantRule": {
+   "seed": "帯の名+'/'+層の名",
+   "packRatio": 0.7,
+   "crossLayerTrunkMinM": 1.0,
+   "bands": {
+    "崖の林(地山)": {
+     "per100": {
+      "松": 0.6,
+      "落葉": 0.4,
+      "中木": 2.2,
+      "低木": 6.5,
+      "下草": 12
+     },
+     "松": "法肩寄りに多く、帯の全体にも散らす",
+     "落葉": "法尻寄り",
+     "soft": "本数は狙い",
+     "acc": "B/S([名所図会・溜池]S 松が帯全体に散る・[橋本・堀1998]A 武家地の水辺は樹林型)"
+    },
+    "土手の林(盛土)": {
+     "per100": {
+      "松": 0.8,
+      "落葉": 0,
+      "中木": 2.2,
+      "低木": 6.5,
+      "下草": 12
+     },
+     "why": "深い盛土に根の張る落葉の大木は置かず、堤の松と常緑で閉じる",
+     "acc": "B(溜池の水辺の緑は松=[橋本・堀1998]A No.45/46)/U(密度)"
+    },
+    "外法の林(盛土・溜池側)": {
+     "per100": {
+      "松": 1.0,
+      "落葉": 0,
+      "中木": 1.6,
+      "低木": 7.0,
+      "下草": 12
+     },
+     "松": "法肩寄り・不等間隔",
+     "法尻": "木柵から2.0mは低木も置かない(硬い)── 残る帯は下草の芝",
+     "acc": "S/B([外桜田永田町絵図]S 武家地と水の間の土手・[名所図会・溜池]S 上=樹林・下=草地)/U(密度)"
+    },
+    "屋敷林(平場の中)": {
+     "西の平場の外の肩": "中木(常緑)1列+松を交え、芯々4〜6m不等・肩から内へ1間以上",
+     "北の縁の内": "中木1列(土井境の目隠し)",
+     "東の平場の南の練塀の内": "中木1列 芯々5〜6m",
+     "acc": "B(屋敷まわりの常緑の帯=一般類型)/U(列と芯々)"
+    },
+    "長屋の背割り": {
+     "rule": "植えない(下水と通り・幅4m未満)。長屋の列の妻の外に幅3.6m以上の空きがあれば中木1・低木2〜3",
+     "acc": "U"
+    },
+    "北東の郭": {
+     "rule": "落葉の名指し1本のほか植えない(窪みの作業場)",
+     "acc": "U"
+    }
+   },
+   "keepoutFrom": {
+    "区画の境・囲い・土留め": "bandDef.avoid",
+    "石段・坂": "bandDef.avoid.kaidanShoulderKen",
+    "面の縁": "planting.clearance"
+   },
+   "forbidden": [
+    "EdoAssets.Own.Broadleaf",
+    "開花木(桜・梅・桃)",
+    "竹(孟宗・真竹)"
+   ]
+  },
+  "clearance": {
+   "munes": {
+    "高木(松・落葉・中木)": "壁の外面から 軒の出+1.0m",
+    "低木": "壁の外面から0.6m"
+   },
+   "kura_umaya": {
+    "全層": "2.0間(火と荷捌き)"
+   },
+   "wells": {
+    "rule": "樹冠を井戸に掛けない"
+   },
+   "terraceEdge": {
+    "高木": "面の縁から1.0m内には置かない(平場を林に飲ませない)"
+   },
+   "acc": "U(設計値)"
+  },
+  "slopeRule": {
+   "onSlope": [
+    "下草(連続)",
+    "常緑照葉低木"
+   ],
+   "spacingKen": 1.0,
+   "stagger": "千鳥",
+   "slopeMax": 1.0,
+   "midSlopeFence": "置かない(硬い・施主 2026-09-06)",
+   "fillDepthMaxM": {
+    "落葉": 0.8,
+    "松": "上限なし",
+    "中木": "上限なし"
+   },
+   "priority": "斜面を覆う(硬い)が盛土の深さ(柔らかい)に勝つ",
+   "acc": "U(設計判断)/P(盛土の深さは現代の地面からで江戸の盛土ではない)"
+  },
+  "namedTrees": [
+   {
+    "name": "西の平場の井戸端の榎",
+    "layer": "落葉",
+    "kind": "エノキ",
+    "near": "井戸 W_Nishi から樹冠を掛けない所",
+    "hFrom": "Own.Enoki Small の丈",
+    "acc": "U(位置=意匠)/B(井戸端・道端の榎)"
+   },
+   {
+    "name": "崖の坂の降り口の松",
+    "layer": "松",
+    "kind": "クロマツ",
+    "near": "R_GakeZaka の上端の脇・坂の芯から半幅+1.5間",
+    "role": "坂の降り口の目印",
+    "acc": "U"
+   },
+   {
+    "name": "北東の郭の榎",
+    "layer": "落葉",
+    "kind": "エノキ",
+    "near": "郭の北の隅・石垣の天端の奥の縁から1間",
+    "acc": "U"
+   }
+  ],
+  "_": "林方の設計(2026-10-03・施主裁定 EDO-0410 B)。原案 UserData/EDO0502/hayashi_an.json。gardens.NiwaGake の層と本数はここへ移した"
+ },
+ "surface": {
+  "extent": [
+   "polygon",
+   "ramp:R_OmoteZaka",
+   "ramp:R_GakeZaka"
+  ],
+  "recipes": {
+   "rinsho": {
+    "moss": [
+     0.1,
+     0.2
+    ],
+    "grass": [
+     0.2,
+     0.35
+    ],
+    "dirt": "rest",
+    "acc": "B(閉じた樹冠の下の落葉土)/U(割合)"
+   },
+   "dote": {
+    "grass": [
+     0.5,
+     0.7
+    ],
+    "moss": [
+     0.05,
+     0.1
+    ],
+    "dirt": "rest",
+    "acc": "S(下=草地 [名所図会・溜池])/U(割合)"
+   },
+   "yashikiji": {
+    "bare": [
+     0.25,
+     0.35
+    ],
+    "grass": [
+     0.05,
+     0.12
+    ],
+    "dirt": "rest",
+    "acc": "U"
+   },
+   "kadonouchi": {
+    "bare": [
+     0.32,
+     0.42
+    ],
+    "grass": [
+     0.02,
+     0.06
+    ],
+    "dirt": "rest",
+    "acc": "U"
+   },
+   "kura": {
+    "bare": [
+     0.35,
+     0.5
+    ],
+    "grass": [
+     0.04,
+     0.1
+    ],
+    "dirt": "rest",
+    "acc": "U"
+   },
+   "sakuji": {
+    "bare": [
+     0.55,
+     0.7
+    ],
+    "grass": [
+     0.0,
+     0.04
+    ],
+    "dirt": "rest",
+    "acc": "U(akichi.surface=土)"
+   },
+   "nagaya": {
+    "bare": [
+     0.3,
+     0.45
+    ],
+    "grass": [
+     0.08,
+     0.18
+    ],
+    "dirt": "rest",
+    "acc": "U"
+   },
+   "kakuba": {
+    "bare": [
+     0.2,
+     0.3
+    ],
+    "grass": [
+     0.25,
+     0.4
+    ],
+    "dirt": "rest",
+    "acc": "U"
+   },
+   "sakamichi": {
+    "bare": [
+     0.55,
+     0.75
+    ],
+    "grass": [
+     0.02,
+     0.08
+    ],
+    "dirt": "rest",
+    "acc": "U"
+   },
+   "jari": {
+    "shirasu": [
+     0.7,
+     0.82
+    ],
+    "bare": [
+     0.15,
+     0.25
+    ],
+    "dirt": "rest",
+    "acc": "U(庭方の欄)"
+   }
+  },
+  "zones": [
+   {
+    "name": "庭の外の林の全部",
+    "area": "polygon",
+    "recipe": "rinsho"
+   },
+   {
+    "name": "外法の法尻の草",
+    "area": "band:外法の林(盛土・溜池側)",
+    "recipe": "dote",
+    "pending": "読み手に band: が無い"
+   },
+   {
+    "name": "主面",
+    "area": "terrace:Shumen",
+    "recipe": "yashikiji"
+   },
+   {
+    "name": "門の内",
+    "area": "terrace:Kadonouchi",
+    "recipe": "kadonouchi"
+   },
+   {
+    "name": "通用門の内の溜り",
+    "area": "terrace:TsuyoTamari",
+    "recipe": "kadonouchi"
+   },
+   {
+    "name": "東の平場",
+    "area": "terrace:Higashi",
+    "recipe": "kura"
+   },
+   {
+    "name": "北東の郭",
+    "area": "terrace:Hokuto",
+    "recipe": "kakuba"
+   },
+   {
+    "name": "西の平場",
+    "area": "terrace:Nishi",
+    "recipe": "nagaya"
+   },
+   {
+    "name": "作事置場",
+    "area": "akichi:SakujiOkiba",
+    "recipe": "sakuji"
+   },
+   {
+    "name": "白洲",
+    "area": "garden:Hakusu",
+    "recipe": "jari",
+    "by": "庭方"
+   },
+   {
+    "name": "書院の泉水",
+    "area": "garden:NiwaShoin",
+    "recipe": "庭方が決める"
+   },
+   {
+    "name": "表門から主面への坂",
+    "area": "ramp:R_OmoteZaka",
+    "recipe": "sakamichi"
+   },
+   {
+    "name": "崖を下る坂",
+    "area": "ramp:R_GakeZaka",
+    "recipe": "sakamichi"
+   }
+  ],
+  "layers": "L_grass・L_dirt・L_bare・L_moss・L_shirasu は在る(Assets/Edo/Terrain/layers/)。groundLayers.cert の『他3枚は未登録』は古い",
+  "under4m": "井戸端・犬走り・雨落ち・背割りは周りの面の値のまま"
+ }
 }

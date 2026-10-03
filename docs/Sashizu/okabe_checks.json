@@ -1,8 +1,8 @@
 {
  "_": "図の機械検査の結果。生成器が毎回書き、kansei_gate.py --init が読んで赤なら止める(EDO-0291)。⛔ 手で書かない — 図を焼き直せば入れ替わる。",
  "estate": "okabe",
- "at": "2026-10-03T15:28:47+09:00",
- "sashizu_sha": "55371ba05dcbdaea",
+ "at": "2026-10-03T16:26:35+09:00",
+ "sashizu_sha": "8b50af01b9127baa",
  "ng": 3,
  "na": 10,
  "rows": [
@@ -147,13 +147,13 @@
   {
    "id": "C25",
    "what": "道際の幹",
-   "res": "未検査 — `planting.bandDef.avoid.kyoukaiRoadM` の宣言が無い",
+   "res": "未検査 — 撒いた点が無い",
    "status": "na"
   },
   {
    "id": "C26",
    "what": "囲いの内の幹",
-   "res": "未検査 — `planting.bandDef.avoid.kakoiInsideM` の宣言が無い",
+   "res": "未検査 — 撒いた点が無い",
    "status": "na"
   },
   {
@@ -171,13 +171,13 @@
   {
    "id": "C29",
    "what": "塀・土留めの内の幹",
-   "res": "未検査 — `planting.bandDef.avoid.kakoiLineFrom` の宣言が無い",
+   "res": "未検査 — 撒いた点が無い",
    "status": "na"
   },
   {
    "id": "C30",
    "what": "道の上の枝下",
-   "res": "未検査 — `planting.bandDef.avoid.edaShitaOverRoadM` の宣言が無い",
+   "res": "未検査 — 撒いた点が無い",
    "status": "na"
   },
   {
@@ -195,7 +195,7 @@
   {
    "id": "D01",
    "what": "文書の記法が字になっていないか",
-   "res": "16 件(母集団 37,028 字・引用の面 0 件は別枠)",
+   "res": "8 件(母集団 36,874 字・引用の面 0 件は別枠)",
    "status": "ng"
   }
  ]

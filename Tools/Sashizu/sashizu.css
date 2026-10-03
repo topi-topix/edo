@@ -66,3 +66,19 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 .anG{font-size:12px;fill:var(--shu)}
 .rk{font-size:10px;fill:var(--paper);text-anchor:middle;letter-spacing:.08em}
 .zn{font-size:13px;fill:var(--dim);text-anchor:middle;letter-spacing:.5em}
+
+/* 写しの型(2026-10-03 EDO-0558): 表は図の直下に畳む・断面は切り位置の小図と並べる */
+details.tb{margin-top:8px;border:1px solid var(--rule);background:var(--paper)}
+details.tb>summary{cursor:pointer;padding:7px 12px;font-size:12.5px;color:var(--dim);letter-spacing:.04em}
+details.tb[open]>summary{border-bottom:1px solid var(--rule)}
+details.tb .tw{margin:0}
+.secrow{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;margin-top:14px}
+.secrow .key{flex:0 0 200px;max-width:100%;background:var(--paper2);border:1px solid var(--rule);padding:6px}
+.secrow .sec{flex:1 1 560px;min-width:0}
+.secrow .sec h4{margin:0 0 4px}
+.secrow .fig{margin-top:0}
+details.ks{border-top:1px solid var(--rule);padding:4px 0}
+details.ks>summary{cursor:pointer;font-family:"Hiragino Mincho ProN","Yu Mincho",serif;font-size:16px;padding:8px 2px;color:var(--ink)}
+details.ks .ksb{padding:0 4px 10px}
+ul.sent{margin:6px 0 10px;padding-left:1.3em}
+ul.sent li{margin:3px 0}

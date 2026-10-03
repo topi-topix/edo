@@ -2574,7 +2574,7 @@ class Fig(object):
     def sections_lines(self, o):
         for i, s in enumerate(self.M.sections):
             o.append('<path d="%s" stroke="var(--shu)" stroke-width="1" stroke-dasharray="9 3 2 3" fill="none"/>' % self.dpath([s.a, s.b], False))
-            o.append(self.txt(s.a[0], s.a[1], s=KAN[i % len(KAN)].replace("其", ""), cls="anG", dy=-4))
+            o.append(self.txt(s.a[0], s.a[1], s=sec_mark(s, i), cls="anG", dy=-4))
 
     # ---- 4 枚 + 配置図
     def haichi(self):
@@ -2740,7 +2740,9 @@ class Fig(object):
                 x0, x1 = PX(hit[0] / n), PX(hit[-1] / n)
                 o.append('<path d="M %.1f %.1f L %.1f %.1f L %.1f %.1f L %.1f %.1f L %.1f %.1f Z" fill="var(--nagaya)" opacity=".85"/>'
                          % (x0, PY(y0), x0, PY(y0 + e2), (x0 + x1) / 2, PY(y0 + r2), x1, PY(y0 + e2), x1, PY(y0)))
-                o.append('<text x="%.1f" y="%.1f" class="jo" style="text-anchor:middle">%s</text>' % ((x0 + x1) / 2, PY(y0 + r2) - 3, esc(b.label)))
+                bn = getattr(self, "bno", {}).get(id(b))
+                o.append('<text x="%.1f" y="%.1f" class="jo" style="text-anchor:middle">%s</text>' % ((x0 + x1) / 2, PY(y0 + r2) - 3,
+                         esc(str(bn) if bn else b.label)))
         o.append('<text x="%.1f" y="%.1f" class="sl">%s　延長 %.0f m ／ 縦 %.0f 倍</text>' % (pad, hgt - 8, esc(s.name), Lm, s.vexag or 3))
         o.append('<text x="%.1f" y="%.1f" class="sl" style="text-anchor:end">黒=造成前の地盤 ／ 朱=造成後(段と法面) ／ 破線枠=区画</text>' % (w - pad, hgt - 8))
         return '<svg viewBox="0 0 %d %d">%s</svg>' % (w, hgt, "".join(o))
@@ -2771,6 +2773,215 @@ class Fig(object):
         self.gates(o, small=True)
         return self.frame(o)
 
+    # ================================================================ 写しの型(2026-10-03 施主指摘 EDO-0558)
+    #   一つの図は一つの目的。図の中の番号と表の番号を一致させ、表は図の直下に畳んで置く。
+    def numbering(self):
+        M = self.M
+        self.tno = {id(t): i + 1 for i, t in enumerate(sorted(M.terraces, key=lambda q: -q.y))}
+        self.bno = {id(b): i + 1 for i, (k, b) in enumerate(M.buildings())}
+        self.kno = {id(k): i + 1 for i, k in enumerate(M.kaidans)}
+        self.gno = {id(g): i + 1 for i, g in enumerate(M.gates)}
+        self.rno = {id(r): i + 1 for i, r in enumerate(M.runs)}
+
+    def mark(self, o, x, z, s, kind="b"):
+        """図の中の番号札。kind: t=段(丸・濃) / b=棟(丸・白) / k=石段(角) / g=門(朱) / r=囲い。"""
+        X, Y = self.X(x), self.Y(z)
+        w = 7 + 3.2 * max(0, len(s) - 1)
+        fill, ink, rx = {"t": ("var(--ink)", "var(--paper)", 7), "b": ("var(--paper)", "var(--ink)", 7),
+                         "k": ("var(--ishi)", "var(--paper)", 1.5), "g": ("var(--shu)", "var(--paper)", 7),
+                         "r": ("var(--paper)", "var(--hei)", 1.5)}[kind]
+        o.append('<g><rect x="%.1f" y="%.1f" width="%.1f" height="14" rx="%.1f" fill="%s" stroke="var(--ink)" stroke-width=".7"/>'
+                 '<text x="%.1f" y="%.1f" style="font-size:9.5px;font-weight:700;text-anchor:middle;fill:%s">%s</text></g>'
+                 % (X - w, Y - 7, 2 * w, rx, fill, X, Y + 3.4, ink, esc(s)))
+
+    def mark_terraces(self, o):
+        for t in self.M.terraces:
+            c = centroid(t.poly)
+            self.mark(o, *self.M.W(*c), s="段%d" % self.tno[id(t)], kind="t")
+
+    def mark_buildings(self, o):
+        for k, b in self.M.buildings():
+            c = centroid(b.poly)
+            self.mark(o, *self.M.W(*c), s=str(self.bno[id(b)]), kind="b")
+
+    def mark_gates(self, o):
+        for g in self.M.gates:
+            self.mark(o, g.pos[0], g.pos[1], "門%d" % self.gno[id(g)], kind="g")
+
+    def mark_kaidans(self, o):
+        for k in self.M.kaidans:
+            if k.poly:
+                self.mark(o, *self.M.W(*centroid(k.poly)), s="石%d" % self.kno[id(k)], kind="k")
+
+    def haichi2(self):
+        """配置図 — 目的: 何がどこにあるか。段・棟・門に番号(表と同じ)。"""
+        o = self.base()
+        self.terraces(o, label=False)
+        self.gardens(o)
+        self.runs(o)
+        self.buildings(o, label=False)
+        self.gates(o, small=True)
+        self.sections_lines(o)
+        self.mark_terraces(o)
+        self.mark_buildings(o)
+        self.mark_gates(o)
+        return self.frame(o)
+
+    def keyplan(self, idx):
+        """断面の横に置く小さな配置図。その断面の切り位置だけを太く、左端(図の左)に「左」。"""
+        M = self.M
+        k = Fig(M, W=300, pad=6)
+        k.numbering()
+        o = k.base()
+        for t in M.terraces:
+            o.append('<path d="%s" fill="%s" stroke="none"%s/>' % (k.uvpath(t.poly), k.terr_color(t), k.clip() if t.clip else ""))
+        for kk, b in M.buildings():
+            o.append('<path d="%s" fill="var(--dan3)" stroke="var(--ink)" stroke-width=".4"/>' % k.uvpath(b.poly))
+        for i, s in enumerate(M.sections):
+            if i != idx:
+                o.append('<path d="%s" stroke="var(--rule)" stroke-width=".8" fill="none"/>' % k.dpath([s.a, s.b], False))
+        s = M.sections[idx]
+        o.append('<path d="%s" stroke="var(--shu)" stroke-width="3" fill="none"/>' % k.dpath([s.a, s.b], False))
+        o.append('<circle cx="%.1f" cy="%.1f" r="4" fill="var(--shu)"/>' % (k.X(s.a[0]), k.Y(s.a[1])))
+        o.append(k.txt(s.a[0], s.a[1], "%s 左" % sec_mark(s, idx), cls="anG", dy=-6))
+        o.append('<path d="%s" fill="none" stroke="var(--ink)" stroke-width="1.4"/>' % k.dpath(M.poly))
+        P = k.P
+        return '<svg viewBox="0 0 %.0f %.0f" style="width:100%%;height:auto;display:block">%s</svg>' % (P.W, P.H, "".join(o))
+
+    def kirimori2(self, C):
+        svg = self.kirimori(C)
+        o = []
+        self.mark_terraces(o)
+        return svg.replace("</svg>", "".join(o) + "</svg>")
+
+    def doro2(self):
+        """動線図 — 目的: 誰がどこを通るか。道筋は起点に番号、石段・門にも番号(表と同じ)。"""
+        svg = self.doro()
+        M = self.M
+        o = []
+        COL = ["#A8452C", "#3E6A8C", "#7A6A2A", "#7A3A6A", "#3E7A55", "#8C5A2C", "#2C6A7A", "#6A2C3E"]
+        kinds = []
+        self.route_col = {}
+        for i, r in enumerate(M.routes):
+            if r.kind not in kinds:
+                kinds.append(r.kind)
+            c = COL[kinds.index(r.kind) % len(COL)]
+            self.route_col[id(r)] = c
+            a = r.pts[0]
+            X, Y = self.X(a[0]), self.Y(a[1])
+            o.append('<g><rect x="%.1f" y="%.1f" width="22" height="14" rx="7" fill="%s" stroke="var(--paper)" stroke-width="1"/>'
+                     '<text x="%.1f" y="%.1f" style="font-size:9.5px;font-weight:700;text-anchor:middle;fill:#fff">道%d</text></g>'
+                     % (X - 11, Y - 21, c, X, Y - 10.6, i + 1))
+        self.mark_kaidans(o)
+        self.mark_gates(o)
+        return svg.replace("</svg>", "".join(o) + "</svg>")
+
+    def wall_h(self, r):
+        """囲いの丈。json の欄(run の h・const の丈)に在る時だけ返す。⛔ 無い丈を作らない。"""
+        h = r.raw.get("h") if isinstance(r.raw, dict) else None
+        if isinstance(h, (int, float)):
+            return float(h)
+        c = self.M.const
+        key = {"Dobei": "dobeiH", "Neribei": "dobeiH", "Nagaya": "nagayaH", "板塀": "itabeiHM"}.get(r.kind)
+        v = c.get(key) if key else None
+        return float(v) if isinstance(v, (int, float)) else None
+
+    def tenkai_plan(self):
+        """外周の展開図に添える平面 — 囲いを種別の色で太く引き、展開図と同じ囲札を振る。"""
+        M = self.M
+        o = self.base()
+        for t in M.terraces:
+            o.append('<path d="%s" fill="var(--dan1)" stroke="none"%s/>' % (self.uvpath(t.poly), self.clip() if t.clip else ""))
+        for k, b in M.buildings():
+            o.append('<path d="%s" fill="var(--dan3)" stroke="none"/>' % self.uvpath(b.poly))
+        for r in M.runs:
+            col = "var(--nagaya)" if r.kind == "Nagaya" else "var(--hei)"
+            o.append('<path d="%s" stroke="%s" stroke-width="%.1f" fill="none" opacity="%.2f" stroke-linecap="butt"/>'
+                     % (self.dpath([r.a, r.b], False), col, 3.2, 1.0 if r.mine else .45))
+        for r in M.runs:
+            if math.hypot(r.b[0] - r.a[0], r.b[1] - r.a[1]) >= 6.0:
+                self.mark(o, (r.a[0] + r.b[0]) / 2, (r.a[1] + r.b[1]) / 2, "囲%d" % self.rno[id(r)], kind="r")
+        self.mark_gates(o)
+        return self.frame(o)
+
+    def tenkai(self, row_m=180.0, w=980, band=150, pad=40):
+        """外周の展開図 — 目的: 囲いがどこで何の種類で、どの高さに据わり、地盤とどう取り合うか。
+        囲いを json の並びのまま一列に伸ばし、row_m ごとに折り返す。黒=造成前 / 朱=造成後 / 色帯=囲い(丈が欄に無い物は座の線だけ)。"""
+        M = self.M
+        segs, x = [], 0.0
+        for r in M.runs:
+            Lr = math.hypot(r.b[0] - r.a[0], r.b[1] - r.a[1])
+            if Lr < 0.3:
+                continue
+            segs.append((x, Lr, r))
+            x += Lr + 2.0
+        if not segs:
+            return ""
+        total = x
+        nrow = int(math.ceil(total / row_m))
+        H = nrow * band + 16
+        sx = (w - pad * 2) / row_m
+        o = ['<rect x="0" y="0" width="%d" height="%d" fill="var(--paper2)"/>' % (w, H)]
+        for ri in range(nrow):
+            x0, x1 = ri * row_m, (ri + 1) * row_m
+            rs = [q for q in segs if q[0] < x1 and q[0] + q[1] > x0]
+            if not rs:
+                continue
+            prof = []
+            for xs, Lr, r in rs:
+                n = max(2, int(Lr / 1.0))
+                for i in range(n + 1):
+                    t = i / n
+                    px, pz = r.a[0] + (r.b[0] - r.a[0]) * t, r.a[1] + (r.b[1] - r.a[1]) * t
+                    nat = M.dem.at(px, pz)
+                    u, v = M.UV(px, pz)
+                    des = M.graded_y(u, v, nat) if nat is not None else None
+                    prof.append((xs + Lr * t, nat, des, r))
+            ys = [y for _, a, b, _ in prof for y in (a, b) if y is not None]
+            ys += [r.seat + (self.wall_h(r) or 0) for _, _, r in rs if r.seat is not None]
+            ys += [r.seat for _, _, r in rs if r.seat is not None]
+            if not ys:
+                continue
+            lo, hi = math.floor(min(ys)) - 1, math.ceil(max(ys)) + 2
+            top, bot = ri * band + 14, ri * band + band - 18
+
+            def PX(xx):
+                return pad + (xx - x0) * sx
+
+            def PY(y):
+                return bot - (y - lo) / max(hi - lo, 1e-6) * (bot - top)
+            gstep = 5 if hi - lo > 20 else 2 if hi - lo > 8 else 1
+            for gy in range(int(lo), int(hi) + 1, gstep):
+                o.append('<line x1="%d" y1="%.1f" x2="%d" y2="%.1f" stroke="var(--rule)" stroke-width=".6"/>' % (pad, PY(gy), w - pad, PY(gy)))
+                o.append('<text x="%d" y="%.1f" class="sl" style="text-anchor:end">%d</text>' % (pad - 4, PY(gy) + 3, gy))
+            for xs, Lr, r in rs:
+                a, b = max(xs, x0), min(xs + Lr, x1)
+                hw = self.wall_h(r)
+                col = {"Nagaya": "var(--nagaya)"}.get(r.kind, "var(--hei)")
+                if r.seat is not None and hw:
+                    o.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="%s" stroke="var(--ink)" stroke-width=".5" opacity="%.2f"/>'
+                             % (PX(a), PY(r.seat + hw), PX(b) - PX(a), PY(r.seat) - PY(r.seat + hw), col, 1.0 if r.mine else .45))
+                elif r.seat is not None:
+                    o.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="%s" stroke-width="2.2"/>' % (PX(a), PY(r.seat), PX(b), PY(r.seat), col))
+                o.append('<line x1="%.1f" y1="%d" x2="%.1f" y2="%d" stroke="var(--dim)" stroke-width=".5" stroke-dasharray="2 2"/>' % (PX(a), top, PX(a), bot))
+                if PX(b) - PX(a) > 18:
+                    o.append('<text x="%.1f" y="%d" style="font-size:9.5px;font-weight:700;text-anchor:middle;fill:var(--ink)">囲%d</text>'
+                             % ((PX(a) + PX(b)) / 2, top + 2, self.rno[id(r)]))
+            for key, col, wdt in ((1, "var(--ink)", 1.2), (2, "var(--shu)", 1.8)):
+                cur, last_r = [], None
+                for p in prof:
+                    if p[3] is not last_r and cur:
+                        o.append('<path d="M %s" fill="none" stroke="%s" stroke-width="%.1f"/>' % (" L ".join(cur), col, wdt))
+                        cur = []
+                    last_r = p[3]
+                    if p[key] is None or not (x0 <= p[0] <= x1):
+                        continue
+                    cur.append("%.1f %.1f" % (PX(p[0]), PY(p[key])))
+                if len(cur) > 1:
+                    o.append('<path d="M %s" fill="none" stroke="%s" stroke-width="%.1f"/>' % (" L ".join(cur), col, wdt))
+            o.append('<text x="%d" y="%d" class="sl">%.0f〜%.0f m(囲いの並びに沿った延長)</text>' % (pad, bot + 13, x0, min(x1, total)))
+        return '<svg viewBox="0 0 %d %d">%s</svg>' % (w, H, "".join(o))
+
 
 # ================================================================ 表と組み立て
 def tbl(head, rows):
@@ -2789,6 +3000,73 @@ def tbl(head, rows):
         h.append("</tr>")
     h.append("</tbody></table></div>")
     return "".join(h)
+
+
+def _sentences(t):
+    """段落を文に割る。括弧の内の「。」では割らない(出し方だけで、文は変えない)。"""
+    out, cur, depth = [], "", 0
+    i = 0
+    while i < len(t):
+        ch = t[i]
+        if t.startswith("<", i):                       # タグは丸ごと写す
+            j = t.find(">", i)
+            j = len(t) - 1 if j < 0 else j
+            cur += t[i:j + 1]
+            i = j + 1
+            continue
+        cur += ch
+        if ch in "「『（(【":
+            depth += 1
+        elif ch in "」』）)】":
+            depth = max(0, depth - 1)
+        elif ch == "。" and depth == 0:
+            out.append(cur.strip())
+            cur = ""
+        i += 1
+    if cur.strip():
+        out.append(cur.strip())
+    merged = []                                        # 典拠の札だけ・数字だけの欠片は前の文へ戻す
+    for x in out:
+        if merged and len(re.sub(r"<[^>]+>|[【】\[\]?？ 。、]", "", x)) < 6:
+            merged[-1] += x
+        else:
+            merged.append(x)
+    return merged
+
+
+def kosho_html(prose):
+    """考証と決めごと(施主 2026-10-03「読みづらい」): 節(h2)ごとに畳み、長い段落は文ごとの箇条に割る。
+    ⛔ 文そのものは変えない(正典は <邸>_kosho.md)。頭の h1(邸の題)は表紙と重なるので落とす。"""
+    prose = re.sub(r"<h1[^>]*>.*?</h1>", "", prose, count=1, flags=re.S)
+
+    def para(m):
+        body = m.group(1)
+        if len(re.sub(r"<[^>]+>", "", body)) < 140:
+            return m.group(0)
+        ss = _sentences(body)
+        if len(ss) < 2:
+            return m.group(0)
+        return '<ul class="sent">%s</ul>' % "".join("<li>%s</li>" % x for x in ss)
+    prose = re.sub(r"<p>(.*?)</p>", para, prose, flags=re.S)
+    parts = re.split(r"(<h2[^>]*>.*?</h2>)", prose, flags=re.S)
+    out = [parts[0]] if parts[0].strip() else []
+    for k in range(1, len(parts), 2):
+        head = re.sub(r"</?h2[^>]*>", "", parts[k])
+        out.append('<details class="ks"><summary>%s</summary><div class="ksb">%s</div></details>' % (head, parts[k + 1] if k + 1 < len(parts) else ""))
+    return "".join(out)
+
+
+def sec_mark(s, i):
+    """断面の印。名が「断面イ …」なら「イ」、無ければ通し番号。"""
+    m = re.match(r"\s*断面\s*(\S)", s.name or "")
+    return m.group(1) if m else str(i + 1)
+
+
+def fold(title, inner, open_=False):
+    """表を畳んで置く(施主 2026-10-03)。題に「図のどの札か」を書く。"""
+    n = inner.count("<tr>") - 1
+    return ('<details class="tb"%s><summary>表 — %s(%d 行)</summary>%s</details>'
+            % (" open" if open_ else "", esc(title), max(n, 0), inner))
 
 
 def plate(h, kan, title, meta=""):
@@ -2840,177 +3118,104 @@ def build(est, deep=False, out=None):
     na = sum(1 for r in C.rows if r[3] == "na")
     h.append('<div class="box"><p><b>敷地 %s 坪</b>(%s m²)。<b>建蔽率 %.1f%%</b>(分母=敷地全体・規則6)。'
              '段 %d ／ 棟 %d ／ 廊下 %d ／ 附属屋 %d ／ 外周の run %d ／ 門 %d ／ 石段 %d ／ 動線 %d ／ 庭 %d。'
-             '検査 %d 本: 不合格 <b>%d</b>・未検査 %d。</p></div>'
+             '</p></div>'
              % ("{:,.0f}".format(M.area_m2 / M.TSUBO), "{:,.0f}".format(M.area_m2), C.kenpei, len(M.terraces), len(M.munes),
-                len(M.links), len(M.service), len(M.runs), len(M.gates), len(M.kaidans), len(M.routes), len(M.gardens),
-                len(C.rows), ng, na))
+                len(M.links), len(M.service), len(M.runs), len(M.gates), len(M.kaidans), len(M.routes), len(M.gardens)))
 
-    # 其一 配置図
-    plate(h, nx(), "配置図", "北が上 ／ 段・棟・外周・門・石段・庭・断面の切り位置")
-    fig(h, F.haichi(),
-        legend='<span style="color:var(--nagaya)">■ 棟・表長屋</span><span style="color:var(--hei)">■ 塀</span>'
-               '<span style="color:var(--roka)">■ 渡廊下</span><span style="color:var(--ishi)">■ 附属屋・石段</span>'
-               '<span style="color:var(--shu)">▶ 門 ／ ╌ 断面</span><span style="color:var(--ike)">● 井戸 ■ 水</span>',
-        cap="段の色は高さの順。薄い塀は隣家が持つ辺。")
-    rows = []
-    for t in sorted(M.terraces, key=lambda q: -q.y):
-        rows.append([t.label, "%.2f" % t.y, "{:,.0f}".format(area(t.poly) * M.KEN * M.KEN / M.TSUBO), "clip" if t.clip else "—"])
-    h.append(tbl(["段", "面の高さ m", "坪", "区画で切る"], rows))
+    # ⭐ 写しの型(2026-10-03 施主指摘 EDO-0558・決めごと2c): 一つの図は一つの目的。図の中の番号と表の番号を
+    #   一致させ、表は図の直下に畳んで置く。断面は配置図の直後。検査の結果は写しに載せない(記録と端末だけ)。
+    F.numbering()
+    tno, bno, kno, gno, rno = F.tno, F.bno, F.kno, F.gno, F.rno
+
+    # 配置図
+    plate(h, nx(), "配置図", "目的: 何がどこにあるか ／ 段1… ・ 棟の番号 ・ 門1… は下の表と同じ")
+    fig(h, F.haichi2(),
+        legend='<span>■ 段(色は高さの順・黒札)</span><span>○ 棟(白札)</span><span style="color:var(--shu)">● 門</span>'
+               '<span style="color:var(--hei)">■ 塀</span><span style="color:var(--nagaya)">■ 長屋</span>'
+               '<span style="color:var(--shu)">╌ 断面の切り位置(番号は次の章)</span>')
+    terr = sorted(M.terraces, key=lambda q: -q.y)
+    h.append(fold("段 — 図の黒札", tbl(["札", "段", "面の高さ m", "坪"],
+             [["段%d" % tno[id(t)], esc(t.label), "%.2f" % t.y, "{:,.0f}".format(area(t.poly) * M.KEN * M.KEN / M.TSUBO)] for t in terr])))
     rows = []
     for k, b in M.buildings():
         t = M.terrace_at(*centroid(b.poly))
-        rows.append([k, b.label, b.name, "%.1f 坪" % (area(b.poly) * M.KEN * M.KEN / M.TSUBO), fmt(b.y), t.label if t else "(段の外)", b.zone if hasattr(b, "zone") else ""])
-    h.append(tbl(["種", "名", "欄", "面積", "床の面 m", "載る段", "区域"], rows))
+        rows.append([str(bno[id(b)]), k, esc(b.label), "%.1f 坪" % (area(b.poly) * M.KEN * M.KEN / M.TSUBO), fmt(b.y),
+                     ("段%d" % tno[id(t)]) if t else "(段の外)"])
+    h.append(fold("棟 — 図の白札", tbl(["札", "種", "名", "面積", "床の面 m", "載る段"], rows)))
+    if M.gates:
+        h.append(fold("門 — 図の朱札", tbl(["札", "門", "型"], [["門%d" % gno[id(g)], esc(g.name), esc(str(g.raw.get("type") or g.raw.get("kind") or "—")) if isinstance(getattr(g, "raw", None), dict) else "—"] for g in M.gates])))
+    if M.program:
+        h.append(fold("役割 — どの棟が受け持つか", tbl(["役割", "要否", "棟・区画", "確度"],
+                 [[p.role, p.need or "—", "、".join(p.by) if p.by else "—", p.cert] for p in M.program])))
     h.append("</div>")
 
-    # 其二 現況図
-    plate(h, nx(), "現況図 — 造成前の地盤", "段彩 ／ 等高線 ／ 朱の破線=段 ／ 一点鎖線=断面")
-    fig(h, F.genkyo(), legend=L.dem_legend(),
-        cap="造成のすべての出発点。<code>%s</code>(正本 <code>base_dem.json</code> 由来)。面の高さは地形が決める(規則3)。" % M.dem_name)
-    h.append("</div>")
-
-    # 其三 切盛図
-    plate(h, nx(), "切盛図", "暖色=盛土 ／ 寒色=切土 ／ 無彩=±0.05m ／ 段の外は法面で摺り付ける")
-    svg = F.kirimori(C)
-    fig(h, svg, legend=L.cutfill_legend(),
-        cap="造成後の地盤(段の中は面の高さ、外は法面 1:%.1f 盛 / 1:%.1f 切、土留めのある縁は壁が受ける)と造成前の差。破線は棟の輪郭。%s"
-            % (M.const.get("batterFill", 1.5), M.const.get("batterCut", 1.0),
-               ("⚠ lib の造成モデルが %d 枡で読めず素朴な法面で代用した。" % M._lib_fail) if M._lib_fail else ""))
-    rows = []
-    tf = tc = 0.0
-    for k, r in sorted(F.vol.items(), key=lambda q: -q[1][4]):
-        tf += r[0]
-        tc += r[2]
-        rows.append([k, "{:,.0f}".format(r[4]), "{:,.0f}".format(r[0]), "%.2f" % r[1], "{:,.0f}".format(r[2]), "%.2f" % r[3]])
-    rows.append(["<b>合計</b>", "—", "<b>{:,.0f}</b>".format(tf), "—", "<b>{:,.0f}</b>".format(tc), "差引 {:+,.0f} m³".format(tf - tc)])
-    for g in M.d.get("gardens", []) or []:          # 庭の土量(土井の dict 形の doryo があるときだけ・庭方の設計値)
-        dr = g.get("doryo") if isinstance(g, dict) else None
-        if not isinstance(dr, dict):
-            continue
-        num = lambda t: (re.search(r"約\s*([\d,]+)\s*m³", str(t or "")) or [None, None])[1]
-        k, m_ = num(dr.get("kussaku")), num(dr.get("mori"))
-        if k:
-            rows.append(["庭 %s 池の掘削(設計値)" % g.get("name", ""), "—", "—", "—", k, "—"])
-        if m_:
-            rows.append(["庭 %s 築山の盛土(設計値)" % g.get("name", ""), "—", m_, "—", "—", "—"])
-    h.append(tbl(["段", "面積 m²", "盛土 m³", "最大盛 m", "切土 m³", "最大切 m"], rows))
-    if getattr(C, "rows_c04", None):
-        # ⭐ **系統差が先**(面の引き方)。ばらつきと |Δ|≤0.5 は従(地面の凹凸)。EDO-0290
-        h.append(tbl(["棟", "欄", "系統差(面の引き方)", "ばらつき ±", "Δ 最小", "Δ 最大", "|Δ|≤0.5"],
-                     [[a, b,
-                       ("<b>%+.2f m</b>" % med) if abs(med) > Checks.OFFSET_TOL else "%+.2f m" % med,
-                       "%.2f m" % sp, "%.2f" % lo, "%.2f" % hi, "%.0f%%" % pc]
-                      for a, b, lo, hi, pc, med, sp in C.rows_c04]))
-    if getattr(C, "rows_c06", None):
-        h.append(tbl(["土留め", "天端 m", "実落差 最小", "最大", "宣言"],
-                     [[a, "%.2f" % b, "%.2f" % lo, "%.2f" % hi, str(dcl) if dcl is not None else "—"] for a, b, lo, hi, dcl in C.rows_c06]))
-    if getattr(C, "rows_cutslope", None):
-        h.append(tbl(["切土・盛土の法(土留めを置かない縁)", "要る幅 m(切 1:%.1f ／ 盛 1:%.1f)" % (M.const.get("batterCut", 1.0), M.const.get("batterFill", 1.5)),
-                      "その点の区画の内の幅 m", "最も狭い所の余裕 m", "その点 (u, v)"],
-                     [[a, "%.2f" % need, "%.2f" % room, "%+.2f" % mg, "(%.2f, %.2f)" % (u, v)]
-                      for a, need, room, mg, u, v in C.rows_cutslope]))
-    h.append("</div>")
-
-    # 其四 断面
-    plate(h, nx(), "断面", "黒=造成前 ／ 朱=造成後 ／ 棟は概略(軒高と棟高は const か断面の欄)")
+    # 断面(配置図の直後。各断面の左に切り位置の小図)
+    plate(h, nx(), "断面", "目的: 段と棟の高さの関係 ／ 左の小図の朱線が切り位置・「左」が断面図の左端 ／ 黒=造成前 朱=造成後")
     if M.sections:
         for i, s in enumerate(M.sections):
-            h.append("<h4>%s</h4>" % esc(s.name))
-            h.append('<div class="fig">%s</div>' % F.section(s, i))
+            h.append('<div class="secrow"><div class="key">%s</div><div class="sec"><h4>%s</h4><div class="fig">%s</div></div></div>'
+                     % (F.keyplan(i), esc(s.name), F.section(s, i)))
     else:
-        h.append('<p class="cap">⛔ sections が無い — 断面は規則3の必須図。欄に切る所(axis/at か line)を書く。</p>')
+        h.append('<p class="cap">⛔ sections が無い — 断面は規則3の必須図。</p>')
     h.append("</div>")
 
-    # 其五 動線図
-    plate(h, nx(), "動線図", "●=起点 ○=終点 ／ 段は薄く、棟は灰")
-    svg = F.doro()
-    fig(h, svg, legend=F.route_legend, cap="縦断の勾配と繋がりは検査 C12。")
-    if getattr(C, "rows_c12", None):
-        h.append(tbl(["系統", "延長 m", "昇り m", "段の無い区間の最急", "*検め"],
-                     [[a, "%.0f" % b, "%.1f" % c, "%.0f%%" % (g * 100), "*" + nt] for a, b, c, g, nt in C.rows_c12]))
-    if getattr(C, "rows_c11", None):
-        h.append(tbl(["石段", "段数", "落差 m", "蹴上 m", "走り m", "幅 m", "*検め"],
-                     [[a, b if b is not None else "—", fmt(c), fmt(d, 3), fmt(e), fmt(f), "*" + nt] for a, b, c, d, e, f, nt in C.rows_c11]))
-    if getattr(C, "rows_c08", None):
-        h.append(tbl(["門", "型", "幅 m", "敷居 m", "*検め"], [[a, b, fmt(c), fmt(d), "*" + nt] for a, b, c, d, nt in C.rows_c08]))
-    if getattr(C, "rows_c24", None):
-        h.append(tbl(["門", "型(gate_types.json)", "*屋根・番所の検め"], [[a, b or "?", "*" + nt] for a, b, nt in C.rows_c24]))
+    # 現況図
+    plate(h, nx(), "現況図 — 造成前の地盤", "目的: 手を入れる前の地面の形 ／ 段彩・等高線 ／ 朱の破線=段")
+    fig(h, F.genkyo(), legend=L.dem_legend(),
+        cap="<code>%s</code>(正本 <code>base_dem.json</code> 由来)。面の高さはこの地形が決める(規則3)。" % M.dem_name)
     h.append("</div>")
 
-    # 其六 外周と役割
-    plate(h, nx(), "外周と役割", "run の座と延長 ／ 役割表")
+    # 切盛図
+    plate(h, nx(), "切盛図", "目的: どこをどれだけ削り、どこへ盛るか ／ 暖色=盛土 寒色=切土 ／ 段1… は配置図と同じ")
+    svg = F.kirimori2(C)
+    fig(h, svg, legend=L.cutfill_legend(),
+        cap="段の中は面の高さ、外は法面(盛 1:%.1f・切 1:%.1f)で摺り付けた造成後の地盤と、造成前の差。"
+            % (M.const.get("batterFill", 1.5), M.const.get("batterCut", 1.0)))
     rows = []
-    for r in M.runs:
-        rows.append([("辺%d" % r.edge) if r.edge is not None else "—", r.name, r.kind,
-                     "%.1f" % math.hypot(r.b[0] - r.a[0], r.b[1] - r.a[1]), fmt(r.seat), "当家" if r.mine else "隣家"])
-    h.append(tbl(["辺", "run", "種別", "延長 m", "座 m", "持ち主"], rows))
-    if M.program:
-        h.append(tbl(["役割", "要否", "棟・区画", "確度", "*覚"],
-                     [[p.role, p.need or "—", "、".join(p.by) if p.by else "—", p.cert,
-                       "*" + _cut(p.note or "", 160)] for p in M.program]))
-    # ⭐ 邸内の垣・柵・排水・地表の塗り分け(欄があるときだけ・土井 2026-10-03)── 入れた設計値は同じ巡で刷る(規則19)。
-    #   垣は `pts` があれば配置図に描かれる(runs と同じ帯)。関係(rel)だけの物は「図に無し」と刷る
-    fz = [f for f in (M.d.get("fences") or []) if isinstance(f, dict)]
-    fn = [f for f in (M.d.get("fencesNone") or []) if isinstance(f, dict)]
-    if fz or fn:
-        h.append(tbl(["邸内の垣・柵", "種別", "丈 m", "*据える所(関係)", "部材", "図", "確度"],
-                     [[f.get("label") or f.get("name"), f.get("kind", ""), fmt(f.get("h")), "*" + _cut(f.get("rel", ""), 140),
-                       _cut(f.get("part", "") or "—", 60), "配置図(目安)" if f.get("pts") else "無し", f.get("cert", "")] for f in fz] +
-                     [[f.get("label") or f.get("name"), "立てない", "—", "*" + _cut(f.get("rel", ""), 140), "—", "—", f.get("cert", "")] for f in fn]))
-    dr = [x for x in (M.d.get("drains") or []) if isinstance(x, dict)]
-    if dr:
-        def _from(x):
-            fr = x.get("from") or {}
-            if isinstance(fr, dict):
-                return "、".join(fr.get("munes") or []) + ((" " + fr["face"]) if fr.get("face") else "")
-            return str(fr)
-        h.append(tbl(["排水", "種別", "*受ける所", "*落とす先", "勾配", "確度"],
-                     [[x.get("name"), x.get("kind", ""), "*" + _cut(_from(x) or x.get("rule", ""), 100),
-                       "*" + _cut(((x.get("outlet") or {}).get("to") if isinstance(x.get("outlet"), dict) else x.get("outlet")) or "—", 120),
-                       ("%.0f%%" % (x["slope"] * 100)) if isinstance(x.get("slope"), (int, float)) else "—",
-                       _cut(x.get("acc", ""), 40)] for x in dr]))
-    sf = M.d.get("surface") if isinstance(M.d.get("surface"), dict) else None
-    if sf and sf.get("zones"):
-        rc = sf.get("recipes") or {}
-        h.append(tbl(["地表の区", "範囲", "塗り(層 [下限, 上限] ・ rest)"],
-                     [[z.get("name", ""), z.get("area", ""),
-                       " ／ ".join("%s %s" % (k, v if isinstance(v, str) else "[%s]" % ", ".join("%.2f" % q for q in v))
-                                  for k, v in (rc.get(z.get("recipe")) or {}).items() if k != "acc")] for z in sf["zones"]]))
-        if sf.get("pending"):
-            h.append('<p class="cap">⚠ %s</p>' % esc(sf["pending"]))
+    tf = tc = 0.0
+    tkey = {t.name: t for t in M.terraces}
+    for k, r in sorted(F.vol.items(), key=lambda q: -(q[1][0] + q[1][2])):
+        tf += r[0]
+        tc += r[2]
+        t = tkey.get(k)
+        rows.append([("段%d" % tno[id(t)]) if t else "法面", esc(t.label if t else k), "{:,.0f}".format(r[0]), "%.2f" % r[1],
+                     "{:,.0f}".format(r[2]), "%.2f" % r[3]])
+    rows.append(["", "<b>合計</b>", "<b>{:,.0f}</b>".format(tf), "", "<b>{:,.0f}</b>".format(tc), "差引 {:+,.0f} m³".format(tf - tc)])
+    h.append(fold("段ごとの土量 — 図の黒札", tbl(["札", "段", "盛土 m³", "最も深い盛 m", "切土 m³", "最も深い切 m"], rows)))
     h.append("</div>")
 
-    # 其七 検査
-    plate(h, nx(), "検査 — 共通の %d 本" % len(C.rows), "生成のたびに機械で通す ／ 札は check_triage.json")
-    rows = []
-    for cid, what, res, st in C.rows:
-        mark = {"ok": "○", "ng": "⛔", "na": "未検査", "soft": "△ 狙い未達"}[st]
-        det = C.detail.get(cid)
-        # ⛔ `esc()` だと C04 の **系統差** が字のまま刷られ、D01 が生成器自身の出力に鳴る(EDO-0268)。
-        #   検査の文は散文なので行内の記法を器へ移す(L.inline は escape も兼ねる)。
-        rows.append([cid, "*" + what, res + (("<br><small>" + "<br>".join(L.inline(x) for x in det) + "</small>") if det else ""), mark])
-    h.append(tbl(["#", "*検査", "結果", "可否"], rows))
-    h.append('<p class="cap">不合格 <b>%d</b> 件・未検査 %d 件。0 件は「その条件を満たした」以上を意味しない。'
-             '部材の取り合い・境界・植栽の姿は Unity で実メッシュから測る(規則2・5・19)。</p>' % (ng, na))
-    # 壊し試し
-    sr = L.sens(est, "common_probes", lambda: deep_probes(est), None)
-    if sr:
-        h.append("<h4>共通の壊し試し(C23)</h4>")
-        h.append(tbl(["壊し方", "鳴るべき検査", "鳴ったか"],
-                     [[k, v["expect"], "○" if v["rang"] else ("該当無し" if v["rang"] is None else "⛔ %s" % v["status"])] for k, v in sr.items()]))
-    # ⛔ `esc()` だけだと **太字** と `名` が**字として刷られる**(D01・掲示板 EDO-0178)。
-    #   この一行は散文なので、行内の記法を html の器へ移す(L.inline は escape も兼ねる)。
-    h.append('<p class="cap">%s</p>' % L.inline(L.sens_report(est)).replace("\n", "<br>"))
-    if M.notes:
-        h.append("<h4>読めなかった欄</h4>")
-        h.append(tbl(["*欄"], [["*" + x] for x in M.notes]))
+    # 動線図
+    plate(h, nx(), "動線図", "目的: 誰がどこを通るか ／ 道1… は起点の札(線の色も表と同じ)・石1… は石段・門1… は門")
+    fig(h, F.doro2(), legend="<span>● 起点 ○ 終点</span>")
+    if M.routes:
+        r12 = {a: (b, c_, g) for a, b, c_, g, nt in (getattr(C, "rows_c12", None) or [])}
+        rows = []
+        for i, r in enumerate(M.routes):
+            Lr = sum(math.hypot(r.pts[j + 1][0] - r.pts[j][0], r.pts[j + 1][1] - r.pts[j][1]) for j in range(len(r.pts) - 1))
+            sw = '<span style="display:inline-block;width:22px;height:4px;background:%s;vertical-align:middle"></span>' % F.route_col[id(r)]
+            rows.append(["道%d" % (i + 1), sw, esc(r.kind or ""), esc(r.label or r.name or ""), "%.0f" % Lr])
+        h.append(fold("道筋 — 図の色の札", tbl(["札", "線", "系統", "名", "延長 m"], rows)))
+    if M.kaidans:
+        h.append(fold("石段 — 図の石札", tbl(["札", "石段", "段数", "落差 m", "蹴上 m", "踏面 m", "幅 m"],
+                 [["石%d" % kno[id(k)], esc(k.label or k.name), k.steps if k.steps is not None else "—", fmt(k.drop), fmt(k.keri, 3), fmt(k.fumi, 3), fmt(k.w)]
+                  for k in M.kaidans])))
+    h.append("</div>")
+
+    # 外周の展開図
+    plate(h, nx(), "外周の展開図", "目的: 囲いの種類・据わる高さと地盤 ／ 囲1… は囲いの並び順 ／ 黒=造成前 朱=造成後 ／ 色帯=囲いの丈(欄に丈が無い物は座の線だけ)")
+    fig(h, F.tenkai_plan(), cap="平面 — 囲札は下の展開図と表に同じ(短い囲いは札を省き、表で引く)。")
+    fig(h, F.tenkai(), legend='<span style="color:var(--hei)">■ 塀・柵</span><span style="color:var(--nagaya)">■ 長屋</span><span>薄い帯=隣家が持つ</span>')
+    h.append(fold("囲い — 図の囲札", tbl(["札", "名", "種別", "延長 m", "座 m", "丈 m", "持ち主"],
+             [["囲%d" % rno[id(r)], esc(r.name), esc(r.kind), "%.1f" % math.hypot(r.b[0] - r.a[0], r.b[1] - r.a[1]), fmt(r.seat),
+               fmt(F.wall_h(r)), "当家" if r.mine else "隣家"] for r in M.runs])))
     h.append("</div>")
 
     # 考証
     if prose:
         h.append('<div class="plate"><div class="phead"><h2>考証と決めごと</h2><span class="meta">%s_kosho.md</span></div>' % est)
-        h.append('<div class="prose">%s</div></div>' % prose)
-    h.append('<p class="foot">%s 指図 ／ 設計値 <code>docs/Sashizu/%s_sashizu.json</code> ／ 文章 <code>docs/Sashizu/%s_kosho.md</code> ／ '
+        h.append('<p class="cap">節の題を押すと開く。文は <code>%s_kosho.md</code> のまま(長い段落だけ文ごとに割って並べた)。</p>' % est)
+        h.append('<div class="prose">%s</div></div>' % kosho_html(prose))
+    h.append('<p class="foot">%s 指図の写し ／ 設計値 <code>docs/Sashizu/%s_sashizu.json</code> ／ 文章 <code>docs/Sashizu/%s_kosho.md</code> ／ '
              '地盤 <code>%s</code> ／ 生成器 <code>Tools/Sashizu/build_sashizu.py</code>(全邸共通)。⛔ 生成器は実装を読まない。</p>'
              % (esc(title), est, est, M.dem_name))
     h.append("</div>")
@@ -3018,7 +3223,7 @@ def build(est, deep=False, out=None):
     #   欠陥は html の本文と表に出る(掲示板 EDO-0178)。⚠ この物差し(svg_layout.doc_markup)は
     #   2026-09-20 の生成器の一本化で**呼び手を失ったまま**だった。測れるのに測っていなかった。
     #   ⚠ 母集団は「この章を足す前の紙」— 自分を測る循環を避ける。
-    mk, mk_n = _doc_markup_plate(h)
+    mk, mk_n = _doc_markup_plate(list(h))             # ⭐ 測るだけ。検査の章は写しに載せない(施主 2026-10-03)
     out = out or os.path.join(DOC, est + "_sashizu.html")
     open(out, "w", encoding="utf-8").write("\n".join(h))
     _write_check_record(est, out, C, ng, na, mk=mk)

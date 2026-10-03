@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 20 本・メニュー 79・関数 672(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 20 本・メニュー 79・関数 676(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -15,7 +15,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | ファイル | 何の道具か(ファイル冒頭の注釈) | メニュー | 関数 |
 |---|---|---|---|
 | [EdoDoiBuilder.Niwa.cs](#edodoibuilderniwacs) | 土井大隅守上屋敷 — 奥庭(Stage6)。 | 3 | 40 |
-| [EdoDoiBuilder.cs](#edodoibuildercs) | 土井大隅守上屋敷(三河刈谷藩2万3千石・譜代・雁間)ビルダー。 | 15 | 84 |
+| [EdoDoiBuilder.cs](#edodoibuildercs) | 土井大隅守上屋敷(三河刈谷藩2万3千石・譜代・雁間)ビルダー。 | 15 | 88 |
 | [EdoMatsudairaDewaBuilder.Niwa.cs](#edomatsudairadewabuilderniwacs) | 松平出羽守上屋敷 — 庭の工程(池・築山・水の系・石組・点景・滝見口)。 | 9 | 30 |
 | [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 15 | 97 |
 | [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 17 | 112 |
@@ -94,18 +94,18 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `Edo/土井大隅守上屋敷/指図を読み直す` | `Reload` | — |
 | `Edo/土井大隅守上屋敷/未据え付けの一覧` | `WaitMenu` | `PendingReport`, `Reload`, `O`, `Has` |
 | `Edo/土井大隅守上屋敷/0 ハイトマップを退避` | `Stage0Menu` | `Stage0_Backup`, `Exists` |
-| `Edo/土井大隅守上屋敷/1 造成(指図の面へ)` | `Stage1Menu` | `Stage1_Grade`, `Stage0_Backup` |
-| `Edo/土井大隅守上屋敷/造成を検査 GradeQA` | `GradeQAMenu` | `GradeQA` |
-| `Edo/土井大隅守上屋敷/裏木戸の材質を練塀へ明示的に結ぶ` | `RemapKidoMenu` | `RemapKido` |
-| `Edo/土井大隅守上屋敷/検査① 段の縁の落差と土留め EdgeStepQA` | `EdgeStepQAMenu` | `EdgeStepQA`, `C` |
-| `Edo/土井大隅守上屋敷/検査② 門口を石垣が塞いでいないか KomonIshigakiQA` | `KomonIshigakiQAMenu` | `KomonIshigakiQA`, `O`, `F` |
+| `Edo/土井大隅守上屋敷/1 造成(指図の面へ)` | `Stage1Menu` | `Stage1_Grade`, `Stage0_Backup`, `Window` |
+| `Edo/土井大隅守上屋敷/造成を検査 GradeQA` | `GradeQAMenu` | `GradeQA`, `Window`, `LoadBackup` |
+| `Edo/土井大隅守上屋敷/裏木戸の材質を練塀へ明示的に結ぶ` | `RemapKidoMenu` | `RemapKido`, `AnANotYet` |
+| `Edo/土井大隅守上屋敷/検査① 段の縁の落差と土留め EdgeStepQA` | `EdgeStepQAMenu` | `EdgeStepQA`, `AnANotYet`, `C` |
+| `Edo/土井大隅守上屋敷/検査② 門口を石垣が塞いでいないか KomonIshigakiQA` | `KomonIshigakiQAMenu` | `KomonIshigakiQA`, `AnANotYet`, `O`, `F` |
 | `Edo/土井大隅守上屋敷/検査③ 石垣が区画外へ出ていないか ParcelOutQA` | `ParcelOutQAMenu` | `ParcelOutQA` |
 | `Edo/土井大隅守上屋敷/検査①②③ をまとめて走らせる` | `AllQAMenu` | `EdgeStepQA`, `KomonIshigakiQA`, `ParcelOutQA`, `C` |
-| `Edo/土井大隅守上屋敷/2 外周(表長屋・練塀・門)` | `Stage2Menu` | `Stage2_Perimeter`, `Clear`, `Group` |
-| `Edo/土井大隅守上屋敷/3 石垣(外周の基壇・境界の基壇・郭内の土留め・石段の側)` | `Stage3Menu` | `Stage3_Ishigaki`, `Group`, `Clear` |
-| `Edo/土井大隅守上屋敷/4 御殿複合(棟・廊下)` | `Stage4Menu` | `Stage4_Goten`, `Clear`, `Group`, `YawAlongU` |
-| `Edo/土井大隅守上屋敷/5 郭内(附属屋・井戸・石段・斜路・竹垣)` | `Stage5Menu` | `Stage5_Zosaku`, `Clear`, `PlaceService`, `PlaceWells` |
-| `Edo/土井大隅守上屋敷/S1→S6 を通す` | `RunAllMenu` | `RunAll`, `Stage0_Backup`, `Stage1_Grade`, `Stage2_Perimeter` |
+| `Edo/土井大隅守上屋敷/2 外周(表長屋・練塀・門)` | `Stage2Menu` | `Stage2_Perimeter`, `AnANotYet`, `Clear`, `Group` |
+| `Edo/土井大隅守上屋敷/3 石垣(外周の基壇・境界の基壇・郭内の土留め・石段の側)` | `Stage3Menu` | `Stage3_Ishigaki`, `AnANotYet`, `Group`, `Clear` |
+| `Edo/土井大隅守上屋敷/4 御殿複合(棟・廊下)` | `Stage4Menu` | `Stage4_Goten`, `AnANotYet`, `Clear`, `Group` |
+| `Edo/土井大隅守上屋敷/5 郭内(附属屋・井戸・石段・斜路・竹垣)` | `Stage5Menu` | `Stage5_Zosaku`, `AnANotYet`, `Clear`, `PlaceService` |
+| `Edo/土井大隅守上屋敷/S1→S6 を通す` | `RunAllMenu` | `RunAll`, `Stage0_Backup`, `Stage1_Grade`, `GradeQA` |
 
 | 関数 | 返す | 公開 | 何をするか(注釈の一文目) |
 |---|---|---|---|
@@ -121,6 +121,8 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `OutNormal(e)` | `Vector2` | 公 | 辺 e の外向き法線。⛔ 重心では決めない(凹みのある区画で反転する) — 法線方向へ出た点が区画の外かを内外判定で見る(松平 OutNormal と同じ作法)。 |
 | `LoadNat()` | `void` |  | — |
 | `NaturalY(x, z)` | `float` | 公 | 造成前の地盤[m]。無い所は NaN(⛔ live terrain で埋めない — 埋めると 「造成しない」区間が他家の造成へ寄る)。 |
+| `ImplY(x, z)` | `float` | 公 | 世界座標の造成後の地盤[m](算出物 `graded` の双一次)。 |
+| `AnANotYet(what)` | `string` |  | — |
 | `InParcelUV(u, v)` | `bool` |  | — |
 | `DesignY(u, v)` | `float` | 公 | その (u,v) を覆う段の高さ。無ければ NaN(=造成しない斜面)。 |
 | `RunEdges()` | `List<Vector2>` |  | — |
@@ -128,8 +130,8 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `Walled(we, edge, w)` | `bool` |  | — |
 | `RampY(u, v)` | `float` |  | 土の斜路の踏面。無ければ NaN。(`sashizu_lib.ramp_y`) |
 | `StairY(u, v)` | `float` |  | 石段の掘割(切通し)の踏面。外なら NaN。 |
-| `GradedY(u, v, nat)` | `float` | 公 | 造成後の地盤(`sashizu_lib.graded_y` の移植)。 |
-| `GroundY(x, z)` | `float` | 公 | 世界座標での施工後の地盤。⭕ 奥庭の矩形の中は庭の土工(池床・築山・土手)を重ねる (生成器 `ground_y`)。 |
+| `GradedY(u, v, nat)` | `float` | 公 | 造成後の地盤。⭐ 案A(EDO-0533)から算出物 `graded` を引くだけ(旧案の RampY / StairY / 段 / 法面の式は使わない)。 |
+| `GroundY(x, z)` | `float` | 公 | 世界座標での施工後の地盤 = 算出物 `graded`(案A・EDO-0533)。 |
 | `Group(child)` | `Transform` |  | 群を辿る(無ければ作る)。⭐ 中身は共通の一本道 EdoYashikiPrefab.Group。 |
 | `Clear(t)` | `void` |  | — |
 | `Marked(stage)` | `bool` |  | 非冪等の工程の実行済みマーカー(⛔ active にする — `GameObject.Find` は非アクティブを見つけない)。 |
@@ -144,9 +146,11 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `ProjMesh(go, axis, lo, hi)` | `bool` |  | 据えた現物のメッシュの頂点を軸へ落として範囲を取る。 |
 | `TopRidgeGrid(go, acrossIsU, lo, hi, topY)` | `bool` |  | 棟のいちばん高い大棟が、江戸間格子のどこに載っているかを実測する。 |
 | `ReportFit(sb, go, edge, s0, s1, label)` | `void` |  | 据えた囲いの駒が run の丁場に収まっているかを実測して報告する。 |
-| `Stage0_Backup()` | `string` | 公 | — |
+| `Stage0_Backup()` | `string` | 公 | 全面のハイトマップを .bin へ。無いときだけ書く(走るたび上書きすると造成後が退避に化ける)。 |
+| `LoadBackup()` | `float[,]` |  | — |
+| `Window(pad, x0, z0, w, h)` | `void` |  | 造成と検査の窓(区画の外接矩形 + pad)。 |
 | `Stage1_Grade()` | `string` | 公 | — |
-| `GradeQA()` | `string` | 公 | — |
+| `GradeQA()` | `string` | 公 | 区画の内の節点で 地形 − 算出物 graded(最大・中央値)/ 区画の外 2m 帯の節点で 退避からの変化の最大。 |
 | `RemapKido()` | `string` | 公 | — |
 | `WalledAt(u, v, top)` | `bool` |  | グリッド点 (u,v) を土留めが受けているか。 |
 | `EdgeStepQA()` | `string` | 公 | — |

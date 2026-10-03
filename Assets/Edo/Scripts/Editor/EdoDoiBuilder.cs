@@ -49,6 +49,7 @@ public static partial class EdoDoiBuilder
         _nat = null; _walledCache = null; _runEdges = null; _niwa = null;
         // ⚠ **足したキャッシュはここへも足す。**落とすと「指図を読み直したのに古い値で建つ」。
         _boxCache = null; _pondW = null; _pondEdge = null;
+        _impl = null; _graded = null;
         Debug.Log("[Doi] 指図を読み直した");
     }
     static Dictionary<string, object> D
@@ -305,6 +306,85 @@ public static partial class EdoDoiBuilder
              + (_nat.h[i01] * (1 - tx) + _nat.h[i11] * tx) * tz;
     }
 
+    // ---------------------------------------------------------------- 造成後の地盤(算出物 doi_impl.json の graded)
+    // ⭐ 案A(EDO-0533・2026-10-03)から、造成後の地盤は**生成器が焼いた算出物**
+    //   `docs/Sashizu/doi_impl.json` の `graded`(世界座標の格子・x0,z0,step,nx,nz,h[][]・null は触らない)を読む。
+    //   ⛔ 段の多角形・折れ線の坂を C# へ写さない(正典が2つになる ── impl_doi.py が生成器の式で焼く)。
+    //   岡部(EdoOkabeYashikiBuilder.Graded)と同じ読み方。
+    public const string ImplRel = "docs/Sashizu/doi_impl.json";
+    static Dictionary<string, object> _impl;
+    static Dictionary<string, object> IMPL
+    {
+        get
+        {
+            if (_impl == null)
+            {
+                string p = Path.Combine(Root, ImplRel);
+                if (!File.Exists(p)) throw new Exception("算出物が無い: " + p + "(python3 Tools/Sashizu/bake_impl.py doi --write)");
+                _impl = EdoMiniJson.Parse(File.ReadAllText(p)) as Dictionary<string, object>;
+                if (_impl == null) throw new Exception("算出物が読めない(JSON): " + p);
+            }
+            return _impl;
+        }
+    }
+    class WGrid
+    {
+        public float x0, z0, step; public int nx, nz; public float[] h;   // NaN = null(触らない)
+        public float At(float x, float z)
+        {
+            float fx = (x - x0) / step, fz = (z - z0) / step;
+            int i0 = Mathf.FloorToInt(fx), j0 = Mathf.FloorToInt(fz);
+            float tx = fx - i0, tz = fz - j0, acc = 0f, wt = 0f;
+            for (int dj = 0; dj < 2; dj++)
+                for (int di = 0; di < 2; di++)
+                {
+                    int i = i0 + di, j = j0 + dj;
+                    if (i < 0 || i >= nx || j < 0 || j >= nz) continue;
+                    float v = h[j * nx + i]; if (float.IsNaN(v)) continue;
+                    float w = (di == 0 ? 1f - tx : tx) * (dj == 0 ? 1f - tz : tz);
+                    acc += v * w; wt += w;
+                }
+            return wt > 1e-9f ? acc / wt : float.NaN;
+        }
+    }
+    static WGrid _graded;
+    static WGrid Graded
+    {
+        get
+        {
+            if (_graded == null)
+            {
+                var g = O(IMPL["graded"]);
+                if (g == null) throw new Exception("算出物に graded が無い");
+                var w = new WGrid { x0 = F(g["x0"]), z0 = F(g["z0"]), step = F(g["step"]), nx = (int)F(g["nx"]), nz = (int)F(g["nz"]) };
+                w.h = new float[w.nx * w.nz];
+                var rows = A(g["h"]);
+                if (rows == null || rows.Count != w.nz) throw new Exception("算出物 graded.h の行数が nz と合わない");
+                for (int j = 0; j < w.nz; j++)
+                {
+                    var row = A(rows[j]);
+                    if (row == null || row.Count != w.nx) throw new Exception("算出物 graded.h[" + j + "] の列数が nx と合わない");
+                    for (int i = 0; i < w.nx; i++) w.h[j * w.nx + i] = row[i] == null ? float.NaN : Convert.ToSingle(row[i]);
+                }
+                _graded = w;
+            }
+            return _graded;
+        }
+    }
+    /// <summary>世界座標の**造成後の地盤**[m](算出物 `graded` の双一次)。格子の外・null は NaN。
+    /// ⚠ 現況の地形を読まないので冪等。</summary>
+    public static float ImplY(float x, float z) { return Graded.At(x, z); }
+
+    /// <summary>旧案の Stage を止める札(案A・EDO-0533 第1巡)。旧案の欄(段の矩形・run の seat/edge・土留めの s/drop・
+    /// 庭の depthMax)で建てると**誤った物を置く**ので、案Aの読みに替えるまで何もしない。</summary>
+    static readonly bool KyuanStop = true;
+    static string AnANotYet(string what)
+    {
+        string m = "⛔ " + what + ": 案Aで未対応(旧案の欄で建てると誤った物を置く)── 何もしない(EDO-0533)";
+        Debug.LogWarning("[Doi] " + m);
+        return m;
+    }
+
     // ---------------------------------------------------------------- 造成後の地盤(sashizu_lib の移植)
     static bool InParcelUV(float u, float v)
     {
@@ -315,11 +395,10 @@ public static partial class EdoDoiBuilder
     /// <summary>その (u,v) を覆う段の高さ。無ければ NaN(=造成しない斜面)。区画の外も NaN。</summary>
     public static float DesignY(float u, float v)
     {
-        if (!InParcelUV(u, v)) return float.NaN;
-        float best = float.NaN;
-        foreach (var t in Terraces)
-            if (t.In(u, v, 1e-9f)) best = float.IsNaN(best) ? t.y : Mathf.Max(best, t.y);
-        return best;
+        // ⭐ 案A: 段の多角形を C# で解かず、算出物の graded を引く(EDO-0533)。区画の外は NaN。
+        var w = Grid.W(u, v);
+        if (!PointInPoly(w)) return float.NaN;
+        return ImplY(w.x, w.y);
     }
 
     /// <summary>外周 run(表長屋・練塀)が載っている**表門の辺**のグリッド区間。基壇石垣が受けるので
@@ -459,93 +538,22 @@ public static partial class EdoDoiBuilder
         return float.NaN;
     }
 
-    /// <summary>**造成後の地盤**(`sashizu_lib.graded_y` の移植)。nat は造成前の地盤。</summary>
+    /// <summary>**造成後の地盤**。⭐ 案A(EDO-0533)から算出物 `graded` を引くだけ(旧案の
+    /// RampY / StairY / 段 / 法面の式は使わない)。区画の外は nat を返す(触らない)。</summary>
     public static float GradedY(float u, float v, float nat)
     {
-        if (!InParcelUV(u, v)) return nat;                             // 区画の外は触らない
-        float rp = RampY(u, v); if (!float.IsNaN(rp)) return rp;
-        float st = StairY(u, v); if (!float.IsNaN(st)) return st;
-        float ins = DesignY(u, v); if (!float.IsNaN(ins)) return ins;
-        if (float.IsNaN(nat)) return nat;
-
-        float K = Grid.ken, bf = C("batterFill"), bc = C("batterCut"), cap = C("featherCap");
-        float g = nat, floor = -1e9f;
-        var re = RunEdges();
-
-        // ── 盛土の法面(裾がこぼれる)
-        foreach (var t in Terraces)
-        {
-            if (t.In(u, v, 0f)) continue;
-            var we = WalledEdges(t);
-            float du, dv; string eu = null, ev = null;
-            if (t.rot)
-            {
-                // ⚠ 回転する段は法面の距離も回転した軸で測る(外接矩形で測ると隅が段の高さで平らになる)
-                float r = t.yaw * Mathf.Deg2Rad;
-                float lu = Mathf.Sin(r), lv = Mathf.Cos(r), duA = Mathf.Cos(r), dvA = -Mathf.Sin(r);
-                float a = (u - t.uc) * lu + (v - t.vc) * lv;
-                float b = (u - t.uc) * duA + (v - t.vc) * dvA;
-                du = Mathf.Max(0f, Mathf.Abs(a) - t.L / 2f);
-                dv = Mathf.Max(0f, Mathf.Abs(b) - t.D / 2f);
-                if (du > 1e-9f) eu = a > 0 ? "u1" : "u0";
-                if (dv > 1e-9f) ev = b > 0 ? "v1" : "v0";
-            }
-            else
-            {
-                if (u < t.u0) { du = t.u0 - u; eu = "u0"; }
-                else if (u > t.u1) { du = u - t.u1; eu = "u1"; }
-                else du = 0f;
-                if (v < t.v0) { dv = t.v0 - v; ev = "v0"; }
-                else if (v > t.v1) { dv = v - t.v1; ev = "v1"; }
-                else dv = 0f;
-            }
-            float qv = Mathf.Clamp(v, t.v0, t.v1), qu = Mathf.Clamp(u, t.u0, t.u1);
-            if (Walled(we, eu, qv) || Walled(we, ev, qu)) continue;    // 壁が受ける
-            if (ev == "v0" && Mathf.Abs(t.v0) < 1e-9f)
-            {
-                bool onRun = false;
-                foreach (var s in re) if (s.x <= qu && qu <= s.y) { onRun = true; break; }
-                if (onRun) continue;                                    // 外周 run の基壇石垣が受ける
-            }
-            float dm = Mathf.Sqrt(du * du + dv * dv) * K;
-            if (dm > cap) continue;
-            float y2 = t.y - dm / bf;
-            if (t.y - cap / bf > nat) continue;                        // cap の内で着地しない = 法面を出さない
-            g = Mathf.Max(g, y2);
-            floor = Mathf.Max(floor, y2);
-        }
-        // ── 切土の法面。⚠ 生成器はここで**軸平行**の距離を使う(回転の分岐を持たない)。
-        //    合わせないと切盛図と食い違うので、そのまま移す。
-        foreach (var t in Terraces)
-        {
-            if (t.In(u, v, 0f)) continue;
-            var we = WalledEdges(t);
-            float du, dv; string eu = null, ev = null;
-            if (u < t.u0) { du = t.u0 - u; eu = "u0"; }
-            else if (u > t.u1) { du = u - t.u1; eu = "u1"; }
-            else du = 0f;
-            if (v < t.v0) { dv = t.v0 - v; ev = "v0"; }
-            else if (v > t.v1) { dv = v - t.v1; ev = "v1"; }
-            else dv = 0f;
-            float qv = Mathf.Clamp(v, t.v0, t.v1), qu = Mathf.Clamp(u, t.u0, t.u1);
-            if (Walled(we, eu, qv) || Walled(we, ev, qu)) continue;
-            float dm = Mathf.Sqrt(du * du + dv * dv) * K;
-            if (dm > cap) continue;
-            if (t.y + cap / bc < nat) continue;
-            g = Mathf.Min(g, t.y + dm / bc);
-        }
-        return Mathf.Max(g, floor);
+        var w = Grid.W(u, v);
+        if (!PointInPoly(w)) return nat;
+        float y = ImplY(w.x, w.y);
+        return float.IsNaN(y) ? nat : y;
     }
 
-    /// <summary>世界座標での施工後の地盤。⭕ 奥庭の矩形の中は庭の土工(池床・築山・土手)を重ねる
-    /// (生成器 `ground_y`)。⛔ 検査の地盤 `GradedY` は差し替えない。</summary>
+    /// <summary>世界座標での施工後の地盤 = 算出物 `graded`(案A・EDO-0533)。
+    /// ⚠ 旧案の庭の土工(NiwaModel)は重ねない ── 庭の型が案Aの欄で読めるまで(Stage6 は止めてある)。</summary>
     public static float GroundY(float x, float z)
     {
-        var g = Grid.L(new Vector2(x, z));
-        float nat = NaturalY(x, z);
-        var n = NiwaModel;
-        if (n != null && n.Inside(g.x, g.y)) return n.Ground(g.x, g.y);
-        return GradedY(g.x, g.y, nat);
+        float y = ImplY(x, z);
+        return float.IsNaN(y) ? NaturalY(x, z) : y;
     }
 
     // ---------------------------------------------------------------- 群
@@ -775,108 +783,129 @@ public static partial class EdoDoiBuilder
     }
 
     // ---------------------------------------------------------------- Stage0 退避
-    static string BakDir { get { return Path.Combine(Root, "TerrainBackups/doi_20260906_pre_grade"); } }
+    /// <summary>案A(EDO-0533)の着工前の退避。⚠ 旧案の退避(TerrainBackups/doi_20260906_pre_grade)は
+    /// 旧案の造成**前**で、いまの地形(旧案の造成後)ではない ── 案Aの差分の基準にならないので別に取る。</summary>
+    static string BakDir { get { return Path.Combine(Root, "UserData/Backups/Doi"); } }
+    static string BakPath { get { return Path.Combine(BakDir, "heightmap_pre_anA.bin"); } }
 
     [MenuItem(MENU + "0 ハイトマップを退避")]
     public static void Stage0Menu() { Debug.Log("[Doi] " + Stage0_Backup()); }
+    /// <summary>全面のハイトマップを .bin へ。**無いときだけ書く**(走るたび上書きすると造成後が退避に化ける)。</summary>
     public static string Stage0_Backup()
     {
-        string bin = Path.Combine(BakDir, "heightmap_full.bin");
-        if (File.Exists(bin)) return "退避は既にある(上書きしない): " + bin;
+        if (File.Exists(BakPath)) return "退避は既にある(上書きしない): " + BakPath;
         var t = Terrain.activeTerrain; var td = t.terrainData;
         int hres = td.heightmapResolution;
         var H = td.GetHeights(0, 0, hres, hres);
         Directory.CreateDirectory(BakDir);
-        using (var w = new BinaryWriter(File.Open(bin, FileMode.Create)))
+        using (var w = new BinaryWriter(File.Open(BakPath, FileMode.Create)))
         {
             w.Write(hres); w.Write(hres);
             for (int z = 0; z < hres; z++) for (int x = 0; x < hres; x++) w.Write(H[z, x]);
         }
-        return "退避 " + hres + "x" + hres + " → " + bin;
+        return "退避 " + hres + "x" + hres + " → " + BakPath;
+    }
+    static float[,] LoadBackup()
+    {
+        if (!File.Exists(BakPath)) return null;
+        using (var r = new BinaryReader(File.OpenRead(BakPath)))
+        {
+            int w = r.ReadInt32(), h = r.ReadInt32();
+            var H = new float[h, w];
+            for (int z = 0; z < h; z++) for (int x = 0; x < w; x++) H[z, x] = r.ReadSingle();
+            return H;
+        }
+    }
+
+    /// <summary>造成と検査の窓(区画の外接矩形 + pad)。</summary>
+    static void Window(float pad, out int x0, out int z0, out int w, out int h)
+    {
+        var t = Terrain.activeTerrain; var td = t.terrainData;
+        int hres = td.heightmapResolution; Vector3 tp = t.transform.position, ts = td.size;
+        float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
+        foreach (var q in Poly)
+        { mnx = Mathf.Min(mnx, q.x); mxx = Mathf.Max(mxx, q.x); mnz = Mathf.Min(mnz, q.y); mxz = Mathf.Max(mxz, q.y); }
+        Func<float, int> IX = wx => Mathf.Clamp(Mathf.FloorToInt((wx - tp.x) / ts.x * (hres - 1)), 0, hres - 1);
+        Func<float, int> IZ = wz => Mathf.Clamp(Mathf.FloorToInt((wz - tp.z) / ts.z * (hres - 1)), 0, hres - 1);
+        x0 = IX(mnx - pad); z0 = IZ(mnz - pad);
+        int x1 = Mathf.Min(hres - 1, IX(mxx + pad) + 1), z1 = Mathf.Min(hres - 1, IZ(mxz + pad) + 1);
+        w = x1 - x0 + 1; h = z1 - z0 + 1;
     }
 
     // ---------------------------------------------------------------- Stage1 造成
+    // ⭐ 案A(EDO-0533): 算出物 `graded` を区画の内の節点へ写すだけ(岡部 Stage1_Grade と同じ)。
+    //   ⛔ 区画の外は一切触らない(格子は外 6m まで広がるが、隣の岡部・松江松平の地盤は隣の造成が決める)。
+    //   設計面は現況を読まないので冪等 ── マーカーを置かない。
     [MenuItem(MENU + "1 造成(指図の面へ)")]
     public static void Stage1Menu() { Debug.Log("[Doi] " + Stage1_Grade()); }
     public static string Stage1_Grade()
     {
         { var gate = EdoSashizuExport.ReviewGate("doi"); if (gate != null) return gate; }
-        Stage0_Backup();
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine(Stage0_Backup());
         var t = Terrain.activeTerrain; var td = t.terrainData;
-        int hres = td.heightmapResolution;
-        Vector3 tp = t.transform.position, ts = td.size;
-        Func<float, int> IX = wx => Mathf.Clamp(Mathf.RoundToInt((wx - tp.x) / ts.x * (hres - 1)), 0, hres - 1);
-        Func<float, int> IZ = wz => Mathf.Clamp(Mathf.RoundToInt((wz - tp.z) / ts.z * (hres - 1)), 0, hres - 1);
-        Func<int, float> WX = ix => tp.x + ix * ts.x / (hres - 1);
-        Func<int, float> WZ = iz => tp.z + iz * ts.z / (hres - 1);
-
-        var P = Poly;
-        float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
-        foreach (var q in P)
-        {
-            mnx = Mathf.Min(mnx, q.x); mxx = Mathf.Max(mxx, q.x);
-            mnz = Mathf.Min(mnz, q.y); mxz = Mathf.Max(mxz, q.y);
-        }
-        int x0 = IX(mnx - 4f), x1 = IX(mxx + 4f), z0 = IZ(mnz - 4f), z1 = IZ(mxz + 4f);
-        int w = x1 - x0 + 1, h = z1 - z0 + 1;
+        int hres = td.heightmapResolution; Vector3 tp = t.transform.position, ts = td.size;
+        int x0, z0, w, h; Window(4f, out x0, out z0, out w, out h);
         var H = td.GetHeights(x0, z0, w, h);
-        int n = 0, skip = 0; float cmax = 0f, fmax = 0f; double cutSum = 0, fillSum = 0;
+        var P = Poly;
+        int n = 0, hole = 0; float cmax = 0f, fmax = 0f; double cutSum = 0, fillSum = 0;
         for (int z = 0; z < h; z++) for (int x = 0; x < w; x++)
         {
-            var p = new Vector2(WX(x0 + x), WZ(z0 + z));
+            var p = new Vector2(tp.x + (x0 + x) * ts.x / (hres - 1), tp.z + (z0 + z) * ts.z / (hres - 1));
             if (!EdoGeom.PIP(P, p)) continue;                            // ⛔ 敷地の外は一切触らない
-            var g = Grid.L(p);
-            float nat = NaturalY(p.x, p.y);
-            if (float.IsNaN(nat)) { skip++; continue; }                  // 正本が欠けている所は触らない
-            float y = GradedY(g.x, g.y, nat);
-            if (float.IsNaN(y)) { skip++; continue; }
+            float y = ImplY(p.x, p.y);
+            if (float.IsNaN(y)) { hole++; continue; }                    // 算出物の null は触らない
             float cur = H[z, x] * ts.y + tp.y;
             if (y < cur) { cmax = Mathf.Max(cmax, cur - y); cutSum += cur - y; }
             else { fmax = Mathf.Max(fmax, y - cur); fillSum += y - cur; }
             H[z, x] = (y - tp.y) / ts.y; n++;
         }
         td.SetHeightsDelayLOD(x0, z0, H); td.SyncHeightmap();
+        EditorUtility.SetDirty(td);
         float cell = ts.x / (hres - 1); double a = cell * cell;
-        return string.Format("造成 cells={0}(正本欠 {1})/ 切土 最大{2:F2}m 体積{3:F0}m³ / 盛土 最大{4:F2}m 体積{5:F0}m³",
-                             n, skip, cmax, cutSum * a, fmax, fillSum * a);
+        sb.AppendLine(string.Format("造成 {0} 節点(窓 {1}x{2})｜いまの地形からの移動量: 下げ 最大{3:F2}m 計{4:F0}m³ / 上げ 最大{5:F2}m 計{6:F0}m³",
+                                    n, w, h, cmax, cutSum * a, fmax, fillSum * a));
+        if (hole > 0) sb.AppendLine("★ 区画の中なのに算出物が null の節点 " + hole + "(触らずに残した)");
+        sb.Append("⚠ 移動量は旧案の造成後からの差であって切盛量ではない(切盛は指図の段別表)");
+        return sb.ToString();
     }
 
     [MenuItem(MENU + "造成を検査 GradeQA")]
     public static void GradeQAMenu() { Debug.Log("[Doi] " + GradeQA()); }
+    /// <summary>区画の内の節点で 地形 − 算出物 graded(最大・中央値)/ 区画の外 2m 帯の節点で 退避からの変化の最大。
+    /// 硬い: 外の帯の変化 = 0(隣の地盤を書き換えない)。内のずれの許容は 0.01m(書いた値と同じはず)。</summary>
     public static string GradeQA()
     {
-        const float TOL = 0.30f;
         var t = Terrain.activeTerrain; var td = t.terrainData;
-        int hres = td.heightmapResolution;
-        Vector3 tp = t.transform.position, ts = td.size;
-        Func<float, int> IX = wx => Mathf.Clamp(Mathf.RoundToInt((wx - tp.x) / ts.x * (hres - 1)), 0, hres - 1);
-        Func<float, int> IZ = wz => Mathf.Clamp(Mathf.RoundToInt((wz - tp.z) / ts.z * (hres - 1)), 0, hres - 1);
-        Func<int, float> WX = ix => tp.x + ix * ts.x / (hres - 1);
-        Func<int, float> WZ = iz => tp.z + iz * ts.z / (hres - 1);
-        var P = Poly;
-        float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
-        foreach (var q in P)
-        {
-            mnx = Mathf.Min(mnx, q.x); mxx = Mathf.Max(mxx, q.x);
-            mnz = Mathf.Min(mnz, q.y); mxz = Mathf.Max(mxz, q.y);
-        }
-        int x0 = IX(mnx - 4f), x1 = IX(mxx + 4f), z0 = IZ(mnz - 4f), z1 = IZ(mxz + 4f);
-        int w = x1 - x0 + 1, h = z1 - z0 + 1;
+        int hres = td.heightmapResolution; Vector3 tp = t.transform.position, ts = td.size;
+        int x0, z0, w, h; Window(4f, out x0, out z0, out w, out h);
         var H = td.GetHeights(x0, z0, w, h);
-        int n = 0, bad = 0; float worst = 0f; Vector2 wp = Vector2.zero;
+        var B = LoadBackup();
+        var P = Poly; var difs = new List<float>();
+        float worst = 0f; Vector2 wp = Vector2.zero; float outMax = 0f; Vector2 op = Vector2.zero; int outN = 0;
         for (int z = 0; z < h; z++) for (int x = 0; x < w; x++)
         {
-            var p = new Vector2(WX(x0 + x), WZ(z0 + z));
-            if (!EdoGeom.PIP(P, p)) continue;
-            float want = GroundY(p.x, p.y);
-            if (float.IsNaN(want)) continue;
+            var p = new Vector2(tp.x + (x0 + x) * ts.x / (hres - 1), tp.z + (z0 + z) * ts.z / (hres - 1));
             float cur = H[z, x] * ts.y + tp.y;
-            float dif = Mathf.Abs(cur - want);
-            n++;
-            if (dif > TOL) { bad++; if (dif > worst) { worst = dif; wp = p; } }
+            if (EdoGeom.PIP(P, p))
+            {
+                float want = ImplY(p.x, p.y); if (float.IsNaN(want)) continue;
+                float d = Mathf.Abs(cur - want); difs.Add(d);
+                if (d > worst) { worst = d; wp = p; }
+            }
+            else if (B != null && EdoGeom.DistToPolyEdge(P, p) <= 2f)
+            {
+                float d = Mathf.Abs(cur - (B[z0 + z, x0 + x] * ts.y + tp.y)); outN++;
+                if (d > outMax) { outMax = d; op = p; }
+            }
         }
-        return string.Format("GradeQA: 敷地内 {0} セル / 設計面と {1:F2}m 超ずれ = {2} 件 ({3:P1})。最悪 {4:F2}m at ({5:F1},{6:F1})",
-                             n, TOL, bad, n == 0 ? 0f : (float)bad / n, worst, wp.x, wp.y);
+        difs.Sort();
+        float med = difs.Count == 0 ? 0f : difs[difs.Count / 2];
+        bool ok = worst <= 0.01f && (B == null || outMax <= 1e-4f);   // 1e-4 = ハイトマップの量子化(49m/65535 ≈ 0.75mm)より細かい丸め
+        return string.Format("{0} GradeQA: 区画の内 {1} 節点 / 地形−graded 最大 {2:F3}m at ({3:F1},{4:F1})・中央値 {5:F3}m"
+                           + "｜区画の外 2m 帯 {6} 節点 / 退避からの変化 最大 {7:F4}m at ({8:F1},{9:F1}){10}",
+                             ok ? "⭕" : "⛔", difs.Count, worst, wp.x, wp.y, med, outN, outMax, op.x, op.y,
+                             B == null ? "(退避が無く外の帯は未検査)" : "");
     }
 
     /// <summary>**裏木戸の小壁・瓦の材質を練塀へ明示的に結ぶ。**
@@ -890,6 +919,7 @@ public static partial class EdoDoiBuilder
     public static void RemapKidoMenu() { Debug.Log("[Doi] " + RemapKido()); }
     public static string RemapKido()
     {
+        if (KyuanStop) return AnANotYet("裏木戸の材質");
         // 提供元 = 練塀の .obj が抱える `s_heimap`(サブアセット)
         Material donor = null;
         foreach (var a in AssetDatabase.LoadAllAssetsAtPath(EdoAssets.Eg.DobeiCenter))
@@ -975,6 +1005,7 @@ public static partial class EdoDoiBuilder
     public static void EdgeStepQAMenu() { Debug.Log("[Doi] " + EdgeStepQA()); }
     public static string EdgeStepQA()
     {
+        if (KyuanStop) return AnANotYet("検査① EdgeStepQA");
         float lim = C("stepAbsorbMax");
         var sb = new System.Text.StringBuilder();
         int bad = 0, spans = 0, nub = 0;
@@ -1068,6 +1099,7 @@ public static partial class EdoDoiBuilder
     public static void KomonIshigakiQAMenu() { Debug.Log("[Doi] " + KomonIshigakiQA()); }
     public static string KomonIshigakiQA()
     {
+        if (KyuanStop) return AnANotYet("検査② KomonIshigakiQA");
         var grp = GameObject.Find(Grp);
         if (grp == null) return "検査②: 屋敷のルートが無い";
         var ig = grp.transform.Find("Ishigaki");
@@ -1302,6 +1334,7 @@ public static partial class EdoDoiBuilder
     public static void Stage2Menu() { Debug.Log("[Doi] " + Stage2_Perimeter()); }
     public static string Stage2_Perimeter()
     {
+        if (KyuanStop) return AnANotYet("2 外周");
         { var gate0 = EdoSashizuExport.ReviewGate("doi"); if (gate0 != null) return gate0; }
         _wait.Clear();
         var sb = new System.Text.StringBuilder();
@@ -1562,6 +1595,7 @@ public static partial class EdoDoiBuilder
     public static void Stage3Menu() { Debug.Log("[Doi] " + Stage3_Ishigaki()); }
     public static string Stage3_Ishigaki()
     {
+        if (KyuanStop) return AnANotYet("3 石垣");
         { var gate0 = EdoSashizuExport.ReviewGate("doi"); if (gate0 != null) return gate0; }
         var grp = Group("Ishigaki"); Clear(grp);
         var sb = new System.Text.StringBuilder();
@@ -1812,6 +1846,7 @@ public static partial class EdoDoiBuilder
     public static void Stage4Menu() { Debug.Log("[Doi] " + Stage4_Goten()); }
     public static string Stage4_Goten()
     {
+        if (KyuanStop) return AnANotYet("4 御殿複合");
         { var gate0 = EdoSashizuExport.ReviewGate("doi"); if (gate0 != null) return gate0; }
         _wait.Clear();
         var grp = Group("Buildings"); Clear(grp);
@@ -2026,6 +2061,7 @@ public static partial class EdoDoiBuilder
     public static void Stage5Menu() { Debug.Log("[Doi] " + Stage5_Zosaku()); }
     public static string Stage5_Zosaku()
     {
+        if (KyuanStop) return AnANotYet("5 郭内");
         { var gate0 = EdoSashizuExport.ReviewGate("doi"); if (gate0 != null) return gate0; }
         _wait.Clear();
         var sb = new System.Text.StringBuilder();
@@ -2271,14 +2307,12 @@ public static partial class EdoDoiBuilder
     public static void RunAllMenu() { Debug.Log("[Doi] " + RunAll()); }
     public static string RunAll()
     {
+        // ⭐ 案A(EDO-0533)第1巡は S0+S1 だけ。S2〜S6 は旧案の欄で建てると誤った物を置くので止めてある。
         var sb = new System.Text.StringBuilder();
         sb.AppendLine("[0] " + Stage0_Backup());
         sb.AppendLine("[1] " + Stage1_Grade());
-        sb.AppendLine("[2] " + Stage2_Perimeter());
-        sb.AppendLine("[3] " + Stage3_Ishigaki());
-        sb.AppendLine("[4] " + Stage4_Goten());
-        sb.AppendLine("[5] " + Stage5_Zosaku());
-        sb.AppendLine("[6] " + Stage6_Niwa());
+        sb.AppendLine("[QA] " + GradeQA());
+        sb.AppendLine("[2〜6] " + AnANotYet("S2〜S6"));
         return sb.ToString();
     }
 }

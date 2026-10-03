@@ -330,6 +330,7 @@ public static partial class EdoDoiBuilder
     public static void PondQAMenu() { Debug.Log("[Doi] " + PondQA()); }
     public static string PondQA()
     {
+        if (KyuanStop) return AnANotYet("検査④ PondQA");
         var n = NiwaModel; if (n == null) return "検査④: 庭が無い";
         var t = Terrain.activeTerrain; var td = t.terrainData;
         int hres = td.heightmapResolution;
@@ -424,6 +425,7 @@ public static partial class EdoDoiBuilder
     public static void Stage6Menu() { Debug.Log("[Doi] " + Stage6_Niwa()); }
     public static string Stage6_Niwa()
     {
+        if (KyuanStop) return AnANotYet("6 奥庭");
         { var gate0 = EdoSashizuExport.ReviewGate("doi"); if (gate0 != null) return gate0; }
         _wait.Clear();
         var n = NiwaModel;
@@ -446,6 +448,7 @@ public static partial class EdoDoiBuilder
     public static void Niwa_A_Menu() { Debug.Log("[Doi] " + Niwa_A_Dokou()); }
     public static string Niwa_A_Dokou()
     {
+        if (KyuanStop) return AnANotYet("6a 池");
         Stage0_Backup();
         var n = NiwaModel;
         // ⚠ 目標の面は**絶対値**(現況を読まない)なので何度流しても同じ = 冪等。
@@ -526,6 +529,7 @@ public static partial class EdoDoiBuilder
     // ---- ②護岸(石組・州浜・乱杭)
     public static string Niwa_B_Gogan()
     {
+        if (KyuanStop) return AnANotYet("6b 護岸");
         var n = NiwaModel;
         var grp = Group("Niwa/Gogan"); Clear(grp);
         var rnd = new System.Random(20260906);
@@ -720,6 +724,7 @@ public static partial class EdoDoiBuilder
     ///   (**+X = 流れの向き**)。⛔ **埋樋の本体は焼いていない**(土被り 0.30 以上で地上から見えない)。</summary>
     public static string Niwa_C_Mizushiri()
     {
+        if (KyuanStop) return AnANotYet("6c 水尻");
         var n = NiwaModel;
         if (!Has(n.g, "mizu")) return "水尻: 指図に mizu が無い";
         var mz = O(n.g["mizu"]);
@@ -931,6 +936,7 @@ public static partial class EdoDoiBuilder
     // ---- ④石組・灯籠・沓脱・飛石・沢飛石
     public static string Niwa_D_Tenkei()
     {
+        if (KyuanStop) return AnANotYet("6d 点景");
         var n = NiwaModel;
         var grp = Group("Niwa/Tenkei"); Clear(grp);
         var rnd = new System.Random(20260907);
@@ -1089,6 +1095,7 @@ public static partial class EdoDoiBuilder
     // ---- ⑤園路
     static string Niwa_E_Enro()
     {
+        if (KyuanStop) return AnANotYet("6e 園路");
         var n = NiwaModel;
         int cnt = A(n.g["enro"]).Count;
         Wait("園路 " + cnt + " 本(主路・枝路。仕上げ=真砂土の敷き均し・小端の縁石)— "
@@ -1100,6 +1107,7 @@ public static partial class EdoDoiBuilder
     // ---- ⑥稲荷(祠は Stage5 の `service.Inari`。ここは鳥居・参道・手水)
     static string Niwa_F_Yashiro()
     {
+        if (KyuanStop) return AnANotYet("6f 稲荷");
         var n = NiwaModel;
         if (!Has(n.g, "yashiro")) return "稲荷: 指図に yashiro が無い";
         var ys = O(n.g["yashiro"]);
@@ -1150,6 +1158,7 @@ public static partial class EdoDoiBuilder
     // ---- ⑦垣
     static string Niwa_G_Kaki()
     {
+        if (KyuanStop) return AnANotYet("6g 垣");
         var n = NiwaModel;
         var grp = Group("Niwa/Kaki"); Clear(grp);
         int made = 0;
@@ -1218,6 +1227,7 @@ public static partial class EdoDoiBuilder
     // ---- ⑧植栽・刈込・下草
     public static string Niwa_H_Shokusai()
     {
+        if (KyuanStop) return AnANotYet("6h 植栽");
         var n = NiwaModel;
         var grp = Group("Niwa/Shokusai"); Clear(grp);
         var rnd = new System.Random(20260908);

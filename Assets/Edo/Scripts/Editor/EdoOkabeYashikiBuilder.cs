@@ -72,7 +72,7 @@ public static class EdoOkabeYashikiBuilder
 
     /// <summary>読み直す。指図か算出物を差し替えたら必ず呼ぶ(Unity は静的を抱え続ける)。</summary>
     [MenuItem("Edo/岡部筑前守上屋敷/指図を読み直す")]
-    public static void Reload() { _d = null; _impl = null; _runs = null; _frame = null; _graded = null; }
+    public static void Reload() { _d = null; _impl = null; _runs = null; _frame = null; _graded = null; _flat = null; }
 
     static Dictionary<string, object> D
     {
@@ -455,6 +455,11 @@ public static class EdoOkabeYashikiBuilder
         var t = Terrain.activeTerrain; var td = t.terrainData;
         int hres = td.heightmapResolution; Vector3 tp = t.transform.position, ts = td.size;
         int x0, z0, w, h; Window(out x0, out z0, out w, out h);
+        // ⭐ 縁の皮(Stage3b)を先に外して穴を塞ぐ ── 皮は駒の今の位置に合わせて起こす物で、造成・据え直しの後は古い(EdoBuild.ClearEdgeSkins)
+        {
+            var rootG = GameObject.Find(GN); var es = rootG == null ? null : rootG.transform.Find("EdgeSkin");
+            if (es != null && es.childCount > 0) sb.AppendLine("縁の皮を外して塞いだ升 " + EdoBuild.ClearEdgeSkins(Group("EdgeSkin")) + "(3 の後に 3b で起こし直す)");
+        }
         var H = td.GetHeights(x0, z0, w, h);
         var P = Poly;
         int n = 0, hole = 0; float cmax = 0f, fmax = 0f;
@@ -1771,7 +1776,7 @@ public static class EdoOkabeYashikiBuilder
                 var cw = new EdoBuild.CrestWall { name = key, nodes = nodes, nodeTops = tops, gaps = gaps, runAlongX = false, runLen = 2.0f, pitchMax = 1.8f,
                                                   pathOfH = h => EdoAssets.JC.CastleWall };
                 float wf; int bs;
-                var made = EdoBuild.PlaceCrestWall(cw, EdoBuild.Ground, grp, runEnds, segPieces, log, out wf, out bs);
+                var made = EdoBuild.PlaceCrestWall(cw, SkinGround, grp, runEnds, segPieces, log, out wf, out bs);
                 castle.AddRange(made);
                 sb.AppendLine("  " + key + "(" + kind + "・" + S(Get(w, "mode")) + "): 城の石垣 " + made.Count + " 駒・天端 " + tops[0].ToString("F2")
                             + "・口 " + gaps.Count + "・駒の底の浮き 最悪 " + (float.IsNegativeInfinity(wf) ? "-" : wf.ToString("+0.000;-0.000") + "m") + (bs > 0 ? "・全体が埋まり退けた " + bs : ""));
@@ -1817,7 +1822,7 @@ public static class EdoOkabeYashikiBuilder
                 ups.Add(new EdoBuild.TierUpper { run = kv.Key.Split('#')[0], a = es[0].p, b = es[1].p, outw = es[0].outw, pieces = kv.Value });
             }
             var tierMade = new List<GameObject>(); var faceOf = new Dictionary<GameObject, Vector2>();
-            int ng = ups.Count == 0 ? 0 : EdoBuild.PlaceTierBelow(ups, EdoAssets.JC.CastleWall, 2.0f, 1.8f, 4.0f, EdoBuild.Ground, 0.6f, grp, 0.05f,
+            int ng = ups.Count == 0 ? 0 : EdoBuild.PlaceTierBelow(ups, EdoAssets.JC.CastleWall, 2.0f, 1.8f, 4.0f, SkinGround, 0.6f, grp, 0.05f,
                                                                     runEnds, segPieces, faceOf, tierMade, log);
             castle.AddRange(tierMade);
             sb.AppendLine("  二段築の下段(城の石垣の底が見え面の前の地表より上に出る所だけ): " + ng + " 駒");
@@ -1828,7 +1833,7 @@ public static class EdoOkabeYashikiBuilder
             // 腕の要る長さ(EdoBuild.KadoShortArm): 相手 = 先に据えた隅(43° と 37° の隅は 0.64m しか離れず腕 2.0m が当たる)。
             //   焼いた短い腕の組が無ければ素の腕のまま ⚠ で要る長さを刷る(焼く一覧の行 ── 部材方へ)
             Func<float, float, float, float, string> armOf = EdoAssets.Own.IshigakiKado;
-            int kn = EdoBuild.PlaceRunCorners(runEnds, segPieces, EdoAssets.Own.IshigakiKado, EdoBuild.Ground, grp, 0.02f, log, kcs, kcs, armOf);
+            int kn = EdoBuild.PlaceRunCorners(runEnds, segPieces, EdoAssets.Own.IshigakiKado, SkinGround, grp, 0.02f, log, kcs, kcs, armOf);
             castle.AddRange(kcs);
             sb.AppendLine("  城の石垣の出隅: " + kn + " 駒");
         }
@@ -1837,7 +1842,7 @@ public static class EdoOkabeYashikiBuilder
         {
             var heights = new[] { 0.30f, 0.60f, 0.90f, 1.20f, 1.50f, 1.80f, 2.10f, 2.40f, 4.80f };
             castle.RemoveAll(g => g == null);
-            var got = EdoBuild.PlaceNozuraNet(nozSegs, EdoBuild.Ground, EdoBuild.Ground, 1.2f, grp,
+            var got = EdoBuild.PlaceNozuraNet(nozSegs, SkinGround, SkinGround, 1.2f, grp,
                 (h, g, i) => EdoAssets.Own.SannoNozura(h, g, i), (h, i) => EdoAssets.Own.SannoNozuraKado(h, i),
                 (up, i) => EdoAssets.Own.SannoNozuraDan(up, i), (up, i) => EdoAssets.Own.SannoNozuraKiri(up, i),
                 null, heights, castle, log);
@@ -1927,6 +1932,110 @@ public static class EdoOkabeYashikiBuilder
         foreach (var w in wait) sb.AppendLine("  ★ " + w);
         return sb.ToString();
     }
+
+    // =====================================================================
+    // Stage3b — 縁の皮(EDO-0502 第5巡)
+    //   ⭐ 段の石垣の駒は線から見え面の足 −0.75・天端の背 +1.40 の幅 2.15m しかなく、2m 格子の地形では足元を描けない ──
+    //   上の面の節点が線の近くに落ちると、下の節点まで一次で描かれて足の前が最大 1.77m 盛り上がる(造成では消えない)。
+    //   その升だけ地形に穴を開け、0.25m の皮で描く(EdoBuild.CutEdgeSkin・山王 Stage9 と同じ型)。皮の材質は地形の材質の写しに
+    //   地形のスプラットを結わえた物で、塗り(Stage4 PaintSplat)を後から変えても同じ見えになる。
+    //   硬い(許容0): 皮が駒の天端に被らない・皮と駒の間に隙が無い(報告 coverN / gapN)。⛔ 高さ(heightmap)は動かさない。
+    //   ⚠ 造成(1)・据え直し(2・2b・3)の後は皮が古い ── 1 は冒頭で皮を外すので、流したら必ずこれを 3 の後に流し直す。
+    //   当たる先: 段の石垣・土留め(算出物 terraceWalls)を持つ全邸 ── いまは山王社(Stage9)と岡部(ここ)。
+    // =====================================================================
+    [MenuItem("Edo/岡部筑前守上屋敷/3b 縁の皮(段の土留めの足元の升に穴を開けて皮で描く)")]
+    public static void Stage3bMenu() { Debug.Log("[Okabe] " + Stage3b_Hifu()); }
+
+    public static string Stage3b_Hifu()
+    {
+        var gate = ReviewGate(); if (gate != null) return gate;
+        var sb = new System.Text.StringBuilder("縁の皮:\n");
+        float tol = ImplTol("gradeTol", float.NaN);
+        if (float.IsNaN(tol)) return sb + "  ⛔ 算出物 checks.gradeTol が無い ── 皮を起こさない(既定値で埋めない)";
+        var grp = Group("EdgeSkin");
+        int filled = EdoBuild.ClearEdgeSkins(grp);
+        // 部材 = 段の土留め(Dan の駒)+ その口を切って上る石段(駒の外形から 2m 以内の段)
+        var parts = new List<GameObject>(); var band = new List<GameObject>();
+        var danB = new List<Bounds>();
+        foreach (Transform c in Group("Dan")) if (c.gameObject.activeInHierarchy) { parts.Add(c.gameObject); band.Add(c.gameObject); danB.Add(EdoBuild.RB(c.gameObject)); }
+        int stairN = 0;
+        var root = GameObject.Find(GN); var kai = root == null ? null : root.transform.Find("Fuzoku/Kaidan");
+        if (kai != null)
+            foreach (var r in kai.GetComponentsInChildren<MeshRenderer>())
+            {
+                var b = r.bounds; b.Expand(4f); bool near = false;
+                foreach (var db in danB) if (db.Intersects(b)) { near = true; break; }
+                if (near) { parts.Add(r.gameObject); stairN++; }
+            }
+        var faces = FlatFaces(sb);
+        // 面の外 = 算出物 graded(法面を含む設計の地盤)。駒の下に落ちた節点は造成前の地盤(base_dem)で引く。区画の外は今の地形
+        var G = Graded; var ok = new bool[G.h.Length]; for (int i = 0; i < ok.Length; i++) ok[i] = !float.IsNaN(G.h[i]);
+        var design = new EdoBuild.SkinDesign
+        {
+            x0 = G.x0, z0 = G.z0, step = G.step, nx = G.nx, nz = G.nz, h = G.h, ok = ok,
+            batterCut = C("batterCut"), batterFill = C("batterFill"), baseAt = EdoBuild.BaseDem(), own = Poly
+        };
+        // ⛔ 地形の木の升には穴を開けない(Unity は穴の升の地形の木を黙って落とす)── 区画の中の地形の木の点を渡す
+        var plant = new List<Vector2>();
+        {
+            var tr = EdoBuild.T(); var td = tr.terrainData; var org = tr.transform.position; var P = Poly;
+            foreach (var ti in td.treeInstances)
+            {
+                var q = new Vector2(org.x + ti.position.x * td.size.x, org.z + ti.position.z * td.size.z);
+                if (EdoGeom.PIP(P, q)) plant.Add(q);
+            }
+        }
+        var rep = EdoBuild.CutEdgeSkin("Okabe", grp, parts, faces, tol, design: design, backfill: 0f, sealFace: true,
+                                       crestBandParts: band, plantPoints: plant);
+        AssetDatabase.SaveAssetIfDirty(EdoBuild.T().terrainData);
+        sb.AppendLine("  古い皮を外して塞いだ升 " + filled + " / 部材 " + rep.parts + "(土留め " + band.Count + "・石段 " + stairN + ")/ 面 " + faces.Count + " / 守った地形の木 " + plant.Count);
+        sb.AppendLine("  " + rep);
+        sb.Append(EdoBuild.SkinGapTable(parts, faces, tol));
+        return sb.ToString();
+    }
+
+    /// <summary>皮が高さを揃える**平らな面**(指図 terraces の poly を世界へ)。算出物 graded が面の中(縁から 1.5m 内)で面の高さから
+    /// 0.05m を超えて外れる面(勾配の面・ramps)は除く ── 皮はそこを graded で描く。sb が null なら除いた面を刷らない。</summary>
+    static List<EdoBuild.SkinFace> FlatFaces(System.Text.StringBuilder sb)
+    {
+        // 面 = 指図 terraces(回転間グリッドの poly を世界へ)。⭐ 平らな面だけ ── 算出物 graded が面の中で面の高さから 0.05m を超えて
+        //   外れる面(勾配の面 ramps・東の平場)は皮で平らに削らず、設計の地盤(graded)として描く
+        var faces = new List<EdoBuild.SkinFace>(); var f = Grid;
+        foreach (var o in A(D["terraces"]) ?? new List<object>())
+        {
+            var t = O(o); if (t == null) continue;
+            var pl = A(Get(t, "poly")); if (pl == null || pl.Count < 3) continue;
+            var poly = new Vector2[pl.Count];
+            for (int i = 0; i < pl.Count; i++) { var q = A(pl[i]); poly[i] = f.W(F(q[0]), F(q[1])); }
+            float y = F(Get(t, "y")), dev = 0f; int nIn = 0;
+            float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
+            foreach (var p in poly) { mnx = Mathf.Min(mnx, p.x); mxx = Mathf.Max(mxx, p.x); mnz = Mathf.Min(mnz, p.y); mxz = Mathf.Max(mxz, p.y); }
+            for (float x = Mathf.Ceil(mnx); x <= mxx; x += 1f)
+                for (float z = Mathf.Ceil(mnz); z <= mxz; z += 1f)
+                {
+                    var q = new Vector2(x, z); if (!EdoGeom.PIP(poly, q) || EdoGeom.DistToPolyEdge(poly, q) < 1.5f) continue;
+                    float g = Graded.At(x, z); if (float.IsNaN(g)) continue; nIn++; dev = Mathf.Max(dev, Mathf.Abs(g - y));
+                }
+            if (nIn == 0 || dev > 0.05f) { if (sb != null) sb.AppendLine("  面 " + S(Get(t, "name")) + "(" + y.ToString("F2") + "): 設計の地盤が面から最大 " + dev.ToString("F2") + "m 外れる勾配の面 ── 面にせず graded で描く"); continue; }
+            faces.Add(new EdoBuild.SkinFace(S(Get(t, "name")), poly, y));
+        }
+        return faces;
+    }
+
+    /// <summary>**皮が描く地表**(Stage3b の縁の皮が描く高さ)を、皮を起こす前に引く: 平らな面の中は面の高さ、外は設計の地盤 graded と
+    /// 地形の低い方(区画の外・graded の無い所は地形)。⭐ 段の土留めの駒の底・見え面の前の地表はこれで測る ── 2m 格子の地形は見え面の足元で
+    /// 段を描けず最大 1.77m 盛り上がる(駒の底がその盛りに載り、皮が盛りを削ると駒が浮いた・EDO-0502 第5巡)。
+    /// 当たる先: 岡部 Stage2b の城の石垣・二段築の下段・出隅・野面の乱積み(皮を起こす全邸で、土留めを据える地表は皮が描く地表)。</summary>
+    static float SkinGround(float x, float z)
+    {
+        if (_flat == null) _flat = FlatFaces(null);
+        var q = new Vector2(x, z); float best = float.NaN, area = float.MaxValue;
+        foreach (var fc in _flat) if (EdoGeom.PIP(fc.poly, q)) { float a = Mathf.Abs(EdoGeom.SignedArea(fc.poly)); if (a < area) { area = a; best = fc.y; } }
+        if (!float.IsNaN(best)) return best;
+        float g = EdoBuild.Ground(x, z), d = EdoGeom.PIP(Poly, q) ? DesignY(q) : float.NaN;
+        return float.IsNaN(d) ? g : Mathf.Min(d, g);
+    }
+    static List<EdoBuild.SkinFace> _flat;
 
     // ---------------------------------------------------------------- 棟
     /// <summary>御殿の棟。**部材キットで一間の柱割りから組む**(Village Kit の一軒家プレハブでは
@@ -4493,6 +4602,7 @@ public static class EdoOkabeYashikiBuilder
         sb.AppendLine(ClosureQA());
         sb.AppendLine(Stage2b_Dan());
         sb.AppendLine(Stage3_Shukaku());
+        sb.AppendLine(Stage3b_Hifu());      // 皮は駒と造成が決まった後(1 が冒頭で外す)
         sb.AppendLine(Stage4_Niwa());
         sb.AppendLine(Stage5_Nishi());
         return sb.ToString();

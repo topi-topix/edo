@@ -205,6 +205,17 @@ def estate_names():
 _HAYASHI_KEYS = ("planting", "plantRule", "slopeArea", "slopePlanting", "slopeBands", "surface")
 
 
+# 普請方(土木の役)が見る欄 — 造成・排水・土留め・段をつなぐ石段と坂(EDO-0410・2026-10-03 施主指示)
+_FUSHIN_KEYS = ("terraces", "planes", "grading", "edgeProfile", "edgeProfiles", "sections",
+                "terraceWalls", "ishigaki", "slopeDoryu", "fuchi", "boundaryPlinth",
+                "kaidans", "ramps", "amaochi", "drains", "valleys")
+
+
+def _needs_fushin(d):
+    """普請方が要るか — 造成・排水・土留めの欄が1つでも埋まっていれば要る。"""
+    return any(d.get(k) for k in _FUSHIN_KEYS)
+
+
 def _needs_hayashi(d):
     """林方が要るか — 庭の外の植生か地表の欄が1つでも埋まっていれば要る。"""
     return any(d.get(k) for k in _HAYASHI_KEYS)
@@ -255,6 +266,15 @@ REVIEWERS = collections.OrderedDict([
         files=("py",),
         why="庭の外の植生と地表(樹種構成・階層・密度・林縁・斜面の林・地表の塗り分け・典拠と確度)",
         required=lambda d: _needs_hayashi(d))),
+    ("fushin", dict(
+        label="普請方(edo-fushinkata)",
+        # ⭐ 2026-10-03 施主指示(EDO-0410): 造成・排水・土留めを普請奉行の直の判断から専門役へ移した。
+        #   検図方は図の成立(断面の検算・重なり)を見る。普請方は土木として妥当か(地形に従うか・
+        #   縁の受け・水の落とし先)を見る。
+        keys=list(_FUSHIN_KEYS),
+        files=("py",),
+        why="土木として成立しているか(平場の高さ・切盛・縁の受け・土留めの型・水の落とし先・石段と坂の落差)",
+        required=lambda d: _needs_fushin(d))),
 ])
 
 

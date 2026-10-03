@@ -49,7 +49,7 @@ AWAIT_TTL_S = 60 * 60   # これより古い「背景の役」は数えない(�
 TAIL_BYTES = 2_000_000  # 記録(transcript)の尾をどれだけ読むか(背景の役の帰りを数えるため)
 BG = "\x00bg:"         # pending_agents の中だけで使う印 — 背景のコマンド・見張り(役ではない)
 TRACKED = ("Bash", "Agent", "Workflow", "Monitor", "Skill")     # + mcp__unityMCP__*(待ちうる道具だけ)
-SUBAGENT_JA = {"edo-kenzu": "検図方", "edo-kosho": "考証方", "edo-niwashi": "庭方", "edo-hayashikata": "林方", "edo-sashizukata": "指図方",
+SUBAGENT_JA = {"edo-kenzu": "検図方", "edo-kosho": "考証方", "edo-niwashi": "庭方", "edo-hayashikata": "林方", "edo-fushinkata": "普請方", "edo-sashizukata": "指図方",
                "edo-toryo": "棟梁", "edo-fushin-qa": "普請検査", "edo-zaiko": "在庫方", "edo-buzai": "部材方",
                "Explore": "探索役", "Plan": "計画役", "general-purpose": "汎用役"}
 

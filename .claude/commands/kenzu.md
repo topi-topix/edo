@@ -17,7 +17,7 @@ argument-hint: "<邸名(doi / matsudaira_dewa / sanno / okabe …)>"
    `python3 Tools/Sashizu/review_ledger.py <邸> --open`(前巡の未解決)、
    `python3 Tools/Sashizu/decision_gate.py <邸>`(閉じた決定が図に届いているか。⛔ が出た項は今巡で図へ届かせる)。
 3. **Workflow を名前で起動する**: `Workflow(name: "sashizu-review", args: {estate, changed, ledger, roles})`。
-   `roles` は `review_gate.py <邸>` が要るとした役だけ(庭が無い邸は庭方を、庭の外の植生・地表の欄が無い邸は林方を外す)。
+   `roles` は `review_gate.py <邸>` が要るとした役だけ(庭が無い邸は庭方を、庭の外の植生・地表の欄が無い邸は林方を、造成・排水・土留めの欄が無い邸は普請方を外す)。
 4. 返り値(役ごとの verdict・findings ≤10・counts・truncated・summary)を見て、
    `review_gate.py --record <邸> <役> <pass|fail> "<summary の要点 ≤300 字>"` を役ごとに 1 本の Bash で書く(→ CLAUDE.md 規則18 <!-- obl:review-record -->)。
    新規の指摘は `review_ledger.py <邸> --add` に、解消は `--close` に写し、`--round-end` で巡を締める。

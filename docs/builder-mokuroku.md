@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 20 本・メニュー 80・関数 679(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 20 本・メニュー 81・関数 682(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -18,7 +18,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoDoiBuilder.cs](#edodoibuildercs) | 土井大隅守上屋敷(三河刈谷藩2万3千石・譜代・雁間)ビルダー。 | 15 | 88 |
 | [EdoMatsudairaDewaBuilder.Niwa.cs](#edomatsudairadewabuilderniwacs) | 松平出羽守上屋敷 — 庭の工程(池・築山・水の系・石組・点景・滝見口)。 | 9 | 30 |
 | [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 16 | 100 |
-| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 17 | 112 |
+| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 18 | 115 |
 | [EdoSannoShaBuilder.cs](#edosannoshabuildercs) | 山王権現社(日枝神社)本体+樹下家邸+山王門前町ビルダー (2026-08-11。観理院は 2026-09-26 に類型へ移し削除) | 1 | 31 |
 | [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 13 | 102 |
 | [EdoSanyashikiRebuild.cs](#edosanyashikirebuildcs) | 三屋敷(太田・加納・鍋島=松平肥前守)の区画を下書きv3へ更新 (2026-08-08) | 0 | 6 |
@@ -344,6 +344,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `Edo/岡部筑前守上屋敷/1 造成(指図の面へ)` | `Stage1Menu` | `Stage1_Grade`, `ReviewGate`, `Stage0_Backup`, `Window` |
 | `Edo/岡部筑前守上屋敷/造成を検査 GradeQA` | `GradeQAMenu` | `GradeQA`, `ImplTol`, `Window` |
 | `Edo/岡部筑前守上屋敷/2 外周(練塀・基壇・木柵・隅)` | `Stage2Menu` | `Stage2_Perimeter`, `ReviewGate`, `Group`, `Clear` |
+| `Edo/岡部筑前守上屋敷/2b 段の土留め(terraceWalls・天端の垣)` | `Stage2bMenu` | `Stage2b_Dan`, `ReviewGate`, `Stale`, `A` |
 | `Edo/岡部筑前守上屋敷/3 主郭(棟・廊下・附属屋・井戸・結界・石段)` | `Stage3Menu` | `Stage3_Shukaku`, `ReviewGate`, `PlaceMunes`, `PlaceLinks` |
 | `Edo/岡部筑前守上屋敷/4 庭(部材を据える・地形には触らない)` | `Stage4Menu` | `Stage4_Niwa`, `ReviewGate`, `Stale`, `RetireStaleGroup` |
 | `Edo/岡部筑前守上屋敷/5 西の斜面(林・松・帯・汀)` | `Stage5Menu` | `Stage5_Nishi`, `ReviewGate`, `Stale`, `RetireStaleGroup` |
@@ -401,6 +402,8 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `AlongU(du, dv)` | `bool` | 公 | 棟・廊下の据え付けピボット(グリッド座標)。 |
 | `PivotUV(u0, v0, u1, v1)` | `Vector2` | 公 | — |
 | `Pivot(o, kind)` | `Vector2` | 公 | 突き合わせが読む据え付け点(世界座標)。 |
+| `Stage2b_Dan()` | `string` | 公 | — |
+| `PlaceDanKaki(fgrp, walls, wallOf, lineOf, topOf)` | `string` |  | 天端の垣を、指図 terraceWalls[].fenceOnTop の型で据える(置き方は EdoBuild.PlaceCrestFence)。 |
 | `Stage3_Shukaku()` | `string` | 公 | — |
 | `PlaceMunes(wait)` | `string` |  | 御殿の棟。部材キットで一間の柱割りから組む(Village Kit の一軒家プレハブでは 入側から壁が見えて御殿にならない — 2026-08-14 ユーザー裁定)。 |
 | `KirikakiCheck(go, m, rf, wait)` | `string` |  | 車寄の切り欠き(2026-09-04 裁定10=A)。 |

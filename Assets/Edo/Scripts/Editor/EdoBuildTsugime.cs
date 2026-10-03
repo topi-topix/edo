@@ -1,5 +1,5 @@
 // EdoBuild — 継ぎ目を躯体の実面で納める(2026-10-03・EDO-0502 岡部の普請検査の差し戻し)。
-//  ・一本物の長屋の躯体を走りの区間へ合わせる(妻壁の実面で継ぐ・FitBodyToSpan)
+//  ・長屋の躯体の端(札)どうしを平行移動だけで突き付ける(SpecBodySpanAlong / AbutBodyAlong)
 //  ・躯体の走りの区間を測る(BodySpanAlong)
 //  ・地形なりの板柵を板ごとに弦へ張る(ChordFenceRun)
 // ⛔ 置き方を邸ビルダーに書かない(規則21)── 邸ビルダーは指図を読んで渡すだけ。
@@ -29,37 +29,34 @@ public static partial class EdoBuild
         return mn == float.MaxValue ? new Vector2(float.NaN, float.NaN) : new Vector2(mn, mx);
     }
 
-    /// <summary>**一本物の長屋の躯体を、走りの区間 [sLo, sHi] へ伸縮して合わせる**(硬い・隙 0 ── 継ぎ目は妻壁の実面で突き付く)。
-    /// <para>由来: 2026-10-03 岡部(EDO-0502)。一本物の長屋は呼び寸法 = 破風まで含む全幅で、隣と破風で突き付くよう走りに並べていた。
-    /// 妻壁は破風より両端で 0.322m 内へ引っ込むので、継ぎ目ごとに躯体が 0.644m 開き、屋根の下が素通しになった(8 箇所)。
-    /// 平行移動だけで躯体を突き付けると、鎖の端に 0.644m × 継ぎ目の数が残り(辺41 で 2.58m)、端の練塀か台の石垣の上に穴が開く。
-    /// ⇒ 駒ごとに走りの方向(局所 X)だけを伸縮して、躯体の区間を指図の区間そのものに合わせる。屋根は隣と 0.644m 重なる(部材どうしの
-    /// めり込みは数えない ── docs/oki-kata.md §4)。</para>
-    /// <para>硬い: 伸縮の量が <paramref name="maxStretch"/>(比)を超えるなら合わせず NaN(呼び手は ★ で刷る)。
-    /// 返り値 = 合わせた後の躯体の区間の、狙いからの最大のずれ[m]。<paramref name="stretch"/> = 掛けた比(1 = 伸縮なし)。</para>
-    /// 当たる先: 一本物で走りに並べる長屋(岡部の表長屋・帯の長屋・門長屋の脇の棟)。⛔ 門口を持つ駒(門長屋)には掛けない ── 口の幅と芯が動く。</summary>
-    public static float FitBodyToSpan(GameObject go, Vector2 origin, Vector2 along, float sLo, float sHi,
-                                      float maxStretch, out float stretch)
+    /// <summary>駒の**躯体の端(札の jambL / jambR)**の、走り <paramref name="along"/> 上の区間 [最小, 最大](<paramref name="origin"/> からの s)。
+    /// 札の無い駒は (NaN, NaN)。⭐ 躯体 = 呼び寸法の長屋(<c>EdoAssets.Own.NagayaOmote2FKutai</c>)では jamb.x = ±len/2 が妻の海鼠の外面。
+    /// ⛔ 外接箱・ピボットで代用しない(破風が妻壁より 0.322m 外へ出る)。</summary>
+    public static Vector2 SpecBodySpanAlong(GameObject go, Vector2 origin, Vector2 along)
     {
-        stretch = 1f;
+        var path = UnityEditor.PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(go);
+        var sp = string.IsNullOrEmpty(path) ? null : EdoPartSpec.Get(path);
+        if (sp == null || sp.jambL == null || sp.jambR == null) return new Vector2(float.NaN, float.NaN);
         along = along.normalized;
-        var sp = BodySpanAlong(go, origin, along);
+        float a = Vector2.Dot(EdoPartSpec.JambWorld(go.transform, sp.jambL) - origin, along);
+        float b = Vector2.Dot(EdoPartSpec.JambWorld(go.transform, sp.jambR) - origin, along);
+        return new Vector2(Mathf.Min(a, b), Mathf.Max(a, b));
+    }
+
+    /// <summary>**長さの固定された駒(長屋)を、走りに沿う平行移動だけで、前の相手の躯体の端へ突き付ける**(硬い・隙 0)。
+    /// <paramref name="sTarget"/> = 相手の躯体の端の s。<paramref name="lowEnd"/>=true ならこの駒の躯体の低い側の端を、false なら高い側の端を
+    /// そこへ着ける。測るのは札の躯体の端(<see cref="SpecBodySpanAlong"/>)── 破風の重なりは埋めて隠す(docs/oki-kata.md §0a・§4)。
+    /// ⛔ 伸縮しない(柱間 1.818m と窓割りが崩れる・§2)。端数は鎖の末端の伸縮側(練塀)へ流す。
+    /// 返り値 = 動かした量[m](札が無ければ NaN)。
+    /// 当たる先: 躯体 = 呼び寸法の長屋を走りに並べる所(岡部の表長屋・門長屋の脇の棟)。札を持つ長屋なら他邸も同じ。</summary>
+    public static float AbutBodyAlong(GameObject go, Vector2 origin, Vector2 along, float sTarget, bool lowEnd)
+    {
+        along = along.normalized;
+        var sp = SpecBodySpanAlong(go, origin, along);
         if (float.IsNaN(sp.x)) return float.NaN;
-        float want = sHi - sLo, have = sp.y - sp.x;
-        if (have < 0.5f || want < 0.5f) return float.NaN;
-        float k = want / have;
-        if (Mathf.Abs(k - 1f) > maxStretch) { stretch = k; return float.NaN; }
-        // 局所 X(走り)だけを伸縮 → 区間の始まりを sLo へ平行移動(2 巡: 伸縮はピボットの周りで効く)
-        var sc = go.transform.localScale; go.transform.localScale = new Vector3(sc.x * k, sc.y, sc.z);
-        stretch = k;
-        for (int it = 0; it < 2; it++)
-        {
-            sp = BodySpanAlong(go, origin, along);
-            float mid = (sp.x + sp.y) * 0.5f, wantMid = (sLo + sHi) * 0.5f;
-            go.transform.position += new Vector3(along.x, 0f, along.y) * (wantMid - mid);
-        }
-        sp = BodySpanAlong(go, origin, along);
-        return Mathf.Max(Mathf.Abs(sp.x - sLo), Mathf.Abs(sp.y - sHi));
+        float d = sTarget - (lowEnd ? sp.x : sp.y);
+        go.transform.position += new Vector3(along.x, 0f, along.y) * d;
+        return d;
     }
 
     /// <summary>**地形なりの板柵を、板ごとに弦へ張る**(硬い・浮き 0 / 隙 0)。辺 a→b を描かれた地表の道のりで割り

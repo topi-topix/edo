@@ -104,6 +104,7 @@
 - [光付けは2次元で上げる・remap 済みでも材 null](scribe-2d-and-stale-fbx-material.md) — 列の窓の最大は法肩で浮き目地で食い込む。桃色は ForceUpdate で再 import(長屋12本も 10-03)
 
 - [長屋は全幅で並べると躯体が開く・御殿は縁の下に当たり無し・棟門は札で・描かれた法尻](nagaya-body-vs-gable-and-rendered-toe.md) — FitBodyToSpan/PlaceGamae/toeRender
+- [段の土留めの3つの罠](dan-ishigaki-r3-traps.md) — BedTopAt は 8m まで・指図の文言の上書きで正規表現が 0・語だけの直しでも指紋で止まる
 
 ## 測り方・関門
 

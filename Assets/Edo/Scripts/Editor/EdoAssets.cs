@@ -164,6 +164,20 @@ public static class EdoAssets
         public const string NureenCorner= P + "Goten_NureenCorner.fbx";  // 濡縁の入隅(0.891角・高欄が+X面と-Z面)
         public const string Koran       = P + "Goten_Koran_1ken.fbx";    // 高欄 単体(高1.158)渡廊下の縁
 
+        /// <summary>御殿の**床下の足元**(EDO-0502 2026-10-03)。部材キットには地面へ触れる部材が無く、濡縁の下端
+        /// (床 − 0.28)で御殿が地面から浮いて見えた。f = 床高[mm](<c>EdoGotenKit.Mune</c> の floor)。
+        /// 束石・礎石は天端が名目の地盤(床 − f)より 0.06 / 0.09 上、下端は名目の地盤より **0.30 下**(根入れの余地)。
+        /// ・<see cref="EnKeta"/> 縁桁 + 縁束1本 + 束石。ピボット = <see cref="Nureen"/> と同じ ⇒ 濡縁と同じ位置・yaw。束はこの間の −X 端
+        /// ・<see cref="EnTsuka"/> 縁束 + 束石。ピボット = 束の芯・濡縁の下端。run の +X 端の外と入隅の升目の外の角へ
+        /// ・<see cref="Soseki"/> 柱の根継ぎ + 礎石。ピボット = <see cref="Column"/> と同じ(柱の芯・床の高さ)
+        /// 無い床高は null を返す(据えない)。
+        /// 生成: blender --background --python Tools/Blender/build_goten_tsuka.py -- --floor 0.62 --render</summary>
+        public static string EnKeta(float floor)  { return Have(P + "Goten_EnKeta_1ken_f" + FloorMm(floor) + ".fbx"); }
+        public static string EnTsuka(float floor) { return Have(P + "Goten_EnTsuka_f" + FloorMm(floor) + ".fbx"); }
+        public static string Soseki(float floor)  { return Have(P + "Goten_Soseki_f" + FloorMm(floor) + ".fbx"); }
+        static string FloorMm(float floor) { return UnityEngine.Mathf.RoundToInt(floor * 1000f).ToString(System.Globalization.CultureInfo.InvariantCulture); }
+        static string Have(string path) { return System.IO.File.Exists(path) ? path : null; }
+
         /// <summary>階段廊下 — 木の段になった渡廊下。幅は他の廊下と同じ一間。
         /// 原点 = 坂上・**上段の廊下の床**の高さ。走りはローカル -Z(坂下)、段は下るので Y が負。
         /// 郭をまたぐ登廊の床に使う(屋外の石段を廊下に流用すると幅も踏み心地も合わない)。
@@ -2039,6 +2053,31 @@ public static class EdoAssets
         {
             return "Assets/Edo/Models/Nagaya/Nagaya_Omote_" + Len2(len)
                  + "_mon" + Len2(gateFromLeft) + (nikai ? "_2f" : "") + ".fbx";
+        }
+
+        /// <summary>**躯体の長さ = 呼び寸法**の表長屋(二階)(EDO-0502 2026-10-03)。⛔ <see cref="NagayaOmote2F"/> は呼び寸法 = 破風まで
+        /// 含む全幅で、全幅で突き付けると躯体が継ぎ目ごとに 0.644m 開く。この版は躯体の端(妻の海鼠の外面)が ±len/2 にあり、
+        /// 破風はそこから外へ 0.322 ずつ出る ⇒ 隣と**妻壁の実面どうし**で突き付け、破風の重なりは埋めて隠す。
+        /// 窓割りは 1.5間固定・端数は両端の間。札 = <c>Assets/Edo/Data/PartSpecs/&lt;名&gt;.json</c>(jambL/jambR.x = 躯体の端)。
+        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- &lt;長さm&gt; --body --floors 2 --render</summary>
+        public static string NagayaOmote2FKutai(float len)
+        {
+            return "Assets/Edo/Models/Nagaya/Nagaya_Omote_" + Len2(len) + "_2f_kutai.fbx";
+        }
+        /// <summary>表長屋・門長屋のパスを、**躯体 = 呼び寸法の版(`_kutai`)**へ読み替える(在れば)。無ければ元のパス。
+        /// 指図の欄は `Own.NagayaOmote2F(len)` / `Own.NagayaOmoteMon(...)` のまま(型は同じ・呼び寸法の定義だけが違う)。</summary>
+        public static string KutaiOf(string path)
+        {
+            if (string.IsNullOrEmpty(path) || path.EndsWith("_kutai.fbx") || !path.EndsWith(".fbx")) return path;
+            string k = path.Substring(0, path.Length - 4) + "_kutai.fbx";
+            return System.IO.File.Exists(k) ? k : path;
+        }
+        /// <summary>躯体の長さ = 呼び寸法の**門長屋**(<see cref="NagayaOmote2FKutai"/> の口抜き版)。口の芯は局所 +X で len/2 − gateFromLeft。
+        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- &lt;長さm&gt; --body --gate &lt;左端から&gt; &lt;口幅&gt; &lt;有効高&gt; --floors 2</summary>
+        public static string NagayaOmoteMonKutai(float len, float gateFromLeft, bool nikai)
+        {
+            return "Assets/Edo/Models/Nagaya/Nagaya_Omote_" + Len2(len)
+                 + "_mon" + Len2(gateFromLeft) + (nikai ? "_2f" : "") + "_kutai.fbx";
         }
 
         /// <summary>tsuma=false は両端を突き付けにした版(`--ends none`)。鎖の途中の一本に使う。</summary>

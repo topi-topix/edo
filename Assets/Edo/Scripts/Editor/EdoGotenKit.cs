@@ -103,6 +103,25 @@ public static class EdoGotenKit
     /// (`MeshFilter.sharedMesh.bounds.min.y`。ピボットからの実測)を測り**、軒下端が
     /// `(floor − NUREEN_DROP) + roofEaveLocalY` に来るよう Put 後に鉛直へ寄せ直す
     /// (roofAtFloor の値に関係なく同じ式が効く — 実測ベースなので系列の差を吸収する)。</para></summary>
+    /// <summary>棟の床下の足元(縁桁の束石・縁束・礎石)の**地面との当たり**を測る(EDO-0502)。当たり = 各駒の最下(石の下端)。
+    /// 返り値 = 最も浮いた量[m](正 = 浮き・負 = 全部が埋まり、その中で最も浅い根入れ)。n = 測った駒の数・floating = 浮き &gt; 0.01m の数。
+    /// 硬い: 浮き ≤ +0.01m(docs/oki-kata.md §4)。埋まりは根入れ(余地 0.30m)なので数えない。</summary>
+    public static float AshimotoGap(GameObject mune, out int n, out int floating, out string worstName)
+    {
+        n = 0; floating = 0; worstName = null; float worst = float.NegativeInfinity;
+        foreach (Transform c in mune.transform)
+        {
+            string nm = c.name;
+            if (!(nm.StartsWith("Goten_EnKeta") || nm.StartsWith("Goten_EnTsuka") || nm.StartsWith("Goten_Soseki"))) continue;
+            Vector3 at; int cnt;
+            float gap = EdoBuild.Contact(c.gameObject, out at, out cnt);
+            if (float.IsNaN(gap)) continue;
+            n++; if (gap > 0.01f) floating++;
+            if (gap > worst) { worst = gap; worstName = nm + "@" + at.x.ToString("F1") + "," + at.z.ToString("F1"); }
+        }
+        return n == 0 ? float.NaN : worst;
+    }
+
     public static GameObject Mune(string name, Transform parent, Vector3 pos, float yaw,
                                   int nx, int nzZashiki, int iri = 1,
                                   float floor = 0.62f, string roofAsset = null,
@@ -111,7 +130,7 @@ public static class EdoGotenKit
                                   int jodanFromIx = -1, int iriX = 0, int moyaBay = 3,
                                   bool partition = true,
                                   bool roofAtFloor = false, float roofYaw = 0f,
-                                  float roofEaveLocalY = float.NaN)
+                                  float roofEaveLocalY = float.NaN, bool ashimoto = false)
     {
         if (moyaBay < 1) moyaBay = 1;
         // 妻側の建具を省く区画(床の間・違い棚・帳台構が入る所)。塞いだままだと飾りが壁の裏に隠れる
@@ -132,6 +151,17 @@ public static class EdoGotenKit
         g.transform.SetParent(parent, false);
         g.transform.localPosition = pos;
         g.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
+        // ⭐ 床下の足元(ashimoto・EDO-0502 2026-10-03): 濡縁の下に縁桁+縁束+束石、run の +X 端の外と隅の升目の外の角に縁束+束石、
+        //   柱の下に根継ぎ+礎石。床高 floor の版が無ければ据えない(EdoAssets.Goten.EnKeta 等が null)。束石・礎石の下端は名目の地盤 −0.30(根入れ)。
+        string pKeta = ashimoto ? EdoAssets.Goten.EnKeta(floor) : null;
+        string pTsuka = ashimoto ? EdoAssets.Goten.EnTsuka(floor) : null;
+        string pSoseki = ashimoto ? EdoAssets.Goten.Soseki(floor) : null;
+        const float EN_Z = -0.80f;   // 縁桁・縁束の芯の奥行(濡縁の局所 z。build_goten_tsuka.py の EN_Z と同じ)
+        System.Action<Vector3, float, bool> nureenFoot = (lp, ry, runEnd) => {
+            if (pKeta != null) Put(pKeta, g.transform, lp, ry);
+            if (runEnd && pTsuka != null)
+                Put(pTsuka, g.transform, lp + Quaternion.Euler(0f, ry, 0f) * new Vector3(K / 2f, 0f, EN_Z), 0f);
+        };
 
         // 上段の間 — jodanFromIx より奥(+X)の身舎は床が一段(0.15)上がる
         System.Func<int, bool, float> lv = (i, isIri) =>
@@ -233,7 +263,10 @@ public static class EdoGotenKit
                 bool roomLine = ((i - iriX) % moyaBay == 0 || i == nx - iriX)
                              && ((j - iri) % moyaBay == 0 || j == nz - iri);
                 if (perim || iriLine || roomLine)
+                {
                     Put(EdoAssets.Goten.Column, g.transform, new Vector3(i * K, floor, j * K), 0f);
+                    if (pSoseki != null) Put(pSoseki, g.transform, new Vector3(i * K, floor, j * K), 0f);
+                }
             }
 
         if (ceiling)
@@ -249,6 +282,9 @@ public static class EdoGotenKit
                     new Vector3(i * K + K / 2f, floor - 0.28f, 0f), 0f);
                 Put(EdoAssets.Goten.Nureen, g.transform,
                     new Vector3(i * K + K / 2f, floor - 0.28f, D), 180f);
+                // 局所 +X の端: yaw 0 は世界 +X(i = nx−1)、yaw 180 は世界 −X(i = 0)
+                nureenFoot(new Vector3(i * K + K / 2f, floor - 0.28f, 0f), 0f, i == nx - 1);
+                nureenFoot(new Vector3(i * K + K / 2f, floor - 0.28f, D), 180f, i == 0);
             }
         // 妻側の濡縁 — 入側が四方に回るときだけ
         if (nureen && iriX > 0)
@@ -259,6 +295,9 @@ public static class EdoGotenKit
                     new Vector3(0f, floor - 0.28f, j * K + K / 2f), 90f);
                 Put(EdoAssets.Goten.Nureen, g.transform,
                     new Vector3(W, floor - 0.28f, j * K + K / 2f), 270f);
+                // 局所 +X の端: yaw 90 は世界 −Z(j = 0)、yaw 270 は世界 +Z(j = nz−1)
+                nureenFoot(new Vector3(0f, floor - 0.28f, j * K + K / 2f), 90f, j == 0);
+                nureenFoot(new Vector3(W, floor - 0.28f, j * K + K / 2f), 270f, j == nz - 1);
             }
             // 四隅の升目(0.891角)。ここを空けると床が抜け、外縁に回した高欄が隅で切れる。
             // ⚠ 部材の**体積はピボットの (-X,-Z) 側**にある(高欄が +X 面と -Z 面、という
@@ -270,6 +309,10 @@ public static class EdoGotenKit
             Put(EdoAssets.Goten.NureenCorner, g.transform, new Vector3(0f, floor - 0.28f, 0f), 0f);
             Put(EdoAssets.Goten.NureenCorner, g.transform, new Vector3(0f, floor - 0.28f, D), 90f);
             Put(EdoAssets.Goten.NureenCorner, g.transform, new Vector3(W, floor - 0.28f, D), 180f);
+            // 隅の升目の外の角に縁束(体積の象限 = 上の yaw の規則。局所 (EN_Z, 0, EN_Z) が外の角)
+            if (pTsuka != null)
+                foreach (var cy in new[] { new Vector4(W, 0f, 0f, 270f), new Vector4(0f, 0f, 0f, 0f), new Vector4(0f, 0f, D, 90f), new Vector4(W, 0f, D, 180f) })
+                    Put(pTsuka, g.transform, new Vector3(cy.x, floor - 0.28f, cy.z) + Quaternion.Euler(0f, cy.w, 0f) * new Vector3(EN_Z, 0f, EN_Z), 0f);
         }
 
         if (!string.IsNullOrEmpty(roofAsset))

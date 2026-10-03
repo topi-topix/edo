@@ -9,6 +9,7 @@
   ここでは区画線から OUT m 外のいまの地盤(M.nat)を毎回測る。
 ⭕ `planting` は林方の設計(指図 `planting`)を撒いた点へ焼く(`bake_planting`・EDO-0502)。撒き方は山王と共有
   (`sashizu_lib.plant_rnd` / `apportion` / `scatter_take` / `plant_part` / `grid_sampler`)。
+⭕ `terraceWalls` は土留めの線(`bake_terrace_walls`・EDO-0502)── 線は `sashizu_lib.tw_resolve` が指図の関係から解く。
 ⛔ rails / kui / migiwa / gardens はまだ器が無い — 返さない(bake_impl が据え置きとして名指しで刷る)。
 """
 import json
@@ -119,7 +120,20 @@ def bake():
     im = json.load(open(os.path.join(B.DOC, EST + "_impl.json"), encoding="utf-8"))
     graded = bake_graded(M, poly)
     return {"graded": graded, "corners": BI.bake_corners(poly, d, im), "base": bake_base(M, poly, d),
-            "planting": bake_planting(M, poly, d, graded)}
+            "planting": bake_planting(M, poly, d, graded), "terraceWalls": bake_terrace_walls(M)}
+
+
+def bake_terrace_walls(M):
+    """土留めの線(EDO-0502)── 指図の `terraceWalls[].between`(関係だけ・座標なし)を共有の解き手
+    `sashizu_lib.tw_resolve` で解いた線を、実装が置く行へ焼く。`line` は世界 xz の折れ線(上の側 = 進む向きの左)、
+    `top` は天端(一定なら数・段違いや法尻は `tops` = 頂点ごと)、`h` は造成後の地盤で測った高さ [min,max]、
+    `gaps` は線を切る石段・坂(線の頭からの道のり m)。⛔ 解けなかった本・部分は `line: null` と `unresolved` で残す
+    (推し量って線を作らない・規則19)。"""
+    rows = M.tw_rows()
+    for nm, why in M.tw_bad:
+        rows.append({"name": nm.split("(")[0], "part": (nm.split("(")[1].rstrip(")") if "(" in nm else None),
+                     "line": None, "unresolved": why})
+    return rows
 
 
 # ================================================================ 植栽(planting)の焼き手 ── EDO-0502
@@ -139,9 +153,6 @@ STEP_KEN = 0.5                                     # 候補の格子[間](山王
 SPECIES = {"Matsu": "クロマツ", "Keyaki": "ケヤキ", "Enoki": "エノキ", "Mukunoki": "ムクノキ",
            "Jouryoku": "常緑広葉", "Teiboku": "常緑照葉低木"}
 FORBID = ("Broadleaf", "Sakura", "Ume", "Momo", "Bamboo", "Take")     # `planting.plantRule.forbidden` の部材名
-TOE_M = 1.5        # ⚠ 法尻の土留め(位置を指図が持たない)を区画線からこの距離まで在るとみる ── 保守側・U
-#                    (EDO-0502 GradeSaka の「法尻は硬い 1.5m」と同じ値。⛔ 線の位置が指図に入ったら外す)
-_DIRV = {"北": (1.0, 0.0), "南": (-1.0, 0.0), "西": (0.0, 1.0), "東": (0.0, -1.0)}   # uv の外向き(u+=北・v+=西)
 
 
 def _sd(p, a, b):
@@ -161,14 +172,6 @@ def _line_d(p, P):
     return min(_sd(p, P[i], P[i + 1]) for i in range(len(P) - 1))
 
 
-def _edge_nums(s):
-    """「辺12〜15」「辺24・辺28北端・辺26〜27」の辺番号。"""
-    out = []
-    for a, b in re.findall(r"辺(\d+)(?:〜(\d+))?", s or ""):
-        out += list(range(int(a), int(b or a) + 1))
-    return out
-
-
 def _nearest_edge(M, p):
     P = M.poly
     return min(range(len(P)), key=lambda i: _sd(p, P[i], P[(i + 1) % len(P)]))
@@ -183,71 +186,19 @@ def _out_normal_uv(P, i):
 
 
 def resolve_walls(M, d):
-    """**土留めの実体線**(世界 xz)を指図の関係(`terraceWalls[].between`)から解く。指図は座標を持たない(規則2・5)。
-
-    ・面と面の間 → 高い面の縁のうち低い面から 2間 以内の辺(天端の線)
-    ・面と区画の辺(「辺12〜15」)→ その面の縁のうち、中点に最も近い区画の辺がその番号の辺
-    ・面と方位(「Kadonouchi 西の縁」)→ その面の縁のうち外向きがその方位の辺
-    ・法尻の土留め(between に「法尻」)→ 位置を指図が持たない ⇒ 名指しの区画の辺から `TOE_M` までに在るとみる(保守側)
-    天端の奥行は `planting.bandDef.avoid.dodomeCrestDepthM`(野面 → 野面の乱積み・ほか → 城の石垣)。
-    戻り (線 [{name, kind, segs, half, halfFrom}], 解けなかった名 [(名, 理由)])。
-    """
-    T = dict((t.name, t) for t in M.terraces)
+    """**土留めの実体線**(世界 xz)── 線は共有の解き手 `sashizu_lib.tw_resolve`(`build_sashizu.Model.tw_lines`)が
+    指図の関係(`terraceWalls[].between`)から解いた物をそのまま使う(EDO-0502 ── 法尻の 2 本も位置が解けたので
+    区画の辺から `TOE_M` を保守側に取る仮置きは外した)。天端の奥行は `planting.bandDef.avoid.dodomeCrestDepthM`
+    (野面 → 野面の乱積み・ほか → 城の石垣)。戻り (線 [{name, kind, segs, half, halfFrom}], 解けなかった名 [(名, 理由)])。"""
     tbl = (((d.get("planting") or {}).get("bandDef") or {}).get("avoid") or {}).get("dodomeCrestDepthM") or {}
-    ken = M.KEN
-    lines, bad = [], []
-    for w in d.get("terraceWalls") or []:
-        bt = [str(x) for x in (w.get("between") or [])]
-        ts = [T[x.split()[0]] for x in bt if x.split() and x.split()[0] in T]
-        kd = "野面の乱積み" if "野面" in str(w.get("kind")) else "城の石垣"
+    lines = []
+    for ln in M.tw_lines:
+        kd = "野面の乱積み" if "野面" in str(ln.get("kind")) else "城の石垣"
         crest = float(tbl.get(kd) or tbl.get("城の石垣") or 0.0)
-        segs, toe = [], False
-        if len(ts) == 2:
-            hi, lo = sorted(ts, key=lambda t: -t.y)
-            P = hi.poly
-            ed = [(max(_poly_d(P[i], lo.poly), _poly_d(P[(i + 1) % len(P)], lo.poly)), i) for i in range(len(P))]
-            for dk, i in ed:
-                if dk <= 2.0:
-                    segs.append((M.W(*P[i]), M.W(*P[(i + 1) % len(P)])))
-            if not segs:
-                # ⚠ 間に石段・溜りの奥行がある組(Higashi↔TsuyoTamari)── 高い面の縁のうち低い面に最も近い辺を採る
-                #   (最も近い辺の距離 + 1間 まで・5間 を超える組は解けないとする)
-                dmin = min(e for e, _ in ed)
-                if dmin <= 5.0:
-                    for dk, i in ed:
-                        mid = ((P[i][0] + P[(i + 1) % len(P)][0]) / 2, (P[i][1] + P[(i + 1) % len(P)][1]) / 2)
-                        if dk <= dmin + 1.0 or _poly_d(mid, lo.poly) <= dmin + 1.0:
-                            segs.append((M.W(*P[i]), M.W(*P[(i + 1) % len(P)])))
-        elif len(ts) == 1:
-            txt = " ".join(bt)
-            en = _edge_nums(txt)
-            t = ts[0]
-            P = t.poly
-            if "法尻" in txt and en:
-                toe = True
-                for e in en:
-                    segs.append((M.poly[e], M.poly[(e + 1) % len(M.poly)]))
-            elif en:
-                for i in range(len(P)):
-                    a, b = P[i], P[(i + 1) % len(P)]
-                    mid = M.W((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
-                    if _nearest_edge(M, mid) in en:
-                        segs.append((M.W(*a), M.W(*b)))
-            else:
-                dv = next((v for k, v in _DIRV.items() if (k + "の縁") in txt), None)
-                if dv is not None:
-                    for i in range(len(P)):
-                        n = _out_normal_uv(P, i)
-                        if n[0] * dv[0] + n[1] * dv[1] > 0.7:
-                            segs.append((M.W(*P[i]), M.W(*P[(i + 1) % len(P)])))
-        if not segs:
-            bad.append((w["name"], "between %s から線が解けない" % "・".join(bt)))
-            continue
-        lines.append({"name": w["name"], "kind": "土留め(%s)" % kd, "segs": segs,
-                      "half": crest + (TOE_M if toe else 0.0),
-                      "halfFrom": "天端の奥行 avoid.dodomeCrestDepthM[%s]" % kd
-                                  + (" + 法尻の位置の幅 %.1fm(保守側・U)" % TOE_M if toe else "")})
-    return lines, bad
+        W = [M.W(*p) for p in ln["pts"]]
+        lines.append({"name": ln["name"], "kind": "土留め(%s)" % kd, "segs": list(zip(W, W[1:])),
+                      "half": crest, "halfFrom": "天端の奥行 avoid.dodomeCrestDepthM[%s]" % kd})
+    return lines, list(M.tw_bad)
 
 
 def _palette(d, notes):

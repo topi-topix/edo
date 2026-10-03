@@ -739,6 +739,85 @@ class Model(object):
         # 法面の式 — 指図が「一枚の土の面」(`terrainCheck.gradedCover.wallCollarM`)を宣言していれば sashizu_soil。
         # ⚠ 欄の有無で分ける(邸名で分けない)。宣言が無ければ従来どおり lib の ray 式。
         self._soil_d = SOIL.prepare(d) if SOIL.declared(d) else None
+        # 関係で書いた土留め(`terraceWalls[].between`・座標なし)を線に解き、造成の式へ渡す(EDO-0502)。
+        # ⛔ 指図の欄は書き換えない ── 面の形の変化(下の面を壁の足元まで延ばす・上の面を内へ引く)は写しにだけ当てる。
+        self.tw_lines, self.tw_bad = [], []
+        if self._soil_d is None and L.tw_relational(d):
+            self._tw_resolve()
+
+    def _tw_resolve(self):
+        ip = lambda dd, uu, vv: self.in_parcel(uu, vv)
+        lines, bad, polys = L.tw_resolve(self._libd, self.poly_uv, self.nat, ip)
+        T0 = dict((t["name"], t) for t in self._libd["terraces"])
+        for t in self._libd["terraces"]:
+            P = polys.get(t["name"])
+            if P is None or [tuple(q) for q in L._tw_ccw(t["poly"])] == list(P):
+                continue
+            b = bbox(P)
+            t.update({"poly": [list(q) for q in P], "u0": b[0], "v0": b[1], "u1": b[2], "v1": b[3]})
+        for o in self.terraces:
+            if o.name in T0:
+                o.poly = [tuple(q) for q in T0[o.name]["poly"]]
+        self._pcache = {}
+        self._libd["_twLines"] = lines
+        L.tw_measure(self._libd, lines, self.nat, ip)
+        self.tw_lines, self.tw_bad = lines, bad
+        # ⭐ 解いた線を C05(段差の受け)の輪へ繋ぐ(規則19)。天端は線ごとに変わり得る(段違い・法尻)ので
+        #   `coping` は持たせない ⇒ C06(一段の高さ)はこの線を測らない ── 高さは算出物の `h` が持つ。
+        #   ⛔ 解けなかった本は notes に入れない(図の成立 C22 の欠陥ではない ── 算出物の `unresolved` と報告で名乗る)。
+        for ln in lines:
+            for a, b in zip(ln["pts"], ln["pts"][1:]):
+                self.walls.append(Obj(name=ln["name"], a=tuple(a), b=tuple(b), coping=None, drop=None, s=None,
+                                      raw={"name": ln["name"], "resolvedBy": "sashizu_lib.tw_resolve"}))
+
+    def tw_rows(self):
+        """算出物 `terraceWalls` の行(世界 xz)。実装はこの線に置く。"""
+        out = []
+        for ln in self.tw_lines:
+            W = [self.W(*p) for p in ln["pts"]]
+            row = {"name": ln["name"], "line": [[round(x, 3), round(z, 3)] for x, z in W],
+                   "top": ln.get("top"), "h": ln.get("h"), "kind": ln.get("kind"), "mode": ln["mode"],
+                   "hi": ln.get("hi"), "lo": ln.get("lo"), "lenM": ln.get("lenM")}
+            if ln.get("tops"):
+                row["tops"] = [None if y is None else round(y, 3) for y in ln["tops"]]
+            for k in ("part", "offsetM", "movedM", "above", "shoulderKen", "hiDev", "hard", "cert"):
+                if ln.get(k) not in (None, 0.0, ""):
+                    row[k] = ln[k]
+            row["gaps"] = self._tw_gaps(ln)
+            out.append(row)
+        return out
+
+    def _tw_gaps(self, ln):
+        """線を切る石段・坂(芯線と線の交わり ± 幅の半分)。道のり[m](線の頭から)。"""
+        K = self.KEN
+        P = ln["pts"]
+        cuts = []
+        for k in self.d.get("kaidans") or []:
+            if k.get("a") and k.get("b"):
+                w = (k.get("wKen") or 1.0)
+                cuts.append((k["name"], [tuple(k["a"][:2]), tuple(k["b"][:2])], w / 2.0, True))
+        for r in self.d.get("ramps") or []:
+            if isinstance(r.get("pts"), list) and r.get("w"):
+                cuts.append((r["name"], [tuple(q[:2]) for q in r["pts"]], r["w"] / K / 2.0, False))
+        out = []
+        for nm, C, half, ext in cuts:
+            if ext:                                      # 石段は芯線を少し延ばして見る(段の頭・尻が壁の線の手前で止まる)
+                (a, b) = C
+                dx, dy = b[0] - a[0], b[1] - a[1]
+                Ln = math.hypot(dx, dy) or 1e-9
+                C = [(a[0] - dx / Ln * 1.0, a[1] - dy / Ln * 1.0), (b[0] + dx / Ln * 1.0, b[1] + dy / Ln * 1.0)]
+            for i in range(len(P) - 1):
+                for j in range(len(C) - 1):
+                    a, b, c, e = P[i], P[i + 1], C[j], C[j + 1]
+                    den = (b[0] - a[0]) * (e[1] - c[1]) - (b[1] - a[1]) * (e[0] - c[0])
+                    if abs(den) < 1e-12:
+                        continue
+                    t = ((c[0] - a[0]) * (e[1] - c[1]) - (c[1] - a[1]) * (e[0] - c[0])) / den
+                    s = ((c[0] - a[0]) * (b[1] - a[1]) - (c[1] - a[1]) * (b[0] - a[0])) / den
+                    if 0 <= t <= 1 and 0 <= s <= 1:
+                        sm = (ln["_cum"][i] + t * (ln["_cum"][i + 1] - ln["_cum"][i]))
+                        out.append({"by": nm, "s0": round((sm - half) * K, 2), "s1": round((sm + half) * K, 2)})
+        return out
 
     def mine_edges(self):
         """当家が持つ辺 — 欄(edgeOwner / edges[].neighbor)が言えばそれ、無ければ当家の run が載る辺。"""

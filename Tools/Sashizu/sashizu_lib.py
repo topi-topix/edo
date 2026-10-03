@@ -595,6 +595,12 @@ def ramp_y(d, u, v):
         if not (u0 - 1e-9 <= u <= u1 + 1e-9 and v0 - 1e-9 <= v <= v1 + 1e-9):
             continue
         w = [x for x in d["terraceWalls"] if x["name"] == r.get("atWall")]
+        # ⚠ **面の勾配(`planes[].fall.ramp`)はその面の中だけ。**外接矩形で引くと、矩形に掛かる**別の面**まで
+        #   この勾配で埋まる(2026-10-03 岡部: 北東の郭 13.1 の西半が東の平場の勾配 16.4 になり、
+        #   郭との境の土留めの下の側が立たなかった ── EDO-0502)。
+        own = _fall_terraces(d, r["name"])
+        if own is not None and any(t["name"] not in own and t_contains(t, u, v) for t in d["terraces"]):
+            continue
         # ⚠ **土留めに付かない斜路もある。** 段の縁が地山と出会う所の摺り付けは、
         #   壁ではなく面と地山のあいだに架かる(2026-08-25 検図14巡 中-4)。
         #   その場合は高い端の高さを `top` で申告する。
@@ -631,6 +637,15 @@ def ramp_y(d, u, v):
         if gc is not None and abs(hi_a - gc) > abs(lo_a - gc):
             t = 1.0 - t
         return top - r["drop"] * (1.0 - max(0.0, min(1.0, t)))
+    return None
+
+
+def _fall_terraces(d, rname):
+    """斜路 rname が面の勾配(`planes[].fall.ramp`)なら、その面の段の名の集合。でなければ None。"""
+    for pl in d.get("planes") or []:
+        f = pl.get("fall")
+        if isinstance(f, dict) and f.get("ramp") == rname:
+            return set(pl.get("terraces") or [])
     return None
 
 
@@ -738,6 +753,12 @@ def graded_y(d, u, v, nat, in_parcel, walled=None):
     (岡部は terraceWalls が空なので実害なし。壁付き多角形の段が要る邸が出たら拡張する)。"""
     if not in_parcel(d, u, v):
         return nat                                     # 区画の外は現地形のまま(造成しない)
+    # ⭐ 関係で解いた土留め(`_twLines`・EDO-0502)── 欄の無い邸では何もしない
+    tw = d.get("_twLines")
+    if tw:
+        y = tw_effect_pre(d, tw, u, v)                 # 壁の肩の摺り付け(上の面の中)
+        if y is not None:
+            return y
     # ⚠ **斜路と石段は段より先に見る。** 段の中を通るので `design_y` を先に引くと隠れ、
     #   切盛図にも土量にも断面にも出なかった(2026-08-25 検図12巡 中-2:
     #   斜路 26m³・石段 40m³ が隠れていた)。動線の `_ry` と同じ順にする。
@@ -811,6 +832,10 @@ def graded_y(d, u, v, nat, in_parcel, walled=None):
         if dm > cap:
             continue
         y2 = t["y"] - dm / bf
+        if tw:
+            y2 = tw_fill_rule(tw, t["name"], u, v, cap / K, y2)
+            if y2 is None:
+                continue                               # 土留めより下の側 ── 壁が受ける(盛の法を越させない)
         if t["y"] - cap / bf > nat:
             continue                                   # cap の内で現地形に着地しない = 法面を出さない
         g = max(g, y2)                                 # 盛土の裾がこぼれる
@@ -842,6 +867,12 @@ def graded_y(d, u, v, nat, in_parcel, walled=None):
             if _walled(we, eu, qv) or _walled(we, ev, qu):
                 continue
             dm = math.hypot(du, dv) * K
+        if tw:
+            ok, alt = tw_cut_rule(tw, t["name"], u, v, cap / K, K)
+            if not ok:
+                if alt is not None:
+                    g = min(g, alt)                    # 土留めの天端から上の土羽
+                continue                               # 土留めが切りを受ける
         if dm > cap:
             continue
         if t["y"] + cap / bc < nat:
@@ -2123,3 +2154,771 @@ def grid_sampler(g):
                 wt += w
         return acc / wt if wt > 1e-9 else None
     return at
+
+
+# ================================================================ 土留めの線を関係から解く(EDO-0502)
+#   指図の `terraceWalls[]` が**関係だけ**(`between: [面, 面/辺]`・種別・天端・高さ・区間の言葉)で書かれた邸
+#   (岡部)の、置き場の線を面の区域(terraces の poly)・区画の辺(polygon / runs)から解く。⛔ 指図は座標を書かない
+#   (規則2・5)⇒ 線はここで毎回解き、算出物 `<邸>_impl.json` の `terraceWalls` にだけ焼く。
+#   ⭐ 上の面の縁 = 天端の線。下の面との間は石垣の面で受ける(下の面は壁の足元まで延ばす)。
+#   ⭐ 造成の式(`graded_y`)は `d["_twLines"]`(ここの戻り)を読んで段を付ける ── 欄が無い邸は一字も変わらない。
+#   型(`mode`):
+#     fill  面↔面 ── 上の面の縁に立つ。下の側へ上の面の盛の法を出さない。間が空いていれば下の面を壁の足元まで延ばす
+#     back  面↔「辺N〜Mの長屋の背」── 長屋の背から `face` の間数の線。上の面をその線まで内へ引く(clip)
+#     cut   面↔「辺N〜Mの切りの法」── 面の縁に立ち、切りの法を受ける。上は `above` の勾配の土羽
+#     sode  「法(X↔Y)の端」↔面 ── X と Y の間の法が下の面に突き当たる所。天端は段違い・落差が `stop` 未満で止める
+#     toe   「面の…法尻」↔「辺N(端)…」── 当家の囲いの内面の線。盛の法をここで受ける(足元の外へ盛を出さない)
+#   ⛔ 解けない本・部分は推し量らず (名, 理由) で返す。
+
+TW_RAY_KEN = 3.0        # 面↔面: 上の面の縁から下の面を探す距離[間](これより離れた縁は向かい合っていない)
+TW_STEP_KEN = 0.25      # 縁を刻む間隔[間]
+TW_BRIDGE_KEN = 2.0     # 同じ本の切れ目(石段の口)をまたいで一本にする上限[間]
+
+
+def tw_relational(d):
+    """関係で書いた土留め(`between` が並び・`a`/`b`/`edgeOf` を持たない)。"""
+    return [w for w in (d.get("terraceWalls") or [])
+            if isinstance(w.get("between"), list) and "a" not in w and not w.get("edgeOf")]
+
+
+def _tw_area(P):
+    return 0.5 * sum(P[i][0] * P[(i + 1) % len(P)][1] - P[(i + 1) % len(P)][0] * P[i][1] for i in range(len(P)))
+
+
+def _tw_ccw(P):
+    P = [tuple(q[:2]) for q in P]
+    return P if _tw_area(P) > 0 else P[::-1]
+
+
+def _tw_near(P, u, v, closed=True):
+    """折れ線(closed なら輪)の最寄り: (距離, 辺番号, t, 点)。"""
+    n = len(P)
+    best = (1e18, 0, 0.0, P[0])
+    for i in range(n if closed else n - 1):
+        a, b = P[i], P[(i + 1) % n]
+        du, dv = b[0] - a[0], b[1] - a[1]
+        L2 = du * du + dv * dv
+        t = 0.0 if L2 < 1e-12 else max(0.0, min(1.0, ((u - a[0]) * du + (v - a[1]) * dv) / L2))
+        q = (a[0] + du * t, a[1] + dv * t)
+        dd = math.hypot(u - q[0], v - q[1])
+        if dd < best[0]:
+            best = (dd, i, t, q)
+    return best
+
+
+def _tw_ray(o, dvec, P, maxd):
+    """o から dvec(単位)へ射た半直線が輪 P の辺に当たる最初の距離。当たらなければ None。"""
+    best = None
+    n = len(P)
+    for i in range(n):
+        a, b = P[i], P[(i + 1) % n]
+        ex, ey = b[0] - a[0], b[1] - a[1]
+        den = dvec[0] * ey - dvec[1] * ex
+        if abs(den) < 1e-12:
+            continue
+        wx, wy = a[0] - o[0], a[1] - o[1]
+        s = (wx * ey - wy * ex) / den
+        t = (wx * dvec[1] - wy * dvec[0]) / den
+        if s >= 0.0 and -1e-9 <= t <= 1.0 + 1e-9 and s <= maxd and (best is None or s < best):
+            best = s
+    return best
+
+
+def _tw_stations(P, step=TW_STEP_KEN):
+    """輪 P(反時計回り)を刻む: [(辺番号, t0, t1, 中点, 外向きの法線)]。"""
+    out = []
+    n = len(P)
+    for i in range(n):
+        a, b = P[i], P[(i + 1) % n]
+        Ln = math.hypot(b[0] - a[0], b[1] - a[1])
+        if Ln < 1e-9:
+            continue
+        k = max(1, int(math.ceil(Ln / step)))
+        nrm = ((b[1] - a[1]) / Ln, -(b[0] - a[0]) / Ln)      # 反時計回りの輪の外向き = 右の法線
+        for j in range(k):
+            t0, t1 = j / float(k), (j + 1) / float(k)
+            tm = (t0 + t1) / 2
+            out.append((i, t0, t1, (a[0] + (b[0] - a[0]) * tm, a[1] + (b[1] - a[1]) * tm), nrm))
+    return out
+
+
+def _tw_runs(P, st, keep):
+    """刻みのうち keep が真の連なりを折れ線にする(輪の継ぎ目をまたぐ)。戻り [[点...]]。"""
+    n = len(st)
+    if not any(keep):
+        return []
+    if all(keep):
+        return [list(P) + [P[0]]]
+    s0 = next(i for i in range(n) if keep[i] and not keep[i - 1])
+    runs, cur = [], None
+    for k in range(n):
+        i = (s0 + k) % n
+        if keep[i]:
+            if cur is None:
+                cur = [i]
+            else:
+                cur.append(i)
+        elif cur is not None:
+            runs.append(cur)
+            cur = None
+    if cur is not None:
+        runs.append(cur)
+    out = []
+    for r in runs:
+        pts = []
+        for idx in r:
+            e, t0, t1 = st[idx][0], st[idx][1], st[idx][2]
+            a, b = P[e], P[(e + 1) % len(P)]
+            p0 = (a[0] + (b[0] - a[0]) * t0, a[1] + (b[1] - a[1]) * t0)
+            p1 = (a[0] + (b[0] - a[0]) * t1, a[1] + (b[1] - a[1]) * t1)
+            if not pts or math.hypot(pts[-1][0] - p0[0], pts[-1][1] - p0[1]) > 1e-9:
+                pts.append(p0)
+            pts.append(p1)
+        out.append(_tw_simplify(pts))
+    return out
+
+
+def _tw_simplify(pts, tol=0.01):
+    """Douglas–Peucker(開いた折れ線)。"""
+    if len(pts) <= 2:
+        return list(pts)
+    a, b = pts[0], pts[-1]
+    dmax, k = -1.0, 0
+    for i in range(1, len(pts) - 1):
+        dd = _tw_near([a, b], pts[i][0], pts[i][1], closed=False)[0]
+        if dd > dmax:
+            dmax, k = dd, i
+    if dmax <= tol:
+        return [a, b]
+    return _tw_simplify(pts[:k + 1], tol)[:-1] + _tw_simplify(pts[k:], tol)
+
+
+def _tw_len(pts):
+    return sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(pts, pts[1:]))
+
+
+def _tw_offset_chain(pts, D):
+    """開いた折れ線を左へ D だけ平行に移す(継ぎ目は留め)。"""
+    nrm = []
+    for a, b in zip(pts, pts[1:]):
+        Ln = math.hypot(b[0] - a[0], b[1] - a[1]) or 1e-9
+        nrm.append((-(b[1] - a[1]) / Ln, (b[0] - a[0]) / Ln))
+    out = []
+    for i, p in enumerate(pts):
+        if i == 0:
+            n = nrm[0]
+            out.append((p[0] + n[0] * D, p[1] + n[1] * D))
+        elif i == len(pts) - 1:
+            n = nrm[-1]
+            out.append((p[0] + n[0] * D, p[1] + n[1] * D))
+        else:
+            n1, n2 = nrm[i - 1], nrm[i]
+            bx, by = n1[0] + n2[0], n1[1] + n2[1]
+            bl = math.hypot(bx, by) or 1e-9
+            c = max(0.2, (bx * n1[0] + by * n1[1]) / bl)
+            out.append((p[0] + bx / bl * D / c, p[1] + by / bl * D / c))
+    return out
+
+
+def tw_rel(line, u, v, reach):
+    """点と土留めの線の関係: (距離[間], 側 +1=上(線の左)/-1=下, 線の内か, 線の頭からの道のり[間])。
+    reach[間] より遠い・線の端の外は (None…)。"""
+    bb = line["_bb"]
+    if u < bb[0] - reach or u > bb[2] + reach or v < bb[1] - reach or v > bb[3] + reach:
+        return None
+    P = line["pts"]
+    dd, i, t, q = _tw_near(P, u, v, closed=False)
+    if dd > reach:
+        return None
+    last = len(P) - 2
+    if (i == 0 and t <= 1e-6) or (i == last and t >= 1 - 1e-6):
+        if dd > 1e-6:
+            return None                                   # 線の端の外 ── 壁は効かない(法は端へ呑ませる)
+    a, b = P[i], P[i + 1]
+    if t <= 1e-6 and i > 0:
+        a0 = P[i - 1]
+        n1 = (-(a[1] - a0[1]), a[0] - a0[0])
+        n2 = (-(b[1] - a[1]), b[0] - a[0])
+        nx, ny = n1[0] / (math.hypot(*n1) or 1) + n2[0] / (math.hypot(*n2) or 1), n1[1] / (math.hypot(*n1) or 1) + n2[1] / (math.hypot(*n2) or 1)
+    elif t >= 1 - 1e-6 and i < last:
+        c = P[i + 2]
+        n1 = (-(b[1] - a[1]), b[0] - a[0])
+        n2 = (-(c[1] - b[1]), c[0] - b[0])
+        nx, ny = n1[0] / (math.hypot(*n1) or 1) + n2[0] / (math.hypot(*n2) or 1), n1[1] / (math.hypot(*n1) or 1) + n2[1] / (math.hypot(*n2) or 1)
+    else:
+        nx, ny = -(b[1] - a[1]), b[0] - a[0]
+    side = 1 if (u - q[0]) * nx + (v - q[1]) * ny >= 0 else -1
+    s = line["_cum"][i] + t * (line["_cum"][i + 1] - line["_cum"][i])
+    return dd, side, True, s
+
+
+def tw_top_at(line, s):
+    """線の頭からの道のり s[間] での天端(頂点ごとの `tops` を内挿。無ければ `top`)。"""
+    ts = line.get("tops")
+    if not ts:
+        return line.get("top")
+    C = line["_cum"]
+    for i in range(len(C) - 1):
+        if C[i] - 1e-9 <= s <= C[i + 1] + 1e-9:
+            if ts[i] is None or ts[i + 1] is None:
+                return ts[i] if ts[i] is not None else ts[i + 1]
+            # 段違いの run(sode)は内挿しない ── 区間の天端は区間の頭の値
+            if line.get("mode") == "sode":
+                return ts[i]
+            f = (s - C[i]) / ((C[i + 1] - C[i]) or 1.0)
+            return ts[i] + (ts[i + 1] - ts[i]) * f
+    return ts[-1]
+
+
+def tw_prep(line):
+    P = line["pts"]
+    line["_bb"] = (min(p[0] for p in P), min(p[1] for p in P), max(p[0] for p in P), max(p[1] for p in P))
+    C = [0.0]
+    for a, b in zip(P, P[1:]):
+        C.append(C[-1] + math.hypot(b[0] - a[0], b[1] - a[1]))
+    line["_cum"] = C
+    return line
+
+
+def _tw_edge_refs(s):
+    """「辺12〜15」「辺24・辺28北端・辺26〜27」→ [(辺番号, 端の限定 or None)]。"""
+    out = []
+    for a, b, q in re.findall(r"辺(\d+)(?:〜(\d+))?(北端|南端|東端|西端)?", s or ""):
+        for e in range(int(a), int(b or a) + 1):
+            out.append((e, q or None))
+    return out
+
+
+def _tw_num(s, pat, default=None):
+    m = re.search(pat, str(s or ""))
+    return float(m.group(1)) if m else default
+
+
+def tw_resolve(d, parcel_uv, nat, in_parcel):
+    """関係で書いた `terraceWalls` を線に解く。`d` は生成器が lib へ渡す写し(段は `poly` を持つ)。
+
+    戻り (lines, bad, polys)。lines は uv[間]の折れ線(上の側が左)と型・天端の行、bad は (名, 理由)、
+    polys は**形を変えた面**の新しい輪 {面の名: [(u,v)...]}(下の面を壁の足元まで延ばす・上の面を内へ引く)。
+    ⛔ `d` の指図の欄は書き換えない(呼び手が自分の写しへ polys を当てる)。"""
+    K = d["const"]["ken"]
+    c = d["const"]
+    T = dict((t["name"], t) for t in d["terraces"])
+    JA = {}
+    for pl in d.get("planes") or []:
+        for tn in pl.get("terraces") or []:
+            JA[pl["name"]] = tn
+    polys = dict((nm, _tw_ccw(t["poly"])) for nm, t in T.items() if t.get("poly"))
+    PU = _tw_ccw(parcel_uv)
+    nP = len(PU)
+    rev = _tw_area([tuple(q) for q in parcel_uv]) < 0      # 区画の辺番号は元の並びで数える
+    runs_on = {}
+    for r in d.get("runs") or []:
+        runs_on.setdefault(r.get("edge"), []).append(r)
+
+    def edge_pts(e):
+        """区画の辺 e の両端(反時計回りの輪での向き)。"""
+        a, b = parcel_uv[e], parcel_uv[(e + 1) % len(parcel_uv)]
+        return ((tuple(b), tuple(a)) if rev else (tuple(a), tuple(b)))
+
+    def tname(tok):
+        h = tok.split()[0] if tok.split() else tok
+        if h in T:
+            return h
+        return JA.get(h)
+
+    def gy(dd, u, v):
+        return graded_y(dd, u, v, nat(u, v), in_parcel)
+
+    lines, bad = [], []
+    ws = tw_relational(d)
+    # 面↔面を先に解く(下の面を延ばす)→ 袖はその延びた面の縁で解く
+    order = sorted(ws, key=lambda w: 0 if all(tname(str(x)) for x in w["between"]) and not any(
+        ("法尻" in str(x) or "法(" in str(x)) for x in w["between"]) else 1)
+    for w in order:
+        nm = w["name"]
+        bt = [str(x) for x in w["between"]]
+        tn = [tname(x) for x in bt]
+        txt = " ".join(bt)
+        hard = w.get("hard")
+        base = {"name": nm, "kind": w.get("kind"), "cert": w.get("cert"), "hard": hard}
+        if "法(" in txt and "の端" in txt:
+            # ---------------- sode
+            m = re.search(r"法\(([^)↔]+)↔([^)]+)\)", txt)
+            X, Y = (JA.get(m.group(1).strip()) or m.group(1).strip(), JA.get(m.group(2).strip()) or m.group(2).strip()) if m else (None, None)
+            lo = next((t for t in tn if t), None)
+            if not m or X not in polys or Y not in polys or lo is None:
+                bad.append((nm, "「法(X↔Y)の端」の X・Y か相手の面が面の名簿に無い: %s" % txt))
+                continue
+            tops = sorted(set(float(x) for x in re.findall(r"\d+\.\d+", str(w.get("top")))), reverse=True)
+            stop = _tw_num(w.get("stop"), r"([\d.]+)", 0.6)
+            if not tops:
+                bad.append((nm, "段違いの天端の値が読めない: %r" % w.get("top")))
+                continue
+            dd = dict(d)
+            dd["terraces"] = [t for t in d["terraces"] if t["name"] != lo]
+            ylo = T[lo]["y"]
+            P = polys[lo]
+            st = _tw_stations(P)
+            keep, ret = [], []
+            others = [n9 for n9 in polys if n9 != lo]
+            for (e, t0, t1, p, n) in st:
+                q = (p[0] + n[0] * 0.3, p[1] + n[1] * 0.3)
+                if not in_parcel(d, q[0], q[1]) or any(_pt_in_ring(polys[o], q[0], q[1]) for o in others):
+                    keep.append(False); ret.append(None); continue
+                cx = _tw_near(polys[X], q[0], q[1])[3]
+                cy = _tw_near(polys[Y], q[0], q[1])[3]
+                ax, ay = cx[0] - q[0], cx[1] - q[1]
+                bx, by = cy[0] - q[0], cy[1] - q[1]
+                cosg = (ax * bx + ay * by) / ((math.hypot(ax, ay) * math.hypot(bx, by)) or 1e-9)
+                if cosg > -0.5:                             # q が X と Y の間(なす角 120° 超)に無い
+                    keep.append(False); ret.append(None); continue
+                g = gy(dd, q[0], q[1])
+                ok = g is not None and g - ylo >= stop
+                keep.append(ok)
+                ret.append(g)
+            parts = _tw_runs(P, st, keep)
+            if not parts:
+                bad.append((nm, "%s の縁で X↔Y の法に面し落差 %.1fm 以上の所が無い" % (lo, stop)))
+                continue
+            for pts in parts:
+                pts = pts[::-1]                              # 上(法の側)を左へ
+                # 刻みごとの天端 = 外(法の側)の地盤以上の最小の段 ⇒ 同じ天端の連なりが一本の run(各 run 一直線)
+                V, TV = [], []
+                for a9, b9 in zip(pts, pts[1:]):
+                    Ln = math.hypot(b9[0] - a9[0], b9[1] - a9[1]) or 1e-9
+                    n9 = ((b9[1] - a9[1]) / Ln, -(b9[0] - a9[0]) / Ln)       # 右 = 下の面(lo)の外 … 上の側は左
+                    n9 = (-n9[0], -n9[1])
+                    k = max(1, int(math.ceil(Ln / TW_STEP_KEN)))
+                    for j in range(k):
+                        f0, f1 = j / float(k), (j + 1) / float(k)
+                        fm = (f0 + f1) / 2
+                        pm = (a9[0] + (b9[0] - a9[0]) * fm, a9[1] + (b9[1] - a9[1]) * fm)
+                        g = gy(dd, pm[0] + n9[0] * 0.3, pm[1] + n9[1] * 0.3)
+                        tp = min([x for x in tops if x >= (g or 0) - 1e-6] or [tops[0]])
+                        p0 = (a9[0] + (b9[0] - a9[0]) * f0, a9[1] + (b9[1] - a9[1]) * f0)
+                        if not V or (j == 0) or TV[-1] != tp:
+                            if V and math.hypot(V[-1][0] - p0[0], V[-1][1] - p0[1]) < 1e-9:
+                                TV[-1] = tp
+                            else:
+                                V.append(p0)
+                                TV.append(tp)
+                V.append(pts[-1])
+                TV.append(TV[-1])
+                # 同じ天端で一直線に並ぶ頂点は畳む
+                V2, T2 = [V[0]], [TV[0]]
+                for i in range(1, len(V) - 1):
+                    a9, b9, c9 = V2[-1], V[i], V[i + 1]
+                    col = abs((b9[0] - a9[0]) * (c9[1] - a9[1]) - (b9[1] - a9[1]) * (c9[0] - a9[0])) < 1e-6
+                    if col and TV[i] == T2[-1]:
+                        continue
+                    V2.append(V[i])
+                    T2.append(TV[i])
+                V2.append(V[-1])
+                T2.append(T2[-1])
+                lines.append(tw_prep(dict(base, mode="sode", hi=None, lo=lo, pts=V2, tops=T2,
+                                          top=None, stop=stop, steps=tops)))
+            continue
+        if any("法尻" in x for x in bt):
+            # ---------------- toe(法尻の土留め): 当家の囲いの内面の線
+            hi = next((t for t in tn if t), None)
+            other = next((x for x, t in zip(bt, tn) if not t), "")
+            refs = _tw_edge_refs(other)
+            if hi is None or not refs:
+                bad.append((nm, "法尻の面か辺が読めない: %s" % txt))
+                continue
+            hspec = re.findall(r"[\d.]+", str(w.get("h")))
+            hmin, hmax = (float(hspec[0]), float(hspec[-1])) if hspec else (None, None)
+            # 辺ごとの内面までの距離[m](当家の run の型から)
+            chains, cur = [], None
+            for e, qual in sorted(refs):
+                rs = runs_on.get(e) or []
+                kinds = set(r.get("kind") for r in rs)
+                if not rs:
+                    bad.append((nm + "(辺%d)" % e, "辺%d に当家の囲い(runs)が無く、法尻の線の位置(内面からの距離)が書かれていない" % e))
+                    cur = None
+                    continue
+                if "Nagaya" in kinds:
+                    Dm = c.get("inubashiri", 0.3) + c.get("nagayaD", 4.35)
+                else:
+                    Dm = c.get("inubashiri", 0.3) + c.get("dobeiT", 1.15)
+                if cur and cur["edges"][-1] == e - 1 and abs(cur["D"] - Dm) < 1e-6 and not qual and not cur["qual"]:
+                    cur["edges"].append(e)
+                else:
+                    cur = {"edges": [e], "D": Dm, "qual": qual}
+                    chains.append(cur)
+            for ch in chains:
+                es = ch["edges"]
+                pts = [edge_pts(es[0])[0]] + [edge_pts(e)[1] for e in es] if not rev else None
+                if rev:
+                    pts = [edge_pts(es[-1])[0]] + [edge_pts(e)[1] for e in reversed(es)]
+                off = _tw_offset_chain(pts, ch["D"] / K)
+                # 法尻の要否: 上の面の盛の法が線の上でまだ地形より高いか
+                Q = polys[hi]
+                bf = c.get("batterFill", 1.5)
+
+                def need(p):
+                    dm = _tw_near(Q, p[0], p[1])[0] * K
+                    qn = _tw_near(Q, p[0], p[1])[3]
+                    yq = gy(d, qn[0] + (qn[0] - p[0]) * 0.02, qn[1] + (qn[1] - p[1]) * 0.02)
+                    if yq is None:
+                        yq = T[hi]["y"]
+                    g0 = _tw_seat_at(parcel_uv, runs_on, es, p, K)       # 足元 = 囲いの座(辺の内側の造成後の地盤)
+                    if g0 is None:
+                        g0 = nat(p[0], p[1])
+                    return (yq - dm / bf) - (g0 if g0 is not None else -1e9), yq - dm / bf
+                # 端の限定(北端など)は、その端から法がまだ届かない所まで
+                dense = []
+                for a, b in zip(off, off[1:]):
+                    Ln = math.hypot(b[0] - a[0], b[1] - a[1])
+                    k = max(1, int(math.ceil(Ln / TW_STEP_KEN)))
+                    for j in range(k + (1 if (a, b) == (off[-2], off[-1]) else 0)):
+                        f = j / float(k)
+                        dense.append((a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f))
+                if ch["qual"]:
+                    ax = {"北端": (1, 0), "南端": (-1, 0), "西端": (0, 1), "東端": (0, -1)}[ch["qual"]]
+                    flip = dense[0][0] * ax[0] + dense[0][1] * ax[1] < dense[-1][0] * ax[0] + dense[-1][1] * ax[1]
+                    if flip:
+                        dense = dense[::-1]
+                    # その端に最も近い「法がまだ届かない」連なり(角の 1 点が届いていても端の連なりとみる ── 辺の前半まで探す)
+                    k0 = next((i for i in range(len(dense) // 2) if need(dense[i])[0] > 0.0), None)
+                    k = k0 if k0 is not None else 0
+                    while k0 is not None and k < len(dense) and need(dense[k])[0] > 0.0:
+                        k += 1
+                    dense = dense[(k0 or 0):] if k0 is not None else dense
+                    k = k - (k0 or 0)
+                    if k < 2:
+                        bad.append((nm + "(辺%d%s)" % (es[0], ch["qual"]),
+                                    "%s の端から盛の法が線の手前で着地する(法尻の土留めが要る所が無い)" % ch["qual"]))
+                        continue
+                    dense = dense[:k]
+                    if flip:                                 # 上(面の側)が左になる向き(区画の内向き)へ戻す
+                        dense = dense[::-1]
+                    off = _tw_simplify(dense)
+                tv = []
+                for p in off:
+                    ex_, _ = need(p)
+                    g0 = _tw_seat_at(parcel_uv, runs_on, es, p, K)
+                    if g0 is None:
+                        g0 = nat(p[0], p[1])
+                    if hmin is None:
+                        h = max(0.0, ex_)
+                    elif hmin == hmax:
+                        h = hmin
+                    else:
+                        h = min(hmax, max(hmin, ex_))
+                    tv.append(round((g0 if g0 is not None else 0.0) + h, 3))
+                lines.append(tw_prep(dict(base, mode="toe", hi=hi, lo=None, pts=off, tops=tv, top=None,
+                                          part="辺" + "〜".join(str(x) for x in ([es[0], es[-1]] if len(es) > 1 else es))
+                                               + (ch["qual"] or ""),
+                                          offsetM=round(ch["D"], 3), hSpec=[hmin, hmax],
+                                          _P=parcel_uv, _runs=runs_on, _es=list(es),
+                                          loFrom="囲いの座(辺の runs[].seat0→seat1)")))
+            continue
+        if sum(1 for t in tn if t) == 2:
+            # ---------------- fill(面↔面)
+            a9, b9 = tn
+            hi, lo = (a9, b9) if T[a9]["y"] >= T[b9]["y"] else (b9, a9)
+            P, Q = polys[hi], polys[lo]
+            st = _tw_stations(P)
+            keep, hits = [], []
+            for (e, t0, t1, p, n) in st:
+                o = (p[0] - n[0] * 0.02, p[1] - n[1] * 0.02)
+                h = _tw_ray(o, n, Q, TW_RAY_KEN + 0.02)
+                keep.append(h is not None)
+                hits.append(None if h is None else (max(0.0, h - 0.02), (o[0] + n[0] * h, o[1] + n[1] * h)))
+            parts = _tw_runs(P, st, keep)
+            if not parts:
+                bad.append((nm, "%s の縁から %.0f間 以内に %s が無い(向かい合っていない)" % (hi, TW_RAY_KEN, lo)))
+                continue
+            # 石段の口でとぎれた同じ本の切れを一本にまたぐ
+            parts = _tw_bridge(parts)
+            gapmax = max((h[0] for h in hits if h), default=0.0)
+            if gapmax > 0.05 and len(parts) == 1:
+                kept = [i for i in range(len(st)) if keep[i]]
+
+                def hit_near(p):
+                    i = min(kept, key=lambda j: math.hypot(st[j][3][0] - p[0], st[j][3][1] - p[1]))
+                    return hits[i][1]
+                newQ = _tw_extend(Q, hit_near(parts[0][0]), hit_near(parts[0][-1]), parts[0])
+                if newQ:
+                    polys[lo] = newQ
+            top = w.get("top") if isinstance(w.get("top"), (int, float)) else T[hi]["y"]
+            sh = _tw_num(w.get("note"), r"肩\s*([\d.]+)\s*間", 0.0)
+            for pts in parts:
+                lines.append(tw_prep(dict(base, mode="fill", hi=hi, lo=lo, pts=pts, top=float(top), tops=None,
+                                          shoulderKen=sh, gapKen=round(gapmax, 3))))
+            continue
+        hi = next((t for t in tn if t), None)
+        other = next((x for x, t in zip(bt, tn) if not t), "")
+        refs = _tw_edge_refs(other)
+        if hi is not None and refs and "の背" in other:
+            # ---------------- back(長屋の背から n 間)
+            es = sorted(e for e, _ in refs)
+            fk = _tw_num(w.get("face"), r"背から\s*([\d.]+)\s*間")
+            if fk is None or any((es[i + 1] - es[i]) != 1 for i in range(len(es) - 1)):
+                bad.append((nm, "長屋の背からの間数(face)が読めないか辺が連なっていない: %r" % w.get("face")))
+                continue
+            Dm = c.get("inubashiri", 0.3) + c.get("nagayaD", 4.35) + fk * K
+            chain = [edge_pts(es[0])[0]] + [edge_pts(e)[1] for e in es] if not rev else \
+                    [edge_pts(es[-1])[0]] + [edge_pts(e)[1] for e in reversed(es)]
+            D = Dm / K
+            P = polys[hi]
+            dense = []
+            for i in range(len(P)):
+                a, b = P[i], P[(i + 1) % len(P)]
+                Ln = math.hypot(b[0] - a[0], b[1] - a[1])
+                k = max(1, int(math.ceil(Ln / 0.2)))
+                for j in range(k):
+                    f = j / float(k)
+                    dense.append((a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f))
+            pushed, moved = [], []
+            for p in dense:
+                dd9, i9, t9, q9 = _tw_near(chain, p[0], p[1], closed=False)
+                if dd9 < D - 1e-6 and 1e-6 < t9 + i9 < len(chain) - 1 - 1e-6:
+                    dx, dy = p[0] - q9[0], p[1] - q9[1]
+                    Ln = math.hypot(dx, dy) or 1e-9
+                    pushed.append((q9[0] + dx / Ln * D, q9[1] + dy / Ln * D))
+                    moved.append(True)
+                    p_m = (D - dd9) * K
+                    moved[-1] = p_m
+                else:
+                    pushed.append(p)
+                    moved.append(False)
+            if not any(m is not False for m in moved):
+                bad.append((nm, "%s の縁はどこも長屋の背から %.1f間 の線より外 ── 引く所が無い" % (hi, fk)))
+                continue
+            # 押した連なり = 壁の線(面の輪の向き = 上の面が左)
+            keep = [m is not False for m in moved]
+            n = len(dense)
+            s0 = next(i for i in range(n) if keep[i] and not keep[i - 1]) if not all(keep) else 0
+            seq = []
+            for k9 in range(n):
+                i = (s0 + k9) % n
+                if keep[i]:
+                    seq.append(i)
+                else:
+                    break
+            line = _tw_simplify([pushed[i] for i in seq], 0.02)
+            polys[hi] = _tw_simplify_ring(pushed)
+            mv = [m for m in moved if m is not False]
+            lines.append(tw_prep(dict(base, mode="back", hi=hi, lo=None, pts=line, top=float(w.get("top") or T[hi]["y"]),
+                                      tops=None, offsetM=round(Dm, 3), movedM=[round(min(mv), 2), round(max(mv), 2)],
+                                      _P=parcel_uv, _runs=runs_on, _es=list(es),
+                                      loFrom="長屋の座(辺%s の runs[].seat)" % "〜".join(str(x) for x in (es[0], es[-1])))))
+            continue
+        if hi is not None and refs and "切り" in other:
+            # ---------------- cut(面の縁に立ち、辺へ向かう切りの法を受ける)
+            es = set(e for e, _ in refs)
+            P = polys[hi]
+            st = _tw_stations(P)
+            keep = []
+            for (e, t0, t1, p, n) in st:
+                h = _tw_ray(p, n, PU, 8.0)
+                if h is None:
+                    keep.append(False); continue
+                q = (p[0] + n[0] * h, p[1] + n[1] * h)
+                ei = _tw_near(PU, q[0], q[1])[1]
+                eo = (nP - 1 - ei - 1) % nP if rev else ei
+                # 受ける切りがある所だけ ── 外の地形が天端に届かない所では壁が両側に立ってしまう
+                g0 = nat(p[0] + n[0] * 0.5, p[1] + n[1] * 0.5)
+                keep.append(eo in es and g0 is not None and isinstance(w.get("top"), (int, float)) and g0 >= w["top"])
+            parts = _tw_runs(P, st, keep)
+            if not parts:
+                bad.append((nm, "%s の縁で辺%s へ向かう所が無い" % (hi, sorted(es))))
+                continue
+            above = _tw_num(w.get("above"), r"1\s*:\s*([\d.]+)", c.get("batterCut", 1.0))
+            top = w.get("top")
+            if not isinstance(top, (int, float)):
+                bad.append((nm, "切りの法の土留めの天端が数でない: %r" % top))
+                continue
+            for pts in _tw_bridge(parts):
+                lines.append(tw_prep(dict(base, mode="cut", hi=None, lo=hi, pts=pts[::-1], top=float(top), tops=None,
+                                          above=above)))
+            continue
+        bad.append((nm, "between の形が読めない: %s" % txt))
+    return lines, bad, polys
+
+
+def _tw_nearest_edge(P, es, p):
+    """区画の辺 es(元の番号)のうち p に最も近い辺と距離[間]。"""
+    best = (None, 1e18)
+    for e in es:
+        a, b = P[e], P[(e + 1) % len(P)]
+        dd = _tw_near([tuple(a), tuple(b)], p[0], p[1], closed=False)[0]
+        if dd < best[1]:
+            best = (e, dd)
+    return best
+
+
+def _tw_seat_at(P, runs_on, es, p, K):
+    """辺 es の囲い(runs)の座を、p に最も近い辺の上の位置で引く(seat0→seat1 を道のりで内挿)。無ければ None。"""
+    e, _ = _tw_nearest_edge(P, es, p)
+    if e is None:
+        return None
+    a, b = P[e], P[(e + 1) % len(P)]
+    _, _, t, _ = _tw_near([tuple(a), tuple(b)], p[0], p[1], closed=False)
+    sm = t * math.hypot(b[0] - a[0], b[1] - a[1]) * K
+    rs = [r for r in runs_on.get(e) or [] if r.get("seat") is not None]
+    if not rs:
+        return None
+    r = min(rs, key=lambda r: 0.0 if r.get("s0", 0) - 1e-6 <= sm <= r.get("s1", 0) + 1e-6
+            else min(abs(sm - r.get("s0", 0)), abs(sm - r.get("s1", 0))))
+    s0, s1 = r.get("s0", 0.0), r.get("s1", 0.0)
+    y0 = r.get("seat0") if r.get("seat0") is not None else r["seat"]
+    y1 = r.get("seat1") if r.get("seat1") is not None else r["seat"]
+    f = 0.0 if s1 - s0 < 1e-9 else max(0.0, min(1.0, (sm - s0) / (s1 - s0)))
+    return float(y0) + (float(y1) - float(y0)) * f
+
+
+def _tw_simplify_ring(P, tol=0.01):
+    if len(P) < 4:
+        return list(P)
+    k = max(range(len(P)), key=lambda i: math.hypot(P[i][0] - P[0][0], P[i][1] - P[0][1]))
+    a = _tw_simplify(P[:k + 1], tol)
+    b = _tw_simplify(P[k:] + [P[0]], tol)
+    return a[:-1] + b[:-1]
+
+
+def _tw_bridge(parts):
+    """同じ本の切れ(石段・坂の口)を TW_BRIDGE_KEN 以内ならまたいで一本にする。"""
+    parts = [list(p) for p in parts]
+    merged = True
+    while merged and len(parts) > 1:
+        merged = False
+        for i in range(len(parts)):
+            for j in range(len(parts)):
+                if i == j:
+                    continue
+                a, b = parts[i][-1], parts[j][0]
+                if math.hypot(a[0] - b[0], a[1] - b[1]) <= TW_BRIDGE_KEN:
+                    parts[i] = parts[i] + parts[j]
+                    del parts[j]
+                    merged = True
+                    break
+            if merged:
+                break
+    return parts
+
+
+def _tw_extend(Q, h_first, h_last, line):
+    """下の面 Q(反時計回り)を、上の面の縁の線 `line`(上の面の輪の向き)まで延ばした輪。
+    h_first / h_last は line の頭 / 尻の刻みから下の面に当たった点。⚠ 一続きの向かい合いだけを扱う。"""
+    n = len(Q)
+
+    def par(p):
+        _, i, t, _ = _tw_near(Q, p[0], p[1])
+        return i + t
+    pa, pb = par(h_first), par(h_last)
+    # 上の縁の順(頭→尻)は下の輪では時計回り ⇒ 下の輪を h_first から反時計回りに h_last まで(向かい合わない側)
+    arc = [tuple(h_first)]
+    k = int(math.floor(pa)) + 1
+    span = (pb - pa) % n
+    while ((k - pa) % n) < span - 1e-9:
+        arc.append(Q[k % n])
+        k += 1
+    arc.append(tuple(h_last))
+    newQ = arc + [tuple(p) for p in reversed(line)]
+    if _tw_area(newQ) <= _tw_area(Q) + 1e-6:
+        return None
+    return newQ
+
+
+def tw_measure(d, lines, nat, in_parcel, step_m=0.5):
+    """解いた線ぶんの天端と高さを、**壁を入れた造成後の地盤**で測る(呼び手は `d["_twLines"]` を入れてから呼ぶ)。
+    行に h=[min,max]・hiDev(上の側の地盤 − 天端 の最悪)・lenM を足す。"""
+    K = d["const"]["ken"]
+    for ln in lines:
+        P = ln["pts"]
+        hs, dev = [], []
+        tot = ln["_cum"][-1]
+        n = max(2, int(tot * K / step_m))
+        eps = min(0.05, tot / 4.0)                         # 線の端そのものは測らない(端の外は壁が効かない側)
+        for k in range(n + 1):
+            s = eps + (tot - 2 * eps) * k / float(n)
+            C = ln["_cum"]
+            i = max(0, min(len(P) - 2, next((j for j in range(len(C) - 1) if C[j + 1] >= s - 1e-9), len(C) - 2)))
+            f = (s - C[i]) / ((C[i + 1] - C[i]) or 1.0)
+            a, b = P[i], P[i + 1]
+            p = (a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f)
+            Ln = math.hypot(b[0] - a[0], b[1] - a[1]) or 1e-9
+            nl = (-(b[1] - a[1]) / Ln, (b[0] - a[0]) / Ln)
+            off = 0.1
+            lo_p = (p[0] - nl[0] * off, p[1] - nl[1] * off)
+            hi_p = (p[0] + nl[0] * off, p[1] + nl[1] * off)
+            if not (in_parcel(d, *lo_p) and in_parcel(d, *hi_p)):
+                continue
+            ylo = graded_y(d, lo_p[0], lo_p[1], nat(*lo_p), in_parcel)
+            yhi = graded_y(d, hi_p[0], hi_p[1], nat(*hi_p), in_parcel)
+            top = tw_top_at(ln, s)
+            if ylo is None or top is None:
+                continue
+            hs.append(top - ylo)
+            if yhi is not None:
+                dev.append(yhi - top)
+        ln["h"] = [round(min(hs), 2), round(max(hs), 2)] if hs else None
+        ln["hiDev"] = [round(min(dev), 2), round(max(dev), 2)] if dev else None
+        ln["lenM"] = round(tot * K, 1)
+    return lines
+
+
+def tw_effect_pre(d, tw, u, v):
+    """壁の肩の摺り付け(`shoulderKen`): 上の面の中で線から肩の幅までは天端へ寄せる。
+    長屋の背の土留め(back)の下の側は、長屋の座(その辺の run の `seat`)まで(長屋の背から壁の足元まで平ら)。
+    該当しなければ None。"""
+    for ln in tw:
+        if ln["mode"] in ("back", "toe") and ln.get("_es"):
+            Dk = ln["offsetM"] / d["const"]["ken"]
+            r = tw_rel(ln, u, v, Dk + 0.5)
+            if r is not None and r[1] < 0:
+                e_, dd_ = _tw_nearest_edge(ln["_P"], ln["_es"], (u, v))
+                if dd_ <= Dk + 1e-6:
+                    sv = _tw_seat_at(ln["_P"], ln["_runs"], ln["_es"], (u, v), d["const"]["ken"])
+                    if sv is not None:
+                        return sv                          # 壁の足元から囲いまで = 囲いの座
+    for ln in tw:
+        sh = ln.get("shoulderKen") or 0.0
+        if sh <= 0 or not ln.get("hi"):
+            continue
+        r = tw_rel(ln, u, v, sh)
+        if r is None or r[1] < 0:
+            continue
+        t = next((x for x in d["terraces"] if x["name"] == ln["hi"]), None)
+        if t is None or not t_contains(t, u, v):
+            continue
+        plane = ramp_y(d, u, v)
+        if plane is None:
+            plane = t["y"]
+        top = tw_top_at(ln, r[3])
+        return top + (plane - top) * min(1.0, r[0] / sh)
+    return None
+
+
+def tw_fill_rule(tw, tname, u, v, reach, y2):
+    """盛の法(面 tname から)に対する壁の効き: None = 法を出さない / 数 = 法の高さ(法尻の段で持ち上げた値)。"""
+    for ln in tw:
+        if ln.get("hi") != tname or ln["mode"] not in ("fill", "back", "toe"):
+            continue
+        r = tw_rel(ln, u, v, reach)
+        if r is None:
+            continue
+        if r[1] < 0:
+            return None                                    # 壁より下の側 ── 壁が受ける
+        if ln["mode"] == "toe":
+            top = tw_top_at(ln, r[3])
+            if top is not None:
+                y2 = max(y2, top)                          # 法は壁の天端へ着く
+    return y2
+
+
+def tw_cut_rule(tw, tname, u, v, reach, K):
+    """切りの法(面 tname から)に対する壁の効き: (法を出すか, 代わりの上限 or None)。"""
+    for ln in tw:
+        if ln.get("lo") != tname or ln["mode"] not in ("cut", "sode"):
+            continue
+        r = tw_rel(ln, u, v, reach)
+        if r is None or r[1] < 0:
+            continue
+        if ln.get("above"):
+            return False, tw_top_at(ln, r[3]) + r[0] * K / ln["above"]
+        return False, None
+    return True, None

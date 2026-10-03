@@ -142,7 +142,7 @@ def main():
     me = (ev.get("session_id") or "")[:12]
     if me:
         msg = ev.get("last_assistant_message") or ""
-        if not re.search(r"【裁定", msg):
+        if False and not re.search(r"【裁定", msg):   # ⛔ 止めない(2026-10-03: 差し戻すと報告が二度見える)
             for f in items:
                 try:
                     c = json.load(open(f, encoding="utf-8"))
@@ -163,7 +163,8 @@ def main():
         sys.exit(0)
     print(json.dumps({"decision": "block",
                       "reason": "⛔ 手仕舞いの前に片付けること(掲示板の作法・docs/session-board.md):\n- "
-                                + "\n- ".join(reasons)}))
+                                + "\n- ".join(reasons)
+                                + "\n⚠ 片付けたら最後は**一行だけ**で終える。先に出した報告・質問は繰り返さない(施主に二重に見える)。"}))
     sys.exit(0)
 
 

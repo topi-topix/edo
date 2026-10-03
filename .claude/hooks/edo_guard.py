@@ -348,7 +348,7 @@ def _main(ev):
         unity_role_gate(ev, ti)
         # 三巡則(計画 B-1)— 検分役を呼ぶ前に、同じ役の fail がユーザー入力なしに 3 回続いていないか。
         st = (ti.get("subagent_type") or "")
-        if st in ("edo-kenzu", "edo-kosho", "edo-niwashi"):
+        if st in ("edo-kenzu", "edo-kosho", "edo-niwashi", "edo-hayashikata"):
             est = _my_estate(sess)
             gate = os.path.join(MAIN_ROOT, "Tools", "Sashizu", "review_gate.py")
             if est and os.path.exists(gate):

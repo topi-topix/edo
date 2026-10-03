@@ -33,9 +33,9 @@ import sys
 HOME = os.path.expanduser("~")
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PROJ = os.path.join(HOME, ".claude", "projects", "-" + REPO.strip("/").replace("/", "-"))
-REVIEWERS = ("edo-kenzu", "edo-kosho", "edo-niwashi")
+REVIEWERS = ("edo-kenzu", "edo-kosho", "edo-niwashi", "edo-hayashikata")
 MECH_WORDS = ("_check", "感度試験", "破壊試験", "母集団", "結線", "関門", "指紋", "台帳")
-ROLE_WORDS = ("検図方", "考証方", "庭方", "指図方", "棟梁", "部材方", "在庫方", "普請検査")
+ROLE_WORDS = ("検図方", "考証方", "庭方", "林方", "指図方", "棟梁", "部材方", "在庫方", "普請検査")
 MARKS = "⭕⛔⭐⚠"
 
 

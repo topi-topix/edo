@@ -201,6 +201,15 @@ def estate_names():
                 names.add(d)
     return sorted(names)
 
+# 林方(植生の役)が見る欄。庭方の `_NIWA_HINTS` と重ねない(EDO-0410)
+_HAYASHI_KEYS = ("planting", "plantRule", "slopeArea", "slopePlanting", "slopeBands", "surface")
+
+
+def _needs_hayashi(d):
+    """林方が要るか — 庭の外の植生か地表の欄が1つでも埋まっていれば要る。"""
+    return any(d.get(k) for k in _HAYASHI_KEYS)
+
+
 # 検分役 → (日本語名, その役が見る範囲のキー, いつ要るか)
 #   keys=None は「指図全体」。required は指図の中身を受け取って True/False を返す
 REVIEWERS = collections.OrderedDict([
@@ -226,15 +235,26 @@ REVIEWERS = collections.OrderedDict([
         #   池・水の系・築山・庭の断面・主視点・中仕切の規則が指紋のキーに入っておらず、
         #   ⛔ **いま壊れている物がちょうどこの穴に落ちた**(指図を書き換えても検分が
         #   「検め直し」にならなかった)。⭕ 庭の意匠が載るキーはすべて入れる。
-        keys=["gardens", "planting", "plantRule", "tenkei",
-              "slopeArea", "slopePlanting", "routes",
+        # ⭐ 2026-10-03 施主裁定(EDO-0410): 庭の外の植生(社叢・斜面の林・屋敷林)と地表の塗り分け
+        #   (`planting` / `plantRule` / `slopeArea` / `slopePlanting` / `slopeBands` / `surface`)は
+        #   林方(edo-hayashikata)の範囲へ移した。庭の中の植栽は `gardens[]` に載るので庭方に残る。
+        keys=["gardens", "tenkei", "routes",
               "sensui", "mizu", "tsukiyama", "gardenSections",
               "viewpoints", "nakajikiriRule"],
         # ⚠ 庭方は**範囲キー**を持つので按分する — `kosho.md` は庭方の範囲外(考証の文章)、
         #   `.py` は庭の検査と図版そのものなので入れる。
         files=("py",),
-        why="庭が庭として成立しているか(主景・見所・園路・作庭の作法・植栽の時代考証)",
+        why="庭が庭として成立しているか(主景・見所・園路・作庭の作法・庭木の時代考証)",
         required=lambda d: _needs_niwashi(d))),
+    ("hayashi", dict(
+        label="林方(edo-hayashikata)",
+        # ⭐ 2026-10-03 施主裁定(EDO-0410)で庭方から分けた。庭の外の樹林(社叢・斜面の林・
+        #   屋敷林・低地の林)と地表の塗り分け。欄は山王の形(planting{bandDef,parts,plantRule,
+        #   clearance,slopeRule,namedTrees}・surface{recipes,zones})。`slopeBands` は社叢の帯の定義。
+        keys=list(_HAYASHI_KEYS),
+        files=("py",),
+        why="庭の外の植生と地表(樹種構成・階層・密度・林縁・斜面の林・地表の塗り分け・典拠と確度)",
+        required=lambda d: _needs_hayashi(d))),
 ])
 
 
@@ -242,7 +262,8 @@ REVIEWERS = collections.OrderedDict([
 #   「庭・植栽・点景のどれかがあれば」だけだと、**庭の実体はあるのに点景しか書いていない
 #   段階の指図**で要求が立たない — 一番検分が要る時期に関門がすり抜ける。
 #   ⭕ 「この敷地に庭があるか」を、書きかけでも拾える手がかりから判断する。
-_NIWA_HINTS = ("gardens", "planting", "plantRule", "tenkei", "slopePlanting", "slopeArea")
+#   ⚠ 2026-10-03(EDO-0410): planting / plantRule / slopePlanting / slopeArea は林方の欄へ移した。
+_NIWA_HINTS = ("gardens", "tenkei", "gardenSections", "sensui", "tsukiyama")
 # 棟・郭・区域の**名前**に現れる、庭の存在を示す語(書きかけでも拾える)
 #   ⛔ 「池」は入れない — 外堀の題「溜**池**堰下流」のような**地名**を拾ってしまう。
 #      庭の池は「泉水」「主庭」など別の語で必ず現れるので、取りこぼしにはならない。

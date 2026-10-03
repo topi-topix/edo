@@ -1551,6 +1551,7 @@ public static class EdoAssets
         /// 材 `Kirishi` / `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
         /// ⚠ H1.50 の a(北東の外の角 N_kado1)は −X の腕の先の小口の 26 面が内を向いていた(隣の直線の駒を ×0.53 に縮めて据えると口が開いて見えた)
         ///   ⇒ 継ぎ目の平面に乗る面を外へ揃えて同じ名で焼き直した(2026-09-27 r16): blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_cap --h=1.5 --v=a
+        /// ⭐ **H4.80**(2026-10-03・EDO-0502 岡部 東の野面の隅 TW_Higashi_Hokuto)は深い型の石割(h + 根入れ &gt; 2.4 のときだけ)・直線の H4.8 と全高で頂点一致。実寸 2.48×5.03×2.46。
         /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- kado [--h=1.5] --render</summary>
         public static string SannoNozuraKado(float h, int i)
         {
@@ -2476,7 +2477,11 @@ public static class EdoAssets
         ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 90 --h 5 --render
         /// **90 × 4.00(出隅)** — 同じ基壇 NE 隅で両脇の直線材(丈 4.0)に揃える版。段は継がない(素の丈)ので
         /// 面の足は内面から 2.40・両腕の切り口は `Castle Wall` の小口と頂点が一致(2026-09-25 実測・EDO-0430)。
-        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 90 --h 4 --render</summary>
+        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 90 --h 4 --render
+        /// **40 / 43 / 37 × 4.00(出隅)** — 岡部の段の土留め TW_Kado_Shumen の折れ(2026-10-03・EDO-0502)。角は算出物 terraceWalls の線から
+        /// 小数のまま焼き(40.219 / 42.504 / 36.693)、名は丸めた度(EdoBuild.PlaceRunCorners が測った角を丸めて引く)。実寸 3.69×4.00×5.08(40)。
+        /// ⚠ 43° と 37° の折れは 0.64m しか離れず、素の腕 2.0 では片方の腕がもう一方の折れを越える(短い腕の組は未焼)。
+        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 40.219 --h 4 --render</summary>
         public static string IshigakiKado(float deg, float h)
         {
             return "Assets/Edo/Models/Kado/Ishigaki_Kado_"

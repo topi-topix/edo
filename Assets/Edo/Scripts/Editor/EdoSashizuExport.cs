@@ -193,6 +193,8 @@ public static class EdoSashizuExport
         var hits = new Dictionary<string, List<string>>();
         foreach (var sname in SECTIONS) hits[sname] = new List<string>();
         Action<string, string> bad = (sec, msg) => { hits[sec].Add(msg); };
+        // ℹ 数えない(欠陥でない)が名指しておく行 ── 期待しない理由を刷る
+        Action<string, string> note = (sec, msg) => { sb.AppendLine("      ℹ " + sec + ": " + msg); };
 
         // ---- 回転間グリッド(EdoMatsudairaDewaBuilder.Frame と同じ式)----
         var g = D(D(doc, "grid"), "shukaku");
@@ -351,11 +353,34 @@ public static class EdoSashizuExport
                     if (km.ContainsKey("fumiishi") && km["fumiishi"] != null)
                         names.Add("Fumiishi_" + Str(km, "name"));
                 }
+                // ⭐ **辺を丸ごと持つ run で、その辺の両端の隅の駒(Kado_P<辺>・Kado_P<辺+1>)が据わっているもの**は、
+                //   隅の腕が辺を覆って run の駒が要らない(岡部の短い辺 2〜6m・隅の腕 ±2〜4m・EDO-0502 第4巡)。
+                //   ⛔ 「一つも無い」と数えない ── 覆えているかは閉じの検査(辺の覆い)が測る。ここでは ℹ で名指すだけ。
+                var absorbed = new HashSet<string>();
+                {
+                    int nV = P != null ? P.Length : 0;
+                    foreach (var o in Get2(doc, "runs"))
+                    {
+                        var r = o as Dictionary<string, object>; if (r == null || !r.ContainsKey("edge") || !r.ContainsKey("s0")) continue;
+                        int e = Convert.ToInt32(r["edge"]); float s0 = Convert.ToSingle(r["s0"]);
+                        if (s0 > 1e-3f || nV < 3) continue;
+                        bool whole = true;
+                        foreach (var o2 in Get2(doc, "runs"))
+                        {
+                            var r2 = o2 as Dictionary<string, object>;
+                            if (r2 != r && r2 != null && r2.ContainsKey("edge") && Convert.ToInt32(r2["edge"]) == e) { whole = false; break; }
+                        }
+                        if (!whole) continue;
+                        string ka = "Kado_P" + e, kb = "Kado_P" + ((e + 1) % nV);
+                        if (have.Contains(ka) && have.Contains(kb)) absorbed.Add(Str(r, "name"));
+                    }
+                }
                 foreach (var nm in names)
                 {
                     if (nm == null) continue;
                     int c = 0;
                     foreach (var h in have) if (h == nm || h.StartsWith(nm + "_")) c++;
+                    if (c == 0 && absorbed.Contains(nm)) { note("外周", "囲い " + nm + " は辺の両端の隅の腕が覆う(run の駒なし・覆いは閉じの検査が測る)"); continue; }
                     if (c == 0) bad("外周", "囲い " + nm + " の部材が実装に一つも無い");
                 }
                 foreach (var h in have)
@@ -404,6 +429,11 @@ public static class EdoSashizuExport
                 //   孤児と数える」ことになり、検査そのものが嘘をつく。
                 var railNames = jn(doc, "rails");
                 if (railNames.Count == 0 && impl != null) railNames = jn(impl, "rails");
+                // ⚠ 算出物の **据え置きの欄**(impl.baked.carried に名がある = 前の指図のまま)は期待しない ── ビルダーは
+                //   据え置きの欄を建てない(岡部 rails: 案1 の指図に法肩の竹垣は無く、天端の垣は terraceWalls.fenceOnTop・EDO-0502)。
+                //   ⛔ 期待すると「建てない」と決めた旧い竹垣 22 本を「一つも無い」と数え続ける。
+                if (railNames.Count > 0 && doc != null && jn(doc, "rails").Count == 0 && impl != null && ImplCarried(impl, "rails"))
+                { note("主郭", "算出物 rails は据え置きの欄(前の指図のまま)── 竹垣 " + railNames.Count + " 本を期待しない"); railNames.Clear(); }
 
                 // ⚠ 屋敷の内部を分ける塀の欄名は邸で違う(松平=nakajikiri / 岡部=kekkai)。
                 //   両方を期待集合に入れる。⛔ 片方しか見ないと、据えた結界が全部「孤児」になる。
@@ -549,6 +579,16 @@ public static class EdoSashizuExport
     { var v = Get(d, k); return v == null ? 0f : System.Convert.ToSingle(v, IC); }
     public static Dictionary<string, object> D(Dictionary<string, object> d, string k)
     { return Get(d, k) as Dictionary<string, object>; }
+    /// <summary>算出物の欄 <paramref name="col"/> が**据え置き**(impl.baked.carried に名がある = 前の指図のまま)か。</summary>
+    static bool ImplCarried(Dictionary<string, object> impl, string col)
+    {
+        var bk = D(impl, "baked"); if (bk == null || !bk.ContainsKey("carried")) return false;
+        var car = bk["carried"];
+        var cd = car as Dictionary<string, object>; if (cd != null) return cd.ContainsKey(col);
+        var cl = car as List<object>; if (cl != null) foreach (var q in cl) if (q as string == col) return true;
+        return false;
+    }
+
     public static List<object> Get2(Dictionary<string, object> d, string k)
     { return Get(d, k) as List<object> ?? new List<object>(); }
     public static float[] A(Dictionary<string, object> d, string k)

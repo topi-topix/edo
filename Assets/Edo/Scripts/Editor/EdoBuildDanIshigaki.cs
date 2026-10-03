@@ -261,4 +261,31 @@ public static partial class EdoBuild
         spread = hi - lo;
         return true;
     }
+
+    /// <summary>**段石の下を同じ段石で接地まで積む**(雁木の積み・2026-10-03 EDO-0502 第4巡 岡部 K_Kuruwa: 石垣の口から下の面へ
+    /// 張り出す石段の段石が下の面から最大 1.49m 浮いた)。硬い: 浮き 0 ── 一番下の駒が地面に触れる(<see cref="Contact"/> ≤ 0)まで積む。
+    /// 触れる所: 積む駒の**上面 = 上の駒の底**(実メッシュの RB で測る・⛔ ピボットで決めない)。位置と向きは上の駒と同じ(xz・yaw)。
+    /// 一番下の駒は地面へ埋まる分だけ根入れ(埋めて隠す)。<paramref name="maxN"/> 段を積んでも届かなければ ⚠ を <paramref name="warn"/> へ。
+    /// 当たる先: 下の面へ張り出す石段(指図 kaidans[] で、足元の面の外まで段が出る物)。全邸の石段の据え(PlaceKaidanAB)が呼べる。
+    /// ⟶ 返す: 積んだ駒の数</summary>
+    public static int StackDownToGround(GameObject top, string path, Transform parent, string name, int maxN, List<string> warn)
+    {
+        if (top == null) return 0;
+        int n = 0; var cur = top; Vector3 at; int cnt;
+        float gap = Contact(cur, out at, out cnt);
+        while (!float.IsNaN(gap) && gap > 0.005f && n < maxN)
+        {
+            var b = RB(cur);
+            var go = Place(path, new Vector3(cur.transform.position.x, b.min.y, cur.transform.position.z), cur.transform.eulerAngles.y,
+                           cur.transform.localScale, parent, name + "_tsumi" + n);
+            if (go == null) break;
+            var nb = RB(go);
+            go.transform.position += new Vector3(b.center.x - nb.center.x, b.min.y - nb.max.y, b.center.z - nb.center.z);
+            n++; cur = go;
+            gap = Contact(cur, out at, out cnt);
+        }
+        if (!float.IsNaN(gap) && gap > 0.005f && warn != null)
+            warn.Add("段石 " + top.name + ": " + maxN + " 段積んでも地面まで " + gap.ToString("F2") + "m 届かない");
+        return n;
+    }
 }

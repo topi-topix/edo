@@ -28,6 +28,8 @@ public static partial class EdoBuild
         public float toeRender = float.PositiveInfinity; public int unfilled;
         /// <summary>路面の節点(締めない)の盛りが描かれて下りる点の区画の線からの最短[m]。路肩が線に近い坂で toeMin を割る ── 芯を寄せる話(呼び手が刷る)。</summary>
         public float toeRoad = float.PositiveInfinity;
+        /// <summary>芯を maxShift まで寄せても toeRoad が割ったので、区画の線の側の路肩の節点を盛らなかった(⚠ 呼び手が刷る)。</summary>
+        public bool roadUnfilled;
         public List<Vector2> curbLine = new List<Vector2>();
         public bool ok;
         public string note;
@@ -71,18 +73,26 @@ public static partial class EdoBuild
             int e = NearestEdge(parcel, pts[i]);
             inward[i] = EdoGeom.InwardNormal(parcel, e);
         }
-        for (float d = 0f; d <= maxShift + 1e-4f; d += 0.25f)
+        // ⭐ 路面の節点の盛りが描かれて区画の線へ下りる点(toeRoad)も硬い法尻に数える(2026-10-03 EDO-0502 第4巡・
+        //   普請検査: R_UraZaka の描かれた法尻 1.15〜1.50m)。① 芯を寄せて toeRoad も満たす最小の寄せを探す
+        //   ② maxShift まで寄せても割るなら、**区画の線の側の路肩の節点の列を盛らない**(縁の根より外は元の地盤 ── 縁の石が路面を受ける)。
+        for (int pass = 0; pass < 2; pass++)
         {
-            var p2 = new Vector2[pts.Length];
-            for (int i = 0; i < pts.Length; i++) p2[i] = (pinned != null && pinned[i]) ? pts[i] : pts[i] + inward[i] * d;
-            var r = GradeSakaOnce(parcel, p2, ys, width, bf, bc, false, curbS0, curbH, toeMin);
-            if (r.toeMin >= toeMin && (float.IsNaN(curbS0) || r.curbToe >= curbToeMin))
+            bool unfillRoad = pass == 1;
+            // ② は寄せ切った芯で(寄せで足りる所は寄せ・足りない所だけ盛らない)
+            for (float d = unfillRoad ? maxShift : 0f; d <= maxShift + 1e-4f; d += 0.25f)
             {
-                r.shift = d; r.pts = p2;
-                if (write) { var w2 = GradeSakaOnce(parcel, p2, ys, width, bf, bc, true, curbS0, curbH, toeMin); w2.shift = d; w2.pts = p2; w2.ok = true; return w2; }
-                r.ok = true; return r;
+                var p2 = new Vector2[pts.Length];
+                for (int i = 0; i < pts.Length; i++) p2[i] = (pinned != null && pinned[i]) ? pts[i] : pts[i] + inward[i] * d;
+                var r = GradeSakaOnce(parcel, p2, ys, width, bf, bc, false, curbS0, curbH, toeMin, unfillRoad);
+                if (r.toeMin >= toeMin && r.toeRoad >= toeMin && (float.IsNaN(curbS0) || r.curbToe >= curbToeMin))
+                {
+                    r.shift = d; r.pts = p2;
+                    if (write) { var w2 = GradeSakaOnce(parcel, p2, ys, width, bf, bc, true, curbS0, curbH, toeMin, unfillRoad); w2.shift = d; w2.pts = p2; w2.ok = true; w2.roadUnfilled = unfillRoad; return w2; }
+                    r.ok = true; r.roadUnfilled = unfillRoad; return r;
+                }
+                res = r; res.shift = d; res.pts = p2;
             }
-            res = r; res.shift = d; res.pts = p2;
         }
         res.ok = false;
         res.note = "芯の途中を " + maxShift.ToString("F2") + "m まで寄せても法尻が区画の線から "
@@ -123,6 +133,11 @@ public static partial class EdoBuild
     /// curbS0 が NaN で curbH &gt; 0 なら、縁なしで均して**法尻が toeMin を割る区画線側の節点の道のりの最小**を res.curbS0 に返す(測るだけ)。</summary>
     static SakaResult GradeSakaOnce(Vector2[] parcel, Vector2[] pts, float[] ys, float width, float bf, float bc, bool write,
                                     float curbS0, float curbH, float toeMin)
+    { return GradeSakaOnce(parcel, pts, ys, width, bf, bc, write, curbS0, curbH, toeMin, false); }
+
+    /// <summary><paramref name="unfillRoad"/> なら、描かれた盛りが区画の線から toeMin を割る**区画の線の側の**路面の節点も盛らない。</summary>
+    static SakaResult GradeSakaOnce(Vector2[] parcel, Vector2[] pts, float[] ys, float width, float bf, float bc, bool write,
+                                    float curbS0, float curbH, float toeMin, bool unfillRoad)
     {
         var res = new SakaResult { toeMin = float.PositiveInfinity };
         bool probeCurb = float.IsNaN(curbS0) && curbH > 0f;
@@ -147,7 +162,7 @@ public static partial class EdoBuild
         var H = td.GetHeights(x0, z0, w, h);
         float half = width * 0.5f, area = cell * cell;
         // 描かれる地表の法尻を守るため、節点ごとの新しい高さを一度ためてから書く(下の「描かれた法尻」の締め)
-        var NW = new float[h, w]; var CUR = new float[h, w]; var ROAD = new bool[h, w];
+        var NW = new float[h, w]; var CUR = new float[h, w]; var ROAD = new bool[h, w]; var LSIDE = new bool[h, w];
         for (int iz = 0; iz < h; iz++) for (int ix = 0; ix < w; ix++) NW[iz, ix] = float.NaN;
         for (int iz = 0; iz < h; iz++)
             for (int ix = 0; ix < w; ix++)
@@ -178,7 +193,7 @@ public static partial class EdoBuild
                 float cur = H[iz, ix] * ts.y + tp.y;
                 // 区画の線の側の路肩か(芯の最寄りの点より区画の線に近い節点)
                 bool lineSide = false;
-                if (useCurb || probeCurb)
+                if (useCurb || probeCurb || unfillRoad)
                 {
                     Vector2 cp = Vector2.zero; float cbd = float.MaxValue;
                     for (int k = 0; k + 1 < pts.Length; k++)
@@ -209,7 +224,7 @@ public static partial class EdoBuild
                     }
                 }
                 else { res.cutMax = Mathf.Max(res.cutMax, cur - nw); res.cutM3 += (cur - nw) * area; }
-                NW[iz, ix] = nw; CUR[iz, ix] = cur; ROAD[iz, ix] = hh <= 0f;
+                NW[iz, ix] = nw; CUR[iz, ix] = cur; ROAD[iz, ix] = hh <= 0f; LSIDE[iz, ix] = lineSide;
             }
         // ⭐ **描かれた法尻**(2026-10-03・EDO-0502 普請検査: 法尻 1.39〜1.49m < 硬い 1.5m)。地表は節点の間を一次で描くので、
         //   盛った節点の盛りは隣の(盛らない)節点まで一升ぶん滑らかに下りる ── 法の線で測った法尻(toeLine)より区画の線へ近く描かれる。
@@ -237,7 +252,7 @@ public static partial class EdoBuild
                             var q = p + new Vector2(dx, dz) * cell * Mathf.Clamp01(tt);
                             worst = Mathf.Min(worst, EdoGeom.PIP(parcel, q) ? DistPolyLine(parcel, q) : 0f);
                         }
-                    if (worst < toeMin && !ROAD[iz, ix]) { NW[iz, ix] = CUR[iz, ix]; changed = true; unfilled++; continue; }
+                    if (worst < toeMin && (!ROAD[iz, ix] || (unfillRoad && LSIDE[iz, ix]))) { NW[iz, ix] = CUR[iz, ix]; changed = true; unfilled++; continue; }
                     if (ROAD[iz, ix]) toeRoad = Mathf.Min(toeRoad, worst); else toeRender = Mathf.Min(toeRender, worst);
                 }
             if (!changed) break;
@@ -300,5 +315,46 @@ public static partial class EdoBuild
             }
         }
         return res;
+    }
+
+    /// <summary>**棟の下の均し**(2026-10-03 EDO-0502 第4巡・岡部の厩と蔵1 が勾配の面の上手へ 0.78m 埋まった)。
+    /// 指図の `yAt`(棟の芯での面の高さ)で足あと <paramref name="foot"/>(呼び手が据えた駒の躯体から測る・世界 xz)の下を平らにし、
+    /// その外は盛土 1:<paramref name="bf"/>・切土 1:<paramref name="bc"/> の法で今の地盤へ擦り付ける。
+    /// ⭐ 2m 格子は節点の間を一次で描く ⇒ 足あとの縁に掛かる升の節点まで平らにしないと縁の下が勾配のまま描かれる ──
+    /// 平らに取るのは足あと + 一升(<c>cell</c>)。硬い: 区画の外の節点は触らない。冪等(今の地盤を法で挟むだけ)。
+    /// 当たる先: 勾配の面(指図 `yFrom`)の上に建つ附属屋(岡部の厩・蔵・米蔵・薪蔵・家臣長屋)── 呼び手が埋まり・浮きを測って渡す。
+    /// ⟶ 返す: 書いた節点の数(切 / 盛の最大は out)</summary>
+    public static int LevelPad(Vector2[] parcel, Vector2[] foot, float y, float bf, float bc, out float cutMax, out float fillMax)
+    {
+        cutMax = 0f; fillMax = 0f;
+        if (foot == null || foot.Length < 3) return 0;
+        var t = T(); var td = t.terrainData;
+        int hres = td.heightmapResolution; Vector3 tp = t.transform.position, ts = td.size;
+        float cell = ts.x / (hres - 1);
+        float reach = cell + 6f * Mathf.Max(bf, bc) + cell;
+        float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
+        foreach (var p in foot) { mnx = Mathf.Min(mnx, p.x); mxx = Mathf.Max(mxx, p.x); mnz = Mathf.Min(mnz, p.y); mxz = Mathf.Max(mxz, p.y); }
+        int x0 = Mathf.Clamp(Mathf.FloorToInt((mnx - reach - tp.x) / cell), 0, hres - 1);
+        int z0 = Mathf.Clamp(Mathf.FloorToInt((mnz - reach - tp.z) / cell), 0, hres - 1);
+        int x1 = Mathf.Clamp(Mathf.CeilToInt((mxx + reach - tp.x) / cell), 0, hres - 1);
+        int z1 = Mathf.Clamp(Mathf.CeilToInt((mxz + reach - tp.z) / cell), 0, hres - 1);
+        int w = x1 - x0 + 1, h = z1 - z0 + 1;
+        var H = td.GetHeights(x0, z0, w, h);
+        int n = 0;
+        for (int iz = 0; iz < h; iz++)
+            for (int ix = 0; ix < w; ix++)
+            {
+                var p = new Vector2(tp.x + (x0 + ix) * cell, tp.z + (z0 + iz) * cell);
+                if (!EdoGeom.PIP(parcel, p)) continue;                  // ⛔ 区画の外は触らない
+                float d = EdoGeom.PIP(foot, p) ? 0f : DistPolyLine(foot, p);
+                float cur = H[iz, ix] * ts.y + tp.y, nw;
+                if (d <= cell) nw = y;
+                else { float hh = d - cell; nw = Mathf.Min(Mathf.Max(cur, y - hh / bf), y + hh / bc); }
+                if (Mathf.Abs(nw - cur) < 1e-4f) continue;
+                if (nw > cur) fillMax = Mathf.Max(fillMax, nw - cur); else cutMax = Mathf.Max(cutMax, cur - nw);
+                H[iz, ix] = (nw - tp.y) / ts.y; n++;
+            }
+        if (n > 0) { td.SetHeightsDelayLOD(x0, z0, H); td.SyncHeightmap(); }
+        return n;
     }
 }

@@ -534,7 +534,8 @@ public static class EdoOkabeYashikiBuilder
                         + res.fillMax.ToString("F2") + "m)/ 切 " + res.cutM3.ToString("F0") + "m³(最大 " + res.cutMax.ToString("F2") + "m)"
                         + (hasToe ? "|法尻と区画の線 " + (float.IsInfinity(res.toeMin) ? "盛り無し" : res.toeMin.ToString("F2") + "m(法の面×地盤の線と**描かれた地表**の短い方 ── 描かれた法尻 " + res.toeRender.ToString("F2") + "m・締めて盛らなかった節点 " + res.unfilled + (res.toeRoad < 1.5f ? "・★ 路面の盛りが描かれて区画の線から " + res.toeRoad.ToString("F2") + "m まで下りる(路肩が線に近い ── 芯の寄せの上限は指図の toeFix)" : "") + "・≥ 1.5 ✔・余裕 "
                         + (res.toeMin - 1.5f).ToString("F2") + "m / 盛った節点の最短 " + res.toeNodeMin.ToString("F2") + "m・格子 " + cell.ToString("F2") + "m)") : "")
-                        + (res.shift > 0f ? "|⚠ 法尻のため芯の途中を内へ " + res.shift.ToString("F2") + "m 寄せた(指図の芯は狙い)" : ""));
+                        + (res.shift > 0f ? "|⚠ 法尻のため芯の途中を内へ " + res.shift.ToString("F2") + "m 寄せた(指図の芯は狙い)" : "")
+                        + (res.roadUnfilled ? "|⚠ 寄せ切っても路面の盛りが線へ下りるので、区画の線の側の路肩の節点を盛らなかった(縁の石が路面を受ける・描かれた路面の盛りの最短 " + res.toeRoad.ToString("F2") + "m)" : ""));
         }
         return sb.ToString();
     }
@@ -1824,7 +1825,10 @@ public static class EdoOkabeYashikiBuilder
         // 出隅(城の石垣)
         {
             var kcs = new List<GameObject>();
-            int kn = EdoBuild.PlaceRunCorners(runEnds, segPieces, EdoAssets.Own.IshigakiKado, EdoBuild.Ground, grp, 0.02f, log, kcs);
+            // 腕の要る長さ(EdoBuild.KadoShortArm): 相手 = 先に据えた隅(43° と 37° の隅は 0.64m しか離れず腕 2.0m が当たる)。
+            //   焼いた短い腕の組が無ければ素の腕のまま ⚠ で要る長さを刷る(焼く一覧の行 ── 部材方へ)
+            Func<float, float, float, float, string> armOf = EdoAssets.Own.IshigakiKado;
+            int kn = EdoBuild.PlaceRunCorners(runEnds, segPieces, EdoAssets.Own.IshigakiKado, EdoBuild.Ground, grp, 0.02f, log, kcs, kcs, armOf);
             castle.AddRange(kcs);
             sb.AppendLine("  城の石垣の出隅: " + kn + " 駒");
         }
@@ -2458,7 +2462,39 @@ public static class EdoOkabeYashikiBuilder
                 EdoBuild.SeatBottom(go2, sy - 0.10f);
                 made++;
             }
-            else if (PlaceBox(grp, nm, path, c, sy, du, dv, yaw, wait)) made++;
+            else if (PlaceBox(grp, nm, path, c, sy, du, dv, yaw, wait))
+            {
+                made++;
+                // 硬い・埋没/浮き 0: 勾配の面(yFrom)の上の棟は、足元を測って食い違えば棟の下を yAt で均す(EdoBuild.LevelPad)
+                var bgo = grp.Find(nm).gameObject;
+                Vector2 fbc; float fbw, fbd;
+                if (Has(s2, "yFrom") && EdoBuild.BodyFootprintLocal(path, out fbc, out fbw, out fbd))
+                {
+                    var tr = bgo.transform; var foot = new Vector2[4];
+                    float[] sx = { -0.5f, 0.5f, 0.5f, -0.5f }, sz = { -0.5f, -0.5f, 0.5f, 0.5f };
+                    float lo = float.MaxValue, hi = float.MinValue;
+                    for (int k = 0; k < 4; k++)
+                    {
+                        var wp = tr.TransformPoint(new Vector3(fbc.x + sx[k] * fbw, 0f, fbc.y + sz[k] * fbd)); foot[k] = new Vector2(wp.x, wp.z);
+                        float g = EdoBuild.Ground(wp.x, wp.z); lo = Mathf.Min(lo, g); hi = Mathf.Max(hi, g);
+                    }
+                    float bot = EdoBuild.RB(bgo).min.y;
+                    if (hi - bot > 0.15f || bot - lo > 0.15f)
+                    {
+                        // 面の高さは地形が決める(規則3): 足あと(四隅+芯)の造成後の地盤の中央値へ棟の底を据え、その高さで均す。
+                        //   指図の yAt と ±0.25m を超えて違えば ⚠(欄の上書きは普請奉行)
+                        var gs = new List<float> { lo, hi };
+                        foreach (var q in foot) gs.Add(EdoBuild.Ground(q.x, q.y));
+                        var cq = (foot[0] + foot[2]) * 0.5f; gs.Add(EdoBuild.Ground(cq.x, cq.y));
+                        gs.RemoveRange(0, 2); gs.Sort(); float med = gs[gs.Count / 2];
+                        bgo.transform.position += new Vector3(0f, med - bot, 0f);
+                        float cm, fm; int nn = EdoBuild.LevelPad(Poly, foot, med, C("batterFill"), C("batterCut"), out cm, out fm);
+                        wait.Add("附属屋 " + nm + ": 足あとの地盤 " + lo.ToString("F2") + "〜" + hi.ToString("F2") + " が棟の底 " + bot.ToString("F2")
+                               + "(指図 yAt)と食い違う ⇒ 底を足元の中央値 " + med.ToString("F2") + " へ据え、棟の下を均した(EdoBuild.LevelPad 節点 " + nn
+                               + "・切 " + cm.ToString("F2") + " / 盛 " + fm.ToString("F2") + "m)" + (Mathf.Abs(med - sy) > 0.25f ? " ⚠ 指図の yAt " + sy.ToString("F2") + " と " + (med - sy).ToString("+0.00;-0.00") + "m(±0.25 を超える ── 欄の上書きは普請奉行)" : ""));
+                    }
+                }
+            }
         }
         var sb = new System.Text.StringBuilder("附属屋: " + made + " 棟据えた");
         if (noAsset > 0) sb.Append(" / " + noAsset + " 棟は部材が引けない");
@@ -2773,7 +2809,7 @@ public static class EdoOkabeYashikiBuilder
         Vector2 side = new Vector2(dir.y, -dir.x);
         float yaw = Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg;
         int across = Mathf.Max(1, Mathf.RoundToInt(wid / 1.98f));
-        int made = 0, riser = 0; float x = 0f;
+        int made = 0, riser = 0, stacked = 0; float x = 0f;
         System.Action<float, float, float, string> lay = delegate(float xs, float len, float top, string tag)
         {
             int nAlong = Mathf.Max(1, Mathf.CeilToInt(len / Mathf.Max(0.3f, tread) - 0.01f));
@@ -2787,6 +2823,8 @@ public static class EdoOkabeYashikiBuilder
                     var bb = EdoBuild.RB(go);   // 段石の上面 = 踏面(触れる面)
                     go.transform.position += new Vector3(c.x - bb.center.x, top - bb.max.y, c.y - bb.center.z);
                     made++;
+                    // 硬い・浮き 0: 下の面へ張り出す段は、段石の下を同じ段石で接地まで積む(EdoBuild.StackDownToGround・EDO-0502 第4巡)
+                    stacked += EdoBuild.StackDownToGround(go, EdoAssets.Own.DanishiStep, grp, go.name, 12, wait);
                 }
         };
         for (int fi = 0; fi < fl.Count; fi++)
@@ -2800,6 +2838,7 @@ public static class EdoOkabeYashikiBuilder
                 else { lay(x, tread, top, riser.ToString()); x += tread; }
             }
         }
+        if (stacked > 0) wait.Add("石段 " + nm + ": 下の面へ張り出す段の下を段石で接地まで積んだ " + stacked + " 個(⚠ 雁木の積み ── 指図に段の下の納めが無い・石垣の口の前の盛土か積みかは普請奉行の確かめ)");
         return made;
     }
 

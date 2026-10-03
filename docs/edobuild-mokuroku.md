@@ -1,6 +1,6 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 577dea639bab -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 db431f2aef0f -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
@@ -124,7 +124,7 @@ EdoBuild — 段の土留め(石垣・野面)を天端の折れ線へ据える(2
 | `EdoBuild.PlaceCrestWall(w, groundAt, parent, endsOut, segOut, log, worstFloat, buriedSkip)` | `List<GameObject>` | 硬・柔 地面・天端・面・隅 | 段の土留めを天端の折れ線へ据える(城の石垣・野面の乱積み)。 ⟶ 返す: 据えた駒 | OkabeYashiki(Stage2b_Dan) |
 | `EdoBuild.PlaceCrestFence(span, post, nodes, gaps, wallPieces, stones, parent, prefix, worstFloat, posts, note)` | `int` | 硬・柔 駒どうし・天端・床・面 | 天端の垣(四つ目垣・建仁寺垣)を土留めの天端へ据える(EDO-0502)。 ⟶ 返す: 据えた間の数 | OkabeYashiki(PlaceDanKaki) |
 | `EdoBuild.StackDownToGround(top, path, parent, name, maxN, warn, drawnAt=…)` | `int` | 硬 地面 | 段石の下を同じ段石で接地まで積む(雁木の積み・2026-10-03 EDO-0502 第4巡 岡部 K_Kuruwa: 石垣の口から下の面へ 張り出す石段の段石が下の面から最大 1.49m 浮いた)。 ⟶ 返す: 積んだ駒の数 | OkabeYashiki(PlaceKaidanAB) |
-| `EdoBuild.ArcOf(nodes, q)` | `Vector2` |  | 折れ線 nodes の上の点 q の道のり s と、線からの符号付きの離れ t(左手 = 正)。 | OkabeYashiki(ProfSNodes) |
+| `EdoBuild.ArcOf(nodes, q)` | `Vector2` |  | 折れ線 nodes の上の点 q の道のり s と、線からの符号付きの離れ t(左手 = 正)。 | OkabeYashiki(ProfSNodes・RampPatchedDesign) |
 | `EdoBuild.ArcPoint(nodes, s, dir)` | `Vector2` |  | 折れ線の道のり s の点(世界 xz)と、その区間の向き。 | OkabeYashiki(ProfSNodes・Stage2b_Dan) |
 | `EdoBuild.GapFromPieces(nodes, gap, pieces, band, note)` | `Vector2` | 硬 面 | 土留めの口の端を、口を通る石段の実面で決める(EDO-0502 第8巡)。 | OkabeYashiki(Stage2b_Dan) |
 | `EdoBuild.GapReturnLine(p, axis, inward, crest, groundAt, maxLen, len)` | `List<Vector2>` | 硬 天端・床・面 | 口の端の返し(EDO-0502 第8巡・スキル unity-modular-stonewall の小口の作法)。 ⟶ 返す: 天端の前の縁の折れ線(2 点) | OkabeYashiki(Stage2b_Dan) |
@@ -714,12 +714,12 @@ EdoBuild — 造成(平場を採る)。2026-09-27・EDO-0477 P1(山王 Stage1_Gr
 
 | 関数 | 返す | 札 | 何をするか(注釈の一文目) | 呼んでいる所 |
 |---|---|---|---|---|
-| `EdoGeom.PIP(poly, p)` | `bool` |  | point-in-polygon (偶奇則)。 | OkabeYashiki(GradeQA・ImplQA・PaintSplat…), SannoSha(InUngradedParcel・Nozura・OnFumotomichi…), DoiBuilder.Niwa(EditNiwaHeights・InWater・PondOverlapsCell…), Typology(Edges・Inner・Inspect…), Doi(GradeQA・ParcelOutQA・PointInPoly…) ほか10 |
-| `EdoGeom.SignedArea(poly)` | `float` |  | 符号付き面積。CCW で正。 | OkabeYashiki(SkinGround・TerracePolyAt), TypologyBuilder.Jisha(JishaOmoya), TypologyBuilder.Keidai(NiwaKeidai) |
+| `EdoGeom.PIP(poly, p)` | `bool` |  | point-in-polygon (偶奇則)。 | OkabeYashiki(GradeQA・ImplQA・KiriEnd…), SannoSha(InUngradedParcel・Nozura・OnFumotomichi…), DoiBuilder.Niwa(EditNiwaHeights・InWater・PondOverlapsCell…), Typology(Edges・Inner・Inspect…), Doi(GradeQA・ParcelOutQA・PointInPoly…) ほか10 |
+| `EdoGeom.SignedArea(poly)` | `float` |  | 符号付き面積。CCW で正。 | OkabeYashiki(ProfSNodes・SkinGround・TerracePolyAt), TypologyBuilder.Jisha(JishaOmoya), TypologyBuilder.Keidai(NiwaKeidai) |
 | `EdoGeom.InwardNormal(poly, i)` | `Vector2` |  | 辺 i (poly[i]→poly[i+1]) の、多角形の内側を向く単位法線。 | GotenTypoTest(Build), OkabeYashiki(OutNormal), Typology(Outward), TypologyBuilder.Jisha(JishaOmoya) |
 | `EdoGeom.DistToEdge(p, a, b)` | `float` | 区域 | 点 p から線分 ab への最短距離。 ⚠ 長さ0の線分では NaN を返してはいけない。 | SannoSha(KeepClearOfFlushWalls・OnFumotomichi・Stage4_Kakoi), TypologyBuilder.Niwa(NiwaChisen・NiwaTsubo), OkabeYashiki(Stage2_Perimeter), Typology(FrontEdge), TypologyBuilder.Jisha(JishaOmoya) ほか1 |
 | `EdoGeom.LineIntersect(p0, d0, p1, d1, fallback)` | `Vector2` |  | 点 p から多角形の外周(全辺)への最短距離。 | — |
-| `EdoGeom.DistToPolyEdge(poly, p)` | `float` |  | ⚠ 注釈なし | Typology(Candidates・Inner・Inspect…), OkabeYashiki(PlaceCurb・Stage2_Perimeter・Stage2b_Dan…), TypologyBuilder.Jisha(JInside・JMinEdge・JishaOmoya), TypologyBuilder.Niwa(NiwaChisen・NiwaUra), Doi(GradeQA) ほか4 |
+| `EdoGeom.DistToPolyEdge(poly, p)` | `float` |  | ⚠ 注釈なし | Typology(Candidates・Inner・Inspect…), OkabeYashiki(KiriEnd・PlaceCurb・RampPatchedDesign…), TypologyBuilder.Jisha(JInside・JMinEdge・JishaOmoya), TypologyBuilder.Niwa(NiwaChisen・NiwaUra), Doi(GradeQA) ほか4 |
 | `EdoGeom.HullXZ(pts)` | `int[]` | 区域 | 点集合の凸包の頂点インデックス(反時計回り・共線点は落とす)。 | PartSpec(Measure), Typology(BuildParcel), TypologyBuilder.Katte(Katte) |
 
 ## EdoParcels.cs

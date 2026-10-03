@@ -311,7 +311,7 @@
 | `Own.IshigakiKado(deg, h, armNegZ, armPosX)` | 関数 | 腕の短い石垣の隅(IshigakiKado と同じ留め継ぎ・同じ据え: position = 両腕の控えの線の交点 P・y = 天端 − h / yaw = 入りの run の駒の yaw / scale = 1)。 | BuildKado(KadoArm), OkabeYashiki(Stage2b_Dan), SannoSha(Stage3_Dodome) |
 | `Own.IshigakiKado2(deg1, deg2, mid, h, armNegZ, armPosX)` | 関数 | 二重折れの石垣の隅(`Castle Wall` の留め継ぎを二つ一体に)。 | BuildKado(PlaceRunKado), OkabeYashiki(Stage2b_Dan) |
 | `Own.IshigakiChoku(h)` | 関数 | 丈違いの城の石垣の直線の駒(`JC.CastleWall` 1 枚・走り 2.00 を丈 h m へ下へ継いだ物)。 | BuildDanIshigaki(CastleWallOfExpose) |
-| `Own.DobeiKiri(deg, faceLonger)` | 関数 | 端を隣の辺の線で斜めに切った練塀の駒(`DobeiRun` の組 = `s_hei_center` 表裏2枚を実寸で 1 枚分・走り 2.990)。 | OkabeYashiki(KiriEnd・MiterOf) |
+| `Own.DobeiKiri(deg, faceLonger, cutAtMinusX=…)` | 関数 | 端を隣の辺の線で斜めに切った練塀の駒(`DobeiRun` の組 = `s_hei_center` 表裏2枚を実寸で 1 枚分・走り 2.990)。 | OkabeYashiki(KiriEnd・MiterOf) |
 | `Own.NagayaKado(deg, armNegZ, armPosX, tsuma)` | 関数 | 出隅の隅長屋(L 字の長屋の角・EDO-0500 2026-10-01 観理院 北東の施主指摘 ── 妻を突っ込む納めは屋根が重なり窓が途中で切れた)。 | BuildRun(NagayaKadoPlace) |
 | `Own.NagayaTsuma2(len)` | 関数 | 両端とも妻で閉じた一棟の長屋(真っ直ぐ・折らない)。 | BuildRun(OutsideParcel・SwapTsuma2) |
 | `Own.NagayaKado90(armNegZ, armPosX)` | 関数 | NagayaKado の 90°・妻なし(`Nagaya_Kado_90_A&lt;negZ&gt;x&lt;posX&gt;`)。 | BuildRun(KadoAt) |

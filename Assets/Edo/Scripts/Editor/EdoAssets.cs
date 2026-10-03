@@ -2572,11 +2572,18 @@ public static class EdoAssets
         /// 据え: position = 犬走りへ寄せた後の外面の線と隣の辺の線の交点 / yaw = 外向き法線の方位 / scale = 1 / 底 = DobeiRun と同じ座。
         /// 残りの run は直角の端(X = −2.990)から DobeiRun で継ぐ。札(fence)= PartSpecs/同名.json。材 `s_heimap` ⇒ `Edo/共通/隅部材のマテリアルをremap`。
         /// **849_L**: 岡部 SE_Hei の始め(頂点 0・隣は辺41)/ **255_L**: S_Hei_21 の終わり(頂点 25・隣は辺25)。
-        ///   blender --background --python Tools/Blender/build_dobei_kiri.py -- &lt;deg&gt; [--S] --render</summary>
-        public static string DobeiKiri(float deg, bool faceLonger)
+        ///   blender --background --python Tools/Blender/build_dobei_kiri.py -- &lt;deg&gt; [--S] --render
+        /// <paramref name="cutAtMinusX"/> = **逆手**(切る端を −X・走りは +X へ・直角の端は X = +2.990)。外から見て角が右(走りの始め)なら逆手。
+        ///   綴り `R`(L の逆手)/ `SR`(S の逆手)。素を鏡にせず組を −x 側へ置いて切るので巻きは裏返らない(EDO-0502 buzai6)。
+        /// **849_R**: 岡部 SE_Hei の始め(頂点 0・隣は辺41・95° の角)── 849_L は手が逆で区画の外へ 3.07 出た。
+        ///   blender --background --python Tools/Blender/build_dobei_kiri.py -- 84.89 --R --render
+        /// **716_L**: 岡部 N_Hei_35 の終わり(頂点 39)を表門の門長屋 N39_0 の妻で切る。角 = 90 − (辺39 の方位 − 辺38 の方位) = 90 − 18.392。
+        ///   blender --background --python Tools/Blender/build_dobei_kiri.py -- 71.608 --render</summary>
+        public static string DobeiKiri(float deg, bool faceLonger, bool cutAtMinusX = false)
         {
+            string hand = cutAtMinusX ? (faceLonger ? "R" : "SR") : (faceLonger ? "L" : "S");
             return "Assets/Edo/Models/Kado/Dobei_Kiri_" + UnityEngine.Mathf.RoundToInt(UnityEngine.Mathf.Abs(deg) * 10f).ToString("000")
-                 + "_" + (faceLonger ? "L" : "S") + ".fbx";
+                 + "_" + hand + ".fbx";
         }
 
 

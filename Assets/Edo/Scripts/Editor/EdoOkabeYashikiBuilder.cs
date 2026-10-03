@@ -518,6 +518,28 @@ public static class EdoOkabeYashikiBuilder
         }
         var pts = new Vector2[ss.Count]; var ys = yy.ToArray();
         for (int i = 0; i < ss.Count; i++) { Vector2 d; pts[i] = EdoBuild.ArcPoint(line, ss[i], out d); }
+        // 硬い: 坂の盛りは**平らな面(terraces)を上げない**(EDO-0502 第9巡・普請奉行の指示「坂の足は門の内の面に摺り付け、石垣と石段の前は
+        //   門の内の面の高さを保つ」)。節点へ来る区間(前の節点 → この節点)が平らな面の上を通り、節点がその面より高ければ面の高さへ下げる
+        //   (区間の 10〜90% を 0.5m おきに測る ── 面の縁は石垣の線にあり、節点の 0.5m 手前ではまだ縁の外のことがある)。
+        //   石段は StackDownToGround で面まで積むので、口の石段は面から上る。⛔ 面より低い節点は上げない(切りは坂の設計)。
+        //   当たる先: profS の坂で石段の足が平らな面に落ちる所(岡部 R_OmoteZaka の K_Dan1 の前 17.6→16.5)。
+        if (_flat == null) _flat = FlatFaces(null);
+        for (int i = 1; i < ss.Count; i++)
+        {
+            bool upper = st.Exists(z => Mathf.Abs(ss[i] - z.y) < 1e-3f);   // 石段の上の端の節点は上の面の物
+            if (upper) continue;
+            float fy = float.NaN;
+            float segL = ss[i] - ss[i - 1]; int nS = Mathf.Max(1, Mathf.CeilToInt(segL * 0.8f / 0.5f));
+            for (int m = 0; m <= nS && float.IsNaN(fy); m++)
+            {
+                float sp = ss[i - 1] + segL * (0.1f + 0.8f * m / nS); Vector2 dd; var q = EdoBuild.ArcPoint(line, sp, out dd);
+                float area = float.MaxValue;
+                foreach (var fc in _flat) if (EdoGeom.PIP(fc.poly, q)) { float a = Mathf.Abs(EdoGeom.SignedArea(fc.poly)); if (a < area) { area = a; fy = fc.y; } }
+            }
+            if (float.IsNaN(fy) || ys[i] <= fy + 0.01f) continue;
+            note += "節点 s=" + ss[i].ToString("F2") + " " + ys[i].ToString("F2") + "→面 " + fy.ToString("F2") + " ";
+            ys[i] = fy;
+        }
         return new KeyValuePair<Vector2[], float[]>(pts, ys);
     }
 
@@ -954,23 +976,43 @@ public static class EdoOkabeYashikiBuilder
         int ne = atStart ? (e - 1 + n) % n : (e + 1) % n;
         Vector2 a0 = P[e % n], dir = (P[(e + 1) % n] - a0).normalized, outw = OutNormal(e);
         Vector2 nb0 = P[ne], nbd = (P[(ne + 1) % n] - nb0).normalized;
-        float ang = Vector2.Angle(dir, nbd); float deg = Mathf.Min(ang, 180f - ang);
+        // ⭐ 隣の辺の角の側に長屋が据わっていれば、切る線は隣の辺の線でなく**長屋の実測の妻面**(辺に直角・_nagayaSpan = 据えた躯体の実端)
+        //   (EDO-0502 第9巡 buzai6 716_L ── N_Hei_35 の終わりは表門の門長屋 N39_0 の妻で切る)
+        //   どちらで切るかは**走りが正面から当たる方**(走りとなす角が直角に近い方)── 浅い折れ(辺38→39・18°)は妻へ、
+        //   深い角(辺0→41・95°)は隣の辺の線へ当たる(長屋の妻は練塀の走りとほぼ平行で当たらない)。
+        string cutBy = "隣の辺の線";
+        System.Func<Vector2, float> degOf = v => { float a1 = Vector2.Angle(dir, v); return Mathf.Min(a1, 180f - a1); };
+        foreach (var nr in Runs)
+        {
+            if (!nr.Nagaya || nr.edge != ne || !_nagayaSpan.ContainsKey(nr.name)) continue;
+            var span = _nagayaSpan[nr.name]; Vector2 gd = OutNormal(ne);
+            bool hit = (!atStart && nr.s0 < 0.30f) || (atStart && nr.s1 > EdgeLen(ne) - 0.30f);
+            if (!hit || degOf(gd) <= degOf(nbd)) continue;
+            nb0 = EdgePt(ne, atStart ? span.y : span.x); nbd = gd; cutBy = "長屋 " + nr.name + " の妻面"; break;
+        }
+        float deg = degOf(nbd);
         if (deg < 1f || deg > 89.5f) return none;
-        string path = EdoAssets.Own.DobeiKiri(deg, true);
-        if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null) return none;
-        var spc = EdoPartSpec.Get(path); if (spc == null || spc.foot == null || spc.foot.Count == 0) return none;
-        float sq = 0f; foreach (var q in spc.foot) sq = Mathf.Min(sq, q.x);   // 直角の端(局所 x・負)
-        // 外面の線 F(t) = a0 − outw·INUBASHIRI + dir·t と隣の辺の線の交点
+        // 外面の線 F(t) = a0 − outw·INUBASHIRI + dir·t と切る線の交点
         Vector2 f0 = a0 - outw * INUBASHIRI;
         float det = dir.x * (-nbd.y) - dir.y * (-nbd.x); if (Mathf.Abs(det) < 1e-5f) return none;
         Vector2 rhs = nb0 - f0; float t = (rhs.x * (-nbd.y) - rhs.y * (-nbd.x)) / det;
         Vector2 X = f0 + dir * t;
-        // 局所 +X(= (cosψ, −sinψ)・ψ = 外向きの方位)が角の側を向くか
+        // 局所 +X(= (cosψ, −sinψ)・ψ = 外向きの方位)が角の側を向けば素手(L)、逆なら逆手(R ── 切る端は −X)
         float psi = Mathf.Atan2(outw.x, outw.y);   // ラジアン
         Vector2 lx = new Vector2(Mathf.Cos(psi), -Mathf.Sin(psi)); Vector2 toward = atStart ? -dir : dir;
-        if (Vector2.Dot(lx, toward) < 0.5f) { _kiriNotes.Add(r.name + (atStart ? " の始め" : " の終わり") + ": " + System.IO.Path.GetFileNameWithoutExtension(path) + " は局所 +X が角の側を向かない(手が逆)── 据えない"); return none; }
+        bool rev = Vector2.Dot(lx, toward) < 0f;
+        if (Mathf.Abs(Vector2.Dot(lx, toward)) < 0.5f) return none;
+        string path = EdoAssets.Own.DobeiKiri(deg, true, rev);
+        string tag = r.name + (atStart ? " の始め" : " の終わり") + ": " + System.IO.Path.GetFileNameWithoutExtension(path);
+        if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null) { _kiriNotes.Add(tag + " は焼いていない ── 直角の端のまま"); return none; }
+        var spc = EdoPartSpec.Get(path); if (spc == null || spc.foot == null || spc.foot.Count == 0) { _kiriNotes.Add(tag + " の札が無い ── 据えない"); return none; }
+        // 硬い(区域): 切る線との交点が区画の外なら、口の原因は切る線の側(長屋の妻の位置)── 据えずに報告
+        if (!EdoGeom.PIP(P, X) && EdoGeom.DistToPolyEdge(P, X) > 0.005f)
+        { _kiriNotes.Add(tag + ": 外面の線と" + cutBy + "の交点が区画の線より " + EdoGeom.DistToPolyEdge(P, X).ToString("F3") + "m 外 ── 据えない(口の原因は" + cutBy + "の位置)"); return none; }
+        float d = 0f; foreach (var q in spc.foot) d = Mathf.Max(d, Mathf.Abs(q.x));   // 直角の端までの走り(局所 x・素手は負・逆手は正)
         float sx = Vector2.Dot(X - a0, dir);
-        sEnd = atStart ? sx - sq : sx + sq;
+        sEnd = atStart ? sx + d : sx - d;
+        _kiriNotes.Add(tag + "(" + (rev ? "逆手" : "素手") + "・角 " + deg.ToString("F2") + "°・切る線 = " + cutBy + ")");
         return new KeyValuePair<string, Vector3>(path, new Vector3(X.x, r.SeatAt(sEnd), X.y));
     }
 
@@ -2228,6 +2270,18 @@ public static class EdoOkabeYashikiBuilder
                 var q = new Vector2(org.x + ti.position.x * td.size.x, org.z + ti.position.z * td.size.z);
                 if (EdoGeom.PIP(P, q)) plant.Add(q);
             }
+            // ⭐ 柵(Stage2 が地形に据えた木柵 Fences)の足元の升にも穴を開けない(EDO-0502 第9巡): 柵は皮より先に地形で据わる ──
+            //   穴を開けると皮が設計の地盤(段の上の面 11.0)を描き、西の木柵 F_Hori_0 の端に地形より 2.3m 高い土の楔が立った。
+            //   柵の駒の外接の芯と走りの両端(地表の点)を渡す。当たる先: 皮を起こす邸で、皮より先に地形へ据わる柵・杭(岡部 F_Hori)。
+            var fences = root == null ? null : root.transform.Find("Fences");
+            if (fences != null)
+                foreach (Transform fc in fences)
+                {
+                    if (!fc.gameObject.activeInHierarchy) continue;
+                    var fb = EdoBuild.RB(fc.gameObject); if (fb.size == Vector3.zero) continue;
+                    foreach (var q in new[] { new Vector2(fb.center.x, fb.center.z), new Vector2(fb.min.x, fb.min.z), new Vector2(fb.max.x, fb.max.z) })
+                        if (EdoGeom.PIP(P, q)) plant.Add(q);
+                }
         }
         var rep = EdoBuild.CutEdgeSkin("Okabe", grp, parts, faces, tol, design: design, backfill: 0f, sealFace: true,
                                        crestBandParts: band, plantPoints: plant);

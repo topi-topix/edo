@@ -10,6 +10,7 @@
 - [30秒を超える execute_code は6回走る](akasaka-open-resent-six-times.md) — 赤坂・作業場を開く・重い計測。menu の赤坂へ戻すも6回開く・計測は割ってファイルへ
 - [execute_code の replay は履歴の番号](execute-code-replay-index-is-history.md) — index=0 で前の Stage が再び走った。⛔replay せず送り直す
 - [長い Stage は印のファイルで再送を止める・狙いだけの Converge は2巡](long-run-guard-and-soft-only-converge.md) — delayCall は発火せず。active scene を先に聞く
+- [隅部材の remap の menu は Kado 89 本を再 import して何巡も回る](remap-menu-reimports-all-kado.md) — 新しい FBX が少なければ1本ずつ remap
 
 - [古い port 登録で「instances なし」が一回おき](pitfall-bridge-drops-after-domain-reload.md) — 6400→6401 退避 + 別プロジェクトの残骸。待たずに再送
 - [start --unity が通っても claim が付いていないことがある](pitfall-unity-claim-not-verified.md) — status で「資源: unity」を見るまで MCP を叩かない
@@ -111,6 +112,7 @@
 - [長屋は全幅で並べると躯体が開く・御殿は縁の下に当たり無し・棟門は札で・描かれた法尻](nagaya-body-vs-gable-and-rendered-toe.md) — FitBodyToSpan/PlaceGamae/toeRender
 - [石垣の足元の盛りは2m格子の描き・造成では消えない](wall-toe-mound-is-grid-not-grading.md) — 足〜背 2.15m < 格子。縁の皮が要る
 - [皮を足す邸は土留めを皮の地表で据える](wall-seat-on-skin-ground-not-grid.md) — 格子の盛りに載せたまま削ると 0.5m 浮く。岡部 3b は約5分
+- [見付を天端の縁の 0.3m 前で測ると法の駒の下を読む](expose-measured-under-batter.md) — 丈不足で浮き、皮が歯形へ盛り土の歯。足元の出の前で測る
 - [端を切った練塀の駒は片方の端にしか合わない](dobei-kiri-hand-and-radian.md) — 849_L は SE_Hei の始めで手が逆。Atan2 はラジアン
 - [相手の無い端の口は区画の線の楔](free-run-end-at-oblique-parcel-corner.md) — 岡部 辺0/辺24。伸ばすと区域侵犯・斜めの小口の部材
 - [壁の口から張り出す石段は浮く・yAt が地盤と違う](stair-out-of-wall-and-yat-mismatch.md) — StackDownToGround・LevelPad で中央値へ
@@ -157,3 +159,4 @@
 - [落とした後の Stage9 は空の皮を焼く](unity-kill-leaves-holes-without-skin.md) — 穴は地形・皮はシーン。null の皮には最新の資産を差してから流す
 - [線の上の基壇・柵は区画外に出る](line-sitting-pieces-pivot-out.md) — float 0.25mm・端の控え・芯置き。材 null の一体駒は屋根を躯体と数える
 - [隅の腕は短辺を越えて区画外へ出る](kado-arm-overruns-short-edge.md) — 岡部 P2〜P4 が 0.7〜1.3m 外。閉じの検査は見ない・駒の頂点を PIP
+- [旧案の一括削除は分類器が止める](bulk-delete-denied-by-auto-mode.md) — 施主の指示でも役経由は不可。一覧まで出して施主の許可を仰ぐ

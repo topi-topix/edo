@@ -153,16 +153,37 @@ public static partial class EdoBuild
                     string path = w.pathOfH(expose);
                     if (path == null) continue;
                     float psi = Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg - (w.runAlongX ? 90f : 0f);
-                    var go = Place(path, new Vector3(mid.x, crest, mid.y), psi, Vector3.one, parent, w.name + "_" + q + "_" + ci + "_" + i.ToString("00"));
+                    GameObject go = null; float bot = 0f;
+                    // ⭐ 見付は**見え面の足元の前**の地表で測り直す(2026-10-04 EDO-0502 第9巡): 上の 3 点は天端の前の縁から 0.3m ── 法の駒
+                    //   (城の石垣 1:0.25)では足元が天端の縁より 1m 前にあり、0.3m は駒の下(法の途中の設計の地盤)を測って見付を 0.5m 少なく読み、
+                    //   丈 4.0 の駒が足元の面から 0.5m 浮いた(TW_Kado_Shumen の口の脇・皮が底の石の歯形へ盛り上がって土の歯が並んだ)。
+                    //   据えた駒の実メッシュで足元の出(見え面の側へ天端の縁から最も出る量)を測り、その 0.3m 前の地表で丈を選び直す(1 回)。
+                    for (int attempt = 0; attempt < 2; attempt++)
+                    {
+                        go = Place(path, new Vector3(mid.x, crest, mid.y), psi, Vector3.one, parent, w.name + "_" + q + "_" + ci + "_" + i.ToString("00"));
+                        if (go == null) break;
+                        // 見え面を低い側へ・天端の前の縁を線へ(実メッシュ)
+                        FaceWallToLine(go, lowN, a);
+                        // 走りの端を区間の割りの端へ(実メッシュの射影)
+                        var vs = Body(go.transform, 999999);
+                        float mn = float.MaxValue, top = float.MinValue, foot = 0f; bot = float.MaxValue;
+                        foreach (var v in vs) { var p2 = new Vector2(v.x, v.z) - a; float s = Vector2.Dot(p2, dir); mn = Mathf.Min(mn, s); top = Mathf.Max(top, v.y); bot = Mathf.Min(bot, v.y); foot = Mathf.Max(foot, Vector2.Dot(p2, lowN)); }
+                        go.transform.position += new Vector3(dir.x, 0f, dir.y) * (t - mn) + Vector3.up * (crest - top);
+                        bot += crest - top;
+                        if (attempt > 0 || foot <= 0.3f) break;
+                        float g2 = float.MaxValue;
+                        for (int s3 = 0; s3 < 3; s3++)
+                        {
+                            Vector2 p = a + dir * Mathf.Clamp(t + W * (0.1f + 0.4f * s3), c.x, c.y) + lowN * (foot + 0.3f);
+                            float gy = groundAt(p.x, p.y); if (!float.IsNaN(gy)) g2 = Mathf.Min(g2, gy);
+                        }
+                        if (g2 == float.MaxValue || g2 >= gMin - 0.01f) break;
+                        gMin = g2; expose = crest - gMin;
+                        string p2n = w.pathOfH(expose);
+                        if (p2n == null || p2n == path) break;
+                        UnityEngine.Object.DestroyImmediate(go); go = null; path = p2n;
+                    }
                     if (go == null) continue;
-                    // 見え面を低い側へ・天端の前の縁を線へ(実メッシュ)
-                    FaceWallToLine(go, lowN, a);
-                    // 走りの端を区間の割りの端へ(実メッシュの射影)
-                    var vs = Body(go.transform, 999999);
-                    float mn = float.MaxValue, top = float.MinValue, bot = float.MaxValue;
-                    foreach (var v in vs) { float s = Vector2.Dot(new Vector2(v.x, v.z) - a, dir); mn = Mathf.Min(mn, s); top = Mathf.Max(top, v.y); bot = Mathf.Min(bot, v.y); }
-                    go.transform.position += new Vector3(dir.x, 0f, dir.y) * (t - mn) + Vector3.up * (crest - top);
-                    bot += crest - top;
                     // 硬い: 全体が地表の下に来る駒は置かない
                     if (CrestAboveGround(go, lowN, groundAt) <= 0f) { UnityEngine.Object.DestroyImmediate(go); buriedSkip++; continue; }
                     float fl = gMin == float.MaxValue ? 0f : bot - gMin;

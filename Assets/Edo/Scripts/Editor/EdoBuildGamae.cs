@@ -162,6 +162,52 @@ public static partial class EdoBuild
         return a + d * best;
     }
 
+    /// <summary>平場の連なりを測る高さの幅[m](±)= 棟の系統差の許し(CLAUDE.md 規則3)と同じ。</summary>
+    public const float HIRABA_BAND = 0.25f;
+
+    /// <summary>**門を、奥の自然の平場の真ん中の前に置く**(柔らかい: 狙い・2026-10-03 EDO-0514 施主裁定 B「樹下の表門を平場の中央の前へ」)。
+    /// 表の辺(<paramref name="a"/>→<paramref name="b"/>)の上を 0.5m 刻みで動かし、各点から内へ <paramref name="d0"/>〜<paramref name="d0"/>+<paramref name="depth"/>
+    /// (= 前庭の奥・主屋が建つ帯)の造成前の地盤(<see cref="BaseDem"/>)の中央値を採る。その列で、ある高さ ±<see cref="HIRABA_BAND"/> に収まる
+    /// **最も長い連なり**を自然の平場とし、その中央を門の芯にする(主屋は門の軸に建つので、門・袖の塀・主屋が一つの平場に一直線に並ぶ)。
+    /// 辺の両端から <see cref="STATION_END_CLEAR"/>+門の半幅は空ける(硬い)。⭐ 門の幅の中の道の起伏は今までどおり布石が受ける。
+    /// ⛔ 既定の置き方(<see cref="FlattestStation"/>)は変えない ── 類型表の欄 `gate_station: "hiraba"` を書いた区画だけ。
+    /// 当たる先: 欄を書いた区画(今は樹下)。</summary>
+    public static Vector2 HirabaStation(Vector2 a, Vector2 b, Vector2 inward, float half, float d0, float depth, out string note)
+    {
+        var dem = BaseDem(); float L = Vector2.Distance(a, b); var d = (b - a) / Mathf.Max(L, 1e-4f);
+        var cs = new List<float>(); var hs = new List<float>();
+        for (float c = 0f; c <= L + 1e-4f; c += 0.5f)
+        {
+            var v = new List<float>();
+            for (float k = d0; k <= d0 + depth + 1e-4f; k += 1f)
+            {
+                var q = a + d * c + inward * k; float y = dem(q.x, q.y); if (!float.IsNaN(y)) v.Add(y);
+            }
+            if (v.Count == 0) continue;
+            v.Sort(); cs.Add(c); hs.Add(v[v.Count / 2]);
+        }
+        float bestRef = float.NaN, bs0 = L * 0.5f, bs1 = L * 0.5f;
+        foreach (float rf in hs.Select(h => Mathf.Round(h * 10f) / 10f).Distinct())
+        {
+            float s0 = float.NaN, last = float.NaN;
+            for (int i = 0; i <= hs.Count; i++)
+            {
+                bool inb = i < hs.Count && Mathf.Abs(hs[i] - rf) <= HIRABA_BAND;
+                if (inb) { if (float.IsNaN(s0)) s0 = cs[i]; last = cs[i]; }
+                else if (!float.IsNaN(s0))
+                {
+                    if (last - s0 > bs1 - bs0) { bs0 = s0; bs1 = last; bestRef = rf; }
+                    s0 = float.NaN;
+                }
+            }
+        }
+        float c0 = half + STATION_END_CLEAR, c1 = L - half - STATION_END_CLEAR;
+        float mid = Mathf.Clamp((bs0 + bs1) * 0.5f, c0, Mathf.Max(c0, c1));
+        note = float.IsNaN(bestRef) ? "平場の連なりが測れない ── 辺の中央"
+             : string.Format("奥 {0:F1}〜{1:F1}m の自然の平場 {2:F1}m(±{3:F2})が辺の {4:F1}〜{5:F1}m に連なる ── その中央 {6:F1}m に門の芯", d0, d0 + depth, bestRef, HIRABA_BAND, bs0, bs1, mid);
+        return a + d * (float.IsNaN(bestRef) ? L * 0.5f : mid);
+    }
+
     /// <summary>門構えの基壇の布石の浮きの線[m] ── 超えれば布石を敷く。検査の地面の線(±0.01)の半分:
     /// 布石を決める標本(0.25m 刻み)は検査(0.1m 刻み)より粗く、同じ線では 0.010〜0.011m が敷かれずに残った(2026-09-30・4 区画)。</summary>
     public const float KIDAN_FLOAT_TOL = 0.005f;

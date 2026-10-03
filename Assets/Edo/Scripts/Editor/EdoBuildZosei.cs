@@ -38,6 +38,7 @@ public static partial class EdoBuild
             var r = rows[j] as List<object>;
             for (int i = 0; i < nx; i++) H[j, i] = (r == null || i >= r.Count || r[i] == null) ? float.NaN : Convert.ToSingle(r[i]);
         }
+        KindaiFill(H, x0, z0, st, nx, nz);   // ⭐ 近代の造作を除く(EDO-0514)── 正本は現代の地面のまま・読む面だけ江戸へ戻す
         _baseDem = (x, z) =>
         {
             float fi = (x - x0) / st, fj = (z - z0) / st;
@@ -47,6 +48,90 @@ public static partial class EdoBuild
             return Mathf.Lerp(Mathf.Lerp(H[j, i], H[j, i + 1], tx), Mathf.Lerp(H[j + 1, i], H[j + 1, i + 1], tx), tz);
         };
         return _baseDem;
+    }
+
+    /// <summary>近代の造作の範囲(<see cref="EdoAssets.Eg.KindaiSpec"/>)。</summary>
+    public class Kindai { public string id, name; public Vector2[] poly; }
+    static List<Kindai> _kindai;
+    /// <summary>近代の造作を除く帳を読む(無ければ空)。</summary>
+    public static List<Kindai> KindaiList()
+    {
+        if (_kindai != null) return _kindai;
+        _kindai = new List<Kindai>();
+        string path = Path.Combine(Path.GetDirectoryName(Application.dataPath), EdoAssets.Eg.KindaiSpec);
+        if (!File.Exists(path)) return _kindai;
+        var root = EdoMiniJson.Parse(File.ReadAllText(path)) as Dictionary<string, object>;
+        var es = root != null && root.ContainsKey("entries") ? root["entries"] as List<object> : null;
+        if (es == null) return _kindai;
+        foreach (var o in es)
+        {
+            var d = o as Dictionary<string, object>; if (d == null || !d.ContainsKey("poly")) continue;
+            var l = d["poly"] as List<object>; var poly = new Vector2[l.Count];
+            for (int i = 0; i < l.Count; i++) { var q = l[i] as List<object>; poly[i] = new Vector2(Convert.ToSingle(q[0]), Convert.ToSingle(q[1])); }
+            _kindai.Add(new Kindai { id = d.ContainsKey("id") ? d["id"] as string : "?", name = d.ContainsKey("name") ? d["name"] as string : "?", poly = poly });
+        }
+        return _kindai;
+    }
+
+    /// <summary>**近代の造作を除く**(2026-10-03 EDO-0514・施主「道の高まりが本当に元の地形か」)。帳の範囲ごとに、範囲の中の格子節点を
+    /// 範囲の外の節点を境にした調和補間(ラプラス方程式をガウス・ザイデルで解く)へ置き換える ── 台や掘削跡を、周りの地盤から
+    /// いちばん滑らかに繋いだ面にする。冪等(正本だけから出す)。当たる先: BaseDem を読む全て(類型の造成・門の置き場・道の造成・囲いの縁)。</summary>
+    static void KindaiFill(float[,] H, float x0, float z0, float st, int nx, int nz)
+    {
+        foreach (var k in KindaiList())
+        {
+            var inner = new List<Vector2Int>();
+            for (int j = 1; j < nz - 1; j++)
+                for (int i = 1; i < nx - 1; i++)
+                    if (EdoGeom.PIP(k.poly, new Vector2(x0 + i * st, z0 + j * st)) && EdoGeom.DistToPolyEdge(k.poly, new Vector2(x0 + i * st, z0 + j * st)) > 1e-3f)
+                        inner.Add(new Vector2Int(i, j));
+            for (int it = 0; it < 4000; it++)
+                foreach (var c in inner)
+                    H[c.y, c.x] = 0.25f * (H[c.y - 1, c.x] + H[c.y + 1, c.x] + H[c.y, c.x - 1] + H[c.y, c.x + 1]);
+        }
+    }
+
+    /// <summary>**区画の外の地形へ、近代の造作を除いた地盤を書く**(区画を建てる前に呼ぶ・冪等)。<paramref name="parcel"/> から
+    /// <paramref name="reach"/> 以内に掛かる帳の範囲について、範囲の中で**どの区画にも入らない**節点(= 道)を <see cref="BaseDem"/> の値へ戻す。
+    /// 区画の中は触らない(類型の造成が毎回 BaseDem から起こす)。指図で造成する道(欄 zosei)の面の中は道の造成に任せて触らない。
+    /// 返りは刷る一行(範囲が無ければ空)。当たる先: 帳に載る範囲に接する全区画(今は樹下)。</summary>
+    public static string ApplyKindaiNear(Vector2[] parcel, float reach = 3f)
+    {
+        var notes = new List<string>();
+        var dem = BaseDem();
+        foreach (var k in KindaiList())
+        {
+            bool near = false;
+            foreach (var p in parcel) if (EdoGeom.PIP(k.poly, p) || EdoGeom.DistToPolyEdge(k.poly, p) <= reach) { near = true; break; }
+            if (!near) foreach (var p in k.poly) if (EdoGeom.PIP(parcel, p)) { near = true; break; }
+            if (!near) continue;
+            var others = EdoParcels.All.Where(q => q.pts.Count >= 3).Select(q => q.pts.ToArray()).ToList();
+            var michi = MichiZosei();
+            var t = T(); var td = t.terrainData; int res = td.heightmapResolution;
+            Vector3 tp = t.transform.position, ts = td.size;
+            float mnx = k.poly.Min(q => q.x), mxx = k.poly.Max(q => q.x), mnz = k.poly.Min(q => q.y), mxz = k.poly.Max(q => q.y);
+            int i0 = Mathf.Clamp(Mathf.FloorToInt((mnx - tp.x) / ts.x * (res - 1)), 0, res - 1);
+            int i1 = Mathf.Clamp(Mathf.CeilToInt((mxx - tp.x) / ts.x * (res - 1)), 0, res - 1);
+            int j0 = Mathf.Clamp(Mathf.FloorToInt((mnz - tp.z) / ts.z * (res - 1)), 0, res - 1);
+            int j1 = Mathf.Clamp(Mathf.CeilToInt((mxz - tp.z) / ts.z * (res - 1)), 0, res - 1);
+            int w = i1 - i0 + 1, h = j1 - j0 + 1;
+            var Hh = td.GetHeights(i0, j0, w, h);
+            int written = 0; float maxDown = 0f;
+            for (int j = 0; j < h; j++)
+                for (int i = 0; i < w; i++)
+                {
+                    var q = NodeXZ(tp, ts, res, i0 + i, j0 + j);
+                    if (!EdoGeom.PIP(k.poly, q)) continue;
+                    if (others.Any(o => EdoGeom.PIP(o, q))) continue;
+                    if (michi.Any(m => EdoGeom.PIP(m.area, q))) continue;
+                    float y = dem(q.x, q.y); if (float.IsNaN(y)) continue;
+                    float cur = tp.y + Hh[j, i] * ts.y; maxDown = Mathf.Max(maxDown, cur - y);
+                    Hh[j, i] = Mathf.Clamp01((y - tp.y) / ts.y); written++;
+                }
+            td.SetHeightsDelayLOD(i0, j0, Hh); td.SyncHeightmap();
+            notes.Add(string.Format("近代の造作を除いた {0}: 区画の外の節点 {1} を造成前の江戸の地盤へ(最大 {2:F2}m 下げた)", k.name, written, maxDown));
+        }
+        return string.Join(" / ", notes);
     }
 
     /// <summary>平場の結果(棟ごと)。</summary>

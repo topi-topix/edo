@@ -16,7 +16,12 @@
 `cd` した直後の数コマンドは worktree で動いても、次のターンで `pwd` を取るとメインに戻っている
 ——これは Claude Code のシェルの仕様で、当プロジェクトの門番では直せない。
 
-`edo_session.py` は `EDO_SESSION_ID`(環境変数)が無いとき、**その時点の cwd** から身元を
+⭕ **2026-10-03 から身元は自動で決まる。** Claude Code は Bash の環境に `CLAUDE_CODE_SESSION_ID`
+(フックの session_id と同じ UUID)を置くので、`edo_session.py` / `edo_board.py` は
+`EDO_SESSION_ID` が無ければそれを使う。以下の `--session` を付ける作法は、その変数が無い古い
+クライアントや、自動タスクなど Claude Code の外から叩くときだけの物。
+
+(旧)`edo_session.py` は `EDO_SESSION_ID`(環境変数)が無いとき、**その時点の cwd** から身元を
 推測する。**フック(`edo_guard.py`)は自分自身の照会にしか `EDO_SESSION_ID` を渡さず、
 Bash が実際に実行するコマンドの環境には注入しない。** つまり明示しない限り、cwd がメインへ
 戻った瞬間に**別のセッションの claim へなりすます**か、該当する claim が無ければ**新しい

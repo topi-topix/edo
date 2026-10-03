@@ -103,6 +103,12 @@ def check_options(opts):
     """選択肢が A/B/C の記号付きで2つ以上あるか。戻り値: 理由(str) or None"""
     if len(opts) < 2:
         return "選択肢が %d 個しかない(2つ以上)" % len(opts)
+    # ⭕ 'A ' 'A)' 'A.' 'A：' も記号付きと読み、'A: ' へ揃える(狙いは「1=A」で返せること・書式で弾かない。
+    #   2026-10-03 実測: 'A 使用人の長屋…' の形で 3 件が断られていた)
+    for i, o in enumerate(opts):
+        m = re.match(r"\s*([A-Z])(?:\s*[:：.．)）]\s*|\s+)(?=\S)", o)
+        if m:
+            opts[i] = "%s: %s" % (m.group(1), o[m.end():])
     bad = [o for o in opts if not re.match(r"\s*[A-Z]\s*[:：]", o)]
     if bad:
         return "記号が無い選択肢がある(先頭を 'A: ' 'B: ' にする): %r" % bad[0][:40]
@@ -287,8 +293,8 @@ def cmd_post(a):
             print("⛔ task の owner は 1 邸だけ(%s)。邸ごとに分けて起票する — 相乗りの task は"
                   "片方が済んでも閉じられない(実例 EDO-0099/0102/0111)。" % ", ".join(owners), file=sys.stderr)
             return 1
-        if not owners and a.estate not in ("cross", "infra"):
-            a.owner = a.estate
+        if not owners and a.estate != "cross":
+            a.owner = a.estate          # infra の task は infra が担う(既存の →infra と同じ)
         elif not owners:
             print("⛔ cross の task には --owner <邸> が要る(担い手の無い宿題は誰も拾わない。"
                   "生存 142 件の 85% が owner 空だった)。誰の担当でもないなら lesson か info に。", file=sys.stderr)
@@ -735,7 +741,7 @@ def main():
         kata="直しが入った規則・仕組みの場所(パス#節 / クラス.関数)。task/blocker を done にするとき必須",
         hirogari="その型が他のどの部材・邸・段に当たるか(規則21)。--kata と組で必須",
         tanpatsu="本当に一回きりの直しなら、規則・仕組みへ入れない理由(--kata の代わり)")
-    p = sub.add_parser("note", help="log へ1行追記(--status で状態遷移も)")
+    p = sub.add_parser("note", aliases=["comment", "log"], help="log へ1行追記(--status で状態遷移も)")
     p.add_argument("id"); p.add_argument("msg")
     p.add_argument("--status", choices=STATUSES)
     p.add_argument("--kata", default="", help=KATA_HELP["kata"])

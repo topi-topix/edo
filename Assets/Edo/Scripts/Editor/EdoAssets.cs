@@ -2061,7 +2061,8 @@ public static class EdoAssets
         /// (指図 `nishi.obi.nokiOut` と実測一致)、妻 ±X に 0.37m。
         /// 7.5×2.5間の実寸 14.375(X) × 4.300(Y) × 6.537(Z)、**棟天端 4.300**
         /// (指図 `roofs.ObiNagaya.ridgeH` と一致)、軒桁 2.700。
-        /// 生成: blender --background --python Tools/Blender/build_obi_nagaya.py -- nagaya --ken 7.5 2.5</summary>
+        /// 6×2間(樹下邸の使用人の長屋・EDO-0532)の実寸 11.648(X) × 4.052(Y) × 5.628(Z)、棟天端 4.052・軒桁 2.700・軒の出 長手 0.900 / 妻 0.37、2戸割。
+        /// 生成: blender --background --python Tools/Blender/build_obi_nagaya.py -- nagaya --ken 7.5 2.5(6×2間は --ken 6 2)</summary>
         public static string ObiNagaya(float wKen, float dKen)
         {
             return NagayaDir + "Obi_Nagaya_" + wKen.ToString("0.##") + "x"
@@ -3338,6 +3339,17 @@ public static class EdoAssets
         /// ピボット = 底面中央。variant 1 個体のみ。</para>
         /// 生成: blender --background --python Tools/Blender/build_hiraishi.py -- Ishibashi --render</summary>
         public static string Ishibashi() { return NiwaDir + "Ishibashi_Kiri_1.fbx"; }
+
+        /// <summary>**菜園の畝(うね)1本・1間**(樹下邸の菜園・EDO-0532)。在庫に畝・畑の駒が無いので新造。
+        /// 実寸 1.818(X・長手) × 0.189(Y・天端の起伏込み) × 0.600(Z・底幅)。断面は底幅 0.60・天端幅 0.35・
+        /// 高さ 0.18 のかまぼこ、表面に ±0.02 の土塊の起伏。ピボット = **底面の中心・地盤レベル**。
+        /// ⭐ **X へ 1.818 ピッチで継いで並べる駒** — 両端 0.10m で幅を 0.05 絞り高さを 6% 落とし、起伏も端で 0 に
+        /// するので、どの駒の小口も同じ断面で継ぎ目に段がつかない(継ぎ目は浅い括れに見える)。
+        /// 材は FJG の `M_FJG_Terrain_Ground_Soil_01`(地形の L_dirt と同じ肌・UV 1.0 = 8m)の茶の矩形 —
+        /// remap は `Edo/岡部筑前守上屋敷/新造部材のマテリアルをremap`(借り先 FJG/Materials・対象 `Models/Niwa`)。
+        /// ⛔ Village Kit の `Paving` は灰色のコンクリートの丸太に見えた(2026-10-03)。作物は載せない。
+        /// 生成: blender --background --python Tools/Blender/build_hatake_une.py -- --render</summary>
+        public const string HatakeUne = NiwaDir + "Hatake_Une_1ken.fbx";
 
         /// <summary>刈込の生垣モジュール(ツゲ・マサキの見立て・1 間 × 1.90m × 0.80m、葉カード・材 M_FJG_Plant_Boxwood_01_Spring・LOD1)。
         /// <c>end</c> は小口が葉で閉じた端部(⭐ Unity の局所 **+X が葉で閉じた小口・−X が突き付け面** ── Blender では逆。2026-09-29 頂点で実測・EDO-0472)。ピボットは 1 間の中心・床レベル、前後対称。

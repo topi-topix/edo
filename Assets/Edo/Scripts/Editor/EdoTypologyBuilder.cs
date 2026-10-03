@@ -84,6 +84,9 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         // 門の置き場(EDO-0514 施主裁定 B 2026-10-03)。null = 既定(道がいちばん平らな所 FlattestStation)/
         //    "hiraba" = 奥の自然の平場の真ん中の前(EdoBuild.HirabaStation)。⛔ 座標は書かない ── 決め方の名だけ。
         public string gateStation;
+        // 低い平場の使い方(EDO-0532 施主裁定A 2026-10-03)。null = 何も足さない / "katte" = 勝手まわり ── 主の平場より一段低い
+        //    平場に使用人の長屋と薪小屋・その前に菜園・段は崩さず段石で降りる(EdoTypologyBuilder.Katte.cs)。⛔ 座標は書かない。
+        public string lowTerrace;
         public Dictionary<string, object> raw;
         public bool Hand { get { return built == "hand"; } }
     }
@@ -197,7 +200,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 tacchu = I(d, "tacchu", 0), tokinokane = Bo(d, "tokinokane", false),
                 maeniwaKen = I(d, "maeniwa_ken", 0), muneZu = Bo(d, "mune_zu", false),
                 kyakuden = Bo(d, "kyakuden", false), gomado = Bo(d, "gomado", false), kodachi = Bo(d, "kodachi", false),
-                gateStation = S(d, "gate_station"),
+                gateStation = S(d, "gate_station"), lowTerrace = S(d, "low_terrace"),
             };
             var hall = IA(d, "main_hall_ken");
             if (hall != null && hall.Length >= 2) { s.hallW = hall[0]; s.hallD = hall[1]; }
@@ -231,7 +234,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
     }
 
     /// <summary>辺ごとに「道に面するか、隣の区画と共有か」を実際の区画の形から決める。
-    /// 共有辺は id の辞書順で小さい方が持つ(決定的。建てる順に依らない)。</summary>
+    /// 共有辺は id の辞書順で小さい方が持つ(決定的。建てる順に依らない)。町屋と屋敷の辺は屋敷が持つ(EDO-0531)。</summary>
     public static List<Edge> Edges(string id)
     {
         var poly = EdoParcels.Get(id);
@@ -257,13 +260,31 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 e.kind = EdgeKind.Shared; e.neighbour = who;
                 // 決定的な持ち主: id の辞書順で小さい方。⛔ ただし**入れ子**(明地の中の干場・矢場)は別 —
                 //   内側の区画が自分の囲いを持たないと、拝借地が柵なしで明地に溶ける。
+                //   入れ子 = この辺のすぐ内側(自分の区画の中)が隣の区画にも入る。⛔ 頂点の平均では見ない ──
+                //   細長く曲がった区画は平均が自分の外(隣の中)に落ち、ただの隣を入れ子と取って両方が囲った
+                //   (2026-10-03 EDO-0527: 門前町1×樹下の境に板塀と練塀が二重)。
                 var nb = EdoParcels.Find(who);
-                bool nested = nb != null && EdoGeom.PIP(nb.Poly, Centroid(poly));
-                e.mine = nested || string.CompareOrdinal(id, who) < 0;
+                var inner = e.mid - e.outward * PROBE;
+                bool nested = nb != null && EdoGeom.PIP(poly, inner) && EdoGeom.PIP(nb.Poly, inner);
+                // 町屋と屋敷(武家・寺社)が背中合わせの辺は屋敷が持つ(施主裁定A 2026-10-03 EDO-0531)──
+                //   屋敷は外周を自分の塀で回す。町屋の板塀の裏を屋敷の内へ見せない。名の順はその外の時だけ。
+                int rank = MachiyaYashikiRank(EdoParcels.Find(id), nb);
+                e.mine = nested || (rank != 0 ? rank > 0 : string.CompareOrdinal(id, who) < 0);
             }
             outp.Add(e);
         }
         return outp;
+    }
+
+    /// <summary>町屋と屋敷(武家・寺社)が接する辺だけ: 自分が屋敷なら +1・町屋なら -1。それ以外の組(屋敷どうし・
+    /// 公有地との辺ほか)は 0 を返し、持ち主は名の順に任せる(EDO-0531)。</summary>
+    static int MachiyaYashikiRank(EdoParcels.Parcel me, EdoParcels.Parcel nb)
+    {
+        if (me == null || nb == null) return 0;
+        bool meY = me.category == "buke" || me.category == "jisha", nbY = nb.category == "buke" || nb.category == "jisha";
+        if (meY && nb.category == "machiya") return 1;
+        if (nbY && me.category == "machiya") return -1;
+        return 0;
     }
 
     static readonly string[] DIR_NAME = { "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
@@ -937,6 +958,9 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
             }
         }
 
+        // ── Stage 4k: 勝手まわり(表の low_terrace=katte・EDO-0532)── 造成の後の地表に菜園の畝と段石を据える(EdoTypologyBuilder.Katte.cs)
+        { var kl = Katte(s, root, poly); if (kl != null) log.Add(kl); }
+
         // ── Stage 5: 植栽(EDO-0323)── ⭐ 参道の帯は**Stage 1 で実測した門構えの開口**から引く
         //    (⛔ 当て推量の GateWidth ではない)。庭の意匠は庭方の設計・EdoTypologyBuilder.Niwa.cs。
         log.Add(Niwa(s, root, poly, front, pad, passageC, gateHalf));   // 参道の起点は通り口の芯(EDO-0491)
@@ -1558,7 +1582,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 //    (2026-09-22 todablock。EDO-0323 の指摘)。全区画を精密に測ると 79 区画が終わらないので、
                 //    ここだけ。測り直した値が本当の値 — 間引きの値で ⛔ を出さない(規則19)。
                 bool kidanPiece = (grp.name == "Mon" || grp.name == "Kiso") && t.name.Contains("_kidan_");       // 門構えの基壇の布石(根入れ)
-                bool rooted = grp.name == "Kakoi" || grp.name == "Niwa" || grp.name == "Ishigaki" || grp.name == "Michi" || kidanPiece;   // 石垣は根入れ 0.22 と見付の余りを地中へ   // 根入れで据える物(埋没を数えない)
+                bool rooted = grp.name == "Kakoi" || grp.name == "Niwa" || grp.name == "Katte" || grp.name == "Ishigaki" || grp.name == "Michi" || kidanPiece;   // 石垣は根入れ 0.22 と見付の余りを地中へ   // 根入れで据える物(埋没を数えない)
                 if ((!rooted && dy < -GROUND_TOL) || dy > GROUND_TOL)
                     dy = EdoBuild.Contact(t.gameObject, out at, out nc, 0.01f, 60000);
                 // ⭐ 棟(御殿の複合を除く)は**下端の全部**を測る(§0a)── Contact(上の測り直しも)は最寄りの 1 点なので、斜面で下手が浮いても 0 を返す。
@@ -1594,7 +1618,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 // ⭐ 庭の**剛体の据え物**(井戸・灯籠・献灯・手水鉢・景石・飛石)も下端の全部を測る ── 坂で上手の 1 点が着いて
                 //    下手が浮いても Contact は 0 を返す(2026-09-29 EDO-0472: 十坊 8・9 の井戸が 0.75m 浮いて ⭕ だった)。
                 //    埋まりは根入れなので数えない(浮きだけを採る)。木・下草は根で据える物なので測らない。
-                if (grp.name == "Niwa" && IsSueMono(t.name))
+                if ((grp.name == "Niwa" && IsSueMono(t.name)) || grp.name == "Katte")   // 勝手まわりの畝・段石も剛体の据え物(EDO-0532)
                 {
                     var rt = EdoBuild.RootToBed(t.gameObject, GroundBed, 0.05f);
                     if (!float.IsNaN(rt.hi) && rt.hi > dy) dy = rt.hi;

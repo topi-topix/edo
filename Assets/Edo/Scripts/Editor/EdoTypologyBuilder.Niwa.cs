@@ -396,6 +396,7 @@ public static partial class EdoTypologyBuilder
         var grp = Group("Niwa", root);
         var rnd = new System.Random(EdoBuild.Seed(s.id + ":niwa"));
         var f = new EdoBuild.NiwaField(poly);
+        f.Fields.AddRange(_katteFields);                      // 勝手まわりの菜園・段石(Stage 4k)には木も庭域も入れない(EDO-0532)
 
         // ── 5a 庭の地 — 棟の**軒込み外形**と囲いの**壁体**を実メッシュで撒く(⛔ 外接箱で退けない) ──
         var tate = root.Find("Tatemono");

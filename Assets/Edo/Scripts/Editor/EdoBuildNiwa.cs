@@ -328,6 +328,7 @@ public static partial class EdoBuild
         public List<NiwaKoma> Komas = new List<NiwaKoma>();
         public List<Vector2> Cells = new List<Vector2>();   // 庭域の格子点(2m)
         public List<Vector2[]> Voids = new List<Vector2[]>();  // 池代地(木を置かない空地)
+        public List<Vector2[]> Fields = new List<Vector2[]>(); // 菜園・段石(庭域にせず木も下草も入れない ── EDO-0532)
         public float Cell = 2f;
 
         // 参道の帯(白洲)— ⛔ ここに木・石・刈込・灯籠を置かない(§5-0 c)
@@ -405,6 +406,13 @@ public static partial class EdoBuild
             return false;
         }
 
+        /// <summary>菜園・段石の外形の中か、縁から <paramref name="m"/> 以内か。</summary>
+        public bool InField(Vector2 p, float m)
+        {
+            for (int i = 0; i < Fields.Count; i++) if (EdoGeom.PIP(Fields[i], p) || EdoGeom.DistToPolyEdge(Fields[i], p) < m) return true;
+            return false;
+        }
+
         public bool InVoid(Vector2 p)
         {
             for (int i = 0; i < Voids.Count; i++) if (EdoGeom.PIP(Voids[i], p)) return true;
@@ -430,6 +438,7 @@ public static partial class EdoBuild
                     if (EdoGeom.DistToPolyEdge(Poly, p) < inset) continue;
                     if (Eaves.Dist(p, 1.2f) < 1.0f) continue;
                     if (InSando(p, 0f)) continue;
+                    if (InField(p, 1.0f)) continue;
                     Cells.Add(p);
                 }
         }
@@ -447,6 +456,7 @@ public static partial class EdoBuild
             else if (EdoGeom.DistToPolyEdge(Poly, p) < r * o.EdgeK) return false;
             if (InSando(p, r)) return false;
             if (!voidOk && InVoid(p)) return false;
+            if (InField(p, 0.5f)) return false;                                                // 菜園・段石(幹の芯で)
             if (o.ClearWall > 0f && Walls.Dist(p, o.ClearWall) < o.ClearWall) return false;   // 幹の芯で
             float ce = r + o.PadEave;
             if (Eaves.Dist(p, ce) < ce) return false;                                          // 樹冠の外接円で

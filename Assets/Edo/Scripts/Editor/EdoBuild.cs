@@ -283,6 +283,22 @@ public static partial class EdoBuild
         _hullXZCache[m] = keep;
         return keep;
     }
+    /// <summary>駒の壁体(屋根の名を除く)の全頂点のうち、最低点から <paramref name="bandH"/> までの物。</summary>
+    static List<Vector3> LowBandPoints(Transform tr, float bandH)
+    {
+        var all = new List<Vector3>(); float minY = float.MaxValue;
+        foreach (var mf in tr.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            var rr = mf.GetComponent<Renderer>(); if (rr == null || !rr.enabled || !mf.gameObject.activeInHierarchy) continue;
+            if (IsRoofName(PartName(tr, mf))) continue;
+            var l2w = mf.transform.localToWorldMatrix; var vs = mf.sharedMesh.vertices;
+            for (int i = 0; i < vs.Length; i++) { var w = l2w.MultiplyPoint3x4(vs[i]); all.Add(w); if (w.y < minY) minY = w.y; }
+        }
+        var L = new List<Vector3>();
+        foreach (var w in all) if (w.y <= minY + bandH) L.Add(w);
+        return L;
+    }
     static List<Vector3> EdgeCandidates(Transform tr)
     {
         var L = new List<Vector3>();
@@ -789,13 +805,16 @@ public static partial class EdoBuild
     /// ⭐ 駒ごとに引くと、奥行の違う駒(潜り戸の柱 0.17 と柵の板 0.055)の芯が列の中で食い違う ── 列で一つの量にする。
     /// ⛔ 走りに沿って引く <see cref="KeepInsidePoly"/>(重ねて並べる駒の端)とは別物。ピボットを線に置いた駒の
     ///   外側の半分を内へ入れる道具(EDO-0502 岡部の汀の木柵: 板 0.055・潜り 0.170 外)。</summary>
+    /// <para><paramref name="bandH"/> &gt; 0 なら、各駒の壁体の最低点から bandH までの**全頂点**で測る(腰で測る・
+    /// 軒は区画の線を越えてよい ── 施主裁定A 2026-09-21)。一体で焼いた長屋・門は屋根を材で分けられないので、
+    /// 凸包(<see cref="EdgeCandidates"/>)では軒の先の点に隠れて腰の出っ張りを見落とす(EDO-0502 岡部の表門 0.051m)。</para>
     public static float InsetRunToPoly(IList<GameObject> run, Vector2[] poly, Vector2 inward, float maxPush,
-                                       out float before, float step = 0.005f, float tol = 0f)
+                                       out float before, float step = 0.005f, float tol = 0f, float bandH = 0f)
     {
         before = 0f;
         if (run == null || run.Count == 0 || poly == null) return 0f;
         var pts = new List<Vector3>();
-        foreach (var go in run) if (go != null) pts.AddRange(EdgeCandidates(go.transform));
+        foreach (var go in run) if (go != null) pts.AddRange(bandH > 0f ? LowBandPoints(go.transform, bandH) : EdgeCandidates(go.transform));
         before = OutsideBy(pts, poly, Vector2.zero);
         if (before <= tol) return 0f;
         inward = inward.normalized;

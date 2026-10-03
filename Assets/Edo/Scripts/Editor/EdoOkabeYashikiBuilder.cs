@@ -714,6 +714,28 @@ public static class EdoOkabeYashikiBuilder
             }
         }
 
+        // 硬い・区域(許容0・EDO-0502): 表長屋と表門は**一組のまま**(面を揃えたまま)、腰(1.2m)より下で
+        //   一番外へ出ている実頂点が区画の線に収まるまで列ごと内へ寄せる(表門の腰の出が 0.051m 越えていた)。
+        //   ⛔ 門だけ寄せない(長屋と面がずれる)。軒は越えてよいので腰で測る。走りの s は変わらない(_nagayaSpan はそのまま)。
+        {
+            var byEdge = new Dictionary<int, List<GameObject>>();
+            foreach (Transform c in kak)
+            {
+                int ed = -1;
+                foreach (var r in Runs) if (r.Nagaya && r.name == c.name) ed = r.edge;
+                if (c.name == "Omotemon") { var g2 = O(Get(D, "gate")); if (g2 != null) ed = (int)F(g2["edge"]); }
+                if (ed < 0) continue;
+                List<GameObject> l; if (!byEdge.TryGetValue(ed, out l)) byEdge[ed] = l = new List<GameObject>(); l.Add(c.gameObject);
+            }
+            foreach (var kv in byEdge)
+            {
+                float was;
+                float d = EdoBuild.InsetRunToPoly(kv.Value, Poly, -OutNormal(kv.Key), 0.50f, out was, 0.01f, SEAM_TOL, 1.2f);
+                if (float.IsNaN(d)) wait.Add("表長屋・表門 辺" + kv.Key + ": 0.50m 寄せても腰が区画の外(" + was.ToString("F3") + "m)── 据えたまま");
+                else if (d > 0f) sb.Append("(表長屋・表門 " + kv.Value.Count + " 棟を一組で内へ " + d.ToString("F2") + "m ── 腰が " + was.ToString("F3") + "m 出ていた)");
+            }
+        }
+
         // 棟高の突き合わせ(指図 ⇔ **据えた現物**)。⛔ 呼び寸法や doc の数字で比べない
         if (Has(O(D["const"]), "nagayaH") && nagH > 0.1f)
         {

@@ -1,6 +1,6 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 bd51ab8db333 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 f4fd8909a4cf -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
@@ -89,7 +89,7 @@
 | `EdoBuild.SeatOnCrest(go, stones, sink, crest)` | `bool` | 天端 | 駒の底を、その真下の石垣の天端(CrestY)から sink だけ沈めた高さに据える。 | MatsudairaDewa(PlaceKado) |
 | `EdoBuild.FitRunAlongAxis(foot, up, treadS, treadTop, searchHalf, step, accept, devBefore, devAfter)` | `float` | 地面・天端 | 段(石段)の一連を、地表の落ち際へ合わせて走り方向に滑らせる。 | MatsudairaDewa(Stage6_Zosaku) |
 | `EdoBuild.KeepInsidePoly(go, poly, runDir, maxPull, before, step=…, tol=…)` | `float` | 柔 駒どうし・隅・区域 | 壁体を区画の多角形の内へ収める。置いた駒の実メッシュ(屋根を除く)が poly の外へ出ていたら、走り runDir に沿って 最小量だけ引いて収める。 ⟶ 返す: 動かした量[m](+ は runDir 向き・0 = 元から内側) | OkabeYashiki(PlaceFences・PlaceIshigaki), MatsudairaDewa(Stage3_Ishigaki) |
-| `EdoBuild.InsetRunToPoly(run, poly, inward, maxPush, before, step=…, tol=…)` | `float` | 硬 区域 | 硬い(許容0)・区域: 区画線の上に一列で据えた駒(柵・潜り戸など)を、列ごと同じ量だけ inward の向きへ引き、列のどの駒の実メッシュ(EdgeCandidates)も区画の外へ 出ない最小の量に納める。 ⟶ 返す: 引いた量[m](0 = 元から内側)、maxPush で収まらなければ 動かさず NaN | OkabeYashiki(PlaceFences) |
+| `EdoBuild.InsetRunToPoly(run, poly, inward, maxPush, before, step=…, tol=…, bandH=…)` | `float` | 硬 区域 | 硬い(許容0)・区域: 区画線の上に一列で据えた駒(柵・潜り戸など)を、列ごと同じ量だけ inward の向きへ引き、列のどの駒の実メッシュ(EdgeCandidates)も区画の外へ 出ない最小の量に納める。 ⟶ 返す: 引いた量[m](0 = 元から内側)、maxPush で収まらなければ 動かさず NaN | OkabeYashiki(PlaceFences・PlaceOmoteNagaya) |
 | `EdoBuild.RetireOutsidePoly(group, poly, note, label, tol=…)` | `int` | 硬 区域 | 硬い(許容0)・区域: 群の直下の駒のうち、壁体(屋根を除く実頂点 BodyExRoof)が 区画の多角形の外へ出た物を退ける(消す)。 | OkabeYashiki(PlaceIshigaki・PlaceKuiretsu・PlaceTakegaki…) |
 | `EdoBuild.GroundUnder(c, axisA, halfA, axisB, halfB, n, mn, mx)` | `void` | 地面 | 足あとの下の地形(格子点)の最小と最大。 | MatsudairaDewa(Stage6_Zosaku) |
 
@@ -521,7 +521,8 @@ EdoBuildQueue.cs — 長い建て直しを MCP の 1 回の呼び出しの中で
 | `EdoBuild.DAN_FLAT_MARGIN` | `float` |  | ⚠ 注釈なし | — |
 | `EdoBuild.DAN_FLAT_TOL` | `float` |  | ⚠ 注釈なし | — |
 | `DanSec`(struct) | — | | 段塀の一区間(鎖の道のり a〜b・塀の座 W = 塀の下端の高さ)。 | |
-| `EdoBuild.DanPlan(chain, note)` | `List<DanSec>` | 硬 区域 | 折れ線(区画の辺の鎖)に段塀の区切りと座を引く。 | Typology(BuildParcel) |
+| `EdoBuild.DanPlan(chain, note, gates=…)` | `List<DanSec>` | 硬・柔 地面・区域 | 折れ線(区画の辺の鎖)に段塀の区切りと座を引く。 | Typology(BuildParcel) |
+| `EdoBuild.DAN_GATE_CLEAR` | `float` |  | ⚠ 注釈なし | — |
 | `EdoBuild.NeribeiStepRun(parent, A, B, outward, prefix, secs, gapC, gapHalf, note)` | `List<GameObject>` | 地面・天端 | 練塀を段塀で建てる。secs は A からの道のりの区間(座 W)。 | — |
 | `EdoBuild.PanelRun(parent, A, B, outward, prefix, assetPath, gapC, gapHalf, pair=…, unitScale=…, beds=…, bedAt=…, splitPost=…, splitBoard=…)` | `List<GameObject>` |  | <remarks>据えは DobeiRun と同じ — 触れている箇所を測る(規則21)。 | — |
 | `EdoBuild.PostBoardRun(parent, A, B, outward, prefix, postPath, boardPath, bedAt, root, pair=…)` | `List<GameObject>` | 駒どうし・床・断面 | 柱と板を分けた組で板塀の run を張る(2026-09-26・EDO-0437 第7巡)。 | — |

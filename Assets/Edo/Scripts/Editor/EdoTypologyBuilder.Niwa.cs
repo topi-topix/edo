@@ -229,6 +229,9 @@ public static partial class EdoTypologyBuilder
     /// ⭐ **池から外すのは据わった点だけ**(検分④)。⛔ 空いていなかった点まで捨てない —
     /// 捨てると候補が**成否に関わらず**枯れて、後ろの層(小さい駒なら置けた層)が丸ごと 0 になる
     /// (2026-09-22 実測: 6区画でモミジ以降が単調に 0)。</summary>
+    /// <summary>剛体の据え物(井戸・灯籠)が坂で据わらなかったとき、次に試す置き場の数。</summary>
+    const int SITE_RETRY = 8;
+
     static Vector2? TakeSite(List<Vector2> pool, System.Random rnd, EdoBuild.NiwaField f,
                              float r, EdoBuild.NiwaSet o)
     {
@@ -288,25 +291,6 @@ public static partial class EdoTypologyBuilder
             L.Add(p);
         }
         return L;
-    }
-
-    /// <summary>門の**通り抜け**(柱間)[m] — 参道の帯(白洲)の幅を引くための代用値(検分③)。
-    /// ⛔ 門構えの全幅ではない(長屋門の両翼は長屋)。⛔ 部材の名から推し量らず、
-    /// <see cref="GatePath"/> に実在する綴りだけで引く(表に無い型は「他 = 1間」へ落とす)。
-    /// <list type="bullet">
-    /// <item>長屋門 2間 = 3.64m(`nagayamon`)</item>
-    /// <item>高麗門・薬医門・棟門 1.5間 = 2.73m(`hmon` / `yakuimon` / `munemon` /
-    ///   `kmon` — 在庫の `Eg.Kmon` も薬医門・<see cref="EdoAssets"/> の注記)</item>
-    /// <item>他(冠木門 `kabukimon`・小門 `komon`・山門 `sanmon`)1間 = 1.82m</item>
-    /// </list></summary>
-    static float GateThrough(string gate)
-    {
-        switch (gate)
-        {
-            case "nagayamon": return 2f * ES;
-            case "hmon": case "yakuimon": case "munemon": case "kmon": return 1.5f * ES;
-            default: return 1f * ES;
-        }
     }
 
     static float Perimeter(Vector2[] poly)
@@ -373,25 +357,25 @@ public static partial class EdoTypologyBuilder
     {
         // ⭐ 帯の幅は**門の通り抜けの実開口**から。⛔ 門構え全体の幅を開口と呼ばない —
         //    長屋門は両翼が長屋(壁体)なので、全幅で白洲を引くと小さい区画は庭域が丸ごと消える。
-        var alongF = (front.b - front.a).normalized;
+        // ⭐ 通り口は**門の札**(EdoPartSpec.passage)から読む(EDO-0491)。⛔ 2026-09-29 まで門の実メッシュの帯の空き
+        //    (NiwaGateOpening)を測り、扉の閉じた駒では空きが出ず全区画が格ごとの柱間の表(GateThrough)へ落ちていた。
         GameObject monGo = null;
         var monGrp = root.Find("Mon");
         if (monGrp != null) foreach (Transform t in monGrp)
             if (t.name.StartsWith("Mon_")) { monGo = t.gameObject; break; }
-        float cproj; float opening = EdoBuild.NiwaGateOpening(monGo, alongF, out cproj);
-        if (!float.IsNaN(opening))
+        var sp = EdoBuild.SpecOf(monGo);
+        float opening;
+        if (sp != null && sp.passage != null)
         {
-            gateC = front.a + alongF * (cproj - Vector2.Dot(front.a, alongF));   // 開口の芯へ寄せる
-            openHow = string.Format("実測の通り抜け {0:F1}m", opening);
+            gateC = EdoPartSpec.PassageCenterWorld(sp, monGo.transform);
+            opening = (sp.passage.x1 - sp.passage.x0) * sp.unitScale;
+            openHow = string.Format("札の通り口 {0:F2}m", opening);
         }
         else
         {
-            // ⛔ 門構えの**全幅**で代用しない(検分③)。長屋門は両翼が長屋なので、全幅で引くと
-            //    白洲が片側 18.5m = 幅 37m になり、庭域を削って前庭の松の置き場まで潰す。
-            //    代用するのは**門の格ごとの通り抜け**(柱間)。28区画すべてで門扉が閉じた駒なので
-            //    空きの連なりが出ず、いまは全区画がこの道を通る。
-            opening = GateThrough(s.gate);
-            openHow = string.Format("⚠ 通り抜けが測れず 門の格({0})の柱間 {1:F2}m で代用", s.gate ?? "無指定", opening);
+            // 門を建てない型(kouyuu など)・札の無い門(建たずに退けられる)── 参道の帯は引かない幅にする
+            opening = 0f;
+            openHow = monGo == null ? "門なし" : "⛔ 門に札が無い";
         }
         // ⭐ 片側の上限 6.0m(実測できた場合も含む)— 武家屋敷の玄関前の白洲は 5〜10間【B】
         return Mathf.Min(opening * 0.5f + 1.5f, 6.0f);
@@ -506,6 +490,7 @@ public static partial class EdoTypologyBuilder
             case "small":  NiwaChisen(s, grp, f, poly, front, rnd, main, katte, per, zashikiLen, zashikiMid, zashikiN, gateC, half, want, got, log, 0.55f); break;
             case "tsubo":  NiwaTsubo(s, grp, f, poly, front, rnd, main, per, zashikiMid, zashikiN, want, got, log); break;
             case "ura":    NiwaUra(s, grp, f, mune, rnd, katte, kdir, cO, want, got, log); break;
+            case "keidai": NiwaKeidai(s, grp, f, poly, front, rnd, mune, gateC, half, sandoB, want, got, log); break;   // 寺社の境内(EDO-0477 P5)
             default:       return "  ⚠ 庭: 表の garden=" + g + " は庭方の設計に無い型 — 建てない(表を検め直す)";
         }
 
@@ -663,7 +648,7 @@ public static partial class EdoTypologyBuilder
         // 灯籠
         NiwaToro(grp, f, new List<Vector2>(pondRing), rnd, nToro, want, got, new List<Vector2>(main));
         // 井戸(chisen は勝手まわりに1口・small は2口)
-        NiwaIdo(grp, f, katte, rnd, chisen ? 1 : 2, want, got, log);
+        NiwaIdo(grp, f, katte, rnd, chisen ? 1 : 2, JYaw(front.b - front.a), want, got, log);
         // ④ 勝手まわりは裸地・木0〜2本
         Layer(grp, "勝手の木", f, new List<Vector2>(katte), ChubokuPal, Rng(rnd, 0, 2), rnd, chu, want, got);
         // ⑤ 前庭は白洲。門の内側の左右に松1〜2本ずつ**必ず非対称**
@@ -836,15 +821,16 @@ public static partial class EdoTypologyBuilder
             if (cand.Count == 0)
                 cand = katte.Where(p => { float d1 = occOmoya.Dist(p, 8f); return d1 >= 2.5f && d1 <= 5.5f; }).ToList();
             var o = EdoBuild.NiwaSet.Stone;
-            string ido = EdoAssets.Own.SannoIdoIgeta(909, 450);
-            float r = EdoBuild.CrownR(ido);
-            var site = TakeSite(cand, rnd, f, r, o);
+            float r = EdoBuild.CrownR(IDO_ISHIKI);
             want.Add("井戸 1");
-            if (site != null && f.Put(grp, ido, site.Value, Rf(rnd, 0f, 360f), 1f, 0f, "Ido", "井戸", o) != null)
-            { idoAt = site; got.Add("井戸 1"); }
-            else got.Add("井戸 0");
-            log.Add("    ⚠ 井戸の駒は山王社のために起こした井桁の井戸(`Own.SannoIdoIgeta`)を当てている —"
-                  + " 類型の井戸の部材は未造(部材方へ・EDO-0318)");
+            // ⭐ 坂で据わらなかった(石敷の天端の出が上限を超えた)井戸は次の置き場を試す(NiwaIdo と同じ)
+            for (int tries = 0; idoAt == null && tries < 1 + SITE_RETRY; tries++)
+            {
+                var site = TakeSite(cand, rnd, f, r, o);
+                if (site == null) break;
+                if (PutIdo(grp, f, site.Value, mune[0].eulerAngles.y, Rf(rnd, 0f, 360f), "Ido", log) != null) idoAt = site;
+            }
+            got.Add("井戸 " + (idoAt != null ? 1 : 0));
         }
 
         // 飛石1条(勝手口 → 井戸 → 土蔵の扉)。⭐ これが**唯一の石**
@@ -973,34 +959,138 @@ public static partial class EdoTypologyBuilder
     {
         var o = EdoBuild.NiwaSet.Stone;
         int made = 0;
-        for (int i = 0; i < n; i++)
+        for (int tries = 0; made < n && tries < n + SITE_RETRY; tries++)      // 坂で据わらなければ次の置き場(井戸と同じ)
         {
             float r = EdoBuild.CrownR(EdoAssets.Own.Toro) * ES;
             var site = TakeSite(pool, rnd, f, r, o);
             if (site == null && poolAlt != null) site = TakeSite(poolAlt, rnd, f, r, o);      // 環 → main(裁定6C)
             if (site == null) break;
-            if (f.Put(grp, EdoAssets.Own.Toro, site.Value, Rf(rnd, 0f, 360f), ES, 0f, "Toro_" + i, "灯籠", o) != null) made++;
+            if (f.Put(grp, EdoAssets.Own.Toro, site.Value, Rf(rnd, 0f, 360f), ES, 0f, "Toro_" + made, "灯籠", o) != null) made++;
         }
         want.Add("灯籠 " + n); got.Add("灯籠 " + made);
     }
 
-    /// <summary>井戸。⚠ 類型の井戸の部材は未造で、山王社の井桁の井戸を当てている(部材方へ・EDO-0318)。</summary>
+    /// <summary>井戸。⭐ 据え方は <see cref="PutIdo"/>(山王社の前庭の井戸と同じ・EDO-0490)。
+    /// <paramref name="yaw0"/> = 石敷の辺を揃える向き(区画の表の辺・境内の軸)。</summary>
     static void NiwaIdo(Transform grp, EdoBuild.NiwaField f, List<Vector2> katte, System.Random rnd,
-                        int n, List<string> want, List<string> got, List<string> log)
+                        int n, float yaw0, List<string> want, List<string> got, List<string> log)
     {
         var o = EdoBuild.NiwaSet.Stone;
-        string ido = EdoAssets.Own.SannoIdoIgeta(909, 450);
-        float r = EdoBuild.CrownR(ido);
+        float r = EdoBuild.CrownR(IDO_ISHIKI);
         var pool = new List<Vector2>(katte);
         int made = 0;
-        for (int i = 0; i < n; i++)
+        // ⭐ 坂で据わらなかった井戸は次の置き場を試す ── 1 候補で諦めない(EDO-0472)
+        for (int tries = 0; made < n && tries < n + SITE_RETRY; tries++)
         {
             var site = TakeSite(pool, rnd, f, r, o);
             if (site == null) break;
-            if (f.Put(grp, ido, site.Value, Rf(rnd, 0f, 360f), 1f, 0f, "Ido_" + i, "井戸", o) != null) made++;
+            if (PutIdo(grp, f, site.Value, yaw0, Rf(rnd, 0f, 360f), "Ido_" + made, log) != null) made++;
         }
         want.Add("井戸 " + n); got.Add("井戸 " + made);
-        if (made > 0) log.Add("    ⚠ 井戸の駒は山王社の井桁の井戸(`Own.SannoIdoIgeta`)の流用 — 類型の井戸は未造(EDO-0318)");
+    }
+
+    // ───────────────────────── 井戸一式 ─────────────────────────
+    //   ⭐ 山王社の前庭の井戸(EdoSannoShaRebuild の Stage「井戸」)と同じ部材・同じ据え方(2026-09-29 EDO-0490)。
+    //   ⛔ 2026-09-29 まで井筒+井桁の駒(`SannoIdoIgeta`・井筒が Y −1.50 まで根入れ)だけを f.Put で置き、PutOnce が
+    //      **駒の下端 = 井筒の底**を地面へ着けていた ⇒ 井筒が地上へ 1.55m 突き出した(施主指摘)。
+    //   正しくは ① 板石敷(`SannoIdoIshiki`)の**天端**を地面と面一に据える(SeatFlush・底では据えない)
+    //   ② 井筒を石敷の穴へ**穴の壁と井筒の外周で**芯出し(CenterInOpening)③ 井桁の下端を縁石の天端へ載せる(RestOn)。
+    //   当たる先: 類型の全区画の井戸 ── 裏庭(勝手の井戸)・池泉/中屋敷(NiwaIdo)・寺社の境内(Keidai)。
+    //   ⚠ 井戸屋形(`SannoIdoYakata`)は載せない(屋形の軒と棟の軒の取り合いを類型では測っていない)── 石敷の礎石 4 石は残る。
+    //   ⭐ 井筒の口の下の地形に穴を開ける(口の中に地面の芝が見えた・2026-09-29 実測)。穴のセルは 2m 角なので、井戸の芯を
+    //      **穴のセルの真ん中**へ寄せる(≤1.41m・柔らかい)── 2m 角は向きを問わず 3.27m 角の石敷の内に収まり、縁が見えない。
+    //      抜いたセルは子の印(IDO_HOLE_MARK)に残し、建て直しの前に BuildParcel が塞ぐ(FillIdoHoles)。
+
+    /// <summary>井戸の板石敷の駒(1.8間角・水勾配 1/50)。山王と同じ寸法。</summary>
+    static readonly string IDO_ISHIKI = EdoAssets.Own.SannoIdoIshiki(3272, 50);
+    /// <summary>井筒+井桁の駒(内径 3尺・井桁の丈 0.45)。山王と同じ寸法。</summary>
+    static readonly string IDO_IGETA = EdoAssets.Own.SannoIdoIgeta(909, 450);
+    const string IDO_STONE = "Kirishi", IDO_WOOD = "wood", IDO_RUBBLE = "Foundation";
+    /// <summary>板石敷の天端が地面から出る量の上限[m]【確度 U】── **硬い**(超えた分は <see cref="IDO_BURY_MAX"/> まで石敷を沈めて吸い、それでも超えたら据えずに次の置き場へ)。
+    /// 天端の低い所を地面と面一にするので、足元の起伏と石敷の勾配(1/50 × 3.27 = 0.065)のぶん高い側が出る。
+    /// 0.15 = 板石 1 枚の厚み 0.12 +目地 ── これを超えると敷砂と割栗の層が横から見える。</summary>
+    const float IDO_RISE_MAX = 0.15f;
+    /// <summary>坂で石敷の高い側を地面へ埋めてよい深さ[m]【確度 U】── **硬い**。天端の出が <see cref="IDO_RISE_MAX"/> を超える坂では
+    /// 超えた分だけ石敷を沈めて高い側を埋める(据えは埋めて隠すのが基本・docs/oki-kata.md §4)。これを超える坂には据えない。</summary>
+    const float IDO_BURY_MAX = 0.15f;
+    /// <summary>井筒の口の下に抜いた地形の穴のセルを控える子の名の頭(<c>IdoHole_i0_j0_i1_j1</c>)。</summary>
+    public const string IDO_HOLE_MARK = "IdoHole_";
+
+    /// <summary>区画のルート(かその資産)の中の井戸が抜いた地形の穴を塞ぐ。返り値 = 塞いだセルの数。
+    /// ⭐ 建て直しの前に呼ぶ ── 井戸の置き場が変わると古い穴が地面に残る。</summary>
+    public static int FillIdoHoles(GameObject root)
+    {
+        if (root == null) return 0;
+        int n = 0;
+        foreach (var t in root.GetComponentsInChildren<Transform>(true))
+        {
+            if (!t.name.StartsWith(IDO_HOLE_MARK, StringComparison.Ordinal)) continue;
+            var a = t.name.Substring(IDO_HOLE_MARK.Length).Split('_');
+            int i0, j0, i1, j1;
+            if (a.Length != 4 || !int.TryParse(a[0], out i0) || !int.TryParse(a[1], out j0) ||
+                !int.TryParse(a[2], out i1) || !int.TryParse(a[3], out j1)) continue;
+            n += EdoBuild.FillHoles(new EdoBuild.TerrainCells { i0 = i0, j0 = j0, i1 = i1, j1 = j1 });
+        }
+        return n;
+    }
+
+    /// <summary>井戸一式を 1 口据える。返り値 = 板石敷の駒(井筒+井桁はその子)。据わらなければ取り除いて null。
+    /// <paramref name="yaw0"/> = 石敷の辺を揃える向き。<paramref name="spin"/>(0〜360 の乱数)を 90° の段へ丸めて足す
+    /// ── ⛔ 乱数の引きを変えない(後段の層の乱数がずれる)。</summary>
+    static GameObject PutIdo(Transform grp, EdoBuild.NiwaField f, Vector2 site, float yaw0, float spin,
+                             string name, List<string> log)
+    {
+        var o = EdoBuild.NiwaSet.Stone;
+        float yaw = yaw0 + 90f * Mathf.Floor(spin / 90f);
+        // ⓪ 芯を地形の穴のセルの真ん中へ寄せる(寄せた先が塞がれていれば、この置き場は諦める)
+        {
+            var tr = EdoBuild.T(); var td = tr.terrainData; var org = tr.transform.position;
+            float cx = td.size.x / td.holesResolution, cz = td.size.z / td.holesResolution;
+            var snapped = new Vector2(org.x + (Mathf.Floor((site.x - org.x) / cx) + 0.5f) * cx,
+                                      org.z + (Mathf.Floor((site.y - org.z) / cz) + 0.5f) * cz);
+            if (!f.Free(snapped, EdoBuild.CrownR(IDO_ISHIKI), o)) return null;
+            site = snapped;
+        }
+        // ① 板石敷 ── f.Put で置き場の空き・軒・区画の線を検め(実バウンズ)、そのあと天端を地面と面一へ据え直す
+        var ishiki = f.Put(grp, IDO_ISHIKI, site, yaw, 1f, 0f, name, "井戸", o);
+        if (ishiki == null) return null;
+        float rise;
+        try { EdoBuild.SeatFlush(ishiki, IDO_STONE, 0f, out rise); }
+        catch (Exception e) { log.Add("    ⛔ 井戸 " + name + ": 石敷が据わらない ── " + e.Message); f.DropLast(ishiki); return null; }
+        float bury = Mathf.Max(0f, rise - IDO_RISE_MAX);             // 坂: 出の上限を超えた分だけ沈め、高い側を埋める
+        if (bury > IDO_BURY_MAX)
+        {
+            log.Add(string.Format("    ⚠ 井戸 {0}: 石敷の天端の出 {1:F2}m(坂)── 埋めても {2:F2}+{3:F2}m を超えるので据えずに次の置き場へ",
+                                  name, rise, IDO_RISE_MAX, IDO_BURY_MAX));
+            f.DropLast(ishiki); return null;
+        }
+        if (bury > 0f) { ishiki.transform.position -= new Vector3(0f, bury, 0f); rise -= bury; }
+        // ② 井筒+井桁 ── 石敷の穴へ差し、縁石へ載せる(EdoBuild.SeatPlugInBed・山王と同じ 2 巡)
+        var igeta = EdoBuild.Place(IDO_IGETA, ishiki.transform.position, yaw, Vector3.one, ishiki.transform, name + "_Igeta");
+        if (igeta == null) { log.Add("    ⛔ 井戸 " + name + ": 部材が無い " + IDO_IGETA); f.DropLast(ishiki); return null; }
+        float clrMin, clrMax; int nTouch;
+        string why = EdoBuild.SeatPlugInBed(ishiki, IDO_STONE, igeta, IDO_RUBBLE, IDO_WOOD, 0.10f, out clrMin, out clrMax, out nTouch);
+        if (why != null) { log.Add("    ⛔ 井戸 " + name + ": " + why); f.DropLast(ishiki); return null; }
+        // ③ 井筒の口の下の地形を抜く(覆いが足りなければ抜かずに ⚠ ── 柔らかい)
+        string holeWhy = null; var hole = new EdoBuild.TerrainCells();
+        {
+            float r3; Vector3 a3; int n3;
+            EdoBuild.FlushGap(ishiki, IDO_STONE, out r3, out a3, out n3);
+            var mouth = EdoBuild.OpeningOf(igeta.transform, IDO_RUBBLE, a3.y - 0.10f);
+            if (mouth == null) holeWhy = "井筒の口が測れない";
+            else hole = EdoBuild.CutHole(mouth, new[] { ishiki, igeta }, out holeWhy);
+            if (holeWhy == null && hole.changed > 0)
+            {
+                var mk = new GameObject(IDO_HOLE_MARK + hole.i0 + "_" + hole.j0 + "_" + hole.i1 + "_" + hole.j1);
+                mk.transform.SetParent(ishiki.transform, false);
+            }
+        }
+        // ④ 石敷の外形の中の芝を抜く(芝が板石を突き抜ける)。⛔ 地形の編集は Undo の外(呼び手が退避済み)
+        var det = EdoBuild.ClearDetailIn(EdoBuild.HullOfMat(ishiki.transform));
+        log.Add(string.Format("    井戸 {0}: 石敷の天端の出 最大 {1:F3}m(高い側を埋めた深さ " + bury.ToString("F3") + "m)/ 井筒と穴の離れ {2:F3}〜{3:F3}m / 井桁と縁石の当たり {4} 点 / 芝 {5} / 口の下の地形 {6}",
+                              name, rise, clrMin, clrMax, nTouch, det,
+                              holeWhy != null ? "⚠ 抜かなかった ── " + holeWhy : hole.ToString()));
+        return ishiki;
     }
 
     /// <summary>前庭。⛔ **帯の中には置かない**(白洲)。門の内側の左右に松を**必ず非対称**に。</summary>
@@ -1066,10 +1156,12 @@ public static partial class EdoTypologyBuilder
         // ⭐ 裁定5: ura にも禿げの線を当てる。ただし下限は **3%**(他の型は 5%)。
         //    ⛔ 閾値だけでは足りない — 真因は層の本数が庭域に従っていなかったこと(NiwaUra で是正)。
         float covFloor = g == "ura" ? 0.03f : 0.05f;
+        // ⭐ 境内(keidai)は斜面を閉じた林で覆う設計(施主: 斜面は木でしっかり覆う)── 林の上限は 70%(庭方 2026-09-27)
+        float covMax = g == "keidai" ? 0.70f : 0.50f;
         float covLo = g == "tsubo" ? 0.15f : (g == "ura" ? 0.03f : 0.10f);   // 刷らないが引数に残す
         float covHi = g == "tsubo" ? 0.30f : (g == "ura" ? 0.20f : 0.25f);
-        bool covBad = cov > 0.50f || cov < covFloor;
-        string covMark = cov > 0.50f ? "⛔ 林(50%超)"
+        bool covBad = cov > covMax || cov < covFloor;
+        string covMark = cov > covMax ? "⛔ 林(" + covMax.ToString("P0") + "超)"
                        : (cov < covFloor ? "⛔ 禿げ(" + covFloor.ToString("P0") + "未満)"
                        : "参考(union の新式・旧式の目安は当てない)");
         // ⭐ 常緑:落葉の**分母は高木+中木だけ**(検分⑦)。照葉低木・刈込・坪庭の低木・下草は全て常緑なので、
@@ -1104,7 +1196,8 @@ public static partial class EdoTypologyBuilder
           + " / 軒から **樹冠の外接円**で 最小 {7:F2}m(層ごとの下限 0.2〜0.4m・割った駒は据えてから落とす→次行)\n"
           + "      樹冠の投影の被覆率 {8:P0} {9}(union・下草/飛石/景石/灯籠/井戸を除く全層・不合格は 50%超{20})"
           + " / 常緑:落葉 = {10:P0}:{11:P0} {21}(高木+中木 {22}本が分母・この型の落葉の許容 {23:P0}〜{24:P0})\n"
-          + "      置けなかった駒 {12}(退避で拒んだ)/ 据えてから落とした駒: 軒へ食い込み {17}・区画の線を越え {25}(うち内へ寄せて据わった駒 {30}・寄せても駄目で落とした数がこの {25})・急斜面で据わらず {26}(最悪 {27:F2}m)"
+          + "      置けなかった駒 {12}(退避で拒んだ)/ 据えてから落とした駒: 軒へ食い込み {17}・区画の線を越え {25}(うち内へ寄せて据わった駒 {30}・寄せても駄目で落とした数がこの {25})・急斜面で据わらず {26}(最悪 {27:F2}m)・参道の帯へずれた {31}・坂で沈めが {33:F2}m を超えて置かなかった据え物 {32}(最悪 {34:F2}m)"
+          + " / 下端の全部が着くまで沈めた据え物 {35}(最深 {36:F2}m)"
           + " / 起伏が大きく間引かずに据え直した駒 {28} / 幹の芯が測れなかった駒 {29}\n"
           + "      意図: {13}\n      実際: {14}",
             mark, f.Komas.Count, NIWA_BUDGET, f.InBand, evenClump, twin,
@@ -1112,6 +1205,7 @@ public static partial class EdoTypologyBuilder
             cov, covMark, 1f - deRatio, deRatio, f.Refused,
             string.Join(" / ", want.ToArray()), string.Join(" / ", got.ToArray()), perClump.Count,
             g, f.DropEave, covLo, covHi, g == "ura" ? "と 3%未満" : "と 5%未満", deMark, tall, deLo, deHi,
-            f.DropEdge, f.DropSteep, f.WorstSteep, f.Reseat, f.TrunkNaN, f.Nudged);
+            f.DropEdge, f.DropSteep, f.WorstSteep, f.Reseat, f.TrunkNaN, f.Nudged, f.DropBand,
+            f.DropNeire, EdoBuild.NiwaSet.STONE_NEIRE_MAX, f.WorstNeire, f.Neire, f.MaxNeire);
     }
 }

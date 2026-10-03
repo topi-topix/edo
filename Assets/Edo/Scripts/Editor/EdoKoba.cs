@@ -190,6 +190,7 @@ public static class EdoKoba
             }
             if (loaded.Count > 0) tonariMsg = "\n  隣 " + loaded.Count + " 件: " + string.Join(" / ", loaded);
         }
+        tonariMsg += LoadTonariSkins(koba, yashiki, margin);
 
         // 載せた状態で保存しておく。次に切り替えるときモーダルが出ないため。
         EditorSceneManager.SaveScene(koba);
@@ -245,6 +246,71 @@ public static class EdoKoba
         go.name = name + TonariSuffix;
         Lock(go);
         return name + "(" + go.GetComponentsInChildren<Transform>(true).Length + "tr)";
+    }
+
+    /// <summary>隣の皮に付ける印。<see cref="TonariSuffix"/> を含むので書き戻らない・ビルダーに拾われない。</summary>
+    public const string TonariSkinSuffix = "(隣・皮)";
+
+    /// <summary>
+    /// **隣の地表の皮(<see cref="EdoBuild.SKIN_PREFIX"/>)は、隣を載せない開き方でも必ず載せる。**(EDO-0492)
+    ///
+    /// なぜ: 地形は一枚きりで、皮を起こした邸は地形の升に穴を空け、その穴を自分の皮で塞ぐ。穴は区画の外へ
+    /// 出ることがある(山王社の皮の穴が観理院の西の石垣の足元の升に掛かる)。隣を載せずに開くと、
+    /// 対象の邸の中に**誰も塞がない穴**が残り、検証レンダに空が抜け、<see cref="EdoBuild"/> の描かれた地表の
+    /// 測り(皮を読む)も穴の下の heightmap を読む。段へ割ってある隣は囲いの段だけ載るので、皮の段も落ちる。
+    /// 皮は1枚のメッシュなので軽い(山王社 18 万三角でも駒の数は1)。
+    ///
+    /// 隣の実体を丸ごと載せた所(段に割らない隣)は、その中に皮があるので足さない。
+    /// </summary>
+    static string LoadTonariSkins(Scene koba, string yashiki, float margin)
+    {
+        var full = new HashSet<string>();
+        foreach (var r in koba.GetRootGameObjects())
+            if (r.name.EndsWith(TonariSuffix, System.StringComparison.Ordinal) && PrefabUtility.IsAnyPrefabInstanceRoot(r))
+                full.Add(r.name.Substring(0, r.name.Length - TonariSuffix.Length));
+
+        var got = new List<string>();
+        foreach (var n in Tonari(yashiki, margin, int.MaxValue))
+        {
+            if (full.Contains(n)) continue;
+            var srcs = new List<string>(EdoYashikiPrefab.StageAssetsOf(n));
+            if (srcs.Count == 0) srcs.Add(EdoYashikiPrefab.Dir + "/" + n + ".prefab");
+            GameObject holder = null; int k = 0, tris = 0;
+            foreach (var p in srcs)
+            {
+                var asset = AssetDatabase.LoadAssetAtPath<GameObject>(p);
+                if (asset == null) continue;
+                foreach (var mf in asset.GetComponentsInChildren<MeshFilter>(true))
+                {
+                    if (mf.sharedMesh == null || !ActiveInAsset(mf.transform)
+                        || !mf.name.StartsWith(EdoBuild.SKIN_PREFIX, System.StringComparison.Ordinal)) continue;
+                    var mr = mf.GetComponent<MeshRenderer>();
+                    if (mr == null || !mr.enabled) continue;
+                    if (holder == null) holder = new GameObject(n + TonariSkinSuffix);
+                    var go = new GameObject(mf.name);
+                    go.transform.SetParent(holder.transform, false);
+                    go.transform.SetPositionAndRotation(mf.transform.position, mf.transform.rotation);
+                    go.transform.localScale = mf.transform.lossyScale;
+                    go.AddComponent<MeshFilter>().sharedMesh = mf.sharedMesh;
+                    var r2 = go.AddComponent<MeshRenderer>();
+                    r2.sharedMaterials = mr.sharedMaterials;
+                    r2.shadowCastingMode = mr.shadowCastingMode;
+                    r2.receiveShadows = mr.receiveShadows;
+                    k++; for (int sm = 0; sm < mf.sharedMesh.subMeshCount; sm++) tris += (int)mf.sharedMesh.GetIndexCount(sm) / 3;
+                }
+            }
+            if (holder == null) continue;
+            Lock(holder);
+            got.Add(n + "(皮 " + k + " 枚・" + tris + " 三角)");
+        }
+        return got.Count == 0 ? "" : "\n  隣の皮 " + got.Count + " 件: " + string.Join(" / ", got);
+    }
+
+    /// <summary>プレハブ資産の中で有効か(資産は場面に無いので activeInHierarchy を当てにしない)。</summary>
+    static bool ActiveInAsset(Transform t)
+    {
+        for (; t != null; t = t.parent) if (!t.gameObject.activeSelf) return false;
+        return true;
     }
 
     /// <summary>隣は見るだけ。Scene ビューで拾えなくして、手が滑って動かないようにする。</summary>

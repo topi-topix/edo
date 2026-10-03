@@ -63,6 +63,35 @@ public static class EdoAssets
         ///   (指図 `gardens[].toro` 「⛔ 春日型を置かない」)。</summary>
         public const string ToroYukimi  = "Assets/edogoyomi/t_yukimi/t_yukimi.obj";
         public const string TexToroYukimi = "Assets/edogoyomi/t_yukimi/t_yukimi.jpg";
+        /// <summary>**春日灯籠**(edogoyomi `t_kasuga`)── 寺社の境内の**献灯**(本堂の前・参道の左右に一対)にだけ当てる
+        /// (庭方の境内の設計 2026-09-27・EDO-0477 P5)。⚠ 素で置かず `ES = 1.818` を掛ける。
+        /// ⛔ 屋敷の庭の灯籠には使わない(雪見 <see cref="ToroYukimi"/> ── 上の注記)。</summary>
+        public const string ToroKasuga = "Assets/edogoyomi/t_kasuga/t_kasuga.obj";
+        public const string TexToroKasuga = "Assets/edogoyomi/t_kasuga/t_kasuga.jpg";
+
+        /// <summary>**材の無い edogoyomi の駒 → 同じフォルダの画像**(2026-09-28 EDO-0477 施主指摘「灯籠が真っ白」)。
+        /// obj に .mtl が無く、取り込むと画像の無い灰白 0.906 の材になる。⭐ 在庫のパックは gitignore なので取り込みの設定(meta)は
+        /// 直さず、`EdoBuild.Place` が置くたびに Edo 側の材(画像を貼った Lit)を着せる。当たる先: 石灯籠(春日・雪見)を置く全邸。
+        /// 表店 shop01・shop02 も同じ(2026-10-01 EDO-0496 施主指摘「町屋が真っ白」)── obj の usemtl は 1 枚の画像
+        /// (shop01map / shop02map)を UV で割った作りで、取り込むと画像の無い材 30 枚になる。当たる先: 類型の町屋の表店すべて。</summary>
+        public static readonly System.Collections.Generic.Dictionary<string, string> BareTex =
+            new System.Collections.Generic.Dictionary<string, string>
+            {
+                { ToroKasuga, TexToroKasuga },
+                { ToroYukimi, TexToroYukimi },
+                { Shop01, TexShop01 },
+                { Shop02, TexShop02 },
+            };
+
+        /// <summary>**表店の暖簾・看板の店ごとの染め分け**(EDO-0503 施主「全部同じ暖簾」)。正典は <see cref="NorenSpec"/>
+        /// (屋号・業種・地色・印・文字・典拠)。画像は `Tools/Unity/bake_noren.py` が在庫の shop01/shop02 の画像から
+        /// 暖簾と看板の四角だけを塗り替えて焼く。掛けるのは `EdoBuild.HangNoren`(軒ごと・隣で同じ店を続けない)。</summary>
+        public const string NorenSpec = "docs/Sashizu/noren.json";
+        /// <summary>**近代の造作を除く帳**(EDO-0514)。造成前の地盤(base_dem・現代の測量)のうち、江戸の地面でないと判じた範囲。
+        /// 読むのは <c>EdoBuild.BaseDem()</c>(範囲の中を外周から調和補間)と <c>EdoBuild.ApplyKindaiNear</c>(区画の外の地形へ書く)。</summary>
+        public const string KindaiSpec = "docs/Sashizu/kindai.json";
+        public static string NorenTex(string shop, string key) { return "Assets/Edo/Textures/Noren/" + shop + "_" + key + ".jpg"; }
+        public static string NorenMat(string shop, string key) { return "Assets/Edo/Materials/Noren/M_Noren_" + shop + "_" + key + ".mat"; }
 
         // 店先の小物
         public const string Shop01Taru  = "Assets/edogoyomi/es_shop01/s01_taru.obj";
@@ -621,6 +650,9 @@ public static class EdoAssets
         { return JGP + "Trees/Sakura/Tree_Sakura_" + size + "_Summer_0" + i + ".prefab"; }
         /// <summary>柘植の刈込。Spring/Fall × 01..03、Single/ もある</summary>
         public static string Boxwood(int i) { return JGP + "Plants/Boxwood/Plant_Boxwood_Spring_0" + i + ".prefab"; }
+        /// <summary>柘植の**一株**(Single)。01..03・実寸 約1.0×0.8〜1.1×0.9m・120〜140ポリ。生垣の前列の裾の塊に使う(EDO-0475)。
+        /// ⚠ Spring は花無しの黄緑 — 夏の生垣にはそのまま使える(色は植える側で暗く振る)。</summary>
+        public static string BoxwoodSingle(int i) { return JGP + "Plants/Boxwood/Single/Plant_Boxwood_Single_Spring_0" + i + ".prefab"; }
         /// <summary>羊歯の下草。Spring/Fall × 01..02</summary>
         public static string Fern(int i) { return JGP + "Plants/PaintedFern/Plant_PaintedFern_Spring_0" + i + ".prefab"; }
         /// <summary>庭石。01..03</summary>
@@ -1161,6 +1193,25 @@ public static class EdoAssets
                  + (i % 2 == 0 ? "a" : "b") + ".fbx";
         }
 
+        /// <summary>**幅が最も近い焼けた段石**(<see cref="SannoDan"/> の綴りの物の中から・個体 <paramref name="i"/> の偶奇で a / b)。
+        /// 敷石(踏石・踏み止め)を石段の無い所へ敷くときに使う(EDO-0428)── 幅は据えるときに実メッシュで測って伸縮する。
+        /// 同じ幅が複数あれば踏面(走り)の最も長い物。無ければ null。</summary>
+        public static string SannoDanNearest(float width, int i)
+        {
+            const string dir = "Assets/Edo/Models/Kaidan";
+            if (!System.IO.Directory.Exists(dir)) return null;
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            var rx = new System.Text.RegularExpressions.Regex(@"^Dan_(\d+\.\d+)_(\d+\.\d+)_(\d+\.\d+)_" + (i % 2 == 0 ? "a" : "b") + "$");
+            string best = null; float bd = float.MaxValue, bf = 0f;
+            foreach (var f in System.IO.Directory.GetFiles(dir, "Dan_*.fbx"))
+            {
+                var m = rx.Match(System.IO.Path.GetFileNameWithoutExtension(f)); if (!m.Success) continue;
+                float w = float.Parse(m.Groups[3].Value, inv), fu = float.Parse(m.Groups[2].Value, inv), d = System.Math.Abs(w - width);
+                if (d < bd - 1e-4f || (System.Math.Abs(d - bd) <= 1e-4f && fu > bf)) { bd = d; bf = fu; best = f.Replace('\\', '/'); }
+            }
+            return best;
+        }
+
         /// <summary>**石段の袖(袖石垣)の1段ぶんの駒** — どの石段にも使える汎用の型(寸法は蹴上 <paramref name="keri"/>・踏面 <paramref name="fumi"/>[m] から従属)。
         /// 個体 <paramref name="i"/> は**その段の段石と同じ i**(偶奇で a / b。2段で一周期に竪目地をずらしてある ⇒ ⛔ 片方だけを並べない)。
         /// 切石の斜め布積み+笠石(耳石)。材 `Danishi`(段石と同じ)⇒ `Edo/山王社/新造部材のマテリアルをremap`。⛔ 城の `CastleWall` を袖に使わない(EDO-0415)。
@@ -1206,6 +1257,76 @@ public static class EdoAssets
         {
             if (System.Math.Abs(depth - ISHIDAN_SODE_DEPTH_STD) < 1e-4f) return "";
             return "_D" + depth.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        /// <summary>**天端が水平な石段の袖**(EDO-0459 施主裁定A 2026-09-26・男坂の最上段の袖石)。<see cref="IshidanSode(float,float,int,float)"/> と
+        /// **同じ断面(厚み X=±0.30・笠石の丈 0.24・積みの段の割り・面取り 0.02)・同じ材 `Danishi`**で、天端の傾きだけ 0(剪断しない)。
+        /// ⭐ 厚み = X(左右対称 ⇒ 左右とも同じ FBX)/ 高さ = Y / 走り = Z ±0.625(標準長 1.25・a/b の別は無い・両端とも目地)。
+        /// **天端 Y = +0.30 一定**・下端 Y = 0.30 − <paramref name="depth"/>。ピボット = 走りの中心・天端の 0.30 下(平らな袖の「その段の踏面の高さ」の約束と同じ)・厚みの中心。
+        /// 実寸: 丈 2.20 = W 0.600 × H 2.200(−1.900〜+0.300)× D 1.250・286 面 / 丈 3.20 = W 0.600 × H 3.200(−2.900〜+0.300)× D 1.250・390 面。
+        /// 据え方: 側面 X=±0.30 を段石(踊り場)の小口に、天端を斜めの袖の坂上の端の天端(段鼻の線 +0.30)に合わせ、実長へ Z だけ伸縮する
+        /// (`StretchEnd`・水平なので天端は水平のまま)。⛔ ピボットで合わせない。丈は <see cref="IshidanSodeDepths"/>(2.20 / 3.20)。
+        /// 材 `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_flat [--depth=3.20] --render</summary>
+        public static string IshidanSodeFlat(float depth)
+        {
+            return "Assets/Edo/Models/Kaidan/IshidanSodeFlat_1.250" + SodeDepthTag(depth) + ".fbx";
+        }
+
+        /// <summary>**走りを指定した天端が水平な石段の袖**(EDO-0437 施主裁定 2026-09-27・参道の階の段4 の袖 ── 走り = その段の踏面 0.542)。
+        /// <see cref="IshidanSodeFlat(float)"/> と同じ断面・材 `Danishi`・局所座標(X=厚み ±0.30 / Y=高さ / Z=走り・+Z 坂下)・ピボット(走りの中心・天端の 0.30 下)で、
+        /// 走り Z ±<paramref name="len"/>/2 を実長で焼いた物(伸縮せずに据える ⇒ 積みの目地が潰れない)。竪目地の割りは短い側が 0.30 を切るなら割らない(0.542 は各段 1 枚物)。
+        /// 実寸(0.542・丈 2.20): W 0.600 × H 2.200(−1.900〜+0.300)× D 0.542・156 面。
+        /// 継ぎ目: 段3 の `IshidanSode(0.250,0.542,3)`(b)の坂上の端と、段4 の踏面基準で天端 +0.30・下端 −1.90・横目地の高さが一致(差 0 ── 違いは水平の袖の小口の面取り 0.02 だけ)。
+        /// 焼けている組: len 0.542 / 0.642(段4 の段石の踏面の見え ── 0.542 を 1.184 倍に伸ばさずに据える版・継ぎ目は 0.542 と同じ)・丈 2.20 のみ。
+        /// 材 `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_flat --only=参道の階 [--len=0.642] --render</summary>
+        public static string IshidanSodeFlat(float depth, float len)
+        {
+            return "Assets/Edo/Models/Kaidan/IshidanSodeFlat_" + len.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)
+                 + SodeDepthTag(depth) + ".fbx";
+        }
+
+        /// <summary>**坂上の小口を法 1:0.25 に切った水平の袖**(EDO-0459 2026-09-27・男坂の最上段 → 楼門の腰の隅 kado1 の法の面へ突き付ける)。
+        /// <see cref="IshidanSodeFlat"/> と同じ断面・材 `Danishi`・ピボット・局所座標(X=厚み ±0.30 / Y=高さ / Z=走り・+Z 坂下)で、
+        /// **坂上の端(局所 −Z)**だけを面 Z = −0.66875 + 0.25·(0.30 − Y) で切った物 ── 天端の稜(Y=+0.30, Z=−0.66875)を起点に、1 下がるごとに 0.25 坂下へ後退する。
+        /// 天端の稜の長さは**据えの実長 1.3375**(= 1.25 × 1.070・名は 1.338)で焼く ⇒ LayFlatSode の伸縮 ≈1.0 で法 1:0.25 が保たれる。坂下の端(+Z)・天端/下端の高さの約束は <see cref="IshidanSodeFlat"/> と同じ。
+        /// 実寸: 丈 2.20 = W 0.600 × H 2.200 × D 1.334(底の坂上の端 Z −0.119)・235 面 / 丈 3.20 = W 0.600 × H 3.200 × D 1.334(底 Z +0.131)・287 面。
+        /// ⚠ Z を伸縮すると法も同じ比で変わる(1.25 版を 1.070 倍 ⇒ 1:0.2675 で kado1 と ±0.009 ── だから実長で焼いた)。材 `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// ⭐ 既定は折れ点 <see cref="ISHIDAN_SODE_FLAT_NORI_KINK"/>(0.31)の版を返す(2026-09-27 改)。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_flat_nori [--len=1.3375] [--kink=0.31] [--depth=3.20] --render</summary>
+        public static string IshidanSodeFlatNori(float depth)
+        {
+            return IshidanSodeFlatNori(depth, ISHIDAN_SODE_FLAT_NORI_KINK);
+        }
+
+        /// <summary>男坂の小口の折れ点 = 袖の天端 28.58 − kado1 の天端 28.27(EDO-0459 2026-09-27)。</summary>
+        public const float ISHIDAN_SODE_FLAT_NORI_KINK = 0.31f;
+
+        /// <summary><see cref="IshidanSodeFlatNori(float)"/> の**小口を折れにした版**(EDO-0459 2026-09-27・kado1 の天端から楼門の基壇までの鉛直な帯で 0.009 の口が残った)。
+        /// 坂上の小口(局所 −Z)は天端の稜(Y=+0.30)から <paramref name="kink"/> 下(Y = 0.30 − kink)までは**鉛直** Z = −0.66875、
+        /// そこから下は法 1:0.25 で坂下へ退く(Z = −len/2 + 0.25·(0.30 − kink − Y))。kink > 0 は天端の稜の長さ <see cref="ISHIDAN_SODE_FLAT_NORI_LEN"/>(1.247)の版を返す(1.3375 × kink 0.31 の版は 3 引数で)。丈・断面・材・ピボットは同じ。
+        /// kink = 0 は折れ無しの旧版(`_1.338`・旧の駒を測るために残す)。焼いてあるのは kink 0 / 0.31 だけ(綴り `_K0.310`)。
+        /// 実寸(kink 0.31): 丈 2.20 = W 0.600 × H 2.200 × D 1.338(底の坂上の端 Z −0.196)・252 面 / 丈 3.20 = 同 H 3.200(底 Z +0.052)・308 面。
+        /// 材 `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_flat_nori [--kink=0.31] [--depth=3.20] --render</summary>
+        public static string IshidanSodeFlatNori(float depth, float kink)
+        {
+            return IshidanSodeFlatNori(depth, kink, kink > 1e-4f ? ISHIDAN_SODE_FLAT_NORI_LEN : 1.3375f);
+        }
+
+        /// <summary>男坂の据えの天端の稜の長さ(折れを kado1 の天端に合わせた実測 北 1.2468・南 1.2460 の平均・2026-09-27)。</summary>
+        public const float ISHIDAN_SODE_FLAT_NORI_LEN = 1.247f;
+
+        /// <summary><see cref="IshidanSodeFlatNori(float,float)"/> の天端の稜の長さ <paramref name="len"/> を明示する版。焼いてある組:
+        /// len 1.247 × kink 0.31(既定・2026-09-27 最終)/ len 1.3375 × kink 0.31 / len 1.3375 × kink 0(旧・旧の駒を測るために残す)。
+        /// 実寸(1.247 × 0.31): 丈 2.20 = W 0.600 × H 2.200 × D 1.247(底の坂上の端 Z −0.151)・249 面 / 丈 3.20 = 同 H 3.200(底 Z +0.099)・298 面。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_flat_nori [--len=1.247] [--kink=0.31] [--depth=3.20] --render</summary>
+        public static string IshidanSodeFlatNori(float depth, float kink, float len)
+        {
+            var ci = System.Globalization.CultureInfo.InvariantCulture;
+            string k = System.Math.Abs(kink) < 1e-4f ? "" : "_K" + kink.ToString("F3", ci);
+            return "Assets/Edo/Models/Kaidan/IshidanSodeFlatNori_" + len.ToString("F3", ci) + SodeDepthTag(depth) + k + ".fbx";
         }
 
         /// <summary>**曲がる石段の袖 — 端を留めに切った駒**(EDO-0415 ②③)。<see cref="IshidanSode"/> と同じ局所座標・同じピボットで、
@@ -1278,8 +1399,9 @@ public static class EdoAssets
         /// `Ld+0.219B-0.187_Rd+0.219B-0.188` に焼き直した(za が +0.03 から −0.19 へ動いた)。段 2〜4 は据え直し前の値のまま。
         /// 焼けている組(2026-09-26): 参道の階 (0.250, 0.542, 5.509) の段 1〜4 / 郭の階 (0.238, 0.450, 1.818) の段 0〜3(W 1.641〜1.816 × H 0.417 × D 0.550。
         /// blender --background --python Tools/Blender/build_sanno_buzai.py -- dan_kiri_list Tools/Blender/sanno_kaku_kiri_set.txt 0.2375 0.450 1.818 --render)。
-        /// ⭐ 返しが野面の乱積み(法 1:0.3)になった後(EDO-0437 第3巡)は法 0.3 の全長の切りを (3) の角 0 で綴る: 段 2 = `L DanKiriEnd(0.139f, 0f, 0.300f) R DanKiriEnd(0.108f, 0f, 0.300f)`・
-        /// 段 3 = `L DanKiriEnd(0.071f, 0f, 0.300f)`(棟梁の第3巡の測り直し ── 見える当たりの石の出の包絡 `EdoBuild.EnvelopeCut` + 0.015・`Tools/Blender/sanno_sando_nozura_kiri_set.txt`。
+        /// ⭐ 返しが野面の乱積み(法 1:0.3)になった後(EDO-0437 第3巡)は法 0.3 の全長の切りを (3) の角 0 で綴る: 段 2 = `L DanKiriEnd(0.138f, 0f, 0.300f) R DanKiriEnd(0.169f, 0f, 0.300f)`・
+        /// 段 3 = `L DanKiriEnd(0.071f, 0f, 0.300f) R DanKiriEnd(0.084f, 0f, 0.300f)`(第5巡 2026-09-26 ── 見える当たりを「設計面と描かれた地表の低い方」で測るように揃えた後(d27efa4a)の棟梁の実測。
+        /// 旧 段 2 `L(0.139) R(0.108)`・段 3 `L(0.071) R0` は使わないが残す。見える当たりの石の出の包絡 `EdoBuild.EnvelopeCut` + 0.015・`Tools/Blender/sanno_sando_nozura_kiri_set.txt`。
         /// blender --background --python Tools/Blender/build_sanno_buzai.py -- dan_kiri_list Tools/Blender/sanno_sando_nozura_kiri_set.txt 0.250 0.542 5.509 --render)。
         /// 焼かずに型だけ確かめる: -- dan_kiri_try <一覧> <蹴上> <踏面> <幅> --render(Screenshots/sanno_dankiri_<一覧>_*.png)。
         /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- dan_kiri_list Tools/Blender/sanno_sando_kiri_set.txt 0.250 0.542 5.509(組み絵は -- kiri_shots 0.250 0.542 5.509 0.219 0.040)</summary>
@@ -1296,6 +1418,12 @@ public static class EdoAssets
         public static string DanKiriEnd(float d) { return "d" + DanKiriF3(d); }
         /// <summary><see cref="SannoDanKiri"/> の端: 返しと袖に跨る。<paramref name="cornerUphill"/> = 隅の駒が坂上(−Z)にある(袖は坂下)。</summary>
         public static string DanKiriEnd(float d, float za, bool cornerUphill) { return "d" + DanKiriF3(d) + (cornerUphill ? "B" : "F") + DanKiriF3(za); }
+        /// <summary><see cref="SannoDanKiri"/> の端: 返しと袖に跨り、返しの面・欠いた奥の面とも法 <paramref name="nori"/>(野面の乱積み 1:0.3 ── EDO-0437 2026-09-26)。
+        /// d = 見える当たりの石の出の包絡 max(法·(Y − Yc) + 食い込み)(<c>EdoBuild.EnvelopeCut</c> と同じ量)/ za = 隅の駒の当たる標本の max(Z + 法·(Y − Yc))
+        /// (段の局所・Yc = −蹴上/2。za は負もとる ── 隅の駒の面が踏面の中心より坂上)。焼けている組: 参道の階の段 1 = `L DanKiriEnd(0.212f, -0.031f, true, 0.300f) R DanKiriEnd(0.198f, 0.077f, true, 0.300f)`
+        /// (EDO-0437 第5巡 2026-09-26 ── 見える当たりを設計面と描かれた地表の低い方で測った実測(d27efa4a 後)。旧 `R(0.193, 0.005)`(2f0fd97b)・`L(0.222, 0.024) R(0.213, 0.034)` は使わないが残す)(W 5.509 × H 0.430 × D 0.642・材 Danishi)。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- dan_kiri_list Tools/Blender/sanno_sando_nozura_kiri_set.txt 0.250 0.542 5.509 --render</summary>
+        public static string DanKiriEnd(float d, float za, bool cornerUphill, float nori) { return DanKiriEnd(d, za, cornerUphill) + "N" + DanKiriF3(nori); }
         /// <summary><see cref="SannoDanKiri"/> の端: 平面で斜めに切る。<paramref name="d"/> = 踏面の中心の線 Z = 0・蹴上の中ほどでの食い込み /
         /// <paramref name="deg"/> = 相手の面の平面の線が走り(Z)となす角(+ は坂下ほど外へ開く)/ <paramref name="nori"/> = 相手の面の法(0 = 鉛直 ── 綴りに出さない)。
         /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- dan_kiri_list Tools/Blender/sanno_onna_kiri_set.txt 0.300 1.199 6.363 --render</summary>
@@ -1332,8 +1460,12 @@ public static class EdoAssets
             return best;
         }
 
+        /// <summary>メッシュの資産パスが山王の野面の乱積みの駒(1間・隅・切り・法切り・見切り ── `Sanno_Nozura_*`)か。
+        /// 段石の端を石の出の包絡で切る相手の篩(EdoBuild.CutStairEndsToBatter の envWall・EDO-0437)。</summary>
+        public static bool IsSannoNozura(string meshAssetPath)
+        { return !string.IsNullOrEmpty(meshAssetPath) && System.IO.Path.GetFileName(meshAssetPath).StartsWith("Sanno_Nozura_"); }
         /// <summary>**野面の乱積みの土留め — 1間の駒**(山王社の前庭の縁。施主が試作 A を採った・2026-09-24)。
-        /// 見付 <paramref name="h"/>[m] ∈ 0.15(根石1段)/ 0.30 / 0.60 / 0.90 / 1.20 / 1.50 / 1.80 / 2.10 / 2.40、
+        /// 見付 <paramref name="h"/>[m] ∈ 0.15(根石1段)/ 0.30 / 0.60 / 0.90 / 1.20 / 1.50 / 1.80 / 2.10 / 2.40 / 4.80(勾配 0 だけ・三角形 約 3 万・EDO-0477 ── blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=0 --h=4.8)、
         /// 勾配 <paramref name="grade"/> = 天端が +X へ 1m あたり上がる量(剪断で天端を勾配に載せる・段に折らない)、
         /// 種類 <paramref name="i"/> は i%4 で a〜d(中の石だけが違う ⇒ **順に振って**繰り返しを隠す)。
         /// ⭐ **両端の石は全種類・全段・全勾配で同じ形**で、継ぎ目 X = ±0.909 で石の途中を切ってある ⇒ どの駒どうしでも継げる
@@ -1342,11 +1474,16 @@ public static class EdoAssets
         /// ピボット = 1間の中心・**床レベル(中心での天端 − 見付)**・Z=0 は天端の線での面 ⇒ 法尻の面は Z = +0.3×見付。
         /// 石は床の 0.20 下まで根入れ。**見え面の頭は天端の線から下へ 0〜0.16 で不揃い・背の列(面から 0.13 より奥)の上面は天端の線に揃う**
         /// (背の土 = 天端の高さの面が石に被らない・2026-09-25 焼き直し。天端より上へ出る所は無い ⇒ 駒の最高 = 天端の線)。
-        /// 裏 0.12 と天端の目地の奥 0.30 に目地を塞ぐ板。芝の肩は地形側で被せる前提。
+        /// ⭐ 天端は**表の石の列(控えは他の段と同じ 0.45〜0.75)+ 裏石の列**(面から 0.36〜・径 0.15〜0.35 の小石を控え方向に 2 列・
+        /// 奥の端は石ごとに 0.80〜1.05 で円弧に丸く切る)の 2 列(2026-09-26 EDO-0437 施主指摘「天端の石が異様に長い」「裏石の端が直線」で焼き直し)。
+        /// 上面は割肌: 表の石は天端の線から下へ 面の輪 0.02〜0.05・奥ほど浅く背の輪 ≤ 0.012、見え面との稜は肩 0.05〜0.08 で欠く。
+        /// 裏石は 0.006〜0.018 下で点ごとに不揃い(背の土 = 天端 −0.02 を被せても上面が顔を出す)。
+        /// 裏 0.12 と天端の目地の奥 0.30 に目地を塞ぐ板・裏石の目地の底(天端の 0.20 下)に板。芝の肩は地形側で被せる前提。
         /// **接する面**: 天端の線(隣と揃える)・床(地盤に沈める)・継ぎ目の切り口 X = ±0.909(隣の駒の切り口と一致)。
         /// ⛔ ピボットで並べない — 隣の切り口と天端の線を測って寄せる。焼けている勾配は 0・前庭の天端を流す ±0.12(H1.80 を除く 8 段・2026-09-26)・打ち切りの ±0.18(H0.15)・段の境の ±0.22(H1.50)。⭐ <paramref name="grade"/> は**その見付で焼いてある勾配のうち最も近いもの**へ寄せて引く(<see cref="SannoNozuraNearestGrade"/>)⇒ 呼ぶ側は駒の +X へ測った天端の勾配をそのまま渡す(他の勾配は下の命令に --grade=)。
-        /// 実寸(G0): W 1.818 × H 見付+0.22(根入れ 0.22・天端の線より上は無い)× D 1.0(H0.15)〜1.7(H2.4)(天端の列の控え 0.86)。三角形 2,100(H0.15)〜10,400(H2.4)。
+        /// 実寸(G0): W 1.818 × H 見付+0.22(根入れ 0.22・天端の線より上は無い)× D 1.21(H0.15)〜1.88(H2.4)(天端の奥行 = 面から裏石の奥の端まで 0.73〜1.05・石ごとに出入り)。三角形 5,900(H0.15)〜14,200(H2.4)。
         /// 背の天端の検査: blender --background --python Tools/Blender/build_sanno_nozura.py -- crest(全駒で背の下がり ≤ 0.03)
+        /// 天端の穴の検査: blender --background --python Tools/Blender/build_sanno_nozura.py -- holes(真上から光線で裏・下の覗く穴 0。2026-09-26 内向きに焼けた天端の石 77 を直した)
         /// 材 `Kirishi` / `Danishi`(石ごとに 7:3)⇒ `Edo/山王社/新造部材のマテリアルをremap`。⛔ 新規マテリアルなし。
         /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- wall [--grade=0.05] [--h=1.2] --render(勾配の組: -- wall --grade=set・並べ焼き -- grade --render)</summary>
         public static string SannoNozura(float h, float grade, int i)
@@ -1395,13 +1532,44 @@ public static class EdoAssets
         /// 個体 <paramref name="i"/> は i%2 で a/b。⭐ 腕の先の切り口 X = −0.909 / Z = −0.909 は直線の駒 <see cref="SannoNozura"/> の切り口と
         /// 同じ形(端の石が同じ)⇒ 天端の線を揃えて直線の駒をそのまま継ぐ。両面とも乱積み・稜線に跨る石を行ごとに一つ(算木を見せない)。
         /// 出隅は対称 ⇒ 一種で両回り: yaw は局所 +Z が片方の腕の外向き・局所 +X がもう片方の外向きになる向き。⛔ 入隅には使えない。
-        /// 実寸(H1.50): X −0.909〜+0.59 × Y −0.23〜+1.50 × Z −0.909〜+0.56(面は法で下ほど前へ・稜線は対角に出る。背の列の上面は天端の線 = 帯 X ≤ 0・Z ≤ 0)。三角形 2,700(H0.3)〜13,500(H2.4)。
+        /// 実寸(H1.50): X −0.909〜+0.59 × Y −0.23〜+1.50 × Z −0.909〜+0.56(面は法で下ほど前へ・稜線は対角に出る。背の列の上面は天端の線 = 帯 X ≤ 0・Z ≤ 0)。三角形 4,700(H0.3)〜16,200(H2.4)。
+        /// 裏石は両腕の面から 0.36 より奥の正方形(X, Z ∈ −0.909〜−0.36)に敷き、奥の角(両腕から 0.78 より奥)は対角の向きに石ごとの深さで丸く切る。腕の先の端の裏石は直線の駒と同じ形(面から 0.6 まで切り口が一致・奥の角だけ腕2 の先を切り離す)。
         /// 材 `Kirishi` / `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// ⚠ H1.50 の a(北東の外の角 N_kado1)は −X の腕の先の小口の 26 面が内を向いていた(隣の直線の駒を ×0.53 に縮めて据えると口が開いて見えた)
+        ///   ⇒ 継ぎ目の平面に乗る面を外へ揃えて同じ名で焼き直した(2026-09-27 r16): blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_cap --h=1.5 --v=a
         /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- kado [--h=1.5] --render</summary>
         public static string SannoNozuraKado(float h, int i)
         {
             int hmm = (int)System.Math.Round(h * 1000.0);
             return "Assets/Edo/Models/Sanno/Sanno_Nozura_Kado90_H" + hmm.ToString("0000") + "_" + (((i % 2) + 2) % 2 == 0 ? "a" : "b") + ".fbx";
+        }
+
+        /// <summary><see cref="SannoNozuraKado"/> の**片腕を袖の背の面で一度だけ切った版**(EDO-0437 2026-09-27・参道の階の前庭の北の縁の口の出隅。
+        /// 返し側の腕の法 1:0.3 の足が袖の中へ W 0.31 / E 0.47 入った ── 施主「端の石は細くしない。袖に当たる石は袖の背に沿った一辺だけ切る」)。
+        /// 元の駒(<see cref="SannoNozuraKado"/>(h, i)・1c84bf9b の塊に焼き直した版)を局所の軸に直交する平面 <paramref name="axis"/> = <paramref name="at"/> で切り、
+        /// 外(袖の側)を捨てて切り口を平らな面で塞いだ物。残す側の頂点は動かない(石を細くも伸ばしもしない)。局所座標・ピボット・材は元と同じ。
+        /// 切り口の上端は天端より下(H0.90: 0.769 / H1.50: 1.391)⇒ 天端の塊は切れない。表から当てた光線が裏の面に当たる本数 0(軸・斜めとも)。
+        /// 焼けている組: (0.90, b, 'x', 0.085) = 西 Kiri_kado2 / (1.50, b, 'z', 0.097) = 東 N_kado2。
+        /// 材 `Kirishi` / `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_cut --h=0.9 --v=b --axis=x --at=0.085 --render</summary>
+        public static string SannoNozuraKadoCut(float h, int i, char axis, float at)
+        {
+            return SannoNozuraKado(h, i).Replace(".fbx", "_cut" + char.ToUpperInvariant(axis)
+                 + at.ToString("F3", System.Globalization.CultureInfo.InvariantCulture) + ".fbx");
+        }
+
+        /// <summary><see cref="SannoNozuraKadoCut(float,int,char,float)"/> の**切った側の腕を <paramref name="arm"/> に詰めた版**(EDO-0437 2026-09-27 r16)。
+        /// 返しの走りは北の縁の面から 0.48 しかなく、0.909 の腕の先の低い頭へ前庭の皮が引かれて窪んだ ⇒ 腕を稜線の面の線から arm(0.50)で平面に切って塞ぎ、
+        /// 詰めた端に掛かる石の頭を天端へ揃えた。あわせて袖の背の側の天端を**切り口の平面まで天端の 0.004〜0.012 下で通した**
+        /// (面の列・稜線の石の天端から 0.20 内を天端へ上げ、前の層(面から 0.10 内)を切り口の平面へ送って塊のまま凸包に焼き直す ──
+        /// 袖の背の天端の縁と丸い頭の間の谷(棟梁の実測 東 0.250・西 0.225)を塞ぐ)。残す腕の先の継ぎ目の小口は内向きの面を外へ揃えた。
+        /// 局所座標・ピボット(稜線・床レベル)・材は元と同じ。焼けている組: (0.90, b, 'x', 0.085, 0.50) = 西 Kiri_kado2 / (1.50, b, 'z', 0.097, 0.50) = 東 N_kado2。
+        /// 材 `Kirishi` / `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_cut --h=0.9 --v=b --axis=x --at=0.085 --arm=0.5 --render</summary>
+        public static string SannoNozuraKadoCut(float h, int i, char axis, float at, float arm)
+        {
+            string p = SannoNozuraKadoCut(h, i, axis, at);
+            return arm > 0f ? p.Replace(".fbx", "_L" + arm.ToString("F3", System.Globalization.CultureInfo.InvariantCulture) + ".fbx") : p;
         }
 
         /// <summary>**野面の乱積みの段の境の駒**(2026-09-25・帯 `SukibeiSoto` 29.65 → `SukibeiSoto_Chu` 29.25 の差 0.40 を 1間で流す)
@@ -1485,11 +1653,11 @@ public static class EdoAssets
         /// <summary>**背を相手の法で切った野面の袖**(2026-09-26 EDO-0437 第3巡・参道の階の袖の背が切り込みの出隅の駒の法に当たる所)。
         /// <see cref="IshidanSodeNozura"/> と**同じ局所座標・同じピボット・同じ接する面**(側面 X=±0.30・天端の線)で、坂上の端(背・−Z)だけを
         /// 野面の法 **1:0.3** と平行な面で切った物(切石の袖の <see cref="IshidanSodeNori"/> は 1:0.25 ── 取り違えない)。袖の run の坂上の端の駒に使う。
-        /// 背の面(袖の局所): Z = −踏面/2 − <paramref name="e"/> − 0.3·(Y − Yc)、Yc = <see cref="SodeNoriYc"/>(= (0.30 + 蹴上)/2)。Y &lt; −0.60 は鉛直(地中)。
+        /// 背の面(袖の局所): Z = −踏面/2 − <paramref name="e"/> − 0.3·(Y − Yc)、Yc = <see cref="SodeNoriYc"/>(= (0.30 + 蹴上)/2)。**法は袖の底まで通す**(2026-09-26 EDO-0437 第7巡に改めた ── 旧は Y &lt; −0.60 を鉛直にしており、相手の野面の法の足が膝の下の背を貫いた: 前庭の北東 TW_Zentei_N_kado2 × 参道の階の東の袖 001f で 0.035〜0.040)。袖は Y = Yc − (踏面 + e)/0.3 で痩せ切る(e −0.25 で −0.70・−0.20 で −0.87・+0.05 で −1.70)。Y ≥ −0.60 の形は旧と同じ。
         /// e &gt; 0 = 平らな駒の背より坂上へ出る(坂上に次の個体を継いで伸ばす ⇒ 天端・割りは一続き)/ e &lt; 0 = 詰める。
         /// 据え手は Yc の高さで相手の面(触れている箇所)までの離れを測り、e を <see cref="SodeNoriSnap"/> で 0.05 に丸めて引く。残り(≤0.025)だけ走りに沿って寄せる。
         /// 焼けている組: 参道の階 (0.250, 0.542)・e = −0.25〜+0.05(0.05 刻み ── −0.30 は膝の下が痩せ切るので焼かない)・a/b。
-        /// 実寸(e −0.15): X −0.300〜+0.300 × Y −1.90〜+0.51 × Z −0.19〜+0.271。三角形 2,070(e −0.25)〜6,330(e +0.05)。
+        /// 実寸(e −0.15): X −0.300〜+0.300 × Y −1.03〜+0.51 × Z −0.19〜+0.271。三角形 1,130(e −0.25)〜4,390(e +0.05)。
         /// 材 `Kirishi` / `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
         /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- sode_nori --keri=0.250 --fumi=0.542 [--e=-0.15] --render</summary>
         public static string IshidanSodeNozuraNori(float keri, float fumi, float e, int i)
@@ -1497,6 +1665,58 @@ public static class EdoAssets
             var inv = System.Globalization.CultureInfo.InvariantCulture;
             return "Assets/Edo/Models/Kaidan/IshidanSodeNozuraNori_" + keri.ToString("F3", inv) + "_" + fumi.ToString("F3", inv)
                  + "_E" + (e >= 0f ? "+" : "-") + System.Math.Abs(e).ToString("F2", inv) + "_" + (i % 2 == 0 ? "a" : "b") + ".fbx";
+        }
+
+        /// <summary>**段 4 に面する所だけ天端を埋めた前庭の野面の駒**(EDO-0437 r13 2026-09-27)。<c>Sanno_Nozura_H0600_G+000_c</c> と同じ局所座標・同じピボット・
+        /// 同じ石の割り・同じ材で、参道の階の段 4 の端に面する帯(段の局所 Z −0.45〜+0.34・段 3 の踏面より上)だけ、面から 0.20 奥までの頂点を
+        /// 列ごとに前へ伸ばして面を段 4 の端(|x| 幅/2 + 0.004)へ当て、頭の石(上面が天端の 0.25 以内)を天端 14.50 まで上げた物(石は刻まず塊のまま伸びる)。
+        /// <paramref name="side"/> = 'W'(<c>TW_Zentei_Kiri_012f</c> に差し替える)/ 'E'(<c>TW_Zentei_Kiri_027f</c>)。⚠ 据えは元の駒と同じ位置・向き・
+        /// **縮尺(走り X を 0.387 / 0.394 に縮めてある)**のまま。形は r11 の据えの従属値 ── 据えを変えたら焼き直す。材 `Kirishi` / `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_sando_fit.py -- all --render</summary>
+        public static string SannoNozuraFillSandoKai4(char side)
+        {
+            return SannoNozuraDir + "/Sanno_Nozura_H0600_G+000_c_SandoKai4" + side + ".fbx";
+        }
+        /// <summary>石段 <paramref name="stair"/> の段 <paramref name="i"/> の脇 <paramref name="side"/>('W'/'E')に合わせて焼いた野面の駒の名
+        /// (元の部材 <paramref name="basePath"/> の名 + "_" + 石段 + 段 + 脇)。焼いてあるのは <see cref="SannoNozuraFillSandoKai4"/> の組だけ ──
+        /// 無ければ資産が無いので呼び手は差し替えない(EdoBuild.SwapWallsBesideStep)。</summary>
+        public static string SannoNozuraFillBeside(string basePath, string stair, int i, char side)
+        {
+            if (string.IsNullOrEmpty(basePath) || !basePath.StartsWith(SannoNozuraDir + "/")) return null;
+            return SannoNozuraDir + "/" + System.IO.Path.GetFileNameWithoutExtension(basePath) + "_" + stair + i + side + ".fbx";
+        }
+
+        /// <summary>**両端を相手の野面の石の見える外形に沿わせた段石**(EDO-0437 第10巡 2026-09-26 → r11 2026-09-27)。<see cref="SannoDan"/> と同じ局所座標・同じピボット・
+        /// 同じ石の割り・同じ材で、蹴上・踏面・幅・段鼻の線は変えず、両の小口だけを相手の石の面へ刳る(平面で切る <see cref="SannoDanKiri"/> の代わり)。
+        /// 小口は 0.01 升で刻み、相手の石の面(閉じた体積)から 0.003〜0.005 外へ詰める。相手の目地(幅 0.04 未満)は跨ぐ。相手の天端が踏面の 0.03 以内の下で
+        /// 終わる所(段 4)は踏面まで石の面に沿う。袖の居る所(段 1)は小口 X = ±幅/2 のまま。検査は Unity と同じ測り(頂点と面の 0.01 格子の点が、見える地表より上で
+        /// 相手の閉じた体積の中に在るか・8 方向の光線)── 段 0〜4 とも 0。
+        /// ⚠ 形は据えの従属値: 相手は **隅石を退けない**位置(`EdoBuild.YieldWallsToSteps` を止める)、段・袖は r11 の配置のまま据える
+        /// (`Tools/Blender/data/sanno_sando_fit_r11.json.gz`)。据えを変えたら json を書き出し直して焼き直す。
+        /// 焼けている組: 参道の階 (0.250, 0.542, 5.509) の段 **0〜4**(<paramref name="stair"/> = "SandoKai"・段 0 は r11 で相手の N_kado2 に当たったので足した)。
+        /// ⭐ 段 4 は小口を ±幅/2(5.509)で止める(r13 ── 野面の丸い頭の上へ板のように載った)。脇は <see cref="SannoNozuraFillSandoKai4"/> で埋める(段 2〜4 はその埋めた駒に合わせて焼いてある)。
+        /// 実寸: 段 0・1・4 X ±2.7545 / 段 2 −2.728〜+2.722 / 段 3 −2.875〜+2.811 × H 0.430 × D 0.642。三角形 約 13,300。材 `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_sando_fit.py -- all --render</summary>
+        public static string SannoDanFit(float keri, float fumi, float w, int i, string stair)
+        {
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            return "Assets/Edo/Models/Kaidan/DanFit_" + keri.ToString("F3", inv) + "_" + fumi.ToString("F3", inv) + "_"
+                 + w.ToString("F3", inv) + "_" + (i % 2 == 0 ? "a" : "b") + "_" + stair + i + ".fbx";
+        }
+
+        /// <summary>**背を相手の野面の石の見える外形に沿わせた野面の袖**(EDO-0437 第10巡 2026-09-26 → r11 2026-09-27)。<see cref="IshidanSodeNozuraNori"/> と
+        /// 同じ局所座標・同じピボット・同じ表(側面 X=±0.30・天端の線・坂下の端 Z=+踏面/2)。袖の 1 個体の石を**刻まず**、列 (x, y) ごとに走り Z を
+        /// [背 −踏面/2, 前] → [相手の面 + 0.004, 前] へ一次で写し(高さも天端の線の勾配ぶん一緒に)、石は塊のまま伸び縮みする(天端を欠片に割らない)。
+        /// 縮んで走りの厚みが 0.08 を切る石は塊ごと外す。見える地表 − 0.10 より下は据えてあった平面の背(W e −0.15 / E e −0.20・法 1:0.3)。
+        /// <paramref name="side"/> = 'W' / 'E'、<paramref name="k"/> = 袖の run の番(坂上の端 = 1)。
+        /// ⚠ 形は据えの従属値: 相手(隅石)は退けない位置、袖は r11 の配置(scale z 0.9296 / 0.8951 を含む)のまま据える。据えを変えたら焼き直す。
+        /// 焼けている組: 参道の階 (0.250, 0.542) の W1・E1(個体 b)。材 `Kirishi` / `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_sando_fit.py -- all --render</summary>
+        public static string IshidanSodeNozuraFit(float keri, float fumi, string stair, char side, int k, int i)
+        {
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            return "Assets/Edo/Models/Kaidan/IshidanSodeNozuraFit_" + keri.ToString("F3", inv) + "_" + fumi.ToString("F3", inv)
+                 + "_" + stair + side + k + "_" + (i % 2 == 0 ? "a" : "b") + ".fbx";
         }
 
         /// <summary>**石段の袖 — 野面の乱積み版**(2026-09-24)。<see cref="IshidanSode"/> と**同じ局所座標・同じピボット・同じ接する面**
@@ -2066,6 +2286,38 @@ public static class EdoAssets
         }
         public static string Munamon(float w) { return Munamon(w, false); }
 
+        /// <summary>**袖の無い冠木門**(旗本屋敷の表門・類型 gate=kabukimon。EDO-0491・施主裁定A 2026-09-30)。
+        /// 在庫 <see cref="Eg.Kabukimon"/> は袖塀を抱えて ES 後 8.05m あり、狭い接道に載らない。
+        /// 本柱2本+冠木+両開きの板扉(閉)だけ。屋根・袖なし — 袖の外の塀は本柱の外の面(札の jamb)へ突き付ける。
+        /// ローカル: 幅=X / 高さ=Y / 厚み=Z、**+Z = 外(道の側)**。ピボット = 門の芯・敷居レベル。倍率1。
+        /// 実寸 3.636(X) × 3.997(Y) × 0.480(Z)・門口 2.727(1.5間)・柱頭 3.737・**底は −0.260**(沓石)。
+        /// 札 `Assets/Edo/Data/PartSpecs/Kabukimon_NoSode_2.73.json`。remap は **Edo ▸ 類型 ▸ 新造部材のマテリアルをremap**。
+        /// ⚠ 仮置き【U】: 本柱 0.303角 / 冠木の鼻(全幅 2間で切った)/ 冠木の丈 0.40・見込 0.21 / 沓石。
+        /// 生成: blender --background --python Tools/Blender/build_kabukimon.py -- [--render]</summary>
+        public const string KabukimonNoSode = MonDir + "Kabukimon_NoSode_2.73.fbx";
+
+        /// <summary>**町木戸**(町境・参道の口を夜に閉じる木戸。EDO-0503・切絵図 S で山王門前の二ノ鳥居東の辻)。
+        /// 親柱2本+冠木+両開きの扉+潜り戸。屋根なし。⚠ 路地木戸(kido_open・高さ 1.78)とは別物。
+        /// ローカル: 幅=X(道を横切る)/ 高さ=Y / 厚み=Z。ピボット = 道の芯・地盤レベル。倍率1。
+        /// 10.54 の実寸 W10.540 × H3.335(地上 3.075・底 −0.26)× D2.046。札の jamb ±W/2・通り口 ±1.818。
+        /// 道幅ごとに焼く: blender --background --python Tools/Blender/build_machikido.py -- --haba &lt;道幅m&gt;
+        /// 据えるのは <c>EdoBuild.MachiKidoAcross</c>(両脇の区画の角へ親柱の外面を突き付ける)。</summary>
+        public static string MachiKido(float haba)
+        {
+            return MonDir + "MachiKido_" + haba.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + ".fbx";
+        }
+
+        /// <summary>**道の横断勾配に追従する町木戸。**<paramref name="keisha"/> = −X 端から +X 端への地面の下がり[m]
+        /// (正 = +X が低い)。0.05m 刻みで焼く。柱の足元が勾配なりに伸び、冠木・笠木は水平。ピボット = 足形の中心(X=0)の地面。
+        /// 生成: blender --background --python Tools/Blender/build_machikido.py -- --haba &lt;道幅m&gt; --keisha &lt;下がりm&gt;</summary>
+        public static string MachiKido(float haba, float keisha)
+        {
+            if (System.Math.Abs(keisha) < 0.025f) return MachiKido(haba);
+            var ci = System.Globalization.CultureInfo.InvariantCulture;
+            return MonDir + "MachiKido_" + haba.ToString("0.##", ci) + "_k" + (keisha < 0f ? "m" : "")
+                 + System.Math.Abs(keisha).ToString("0.00", ci) + ".fbx";
+        }
+
         const string MonDir = "Assets/Edo/Models/Mon/";
 
         // ---------------------------------------------------------------- 丸太物(手すり・汀の杭)
@@ -2141,7 +2393,9 @@ public static class EdoAssets
         ///
         /// 焼いてあるもの(Dobei = 練塀。腕は折れ点から ±2.26m・高さ 1.455m・s を掛けて据える。
         /// s=1.818 で据えれば片腕は世界で 4.10m):
-        /// 00 00M 01 01M 06 07 08 08M 11 11M 14 14M 18 18M 19 31 38M 41 62 62M 88M 91 95 95M ／
+        /// 00 00M 01 01M 02M 03 04M 06 07 07M 08 08M 09 09M 10M 11 11M 12 12M 13 14 14M 16 16M 18 18M 19 19M
+        /// 22 22M 27 31 35 35M 38M 39 41 62 62M 67 76M 78 88M 89M 91 95 95M ／
+        /// (02M〜89M のうち岡部の新しい区画の 23 本は整数の角で焼いた・EDO-0502 2026-10-03)
         /// Ishigaki 31・31M ／ Tsuijibei 31 ／ Nagaya 38M。無い角度は:
         ///   blender --background --python Tools/Blender/build_kado.py -- --part dobei --deg &lt;符号つき角度&gt; --render
         ///
@@ -2153,6 +2407,23 @@ public static class EdoAssets
         {
             return "Assets/Edo/Models/Kado/" + part + "_Kado_"
                  + UnityEngine.Mathf.RoundToInt(UnityEngine.Mathf.Abs(deg)).ToString("00") + (deg < 0f ? "M" : "") + ".fbx";
+        }
+
+        /// <summary>**腕の短い隅**(<see cref="Kado(string,float)"/> と同じ留め継ぎ・同じ据え・同じ s)。素の腕の先を走りに直角に切った物
+        /// (練塀は小口を持たない ── 切り口は隣の隅の腕へ重ねて埋める)。<paramref name="armIn"/> = 入りの腕(局所 −Z)/
+        /// <paramref name="armOut"/> = 出の腕の、据え点から腕の先までの走り[**局所** m・s を掛ける前]。綴りは cm(`_A110x45`)。
+        /// <paramref name="armFull"/> = 素の腕(`EdoBuild.KadoGauge` で測る)── 両腕とも素なら接尾辞なし(= <see cref="Kado(string,float)"/>)。
+        /// 腕の長さは区画から `EdoBuild.KadoArms` が選ぶ(⛔ 邸ビルダーで決めない)。
+        /// 焼いてあるもの(Dobei・EDO-0502 2026-10-03 岡部の南東の短い辺 2.06〜3.31m): **89M_A226x110**(P1)/ **39_A110x45**(P2)/
+        /// **35_A45x65**(P3)/ **09_A65x226**(P4)。材 `s_heimap`(.meta は既存 Dobei_Kado の remap 済みを写した)。
+        ///   blender --background --python Tools/Blender/build_kado.py -- --part dobei --deg &lt;整数角&gt; --arms &lt;入り&gt;,&lt;出&gt; --render</summary>
+        public static string Kado(string part, float deg, float armIn, float armOut, float armFull)
+        {
+            int a = UnityEngine.Mathf.RoundToInt(armIn * 100f), b = UnityEngine.Mathf.RoundToInt(armOut * 100f);
+            int f = UnityEngine.Mathf.RoundToInt(armFull * 100f);
+            string p = Kado(part, deg);
+            if (a >= f && b >= f) return p;
+            return p.Substring(0, p.Length - 4) + "_A" + a + "x" + b + ".fbx";
         }
 
         /// <summary>**丈違いの石垣の隅**(`Castle Wall` の留め継ぎ・丈 <paramref name="h"/> m)。
@@ -2182,13 +2453,71 @@ public static class EdoAssets
         /// 焼いてあるもの(EDO-0430・2026-09-26・90° × 4.00): **A159x200 / A200x159**(郭の階の南の袖の脇・入り 0.41)、
         /// **A171x200 / A200x171**(前庭の北東・参道の階の東の袖・入り 0.29)。どちらの腕が袖に当たるかで組を選ぶ
         /// (PlaceRunKado の yaw の解で局所 −Z の腕が袖の側なら A<短>x200)。材 `stone wall` ⇒ `Edo/共通/隅部材のマテリアルをremap`。
-        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 90 --h 4 --arms 1.59,2.0 --render</summary>
+        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 90 --h 4 --arms 1.59,2.0 --render
+        /// **腕は負でもよい**(腕の先が P の手前 ── 留めの三角の中で打ち切る)。綴りは符号ごと cm(`_A200x-4`)。
+        /// 切り口は局所 x = armPosX の鉛直面(小口の柄・天端 Y 4.00・見え面 +Z の足 2.40/天端 1.40 まで)、
+        /// もう一方の腕の留め面の背の帯(幅 −a·√2)は小口の柄で塞いである。
+        /// **A200x-4**(EDO-0437・2026-09-26・90° × 4.00): 御供所の郭 `TW_Gusho_EK_x_SE_kado` ── EK の run 1.36 に対し
+        /// +X の腕 2.00 が郭の階の南の袖 `TW_GushoKai_S` をまるごと呑んでいた(0.82)。袖の坂下の端(局所 x −0.041)で切る。
+        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 90 --h 4 --arms 2.0,-0.04 --render</summary>
         public static string IshigakiKado(float deg, float h, float armNegZ, float armPosX)
         {
             int az = UnityEngine.Mathf.RoundToInt(armNegZ * 100f), ax = UnityEngine.Mathf.RoundToInt(armPosX * 100f);
             string p = IshigakiKado(deg, h);
             if (az == 200 && ax == 200) return p;
             return p.Substring(0, p.Length - 4) + "_A" + az + "x" + ax + ".fbx";
+        }
+
+        /// <summary>**出隅の隅長屋**(L 字の長屋の角・EDO-0500 2026-10-01 観理院 北東の施主指摘 ── 妻を突っ込む納めは屋根が重なり窓が途中で切れた)。
+        /// 在庫 `knagaya01c` を周期のまま走りに延ばした帯を **pier(無地の壁)の芯で折った**物 ── 屋根は留めで一続き(外に隅棟・内に谷)。
+        /// 外隅の稜の両側に無地 0.77m ずつ・窓は切れない・各腕に窓 2 つ以上。
+        /// <paramref name="deg"/> = **出隅の内角**(0.1° 単位で綴る ── 90 は `90`・90.9 は `90p9`)。**+X の腕の向きは固定**、−Z の腕が内角で回る
+        /// (−Z の腕の向き = Unity XZ で (−cos φ, −sin φ)・φ = 180 − deg。90.9 なら (−0.0157, −0.9999))。
+        /// <paramref name="armPosX"/> = **+X の腕**(見え面 +Z)/ <paramref name="armNegZ"/> = **−Z の腕**(見え面 −X)の外隅から腕の先までの**外面の長さ**[m]
+        /// (cm の整数で綴る `RoundToInt(a·100)`。焼くときも cm に丸めた値を渡す ── 半 cm は Python と丸めが割れ得る)。
+        /// <paramref name="tsuma"/> = "" | "Z" | "X" | "ZX"(妻で閉じる腕 ⇒ `_TZ` 等)。
+        /// ピボット = **外隅の稜**(両腕の外面 = 足元の帯の最も外 = 海鼠の浮き彫りの表の交線)・**土台の底**。
+        /// 据え: position = 二辺の長屋の外面の線の交点 / yaw = **+X の腕の辺の外向き方位**(+Z が外)/ scale = 1(FBX は実寸 m)。
+        /// 奥行: 外面 → 内壁 3.133 / 軒の出 外 0.567・内 0.593(外面から内の軒先 3.726)/ 棟 5.445(妻つきは鬼まで 5.509)。
+        /// **妻の無い腕の先** = 在庫 `knagaya01c` の土台の端と同じ位相(先の一切れは素の棟の端そのもの)⇒ 在庫の棟を表を外へ向けてそのまま突き付ける
+        /// (+X の腕の先には在庫の棟の右端(表から見て)= 無地 0.571 の端、−Z の腕の先には左端 = 0.961 の端が当たる。表を外へ向ければ勝手にそうなる)。
+        /// **妻の腕の先** = 在庫 `knagaya01l/r` の妻の端(破風・鬼・妻壁)を継いだ物。腕の長さの位置 = **妻壁の外面**(`namako2` の浮き彫りの表)。
+        /// 土台の端は 0.030 内、**破風・鬼は 0.322 外へ出る**(区画の線・門の柱と当てるのは妻壁の外面・破風は軒と同じく越えてよい)。
+        /// 腕の端数は窓の数と無地の壁の詰めで吸う(窓・瓦・海鼠は伸ばさない)。作れる腕は **4.79m 以上**(上限なし)。
+        /// 詰め 0 の長さ(妻なし)は +X の腕 5.563 + 2.687k / −Z の腕 5.182 + 2.687k[m]。
+        /// 札(kind building)は `PartSpecs/<同名>.json`。材 `knagayamap` ⇒ `Edo/共通/隅部材のマテリアルをremap`。
+        /// 焼いてあるもの: **90_A600x600**(生成器の検め用)/ **90p9_A1005x919_TZ**(観理院 北東の当座・−Z の腕 = 北の腕の西の先が表門)。
+        ///   blender --background --python Tools/Blender/build_nagaya_kado.py -- --deg &lt;deg&gt; --arms &lt;negZ&gt;,&lt;posX&gt; [--tsuma negZ|posX|both] --render</summary>
+        public static string NagayaKado(float deg, float armNegZ, float armPosX, string tsuma)
+        {
+            int dd = UnityEngine.Mathf.RoundToInt(deg * 10f);
+            string d = dd % 10 == 0 ? (dd / 10).ToString() : (dd / 10) + "p" + (dd % 10);
+            return "Assets/Edo/Models/Kado/Nagaya_Kado_" + d + "_A" + UnityEngine.Mathf.RoundToInt(armNegZ * 100f)
+                 + "x" + UnityEngine.Mathf.RoundToInt(armPosX * 100f) + (string.IsNullOrEmpty(tsuma) ? "" : "_T" + tsuma) + ".fbx";
+        }
+
+        /// <summary>**両端とも妻で閉じた一棟の長屋**(真っ直ぐ・折らない)。在庫は l(片妻)/ r(片妻)/ c(妻なし)しか無く、
+        /// 孤立した短い区間に c を置くと両端の小口が開いて中が素通しになる(観理院 表門の西脇・施主指摘 2026-10-02)。
+        /// 在庫 `knagaya01c` の帯を窓の数と無地の壁の詰めで <paramref name="len"/> に合わせ、−X 端に `knagaya01r`・+X 端に `knagaya01l` の妻の端
+        /// (破風・鬼・妻壁)を継いだ物。窓・瓦・海鼠は伸ばさない。隅棟は無い。
+        /// <paramref name="len"/> = **妻壁の外面どうし**(namako2 の浮き彫りの表)[m]。破風・鬼は各端 0.322 外へ出る(全幅 len + 0.644)・土台の端は 0.030 内。
+        /// 作れる長さ 1.28m 以上(3m 未満は窓 1 つ)。名前は cm の整数(`Nagaya_Tsuma2_L807` = 8.07m)。
+        /// ピボット = **長さの中央・外面(足元の海鼠の浮き彫りの表 = 隅長屋のピボットと同じ面)の線上・土台の底**(⛔ 表長屋 NagayaOmote の「壁の外面・全幅 len」とは定義が違う)。
+        /// 向き: 表(窓・海鼠の面)= **+Z**、在庫 `knagaya01c` を ES で置いたときと同じ向き。軒は +Z へ 0.596・躯体は −Z へ内壁 3.133 / 内の軒先 3.756。
+        /// 据え: position = 区間の中点(外面の線の上)/ yaw = 外向き法線の方位 / scale = 1(FBX は実寸 m)。高さ 5.509(鬼まで)。
+        /// 札(kind building)は `PartSpecs/<同名>.json`。材 `knagayamap` ⇒ `Edo/長屋/表長屋のマテリアルをremap`。
+        ///   blender --background --python Tools/Blender/build_nagaya_kado.py -- --straight &lt;長さm&gt; --render</summary>
+        public static string NagayaTsuma2(float len)
+        {
+            return NagayaDir + "Nagaya_Tsuma2_L" + ((long)System.Math.Floor((double)len * 100.0 + 0.5)) + ".fbx";
+        }
+
+        /// <summary><see cref="NagayaKado(float,float,float,string)"/> の 90°・妻なし(`Nagaya_Kado_90_A&lt;negZ&gt;x&lt;posX&gt;`)。
+        ///   blender --background --python Tools/Blender/build_nagaya_kado.py -- --arms &lt;negZ&gt;,&lt;posX&gt; --render</summary>
+        public static string NagayaKado90(float armNegZ, float armPosX)
+        {
+            return "Assets/Edo/Models/Kado/Nagaya_Kado_90_A" + UnityEngine.Mathf.RoundToInt(armNegZ * 100f)
+                 + "x" + UnityEngine.Mathf.RoundToInt(armPosX * 100f) + ".fbx";
         }
 
         /// <summary>**片端を斜めの鉛直面で切った城の石垣の駒**(`JC.CastleWall` を走りに 2 枚つないだ 4.00m・丈 4.00・EDO-0430)。
@@ -2302,6 +2631,19 @@ public static class EdoAssets
         /// ⛔ 隅の留め継ぎは未対応(塀の Kado 統合はまだ無い — `kado-mitre-parts.md`「塀と長屋は未解決」)。
         /// 生成: blender --background --python Tools/Blender/build_dobei.py -- [--render]</summary>
         public const string Dobei2m = "Assets/Edo/Models/Dobei/Dobei2m.fbx";
+
+        /// <summary><see cref="Dobei2m"/> の下に据える**布石(腰の石)** — 切石の布積み 4段の1駒(EDO-0477)。
+        /// 用途: **段塀の布石**(呼び手は EdoBuild の練塀の段塀)。区間ごとに塀の笠を水平にし、区間の中で
+        /// 地面が下がる所は塀の下端と地面の間を布石の見え(0〜約1.1m)で受け、見えない所は地面に埋めて隠す
+        /// (一種類の丈の駒・下は埋まる)。考証: 屋敷の練塀は傾けず、足元の差は布石・根石の見え高さで受ける【U】。
+        /// ローカル座標は Dobei2m と同じ: 走り +X ∈ [0, 2.004]・高さ +Y・**天端が y=0**(下端 y=−1.30)・
+        /// 厚み Z は芯0で ±0.28(下見板 0.42 より片側 0.07 出る・両面とも見え面)。
+        /// ⭐ 真の m で作ってあり scale=1 で置く(ES も vklib.S も掛けない)。⇒ 塀の駒と同じ位置・向きに
+        /// 置けば天端が塀の下端に接する。縦目地は駒の中だけで、駒の両端は石を切ったまま(並べると端の石が
+        /// 継ぎ目を跨いで続く)。両小口は面で塞いである(段の所で見える)。三角形 608。
+        /// 材 `Kirishi` ⇒ `Edo/類型/新造部材のマテリアルをremap`(Models/Dobei は対象・借り先に Sanno/Kirishi.mat)。
+        /// 生成: blender --background --python Tools/Blender/build_dobei_nunoishi.py -- [--render]</summary>
+        public const string Dobei2mNunoishi = "Assets/Edo/Models/Dobei/Dobei2m_Nunoishi.fbx";
 
         /// <summary><see cref="Dobei2m"/> の**妻を塞いだ端部**(x=0 側の小口に袖瓦を葺いて閉じた駒。
         /// build_dobei.py の gable='L')。塀が行き止まる自由端(門の脇など)に使う — 開放小口のまま
@@ -2586,6 +2928,16 @@ public static class EdoAssets
         {
             return MachiyaDir + "Typ_Omotedana_" + Len2(wKen) + "x" + Len2(dKen) + "ken.fbx";
         }
+
+        /// <summary>**平屋の小店**(厨子二階の無い表店・裏通りや門前の端の店)。EDO-0503。
+        /// 焼いてあるのは **2×2.5間(W3.636 × H3.671 × D4.545)** と **3×2.5間(W5.454)**。
+        /// 向き・ピボット・材は <see cref="Omotedana(float)"/> と同じ(+Z = 店先・足形の中心・地盤レベル・暖簾は `Noren 2`)。
+        /// 札 `Assets/Edo/Data/PartSpecs/Typ_OmotedanaHira_&lt;W&gt;x&lt;D&gt;ken.json`。remap は **Edo ▸ 類型 ▸ 新造部材のマテリアルをremap**。
+        /// 生成: blender --background --python Tools/Blender/build_typ_machiya.py -- --kei hira --ken &lt;間&gt; --okuyuki &lt;奥行m&gt;</summary>
+        public static string OmotedanaHira(float wKen, float dKen)
+        {
+            return MachiyaDir + "Typ_OmotedanaHira_" + Len2(wKen) + "x" + Len2(dKen) + "ken.fbx";
+        }
         }
 
         // ---------------------------------------------------------------- 岡部邸の附属屋・結界
@@ -2778,6 +3130,68 @@ public static class EdoAssets
         /// 生成: blender --background --python Tools/Blender/build_hori_saku.py -- post</summary>
         public const string HoriSakuPost = "Assets/Edo/Models/Hei/HoriSakuPost.fbx";
 
+        /// <summary>**竪格子の柵 1間**(EDO-0503・町屋の表店の列の端に残った空き 1〜3m を閉じる仕切り)。
+        /// 町木戸 <see cref="MachiKido(float)"/> の**袖と同じ意匠**(柱 5寸角の掘立・地覆・袖の笠木・竪子 芯々 0.152・横子2段)を
+        /// 1スパンの駒にした物。袖の部品は `build_machikido.sode_*` を共用(意匠を直すなら両方焼き直す)。
+        /// ローカル: 幅=X(走り)/ 高さ=Y / 厚み=Z。+Z = 見え面(通り側・格子は表裏対称・両面の実体)。倍率1。
+        /// ピボット = **スパンの中心・地盤レベル**。柱は **−X 端**(外の面 x = −0.909)⇒ **bbox の X がちょうど 1.818**。
+        /// 実寸 W1.818 × H(h+0.26)× D0.150・**底 y = −0.26**(根入れ)・天端 y = h。⛔ `SeatBottom` で据えない — y=0 を地盤へ。
+        /// 重ねずに 1.818 ちょうどのピッチで突き付け、+X 端に <see cref="TategoshiSakuPost"/> を足す。札 `PartSpecs/TategoshiSaku_&lt;h&gt;.json`(fence)。
+        /// 焼いてある丈: 2.12(7尺・町木戸の袖と同じ)/ 1.82。材 `wood` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_tategoshi_saku.py -- --h &lt;丈m&gt; [--render]</summary>
+        public static string TategoshiSaku(float h = 2.12f)
+        {
+            return "Assets/Edo/Models/Hei/TategoshiSaku_" + h.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + ".fbx";
+        }
+
+        /// <summary>**竪格子の柵の端柱**(<see cref="TategoshiSaku"/> の run の +X 端を受ける柱1本・笠木つき)。
+        /// ピボット = **柱の +X 面・地盤レベル**(柱は x ∈ [−0.150, 0])。実寸 W0.150 × H(h+0.26)× D0.150・底 y = −0.26。
+        /// 生成: blender --background --python Tools/Blender/build_tategoshi_saku.py -- --h &lt;丈m&gt;</summary>
+        public static string TategoshiSakuPost(float h = 2.12f)
+        {
+            return "Assets/Edo/Models/Hei/TategoshiSakuPost_" + h.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + ".fbx";
+        }
+
+        /// <summary>**板塀の板(柱なし)1間**。在庫の板塀 <see cref="Eg.Itabei5"/>(柱と板が一体の 5間の駒)を
+        /// 柱と板に分けた組の板の方(2026-09-26・EDO-0437 山王 前庭の南の板塀 `Ita_ZSE`)。柱 <see cref="ItabeiHashira"/> を
+        /// 1本ずつ床に据え、その間にこれを掛ける。貫3段・羽目板7枚(表裏交互)・笠木。**材・見付・UV は元の駒と同一**
+        /// (元の 1スパン `itabei.obj` の ES 倍から柱を抜いただけ。組み直すと元の頂点の多重集合と欠け 0・余り 0)。
+        /// ローカル(**実寸・ES 倍しない** ⇒ scale 1): 幅=X / 高さ=Y / 厚み=Z。ピボット = **板の中心・元の駒の y=0**。
+        /// 板の端 x = ±0.7051(= 柱の面)・下端 y = +0.117・笠木の天端 y = +1.392・厚み z ±0.027。
+        /// 柱芯は板の中心から **±0.7456**(柱間 1.4912 = 元の駒と同じ)。柱間を伸縮するなら X だけ scale する。
+        /// ⚠ 元の駒と同じく**表裏の対**(裏は yaw+180・奥へ 0.12)で置けば姿が今と揃う。材 `itabei` →
+        /// `Edo/山王社/新造部材のマテリアルをremap`(元の駒の .obj のサブアセットを借りる)。
+        /// 生成: blender --background --python Tools/Blender/build_itabei_bunkatsu.py -- [--render]</summary>
+        public const string ItabeiIta = "Assets/Edo/Models/Hei/Itabei_Ita_1.410.fbx";
+
+        /// <summary>**板塀の柱1本**(<see cref="ItabeiIta"/> と組・2026-09-26・EDO-0437)。元の駒の柱身(0.081 角)と根元の台
+        /// (0.137 角・y −0.011..+0.041)に、**地中の継ぎ足し**(柱身と同じ断面で y = −0.300 まで)を足した物。地上は元のまま。
+        /// ローカル(実寸・scale 1): ピボット = **柱の芯・元の駒の y=0**(= 元の駒の地際の基準)。
+        /// 柱の足(下端)y = **−0.300** / 頭 y = **+1.439** / 柱身 x ±0.0405・z ±0.037(台は z ±0.068・x −0.066..+0.071)。
+        /// ⭐ 据えは「y=0 を床に合わせ、そこから根入れ」── 足の下端を床に当てない(0.30 が根入れの取り代)。
+        /// 生成: blender --background --python Tools/Blender/build_itabei_bunkatsu.py -- [--render]</summary>
+        public const string ItabeiHashira = "Assets/Edo/Models/Hei/Itabei_Hashira_N0.30.fbx";
+
+        /// <summary>**板塀の地覆(板の下の横木)1間・光付けの代つき**(2026-09-27・EDO-0437 施主裁定 案A「板を石の天端・地面まで下ろす」)。
+        /// <see cref="ItabeiIta"/> の真下に通し、**下端を据えた所の地表・石の天端へ光付け(削り合わせ)**して接地 ±0.01 に納める。
+        /// ローカル(実寸・scale 1): **板と同じ枠** ── ピボット = 板の中心・板の y=0。x ±0.7050(= 板の端 = 柱の面)/
+        /// 上端 y = +0.1171(= 板の下端・接する)/ 下端 y = **−0.600**(光付けの代)/ z ±0.0373(= <see cref="ItabeiHashiraHk"/> の柱身と面一)。
+        /// ⭐ **板と同じ変換(位置・回転・走りの縮尺)で置けば板の真下に納まる。**
+        /// 【光付けの印】局所 y ≤ −0.599 の頂点(下端の 4 隅だけ ── 点は出来るかぎり少なく・2026-09-27 施主。⭐ 既定は削らず根入れ `EdoBuild.RootToBed` で代を石・地面に埋める)が削る頂点。
+        /// `mesh.uv2` = その頂点の d(uv)/dy(地覆は (0.16316, 0)・下面は 0)⇒ Δy 上げたら `uv += uv2·Δy`、削り終えたら uv2 を消す。
+        /// 手本: `build_itabei_jifuku.py` の `scribe()`。材 `itabei`(貫と同じアトラスの帯)。
+        /// 生成: blender --background --python Tools/Blender/build_itabei_jifuku.py -- [--render]</summary>
+        public const string ItabeiJifuku = "Assets/Edo/Models/Hei/Itabei_Jifuku_1.410_Hk0.60.fbx";
+
+        /// <summary>**板塀の柱1本・光付けの代つき**(<see cref="ItabeiJifuku"/> と組・2026-09-27・EDO-0437 案A)。在庫の柱身(0.0812×0.0746)を
+        /// そのまま使い、**根元の台(小さな礎石)を外して**下へ y = −0.600 まで継いだ物(継ぎ足しの UV は柱身の下端から上へ折り返す)。
+        /// 台を外したのは、地覆の小口と 0.028 重なり、野面の上では台そのものが浮くため。
+        /// ローカル(実寸・scale 1): ピボット = 柱の芯・板の y=0。頭 y = +1.4387 / 下端 y = **−0.600**(光付けの代)/ x ±0.0406・z ±0.0373。
+        /// 【光付けの印】局所 y ≤ −0.599 の頂点(下端の隅だけ。⭐ 既定は削らず根入れ `EdoBuild.RootToBed`)。`mesh.uv2` = d(uv)/dy(側面ごと)。削り方は <see cref="ItabeiJifuku"/> と同じ。
+        /// ⛔ 旧の <see cref="ItabeiHashira"/>(根入れ 0.30 で地中へ沈める)と混ぜない。
+        /// 生成: blender --background --python Tools/Blender/build_itabei_jifuku.py -- [--render]</summary>
+        public const string ItabeiHashiraHk = "Assets/Edo/Models/Hei/Itabei_Hashira_Hk0.60.fbx";
+
         // ---------------------------------------------------------------- 庭の点景(岡部邸)
         // 指図 `gardens[]` / 算出物 `okabe_impl.json` の `gardens[].asset` が指す部材。
         // ⛔ **雪見灯籠だけは在庫にある** → <see cref="Eg.ToroYukimi"/>(下の Toro は転送)。
@@ -2926,7 +3340,7 @@ public static class EdoAssets
         public static string Ishibashi() { return NiwaDir + "Ishibashi_Kiri_1.fbx"; }
 
         /// <summary>刈込の生垣モジュール(ツゲ・マサキの見立て・1 間 × 1.90m × 0.80m、葉カード・材 M_FJG_Plant_Boxwood_01_Spring・LOD1)。
-        /// <c>end</c> は小口が葉で閉じた端部(+X が突き付け面)。ピボットは 1 間の中心・床レベル、前後対称。
+        /// <c>end</c> は小口が葉で閉じた端部(⭐ Unity の局所 **+X が葉で閉じた小口・−X が突き付け面** ── Blender では逆。2026-09-29 頂点で実測・EDO-0472)。ピボットは 1 間の中心・床レベル、前後対称。
         /// 実寸(葉の持ち出し込み)1.908×2.02×1.09。Blender: <c>blender --background --python Tools/Blender/build_ikegaki.py</c>(2026-09-06 部材方)。</summary>
         public static string Ikegaki(bool end)
         { return NiwaDir + (end ? "Ikegaki_End_1.818.fbx" : "Ikegaki_1.818.fbx"); }
@@ -3255,6 +3669,15 @@ public static class EdoAssets
                               System.Globalization.CultureInfo.InvariantCulture, out v) ? v : 0f;
     }
 
+    /// <summary>**部材の札**(取り合いのデータ・EDO-0491)。部材ごとに一枚の JSON。→ <see cref="EdoPartSpec"/>、`docs/oki-kata.md` §8</summary>
+    public static class PartSpecs
+    {
+        /// <summary>札の置き場。ファイル名 = 部材の資産名(拡張子なし)+ `.json`。</summary>
+        public const string Dir   = "Assets/Edo/Data/PartSpecs/";
+        /// <summary>類型表の門の語 → 札のファイル名(C# の試験と Python の関門が同じ表を読む)。</summary>
+        public const string GateKinds = Dir + "gate_kinds.json";
+    }
+
     /// <summary>シーン。</summary>
     public static class Scenes
     {
@@ -3265,5 +3688,26 @@ public static class EdoAssets
         /// `Edo/普請/作業場を仕立てる` が赤坂から起こす。中身は使い捨てなので gitignore。
         /// → <see cref="EdoKoba"/></summary>
         public const string Koba    = "Assets/Edo/Scenes/Koba.unity";
+    }
+
+    /// <summary>書き出し(Mac / Windows のアプリ)— EDO-0450。→ <see cref="EdoAppBuild"/></summary>
+    public static class App
+    {
+        /// <summary>書き出し先(gitignore の Builds/)。</summary>
+        public const string BuildDir  = "Builds";
+        /// <summary>エディタの URP 資産(App の複写元)。</summary>
+        public const string PcRPAsset = "Assets/Settings/PC_RPAsset.asset";
+        /// <summary>アプリだけが使う URP 資産(品質 App)。GPU Resident Drawer とオクルージョンカリングを入れる。</summary>
+        public const string RPAsset   = "Assets/Edo/Settings/App_RPAsset.asset";
+        /// <summary>図の上の置き場 — 書き出しから外すルート。</summary>
+        public static readonly string[] EditorOnlyRoots = { "ModernMapOverlay", "OldMapOverlay", "GeoAnchors" };
+        /// <summary>遠くで面を自動で間引く(Mesh LOD)模型。2026-09-27 の赤坂の実測で三角形の多い順:
+        /// 土塀(s_hei_center 8,588 本・計 25M = 全体の 28%)・長屋・表店・類型の長屋と表店。</summary>
+        public static readonly string[] MeshLodModels =
+        {
+            "Assets/edogoyomi/es_dobei/", "Assets/edogoyomi/es_knagaya/",
+            "Assets/edogoyomi/es_shop01/", "Assets/edogoyomi/es_shop02/",
+            "Assets/Edo/Models/Nagaya/Typ_", "Assets/Edo/Models/Machiya/Typ_",
+        };
     }
 }

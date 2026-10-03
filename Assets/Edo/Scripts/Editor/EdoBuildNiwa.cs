@@ -108,50 +108,8 @@ public static partial class EdoBuild
         }
     }
 
-    /// <summary>門の**通り抜けの実開口**を実メッシュから測る[m]。⭐ 参道の帯(白洲)の幅はこれで決まる
-    /// (庭方 §5-0 c「門の実開口幅/2 + 1.5」)。⛔ 門構え全体の幅を開口と呼ばない — 長屋門は両翼が
-    /// 長屋(壁体)で、全幅を白洲にすると小さい区画では庭域が丸ごと消える。
-    ///
-    /// <para>測り方: 人の目の高さの帯(底 +0.5〜+1.8m)の実頂点を走り方向へ 0.25m の升で並べ、
-    /// **門の芯に最も近い空の連なり**を採る。⛔ 部材の名前や格式から推し量らない(規則21)。
-    /// 空きが見つからなければ NaN(呼び手が門構えの幅で代用し、そう刷る)。</para></summary>
-    public static float NiwaGateOpening(GameObject mon, Vector2 along, out float centerProj)
-    {
-        centerProj = float.NaN;
-        if (mon == null) return float.NaN;
-        var rb = RB(mon);
-        float yLo = rb.min.y + 0.5f, yHi = rb.min.y + 1.8f;
-        var pts = Body(mon.transform, 2000, true);
-        float mn = float.MaxValue, mx = float.MinValue;
-        var proj = new List<float>();
-        foreach (var w in pts)
-        {
-            if (w.y < yLo || w.y > yHi) continue;
-            float t = Vector2.Dot(new Vector2(w.x, w.z), along);
-            proj.Add(t); mn = Mathf.Min(mn, t); mx = Mathf.Max(mx, t);
-        }
-        if (proj.Count == 0 || mx - mn < 0.5f) return float.NaN;
-        const float BIN = 0.25f;
-        int n = Mathf.CeilToInt((mx - mn) / BIN) + 1;
-        var full = new bool[n];
-        foreach (var t in proj) full[Mathf.Clamp(Mathf.FloorToInt((t - mn) / BIN), 0, n - 1)] = true;
-        float mid = (mn + mx) * 0.5f;
-        float bestW = 0f, bestC = float.NaN, bestD = float.MaxValue;
-        int i = 0;
-        while (i < n)
-        {
-            if (full[i]) { i++; continue; }
-            int j = i; while (j < n && !full[j]) j++;
-            float a = mn + i * BIN, b = mn + j * BIN;
-            float w = b - a, c = (a + b) * 0.5f, d = Mathf.Abs(c - mid);
-            if (w >= 1.0f && (d < bestD || (Mathf.Abs(d - bestD) < 0.5f && w > bestW)))
-            { bestW = w; bestC = c; bestD = d; }
-            i = j;
-        }
-        if (bestW <= 0f) return float.NaN;
-        centerProj = bestC;
-        return bestW;
-    }
+    // NiwaGateOpening(門の実メッシュの帯の空きで通り口を測る)は 2026-09-29 に廃した ── 通り口は部材の札(EdoPartSpec.passage)が持つ(EDO-0491)。
+
 
     /// <summary>門の芯 <paramref name="gateC"/> から駒の**実外形**までの水平の離れ[m](外形の中なら 0)。
     /// ⭐ 前庭が取れているかを**建てる時点で**測るための物(EDO-0372)— 主屋が門の真裏に建つと、参道の
@@ -202,45 +160,81 @@ public static partial class EdoBuild
                                             //    樹冠のはみ出しは Stage6 の検査で**壁体の区域侵犯**として
                                             //    数えられてしまう(検査は木と軒を見分けない)ので、
                                             //    許容0(規則4)を保つには樹冠ごと内に入れる。
+        public float TrunkEdge;             // >0 なら区画の線からの控えを**幹の芯**で測る[m](EdgeK の樹冠は見ない)。
+                                            // ⭐ 施主の規則(2026-09-23・繰り返し指摘): 幹の芯は道(区画の線)から 2.0m・低木も。
+                                            //    樹冠は線を越えて張り出してよい(検査も幹で数える ── EdoTypologyBuilder.Inspect)。
         public float Block;                 // **通り抜ける物(飛石)がこの駒を避ける半径**。
                                             //   >0 = その定数(木は幹 0.25)/ 0 = 実測の樹冠(刈込・低木・石)/ <0 = 避けない(下草)
         public bool Tall;                   // 高木・中木か(⭐ 常緑:落葉の**分母はこれだけ**・検分⑦)
         public bool PathMode;               // 通り道の駒(飛石)— 相手は Block で避け、同じ層とだけ Mutual で突き合う
         public string SelfLayer;            // PathMode の「同じ層」の名(NiwaStepPath が差す)
+        public float NeireMax;              // >0 = **剛体の据え物**(井戸・灯籠・景石・飛石)。下端の全部が地面に着くまで沈める根入れの上限[m]。
+                                            //   ⭐ 坂では上手の 1 点が着いても下手が浮く(Contact は最寄りの 1 点)── 下端の最も浮いた所を測って沈める。
+                                            //   上限を超える坂には置かない(硬い制約・DropNeire で数える)。0 = 低木・下草(根で据える物・測らない)
+                                            //   ⭐ 2026-09-29 EDO-0488 — **高木・中木も測る**(TREE_NEIRE_MAX)。自作の木に根張りを付けて
+                                            //   幹の足が幅 1m 前後の平らな底になり、坂の下手でその縁が浮いて見えた(施主「根元が浮いている」)。
+        public float SlopeSinkK;            // >0 = **斜度で沈めを決める**(高木・中木 ── TREE_SLOPE_K)。据えた後、幹の足の**下手の縁**を
+                                            //   沈め(SinkLo〜Hi)+ 足の半径 × tanθ × これ だけ地中に入れる(<see cref="FootSlope"/> で θ を測る)。
+                                            //   上手の最深は TREE_BURY_MAX まで(越える坂には置かない・DropNeire)。0 = 測らない。
 
-        /// <summary>**高木**(囲いから幹で 1.2 / 軒から樹冠で 0.3)。塊の芯々は樹冠半径の和×0.45〜0.75 —
+        /// <summary>木・低木・下草の幹の芯から区画の線と囲い・門構えの壁体までの控え[m](2026-09-27・EDO-0477 P5)。
+        /// ⭐ 施主の規則: 幹の芯 ↔ 道辺 ≥ 2.0m(全層・低木も)・囲いのある辺は囲いの線から 2m(山王 EDO-0401/0409 の型)。
+        /// ⛔ それまで類型の庭は囲いから 高木 1.2 / 中木 0.8 / 低木 0.4 で、区画の線は樹冠 × EdgeK で測っていた。
+        /// ⚠ 2m は PC の解像度の都合で将来外し得る(施主注記)── 外すときはこの一行だけ。</summary>
+        public const float TREE_KEEP = 2.0f;
+
+        /// <summary>高木・中木の沈め[m]【確度 U】(2026-09-29 EDO-0488)。⭐ 根張りの平らな底と、いちばん張った縁
+        /// (地際から幹の太さ 0.2 倍まで)が**地中に入る**深さ。⛔ 旧 0.05〜0.12 では底の縁が地表に出て、
+        /// 平地でも「置いただけ」に見えた(観理院のエノキ・施主指摘)。据えは埋めて隠すのが基本(docs/oki-kata.md §4)。</summary>
+        public const float TREE_SINK_LO = 0.15f, TREE_SINK_HI = 0.25f;
+        /// <summary>高木・中木の根入れの上限[m]【確度 U】。幹の足の下端の全部が地面に着くまで沈める量の上限。
+        /// 幹は丈 10m 超なので 1m 埋めても見えは崩れない(埋没の許しも 1.0・Put の急斜面の据え直しと同じ数)。</summary>
+        public const float TREE_NEIRE_MAX = 1.0f;
+        /// <summary>**斜度で決める沈め**の係数【確度 U】(2026-09-29 EDO-0488 施主「斜面の斜度に合わせてどれだけ埋めるかを決める仕組み」)。
+        /// 下手の縁の埋まり = 沈め(TREE_SINK_LO〜HI)+ 足の半径 R × tanθ × これ。⭐ 坂では根張りの平らな底が地表と θ で開くので、
+        /// 下手ほど縁の上の膨らみまで地表に出る ── 0.5 は「下手の縁が、足の芯を通る地表の面から R·tanθ/2 下」= 底の傾きの半分を下手でも埋める量。
+        /// ⛔ 2026-09-29 まで下手の縁は**ちょうど地表**で止まり(根入れが沈めを食った)、斜面林のエノキの根元が浮いて見えた。</summary>
+        public const float TREE_SLOPE_K = 0.5f;
+        /// <summary>高木・中木の上手の最深の埋まり[m]【確度 U】。斜度の沈めを足した後の、幹の足の下端の最も深い所。
+        /// 丈 10m 超の幹なので 1.5m 埋めても見えは崩れない。越える坂(足の半径 0.5m で約 45°超)には置かない(硬い制約)。</summary>
+        public const float TREE_BURY_MAX = 1.5f;
+        /// <summary>**高木**(囲いから幹で 2.0 / 軒から樹冠で 0.3)。塊の芯々は樹冠半径の和×0.45〜0.75 —
         /// ⭐ 三本の松が**株**に見える寄り(⛔ 0.7〜1.1 では芯々8〜11m で孤立木3本になる・検分⑥)。</summary>
         public static NiwaSet Tree
         {
             get
             {
-                return new NiwaSet { ClearWall = 1.2f, PadEave = 0.3f, SinkLo = 0.05f, SinkHi = 0.12f,
+                return new NiwaSet { ClearWall = TREE_KEEP, PadEave = 0.3f, SinkLo = TREE_SINK_LO, SinkHi = TREE_SINK_HI,
                                      ScaleLo = 0.88f, ScaleHi = 1.12f, SpaceLo = 0.45f, SpaceHi = 0.75f,
-                                     Mutual = 0.42f, EdgeK = 1.0f, Block = 0.25f, Tall = true };
+                                     Mutual = 0.42f, EdgeK = -1f, TrunkEdge = TREE_KEEP, Block = 0.25f, Tall = true,
+                                     NeireMax = TREE_NEIRE_MAX, SlopeSinkK = TREE_SLOPE_K };
             }
         }
-        /// <summary>**中木**(囲いから幹で 0.8 / 軒から樹冠で 0.3)。芯々 0.6〜0.9・Mutual 0.55(検分⑥)。</summary>
+        /// <summary>**中木**(囲いから幹で 2.0 / 軒から樹冠で 0.3)。芯々 0.6〜0.9・Mutual 0.55(検分⑥)。</summary>
         public static NiwaSet Chuboku
         {
             get
             {
-                var o = Tree; o.ClearWall = 0.8f; o.SpaceLo = 0.6f; o.SpaceHi = 0.9f; o.Mutual = 0.55f;
+                var o = Tree; o.SpaceLo = 0.6f; o.SpaceHi = 0.9f; o.Mutual = 0.55f;
                 return o;
             }
         }
-        /// <summary>低木・刈込(囲いから幹で 0.4 / 軒から樹冠で 0.2)。芯々は現行のまま(検分⑥)。</summary>
+        /// <summary>低木・刈込(囲いから幹で 2.0 / 軒から樹冠で 0.2)。芯々は現行のまま(検分⑥)。</summary>
         public static NiwaSet Shrub
         {
             get
             {
-                return new NiwaSet { ClearWall = 0.4f, PadEave = 0.2f, SinkLo = 0.03f, SinkHi = 0.08f,
+                return new NiwaSet { ClearWall = TREE_KEEP, PadEave = 0.2f, SinkLo = 0.03f, SinkHi = 0.08f,
                                      ScaleLo = 0.88f, ScaleHi = 1.12f, SpaceLo = 0.8f, SpaceHi = 1.3f,
-                                     Mutual = 0.65f, EdgeK = 0.9f, Block = 0f, Tall = false };
+                                     Mutual = 0.65f, EdgeK = -1f, TrunkEdge = TREE_KEEP, Block = 0f, Tall = false };
             }
         }
         /// <summary>下草(シダ)。⭐ 低木と同じ据えだが **踏める**(Block &lt; 0)— 飛石は下草を避けない
         /// (避ける物は幹と刈込の実メッシュだけ・検分①)。</summary>
         public static NiwaSet Kusa { get { var o = Shrub; o.Block = -1f; return o; } }
+        /// <summary>剛体の据え物を坂で沈めてよい上限[m]【確度 U】。井筒・灯籠の台石の見えが半分を切らない深さ
+        /// (井筒の丈 ≈0.7m・雪見灯籠の脚 ≈0.4m)。2026-09-29 EDO-0472: 十坊 8・9 の井戸が坂の下手で 0.75m 浮いていた。</summary>
+        public const float STONE_NEIRE_MAX = 0.30f;
         /// <summary>景石・飛石・灯籠・井戸(囲いから 0.4 / 軒から樹冠で 0.4)。⭐ 沈めは呼び手が上書きする(景石は石高÷3)。</summary>
         public static NiwaSet Stone
         {
@@ -248,7 +242,7 @@ public static partial class EdoBuild
             {
                 return new NiwaSet { ClearWall = 0.4f, PadEave = 0.4f, SinkLo = 0.06f, SinkHi = 0.10f,
                                      ScaleLo = 0.90f, ScaleHi = 1.15f, SpaceLo = 0.9f, SpaceHi = 1.4f,
-                                     Mutual = 0.8f, EdgeK = 0.8f, Block = 0f, Tall = false };
+                                     Mutual = 0.8f, EdgeK = 0.8f, Block = 0f, Tall = false, NeireMax = STONE_NEIRE_MAX };
             }
         }
         /// <summary>飛石の一条(**通り道**)。⭐ 相手は <c>block</c> で避け — 木は幹(0.25m)・刈込と低木と石は
@@ -288,6 +282,41 @@ public static partial class EdoBuild
         return true;
     }
 
+    /// <summary>**幹の足の下の地表の傾き tanθ** と、足の半径 <paramref name="footR"/>[m](2026-09-29 EDO-0488)。
+    /// 足 = 下端から <see cref="ROOT_TOUCH"/> 以内の頂点(<see cref="RootToBed"/> が当たりに数える所と同じ)。その芯のまわりの
+    /// 半径 max(R, 0.5) の輪の 16 点と芯で <paramref name="bedAt"/> を引き、最小二乗の面の勾配を返す。
+    /// ⛔ ピボット・bounds の中心で芯を取らない(規則21)。足が測れない・地表が NaN なら NaN(呼び手は斜度の沈めを掛けない)。
+    /// 当たる先: <see cref="NiwaSet.SlopeSinkK"/> を持つ駒(高木・中木)の据え。</summary>
+    public static float FootSlope(GameObject go, Func<float, float, float> bedAt, out float footR)
+    {
+        footR = 0f;
+        var pts = new List<Vector3>(); float yb = float.MaxValue;
+        foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            var t = mf.transform;
+            foreach (var v in mf.sharedMesh.vertices) { var w = t.TransformPoint(v); pts.Add(w); if (w.y < yb) yb = w.y; }
+        }
+        if (pts.Count == 0) return float.NaN;
+        var sum = Vector2.zero; int n = 0;
+        foreach (var w in pts) if (w.y <= yb + ROOT_TOUCH) { sum += new Vector2(w.x, w.z); n++; }
+        if (n == 0) return float.NaN;
+        var c = sum / n;
+        foreach (var w in pts) if (w.y <= yb + ROOT_TOUCH) footR = Mathf.Max(footR, Vector2.Distance(c, new Vector2(w.x, w.z)));
+        float r = Mathf.Max(footR, 0.5f);
+        // 輪は芯に対して対称なので、面の勾配は Σ h·d / Σ d² で解ける(芯の高さは切片に入るだけ)
+        float sx = 0f, sz = 0f, dd = 0f;
+        for (int k = 0; k < 16; k++)
+        {
+            float a = k * Mathf.PI / 8f, dx = r * Mathf.Cos(a), dz = r * Mathf.Sin(a);
+            float h = bedAt(c.x + dx, c.y + dz);
+            if (float.IsNaN(h)) return float.NaN;
+            sx += h * dx; sz += h * dz; dd += dx * dx;
+        }
+        float gx = sx / dd, gz = sz / dd;   // Σdx² = Σdz²(対称な輪)
+        return Mathf.Sqrt(gx * gx + gz * gz);
+    }
+
     /// <summary>庭の地 — 「どこに置けるか」を実メッシュから解いて持つ。
     /// ⭐ 置くのは**帯と塊だけ**(§5-4 ①「庭域へ一様乱数で撒かない」)。この型は撒く役ではなく、
     /// 帯と塊を置こうとしたときに**退避と帯の禁足を実測で拒む**役。</summary>
@@ -304,6 +333,7 @@ public static partial class EdoBuild
         // 参道の帯(白洲)— ⛔ ここに木・石・刈込・灯籠を置かない(§5-0 c)
         public List<Vector2> BandA = new List<Vector2>(), BandB = new List<Vector2>();
         public List<float> BandHalf = new List<float>();
+        public List<bool> BandWalk = new List<bool>();   // true = 歩く参道 / false = 白洲(木を入れない帯。献灯・手水は立つ)
 
         // 検査のための控え(§5-2)
         public int Refused, InBand;
@@ -311,7 +341,15 @@ public static partial class EdoBuild
         /// <c>DropEave</c> = 実バウンズで軒へ食い込んだ / <c>DropEdge</c> = 実バウンズが区画の線を越えた /
         /// <c>DropSteep</c> = 急斜面で据わらなかった(間引かずに据え直しても埋没>1.0 か 浮き>0.7)。
         /// <c>Reseat</c> = 足元の起伏が大きいので間引かずに据え直した数・<c>TrunkNaN</c> = 幹の芯が測れなかった数。</summary>
-        public int DropEave, DropEdge, DropSteep, Reseat, TrunkNaN, Nudged;
+        public int DropEave, DropEdge, DropSteep, Reseat, TrunkNaN, Nudged, DropBand;
+        /// <summary><c>Neire</c> = 剛体の据え物を下端の全部が着くまで沈めた数(最深 <c>MaxNeire</c>)/
+        /// <c>DropNeire</c> = 沈める量が <see cref="NiwaSet.NeireMax"/> を超えて置かなかった数(最悪 <c>WorstNeire</c>)。</summary>
+        public int Neire, DropNeire;
+        public float MaxNeire, WorstNeire;
+        /// <summary><c>SlopeSink</c> = 斜度で沈めを足した高木・中木の数(<see cref="NiwaSet.SlopeSinkK"/>)・<c>MaxSlopeTan</c> = そのうち最も急な足元の tanθ。
+        /// 木の沈めは <c>Neire</c>/<c>MaxNeire</c>(上手の最深)にも数え、置けなかった木は <c>DropNeire</c>(上限は TREE_BURY_MAX)に入る。</summary>
+        public int SlopeSink;
+        public float MaxSlopeTan;
         // Put が区画の線で断ったときの控え — 越えた量と実樹冠(呼び手の Put が内へ寄せ直すのに使う)
         float _edgeNeed, _lastRR;
         public float WorstSteep;
@@ -334,7 +372,7 @@ public static partial class EdoBuild
             {
                 if (float.IsNaN(MinWall) || k.dw < MinWall) MinWall = k.dw;
                 if (float.IsNaN(MinEave) || k.de < MinEave) MinEave = k.de;
-                if (InSando(k.c, 0f)) InBand++;
+                if (InBandFor(k.c, k.tall || k.clump > 0)) InBand++;
             }
         }
 
@@ -347,8 +385,17 @@ public static partial class EdoBuild
             Recount();
         }
 
-        public void AddBand(Vector2 a, Vector2 b, float half)
-        { BandA.Add(a); BandB.Add(b); BandHalf.Add(half); }
+        public void AddBand(Vector2 a, Vector2 b, float half, bool walk = true)
+        { BandA.Add(a); BandB.Add(b); BandHalf.Add(half); BandWalk.Add(walk); }
+
+        /// <summary>検査の「参道の帯に入った駒」に数えるか。⭐ 歩く参道は全ての駒を、白洲の帯は**木だけ**を数える
+        /// (2026-09-28 EDO-0477 ── 本堂の前の白洲に立つ献灯の一対が「帯に入った駒 2」と数えられていた。献灯は白洲の参道の左右に立つ物)。</summary>
+        bool InBandFor(Vector2 c, bool plant)
+        {
+            for (int i = 0; i < BandA.Count; i++)
+                if ((BandWalk[i] || plant) && EdoGeom.DistToEdge(c, BandA[i], BandB[i]) <= BandHalf[i]) return true;
+            return false;
+        }
 
         /// <summary>参道の帯の中か。<paramref name="extra"/> は駒の樹冠半径(帯へ**枝も差し込まない**)。</summary>
         public bool InSando(Vector2 p, float extra)
@@ -396,7 +443,8 @@ public static partial class EdoBuild
         public bool Free(Vector2 p, float r, NiwaSet o, bool voidOk = false)
         {
             if (!EdoGeom.PIP(Poly, p)) return false;
-            if (EdoGeom.DistToPolyEdge(Poly, p) < r * o.EdgeK) return false;
+            if (o.TrunkEdge > 0f) { if (EdoGeom.DistToPolyEdge(Poly, p) < o.TrunkEdge) return false; }   // 幹の芯で
+            else if (EdoGeom.DistToPolyEdge(Poly, p) < r * o.EdgeK) return false;
             if (InSando(p, r)) return false;
             if (!voidOk && InVoid(p)) return false;
             if (o.ClearWall > 0f && Walls.Dist(p, o.ClearWall) < o.ClearWall) return false;   // 幹の芯で
@@ -501,12 +549,62 @@ public static partial class EdoBuild
                 catch (Exception) { UnityEngine.Object.DestroyImmediate(go); Refused++; return null; }
                 Vector3 at; int nc;
                 float dy = Contact(go, out at, out nc, 0.01f, 60000);
-                if (float.IsNaN(dy) || dy < -1.0f || dy > 0.7f)
+                // ⭐ 浮きの線は地面との間の +0.01m(2026-09-27 施主・docs/oki-kata.md §4 ── 旧の浮 0.7 は根拠の無い目安で廃止)。
+                //    木・下草・景石は根入れで据える物なので、埋まりは下限を広く取ったまま(沈めは意図・§0a)。
+                if (float.IsNaN(dy) || dy < -1.0f || dy > 0.01f)
                 {
                     WorstSteep = Mathf.Max(WorstSteep, float.IsNaN(dy) ? 0f : Mathf.Abs(dy));
                     UnityEngine.Object.DestroyImmediate(go); DropSteep++; return null;
                 }
                 rb = RB(go);
+            }
+            // ⭐ **剛体の据え物は下端の全部を地面へ着ける**(根入れ・docs/oki-kata.md §0a)。SeatOnGround は最寄りの 1 点
+            //    (坂の上手)を着けるだけなので、下手は足元の起伏ぶん浮く ── 下端の足跡(RootToBed)で最も浮いた所を測り、
+            //    その量だけ沈めて上手を埋める。上限を超える坂には置かない(浮きは許容0・§4a の硬い制約)。
+            //    ⛔ 2026-09-29 まで井戸・灯籠は 1 点の接地だけを見て、十坊 8・9 の井戸が坂の下手で 0.75m 浮いていた(EDO-0472)。
+            //    当たる先: NiwaSet.Stone を使う全駒(井戸・灯籠・景石・飛石・手水鉢)── 類型の全区画と山王の境内。
+            if (o.NeireMax > 0f)
+            {
+                var nr = RootToBed(go, Ground, 0.05f);
+                if (!float.IsNaN(nr.hi) && nr.hi > 0.005f)
+                {
+                    if (nr.hi > o.NeireMax)
+                    {
+                        WorstNeire = Mathf.Max(WorstNeire, nr.hi);
+                        UnityEngine.Object.DestroyImmediate(go); DropNeire++; return null;
+                    }
+                    go.transform.position -= new Vector3(0f, nr.hi, 0f);
+                    Neire++; MaxNeire = Mathf.Max(MaxNeire, nr.hi);
+                    rb = RB(go);
+                }
+            }
+            // ⭐ **斜度で沈めを決める**(高木・中木 ── 2026-09-29 EDO-0488 施主)。上の根入れは下手の縁を**ちょうど地表**へ合わせる
+            //    だけなので、決めた沈め(sink)は坂の下手で消え、根張りの縁が地表に出て浮いて見えた(斜面林のエノキ)。
+            //    足の下の地表の傾き θ を測り、下手の縁を 沈め + R·tanθ·K だけ地中へ入れる。上手の最深が TREE_BURY_MAX を越える坂には置かない。
+            //    当たる先: NiwaSet.Tree / Chuboku を使う全駒(類型の庭・屋敷林・斜面の林・明地の木立・縁の帯)。
+            if (o.SlopeSinkK > 0f)
+            {
+                float footR;
+                float tan = FootSlope(go, Ground, out footR);
+                var nr = RootToBed(go, Ground, 0.05f);
+                if (!float.IsNaN(tan) && !float.IsNaN(nr.hi))
+                {
+                    float want = sink + footR * tan * o.SlopeSinkK;            // 下手の縁の埋まり
+                    float more = nr.hi + want;                                   // nr.hi = 下手の縁 − 地表(≤0 で既に埋まっている)
+                    if (more > 0.005f)
+                    {
+                        float deepest = more - nr.lo;                            // 沈めた後の上手の最深の埋まり
+                        if (deepest > NiwaSet.TREE_BURY_MAX)
+                        {
+                            WorstNeire = Mathf.Max(WorstNeire, deepest);
+                            UnityEngine.Object.DestroyImmediate(go); DropNeire++; return null;
+                        }
+                        go.transform.position -= new Vector3(0f, more, 0f);
+                        SlopeSink++; MaxSlopeTan = Mathf.Max(MaxSlopeTan, tan);
+                        Neire++; MaxNeire = Mathf.Max(MaxNeire, deepest);
+                        rb = RB(go);
+                    }
+                }
             }
             float rr = Mathf.Max(rb.size.x, rb.size.z) * 0.5f;      // ⭐ 実バウンズで測り直す
             var c = new Vector2(rb.center.x, rb.center.z);
@@ -526,6 +624,19 @@ public static partial class EdoBuild
                     return null;                                            // 数えるのは呼び手の Put(寄せ直しても駄目なときだけ)
                 }
             }
+            // ⭐ 幹の芯で区画の線からの控えを守る(TrunkEdge・据えた後の実の幹で検め直す)
+            if (o.TrunkEdge > 0f)
+            {
+                bool tin = EdoGeom.PIP(Poly, trunk);
+                float td0 = EdoGeom.DistToPolyEdge(Poly, trunk);
+                if (!tin || td0 < o.TrunkEdge)
+                {
+                    _edgeNeed = o.TrunkEdge + (tin ? -td0 : td0);
+                    _lastRR = rr;
+                    UnityEngine.Object.DestroyImmediate(go);
+                    return null;
+                }
+            }
             // 検査の控え — 実測の離れ(⛔ 「置けた」だけを合格にしない・規則19)
             // ⚠ 打ち切り 12m — ここで採るのは**最小値**なので、遠い側の実距離は要らない
             //    (cap を上げると升の走査が二乗で効いて 79 区画の再生成が重くなる)。
@@ -534,12 +645,15 @@ public static partial class EdoBuild
             // ⭐ 軒は据えた後の実バウンズで検め直す — Free は推定の樹冠で判じるので、実物が大きい木は
             //    屋根へ枝が食い込む(検分⑧「Put の後に実バウンズで軒を検め直し、割ったら落とす」)。
             if (de < o.PadEave) { UnityEngine.Object.DestroyImmediate(go); DropEave++; return null; }
+            // ⭐ 参道の帯も据えた後の実の芯で検め直す(2026-09-28 EDO-0477 観理院 ── 区画を寄せたら 1 駒が帯へ入った。
+            //    Free は据える前の狙いの点で判じ、実の芯が帯へずれた)。許容0 は建てる時点で退ける(検査で捕まえない)。
+            if (InBandFor(c, o.Tall || CurClump > 0)) { UnityEngine.Object.DestroyImmediate(go); DropBand++; return null; }
             Komas.Add(new NiwaKoma { c = c, r = rr, trunk = trunk, path = path, layer = layer, clump = CurClump,
                                      block = o.Block, tall = o.Tall,
                                      dw = dw, de = de, clearWall = o.ClearWall, padEave = o.PadEave });
             if (float.IsNaN(MinWall) || dw < MinWall) MinWall = dw;
             if (float.IsNaN(MinEave) || de < MinEave) MinEave = de;
-            if (InSando(c, 0f)) InBand++;                            // 0 でなければ実装の誤り(§5-2 ②)
+            if (InBandFor(c, o.Tall || CurClump > 0)) InBand++;       // 0 でなければ実装の誤り(§5-2 ②)
             return go;
         }
 

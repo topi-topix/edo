@@ -8,50 +8,50 @@
    "label": "隙 0",
    "what": "塀と塀・門と塀・長屋 run の駒どうしの隙・めり込み・裏表(許容 0)",
    "how": "edo-fushin-qa 項目 6(run の格子)・7(裏表)・8(門の取り合い)、JointQA / GateQA",
-   "value": "皮と部材の隙 A/B/C 0・透塀の口 0(150.12m)・土留め裏向き 0/213",
+   "value": "継ぎ目の口0(段×袖・袖×袖・袖背×前庭の隅石)・めり込みは数えない(最大0.0004)・残りは袖の横目地の溝6本(幅約0.015・奥行最大0.095)と野面の目地(部材の形)・男坂 mikiri1 の 0.071 はレンダで突き抜け無し(2026-09-27 r22)",
    "verdict": "pass",
-   "at": "2026-09-26",
+   "at": "2026-09-27",
    "note": ""
   },
   "boundary": {
    "label": "境界侵犯 0",
    "what": "棟・塀・木・石が区画 / 庭の区域 / 建物 / 水面 / 道へ入らない",
    "how": "edo-fushin-qa 項目 1(境界)と区域の点検(EdoGeom.PIP)",
-   "value": "駒の越境0(鳥居2基は宣言済)・道に面した囲い/土留め<2.0m 0本(最小2.025m・角石は道側の天端帯で数えて北西角2.372m)・道辺最小2.018m・隣地辺2.089m・実体上の幹0",
+   "value": "越境0(内側最小0.099 TW_SandoKai_E_000f)・鳥居2基と踏石は受容の宣言どおり(r22)",
    "verdict": "pass",
-   "at": "2026-09-26",
+   "at": "2026-09-27",
    "note": ""
   },
   "ground": {
    "label": "埋没・浮き 0",
-   "what": "埋 ≤1.0 / 浮 ≤0.7 を超える駒が 0",
+   "what": "地面との隙が −0.01〜+0.01 の外の駒が 0(oki-kata §4)",
    "how": "edo-fushin-qa 項目 2(接地)と GroundQA",
-   "value": "皮の隙B(駒浮き)0・踏面埋没0・木1,944本 幹の芯-0.007〜+0.191m・根元浮き最大0.044m",
+   "value": "板塀5面 当たりの上の浮き0(根入れ・最浅−0.311 Ita_ZSE_h3b)・板と地覆の段差0・柱の隙0.0001・踏面埋没0(参道の階242/男坂2996/女坂4973)・皮の窪みは条件付き合格のまま(r22)",
    "verdict": "pass",
-   "at": "2026-09-26",
+   "at": "2026-09-27",
    "note": ""
   },
   "match": {
    "label": "突き合わせ 0",
    "what": "指図(意図)と実装の食い違いが 0 件",
    "how": "Unity メニュー Edo/<敷地>/指図と実装を突き合わせる",
-   "value": "突き合わせ0件(全6部門)・社叢1,944本 点と全数対応",
+   "value": "0件(r22)",
    "verdict": "pass",
-   "at": "2026-09-26",
+   "at": "2026-09-27",
    "note": ""
   },
   "render": {
    "label": "レンダの施主承認",
    "what": "検証レンダ(真上・門の外・庭の目線)を施主が見て承認",
    "how": "施主の発話。⛔ 役は書けない — --quote に引用を入れる",
-   "value": "施主承認 2026-09-26 社叢の植え直し前後・前庭(https://claude.ai/artifact/Ubnb4YZBcN11mapCH4dTD4)",
+   "value": null,
    "verdict": "pass",
-   "at": "2026-09-26",
+   "at": "2026-09-27",
    "note": "",
-   "quote": "意図通りです。409クローズしてください。"
+   "quote": "Ａです(2026-09-27・EDO-0437 r22 前庭の縁・参道の階の袖・板塀 https://claude.ai/artifact/LeQw7mUoKhgmKvjxexmyVv)"
   }
  },
- "completed": "2026-09-26",
+ "completed": "2026-09-27",
  "history": [
   {
    "at": "2026-09-20T12:09:04+09:00",
@@ -525,6 +525,138 @@
   },
   {
    "at": "2026-09-26T08:51:26+09:00",
+   "event": "record",
+   "item": "render",
+   "verdict": "pass"
+  },
+  {
+   "at": "2026-09-26T19:12:30+09:00",
+   "event": "record",
+   "item": "gap",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-26T19:12:30+09:00",
+   "event": "record",
+   "item": "boundary",
+   "verdict": "pass"
+  },
+  {
+   "at": "2026-09-26T19:12:30+09:00",
+   "event": "record",
+   "item": "ground",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-26T19:12:30+09:00",
+   "event": "record",
+   "item": "match",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-26T21:57:50+09:00",
+   "event": "record",
+   "item": "gap",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-26T21:57:50+09:00",
+   "event": "record",
+   "item": "boundary",
+   "verdict": "pass"
+  },
+  {
+   "at": "2026-09-26T21:57:50+09:00",
+   "event": "record",
+   "item": "ground",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-26T21:57:50+09:00",
+   "event": "record",
+   "item": "match",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-27T11:21:16+09:00",
+   "event": "record",
+   "item": "gap",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-27T11:21:16+09:00",
+   "event": "record",
+   "item": "boundary",
+   "verdict": "pass"
+  },
+  {
+   "at": "2026-09-27T11:21:16+09:00",
+   "event": "record",
+   "item": "ground",
+   "verdict": "pass"
+  },
+  {
+   "at": "2026-09-27T11:21:16+09:00",
+   "event": "record",
+   "item": "match",
+   "verdict": "pass"
+  },
+  {
+   "at": "2026-09-27T12:43:58+09:00",
+   "event": "record",
+   "item": "gap",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-27T12:43:58+09:00",
+   "event": "record",
+   "item": "boundary",
+   "verdict": "pass"
+  },
+  {
+   "at": "2026-09-27T12:43:58+09:00",
+   "event": "record",
+   "item": "ground",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-27T12:43:58+09:00",
+   "event": "record",
+   "item": "match",
+   "verdict": "pass"
+  },
+  {
+   "at": "2026-09-27T21:43:27+09:00",
+   "event": "record",
+   "item": "gap",
+   "verdict": "pass"
+  },
+  {
+   "at": "2026-09-27T21:43:27+09:00",
+   "event": "record",
+   "item": "ground",
+   "verdict": "pass"
+  },
+  {
+   "at": "2026-09-27T21:43:27+09:00",
+   "event": "record",
+   "item": "boundary",
+   "verdict": "pass"
+  },
+  {
+   "at": "2026-09-27T21:43:27+09:00",
+   "event": "record",
+   "item": "match",
+   "verdict": "pass"
+  },
+  {
+   "at": "2026-09-27T21:44:24+09:00",
+   "event": "record",
+   "item": "render",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-27T21:49:44+09:00",
    "event": "record",
    "item": "render",
    "verdict": "pass"

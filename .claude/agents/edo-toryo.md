@@ -69,6 +69,10 @@ memory: project
 
 1. 指図(json)の Stage 構成に沿って、既存 Builder の該当メソッドを順に実行する
    (`execute_menu_item` またはメニューに無ければ `execute_code` で該当 static メソッドを呼ぶ)
+   ⭐ **直した後の流し直しは `RunFrom("<入力を変えた Stage の key>")` の一手**(`EdoBuild.Jun`・EDO-0455)。
+   Builder が解く順を宣言していれば(山王 `EdoSannoShaRebuild.RunFrom`)、下流だけを依存の順に流し、上流は流さない。
+   流さない Stage の足元の地形が動けば測って引き込む。⛔ 下流を自分で選んで一本ずつ流さない・⛔ 一括で流し直さない。
+   流す前に見るなら `PlanFrom(...)`。戻り値の頭の1行(⭕/⚠/⛔・流した・流さなかった・引き込んだ)を報告に写す
 2. **各 Stage の後に `read_console` でエラー・警告を確認**してから次の Stage へ進む。
    まとめて流して最後に一括確認しない(どの Stage が原因か分からなくなる)
 3. Builder に無い工程(指図にはあるが C# が未対応)は、**まず指図(`edo-sashizukata` が

@@ -57,5 +57,9 @@ paths:
   判じた印 `Temp/edo_compile_wait.json` があれば通す)。
 - **MCP タイムアウト後の再送で多重実行が起きる。** 冪等でないステージ(特に造成)は実行済みかを先に確認。
   ガードのマーカーは active にする。
+  ⛔ **区画の建て直し(`BuildParcel`)を execute_code の中で直に回さない。** 30 秒を超えると MCP が同じ命令を送り直し、
+  21 区画の一括が 3 巡くり返して CPU 100% のまま止まらず、施主が Unity を再起動した(2026-10-03・EDO-0503)。
+  ⭐ `EdoBuildQueue.Enqueue("<scratchpad>/<dir>", "id1", ...)` で予約だけして即座に返し、Bash の until ループで
+  `<dir>/_done` を待つ。見張りは `.claude/hooks/edo_mcp_long_guard.py`(直呼びを止める)。
 - **Blender の FBX を入れたらマテリアルを remap する**(`Edo/御殿/…マテリアルをremap`)。
 

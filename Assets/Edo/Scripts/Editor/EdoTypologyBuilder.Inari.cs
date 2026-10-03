@@ -81,7 +81,7 @@ public static partial class EdoTypologyBuilder
             how, t.cands, t.tried, SANDO_KEN, SANDO_KEN * KEN,
             float.IsNaN(t.sandoM) ? "—" : t.sandoM.ToString("F2") + "m",
             float.IsNaN(t.sandoEaveM) ? "—" : t.sandoEaveM.ToString("F2") + "m"
-                + (t.sandoEaveM < 0f ? "(⛔ めり込み)" : ""),
+                + (t.sandoEaveM < 0f ? "(⚠ めり込み・数えない ── レンダで見る)" : ""),
             t.gapShrine, t.touchShrine, t.sinkShrine, t.gapTorii, t.touchTorii, t.sinkTorii,
             t.clearShrine, t.clearTorii, INARI_CLEAR);
     }

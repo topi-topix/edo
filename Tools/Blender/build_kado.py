@@ -11,6 +11,10 @@
     blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 90 --h 4 --arms 1.59,2.0 --render
         # 短い腕(石垣だけ)。腕 = 据え点(両腕の控えの線の交点)から腕の先までの走り[m]。
         # 順は (Unity 局所 −Z の腕, +X の腕)。→ Ishigaki_Kado_90_H0400_A159x200(EDO-0430)
+        # 腕は負でもよい(P の手前・留めの三角の中で打ち切る)。--arms 2.0,-0.04 → _A200x-4(EDO-0437)
+    blender --background --python Tools/Blender/build_kado.py -- --part dobei --deg 39 --arms 1.10,0.45 --render
+        # 練塀の短い腕(EDO-0502)。順は (入りの腕 = 局所 −Z, 出の腕)。素の腕は 2.256(局所)。小口は塞がない。
+        # 腕の長さは EdoBuild.KadoArms が区画から選ぶ(隣の隅の腕と重ねて隙を作らない)→ Dobei_Kado_39_A110x45
 
 【なぜ要るか】在庫の出隅ブロック `Castle Wall Corner`(2.4m 角)が成立するのは折れ角 Δ≳60°。
   Δ が浅いと片面を合わせても apex が反対側の壁面から `2.4·cosΔ` はみ出す
@@ -57,7 +61,7 @@ import vklib as V
 
 FLIP_THK = False        # --flipthk で立てる。書き出し名に T が付く
 H_OUT = None            # --h で立てる(石垣だけ)。丈を m で。書き出し名に _H<cm4桁> が付く
-ARMS = None             # --arms aZ,aX で立てる(石垣だけ)。腕の長さ m。書き出し名に _A<cm>x<cm> が付く
+ARMS = None             # --arms aZ,aX で立てる(石垣・練塀)。腕の長さ m。書き出し名に _A<cm>x<cm> が付く
 
 ROOT = V.REPO
 JC   = os.path.join(ROOT, "Assets/Japanese Castle")
@@ -98,6 +102,8 @@ PARTS = {
     #   (DobeiRun)。隅部材もその組から起こさないと直線材と質感・厚みが揃わない。
     "dobei":    dict(kit="PAIR", src=os.path.join(ROOT, "Assets/edogoyomi/es_dobei/s_hei_center.obj"),
                      out="Dobei_Kado", axis="x", thk="keep", origin="pivot", flip=True, pitch=1.645),
+    # ⚠ 90° の出隅で腕の先へ在庫の棟を突き付けるなら build_nagaya_kado.py(帯を pier の芯で折る・腕の長さ可変)。
+    #   ここの鏡映の留めは片方の腕の先の位相が素の棟の端と合わない(素の端の無地が 0.571/0.961 と非対称)。
     "nagaya":   dict(kit="OBJ", src=os.path.join(ROOT, "Assets/edogoyomi/es_knagaya/knagaya01c.obj"),
                      out="Nagaya_Kado", axis="x", thk="keep", origin="pivot", flip=True,
                      ridge="n_mune", pitch=4.296),
@@ -385,13 +391,21 @@ def _dup(o, name):
     return c
 
 
-def shorten_arm(o, a, y_end):
+def shorten_arm(o, a, y_end, n=None):
     """入りの腕(+Y へ延びる)を y = a で切り、素の小口(y = y_end・法線 +Y の面)を切り口へ移して塞ぐ。
-    ⛔ 頂点を寄せて縮めない(面の石の柄が走りに潰れる)。bisect は面の UV を補間するので柄は切れるだけ。"""
+    ⛔ 頂点を寄せて縮めない(面の石の柄が走りに潰れる)。bisect は面の UV を補間するので柄は切れるだけ。
+
+    a ≤ 0(腕が据え点 P の手前で終わる ── 腕が留めの三角の中で打ち切られる)も切れる(2026-09-26 EDO-0437・
+    御供所の郭 EK の腕 −0.04)。そのとき:
+      ① 移した小口を留め面 n で切り、この腕の側(s·x + c·y ≥ 0)だけ残す(= この腕のその位置の断面)。
+      ② 小口の残りの帯(x ∈ [0, −a·c/s] ── 背の側)を留め面へ移して貼る。もう一方の腕の留め面のうち
+         この腕が退いた所が開くので、それを塞ぐ面(もう一方の腕の体の外へ向く)。小口の柄を背の側で使う。"""
     if a >= y_end - 1e-6:
         return o
-    if a <= 0.05:
+    if n is None and a <= 0.05:
         raise SystemExit("[kado] ⛔ 腕 %.3f が短すぎる" % a)
+    if n is not None and a <= -1.0:
+        raise SystemExit("[kado] ⛔ 腕 %.3f は留めの三角を越える" % a)
     me = o.data
     bm = bmesh.new(); bm.from_mesh(me)
     bm.normal_update()
@@ -403,18 +417,72 @@ def shorten_arm(o, a, y_end):
     capf = set(e for e in capgeo["geom"] if isinstance(e, bmesh.types.BMFace))
     for v in capv:
         v.co.y = a
+    strip_f = []
+    if n is not None and a < 0.0:
+        sn, cn = n[0], n[1]
+        xb = -a * cn / sn                      # 小口が留め面と交わる控えの位置(背 x=0 から)
+        sg = bmesh.ops.duplicate(bm, geom=list(capf))
+        sv = [e for e in sg["geom"] if isinstance(e, bmesh.types.BMVert)]
+        sf = [e for e in sg["geom"] if isinstance(e, bmesh.types.BMFace)]
+        # 帯 = 小口の x ≤ xb の側(背の側)
+        r = bmesh.ops.bisect_plane(bm, geom=sv + sf + list(set(ed for f in sf for ed in f.edges)), dist=1e-6,
+                                   plane_co=Vector((xb, a, 0)), plane_no=Vector((1, 0, 0)),
+                                   clear_outer=True, clear_inner=False)
+        strip_f = [f for f in bm.faces if f.is_valid and all(abs(v.co.y - a) < 1e-6 for v in f.verts)
+                   and all(v.co.x <= xb + 1e-6 for v in f.verts) and f not in capf]
+        # 小口の本体は留め面の手前(x ≥ xb)だけ残す
+        capf = set(f for f in capf if f.is_valid)
+        cv = list(set(v for f in capf for v in f.verts))
+        bmesh.ops.bisect_plane(bm, geom=cv + list(capf) + list(set(ed for f in capf for ed in f.edges)), dist=1e-6,
+                               plane_co=Vector((xb, a, 0)), plane_no=Vector((1, 0, 0)),
+                               clear_outer=False, clear_inner=True)
+        capf = set(f for f in bm.faces if f.is_valid and all(abs(v.co.y - a) < 1e-6 for v in f.verts)
+                   and all(v.co.x >= xb - 1e-6 for v in f.verts) and f not in set(strip_f))
+        # 帯を留め面へ剪断で移す(y = −x·s/c)
+        svs = set(v for f in strip_f for v in f.verts)
+        for v in svs:
+            v.co.y = -v.co.x * sn / cn
+        capv = list(set(v for f in capf for v in f.verts) | svs)
+        capf = capf | set(strip_f)
     others = [e for e in bm.verts[:] + bm.edges[:] + bm.faces[:]
               if not (isinstance(e, bmesh.types.BMFace) and e in capf)
               and not (isinstance(e, bmesh.types.BMVert) and e in set(capv))
               and not (isinstance(e, bmesh.types.BMEdge) and all(v in set(capv) for v in e.verts))]
     bmesh.ops.bisect_plane(bm, geom=others, dist=1e-6, plane_co=Vector((0, a, 0)), plane_no=Vector((0, 1, 0)),
                            clear_outer=True, clear_inner=False)
+    if strip_f:
+        # 帯の向き: もう一方の腕の体(留め面の正の側 ── 鏡に映すとこの腕が負の側へ行き、帯は正の側の体の外皮)
+        # の外 = −n へ向ける。鏡映で巻きが裏返るので、ここでは +n へ向けておく。
+        bm.normal_update()
+        for f in strip_f:
+            if f.is_valid and f.normal.dot(Vector(n)) < 0:
+                f.normal_flip()
     bmesh.ops.delete(bm, geom=[e for e in bm.edges if not e.link_faces], context='EDGES')
     bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-4)
     bm.to_mesh(me); bm.free(); me.update()
     ys = [v.co.y for v in me.vertices]
     print("[kado]   腕を %.3f で切った(素の先 %.3f)。y 最大 %.4f" % (a, y_end, max(ys)))
+    return o
+
+
+def cut_arm(o, a, y_end):
+    """入りの腕(+Y へ延びる)を y = a の走りに直角な面で切り、先を捨てる(石垣以外 ── 素の腕の先に小口が無い部材)。
+    ⛔ 頂点を寄せて縮めない(瓦と板の柄が潰れる)。切り口は塞がない ── 隣の隅の腕の中へ埋まる長さで焼く。
+    a は据え点(折れ点)からの走り[局所 m]。a ≥ 素の先なら切らない(名の上でだけ素の長さを名乗る)。"""
+    if a >= y_end - 1e-3:
+        return o
+    if a < 0.25:
+        raise SystemExit("[kado] ⛔ 腕 %.3f が短すぎる(留めの三角に掛かる)" % a)
+    me = o.data
+    bm = bmesh.new(); bm.from_mesh(me)
+    bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], dist=1e-6,
+                           plane_co=Vector((0, a, 0)), plane_no=Vector((0, 1, 0)),
+                           clear_outer=True, clear_inner=False)
+    bmesh.ops.delete(bm, geom=[e for e in bm.edges if not e.link_faces], context='EDGES')
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
+    bm.to_mesh(me); bm.free(); me.update()
+    print("[kado]   腕を %.3f で切った(素の先 %.3f)。y 最大 %.4f" % (a, y_end, max(v.co.y for v in me.vertices)))
     return o
 
 
@@ -466,11 +534,16 @@ def build(part, deg, arms=None):
         # 短い腕(EDO-0430): 腕ごとに走りに直角な面で切り、素の小口(y = n_pos·pitch の面)を切り口へ移して塞ぐ。
         #   ⭐ 断面は走りに沿って一定なので、素の小口がそのまま切り口の形になる(UV も素の小口のまま)。
         #   armB は armA の鏡なので、長さ aX で切った armA の複製を鏡に映す。
-        if part != "ishigaki":
-            raise SystemExit("[kado] --arms は石垣だけ")
         full = armA
-        armA = shorten_arm(_dup(full, "armA_s"), ARMS[0], n_pos * pitch)
-        armB = mirror_across(shorten_arm(_dup(full, "armB_s"), ARMS[1], n_pos * pitch), n)
+        if part == "ishigaki":
+            armA = shorten_arm(_dup(full, "armA_s"), ARMS[0], n_pos * pitch, n)
+            armB = mirror_across(shorten_arm(_dup(full, "armB_s"), ARMS[1], n_pos * pitch, n), n)
+        else:
+            # 練塀ほか(EDO-0502): 素の腕の先は小口を持たない(表裏2枚の板と瓦)ので、走りに直角に切るだけ。
+            #   切り口は隣の隅の腕へ重ねて埋める前提(EdoBuild.KadoArms が重なりを持たせて腕を選ぶ)。
+            ymax = max(v.co.y for v in full.data.vertices)
+            armA = cut_arm(_dup(full, "armA_s"), ARMS[0], ymax)
+            armB = mirror_across(cut_arm(_dup(full, "armB_s"), ARMS[1], ymax), n)
         bpy.data.objects.remove(full, do_unlink=True)
     o = V.join([armA, armB], "%s_%02d%s%s%s" % (p["out"], round(abs(deg)), "" if deg > 0 else "M", "T" if FLIP_THK else "", hsuf() + asuf()))
     if mune is not None:
@@ -483,6 +556,30 @@ def build(part, deg, arms=None):
     me = o.data
     bm = bmesh.new(); bm.from_mesh(me)
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-4)
+    if ARMS is not None and min(ARMS) < 0.0:
+        # 腕が留めの三角の中で終わると、もう一方の腕の天端の留めの辺の途中に切り口の角が乗る(T 字)。
+        #   その辺を角で割って継ぐ(割らないと天端の留めに開いた辺が 3 本残る。2026-09-26 実測)
+        for _ in range(8):
+            done = False
+            bnd = [e for e in bm.edges if e.is_boundary]
+            bv = set(v for e in bnd for v in e.verts)
+            for e in bnd:
+                a0, a1 = e.verts[0].co, e.verts[1].co
+                d = a1 - a0; L2 = d.length_squared
+                for v in bv:
+                    if v in e.verts:
+                        continue
+                    t = (v.co - a0).dot(d) / L2
+                    if 1e-4 < t < 1 - 1e-4 and (a0 + d * t - v.co).length < 1e-5:
+                        ne, nv = bmesh.utils.edge_split(e, e.verts[0], t)
+                        nv.co = v.co.copy()
+                        done = True
+                        break
+                if done:
+                    break
+            if not done:
+                break
+            bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
     bm.to_mesh(me); bm.free(); me.update()
 
     V.set_origin(o, (0, 0, 0))

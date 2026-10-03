@@ -1,0 +1,57 @@
+{
+    "prefab": "Assets/Edo/Models/Machiya/Typ_Omotedana_2ken.fbx",
+    "kind": "building",
+    "source": "blender:build_typ_machiya.py(--kei zushi --ken 2 --okuyuki 7.2720)",
+    "unitScale": 1.0,
+    "yBottom": 0.0,
+    "foot": [
+        {
+            "x": -1.748,
+            "y": -3.4455
+        },
+        {
+            "x": 1.748,
+            "y": -3.4455
+        },
+        {
+            "x": 1.748,
+            "y": 3.4755
+        },
+        {
+            "x": -1.748,
+            "y": 3.4755
+        }
+    ],
+    "front": 3.5795,
+    "back": -3.4205,
+    "jambL": {
+        "x": 0.0,
+        "z0": 0.0,
+        "z1": 0.0,
+        "y0": 0.0,
+        "y1": 0.0
+    },
+    "jambR": {
+        "x": 0.0,
+        "z0": 0.0,
+        "z1": 0.0,
+        "y0": 0.0,
+        "y1": 0.0
+    },
+    "passage": {
+        "x0": 0.0,
+        "x1": 0.0
+    },
+    "eave": {
+        "x0": -1.818,
+        "x1": 1.818,
+        "z0": -3.636,
+        "z1": 3.636,
+        "y0": 0.0,
+        "y1": 4.28378
+    },
+    "faceOut": 0.0,
+    "faceIn": 0.0,
+    "copingOverhang": 0.0,
+    "height": 4.28378
+}

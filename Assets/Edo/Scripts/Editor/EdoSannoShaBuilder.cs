@@ -1,4 +1,4 @@
-// 山王権現社(日枝神社)本体+観理院+樹下家邸+山王門前町ビルダー (2026-08-11)
+// 山王権現社(日枝神社)本体+樹下家邸+山王門前町ビルダー (2026-08-11。観理院は 2026-09-26 に類型へ移し削除)
 // 【典拠 2026-08-10調査】
 //   ・境内構成=江戸名所図会 巻之三「日吉山王神社」挿絵(NDL 2563386/7コマ, 実見):
 //     山麓の通りに二ノ鳥居+名水井戸「つつ井」/鳥居の左(西)=別当観理院・右(東)=神主樹下邸/
@@ -22,17 +22,14 @@ using UnityEngine;
 public static class EdoSannoShaBuilder
 {
     const string GROUP = "Edo_Sanno_Sha";        // 境内(山上)+参道
-    const string GROUP_K = "Edo_Sanno_Kanriin";  // 別当観理院
     const string GROUP_J = "Edo_Sanno_JugeYashiki"; // 神主樹下邸
     const string GROUP_M = "Edo_Sanno_Monzencho";   // 山王門前町
 
     const string PYaguramon = EdoAssets.JC.YaguramonA;
-    const string PKmon = EdoAssets.Eg.Kmon;
     const string PKabuki = EdoAssets.Eg.Kabukimon;
     const string PKura = EdoAssets.Eg.Kura;
     const string PKido = EdoAssets.Eg.KidoOpen;
     const string PHouse = EdoAssets.VK.House;
-    const string PHouseB = EdoAssets.VK.HouseB;
     const string PSmallHouse = EdoAssets.VK.SmallHouse;
     const string PShop01 = EdoAssets.Eg.Shop01;
     const string PShop02 = EdoAssets.Eg.Shop02;
@@ -46,14 +43,6 @@ public static class EdoSannoShaBuilder
         EdoAssets.JG.PineBig01,
         EdoAssets.JG.PineBig02,
         EdoAssets.JG.PineBig03 };
-    static string[] Shrubs = {
-        EdoAssets.JC.Azalea01,
-        EdoAssets.JC.Azalea03,
-        EdoAssets.JG.Boxwood01 };
-    static string[] Rocks = {
-        EdoAssets.JG.Rock01,
-        EdoAssets.JG.Rock02,
-        EdoAssets.JG.Rock03 };
     public const float ES = 1.818f;
 
     // ---- 幾何定数(地形実測 2026-08-11: 山頂平坦面 h≈28 = x[-565,-485] z[800,895]) ----
@@ -510,147 +499,9 @@ public static class EdoSannoShaBuilder
             Box(g.transform, "ashi" + i, g.transform.position + new Vector3(i % 2 == 0 ? -0.8f : 0.8f, 0.2f, i < 2 ? -0.22f : 0.22f), new Vector3(0.08f, 0.4f, 0.08f), wood, 12f);
     }
 
-    // ---------- Stage 3: 観理院 (2026-08-11改訂: 山麓の縦長大区画・表門=参道コリドー側NW辺) ----------
-    public static string Stage3_Kanriin()
-    {
-        // ⛔ **検図関門**(規則18)。指図が不合格のまま建てると、直った瞬間に建て直しになる。
-        //   判定は `docs/Sashizu/sanno_sashizu.json` の `reviews` — 記録は
-        //   `python3 Tools/Sashizu/review_gate.py --record sanno <役> <pass|fail>` が書く。
-        var reviewGate = EdoSashizuExport.ReviewGate("sanno"); if (reviewGate != null) return reviewGate;
-        var root = GameObject.Find(GROUP_K);
-        if (root != null && root.transform.childCount > 0) return "SKIP: Kanriin exists";
-        var sb = new System.Text.StringBuilder();
-        EdoBuild.NaturalMode = true;
-        var kak = Group(GROUP_K, "Kakoi");
-        var monGrp = Group(GROUP_K, "Omotemon");
-        int N = KANRI.Length;
-        // 表門位置: NW辺(参道コリドー沿い, 石段下正面)の中央
-        Vector2 e2a = KANRI[2], e2b = KANRI[3];
-        Vector2 gate = Vector2.Lerp(e2a, e2b, 0.5f);
-        Vector2 edir = (e2b - e2a).normalized;
-        Vector2 inw = new Vector2(edir.y, -edir.x);                 // (0.912,-0.410) 内向き
-        Vector2 cenP = Vector2.zero; foreach (var p in KANRI) cenP += p; cenP /= N;
-        if (Vector2.Dot(cenP - gate, inw) < 0) inw = -inw;
-        // 練塀(s_hei 表裏ペア) 全周, NW辺は門で開口
-        for (int i = 0; i < N; i++)
-        {
-            Vector2 a = KANRI[i], b = KANRI[(i + 1) % N];
-            Vector2 mid = (a + b) * 0.5f;
-            Vector2 outw = (mid - cenP); outw.Normalize();
-            if (i == 2)
-                EdoBuild.DobeiRun(kak, a, b, outw, "Nerbei_Mon", true, 0, gate, 7.6f);
-            else
-                EdoBuild.DobeiRun(kak, a, b, outw, "Nerbei_" + i, true, 0, Vector2.zero, -1);
-        }
-        // 薬医門級(k_mon): 参道コリドー向き
-        float psiIn = Mathf.Atan2(inw.x, inw.y) * Mathf.Rad2Deg;
-        var mon = Place(PKmon, Vector3.zero, psiIn, Vector3.one * ES, monGrp, "Mon");
-        CenterSeat(mon, gate.x, gate.y, 0.05f);
-        // kagami(控柱)が内側かを検証
-        float kmn = float.MaxValue, kmx = float.MinValue;
-        foreach (var mf in mon.GetComponentsInChildren<MeshFilter>())
-        {
-            if (!mf.gameObject.name.ToLower().Contains("kagami")) continue;
-            foreach (var vtx in mf.sharedMesh.vertices)
-            { var wp = mf.transform.TransformPoint(vtx); float pr = wp.x * inw.x + wp.z * inw.y; kmn = Mathf.Min(kmn, pr); kmx = Mathf.Max(kmx, pr); }
-        }
-        if (kmn != float.MaxValue)
-        {
-            var mc = RB(mon).center;
-            if ((kmn + kmx) * 0.5f < mc.x * inw.x + mc.z * inw.y)
-            { mon.transform.rotation *= Quaternion.Euler(0, 180, 0); CenterSeat(mon, gate.x, gate.y, 0.05f); sb.AppendLine("kanriin mon flipped"); }
-        }
-        // 書院群(北半の平坦帯 x-390〜-416): 客殿は門に正対(斜め軸)、奥書院翼・庫裏・土蔵
-        var bg = Group(GROUP_K, "Buildings");
-        float faceYaw = Mathf.Atan2(-inw.x, -inw.y) * Mathf.Rad2Deg;   // facade(+z)を門へ
-        var kyaku = Place(PHouse, Vector3.zero, faceYaw, Vector3.one, bg, "Kyakuden");
-        CenterSeat(kyaku, gate.x + inw.x * 15f, gate.y + inw.y * 15f);
-        var kuri = Place(PSmallHouse, Vector3.zero, faceYaw + 90f, Vector3.one * 0.9f, bg, "Kuri");
-        CenterSeat(kuri, -403f, 843f);
-        var oku = Place(PHouseB, Vector3.zero, 0f, Vector3.one, bg, "Okushoin");
-        CenterSeat(oku, -397f, 877f);
-        var kura = Place(PKura, Vector3.zero, 90f, Vector3.one * ES, bg, "Kura");
-        CenterSeat(kura, -397f, 800f);
-        Ido(bg, -409f, 848f);
-        // 庭: 南半は奥庭(松・岩組・灯籠), 前庭は飛石と刈込
-        var gg = Group(GROUP_K, "Garden");
-        var rnd = new System.Random(4649);
-        System.Func<Vector2, bool> inPoly = p =>
-        {
-            bool inside = false;
-            for (int i = 0, j = N - 1; i < N; j = i++)
-                if (((KANRI[i].y > p.y) != (KANRI[j].y > p.y)) &&
-                    (p.x < (KANRI[j].x - KANRI[i].x) * (p.y - KANRI[i].y) / (KANRI[j].y - KANRI[i].y) + KANRI[i].x)) inside = !inside;
-            return inside;
-        };
-        int np = 0, guard = 0;
-        while (np < 12 && guard++ < 600)
-        {
-            float px = Mathf.Lerp(-424f, -391f, (float)rnd.NextDouble());
-            float pz = Mathf.Lerp(738f, 884f, (float)rnd.NextDouble());
-            var p2 = new Vector2(px, pz);
-            if (!inPoly(p2)) continue;
-            bool nearB = false;
-            foreach (Transform c in bg) { var rb2 = RB(c.gameObject); if (px > rb2.min.x - 2.2f && px < rb2.max.x + 2.2f && pz > rb2.min.z - 2.2f && pz < rb2.max.z + 2.2f) { nearB = true; break; } }
-            if (nearB) continue;
-            float y = Ground(px, pz);
-            var go = Place(Pines[rnd.Next(Pines.Length)], new Vector3(px, y, pz), (float)rnd.NextDouble() * 360f, Vector3.one * (1.6f * (0.9f + 0.4f * (float)rnd.NextDouble())), gg, "Pine_" + np);
-            SeatBottom(go, y - 0.05f);
-            np++;
-        }
-        for (int i = 0, g2 = 0; i < 9 && g2 < 400; g2++)
-        {
-            float px = Mathf.Lerp(-424f, -391f, (float)rnd.NextDouble());
-            float pz = Mathf.Lerp(736f, 886f, (float)rnd.NextDouble());
-            var p2 = new Vector2(px, pz);
-            if (!inPoly(p2)) continue;
-            float y = Ground(px, pz);
-            var go = Place(Shrubs[rnd.Next(Shrubs.Length)], new Vector3(px, y, pz), (float)rnd.NextDouble() * 360f, Vector3.one * (0.9f + 0.6f * (float)rnd.NextDouble()), gg, "Shrub_" + i);
-            SeatBottom(go, y - 0.04f);
-            i++;
-        }
-        // 岩組(奥庭 z~790)
-        for (int r = 0; r < 4; r++)
-        {
-            float px = -406f + r * 1.7f, pz = 786f + r * 1.2f;
-            float y = Ground(px, pz);
-            var go = Place(Rocks[rnd.Next(Rocks.Length)], new Vector3(px, y, pz), (float)rnd.NextDouble() * 360f, Vector3.one * ((r == 0 ? 2.8f : 1.5f) * (0.85f + 0.4f * (float)rnd.NextDouble())), gg, "Iwa_" + r);
-            SeatBottom(go, y - 0.22f);
-        }
-        // 飛石: 門→客殿玄関
-        var kb = RB(kyaku.gameObject != null ? kyaku : null);
-        Vector2 g0 = gate + inw * 2.5f;
-        Vector2 g1 = new Vector2(kb.center.x, kb.center.z) - inw * 9f;
-        int steps = Mathf.Max(3, Mathf.RoundToInt((g1 - g0).magnitude / 2.4f));
-        for (int i = 0; i <= steps; i++)
-        {
-            float tt = (float)i / steps;
-            Vector2 p = Vector2.Lerp(g0, g1, tt);
-            float y = Ground(p.x, p.y);
-            var go = Place(PTobi, new Vector3(p.x, y + 0.03f, p.y), (float)rnd.NextDouble() * 360f, Vector3.one * 1.85f, gg, "Tobi_" + i);
-            SeatBottom(go, y + 0.02f);
-        }
-        var lpick = AssetDatabase.LoadAssetAtPath<GameObject>(PKasuga) != null ? PKasuga : PBasket;
-        var lg = Place(lpick, Vector3.zero, 0, Vector3.one * 1.4f, gg, "Toro");
-        CenterSeat(lg, -410f, 862f, 0.03f);
-        var lg2 = Place(lpick, Vector3.zero, 0, Vector3.one * 1.35f, gg, "Toro2");
-        CenterSeat(lg2, -404f, 792f, 0.03f);
-        return sb.ToString() + "kanriin done";
-    }
-    // 井戸(簡素)
-    static void Ido(Transform parent, float x, float z)
-    {
-        float y = Ground(x, z);
-        var g = new GameObject("Ido");
-        g.transform.SetParent(parent, false);
-        g.transform.position = new Vector3(x, y, z);
-        Undo.RegisterCreatedObjectUndo(g, "ido");
-        var stone = Mat(new Color(0.55f, 0.55f, 0.52f));
-        var wood = Mat(new Color(0.38f, 0.28f, 0.18f));
-        Cyl(g.transform, "curb", g.transform.position + new Vector3(0, 0.35f, 0), new Vector3(1.3f, 0.35f, 1.3f), stone, Vector3.zero);
-        for (int i = 0; i < 2; i++)
-            Cyl(g.transform, "post" + i, g.transform.position + new Vector3(i == 0 ? -0.85f : 0.85f, 1.1f, 0), new Vector3(0.12f, 1.1f, 0.12f), wood, Vector3.zero);
-    }
+    // ---------- Stage 3: 観理院(削除) ----------
+    // 2026-09-26 削除(EDO-0465 施主指示): 観理院は類型ビルダー(Edo_Typo_sannosha_kanri)が受け持つ。
+    // 8 月の組(Edo_Sanno_Kanriin)はシーンとプレハブごと消した。旧実装は git log で追う。
 
     // ---------- Stage 4: 樹下家邸(引退) ----------
     // 2026-08-26 引退: 樹下邸は旧 EdoSannoBukeBuilder.Stage1_Juge が受け持ち、2026-09-21(EDO-0094)から
@@ -899,7 +750,6 @@ public static class EdoSannoShaBuilder
         var sb = new System.Text.StringBuilder();
         sb.AppendLine(Stage1_Keidai());
         sb.AppendLine(Stage2_Sando());
-        sb.AppendLine(Stage3_Kanriin());
         sb.AppendLine(Stage4_Juge());
         sb.AppendLine(Stage5_Monzencho());
         sb.AppendLine(Stage6_Splat());
@@ -952,6 +802,12 @@ public static class EdoSannoShaBuilder
         string[] modelDirs = { "Assets/Edo/Models/Kaidan", "Assets/Edo/Models/Hei",
                                "Assets/Edo/Models/Sanno" };
         // ⭐ 芯は EdoRemapMat.Run(全邸で1本・EDO-0318)。ここに書くのは並びだけ。
-        return EdoRemapMat.Run(donorDirs, modelDirs, "山王の新造部材");
+        var byName = EdoRemapMat.ByFolder(donorDirs);
+        // ⚠ 板塀を分けた組 `Own.ItabeiIta` / `Own.ItabeiHashira`(2026-09-26・EDO-0437)の材 `itabei` は
+        //   edogoyomi の .obj が**サブアセットとして抱えている**だけで独立した .mat が無い ⇒ フォルダを舐めても当たらない。
+        //   元の駒 `Eg.Itabei5` の中の材を直接借り先に足す(足さないと板塀の組だけ真っ白)。
+        foreach (var o in AssetDatabase.LoadAllAssetsAtPath(EdoAssets.Eg.Itabei5))
+        { var m = o as Material; if (m != null && !byName.ContainsKey(m.name)) byName[m.name] = m; }
+        return EdoRemapMat.Run(byName, modelDirs, "山王の新造部材");
     }
 }

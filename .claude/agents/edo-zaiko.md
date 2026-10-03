@@ -17,6 +17,7 @@ effort: low
    「`Meshes/` でなく `Prefabs/` を使う」の原則
 2. **`docs/asset-index.tsv`** — 機械生成の目録。実寸・ピボット差・ポリ数・シーン内使用数
 3. **`Assets/Edo/Scripts/Editor/EdoAssets.cs`** — 既に登録済みか。登録済みならその定数名を返す
+3a. **`Assets/Edo/Data/PartSpecs/`** — 置き物(門・番所・塀の駒・棟)なら**部材の札の有無**も返す。札の無い在庫を置く種別で採るなら「`Edo/部材/取り合いの札を焼く` で焼いてから」と添える(札の無い置き物は建たない・`docs/oki-kata.md` §8)
 4. 迷ったら `Skill(unity-buke-yashiki)` の `references/buildings.md`(用途別のアセットパレット)
 
 ## 出力形式
@@ -24,8 +25,8 @@ effort: low
 ```
 ## 要求: <何が欲しいか>
 
-| # | パス | 実寸 W×H×D (m) | ピボット差 | ポリ数 | シーン内使用 | EdoAssets |
-|---|---|---|---|---|---|---|
+| # | パス | 実寸 W×H×D (m) | ピボット差 | ポリ数 | シーン内使用 | EdoAssets | 札 |
+|---|---|---|---|---|---|---|---|
 | 1 | Assets/edogoyomi/es_kmon/k_mon.obj | 5.4×6.2×2.1 | (0,0,0) | 1,240 | 3箇所 | Eg.Kmon |
 
 **推奨**: #<n> — <理由。格式・寸法・既存の使われ方から>

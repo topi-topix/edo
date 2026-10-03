@@ -70,8 +70,34 @@ public static partial class EdoBuild
         go.transform.position = pos;
         go.transform.rotation = Quaternion.Euler(0, ry, 0);
         go.transform.localScale = scale;
+        DressBare(go, path);
         Undo.RegisterCreatedObjectUndo(go, "place " + name);
         return go;
+    }
+
+    /// <summary>材に画像の無い在庫の駒へ、同じフォルダの画像を貼った材を着せる(<see cref="EdoAssets.Eg.BareTex"/>)。
+    /// 材は `Assets/Edo/Materials/M_Bare_<駒の名>.mat` に一度だけ作る。</summary>
+    public static void DressBare(GameObject go, string path)
+    {
+        string tp;
+        if (go == null || !EdoAssets.Eg.BareTex.TryGetValue(path, out tp)) return;
+        string mp = EdoAssets.Own.Mat("M_Bare_" + System.IO.Path.GetFileNameWithoutExtension(path));
+        var m = AssetDatabase.LoadAssetAtPath<Material>(mp);
+        if (m == null)
+        {
+            m = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(tp);
+            if (tex != null) { m.SetTexture("_BaseMap", tex); m.mainTexture = tex; }
+            m.SetFloat("_Smoothness", 0.15f);
+            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(mp));
+            AssetDatabase.CreateAsset(m, mp);
+        }
+        foreach (var r in go.GetComponentsInChildren<Renderer>(true))
+        {
+            var ms = r.sharedMaterials;
+            for (int i = 0; i < ms.Length; i++) ms[i] = m;
+            r.sharedMaterials = ms;
+        }
     }
 
     /// <summary>子孫 Renderer 全体のワールド Bounds。</summary>
@@ -256,6 +282,22 @@ public static partial class EdoBuild
         keep = EdoGeom.HullXZ(pts2);
         _hullXZCache[m] = keep;
         return keep;
+    }
+    /// <summary>駒の壁体(屋根の名を除く)の全頂点のうち、最低点から <paramref name="bandH"/> までの物。</summary>
+    static List<Vector3> LowBandPoints(Transform tr, float bandH)
+    {
+        var all = new List<Vector3>(); float minY = float.MaxValue;
+        foreach (var mf in tr.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            var rr = mf.GetComponent<Renderer>(); if (rr == null || !rr.enabled || !mf.gameObject.activeInHierarchy) continue;
+            if (IsRoofName(PartName(tr, mf))) continue;
+            var l2w = mf.transform.localToWorldMatrix; var vs = mf.sharedMesh.vertices;
+            for (int i = 0; i < vs.Length; i++) { var w = l2w.MultiplyPoint3x4(vs[i]); all.Add(w); if (w.y < minY) minY = w.y; }
+        }
+        var L = new List<Vector3>();
+        foreach (var w in all) if (w.y <= minY + bandH) L.Add(w);
+        return L;
     }
     static List<Vector3> EdgeCandidates(Transform tr)
     {
@@ -737,21 +779,81 @@ public static partial class EdoBuild
     ///
     /// <para>候補は <see cref="EdgeCandidates"/>(局所XZの凸包・EDO-0383)— 以前の一様な添字間引きは
     /// 区画の外へ最も出ている頂点を間引きで落とすことがあり、区域侵犯を見逃す方向で危険だった。</para></summary>
+    /// <para><paramref name="tol"/> = 測りの分解能(線の上に法肩を据えた駒の頂点は float の往復で 0.1〜0.3mm
+    /// 線を跨ぐ・EDO-0502 岡部の基壇 108 駒)。⛔ 狙いの緩めに使わない — 1mm を超えて渡さない。</para>
     public static float KeepInsidePoly(GameObject go, Vector2[] poly, Vector2 runDir, float maxPull,
-                                       out float before, float step = 0.01f)
+                                       out float before, float step = 0.01f, float tol = 0f)
     {
         var pts = EdgeCandidates(go.transform);
         before = OutsideBy(pts, poly, Vector2.zero);
-        if (before <= 0f) return 0f;
+        if (before <= tol) return 0f;
         runDir = runDir.normalized;
         for (float d = step; d <= maxPull + 1e-4f; d += step)
         {
-            if (OutsideBy(pts, poly, -runDir * d) <= 0f)
+            if (OutsideBy(pts, poly, -runDir * d) <= tol)
             { go.transform.position += new Vector3(-runDir.x * d, 0f, -runDir.y * d); return -d; }
-            if (OutsideBy(pts, poly, runDir * d) <= 0f)
+            if (OutsideBy(pts, poly, runDir * d) <= tol)
             { go.transform.position += new Vector3(runDir.x * d, 0f, runDir.y * d); return d; }
         }
         return float.NaN;
+    }
+
+    /// <summary>**硬い(許容0)・区域**: 区画線の上に一列で据えた駒(柵・潜り戸など)を、**列ごと**同じ量だけ
+    /// <paramref name="inward"/> の向きへ引き、列のどの駒の実メッシュ(<see cref="EdgeCandidates"/>)も区画の外へ
+    /// 出ない最小の量に納める。返り値 = 引いた量[m](0 = 元から内側)、<paramref name="maxPush"/> で収まらなければ
+    /// 動かさず NaN。<paramref name="before"/> = 引く前に最も外へ出ていた量。
+    /// ⭐ 駒ごとに引くと、奥行の違う駒(潜り戸の柱 0.17 と柵の板 0.055)の芯が列の中で食い違う ── 列で一つの量にする。
+    /// ⛔ 走りに沿って引く <see cref="KeepInsidePoly"/>(重ねて並べる駒の端)とは別物。ピボットを線に置いた駒の
+    ///   外側の半分を内へ入れる道具(EDO-0502 岡部の汀の木柵: 板 0.055・潜り 0.170 外)。</summary>
+    /// <para><paramref name="bandH"/> &gt; 0 なら、各駒の壁体の最低点から bandH までの**全頂点**で測る(腰で測る・
+    /// 軒は区画の線を越えてよい ── 施主裁定A 2026-09-21)。一体で焼いた長屋・門は屋根を材で分けられないので、
+    /// 凸包(<see cref="EdgeCandidates"/>)では軒の先の点に隠れて腰の出っ張りを見落とす(EDO-0502 岡部の表門 0.051m)。</para>
+    public static float InsetRunToPoly(IList<GameObject> run, Vector2[] poly, Vector2 inward, float maxPush,
+                                       out float before, float step = 0.005f, float tol = 0f, float bandH = 0f)
+    {
+        before = 0f;
+        if (run == null || run.Count == 0 || poly == null) return 0f;
+        var pts = new List<Vector3>();
+        foreach (var go in run) if (go != null) pts.AddRange(bandH > 0f ? LowBandPoints(go.transform, bandH) : EdgeCandidates(go.transform));
+        before = OutsideBy(pts, poly, Vector2.zero);
+        if (before <= tol) return 0f;
+        inward = inward.normalized;
+        for (float d = step; d <= maxPush + 1e-4f; d += step)
+        {
+            if (OutsideBy(pts, poly, inward * d) > tol) continue;
+            foreach (var go in run) if (go != null)
+                go.transform.position += new Vector3(inward.x * d, 0f, inward.y * d);
+            return d;
+        }
+        return float.NaN;
+    }
+
+    /// <summary>**硬い(許容0)・区域**: 群の直下の駒のうち、壁体(屋根を除く実頂点 <see cref="BodyExRoof"/>)が
+    /// 区画の多角形の外へ出た物を**退ける**(消す)。返すのは退けた数。<paramref name="note"/> へ
+    /// 「何を・何個・最も外へ出た量」を一行で積む(呼ぶ側が ★ で刷る)。
+    /// ⭐ 算出物(焼いた点・線)から据える駒のための門 ── 区画を引き直した後に焼き直していない欄
+    ///   (EDO-0502 岡部: 汀の杭列 242 本が新しい線の 4.3〜10.1m 外)を建てずに済ませる。
+    /// ⛔ 寄せない・引かない(事後に寄せる関数ではない)。⛔ 区画の線の上に立つ囲い(塀・石垣・柵)には使わない
+    ///   ── あれは線に沿って納める物で、<see cref="KeepInsidePoly"/> の担当。</summary>
+    public static int RetireOutsidePoly(Transform group, Vector2[] poly, List<string> note, string label, float tol = 0f)
+    {
+        if (group == null || poly == null) return 0;
+        var gone = new List<GameObject>(); float worst = 0f; string worstName = null;
+        foreach (Transform c in group)
+        {
+            if (!c.gameObject.activeInHierarchy) continue;
+            var pts = BodyExRoof(c, 600);
+            if (pts.Count == 0) continue;
+            float o = OutsideBy(pts, poly, Vector2.zero);
+            if (o <= tol) continue;
+            gone.Add(c.gameObject);
+            if (o > worst) { worst = o; worstName = c.name; }
+        }
+        foreach (var g in gone) UnityEngine.Object.DestroyImmediate(g);
+        if (gone.Count > 0 && note != null)
+            note.Add(label + ": 区画の外へ出た " + gone.Count + " 個を退けた(最も外 " + worst.ToString("F2")
+                     + "m @" + worstName + ")── 硬い・区域侵犯 許容0");
+        return gone.Count;
     }
 
     /// <summary>点群を <paramref name="off"/> だけずらしたとき、多角形の外へ出る最大距離[m](0 = 全部内側)。</summary>

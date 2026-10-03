@@ -516,6 +516,8 @@ public static class EdoOkabeYashikiBuilder
 
     /// <summary>石垣の駒の素の寸法(スケール1)。`unity-modular-stonewall` の作法。
     /// 指図は run ごとの倍率 `s` を持ち、壁高 = `const.baseUnit`×s / 天端幅 1.4s / 底厚 2.4s。</summary>
+    /// <summary>区画線の上に据えた駒の頂点が float の往復で線を跨ぐ量の上限(実測 0.25mm)。測りの分解能で、狙いの緩めではない。</summary>
+    const float SEAM_TOL = 0.001f;
     const float IG_RUN = 2.00f;          // 駒の走り方向の実体長
     const float IG_PITCH_MAX = 1.80f;    // ピッチの上限(重なり 0.20m を必ず残す)
     /// <summary>隅部材・練塀の直線材に共通の倍率。素の部材は江戸暦の単位なので ES を掛ける。</summary>
@@ -712,6 +714,28 @@ public static class EdoOkabeYashikiBuilder
             }
         }
 
+        // 硬い・区域(許容0・EDO-0502): 表長屋と表門は**一組のまま**(面を揃えたまま)、腰(1.2m)より下で
+        //   一番外へ出ている実頂点が区画の線に収まるまで列ごと内へ寄せる(表門の腰の出が 0.051m 越えていた)。
+        //   ⛔ 門だけ寄せない(長屋と面がずれる)。軒は越えてよいので腰で測る。走りの s は変わらない(_nagayaSpan はそのまま)。
+        {
+            var byEdge = new Dictionary<int, List<GameObject>>();
+            foreach (Transform c in kak)
+            {
+                int ed = -1;
+                foreach (var r in Runs) if (r.Nagaya && r.name == c.name) ed = r.edge;
+                if (c.name == "Omotemon") { var g2 = O(Get(D, "gate")); if (g2 != null) ed = (int)F(g2["edge"]); }
+                if (ed < 0) continue;
+                List<GameObject> l; if (!byEdge.TryGetValue(ed, out l)) byEdge[ed] = l = new List<GameObject>(); l.Add(c.gameObject);
+            }
+            foreach (var kv in byEdge)
+            {
+                float was;
+                float d = EdoBuild.InsetRunToPoly(kv.Value, Poly, -OutNormal(kv.Key), 0.50f, out was, 0.01f, SEAM_TOL, 1.2f);
+                if (float.IsNaN(d)) wait.Add("表長屋・表門 辺" + kv.Key + ": 0.50m 寄せても腰が区画の外(" + was.ToString("F3") + "m)── 据えたまま");
+                else if (d > 0f) sb.Append("(表長屋・表門 " + kv.Value.Count + " 棟を一組で内へ " + d.ToString("F2") + "m ── 腰が " + was.ToString("F3") + "m 出ていた)");
+            }
+        }
+
         // 棟高の突き合わせ(指図 ⇔ **据えた現物**)。⛔ 呼び寸法や doc の数字で比べない
         if (Has(O(D["const"]), "nagayaH") && nagH > 0.1f)
         {
@@ -786,7 +810,8 @@ public static class EdoOkabeYashikiBuilder
         foreach (var o in A(Get(IMPL, "base")) ?? new List<object>())
         { var e = O(o); if (e != null) baseByRun[S(e["run"])] = e; }
 
-        int made = 0, seg = 0; var miss = new List<string>(); float thin = 0f;
+        int made = 0, seg = 0, pulled = 0, retired = 0; var miss = new List<string>(); float thin = 0f;
+        var gone = new List<string>();
         foreach (var r in Runs)
         {
             if (!r.Ishigaki) continue;
@@ -815,13 +840,32 @@ public static class EdoOkabeYashikiBuilder
                     var go = EdoBuild.Place(EdoAssets.JC.CastleWall,
                         new Vector3(p.x, r.SeatAt(mid) - wallH, p.y), psi,
                         Vector3.one * sc, grp, "IG_" + r.name + "_" + made);
-                    if (go != null) made++;
+                    if (go == null) continue;
+                    made++;
+                    // 硬い・区域(許容0・EDO-0502): 実メッシュが区画の外へ出たら、走りに沿って引いて収める。
+                    //   区間の途中の駒は重ね(0.20s)の範囲だけ。**区間の両端の駒は駒一つ分(unit)まで**引く ──
+                    //   隅では控え(2.4s)が隣の辺を跨ぎ、短い区間(0.4m の返しなど)では駒が辺の先へ突き出す。
+                    //   引いた端は隣の辺の駒の小口が塞ぐ(出隅は片方の面を通し、もう一方を端点へ・石垣の作法)。
+                    //   それでも収まらない駒は退ける。
+                    float was;
+                    bool segEnd = (i == 0 || i == N - 1);
+                    float mv = EdoBuild.KeepInsidePoly(go, Poly, EdgePt(r.edge, 1f) - EdgePt(r.edge, 0f),
+                                                       segEnd ? unit : 0.20f * sc, out was, 0.01f, SEAM_TOL);
+                    if (float.IsNaN(mv))
+                    { gone.Add(go.name + " " + was.ToString("F2") + "m"); UnityEngine.Object.DestroyImmediate(go); retired++; }
+                    else if (mv != 0f) pulled++;
                 }
                 seg++;
             }
         }
+        // 門: 引き・退けの後に、残った駒を同じ実メッシュで検める(0 で無ければ退ける)
+        var gate = new List<string>();
+        retired += EdoBuild.RetireOutsidePoly(grp, Poly, gate, "石垣基壇", SEAM_TOL);
         var sb = new System.Text.StringBuilder();
-        sb.Append("石垣基壇: " + made + " 駒 / " + seg + " 区間");
+        sb.Append("石垣基壇: " + (made - retired) + " 駒 / " + seg + " 区間");
+        if (pulled > 0) sb.Append(" ｜ 区画の内へ走りに沿って引いた " + pulled + " 駒");
+        if (retired > 0) sb.Append("\n★ 石垣基壇: 区画の外へ出て退けた " + retired + " 駒(硬い・区域): " + string.Join(" / ", gone.ToArray()));
+        foreach (var g in gate) sb.Append("\n★ " + g);
         if (thin > 0.05f) sb.Append(" ｜ 基壇を置かない区間 " + thin.ToString("F1") + "m(露出 < baseMin)");
         if (miss.Count > 0)
             sb.Append("\n★ 算出物 base に無い run " + miss.Count + " 件: " + string.Join(" / ", miss.ToArray()));
@@ -893,6 +937,10 @@ public static class EdoOkabeYashikiBuilder
         // 柵に開く口(指図が持つものだけ。実装で発明しない)。⭕ **潜りの戸を先に据えて実寸を測り**、
         // その幅で柵を空ける(⛔ 開口の呼び寸法で空けない — 戸の柱のぶん柵が食い込む)
         var gaps = new List<float[]>();     // {edge, s0, s1}
+        var byEdge = new Dictionary<int, List<GameObject>>();   // 辺 → 線の上に据えた駒(列ごと区画の内へ納める)
+        var endPosts = new Dictionary<int, List<GameObject>>(); // 辺 → 区間の +X 端の杭
+        System.Action<int, GameObject> keep = delegate(int ed, GameObject g0)
+        { if (g0 == null) return; List<GameObject> l; if (!byEdge.TryGetValue(ed, out l)) byEdge[ed] = l = new List<GameObject>(); l.Add(g0); };
         var saku = O(Get(O(Get(D, "nishi")), "saku"));
         int kuguri = 0;
         if (saku != null)
@@ -910,10 +958,53 @@ public static class EdoOkabeYashikiBuilder
                 if (kp != null && AssetDatabase.LoadAssetAtPath<GameObject>(kp) != null)
                 {
                     var gk = Group("Fences");
-                    float gy = Graded.At(c0.x, c0.y); if (float.IsNaN(gy)) gy = EdoBuild.Ground(c0.x, c0.y);
-                    // ⚠ ピボット = 開口の芯・地盤レベル(底は −0.140 で沓石が地盤より下へ出る)
-                    var go0 = EdoBuild.Place(kp, new Vector3(c0.x, gy, c0.y), psi0, Vector3.one,
-                                             gk, "Kuguri");
+                    // ⭐ 置き場は EdoBuild.PlaceBest(EDO-0502 裁定・docs/oki-kata.md §4a)。
+                    //   柔らかい: 指図の s(狙い)── 同じ run の上を狙いから近い順に試す。
+                    //   硬い: ①見える丈 ≥ 戸の丈 k.h(法の上で戸が埋まらず開く姿になる)②腰の区画外 0。
+                    //   ⛔ 法は均さない(地形に触らない)。
+                    float fs0 = 0f, fs1 = 0f;
+                    foreach (var fo in A(D["fences"]) ?? new List<object>())
+                    { var fd0 = O(fo); if (fd0 != null && (int)F(fd0["edge"]) == e0) { fs0 = F(fd0["s0"]); fs1 = F(fd0["s1"]); } }
+                    float doorH = Has(k, "h") ? F(k["h"]) : 0f;
+                    var spots = new List<float>();
+                    for (int q = 0; q < 2000; q++)
+                    {
+                        float d0 = 0.25f * ((q + 1) / 2) * (q % 2 == 0 ? 1f : -1f);
+                        float sq = s + d0;
+                        if (sq - w / 2f >= fs0 + w && sq + w / 2f <= fs1 - w) spots.Add(sq);
+                        if (Mathf.Abs(d0) > fs1 - fs0) break;
+                    }
+                    var hards = new List<EdoBuild.Hard> {
+                        new EdoBuild.Hard("見える丈 ≥ 戸の丈", g => { float v = EdoBuild.VisibleAboveBed(g, EdoBuild.Ground); return !float.IsNaN(v) && v >= doorH; }),
+                        new EdoBuild.Hard("区域", g => EdoBuild.WaistOutside(g, Poly) <= SEAM_TOL),
+                    };
+                    var tally = new EdoBuild.SeiyakuTally();
+                    float kIn = 0f;
+                    System.Func<float, GameObject> placeK = sq =>
+                    {
+                        Vector2 cq = EdgePt(e0, sq);
+                        var g = EdoBuild.Place(kp, new Vector3(cq.x, EdoBuild.Ground(cq.x, cq.y), cq.y), psi0, Vector3.one, gk, "Kuguri");
+                        if (g == null) return null;
+                        float was; kIn = EdoBuild.InsetRunToPoly(new List<GameObject> { g }, Poly, -ow, 0.50f, out was, 0.005f, SEAM_TOL);
+                        if (float.IsNaN(kIn)) { kIn = 0f; return g; }   // 区域の硬い制約で退く
+                        EdoBuild.SinkToBed(g, EdoBuild.Ground, 0.05f);
+                        return g;
+                    };
+                    var go0 = EdoBuild.PlaceBest<float>(spots, spots.Count, placeK, hards, new List<EdoBuild.Soft>(), tally);
+                    if (go0 == null)
+                        sb.AppendLine("★ 潜り戸: 硬い制約を満たす置き場が run の上に無い ── 建てない・柵の口も開けない" + tally.Summary());
+                    else
+                    {
+                        // 列の内寄せ(下)で柵と同じ量だけ動かすので、ここでは線の上へ戻す(芯を列と揃える)
+                        go0.transform.position += new Vector3(ow.x * kIn, 0f, ow.y * kIn);
+                        var cw = go0.transform.position;
+                        float sGot = Vector2.Dot(new Vector2(cw.x, cw.z) - EdgePt(e0, 0f), (EdgePt(e0, 1f) - EdgePt(e0, 0f)).normalized);
+                        if (Mathf.Abs(sGot - s) > 0.01f)
+                            sb.AppendLine("⚠ 潜り戸: 狙い s=" + s.ToString("F2") + " → " + sGot.ToString("F2") + "(" + (sGot - s).ToString("+0.00;-0.00")
+                                        + "m)── 狙いでは見える丈が戸の丈 " + doorH.ToString("F2") + "m に届かない" + tally.Summary());
+                        s = sGot;
+                    }
+                    keep(e0, go0);
                     if (go0 != null)
                     {
                         kuguri++;
@@ -921,7 +1012,8 @@ public static class EdoOkabeYashikiBuilder
                         openW = kw2;
                     }
                 }
-                gaps.Add(new float[] { e0, s - openW / 2f, s + openW / 2f });
+                // 戸が建たなければ柵に口を開けない(口だけ開けると素通しになる)
+                if (kuguri > 0) gaps.Add(new float[] { e0, s - openW / 2f, s + openW / 2f });
             }
         }
         int posts = 0, runs = 0; float wMeasured = 0f;
@@ -966,6 +1058,7 @@ public static class EdoOkabeYashikiBuilder
                     // ⛔ **SeatBottom で据えない** — 根入れ 0.12 のぶん浮く。`position.y = 地盤` を直に
                     var go = EdoBuild.Place(fpath, new Vector3(p.x, gy, p.y), psi, Vector3.one,
                                             fen, S(fd["name"]) + "_" + posts);
+                    keep(e, go);
                     if (go != null) posts++;
                 }
                 // ⛔ run の +X 端に端の杭を1本(足さないと最後の板が宙で終わる)
@@ -974,12 +1067,54 @@ public static class EdoOkabeYashikiBuilder
                     float gy = Graded.At(pe.x, pe.y); if (float.IsNaN(gy)) gy = EdoBuild.Ground(pe.x, pe.y);
                     var gp2 = EdoBuild.Place(EdoAssets.Own.HoriSakuPost, new Vector3(pe.x, gy, pe.y),
                                              psi, Vector3.one, fen, S(fd["name"]) + "_Post" + posts);
+                    // 端の杭は列の内寄せの量を決めない(隅の先で隣の辺を跨ぐのは走りの向きの話)── 後で走りに沿って納める
+                    if (gp2 != null) { List<GameObject> l2; if (!endPosts.TryGetValue(e, out l2)) endPosts[e] = l2 = new List<GameObject>(); l2.Add(gp2); }
                     if (gp2 != null) posts++;
                 }
             }
             runs++;
         }
-        sb.Append("木柵: " + posts + " 枚 / " + runs + " run(駒の実寸 " + wMeasured.ToString("F3") + "m)");
+        // 硬い・区域(許容0・EDO-0502): 線の上に芯を置いた柵と潜りは外側の半分が区画の外へ出る。
+        //   列ごと同じ量だけ内へ引き、引いた先の地盤で据え直す(⛔ 駒ごとに引かない ── 潜りと板の芯が食い違う)
+        var inset = new System.Text.StringBuilder();
+        foreach (var kv in byEdge)
+        {
+            float was;
+            float d = EdoBuild.InsetRunToPoly(kv.Value, Poly, -OutNormal(kv.Key), 0.50f, out was, 0.005f, SEAM_TOL);
+            if (float.IsNaN(d))
+            {
+                foreach (var g0 in kv.Value) if (g0 != null) UnityEngine.Object.DestroyImmediate(g0);
+                inset.Append("\n★ 木柵 辺" + kv.Key + ": 0.50m 引いても区画の外(" + was.ToString("F3") + "m)── 退けた " + kv.Value.Count + " 駒");
+                continue;
+            }
+            var all = new List<GameObject>(kv.Value);
+            List<GameObject> ep;
+            if (endPosts.TryGetValue(kv.Key, out ep))
+            {
+                Vector2 runDir = EdgePt(kv.Key, 1f) - EdgePt(kv.Key, 0f);
+                foreach (var g0 in ep)
+                {
+                    if (d > 0f) g0.transform.position += new Vector3(-OutNormal(kv.Key).x * d, 0f, -OutNormal(kv.Key).y * d);
+                    float w0; float mv = EdoBuild.KeepInsidePoly(g0, Poly, runDir, 0.50f, out w0, 0.01f, SEAM_TOL);
+                    if (float.IsNaN(mv))
+                    { inset.Append("\n★ 木柵 辺" + kv.Key + ": 端の杭 " + g0.name + " が区画の外(" + w0.ToString("F3") + "m)── 退けた"); UnityEngine.Object.DestroyImmediate(g0); continue; }
+                    if (mv != 0f) inset.Append(" ｜ 端の杭 " + g0.name + " を走りに沿って " + mv.ToString("F2") + "m 引いた(隅で隣の辺を " + w0.ToString("F3") + "m 跨いでいた)");
+                    all.Add(g0);
+                }
+            }
+            // 硬い・地面(浮き 0): 杭の足(下端の当たり)を**描かれた地表**で測って据える(EdoBuild.SinkToBed)。
+            //   ⛔ 設計面 Graded で据えない ── 汀では地表(2m 格子)が区画線の際で外の低い節点へ下りるので、設計面より
+            //   0.4〜1.4m 低い(32/46 駒が浮いた・EDO-0502)。
+            foreach (var g0 in all)
+            {
+                if (g0 == null) continue;
+                var sr = EdoBuild.SinkToBed(g0, EdoBuild.Ground, 0.05f);
+                if (float.IsNaN(sr.hi)) inset.Append("\n★ 木柵 " + g0.name + ": 足の当たりが測れない");
+                else if (sr.hi > 0.01f) inset.Append("\n★ 木柵 " + g0.name + ": 据えた後も浮き " + sr.hi.ToString("F3") + "m");
+            }
+            if (d > 0f) inset.Append(" ｜ 辺" + kv.Key + " の列を内へ " + d.ToString("F3") + "m(外へ " + was.ToString("F3") + "m 出ていた)");
+        }
+        sb.Append("木柵: " + posts + " 枚 / " + runs + " run(駒の実寸 " + wMeasured.ToString("F3") + "m)" + inset);
         if (gaps.Count > 0) sb.Append(" ｜ 潜りの口 " + gaps.Count + " 箇所(戸 " + kuguri + " 枚)");
         // 指図の柵の丈と**据えた現物の天端**を突き合わせる。
         // ⚠ 天端は **pivot(地盤)+ fenceH** に来るべき。⛔ bbox の高さで比べない —
@@ -1078,7 +1213,10 @@ public static class EdoOkabeYashikiBuilder
         var list = A(Get(IMPL, "corners"));
         if (list == null) return "隅部材: 算出物に corners が無い(`python3 Tools/Sashizu/bake_impl.py okabe --write`)";
         var P = Poly; int n = P.Length;
-        int made = 0, skip = 0; var miss = new List<string>(); var degWarn = new List<string>();
+        int made = 0, skip = 0; var miss = new List<string>(); var degWarn = new List<string>(); var armNote = new List<string>();
+        // 腕の短い隅(EDO-0502): 同じ部材の隅が両端に立つ辺は、腕を EdoBuild.KadoArms で区画から選ぶ
+        var kadoAt = new Dictionary<int, string>();
+        foreach (var o in list) { var c = O(o); if (c != null && Has(c, "part")) kadoAt[((int)F(c["vertex"]) % n + n) % n] = S(c["part"]); }
         foreach (var o in list)
         {
             var c = O(o); if (c == null) continue;
@@ -1093,12 +1231,25 @@ public static class EdoOkabeYashikiBuilder
                 degWarn.Add(S(c["id"]) + " 算出物 " + F(c["deg"]).ToString("+0.0;-0.0")
                           + "° ≠ 実測 " + deg.ToString("+0.0;-0.0") + "°");
             string path = EdoAssets.Own.Kado(part, deg);
+            string armArg = "";
+            float full, faceDepth;
+            if (EdoBuild.KadoGauge(path, out full, out faceDepth))
+            {
+                string pt = part; Vector2 arms; string an;
+                bool ok = EdoBuild.KadoArms(P, (int)F(c["vertex"]), k => kadoAt.ContainsKey(k) && kadoAt[k] == pt, OutNormal,
+                                            ES, full, faceDepth, INUBASHIRI, INUBASHIRI + C("dobeiT"), 0.05f, 0.5f, out arms, out an);
+                if (an != null) armNote.Add(S(c["id"]) + ": " + an);
+                if (!ok) { skip++; continue; }                // 腕が成り立たない隅は据えない(note に出る)
+                path = EdoAssets.Own.Kado(part, deg, arms.x, arms.y, full);
+                if (arms.x < full - 1e-3f || arms.y < full - 1e-3f)
+                    armArg = " --arms " + arms.x.ToString("0.00") + "," + arms.y.ToString("0.00");
+            }
             var src = AssetDatabase.LoadAssetAtPath<GameObject>(path);
             if (src == null)
             {
                 miss.Add(S(c["id"]) + " → " + path
                        + "(blender --background --python Tools/Blender/build_kado.py -- --part "
-                       + part.ToLowerInvariant() + " --deg " + deg.ToString("F1") + ")");
+                       + part.ToLowerInvariant() + " --deg " + Mathf.RoundToInt(deg) + armArg + ")");
                 continue;
             }
             int v = (int)F(c["vertex"]);
@@ -1120,6 +1271,8 @@ public static class EdoOkabeYashikiBuilder
                     + string.Join(" / ", degWarn.ToArray()));
         if (miss.Count > 0)
             sb.Append("\n★ 部材が無い " + miss.Count + " 件 — " + string.Join(" / ", miss.ToArray()));
+        if (armNote.Count > 0)
+            sb.Append("\n★ 隅の腕 " + armNote.Count + " 件 — " + string.Join(" / ", armNote.ToArray()));
         return sb.ToString();
     }
 
@@ -1921,7 +2074,9 @@ public static class EdoOkabeYashikiBuilder
             wait.Add("法肩の竹垣: 焼いていない丈 " + string.Join(" / ", new List<string>(noH).ToArray())
                    + "m の run を据えなかった(⛔ 近い丈へ寄せない — 見透しの遮蔽が丈で決まる)"
                    + " → build_okabe_niwa.py -- yotsumegaki");
-        return "法肩の竹垣: " + made + " スパン + 親柱 " + posts + " / " + runs + " 本";
+        int outR = EdoBuild.RetireOutsidePoly(grp, Poly, wait, "法肩の竹垣(算出物 rails)");   // 硬い・区域(EDO-0502)
+        return "法肩の竹垣: " + made + " スパン + 親柱 " + posts + " / " + runs + " 本"
+             + (outR > 0 ? "(区画の外の " + outR + " 個を退けた)" : "");
     }
 
     // ---------------------------------------------------------------- 石段
@@ -2042,6 +2197,7 @@ public static class EdoOkabeYashikiBuilder
             // ⚠ **部材ごとに据え方が違う**(ピボットも正規化の軸も別)。⛔ 一律に置かない。
             var sub = Group("Niwa/" + kind.Replace("(", "_").Replace(")", "").Replace("・", "_"));
             int n0 = PlaceNiwaItem(sub, g, kind, key, pts, missing, wait);
+            n0 -= EdoBuild.RetireOutsidePoly(sub, Poly, wait, "庭 " + kind + "(算出物 gardens)");   // 硬い・区域(EDO-0502)
             made += n0;
             if (n0 == 0 && !missing.ContainsKey(key)) skipped++;
         }
@@ -2893,7 +3049,9 @@ public static class EdoOkabeYashikiBuilder
         if (missing.Count > 0)
             wait.Add("汀の杭: 焼かれていない径 " + string.Join(" / ", new List<string>(missing).ToArray())
                    + " → build_maruta.py -- kui");
-        return "汀の杭列: " + made + " 本(貫 " + nuki + ")";
+        // ⛔ 算出物の汀線が区画の外なら**建てない**(硬い・区域侵犯 許容0・EDO-0502)── 杭と貫を実メッシュで測って退ける
+        int outK = EdoBuild.RetireOutsidePoly(grp, Poly, wait, "汀の杭列(算出物 kui)");
+        return "汀の杭列: " + (made + nuki - outK) + " 個(杭 " + made + "・貫 " + nuki + " を据え、区画の外の " + outK + " 個を退けた)";
     }
 
     // ---------------------------------------------------------------- 残り(地表・部材待ち)

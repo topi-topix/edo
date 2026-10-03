@@ -20,6 +20,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
@@ -128,11 +129,42 @@ public static partial class EdoBuild
         return false;
     }
 
+    /// <summary>**柵の外の面を、線から内へ <paramref name="faceDepth"/> の面へ揃えて建てる**(EDO-0503)。
+    /// <see cref="FenceRun"/> で一度建て、据えた駒の実メッシュから外の面(<paramref name="outward"/> 側の最も外)を測り、
+    /// ずれていれば壊して、ずれの分だけ線を引いて建て直す(据えは型ごとの <see cref="FenceRun"/> の中のまま)。
+    /// ⛔ 駒の基準点や厚みの札で寄せない(規則21)── 測った面で寄せる。
+    /// 当たる先: 通りから裏手へ抜ける隙の柵(EdoBuild.SukimaGates)── 町屋の全区画。</summary>
+    public static List<GameObject> FenceRunFlush(Transform parent, Vector2 A, Vector2 B, Vector2 outward, string kind,
+        float baseY, string prefix, float faceDepth, out string note)
+    {
+        var inw = -outward; float shift = faceDepth; List<GameObject> made = null; note = null; float err = 0f;
+        for (int pass = 0; pass < 2; pass++)
+        {
+            if (made != null) foreach (var g in made) if (g != null) UnityEngine.Object.DestroyImmediate(g);
+            made = FenceRun(parent, A + inw * shift, B + inw * shift, outward, kind, baseY, Vector2.zero, -1f, prefix, out note);
+            float face = float.NegativeInfinity;                       // 線から外への出 ── 外の面
+            foreach (var g in made)
+                foreach (var w in Body(g.transform, 2000, true))
+                    face = Mathf.Max(face, Vector2.Dot(new Vector2(w.x, w.z) - A, outward));
+            if (float.IsInfinity(face)) break;
+            err = face + faceDepth;                                    // 揃えたい外の面は −faceDepth
+            if (Mathf.Abs(err) < 0.005f) break;
+            shift += err;
+        }
+        if (faceDepth > 0f)
+            note += string.Format("・外の面を店の角の柱の面(線から {0:F2}m 奥)へ揃えた(残差 {1:+0.000;-0.000})", faceDepth, err);
+        return made;
+    }
+
     static void Seat2(GameObject go, Vector2 at)
     {
         try { SeatOnGround(go, 0.05f, 600); }
         catch (Exception) { SeatBottom(go, Ground(at.x, at.y) - 0.05f); }
     }
+
+    /// <summary>表店を建ててよい道の縦の勾配の上限【U】(EDO-0503)。考証の実測で山王坂の門前は平均 7.8%・最急 約 10% ──
+    /// その坂には軒ごとの段で建つ。これを超える列の端は詰める。</summary>
+    public const float MACHIYA_MAX_GRADE = 0.15f;
 
     static float TuckIntoParcel(GameObject go, Vector2[] poly, Vector2 inward, float cap)
     {
@@ -146,10 +178,12 @@ public static partial class EdoBuild
     }
 
     /// <summary>駒の**壁体**が区画の外へ 1 点でも出ているか。遊びは無し —
-    /// 塀と違って建物は境界線の上に立つ物ではない(規則4「区域侵犯は許容0」)。</summary>
+    /// 塀と違って建物は境界線の上に立つ物ではない(規則4「区域侵犯は許容0」)。
+    /// ⭐ 測り方は類型ビルダーの検査(<c>EdoTypologyBuilder.OutsideBy</c>)と同じ <see cref="BodyExRoof"/>・600 点。
+    /// ⛔ 2026-10-02 まで Body(400, false) で測っていて、検査だけが 0.07m の侵犯を拾った(門前1 の平屋の小店・EDO-0503)。</summary>
     static bool OutsideParcelStrict(Transform t, Vector2[] poly)
     {
-        foreach (var w in Body(t, 400, false))
+        foreach (var w in BodyExRoof(t, 600))
             if (!EdoGeom.PIP(poly, new Vector2(w.x, w.z))) return true;
         return false;
     }
@@ -209,8 +243,11 @@ public static partial class EdoBuild
         public float roomM;        // 辺の背後に**実際に**あった奥行[m](表の depth_ken とは別)
         public float shopD;        // 据えた表店の**壁体**が境界線から奥へ食った最大[m](⛔ 在庫の駒の寸法で代用しない)
         public int clashed;        // 先に建った列にめり込むので退けた駒(両側町の角)
+        public int abutted;        // 先に建った列の駒へ区間の端を突き付けた数(角を空けない・EDO-0503)
         public int tucked;         // 区画の内へ折り込んだ駒
         public float tuckedM;      // 同・最大の折り込み量[m]
+        public float steepCutM;    // 道が急で列の端を詰めた長さ[m](EDO-0503・MACHIYA_MAX_GRADE)
+        public List<List<GameObject>> houseList;   // 据えた軒ごとの駒(1 軒 = 1〜2 枚)── 暖簾を軒ごとに掛ける(EDO-0503 HangNoren)
         public string oursKind;    // 当方の駒を候補へ足したときのその名前(足さなければ null)
     }
 
@@ -309,12 +346,20 @@ public static partial class EdoBuild
     /// 在庫の駒と同じ候補として <see cref="ShopCombos"/> に載るので、間口に合う駒が先に採られ、
     /// 合わなければ従来どおり在庫の駒を継ぐ。</param>
     /// <param name="keepInside">壁体がここから出る駒は置かない(区域侵犯は許容0・規則4)。null なら検めない。</param>
+    /// <param name="seed">1 軒の埋め方を引く乱数の種(区画ごと・EDO-0476)。負なら列の名から。</param>
+    /// <param name="maguchiMix">軒ごとに引く間口[m]の候補(表の `maguchi_mix`・EDO-0503)。null か 1 つ以下なら
+    /// 全軒 <paramref name="maguchiM"/>。⭐ 間口が一つだと候補の組が 1 通りに縮み**同じ駒が等間隔に並ぶ**
+    /// (山王門前の 4間 は Shop02 だけになっていた)。軒ごとに間口を引き、その間口の組から駒を引く。</param>
     public static List<GameObject> MachiyaRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward, float baseY,
         float maguchiM, float maxDepthM, Vector2 gapC, float gapHalf, string prefix,
-        string leadPath, string[] ours, Vector2[] keepInside, List<GameObject> avoid, out MachiyaTally tally)
+        string leadPath, string[] ours, Vector2[] keepInside, List<GameObject> avoid, out MachiyaTally tally,
+        int seed = -1, float[] maguchiMix = null)
     {
+        float[] targets = (maguchiMix != null && maguchiMix.Length > 1) ? maguchiMix : new[] { maguchiM };
+        if (targets.Length > 1) maguchiM = targets.Average();     // 軒数の見込み(wantHouses)は平均の間口で割る
         var made = new List<GameObject>();
         tally = new MachiyaTally();
+        tally.houseList = new List<List<GameObject>>();
         Vector2 dir = (B - A).normalized; float len = (B - A).magnitude;
         tally.edgeLen = len; tally.maguchiM = maguchiM;
         tally.wantHouses = Mathf.FloorToInt(len / Mathf.Max(0.5f, maguchiM));
@@ -343,17 +388,33 @@ public static partial class EdoBuild
             if (room > 0f && pc.Measure().D > room - 0.3f) continue;
             stock.Add(pc);
         }
-        // 当方の駒: 奥行に収まる**最初の 1 枚**(深い版 → 詰めた版)。収まる版が無ければ足さない。
+        // 当方の駒: **幅と丈の組ごとに**奥行に収まる**最初の 1 枚**(深い版 → 詰めた版)。収まる版が無ければ足さない。
+        // ⭐ 幅と丈で組を分ける(EDO-0503)— 間口を混ぜる区画では 2間・3間・5間の駒が同時に要り、
+        //    同じ幅でも厨子二階と平屋(丈が違う)は**別の駒**として両方を候補に残す(軒線を揺らすため)。
         if (ours != null)
+        {
+            var oursW = new HashSet<int>(); var oursNames = new List<string>();
             foreach (var p in ours)
             {
                 var pc = ShopPiece.Ours(p);
-                if (room > 0f && pc.Measure().D > room - 0.3f) continue;
-                stock.Add(pc); tally.oursKind = pc.Name; break;
+                var pm = pc.Measure();
+                int wk = Mathf.RoundToInt(pm.W / 0.05f) * 1000 + Mathf.RoundToInt(pm.height / 0.25f);
+                if (oursW.Contains(wk)) continue;
+                if (room > 0f && pm.D > room - 0.3f) continue;
+                stock.Add(pc); oursW.Add(wk); oursNames.Add(pc.Name);
             }
+            if (oursNames.Count > 0) tally.oursKind = string.Join(" / ", oursNames.ToArray());
+        }
         if (stock.Count == 0) stock.Add(ShopPiece.Kit(EdoAssets.Eg.Shop01));   // 奥行が足りなくても 1 種は残す(呼び手が刷る)
-        var combos = ShopCombos(stock.ToArray(), maguchiM);
-        tally.comboKinds = combos.Count;
+        var combosBy = new List<List<ShopPiece[]>>();
+        var comboNames = new HashSet<string>();
+        foreach (var tm in targets)
+        {
+            var cs = ShopCombos(stock.ToArray(), tm);
+            combosBy.Add(cs);
+            foreach (var c in cs) comboNames.Add(string.Join("+", c.Select(x => x.Name).ToArray()));
+        }
+        tally.comboKinds = comboNames.Count;
 
         // 木戸の開口で区間を割る(NagayaRun と同じ割り方)
         var segs = new List<float[]>();
@@ -365,13 +426,90 @@ public static partial class EdoBuild
         }
         else segs.Add(new float[] { 0f, len });
 
-        var rnd = new System.Random(prefix.GetHashCode());
+        // ⭐ 列の両端は**側の辺が鋭角に入る所**で、店の奥の隅が区画の外へ出る。先に端を内へ詰めておく(硬い: 区域侵犯 許容0)。
+        //    ⛔ 2026-10-02 まで詰めずに並べ、端の 1 枚が側の辺から 0.7m 出て(折り込みの上限 0.6m 超)丸ごと退けられ、
+        //    門前1 の木戸の脇に 7m の空きが残った(施主指摘)。詰める量 = 奥行いちばん深い駒の矩形が入るまで(0.05m 刻み・上限 4m)。
+        if (keepInside != null && stock.Count > 0)
+        {
+            float dMax = stock.Max(p => p.Measure().D);
+            var inw = -outward;
+            Func<float, float, bool> fits = (t0, t1) =>
+            {
+                foreach (var t in new[] { t0, t1 })
+                    foreach (var d in new[] { 0.05f, dMax * 0.5f, dMax })
+                        if (!EdoGeom.PIP(keepInside, sA + rdir * t + inw * d)) return false;
+                return true;
+            };
+            foreach (var sg in segs)
+            {
+                if (sg[0] <= 0.01f) { float k = 0f; while (k < 4f && !fits(sg[0] + k, sg[0] + k + 0.5f)) k += 0.05f; if (k > 0f && k < 4f) sg[0] += k + 0.02f; }
+                if (sg[1] >= len - 0.01f) { float k = 0f; while (k < 4f && !fits(sg[1] - k - 0.5f, sg[1] - k)) k += 0.05f; if (k > 0f && k < 4f) sg[1] -= k + 0.02f; }
+            }
+        }
+        // ⭐ 列の端で**道が急に落ちる所**には店を建てない(柔らかい: 列を詰めて ⚠ で刷る)── 店先の土間は軒ごとに道へ合わせるので、
+        //    道の縦の勾配が MACHIYA_MAX_GRADE を超える所では一軒の中で段が付けられない。急坂は町家の型ではない(EDO-0503 考証【B】:
+        //    石段・石垣の上の長屋は九段坂のような急坂の型で、8〜10% の坂には当てない)。
+        //    ⛔ 2026-10-02 まで詰めず、門前4 の東の端(道が 4m で 2m 落ちる)の店が布石 1.6m の上に載った。
+        {
+            Func<float, float> roadAt = tt => { var q = sA + rdir * tt + outward * 0.5f; return RoadY(q.x, q.y); };
+            Func<float, float, bool> steep = (t0, t1) =>
+            {
+                float y0 = roadAt(t0), y1 = roadAt(t1);
+                return !float.IsNaN(y0) && !float.IsNaN(y1) && Mathf.Abs(y1 - y0) / Mathf.Max(0.1f, t1 - t0) > MACHIYA_MAX_GRADE;
+            };
+            foreach (var sg in segs)
+            {
+                float k = 0f; while (sg[0] + k + 2f < sg[1] && steep(sg[0] + k, sg[0] + k + 2f)) k += 0.25f;
+                if (k > 0f) { sg[0] += k; tally.steepCutM += k; }
+                k = 0f; while (sg[1] - k - 2f > sg[0] && steep(sg[1] - k - 2f, sg[1] - k)) k += 0.25f;
+                if (k > 0f) { sg[1] -= k; tally.steepCutM += k; }
+            }
+        }
+
+        // ⭐ 後に建てる列(両側町・辻の角の extra_front)は、**先に建った列の駒が占める所**まで区間を詰め、
+        //    その端へ軒を突き付けて並べる(柔らかい: 狙いは隙0・軒の出の分は残る)。測るのは先の駒の**実メッシュ**
+        //    (屋根込み=軒の出まで)を、この辺の店の奥行の帯に落とした走りの座標。⛔ 外接箱・ピボットで測らない(規則21)。
+        //    ⛔ 2026-10-02 まで詰めずに中寄せで並べ、角の 1 軒が先の列にめり込んで退けられ、残った軒との間に
+        //    2.4m の空きが残った(門前1 の辻の角・施主指摘「東側に変なすき間」)。
+        var abutLo = new bool[segs.Count]; var abutHi = new bool[segs.Count];
+        if (avoid != null && avoid.Count > 0 && stock.Count > 0)
+        {
+            float band = stock.Max(p => p.Measure().D) + 0.3f;
+            var inw = -outward;
+            var pts = new List<Vector2>();
+            foreach (var o in avoid)
+                if (o != null)
+                    foreach (var w in Body(o.transform, 800, true))
+                    {
+                        var q = new Vector2(w.x, w.z) - sA;
+                        float dd = Vector2.Dot(q, inw);
+                        if (dd >= -0.5f && dd <= band) pts.Add(new Vector2(Vector2.Dot(q, rdir), dd));
+                    }
+            for (int si = 0; si < segs.Count; si++)
+            {
+                var sg = segs[si]; float mid = (sg[0] + sg[1]) * 0.5f;
+                float lo = float.NaN, hi = float.NaN;
+                foreach (var p in pts)
+                {
+                    if (p.x < sg[0] - 1f || p.x > sg[1] + 1f) continue;
+                    if (p.x < mid) lo = float.IsNaN(lo) ? p.x : Mathf.Max(lo, p.x);
+                    else hi = float.IsNaN(hi) ? p.x : Mathf.Min(hi, p.x);
+                }
+                if (!float.IsNaN(hi)) { sg[1] = Mathf.Min(sg[1], hi - 0.05f); abutHi[si] = true; tally.abutted++; }
+                if (!float.IsNaN(lo)) { sg[0] = Mathf.Max(sg[0], lo + 0.05f); abutLo[si] = true; tally.abutted++; }
+            }
+        }
+
+        // ⭐ 種は呼び手が区画ごとに渡す(EDO-0476)。⛔ 列の名(prefix)だけで種を作らない ── 2026-09-29 まで
+        //    `prefix.GetHashCode()` で、名が "Omotedana0" の 24 区画が同じ順で同じ組を引いていた。
+        var rnd = new System.Random(seed >= 0 ? seed : Seed(prefix));
         var kinds = new Dictionary<string, int>();
         int idx = 0;
         ShopPiece? lead = leadPath != null ? (ShopPiece?)ShopPiece.Kit(leadPath) : null;   // 頭の 1 枚は最初の区間の最初の軒でだけ使う
 
-        foreach (var seg in segs)
+        for (int si = 0; si < segs.Count; si++)
         {
+            var seg = segs[si];
             float segLen = seg[1] - seg[0];
             if (segLen < 1.0f) continue;
 
@@ -397,6 +535,8 @@ public static partial class EdoBuild
                 }
                 else
                 {
+                    // ⛔ 間口が一つのときは乱数を余計に引かない — 引けば他の区画の並びまで変わる
+                    var combos = combosBy[targets.Length > 1 ? rnd.Next(targets.Length) : 0];
                     var c = combos[rnd.Next(combos.Count)];
                     foreach (var p in c) { row.Add(p); w += p.Measure().W; }
                 }
@@ -412,7 +552,10 @@ public static partial class EdoBuild
             float rest = slack - roji * (rows.Count + 1);
             tally.rojiM = Mathf.Max(tally.rojiM, roji); tally.restM += rest;
 
-            float cursor = seg[0] + rest * 0.5f + roji;
+            // 先の列へ突き付ける端には路地も余りも置かない(片端だけ突き付けるとき、余りは反対の端へ寄せる)
+            float cursor = (abutHi[si] && !abutLo[si]) ? seg[0] + rest + 2f * roji
+                         : (abutLo[si] && !abutHi[si]) ? seg[0]
+                         : seg[0] + rest * 0.5f + roji;
             foreach (var row in rows)
             {
                 var houseGo = new List<GameObject>();
@@ -470,7 +613,7 @@ public static partial class EdoBuild
                     tally.wallGapM = Mathf.Max(tally.wallGapM, (m.hi - m.wHi) + (m.wLo - m.lo));
                     cursor += m.W + JOINT;            // 継ぎ目は軒の実寸 + 髪一筋
                 }
-                if (houseGo.Count > 0) tally.houses++;
+                if (houseGo.Count > 0) { tally.houses++; tally.houseList.Add(houseGo); }
                 cursor += roji;
             }
         }
@@ -625,5 +768,173 @@ public static partial class EdoBuild
             if (!float.IsNaN(g) && (float.IsNaN(wallGap) || g < wallGap)) wallGap = g;
         }
         return made;
+    }
+
+    // ───────────────────────── 町木戸(EDO-0503 ②)─────────────────────────
+    /// <summary>**道を塞ぐ町木戸を、道の両側の角 <paramref name="a"/>・<paramref name="b"/> の間に据える。**
+    /// 置き方は札の**脇の面**(<c>jambL</c>/<c>jambR</c>)が両角に触れるように決める(⛔ ピボットで寄せない・規則21)。
+    /// 外(+Z)は <paramref name="away"/>(町の外 = 区画の無い側)へ向ける。高さは <see cref="SeatGamae"/>(札の当たり)。
+    /// 【硬い】札の脇の面の間隔と角どうしの距離の差が 0.02m を超えたら**建てない**(隙か区域侵犯になる)── 幅を焼き直す。
+    /// 返り値の <paramref name="note"/> に脇の面と角の差・据えた高さ・浮きを刷る(規則19)。</summary>
+    /// <summary>町木戸の口の**横断の下がり**[m](木戸の局所 −X 端 → +X 端・正 = +X が低い・0.05 刻み)。
+    /// 向きは <see cref="MachiKidoAcross"/> と同じ決め方(X = 角どうしの線・+Z = away の側)。地面は両角から 0.3m 内で採る。
+    /// 呼ぶ側はこの値で <c>EdoAssets.Own.MachiKido(haba, keisha)</c> の駒を引く(EDO-0503)。</summary>
+    public static float MachiKidoKeisha(Vector2 a, Vector2 b, Vector2 away)
+    {
+        var ab = (b - a).normalized; var n = new Vector2(-ab.y, ab.x);
+        if (Vector2.Dot(n, away) < 0f) n = -n;
+        var lx = new Vector2(n.y, -n.x);
+        var aL = Vector2.Dot(a - b, lx) < 0f ? a : b; var aR = aL == a ? b : a;
+        var pL = aL + lx * 0.3f; var pR = aR - lx * 0.3f;
+        float drop = (Ground(pL.x, pL.y) - Ground(pR.x, pR.y)) * (b - a).magnitude / Mathf.Max(0.1f, (pR - pL).magnitude);
+        return Mathf.Round(drop / 0.05f) * 0.05f;
+    }
+
+    public static GameObject MachiKidoAcross(Transform parent, string path, Vector2 a, Vector2 b, Vector2 away, string name, out string note, float keisha = 0f)
+    {
+        var sp = EdoPartSpec.Get(path);
+        if (sp == null || sp.jambL == null || sp.jambR == null) { note = "⛔ 町木戸: 札が無い/脇の面が無い — " + System.IO.Path.GetFileName(path); return null; }
+        float s = sp.unitScale > 0f ? sp.unitScale : 1f;
+        float span = (sp.jambR.x - sp.jambL.x) * s, road = (b - a).magnitude;
+        if (Mathf.Abs(span - road) > 0.02f)
+        { note = string.Format("⛔ 町木戸: 札の脇の面の間隔 {0:F3}m と道の角どうし {1:F3}m が合わない(差 {2:+0.000;-0.000}m)── この幅で焼き直す(建てない)", span, road, span - road); return null; }
+        // ⭐ 木戸の X(幅)は**角どうしを結ぶ線**そのもの、+Z はその法線のうち away の側。
+        //    ⛔ away から X を起こさない — 二区画の重心から離れる向きは口の線に直交しないので、
+        //    片方の親柱が角から 2.555m 離れた(2026-10-02 門前1)。
+        var ab = (b - a).normalized;
+        var n = new Vector2(-ab.y, ab.x);
+        if (Vector2.Dot(n, away) < 0f) n = -n;
+        float ry = Mathf.Atan2(n.x, n.y) * Mathf.Rad2Deg;
+        var lx = new Vector2(n.y, -n.x);                       // ローカル +X の世界での向き(= ±ab)
+        var aL = Vector2.Dot(a - b, lx) < 0f ? a : b;           // jambL(−X)が触れる角
+        float zc = (sp.jambL.z0 + sp.jambL.z1) * 0.5f * s;
+        var p2 = aL - lx * (sp.jambL.x * s) - n * zc;
+        var go = Place(path, new Vector3(p2.x, Ground(p2.x, p2.y), p2.y), ry, Vector3.one * s, parent, name);
+        // ⭐ 勾配の版(<paramref name="keisha"/>≠0)は**ピボット = 足形の中心の地面**で焼いてある(柱の足元が勾配なりに伸びる)──
+        //    中心の地面へピボットを置く。⛔ SeatGamae(最下点で当てる)を通すと下手の柱の根で当たり、全体が沈む(部材方 2026-10-02)。
+        if (Mathf.Abs(keisha) >= 0.025f)
+        {
+            var c = go.transform.position; go.transform.position = new Vector3(c.x, Ground(c.x, c.z), c.z);
+        }
+        else SeatGamae(go, 4000);
+        var jl = EdoPartSpec.JambWorld(go.transform, sp.jambL); var jr = EdoPartSpec.JambWorld(go.transform, sp.jambR);
+        var bL = aL == a ? b : a;
+        var r = RootToBed(go, Ground, 0.1f, GamaeContact(go));
+        if (!float.IsNaN(r.hi) && r.hi > 0.01f && Mathf.Abs(keisha) >= 0.025f)
+        {   // 実際の地面は勾配の直線より上に曲がる所がある(±5cm)── 浮いた分だけ下げる(根入れが深くなるだけ)
+            go.transform.position -= new Vector3(0f, r.hi, 0f);
+            r = RootToBed(go, Ground, 0.1f, GamaeContact(go));
+        }
+        note = string.Format("  町木戸: 道幅 {0:F2}m を塞いだ・脇の面と角の差 {1:F3}m / {2:F3}m・敷居 y={3:F2}・当たりの浮き {4:F3}m(硬い ±0.01){5}",
+                             road, (jl - aL).magnitude, (jr - bL).magnitude, go.transform.position.y,
+                             float.IsNaN(r.hi) ? 0f : Mathf.Max(0f, r.hi), (!float.IsNaN(r.hi) && r.hi > 0.01f) ? " ⛔ 道の傾きで下手が浮く" : "");
+        return go;
+    }
+
+    // ───────────────────────── 暖簾(EDO-0503)─────────────────────────
+    static List<Dictionary<string, object>> _noren;
+    /// <summary>`docs/Sashizu/noren.json` の店の一覧(<see cref="EdoAssets.Eg.NorenSpec"/>)。</summary>
+    public static List<Dictionary<string, object>> NorenVariants()
+    {
+        if (_noren != null) return _noren;
+        _noren = new List<Dictionary<string, object>>();
+        var root = EdoMiniJson.Parse(System.IO.File.ReadAllText(EdoAssets.Eg.NorenSpec)) as Dictionary<string, object>;
+        object vs; if (root == null || !root.TryGetValue("variants", out vs)) return _noren;
+        foreach (var o in (List<object>)vs) { var d = o as Dictionary<string, object>; if (d != null) _noren.Add(d); }
+        return _noren;
+    }
+
+    /// <summary>**表店に軒ごとの暖簾を掛ける。**<paramref name="keys"/> は掛けてよい店(noren.json の key・重複は軒数の比)。
+    /// 種で並べ替えた順に**一巡ずつ**配り、隣の軒と同じ店は続けない。1 軒(駒 1〜2 枚)は同じ店。
+    /// 当たる先: 在庫の表店 shop01・shop02 の駒(画像を焼いた材で**全スロット**を差し替える)と、
+    /// 当方の表店(`Own.Typ.Omotedana*`)の**名前が Noren で始まるスロットだけ**(キットの暖簾の材を
+    /// 複製して地色を noren.json の color にした材・`NorenMat("kit", key)`)。
+    /// 材は `EdoAssets.Eg.NorenMat` に一度だけ起こす。画像が無ければ ⚠ を返して素の材(BareTex)のまま。</summary>
+    public static string HangNoren(List<List<GameObject>> houses, string[] keys, int seed)
+    {
+        if (houses == null || houses.Count == 0 || keys == null || keys.Length == 0) return "暖簾: 掛ける軒が無い";
+        var rnd = new System.Random(seed);
+        var deck = new List<string>(); string prev = null; int hung = 0; var missing = new HashSet<string>();
+        var count = new Dictionary<string, int>();
+        foreach (var house in houses)
+        {
+            if (deck.Count == 0) { deck.AddRange(keys); for (int i = deck.Count - 1; i > 0; i--) { int j = rnd.Next(i + 1); var t = deck[i]; deck[i] = deck[j]; deck[j] = t; } }
+            int pick = 0;
+            while (pick < deck.Count - 1 && deck[pick] == prev) pick++;   // 隣と同じ店を続けない
+            string key = deck[pick]; deck.RemoveAt(pick); prev = key;
+            bool any = false;
+            foreach (var go in house)
+            {
+                var src = PrefabUtility.GetCorrespondingObjectFromOriginalSource(go);
+                string sp = src != null ? AssetDatabase.GetAssetPath(src) : null;
+                string shop = sp == EdoAssets.Eg.Shop01 ? "shop01" : sp == EdoAssets.Eg.Shop02 ? "shop02" : null;
+                if (shop == null)
+                {
+                    // 当方の駒: 暖簾の材スロットだけ地色を替える(EDO-0503 ⑥ — 小店を混ぜると暖簾が全部藍に戻るため)
+                    bool ok = false;
+                    foreach (var r in go.GetComponentsInChildren<Renderer>(true))
+                    {
+                        var ms = r.sharedMaterials; bool ch = false;
+                        for (int i = 0; i < ms.Length; i++)
+                        {
+                            if (ms[i] == null || !ms[i].name.StartsWith("Noren")) continue;
+                            var km = NorenKitMaterial(ms[i], key);
+                            if (km == null) { missing.Add("kit_" + key); continue; }
+                            ms[i] = km; ch = true;
+                        }
+                        if (ch) { r.sharedMaterials = ms; ok = true; }
+                    }
+                    if (ok) any = true;
+                    continue;
+                }
+                var m = NorenMaterial(shop, key);
+                if (m == null) { missing.Add(shop + "_" + key); continue; }
+                foreach (var r in go.GetComponentsInChildren<Renderer>(true))
+                {
+                    var ms = r.sharedMaterials;
+                    for (int i = 0; i < ms.Length; i++) ms[i] = m;
+                    r.sharedMaterials = ms;
+                }
+                any = true;
+            }
+            if (any) { hung++; int c; count.TryGetValue(key, out c); count[key] = c + 1; }
+        }
+        var parts = new List<string>(); foreach (var kv in count) parts.Add(kv.Key + "×" + kv.Value);
+        return "暖簾: " + hung + "/" + houses.Count + " 軒に掛けた(" + string.Join(" ", parts.ToArray()) + ")"
+             + (missing.Count > 0 ? " / ⚠ 画像が無い " + string.Join(",", new List<string>(missing).ToArray()) + " ── python3 Tools/Unity/bake_noren.py" : "");
+    }
+
+    /// <summary>キットの暖簾の材(<paramref name="kit"/>)を複製し、地色を noren.json の `color` にした材。
+    /// ⛔ 材のパスを書かない(規則12)— 複製の元は駒に今付いている材そのもの。</summary>
+    static Material NorenKitMaterial(Material kit, string key)
+    {
+        string mp = EdoAssets.Eg.NorenMat("kit", key);
+        var m = AssetDatabase.LoadAssetAtPath<Material>(mp);
+        if (m != null) return m;
+        Dictionary<string, object> v = null;
+        foreach (var nv in NorenVariants()) if (nv["key"].ToString() == key) { v = nv; break; }
+        object co; if (v == null || !v.TryGetValue("color", out co) || !(co is List<object>)) return null;
+        var cl = (List<object>)co;
+        var c = new Color(Convert.ToSingle(cl[0]) / 255f, Convert.ToSingle(cl[1]) / 255f, Convert.ToSingle(cl[2]) / 255f, 0f);
+        m = new Material(kit);
+        foreach (var prop in new[] { "_ColorB", "_Color_B" }) if (m.HasProperty(prop)) m.SetColor(prop, c);
+        System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(mp));
+        AssetDatabase.CreateAsset(m, mp);
+        return m;
+    }
+
+    static Material NorenMaterial(string shop, string key)
+    {
+        string mp = EdoAssets.Eg.NorenMat(shop, key);
+        var m = AssetDatabase.LoadAssetAtPath<Material>(mp);
+        if (m != null) return m;
+        var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(EdoAssets.Eg.NorenTex(shop, key));
+        if (tex == null) return null;
+        m = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+        m.SetTexture("_BaseMap", tex); m.mainTexture = tex;
+        m.SetFloat("_Smoothness", 0.15f);
+        System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(mp));
+        AssetDatabase.CreateAsset(m, mp);
+        return m;
     }
 }

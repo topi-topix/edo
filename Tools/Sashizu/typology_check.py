@@ -46,7 +46,10 @@ def read_keys():
     if src is None:
         return None
     # ⭐ `IA(d,"…")` は整数の配列を読む道具(`main_hall_ken` = [桁行, 梁間]。EDO-0354)。
-    return set(re.findall(r'\b(?:[SIB]o?|IA)\(\s*d\s*,\s*"([^"]+)"', src))
+    # ⭐ 辞書の欄(`enclosure_dir`)は `d.TryGetValue("…"` で読む — これを数えないと読んでいる欄を
+    #    「読みもしない」と偽って出した(EDO-0472)。
+    return (set(re.findall(r'\b(?:[SIB]o?|IA)\(\s*d\s*,\s*"([^"]+)"', src))
+            | set(re.findall(r'\bd\.TryGetValue\(\s*"([^"]+)"', src)))
 
 
 def read_but_unused():
@@ -123,7 +126,10 @@ CERT = set("SABPU")
 #   ⛔ 増やさない — 増やすほど「確度が何に掛かるか」が曖昧になる(掲示板 EDO-0311 ③)。
 CERT_META = {"name", "haishaku", "azukari"}
 TYPES = {"buke", "machiya", "jisha", "kouyuu"}
-GATES = {"kmon", "nagayamon", "hmon", "kabukimon", "munemon", "yakuimon", "sanmon", "komon", None}
+# ⭐ 門の語は部材の札の対応表が正典(EDO-0491)── C# の試験(EdoPartSpecTests)と同じ一枚を読む。語を二重に書かない。
+_GATE_KINDS = os.path.join(ROOT, "Assets/Edo/Data/PartSpecs/gate_kinds.json")
+GATE_SPEC = {g["kind"]: g["spec"] for g in json.load(open(_GATE_KINDS, encoding="utf-8"))["kinds"]}
+GATES = set(GATE_SPEC) | {None}
 ENCL  = {"nagaya", "nagaya_front+ita", "ita", "dobei", "ita+ikegaki", "ishigaki+hei", "yarai", None}
 DIRS  = {"N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW",None}
 NEED = {
@@ -180,6 +186,9 @@ def check():
                 bad.append((i, f"{t} に要る欄 {k} が無い"))
         if e.get("gate") not in GATES:
             bad.append((i, f"門の型 {e.get('gate')} は語彙に無い(EdoAssets に部材が無い)"))
+        elif e.get("gate") and not os.path.exists(os.path.join(os.path.dirname(_GATE_KINDS), GATE_SPEC[e["gate"]] + ".json")):
+            # 札の無い部材は建たない(ビルダーは推し量りで置かずに退ける・硬い)── 表の側で先に捕まえる
+            bad.append((i, f"門の型 {e['gate']} に部材の札が無い({GATE_SPEC[e['gate']]}.json)── Edo/部材/取り合いの札を焼く か Blender の write_spec"))
         if t != "kouyuu" and e.get("enclosure") not in ENCL:
             bad.append((i, f"囲いの型 {e.get('enclosure')} は語彙に無い"))
         if e.get("front") not in DIRS:

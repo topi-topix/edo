@@ -4,6 +4,8 @@
     blender --background --python Tools/Blender/build_typ_jisha.py -- shoro --ken=2.5x3.5 --render
     (`--ken=<X>x<Z>` = 鐘楼・鼓楼の基壇[間]。非正方は妻が ±Z・大棟が Z。2026-09-23 EDO-0395)
     (名前を省くと全部。sanmon / yakuimon / shoro / bochi)
+    blender --background --python Tools/Blender/build_typ_jisha.py -- sanmon yakuimon --spec-only
+    (`--spec-only` = FBX を焼き直さず門の札 `Assets/Edo/Data/PartSpecs/<名>.json` だけ書く。EDO-0491)
 
 【なぜ新造するか】EDO-0318 ①②③(在庫方の照会 2026-09-21)。
   ・**山門** … `EdoTypologyBuilder.GatePath()` が `gate:sanmon` を `Eg.Kabukimon`
@@ -55,7 +57,11 @@ JC_TEX  = os.path.join(V.REPO, "Assets", "Japanese Castle", "Textures")
 
 
 # ================================================================ 山門(四脚門)
-def sanmon():
+SPECS = {}                            # 門の札(名 → dict)。`MM.build(want_spec=True)` が作図の変数から出す(EDO-0491)
+GATES = ("sanmon", "yakuimon")        # 札を持つ部材(kind="gate")
+
+
+def sanmon(spec_only=False):
     """**山門 — 四脚門**。門口 **2間(3.636m)**・本柱2本 + 控柱4本・切妻本瓦・棟天端 **5.10**。
 
     ⭐ 町場の寺の山門は四脚門(本柱の前後に控柱)が常法で、**棟が本柱の真上**に来る
@@ -67,14 +73,18 @@ def sanmon():
 
     ローカル **+X = 門口の方向 / +Z = 外(参道の側)**。ピボット = 門の芯・敷居レベル。
     ⚠ 底は沓石が敷居より下へ出るぶん負になる(実測は下の print)。"""
-    o, _n = MM.build(w=2.0 * KEN, name="Typ_Sanmon", post=0.36, kabuki=3.10,
-                     keats=3.95, deep=3.40, noki=0.85, end=0.34, ridge=5.10,
-                     hikae=(-1.30, 1.30), hikae_post=0.27)
+    o, _n, SPECS["Typ_Sanmon"] = MM.build(
+        w=2.0 * KEN, name="Typ_Sanmon", post=0.36, kabuki=3.10,
+        keats=3.95, deep=3.40, noki=0.85, end=0.34, ridge=5.10,
+        hikae=(-1.30, 1.30), hikae_post=0.27, want_spec=True, spec_only=spec_only,
+        source="blender:build_typ_jisha.py sanmon() = build_munamon.build(w=2*1.818, post=0.36, "
+               "kabuki=3.10, keats=3.95, deep=3.40, noki=0.85, end=0.34, ridge=5.10, "
+               "hikae=(-1.30, 1.30), hikae_post=0.27)")
     return o, "Typ_Sanmon"
 
 
 # ================================================================ 薬医門
-def yakuimon():
+def yakuimon(spec_only=False):
     """**薬医門**。門口 **1.65間(3.00m)**・本柱2本 + **控柱2本(後ろだけ)**・棟天端 **4.30**。
 
     ⭐ 薬医門は**棟が本柱の上**に来て、後ろの流れの下に控柱が入る(左右対称の切妻)。
@@ -85,9 +95,13 @@ def yakuimon():
 
     ローカル **+X = 門口の方向 / +Z = 外**。**控柱は −Z(内)側**なので、
     据えるときに +Z を表へ向けないと控柱が通りに出る。ピボット = 門の芯・敷居レベル。"""
-    o, _n = MM.build(w=3.00, name="Typ_Yakuimon", post=0.30, kabuki=2.70,
-                     keats=3.35, deep=3.00, noki=0.75, end=0.30, ridge=4.30,
-                     hikae=(-1.15,), hikae_post=0.23)
+    o, _n, SPECS["Typ_Yakuimon"] = MM.build(
+        w=3.00, name="Typ_Yakuimon", post=0.30, kabuki=2.70,
+        keats=3.35, deep=3.00, noki=0.75, end=0.30, ridge=4.30,
+        hikae=(-1.15,), hikae_post=0.23, want_spec=True, spec_only=spec_only,
+        source="blender:build_typ_jisha.py yakuimon() = build_munamon.build(w=3.00, post=0.30, "
+               "kabuki=2.70, keats=3.35, deep=3.00, noki=0.75, end=0.30, ridge=4.30, "
+               "hikae=(-1.15,), hikae_post=0.23)")
     return o, "Typ_Yakuimon"
 
 
@@ -500,6 +514,11 @@ def main():
             print("[jisha] ⚠ 知らない部材: %s (%s)" % (key, "/".join(PARTS)))
             continue
         fn, outdir = PARTS[key]
+        if "--spec-only" in argv:            # FBX を焼き直さず札だけ(EDO-0491)
+            if key in GATES:
+                _o, name = fn(spec_only=True)
+                V.write_spec(os.path.join(outdir, name + ".fbx"), SPECS[name])
+            continue
         V.reset()
         # `--ken=<X>x<Z>`(鐘楼・鼓楼の非正方。2026-09-23 EDO-0395)/ `--ken=<n>`(正方)
         kv = [a.split("=", 1)[1] for a in argv if a.startswith("--ken=")]
@@ -528,7 +547,10 @@ def main():
                   % (name, max(core), mx.z))
         if "--render" in argv:
             shots(o, key)
-        V.export_fbx([o], os.path.join(outdir, name + ".fbx"))
+        if key in GATES:
+            V.export_fbx([o], os.path.join(outdir, name + ".fbx"), kind="gate", spec=SPECS[name])
+        else:
+            V.export_fbx([o], os.path.join(outdir, name + ".fbx"))
         print("[jisha] 書き出し " + os.path.join(outdir, name + ".fbx"))
 
 

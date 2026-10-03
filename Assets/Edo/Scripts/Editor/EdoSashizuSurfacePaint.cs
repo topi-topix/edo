@@ -31,6 +31,8 @@ using UnityEngine;
 ///              { "name": "参道", "area": "sando.area", "recipe": ... } ]
 /// }
 /// </code>
+/// area の語彙: <c>polygon</c> / <c>sando.area</c> / <c>terrace:&lt;名&gt;</c> / <c>garden:&lt;名&gt;</c> /
+/// <c>michi:&lt;名&gt;</c>(麓の道 fumotomichi の一区間の area・無ければ芯 pts を幅 w の帯に — EDO-0498)。
 /// 層の名は地形レイヤー名の一部(dirt / grass / bare / shirasu / moss)。値は [lo, hi] を斑(Perlin)で振る。
 /// <c>"rest"</c> の層は 1 − 他の和(1つだけ)。
 /// </summary>
@@ -103,6 +105,31 @@ public static class EdoSashizuSurfacePaint
                     if ((G(t, "name") as string) != nm) continue;
                     var pts = (G(t, ter ? "uv" : "poly") ?? G(t, "poly")) as List<object>;
                     if (pts != null && pts.Count >= 3) res.Add(WorldPoly(pts, uv));
+                }
+            }
+            else if (area.StartsWith("michi:"))
+            {
+                // 麓の道(fumotomichi)の一区間。道の面は欄の area(区画の間に残った領域)。area の無い区間は
+                // 芯 pts を幅 w の帯にする(線分ごとの四角+折れの八角で継ぐ)。⛔ 帯の幅をここで発明しない — w が無ければ塗らない。
+                string nm = area.Substring(6);
+                foreach (var o in (List<object>)G(doc, "fumotomichi"))
+                {
+                    var t = o as Dictionary<string, object>;
+                    if ((G(t, "name") as string) != nm) continue;
+                    var ar = G(t, "area") as List<object>;
+                    if (ar != null && ar.Count >= 3) { res.Add(WorldPoly(ar, world)); continue; }
+                    var pts = G(t, "pts") as List<object>; var wv = G(t, "w");
+                    if (pts == null || pts.Count < 2 || wv == null) continue;
+                    var c = WorldPoly(pts, world); float hw = Cv(wv) * 0.5f;
+                    for (int i = 0; i < c.Length; i++)
+                    {
+                        var oct = new Vector2[8];
+                        for (int k = 0; k < 8; k++) { float an = k * Mathf.PI / 4f + Mathf.PI / 8f; oct[k] = c[i] + new Vector2(Mathf.Cos(an), Mathf.Sin(an)) * hw / Mathf.Cos(Mathf.PI / 8f); }
+                        res.Add(oct);
+                        if (i == c.Length - 1) continue;
+                        var dir = (c[i + 1] - c[i]).normalized; var nrm = new Vector2(-dir.y, dir.x) * hw;
+                        res.Add(new[] { c[i] + nrm, c[i + 1] + nrm, c[i + 1] - nrm, c[i] - nrm });
+                    }
                 }
             }
             return res;
@@ -219,7 +246,7 @@ public static class EdoSashizuSurfacePaint
                 {
                     var p = new Vector2(f.tp.x + (ix + (s % SUB + 0.5f) / SUB) * f.cell, f.tp.z + (iz + (s / SUB + 0.5f) / SUB) * f.cell);
                     own[s] = Owner(plan, p);
-                    if (own[s] != -2 && EdoSurfacePaint.InAny(f.water, p)) own[s] = -2;
+                    if (own[s] != -2 && EdoSurfacePaint.Wet(f, p)) own[s] = -2;
                     if (own[s] != -2) inExt++;
                 }
                 if (inExt == 0) continue;
@@ -274,7 +301,7 @@ public static class EdoSashizuSurfacePaint
                 for (int s = 0; s < SUB * SUB && uni; s++)
                 {
                     var p = new Vector2(f.tp.x + (ix + (s % SUB + 0.5f) / SUB) * f.cell, f.tp.z + (iz + (s / SUB + 0.5f) / SUB) * f.cell);
-                    int o = Owner(plan, p); if (EdoSurfacePaint.InAny(f.water, p)) o = -2;
+                    int o = Owner(plan, p); if (EdoSurfacePaint.Wet(f, p)) o = -2;
                     if (o0 == int.MinValue) o0 = o; else if (o != o0) uni = false;
                 }
                 if (!uni || o0 < 0) continue;

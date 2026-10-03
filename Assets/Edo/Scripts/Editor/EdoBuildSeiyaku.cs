@@ -72,8 +72,17 @@ public static partial class EdoBuild
     public static GameObject PlaceBest(IEnumerable<Vector2> spots, int maxTries, Func<Vector2, GameObject> place,
                                        IList<Hard> hards, IList<Soft> softs, SeiyakuTally tally)
     {
+        return PlaceBest<Vector2>(spots, maxTries, place, hards, softs, tally);
+    }
+
+    /// <summary><see cref="PlaceBest(IEnumerable{Vector2},int,Func{Vector2,GameObject},IList{Hard},IList{Soft},SeiyakuTally)"/> の
+    /// 置き場が**位置だけでない**版(位置+向きなど)。作法は同じ ── 硬い制約で退け、柔らかい制約で選ぶ。
+    /// 当たる先: 類型の寺社の棟(EdoTypologyBuilder.Jisha ── 置き場 = 位置と向き・2026-09-27 EDO-0477 P4)。</summary>
+    public static GameObject PlaceBest<T>(IEnumerable<T> spots, int maxTries, Func<T, GameObject> place,
+                                          IList<Hard> hards, IList<Soft> softs, SeiyakuTally tally)
+    {
         foreach (var sf in softs) tally.SoftTarget[sf.Name] = sf.Target;
-        Vector2? best = null; float bestShort = float.PositiveInfinity;
+        bool hasBest = false; T best = default(T); float bestShort = float.PositiveInfinity;
         int tries = 0;
         foreach (var spot in spots)
         {
@@ -90,12 +99,12 @@ public static partial class EdoBuild
                 if (m < sf.Target) { shortSum += sf.Target - m; SeiyakuTally.Inc(tally.SoftTried, sf.Name); }
             }
             if (shortSum <= 0f) { Record(go, softs, tally); return go; }
-            if (shortSum < bestShort) { bestShort = shortSum; best = spot; }
+            if (shortSum < bestShort) { bestShort = shortSum; best = spot; hasBest = true; }
             UnityEngine.Object.DestroyImmediate(go);
         }
-        if (best != null)
+        if (hasBest)
         {
-            var go = place(best.Value);
+            var go = place(best);
             if (go != null)
             {
                 bool okAll = true;

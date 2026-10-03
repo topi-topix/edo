@@ -1,0 +1,57 @@
+{
+    "prefab": "Assets/Edo/Models/Hei/TategoshiSaku_1.82.fbx",
+    "kind": "fence",
+    "source": "blender:build_tategoshi_saku.py saku(h=1.82, ken=1.818, post=0.15, neire=0.26, pitch=0.15, bar=0.02) ── 袖の意匠は build_machikido.sode_*",
+    "unitScale": 1.0,
+    "yBottom": -0.26,
+    "foot": [
+        {
+            "x": -0.909,
+            "y": -0.075
+        },
+        {
+            "x": -0.759,
+            "y": -0.075
+        },
+        {
+            "x": -0.759,
+            "y": 0.075
+        },
+        {
+            "x": -0.909,
+            "y": 0.075
+        }
+    ],
+    "front": 0.0,
+    "back": 0.0,
+    "jambL": {
+        "x": 0.0,
+        "z0": 0.0,
+        "z1": 0.0,
+        "y0": 0.0,
+        "y1": 0.0
+    },
+    "jambR": {
+        "x": 0.0,
+        "z0": 0.0,
+        "z1": 0.0,
+        "y0": 0.0,
+        "y1": 0.0
+    },
+    "passage": {
+        "x0": 0.0,
+        "x1": 0.0
+    },
+    "eave": {
+        "x0": -0.909,
+        "x1": 0.909,
+        "z0": -0.075,
+        "z1": 0.075,
+        "y0": -0.26,
+        "y1": 1.82
+    },
+    "faceOut": 0.075,
+    "faceIn": -0.075,
+    "copingOverhang": 0.05582,
+    "height": 2.08
+}

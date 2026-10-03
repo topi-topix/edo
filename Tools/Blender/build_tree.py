@@ -85,9 +85,12 @@ LEAF_PER_M = 40.0
 LEAF_REF_H = 2.0
 
 # 樹種のプロファイル。⚠ 寸法は在庫の同格に合わせる(桜 Mid = 5.8×5.7m / Big = 8.6×7.3m)
+# ⭐ 2026-09-29 EDO-0488 — `smooth` = 節を枝の一続きに沿ってならす回数(`branch_skeleton`)。
+#   `bark_uv` を空間占有法の6種にも張った(旧は一点貼りで幹が無地の焦茶の棒だった)。
+#   幹が「短い筒の継ぎで折れる」欠陥は管の張り方(`add_branches`)で全樹種まとめて直した。
 SPECIES = {
     # 常緑広葉樹(モッコク・モチノキ・カシ・シイ)— 密で丸い樹冠、立ち枝、葉が枝先に集まる
-    "jouryoku": dict(label="常緑広葉樹",
+    "jouryoku": dict(label="常緑広葉樹", smooth=2, bark_uv=1.80,
                      trunk_h=0.44, trunk_r=0.040, tip_r=0.006, lean=0.030,
                      crown_z=0.70, crown_rz=0.29, wh=0.68, top=0.55,
                      attractors=420, influence=0.32, kill=0.075, step=0.055,
@@ -97,7 +100,7 @@ SPECIES = {
     # ⚠ 灌木の `NM.MapleBush`(丈1.5m)は中木に使えず、桜モデルでの代用も不可
     #   (夏姿でも幹肌が桜と読め、季節の確度が化ける)。庭方の要求で新造した。
     # ⛔ **紅葉色にしない** — 季節は春ではないが**秋でもない**。葉は夏の緑。
-    "momiji":   dict(label="イロハモミジ",
+    "momiji":   dict(label="イロハモミジ", smooth=2, bark_uv=1.80,
                      trunk_h=0.22, trunk_r=0.030, tip_r=0.005, lean=0.16,
                      crown_z=0.60, crown_rz=0.26, wh=1.06, top=0.80,
                      attractors=300, influence=0.34, kill=0.080, step=0.058,
@@ -105,7 +108,7 @@ SPECIES = {
                      leaf_scale=0.070, leaf_per_tip=9,
                      kabu=(3, 5)),          # 株立ちの幹の本数(奇数の幅)
     # ウメ — 疎で屈曲した枝、横張り、樹高が低い
-    "ume":      dict(label="ウメ",
+    "ume":      dict(label="ウメ", smooth=1, bark_uv=1.80,
                      trunk_h=0.36, trunk_r=0.034, tip_r=0.005, lean=0.10,
                      crown_z=0.66, crown_rz=0.30, wh=0.86, top=0.74,
                      attractors=190, influence=0.40, kill=0.105, step=0.070,
@@ -120,7 +123,7 @@ SPECIES = {
 
     # エノキ — 一里塚の木。**低い位置(樹高の 1/3)で数本の大枝に分かれ**、
     #          枝が斜め上へ開いて **扇形〜半球形の広い樹冠**。幅 ≒ 高さ。
-    "enoki":    dict(label="エノキ",
+    "enoki":    dict(label="エノキ", smooth=3, bark_uv=1.80,
                      trunk_h=0.30, trunk_r=0.030, tip_r=0.0040, lean=0.045,
                      crown_z=0.62, crown_rz=0.33, wh=0.98, top=0.62,
                      attractors=370, influence=0.30, kill=0.072, step=0.052,
@@ -129,7 +132,7 @@ SPECIES = {
                      sizes=dict(Small=11.0, Mid=13.5, Big=16.0)),
     # ムクノキ — エノキに似るが **幹がより通直で高く**、樹冠はやや縦長。
     #            枝は細くしなやかで **垂れ気味**(`up` を小さく)。
-    "mukunoki": dict(label="ムクノキ",
+    "mukunoki": dict(label="ムクノキ", smooth=3, bark_uv=1.80,
                      trunk_h=0.40, trunk_r=0.026, tip_r=0.0038, lean=0.030,
                      crown_z=0.66, crown_rz=0.32, wh=0.80, top=0.58,
                      attractors=360, influence=0.31, kill=0.074, step=0.052,
@@ -138,7 +141,7 @@ SPECIES = {
                      sizes=dict(Small=10.0, Mid=12.0, Big=14.0)),
     # ケヤキ — **箒形**が定義的。短い直幹から大枝が扇状に立ち上がり、上へ広がる。
     #          ⇒ `up` を大きく・`lean` を小さく・**`bottom` で樹冠の下を絞る**。
-    "keyaki":   dict(label="ケヤキ",
+    "keyaki":   dict(label="ケヤキ", smooth=3, bark_uv=1.80,
                      trunk_h=0.26, trunk_r=0.032, tip_r=0.0040, lean=0.018,
                      crown_z=0.66, crown_rz=0.34, wh=0.95, top=0.90, bottom=0.30,
                      attractors=380, influence=0.30, kill=0.070, step=0.050,
@@ -257,6 +260,7 @@ SPECIES = {
                      adaptive_seg=True,     # 幹は8角・小枝は4角
                      uv="pine", bark=MAT_PINE_BARK, leaf_mat=MAT_PINE_LEAF,
                      seg_bias=1.0,
+                     root_flare=0.20,       # 骨格の `flare` が既に地際を太らせている
                      # ---- 段の骨格(すべて丈または枝長に対する比)
                      pine=dict(
                          trunk_seg=16, trunk_top=0.97,
@@ -489,10 +493,29 @@ def branch_skeleton(sp, h, rnd):
         attr = [a for a in attr
                 if min((a - n).length for n in nodes) > D_k]
 
-    # --- 太さ: ダ・ヴィンチ則(親の断面積 = 子の断面積の和)を末端から積み上げる
     kids = [[] for _ in nodes]
     for ni in range(1, len(nodes)):
         kids[parent[ni]].append(ni)
+
+    # --- ⭐ 2026-09-29 EDO-0488 — **節を枝の一続きに沿ってならす**(`smooth` 回)。
+    #   幹は節ごとに横へ跳ね(`smooth_trunk` の注記)、伸長は一歩ごとに `jitter` で折れるので、
+    #   節を結んだ折れ線のままだと曲がり目が角で残る(施主「木の幹が変な形」)。
+    #   ⭕ 各節を「親・自分・続きの子(子孫の多い子)」の 1:2:1 で寄せる。子の枝は節の番号で
+    #     親に付いているので一緒に動き、根元から離れない。乱数は引かない(姿の個体差は保つ)。
+    #   ⚠ 地際の節(根と株の起こり)と枝先は動かさない — 接地と樹冠の輪郭を変えない。
+    #   ⛔ ウメは屈曲が樹種の姿なので控えめ(1回)。
+    n_sm = sp.get("smooth", 0)
+    if n_sm:
+        size = [1] * len(nodes)
+        for ni in range(len(nodes) - 1, 0, -1):
+            size[parent[ni]] += size[ni]
+        cont = [max(k, key=lambda c: size[c]) if k else -1 for k in kids]
+        for _ in range(n_sm):
+            nodes = [nodes[ni] if ni == 0 or parent[ni] == 0 or cont[ni] < 0
+                     else nodes[parent[ni]] * 0.25 + nodes[ni] * 0.5 + nodes[cont[ni]] * 0.25
+                     for ni in range(len(nodes))]
+
+    # --- 太さ: ダ・ヴィンチ則(親の断面積 = 子の断面積の和)を末端から積み上げる
     rad = [0.0] * len(nodes)
     tip_r = h * sp["tip_r"]
     for ni in range(len(nodes) - 1, -1, -1):
@@ -715,13 +738,6 @@ def pine_skeleton(sp, h, rnd):
     return segs, tips
 
 
-def _ring(bm, c, q, r, n):
-    """角 0 から一周する n+1 頂点の環(最後は最初と同位置。UV の継ぎ目のため重ねる)。"""
-    return [bm.verts.new(c + q @ (Vector((math.cos(math.tau * i / n),
-                                          math.sin(math.tau * i / n), 0)) * r))
-            for i in range(n + 1)]
-
-
 def _sides(r, rmax, nseg):
     """太さから断面の辺数を決める。⭐ **節の半径**だけで決まるようにしてある —
     そうしないと親の端と子の始めで環がずれ、幹に**見通しの穴**が開く(2026-09-07 実測)。"""
@@ -729,62 +745,153 @@ def _sides(r, rmax, nseg):
     return nseg if f >= 0.30 else (max(4, nseg - 2) if f >= 0.08 else 4)
 
 
-def add_branches(bm, segs, nseg, bark_uv=0.0, adaptive=False):
-    """枝を多角柱で起こす(先細り)。
+def _chains(segs):
+    """区間を**枝の一続き(鎖)**へ束ねる。節で太いほうの子が親の続き、残りは新しい鎖の起こり。
+    返すのは [(区間の添字の列, 起こりが親の節の上か)]。
+    ⚠ 地面を這う区間(両端とも地際 = 株立ちの根から株の起こりへの繋ぎ)は管にしない —
+      株の数だけ地面に寝た棒が出ていた(モミジの近景で実測)。"""
+    key = lambda v: (round(v.x, 5), round(v.y, 5), round(v.z, 5))
+    live = [i for i, s in enumerate(segs) if (s[1] - s[0]).length >= 1e-4
+            and not (s[0].z < 1e-4 and s[1].z < 1e-4)]
+    starts, ends = {}, set()
+    for i in live:
+        starts.setdefault(key(segs[i][0]), []).append(i)
+        ends.add(key(segs[i][1]))
+    nxt, claimed = {}, set()
+    for i in live:
+        cand = starts.get(key(segs[i][1]), [])
+        if cand:
+            j = max(cand, key=lambda j: segs[j][2])
+            nxt[i] = j; claimed.add(j)
+    out = []
+    for i in live:
+        if i in claimed:
+            continue
+        ch = [i]
+        while ch[-1] in nxt:
+            ch.append(nxt[ch[-1]])
+        out.append((ch, key(segs[i][0]) in ends))
+    return out
 
-    ⭐ `bark_uv` > 0 なら **樹皮に円筒 UV** を張る(u = 周、v = 高さ / `bark_uv`[m])。
-      ⛔ 0 のままだと全ループが UV (0,0) の**一点貼り**になり、樹皮テクスチャの
-        左下 1px だけを引き伸ばす(松では真っ黒な幹になった。2026-09-07)。
-      ⚠ 既存の樹種は一点貼りのまま焼いてあるので、**種ごとに明示して**切り替える
-        (⇒ 申し送り: 落葉高木・常緑・ウメ・低木も順次張り直すこと)。
 
-    ⭐ `adaptive` = **太さで断面の辺数を変える**(幹は 8 角・小枝は 4 角)。
-      ⛔ 辺数が変わる継ぎ目を四角形で繋ぐと環の頂点数が合わず、**幹に穴が開く**
-        (1巡目の近景レンダに白い切れ目として写った)。⇒ 頂点数の違う環どうしを
-        **角で歩いて三角で橋渡しする**。辺数は**節の半径**からだけ決めるので、
-        親の端と子の始めは必ず同じ環になる。
+# ⭐ 2026-09-29 EDO-0488 — 樹皮のアトラスで**縦へ継ぎ目なく続く区画**の u の幅。
+#   ⛔ 桜の樹皮 `T_FJG_Tree_Sakura_Bark_A` は1枚の樹皮ではなく区画を詰めたアトラスで、
+#     u 0.35〜1 の区画には上端(v 0.98〜1)に**黒い横線**、下には苔の緑がある。u 0〜1 を
+#     巻くと 1.8m ごとに黒い輪が出て**竹の節**に見えた(近景で実測)。
+#   ⭕ 左の区画(u 0〜0.333)は縦に継ぎ目なく続く(上下を入れ替えて並べて確認)。
+#     周はこの幅の**往復**(三角波)で巻く = 周方向の継ぎ目も出ない。
+#   松の樹皮は在庫の黒松の実メッシュが u 0〜0.667 を使っているのでそれに倣う。
+BARK_U = {MAT_BARK: 0.333, MAT_PINE_BARK: 0.667}
+BARK_TILE_W = 0.60     # 区画の幅が写す実寸[m](縦 1.8m に対し区画は 1:3)
+
+
+def add_branches(bm, segs, nseg, bark_uv=0.0, adaptive=False, bark_u=1.0,
+                 flare=0.0, relief=0.0):
+    """枝を先細りの管で起こす。
+
+    ⭐ 2026-09-29 EDO-0488 — **枝の一続きを一本の管にする。**
+      ⛔ 旧版は区間ごとに独立した筒を置き、輪の向きを区間ごとに `rotation_difference` で
+        決めていた。曲がり目で親の筒の端と子の筒の始めが**違う面の上の違う輪**になり、
+        継ぎ目が食い違って「短い筒を継いで折った」幹に見えた(施主指摘・観理院のエノキ)。
+      ⭕ 鎖(`_chains`)ごとに節で輪を**一つだけ**置き、上下の区間がそれを共有する。
+        輪の面は節の前後の向きの**二等分**、輪の回りは**平行移動**で送る(捻れない)。
+        面は smooth(角柱の平らな面が出ない)。
+      ⭐ 枝分かれの子の鎖は、起こりの輪を**子の太さ**で親の芯に置く(旧版は親と同じ太さで
+        起こし、口が親の肌から突き出ていた)。枝先の輪は 0.6 倍に窄める(切った棒に見せない。0.35 は短い枝が棘に見えた)。
+
+    ⭐ 同日 施主「幹がのっぺりしている」— 滑らかな円柱のままでは作り物に見える。
+      ・`flare` = **根張り**。地際から 0.35×丈…ではなく幹の太さの 2.2 倍の高さまで輪を足し、
+        半径を最大 1+flare 倍に、あわせて 5〜7 本の**板根の膨らみ**を付ける。
+      ・`relief` = **肌の凹凸**。縦に長い(周に細かく高さに粗い)ノイズで半径を揺らす =
+        縦の裂け目と瘤。太い所ほど強く、小枝では消える。乱数は引かない(ノイズは位置の関数)。
+      ・太い所(最大の半径の 35% 以上)は断面の辺数を**倍**にする(凹凸が角で潰れない)。
+
+    ⭐ `bark_uv` > 0 なら **樹皮に円筒 UV**(u = 周、v = 高さ / `bark_uv`[m])。
+      u は `bark_u`(区画の幅)の往復で、周長に合わせて往復の回数を決める(`BARK_TILE_W`)。
+      ⛔ 0 のままだと一点貼り(樹皮テクスチャの左下 1px)。UV の継ぎ目は頂点を割らず
+        ループの UV で持つ(頂点を割ると smooth の法線が継ぎ目で切れる)。
+
+    ⭐ `adaptive` = **太さで断面の辺数を変える**(幹は 8 角・小枝は 4 角)。辺数は
+      **節の半径**だけで決まる(`_sides`)。辺数の違う輪どうしは角で歩いて三角で橋渡しする。
     """
+    from mathutils import noise
     uvl = bm.loops.layers.uv.verify() if bark_uv > 0 else None
     rmax = max((s[2] for s in segs), default=1.0)
-    for a, b, r0, r1, lv in segs:
-        d = (b - a); ln = d.length
-        if ln < 1e-4: continue
-        q = d.normalized().rotation_difference(Vector((0, 0, 1))).inverted()
-        if not adaptive:
-            ring0, ring1 = [], []
-            for i in range(nseg):
-                t = i / nseg * math.tau
-                p = Vector((math.cos(t), math.sin(t), 0))
-                ring0.append(bm.verts.new(a + q @ (p * r0)))
-                ring1.append(bm.verts.new(b + q @ (p * r1)))
-            for i in range(nseg):
-                j = (i + 1) % nseg
-                f = bm.faces.new((ring0[i], ring0[j], ring1[j], ring1[i]))
+    for ch, forked in _chains(segs):
+        P = [segs[ch[0]][0]] + [segs[c][1] for c in ch]
+        R = [segs[ch[0]][2]] + [segs[c][3] for c in ch]
+        if forked:
+            R[0] = min(R[0], R[1])                   # 起こりは子の太さで親の芯の中に
+        R[-1] *= 0.60                                # 枝先は窄める(切り株の口を見せない・細すぎると棘)
+        # 根張りの輪を足す(地際から立つ鎖だけ)。高さは地際の太さの 2.2 倍まで
+        zf = 0.0
+        if flare > 0 and not forked and P[0].z < 1e-3:
+            zf = R[0] * 2.2
+            ln0 = (P[1] - P[0]).length
+            ins = [f for f in (0.10, 0.25, 0.45, 0.70) if f * zf < ln0 * 0.9]
+            for f in reversed(ins):
+                t = f * zf / ln0
+                P.insert(1, P[0].lerp(P[1], t)); R.insert(1, R[0] + (R[1] - R[0]) * t)
+        D = [(P[k + 1] - P[k]).normalized() for k in range(len(P) - 1)]
+        T = [D[0]] + [(D[k - 1] + D[k]).normalized() if (D[k - 1] + D[k]).length > 1e-6
+                      else D[k] for k in range(1, len(D))] + [D[-1]]
+        # 始めの法線: 接線に直交する任意の向き。以後は平行移動で送る
+        ref = Vector((1, 0, 0)) if abs(T[0].x) < 0.9 else Vector((0, 1, 0))
+        N = (ref - T[0] * ref.dot(T[0])).normalized()
+        # 周方向の UV の往復回数は鎖でいちばん太い所の周長から(鎖の中で変えると捩れる)
+        kx = max(1, round(math.tau * max(R) / (2 * BARK_TILE_W)))
+        ph = noise.noise(P[0] * 3.1) * 10.0          # 板根の向き・凹凸の位相(個体差)
+        lobes = 5 + int(abs(ph * 7)) % 3
+        rings = []
+        for k, (c, r, t) in enumerate(zip(P, R, T)):
+            if k:
+                N = T[k - 1].rotation_difference(t) @ N
+                N = (N - t * N.dot(t)).normalized()
+            B = t.cross(N)
+            n = _sides(r, rmax, nseg) if adaptive else nseg
+            thick = r / max(1e-9, rmax)
+            if thick >= 0.35:
+                n *= 2
+            w = min(1.0, thick / 0.35) if relief > 0 else 0.0
+            g = max(0.0, 1.0 - c.z / zf) if zf > 0 else 0.0
+            vs = []
+            for i in range(n):
+                th = math.tau * i / n
+                rr = r * (1.0 + flare * g * g)
+                if g > 0:
+                    rr *= 1.0 + 0.30 * g * max(0.0, math.cos(lobes * th + ph)) ** 2
+                if w > 0:
+                    q = Vector((math.cos(th) * 2.6, math.sin(th) * 2.6, c.z * 0.55)) + P[0]
+                    rr *= 1.0 + relief * w * (noise.noise(q) + 0.5 * noise.noise(q * 2.3))
+                vs.append(bm.verts.new(c + (N * math.cos(th) + B * math.sin(th)) * rr))
+            rings.append((vs, n, c.z / bark_uv if uvl is not None else 0.0))
+
+        def U(i, n):                                 # 周の u = 区画の幅の往復(三角波)
+            x = (i / n) * kx
+            return bark_u * (1.0 - abs(2.0 * (x - math.floor(x)) - 1.0))
+        for (V0, n0, v0), (V1, n1, v1) in zip(rings, rings[1:]):
+            i = j = 0
+            while i < n0 or j < n1:
+                if n0 == n1:
+                    quad = ((V0[i % n0], U(i, n0), v0), (V0[(i + 1) % n0], U(i + 1, n0), v0),
+                            (V1[(i + 1) % n1], U(i + 1, n1), v1), (V1[i % n1], U(i, n1), v1))
+                    i += 1; j += 1
+                elif j >= n1 or (i < n0 and (i + 1) / n0 <= (j + 1) / n1):
+                    quad = ((V0[i % n0], U(i, n0), v0), (V0[(i + 1) % n0], U(i + 1, n0), v0),
+                            (V1[j % n1], U(j, n1), v1))
+                    i += 1
+                else:
+                    quad = ((V0[i % n0], U(i, n0), v0), (V1[(j + 1) % n1], U(j + 1, n1), v1),
+                            (V1[j % n1], U(j, n1), v1))
+                    j += 1
+                try:
+                    f = bm.faces.new([q[0] for q in quad])
+                except ValueError:
+                    continue
+                f.smooth = True
                 if uvl is not None:
-                    v0, v1 = a.z / bark_uv, b.z / bark_uv
-                    u0, u1 = i / nseg, (i + 1) / nseg
-                    for lp, uv in zip(f.loops, ((u0, v0), (u1, v0), (u1, v1), (u0, v1))):
-                        lp[uvl].uv = uv
-            continue
-        n0, n1 = _sides(r0, rmax, nseg), _sides(r1, rmax, nseg)
-        R0, R1 = _ring(bm, a, q, r0, n0), _ring(bm, b, q, r1, n1)
-        v0, v1 = (a.z / bark_uv, b.z / bark_uv) if uvl is not None else (0.0, 0.0)
-        i = j = 0
-        while i < n0 or j < n1:
-            take0 = j >= n1 or (i < n0 and (i + 1) / n0 <= (j + 1) / n1)
-            if take0:
-                tri3 = ((R0[i], i / n0, v0), (R0[i + 1], (i + 1) / n0, v0), (R1[j], j / n1, v1))
-                i += 1
-            else:
-                tri3 = ((R0[i], i / n0, v0), (R1[j + 1], (j + 1) / n1, v1), (R1[j], j / n1, v1))
-                j += 1
-            try:
-                f = bm.faces.new([t[0] for t in tri3])
-            except ValueError:
-                continue
-            if uvl is not None:
-                for lp, t in zip(f.loops, tri3):
-                    lp[uvl].uv = (t[1], t[2])
+                    for lp, q in zip(f.loops, quad):
+                        lp[uvl].uv = (q[1], q[2])
 
 
 def branch_kd(segs, h):
@@ -909,7 +1016,9 @@ def build_one(key, size, lod, rnd):
     #    低木は葉に埋もれて枝が見えないので、三角数をここで落とす。
     nseg = max(4, int(round(L["seg"] * sp.get("seg_bias", 1.0))))
     bm = bmesh.new(); add_branches(bm, segs, nseg, sp.get("bark_uv", 0.0),
-                                   sp.get("adaptive_seg", False))
+                                   sp.get("adaptive_seg", False),
+                                   BARK_U.get(sp.get("bark", MAT_BARK), 1.0),
+                                   sp.get("root_flare", 0.45), sp.get("relief", 0.13))
     bm.to_mesh(me_b); bm.free()
     ob_b = bpy.data.objects.new("bark", me_b); bpy.context.collection.objects.link(ob_b)
     # --- 葉(枝先を間引く)

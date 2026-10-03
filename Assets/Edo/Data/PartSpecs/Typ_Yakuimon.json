@@ -1,0 +1,65 @@
+{
+    "prefab": "Assets/Edo/Models/Mon/Typ_Yakuimon.fbx",
+    "kind": "gate",
+    "source": "blender:build_typ_jisha.py yakuimon() = build_munamon.build(w=3.00, post=0.30, kabuki=2.70, keats=3.35, deep=3.00, noki=0.75, end=0.30, ridge=4.30, hikae=(-1.15,), hikae_post=0.23)",
+    "unitScale": 1.0,
+    "yBottom": -0.26,
+    "foot": [
+        {
+            "x": -1.89,
+            "y": -0.24
+        },
+        {
+            "x": -1.85,
+            "y": -1.35
+        },
+        {
+            "x": 1.85,
+            "y": -1.35
+        },
+        {
+            "x": 1.89,
+            "y": -0.24
+        },
+        {
+            "x": 1.89,
+            "y": 0.24
+        },
+        {
+            "x": -1.89,
+            "y": 0.24
+        }
+    ],
+    "front": 0.24,
+    "back": -1.35,
+    "jambL": {
+        "x": -1.8,
+        "z0": -1.35,
+        "z1": 0.24,
+        "y0": 0.04,
+        "y1": 1.54
+    },
+    "jambR": {
+        "x": 1.8,
+        "z0": -1.35,
+        "z1": 0.24,
+        "y0": 0.04,
+        "y1": 1.54
+    },
+    "passage": {
+        "x0": -1.5,
+        "x1": 1.5
+    },
+    "eave": {
+        "x0": -2.46,
+        "x1": 2.46,
+        "z0": -2.25,
+        "z1": 2.25,
+        "y0": -0.26,
+        "y1": 4.3
+    },
+    "faceOut": 0.0,
+    "faceIn": 0.0,
+    "copingOverhang": 0.0,
+    "height": 4.56
+}

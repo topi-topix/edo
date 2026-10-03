@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 16 本・メニュー 78・関数 600(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 19 本・メニュー 79・関数 659(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -19,16 +19,19 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoMatsudairaDewaBuilder.Niwa.cs](#edomatsudairadewabuilderniwacs) | 松平出羽守上屋敷 — 庭の工程(池・築山・水の系・石組・点景・滝見口)。 | 9 | 30 |
 | [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 15 | 97 |
 | [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 17 | 101 |
-| [EdoSannoShaBuilder.cs](#edosannoshabuildercs) | 山王権現社(日枝神社)本体+観理院+樹下家邸+山王門前町ビルダー (2026-08-11) | 1 | 34 |
-| [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 12 | 93 |
+| [EdoSannoShaBuilder.cs](#edosannoshabuildercs) | 山王権現社(日枝神社)本体+樹下家邸+山王門前町ビルダー (2026-08-11。観理院は 2026-09-26 に類型へ移し削除) | 1 | 32 |
+| [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 13 | 102 |
 | [EdoSanyashikiRebuild.cs](#edosanyashikirebuildcs) | 三屋敷(太田・加納・鍋島=松平肥前守)の区画を下書きv3へ更新 (2026-08-08) | 0 | 6 |
 | [EdoSekiBuilder.cs](#edosekibuildercs) | — | 1 | 8 |
 | [EdoShiomizakaRebuild.cs](#edoshiomizakarebuildcs) | 汐見坂(段坂)を新区割りの回廊へ敷き直す (2026-08-09) | 0 | 12 |
 | [EdoTypologyBuilder.Inari.cs](#edotypologybuilderinarics) | 類型ビルダー — 稲荷(町屋の裏手の小祠と鳥居)。EDO-0326。 | 0 | 1 |
-| [EdoTypologyBuilder.Jisha.cs](#edotypologybuilderjishacs) | 類型ビルダー — 寺社の境内(Stage 3〜4 の jisha 分)。本堂・庫裏・蔵・鐘楼・墓地・塔頭を置く。 | 0 | 9 |
-| [EdoTypologyBuilder.Machiya.cs](#edotypologybuildermachiyacs) | 類型ビルダー — 町屋(machiya)の段。24 区画。EDO-0325。 | 0 | 5 |
-| [EdoTypologyBuilder.Niwa.cs](#edotypologybuilderniwacs) | 類型の庭(Stage 5)— どの類型が何をどこへだけ。EDO-0323。 | 0 | 26 |
-| [EdoTypologyBuilder.cs](#edotypologybuildercs) | 類型ビルダー — 区画の形(parcels.json)と類型表(typology.json)から、一本で建てる。 | 5 | 41 |
+| [EdoTypologyBuilder.Jisha.cs](#edotypologybuilderjishacs) | 類型ビルダー — 寺社の境内(Stage 3〜4 の jisha 分)。本堂・庫裏・蔵・鐘楼・墓地・塔頭を置く。 | 0 | 17 |
+| [EdoTypologyBuilder.Keidai.cs](#edotypologybuilderkeidaics) | 類型の庭 — 寺社の境内(garden=keidai)。2026-09-27・EDO-0477 P5。 | 0 | 3 |
+| [EdoTypologyBuilder.Machiya.cs](#edotypologybuildermachiyacs) | 類型ビルダー — 町屋(machiya)の段。24 区画。EDO-0325。 | 0 | 9 |
+| [EdoTypologyBuilder.Niwa.cs](#edotypologybuilderniwacs) | 類型の庭(Stage 5)— どの類型が何をどこへだけ。EDO-0323。 | 0 | 27 |
+| [EdoTypologyBuilder.Rim.cs](#edotypologybuilderrimcs) | 類型の崖の縁の石垣(Stage 4y・2026-09-28・EDO-0477 施主裁定A「石垣を積み、その上に塀」)。 | 0 | 2 |
+| [EdoTypologyBuilder.Yuragi.cs](#edotypologybuilderyuragics) | 類型ビルダー — 揺らぎ(EDO-0476・施主裁定 2026-09-27)。 | 0 | 21 |
+| [EdoTypologyBuilder.cs](#edotypologybuildercs) | 類型ビルダー — 区画の形(parcels.json)と類型表(typology.json)から、一本で建てる。 | 5 | 54 |
 | [EdoYamatoRebuild.cs](#edoyamatorebuildcs) | 松平大和守(川越藩17万石)上屋敷の再建 v2 (2026-08-08) | 0 | 13 |
 
 ## EdoDoiBuilder.Niwa.cs
@@ -435,7 +438,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 
 ## EdoSannoShaBuilder.cs
 
-山王権現社(日枝神社)本体+観理院+樹下家邸+山王門前町ビルダー (2026-08-11)
+山王権現社(日枝神社)本体+樹下家邸+山王門前町ビルダー (2026-08-11。観理院は 2026-09-26 に類型へ移し削除)
 
 | メニュー | 関数 | 呼ぶ関数(Stage) |
 |---|---|---|
@@ -466,8 +469,6 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `Torii(parent, x, z, ry)` | `void` |  | 石鳥居(明神鳥居, 合成) |
 | `Tsutsui(parent, x, z)` | `void` |  | つつ井(屋形付き井戸) |
 | `Endai(parent, x, z)` | `void` |  | 茶店の縁台(合成) |
-| `Stage3_Kanriin()` | `string` | 公 | — |
-| `Ido(parent, x, z)` | `void` |  | 井戸(簡素) |
 | `Stage4_Juge()` | `string` | 公 | 2026-08-26 引退: 樹下邸は旧 EdoSannoBukeBuilder.Stage1_Juge が受け持ち、2026-09-21(EDO-0094)から 類型ビルダー(Edo_Typo_sannobuke_ju… |
 | `Stage5_Monzencho()` | `string` | 公 | — |
 | `MonzenMat(name, texPath)` | `Material` |  | — |
@@ -493,8 +494,9 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `Edo/山王社/建て直し/6 社殿5棟+木階` | `Stage6Menu` | `Stage6_Shaden` |
 | `Edo/山王社/建て直し/7 社叢(算出物の点をそのまま置く)` | `Stage7Menu` | `Stage7_Shaso` |
 | `Edo/山王社/建て直し/8 前庭の井戸(板石敷・井筒+井桁・井戸屋形)` | `Stage8Menu` | `Stage8_Ido`, `WKeidai`, `D`, `F` |
-| `Edo/山王社/建て直し/9 縁の皮(段石・袖・土留め・面の縁の升に穴を開けて皮で描く)` | `Stage9Menu` | `Stage9_Hifu`, `Gate`, `Group`, `SkinFaces` |
-| `Edo/山王社/建て直し/一括(0→6・8・9。⛔ 社叢は撒かない)` | `BuildAllMenu` | `BuildAll`, `Stage0_Retire`, `Stage1_Grade`, `Stage2_Kaidan` |
+| `Edo/山王社/建て直し/9 縁の皮(段石・袖・土留め・面の縁の升に穴を開けて皮で描く)` | `Stage9Menu` | `Stage9_Hifu`, `Gate`, `Group` |
+| `Edo/山王社/建て直し/5b 踏石・踏み止め(門・石段の頭の敷石)` | `Stage5bMenu` | `Stage5b_Fumiishi`, `Gate`, `Group`, `Clear` |
+| `Edo/山王社/建て直し/一括(0→6・8・9。⛔ 社叢は撒かない)` | `BuildAllMenu` | `BuildAll`, `Gate` |
 
 | 関数 | 返す | 公開 | 何をするか(注釈の一文目) |
 |---|---|---|---|
@@ -530,18 +532,22 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `DistToPoly(p, c)` | `float` |  | — |
 | `GroupNameOf(designName)` | `string` | 公 | 指図の名 → シーンの群の名。⛔ 綴りの読み替えだけ(⭐ 対応表が消えるのが正しい終点)。 |
 | `Stage3_Dodome()` | `string` | 公 | 算出物 `runs` の `of=="wall"` を石垣で積む。 |
+| `FaceFlushSegs(runs, sandoPieces, sb)` | `List<FaceFlushSeg>` |  | 見え面を石段の袖の背の面に揃える土留め(指図 joints: a = その run・kind「面一」・bFace「袖の背の面」── 前庭の切り込みの返し 施主裁定 2026-09-27 EDO-0437)の区間ごとに、紙… |
+| `KeepClearOfFlushWalls(sa, sbb, name, sb)` | `void` |  | 板塀・柵の端が、見え面を袖の背へ移した土留めから紙の離れを保つ(2026-09-27・EDO-0437 普請検査 r15 ── 返しが外へ 0.60 移ったのに 板塀 Ita_ZN・Ita_ZNE の端が紙のまま残り、最… |
 | `Nozura(runs, grp, placed, faceOf, dg, probe, sb)` | `int` |  | 野面の乱積みの土留め(`terraceWalls[].masonry`)を据える。 |
 | `SegIsBase(prof, step, sBase, len)` | `bool` |  | 区間が基壇か ── 建つ所(見付 &gt; 0)の受け高が全て負(天端が両側の地盤より上)。 |
+| `IsNozuraSode(g)` | `bool` |  | 袖の駒が野面の乱積みの袖(`IshidanSodeNozura*`)か(メッシュの資産名で)。 |
 | `FamilyOf(n)` | `string` |  | — |
 | `ArcOf(poly, p)` | `float` |  | 折れ線 poly 上での点 p の弧長。 |
 | `ProfileAt(prof, step, s, top, faceH, backH)` | `bool` |  | `profile` = [走り s, 天端 y, 低い側の地盤, 高い側の地盤, 見付高, 受け高] を s で線形補間。 |
-| `AbutStairsToWalls()` | `string` | 公 | Stage3 の後段: 全ての石段について、段石の両の小口と袖の背の小口を脇の土留めの面へ突き付ける(EDO-0430)。 |
+| `AbutStairsToWalls()` | `string` | 公 | — |
 | `Stage4_Kakoi()` | `string` | 公 | 算出物 `runs` の `of=="run"` を建てる。 |
 | `SakuRun(r, name, grp, hasSeat, seat, sb)` | `int` |  | 腰高の柵の run。部材の原点 = スパンの中心・地盤レベル・柱はローカル −X 端。 |
 | `SakuProfile(halfT, hgt, postL)` | `void` |  | 腰高の柵の部材の半厚・丈・柱の長さ[m]を資産から測る。 |
 | `PanelProfile(path, halfT, hgt)` | `void` |  | 板塀(edogoyomi の片面 obj)の半厚・丈[m]を資産から測る。 |
 | `ClipRunEndsToGates(a, b, hgt, halfT, hasSeat, seat, name, sb)` | `void` |  | 口(seg と seg の間)に門が建つなら、両脇の seg の端を門の脇柱の角へ取り付ける。 |
 | `RetractRunEndsFromWalls(sa, sbb, halfT, hgt, hasSeat, seat, name, sb)` | `void` |  | 柵・板塀の run の端(始まり・終わり・口の両脇)が土留め・基壇の駒の中に在るなら、その実面まで詰める (EdoBuild.RetractEndFromBodies・2026-09-26 EDO-0430)── `It… |
+| `ShiftRunToCutShoulder(sa, sbb, halfT, hgt, hasSeat, name, sb)` | `void` |  | 切土の法に沿う板塀の走りを法肩の上へ移す(2026-09-26・EDO-0437 施主裁定イ)。 |
 | `BuiltSegs(r, a, b)` | `void` | 公 | run の `segs` を、Stage4 が実際に建てる区間へ直して返す(口に門が建つなら、その縁を 門の脇柱の角へ取り付けた後の端)。 |
 | `GatePlacement(gt, path, pos, yaw)` | `bool` |  | 算出物の `gates[]` の行から、据える部材のパス・座・向きを引く(Stage5 と同じ物差し)。 |
 | `Kairo(r, name, grp, sb)` | `int` |  | 回廊の翼を1本据える(2026-09-20 に建てはじめた)。 |
@@ -556,7 +562,8 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `SurfaceY(p)` | `float` |  | — |
 | `Stage5_MonTorii()` | `string` | 公 | 算出物 `gates` の芯・yaw・敷居の高さへ据える。 |
 | `ToriiPart()` | `string` |  | 石造明神鳥居の部材。⭐ まず `bom[鳥居].手当` を見る(正典は指図)。 |
-| `Michi()` | `List<List<Vector2>>` |  | 道の芯線(算出物 `routes[].world` と指図 `fumotomichi[].pts`)を集める。 |
+| `OnFumotomichi(p, keep)` | `bool` |  | 点が社の小道(指図 `fumotomichi[]`)の上か、その辺から keep の内か。 |
+| `Michi()` | `List<List<Vector2>>` |  | 道の芯線(指図 `sando.pts`・算出物 `routes[].world`・指図 `fumotomichi[].pts`)を集める。 |
 | `ToriiFacing(p, face)` | `bool` |  | 鳥居の正面(部材の +Z)の向き。⭐ 指図は鳥居の yaw を書かない(座だけ)ので、 鳥居が載っている道の芯線の接線から引く ── 正面は境内から遠い側(参詣者が来る方)。 |
 | `ToriiNameOf(designName)` | `string` | 公 | 鳥居の名 → シーンの名(⛔ 部材のパスではない)。 |
 | `Stage6_Shaden()` | `string` | 公 | 社殿。⭐ 部材のピボット = その棟の区画 (u0,v0,du,dv) の中心・地盤レベル。 |
@@ -577,7 +584,10 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `SkinFaces(sb)` | `List<EdoBuild.SkinFace>` |  | 皮が高さを揃える面 = 算出物 `terraces` + 取り合いの欄の「被せ」(面の輪郭が石段の最上段の外形を包む ── `EdoBuild.WrapTopStep` で最上段の実メッシュから輪郭を測って足す・join… |
 | `HifuGapTable()` | `string` | 公 | 皮と部材の隙の内訳(A 面の高さで塞がる / B 駒が浮く / C 面の外の取り合い)を皮を起こし直さずに刷る。 |
 | `HifuMeasure()` | `string` | 公 | 描かれた地表(皮)で測る: 男坂・女坂の踏面の埋没・袖と土留めの天端の埋没。 |
+| `Stage5b_Fumiishi()` | `string` | 公 | — |
 | `UnSkin()` | `string` |  | 据え直す Stage の冒頭で縁の皮を外す(穴を塞ぐ)。 |
+| `RunFrom(changed)` | `string` | 公 | 変えた Stage から後だけ流す(key: Retire・Grade・Kaidan・Dodome・Kakoi・Mon・Fumiishi・Shaden・Ido・Hifu)。 |
+| `PlanFrom(changed)` | `string` | 公 | 流さずに、流れる Stage だけを見積もる。 |
 | `BuildAll()` | `string` | 公 | — |
 
 ## EdoSanyashikiRebuild.cs
@@ -650,7 +660,25 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `JExt(go, withRoof, e)` | `bool` |  | 駒の局所矩形(ピボットからの x0,x1,z0,z1)を実メッシュから測る。 |
 | `JYaw(dirZ)` | `float` |  | — |
 | `JishaOmoya(s, root, poly, front, pad, gateC)` | `string` |  | 寺社の境内を建てる。⭐ Omoya() の jisha 枝 — 返る文字列は「主屋と付属: …」の 2 行。 |
-| `JAdd(items, dropped, g, name, path, mode, yaw, rank)` | `void` |  | プレハブの駒を 1 つ起こして一覧へ足す。 |
+| `JSeed(id)` | `int` |  | 区画 id からの決まった種(FNV-1a)。 |
+| `JCert(s, key)` | `string` |  | 表の欄の確度(`cert` の中の欄名)。 |
+| `JHallBaked()` | `List<int[]>` |  | 焼いてある入母屋の間数(梁間 3 間以上・桁行/梁間 ≤ 1.8)。 |
+| `JPickSize(area, rng, minD, lo=…, hi=…)` | `int[]` |  | 坪 area に近い焼いた入母屋を一つ(目安の 0.85〜1.25 倍の帯から種で選ぶ・帯が空なら最寄り)。 |
+| `JHallSizes(s, tsubo, firm, rng, note)` | `List<int[]>` |  | 本堂の間数の候補(先頭が第一候補、以下は境内に収まらないときの一回りずつ小さい物)。 |
+| `JRoofOf(it, go)` | `Vector2[]` |  | 置いた棟の屋根込みの矩形(置いた位置と向きから ── 測った局所矩形を載せる)。 |
+| `JEnclosureRoofs(root, taken)` | `int` |  | 囲いの長屋の駒ごとに、屋根込みの矩形(駒の向きの軸で実メッシュを測った外形)を taken へ足す。 ⟶ 返す: 足した数 |
+| `JGapTo(rc, taken)` | `float` |  | 矩形から置いた棟の屋根の矩形までの最小の離れ(無ければ 99)。 |
+| `JAdd(items, dropped, g, name, path, mode, yaw, rank, hyo=…)` | `void` |  | プレハブの駒を 1 つ起こして一覧へ足す。 |
+
+## EdoTypologyBuilder.Keidai.cs
+
+類型の庭 — 寺社の境内(garden=keidai)。2026-09-27・EDO-0477 P5。
+
+| 関数 | 返す | 公開 | 何をするか(注釈の一文目) |
+|---|---|---|---|
+| `KeidaiFor(kind, area)` | `KeidaiK` |  | kind ごとの係数(庭方の設計 k)。 |
+| `KeidaiSlope(p)` | `float` |  | 庭域の点の勾配(±1m の差の大きい方 ÷ 2m)。 |
+| `NiwaKeidai(s, grp, f, poly, front, rnd, mune, gateC, half, sandoB, want, got, log)` | `void` |  | 寺社の境内の庭。mune は据わった棟、half は参道の帯の片幅。 |
 
 ## EdoTypologyBuilder.Machiya.cs
 
@@ -658,8 +686,12 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 
 | 関数 | 返す | 公開 | 何をするか(注釈の一文目) |
 |---|---|---|---|
-| `OmotedanaFor(maguchiKen)` | `string[]` |  | その間口の表店を当方で起こしてあるかを資産の有無で見て、あれば深い順に返す (深い版 → 詰めた版)。 |
+| `NorenKeysFor(s)` | `string[]` |  | その間口の表店を当方で起こしてあるかを資産の有無で見て、あれば深い順に返す (深い版 → 詰めた版)。 |
+| `MaguchiMix(s)` | `int[]` |  | 表の `maguchi_mix`(軒ごとに引く間口[間]の候補)。 |
+| `OmotedanaFor(kens)` | `string[]` |  | 間口の候補すべてについて、当方で起こした駒を集める(幅ごとに深い順)。 |
+| `OmotedanaFor(maguchiKen)` | `string[]` |  | — |
 | `MachiyaFrontEdges(s, edges, front)` | `List<Edge>` | 公 | 表店を載せる接道辺。`two_sided=false` は 1 本、`true` は長い順に 2 本。 |
+| `MachiKido(s, root, poly)` | `string` |  | 町木戸(EDO-0503 ②)。表の欄 machi_kido: {"with": "&lt;隣の区画&gt;", "end": "N／S／E／W"} を読み、 この区画と隣の区画の角どうしの組(間が道幅 4〜20m)のう… |
 | `Machiya(s, root, poly, front, edges, pad, gateC, gateHalf)` | `string` |  | Stage 3m — 町屋。表店の列(接道辺 1〜2 本)・自身番屋・裏長屋。 |
 | `UraNagaya(s, root, poly, fronts, depthM, roomM, shopD, pad, avoid)` | `string` |  | 裏長屋(裏店)。表の `ura_nagaya` がそのまま数ならその棟数まで、 数でなければ奥行と間口から割った列を全部建てる(表の `defaults.machiya.ura_nagaya` が 「間口と奥行から割る」… |
 | `UnusedFields(s)` | `string` |  | ⛔ ビルダーが読みもしていない欄を黙って捨てない(規則19)。 |
@@ -678,10 +710,9 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `Rf(r, lo, hi)` | `float` |  | — |
 | `OddSplit(total, rnd)` | `List<int>` |  | 層の本数を奇数の塊へ割る(7/5/3/1)。 |
 | `MaxCrown(pal)` | `float` |  | — |
-| `TakeSite(pool, rnd, f, r, o)` | `Vector2?` |  | 候補の池から、その半径が本当に空いている点を1つ取り出す。 |
+| `TakeSite(pool, rnd, f, r, o)` | `Vector2?` |  | — |
 | `Layer(grp, name, f, pool, pal, want, rnd, o, want_, got_, poolAlt=…)` | `void` |  | 層をひと組据える。⭐ 意図した数と据わった数の差を必ず控える(§5-2 ①・規則19)。 |
 | `MainBand(f, apex, n, faceLen, depth)` | `List<Vector2>` |  | 主景の帯 — 座敷面の中点 + 法線 3.0m を起点に、幅 = 面長 + 左右各 4.0m・奥行 25m の 帯と庭域 G の交わり(検分⑨)。 |
-| `GateThrough(gate)` | `float` |  | 門の通り抜け(柱間)[m] — 参道の帯(白洲)の幅を引くための代用値(検分③)。 |
 | `Perimeter(poly)` | `float` |  | — |
 | `AddGroundZone(grp, kind, pts, radius=…)` | `void` |  | 点の集合を NiwaGroundZone として grp の下へ置く。 |
 | `AddSandoZone(grp, f)` | `float` |  | 参道の帯(白洲)を帯の四角形そのものとして印に置く(EDO-0372)。 ⟶ 返す: 帯の区画内の面積[m²] |
@@ -693,9 +724,48 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `NiwaIshigumi(grp, f, pool, rnd, kumi, want, got, poolAlt=…)` | `void` |  | 景石(1組 = 三石)。⭐ 丈 1.000 に正規化した部材なので localScale = 総丈、 沈めは 総丈÷3(1/3埋め・庭方 §5-0「据え」)。 |
 | `NiwaTobiishi(grp, f, rnd, start, aim, n, want, got, log, label=…)` | `void` |  | 飛石1条 — 座敷面の中点の外 2.0m から庭へ下りる筋(検分①)。 |
 | `NiwaToro(grp, f, pool, rnd, n, want, got, poolAlt=…)` | `void` |  | 灯籠(雪見)。⚠ edogoyomi の駒なので ES を掛ける。 |
-| `NiwaIdo(grp, f, katte, rnd, n, want, got, log)` | `void` |  | 井戸。⚠ 類型の井戸の部材は未造で、山王社の井桁の井戸を当てている(部材方へ・EDO-0318)。 |
+| `NiwaIdo(grp, f, katte, rnd, n, yaw0, want, got, log)` | `void` |  | 井戸。⭐ 据え方は PutIdo(山王社の前庭の井戸と同じ・EDO-0490)。 |
+| `FillIdoHoles(root)` | `int` | 公 | 区画のルート(かその資産)の中の井戸が抜いた地形の穴を塞ぐ。 ⟶ 返す: 塞いだセルの数 |
+| `PutIdo(grp, f, site, yaw0, spin, name, log)` | `GameObject` |  | 井戸一式を 1 口据える。返り値 = 板石敷の駒(井筒+井桁はその子)。 ⟶ 返す: 板石敷の駒(井筒+井桁はその子) |
 | `NiwaMaeniwa(grp, f, rnd, gateC, bandHalf, front, want, got)` | `void` |  | 前庭。⛔ 帯の中には置かない(白洲)。門の内側の左右に松を必ず非対称に。 |
 | `NiwaInspect(f, g, want, got)` | `string` |  | 庭方 §5-2 の5項目。⛔ 「置けた本数」だけを刷らない — 意図との差・帯の侵入・ 実測の離れ・偶数の塊・樹冠の被覆率まで出して、はじめて検査になる。 |
+
+## EdoTypologyBuilder.Rim.cs
+
+類型の崖の縁の石垣(Stage 4y・2026-09-28・EDO-0477 施主裁定A「石垣を積み、その上に塀」)。
+
+| 関数 | 返す | 公開 | 何をするか(注釈の一文目) |
+|---|---|---|---|
+| `CornerReaches(edges, e, kind, atA, atB)` | `void` |  | 辺 e の囲いを区画の角で頂点の先へ延ばす長さ(始点 atA・終点 atB)。 |
+| `Rim(s, root, poly, edges, front, machiyaFronts, pads, padY, rims, bed)` | `string` |  | — |
+
+## EdoTypologyBuilder.Yuragi.cs
+
+類型ビルダー — 揺らぎ(EDO-0476・施主裁定 2026-09-27)。
+
+| 関数 | 返す | 公開 | 何をするか(注釈の一文目) |
+|---|---|---|---|
+| `YuOrig(s, k)` | `string` |  | Plan の k 棟目を揺らぎで差し替えたなら、元の駒のパス。 |
+| `YuRng(id, what)` | `System.Random` |  | 区画 id と用途から決まる乱数。⛔ 用途ごとに種を分ける ── 一つの乱数を使い回すと、 前段で引く回数が変わっただけで後段の姿が全部入れ替わる。 |
+| `YuUnit(id, key)` | `float` |  | [0,1) の決まった値(区画 id と鍵から)。 |
+| `YuLeaf(type, kind)` | `Dictionary<string, object>` |  | 表の `defaults.yuragi` の、この型に当たる塊。 |
+| `YuLeaf(s)` | `Dictionary<string, object>` |  | — |
+| `YuFirm(row, field)` | `bool` |  | その欄が史料値か(確度 S/A/B/P)。 |
+| `YuF(d, k, dflt)` | `float` |  | — |
+| `YuL(d, k)` | `List<object>` |  | — |
+| `YuSay(id, what)` | `void` |  | — |
+| `YuNote(s)` | `string` |  | 建てた log に刷る一行(揺らいだ欄の一覧)。 |
+| `YuragiFields(id, row)` | `void` |  | 表の欄を揺らす。LoadTable が既定を差した後に呼ぶ。 |
+| `YuKomaName(path)` | `string` |  | — |
+| `YuKomaPath(name)` | `string` |  | — |
+| `YuKoma(s, path, k)` | `string` |  | 主屋級の駒を同じ格の駒へ差し替える(表の `yuragi.buke.koma`)。 |
+| `YuYaw(s, path, label)` | `float` |  | 付属の向きの足し[度](表の `yuragi.buke.fuzoku_yaw`)。 |
+| `YuOkiba(s, p)` | `float` |  | 置き場の候補の点数に足す揺らぎ[m](表の `yuragi.buke.okiba_m`)── 点の座標から決まる(並べ替えの比較で毎回同じ値)。 |
+| `YuTanaSeed(s, prefix)` | `int` |  | 表店の組を引く種(表の `yuragi.machiya.tana_mix`)。 |
+| `YuJishaOkiba(s, dflt)` | `float` |  | 附属の置き場の点数の揺らぎ[m](表の `yuragi.jisha.<kind>.okiba_m`・無ければ dflt)。 |
+| `YuHallBand(s)` | `Vector2` |  | 本堂の帯の倍率 [下, 上](表の `hall_band`)。 |
+| `YuHallRange(s)` | `int[]` |  | 坊の主屋の間数の幅(表の `main_hall_w` / `main_hall_d`)。 |
+| `YuKuri(s)` | `float[]` |  | 庫裏の間数(表の `kuri` の候補から種で)。 |
 
 ## EdoTypologyBuilder.cs
 
@@ -724,18 +794,20 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `DirVec(d)` | `Vector2` |  | — |
 | `FrontEdge(s, edges)` | `Edge` | 公 | 表門を載せる辺。 ⭐ 史料で読めた方位は、長さの都合より強い。 |
 | `FrontEdge(s, edges, warn)` | `Edge` | 公 | — |
-| `TuckInside(go, poly, outward, log)` | `float` |  | 辺に載らない門構えを敷地の内へ折り込む。 ⟶ 返す: 下げた量[m](0 なら折り込み不要) |
-| `Seat(go, log)` | `bool` |  | 接地箇所を測って据える(EdoBuild.SeatOnGround)。 |
+| `ShopFront(poly, t, hull)` | `EdoBuild.MonPad` |  | 接地箇所を測って据える(EdoBuild.SeatOnGround)。 |
+| `Seat(go, log)` | `bool` |  | — |
+| `SeatGamae(go, log)` | `bool` |  | 門構えの駒を据える(EdoBuild.SeatGamae ── 札の contact の部材で当てる)。 |
 | `Pad(id, spread)` | `float` | 公 | 造成はしない(規則3・9)。区画内のハイトマップ格子点の高さの中央値を、据える面に採る。 |
-| `GatePath(g)` | `string` |  | ───────────────────────── 部材の解決 ───────────────────────── |
-| `GateScale(g)` | `float` |  | 門の部材の倍率。⛔ 一律 ES を掛けない。 |
-| `GateWidth(s)` | `float` |  | 門の実幅の概算(m)。⛔ 部材の実メッシュではなく「表門の辺を選ぶための目安」で、 据えた後の納めは実メッシュで解く(規則5)。 |
+| `GatePathOf(g)` | `string` | 公 | 門の語 → 部材の道(札の試験 EdoPartSpecTests が読む)。 |
+| `GatePath(g)` | `string` |  | — |
+| `GateWidth(s, path)` | `float` |  | 門構えの幅の目安[m](表門の辺を選ぶため)= 門の札の脇の面の間 × 倍率(EDO-0491)。 |
+| `GateChoices(g)` | `string[]` |  | 門の語の駒の候補(大きい順)。⭐ 冠木門は在庫の袖付き(幅 8.0m)と袖無し(2間・部材方 2026-09-30)の二つ ── 型は類型表の語のまま、接道辺に載る方を採る(施主裁定A 2026-09-30「袖の無い冠木… |
+| `PickGatePath(s, edges)` | `string` |  | 接道辺のどれかに門構え(×1.25)が載る最も大きい候補。 |
 | `BanshoCount(b)` | `int` |  | — |
 | `Group(name, parent)` | `Transform` |  | ───────────────────────── Stage 1〜2: 囲いと門 ───────────────────────── |
 | `FindRoot(name)` | `GameObject` |  | シーンのルートを名前で引く。⭐ 寝ているルートも拾う — 撤去は SetActive(false) の決まり(規則1)なので、GameObject.Find だけでは見落とす。 |
 | `Externalize(root)` | `string` |  | 建て終えた類型ルートを 1軒1プレハブ へ切り出す(EDO-0296)。 |
 | `BuildParcel(id, force)` | `string` | 公 | — |
-| `FenceFace(encl, front)` | `float` |  | 前辺に建った塀の通りの側の面が、区画の境界線からどれだけ外/内にあるか。 |
 | `EnclosureFor(s, e, isFront)` | `string` |  | この辺を何で囲うか。⛔ 2026-09-21 まで公有地は `fence` の欄を読まずに `yarai` を直書きしていて、 表に書いた yarai 1 / boji 3 / kui 1 / ita 1 / none… |
 | `Omoya(s, root, poly, front, pad, gateC)` | `string` |  | 主屋・付属・庭木。区画の内側へ SETBACK 引いた所に、型ごとの棟を置く。 |
 | `PairDir(a, b)` | `Vector3` |  | 二つの駒を互いへ押し付ける向き(a から b・水平)。 |
@@ -745,7 +817,18 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `Candidates(poly, cand, placed, r, tried)` | `IEnumerable<Vector2>` |  | Spot を次々に引く候補の列(引いた点は tried へ入れる)。 |
 | `Spot(poly, cand, placed, r, tried)` | `Vector2?` |  | まだ空いていて、半径 r が区画からはみ出さず、既に置いた棟から MIN_BLDG_GAP 離れる点。 |
 | `OutsideBy(poly, t, withRoof)` | `float` |  | 駒が区画の外へ出た量[m]。⭐ 壁体と軒を分けて測る。 |
-| `Inspect(id, root, poly)` | `string` | 公 | 境界侵犯・埋没・浮きを、建てたその場で測って刷る(0件でも刷る・規則19)。 |
+| `SpecOutsideBy(poly, t)` | `float` |  | 門構え(門・番所)の区域侵犯 = 札の足元(EdoPartSpec.Spec.foot)が区画の外へ出た量[m](硬い・許容0)。 |
+| `MichiInsideBy(poly, t)` | `float` |  | 道の上の物(群 "Michi" — 町木戸)が区画の内へ入り込んだ量[m](硬い・許容0)。 |
+| `OutsideBy(poly, pts)` | `float` |  | — |
+| `GamaeJointReport(encl, gm, front, frontKind)` | `string` |  | — |
+| `IsSueMono(name)` | `bool` |  | — |
+| `MonBedFor(piece)` | `System.Func<float, float, float>` |  | 門構えの駒の床 = 地面 + その駒の基壇の布石(縁と目地は 5cm 跨ぐ)。 |
+| `GroundBed(x, z)` | `float` |  | 当たりの相手 = 見えている地表(live terrain)。 |
+| `TuckBase(p0, p1, inw, stone=…)` | `float` |  | GroundBed と同じ床だが、石垣の天端の継ぎ目の穴(その点に天端の面が無く、0.35m 以内に有る所)は NaN を返す ── 塀は穴を跨いで石に載るので、穴の下の地面を床に数えない(EdoBuild.RootTo… |
+| `RimStoneBack(bed, p, inw, maxIn)` | `float` |  | 点 p から内へ、石垣の天端の面(bed)が始まる離れ[m](最大 maxIn)。 |
+| `GroundBedSpan(x, z)` | `float` |  | — |
+| `KakoiBedFor(t)` | `System.Func<float, float, float>` |  | 囲いの駒の当たりの相手。布石("_ishi")は自分が床なので地面だけで測る ── 床の索引で測ると自分の天端を床に採り、 地中へ埋めた底を「浮き」と数えた(観理院の段塀の布石 86/86 駒・最悪 0.96m・2026… |
+| `Inspect(id, root, poly)` | `string` | 公 | — |
 | `BuildAll(force)` | `string` | 公 | — |
 
 ## EdoYamatoRebuild.cs

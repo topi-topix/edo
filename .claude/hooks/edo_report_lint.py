@@ -121,14 +121,9 @@ def main():
         sys.exit(0)
     if ev.get("stop_hook_active"):
         sys.exit(0)
-    bad = lint(ev.get("last_assistant_message") or "")
-    if not bad:
-        sys.exit(0)
-    print(json.dumps({"decision": "block",
-                      "reason": "⛔ 報告の作法(docs/reporting-protocol.md 規則0・一件一葉)に反する点があるので、"
-                                "同じ内容を書き直してから返すこと:\n- " + "\n- ".join(bad) +
-                                "\n読み手は施主。役名・検査名・巡次・ファイル名を落とし、"
-                                "冒頭 1 行で件数、【種別n】の見出し、選択肢は A/B/C。"}))
+    # ⛔ 止めない(2026-10-03 施主指摘「報告や質問が二重で届く」)。差し戻すと、突き返された通が画面に
+    #   残ったまま書き直しがもう一通出て、施主には同じ報告が二度見える。作法は規則0 と自律で守る。
+    #   判定 lint() と --selftest は残してある(戻すときはここで lint の結果を block にする)。
     sys.exit(0)
 
 

@@ -59,10 +59,11 @@ public static class EdoGardenSurfacePaint
                        : "既に揃っている(計 " + have.Count + " 層)";
     }
 
-    static IEnumerable<NiwaGroundZone> Zones(string kind)
+    static IEnumerable<NiwaGroundZone> Zones(string kind, Transform only = null)
     {
         foreach (var z in Object.FindObjectsByType<NiwaGroundZone>(FindObjectsSortMode.None))
-            if (z.kind == kind && (z.points.Count > 0 || z.quads.Count >= 4)) yield return z;
+            if (z.kind == kind && (z.points.Count > 0 || z.quads.Count >= 4)
+                && (only == null || z.transform.IsChildOf(only))) yield return z;
     }
 
     // ───────────────────────── 点+半径の被覆 ─────────────────────────
@@ -131,7 +132,7 @@ public static class EdoGardenSurfacePaint
                 var p = new Vector2(f.tp.x + (ix + (sx + 0.5f) / SUB) * f.cell, f.tp.z + (iz + (sz + 0.5f) / SUB) * f.cell);
                 if (!EdoSurfacePaint.InAny(quads, p)) continue;
                 if (clip != null && !EdoGeom.PIP(clip, p)) continue;
-                if (EdoSurfacePaint.InAny(f.water, p)) continue;
+                if (EdoSurfacePaint.Wet(f, p)) continue;
                 inside++;
             }
         return inside / (float)(SUB * SUB);
@@ -165,6 +166,12 @@ public static class EdoGardenSurfacePaint
             float moss, shirasu, dirt; RecipeMoss(noise, macro, out moss, out shirasu, out dirt);
             return l == f.iMoss ? moss : l == f.iShirasu ? shirasu : l == f.iD ? dirt : 0f;
         }
+        // rinsho — 林床(寺社の境内の林・縁の帯の足もと。EDO-0477 P5・庭方 2026-09-27)。⭐ 土が主・草が斑・裸地わずか
+        if (kind == "rinsho")
+        {
+            float gr = Mathf.Lerp(0.18f, 0.40f, macro), br = Mathf.Lerp(0.02f, 0.08f, noise);
+            return l == f.iD ? 1f - gr - br : l == f.iG ? gr : l == f.iB ? br : 0f;
+        }
         // tataki — 叩き土/締まった土は kouyuu の "dirt" 既定と同じ塗り(EDO-0372 §4.5)
         float d, g, b; EdoSurfacePaint.Recipe("dirt", null, noise, macro, out d, out g, out b);
         return l == f.iD ? d : l == f.iG ? g : l == f.iB ? b : 0f;
@@ -174,7 +181,8 @@ public static class EdoGardenSurfacePaint
     [MenuItem("Edo/類型/庭の地表を塗る(白洲・苔・叩き土)")]
     public static void PaintMenu() => Debug.Log(Paint());
 
-    public static string Paint()
+    /// <param name="only">この根の下の印だけ塗る(類型の建て直しが自分の区画を塗る・EDO-0489)。null は全部。</param>
+    public static string Paint(Transform only = null)
     {
         var sb = new StringBuilder();
         sb.AppendLine(EnsureLayers());
@@ -187,14 +195,14 @@ public static class EdoGardenSurfacePaint
         Undo.RegisterCompleteObjectUndo(f.td, "庭の地表");
 
         int L = f.td.alphamapLayers;
-        int zoneN = 0, skipWater = 0, skipSteep = 0; float texelN = 0f;
+        int zoneN = 0, skipWater = 0, skipSteep = 0, grassOut = 0; float texelN = 0f;
         // ⭐ 塗る順は 叩き土 → 苔 → 白洲。地形は 4m/texel なので、裏庭(叩き土)や坪庭(苔)の印と参道の帯は
         //    同じ texel を分け合う。後に塗った方が勝つので、**参道の白洲を最後に**塗る(2026-09-23 sanbezaka_w1:
         //    白洲を先に塗ったら叩き土に上塗りされ、白砂利の乗りが 0.45 に落ちた)。
-        foreach (var kind in new[] { "tataki", "moss", "shirasu" })
+        foreach (var kind in new[] { "rinsho", "tataki", "moss", "shirasu" })
         {
             int zk = 0; float tk = 0f;
-            foreach (var z in Zones(kind))
+            foreach (var z in Zones(kind, only))
             {
                 zk++; zoneN++;
                 var quads = z.quads.Count >= 4 ? Quads(z) : null;
@@ -216,7 +224,7 @@ public static class EdoGardenSurfacePaint
                         else
                         {
                             if (!NearAny(z.points, z.radius, wx, wz)) continue;
-                            if (EdoSurfacePaint.InAny(f.water, new Vector2(wx, wz))) { skipWater++; continue; }
+                            if (EdoSurfacePaint.Wet(f, new Vector2(wx, wz))) { skipWater++; continue; }
                             cov = 1f;
                         }
                         if (cov <= 0f) continue;
@@ -229,13 +237,25 @@ public static class EdoGardenSurfacePaint
                         tk += cov; texelN += cov;
                     }
                 f.td.SetAlphamaps(ix0, iz0, A);
+                // ⭐ 白洲と叩き土の上の草(detail)を抜く ── 塗りだけでは砂利の上に草の株が立ち、芝に見えた(観理院・EDO-0489)
+                if (kind == "shirasu" || kind == "tataki")
+                {
+                    if (quads != null) foreach (var q in quads) grassOut += EdoBuild.ClearDetailIn(q).changed;
+                    else if (z.radius > 0f)
+                        foreach (var pt in z.points)
+                        {
+                            float r = z.radius;
+                            grassOut += EdoBuild.ClearDetailIn(new[] { new Vector2(pt.x - r, pt.z - r), new Vector2(pt.x + r, pt.z - r),
+                                                                       new Vector2(pt.x + r, pt.z + r), new Vector2(pt.x - r, pt.z + r) }).changed;
+                        }
+                }
             }
             sb.AppendLine("  " + kind + ": " + zk + "印 " + tk.ToString("F1") + "texel");
         }
         f.terr.Flush(); EditorUtility.SetDirty(f.td); AssetDatabase.SaveAssets();
-        sb.AppendLine(string.Format("→ 印 {0} / 塗った texel {1:F1}(水面で見送り {2}・急斜面で見送り {3})",
-                                     zoneN, texelN, skipWater, skipSteep));
-        sb.AppendLine(Verify());
+        sb.AppendLine(string.Format("→ 印 {0} / 塗った texel {1:F1}(水面で見送り {2}・急斜面で見送り {3})・白洲と叩き土の草を抜いたセル {4}",
+                                     zoneN, texelN, skipWater, skipSteep, grassOut));
+        sb.AppendLine(Verify(only));
         return sb.ToString();
     }
 
@@ -245,15 +265,15 @@ public static class EdoGardenSurfacePaint
 
     /// <summary>塗った結果を地形から読み直し、印ごとに狙った層が十分乗っているか確かめる。
     /// ⛔ texel が足りない印は「未検査」— 合格と刷らない(規則19)。</summary>
-    public static string Verify()
+    public static string Verify(Transform only = null)
     {
         string err; var f = EdoSurfacePaint.OpenGarden(out err);
         if (f == null) return err;
         var sb = new StringBuilder("地表の突き合わせ(庭・EDO-0372):\n");
         int ok = 0, ng = 0, unchecked_ = 0, short_ = 0;
-        foreach (var kind in new[] { "shirasu", "moss", "tataki" })
+        foreach (var kind in new[] { "shirasu", "moss", "tataki", "rinsho" })
         {
-            foreach (var z in Zones(kind))
+            foreach (var z in Zones(kind, only))
             {
                 string nm0 = z.transform.parent != null ? z.transform.parent.parent != null
                     ? z.transform.parent.parent.name : z.transform.parent.name : z.name;
@@ -274,18 +294,20 @@ public static class EdoGardenSurfacePaint
                             if (cov <= 0f) continue;
                             if (f.td.GetSteepness((qx0 + xx + 0.5f) / f.res, (qz0 + zz + 0.5f) / f.res) > EdoSurfacePaint.STEEP_MAX)
                                 continue;      // 土手は塗らない側 — 分母にも入れない
-                            covSum += cov; got += Mathf.Min(cov, Q[zz, xx, f.iShirasu]);
+                            // ⭐ 帯の主層は印の種別で引く(寺社の坊・社家の参道は叩き土の帯・EDO-0477 P5)
+                            float main = kind == "shirasu" ? Q[zz, xx, f.iShirasu] : Q[zz, xx, f.iD] + Q[zz, xx, f.iB];
+                            covSum += cov; got += Mathf.Min(cov, main);
                         }
                     // ⭐ 硬い制約と柔らかい制約を分けて刷る(docs/oki-kata.md §4a)。
                     //    硬い = 印のとおりに塗れているか(白砂利の乗り ≥ 0.75)→ ⭕/✗
                     //    柔らかい = 帯の広さ(SANDO_MIN_TEXELS)は前庭の奥行と同じく**狙い** → 届かなければ △ 狙い未達。
                     //    ⛔ 狙い未達を不合格に数えない — 建て直しの輪を回さない(施主 2026-09-23)。
                     float ratio = covSum > 0 ? (float)(got / covSum) : 0f;
-                    bool okQ = covSum > 0 && ratio >= 0.75f;
+                    bool okQ = covSum > 0 && ratio >= (kind == "shirasu" ? 0.75f : 0.55f);
                     bool wide = covSum >= SANDO_MIN_TEXELS;
                     if (!okQ) ng++; else if (wide) ok++; else { ok++; short_++; }
                     sb.AppendLine("  " + (!okQ ? "✗" : wide ? "⭕" : "△") + " " + nm0 + "/" + kind + "(帯)広さ "
-                        + covSum.ToString("F1") + "texel 相当(狙い " + SANDO_MIN_TEXELS.ToString("F0") + ")・白砂利の乗り "
+                        + covSum.ToString("F1") + "texel 相当(狙い " + SANDO_MIN_TEXELS.ToString("F0") + ")・" + (kind == "shirasu" ? "白砂利" : "土") + "の乗り "
                         + ratio.ToString("F2") + (okQ && !wide ? " — 狙い未達(前庭が狭い筆)" : ""));
                     continue;
                 }
@@ -312,6 +334,7 @@ public static class EdoGardenSurfacePaint
                 float mMain = (float)(sMain / n), mSub = (float)(sSub / n);
                 bool pass = kind == "shirasu" ? mMain >= 0.55f
                           : kind == "moss" ? mMain >= 0.40f
+                          : kind == "rinsho" ? mMain >= 0.45f
                           : mMain + mSub >= 0.55f;
                 if (pass) ok++; else ng++;
                 sb.AppendLine("  " + (pass ? "⭕" : "✗") + " " + nm + "/" + kind + " n=" + n

@@ -164,7 +164,10 @@ def slab(m, y0, y1, t, rect, mat, ncol, cap_top=True, rot=False):
                 uvs = [(u0, v0), (u0, v1), (u1, v1), (u1, v0)]
             else:
                 uvs = [(u0, v0), (u1, v0), (u1, v1), (u0, v1)]
-            m.quad(pts if sz > 0 else pts[::-1], uvs if sz > 0 else uvs[::-1], mat)
+            # ⚠ 論理座標(走り, 高さ, 厚み)→ Blender(走り, 厚み, 高さ)の入れ替えは**鏡映し**なので巻き順が裏返る。
+            #   表裏の面は論理座標で**逆回り**に積む(2026-09-28 EDO-0477 施主「塀と塀の間に隙間」── 表裏が内向きで、
+            #   外から見ると手前の面が描かれず、奥の面の裏と駒の小口が縦の筋に透けていた)。小口と天端は元から外向き。
+            m.quad(pts[::-1] if sz > 0 else pts, uvs[::-1] if sz > 0 else uvs, mat)
     if cap_top:
         m.quad([(0, y1, -h), (L, y1, -h), (L, y1, h), (0, y1, h)],
                [(u0, v0), (u1, v0), (u1, v1), (u0, v1)], mat)
@@ -187,7 +190,7 @@ def wall_cap(m, mat, rect, e, half, z_eave):
             pts = [(xa, zt(a), a), (xb, zt(a), a), (xb, zt(b), b), (xa, zt(b), b)]
             uvs = [(u0, v0), (u1, v0), (u1, v1), (u0, v1)]
             m.quad(pts, uvs, mat)
-    for x, flip in ((0.0, True), (L, False)):
+    for x, flip in ((0.0, False), (L, True)):        # 巻き順は slab の表裏と同じ理由で逆(鏡映しの入れ替え)
         tri = [(-half, z_eave), (0.0, zt(0.0)), (half, z_eave)]
         pts = [(x, q[1], q[0]) for q in tri]
         uvs = [(u0, v0), (u1, v0), (u1, v1)]
@@ -301,11 +304,12 @@ def tile_field(poly, eave_origin, yaw_deg, z_eave, name):
 
 
 def _frame(ax):
-    side = ax.cross(Vector((0, 0, 1)))
+    # ⚠ side = z × ax(右手系)。⛔ ax × z だと枠が鏡映しになり、棟の駒が裏返った(表裏・天端が内向き ── 2026-09-28 EDO-0477)
+    side = Vector((0, 0, 1)).cross(ax)
     if side.length < 1e-9:
         return None
     side.normalize()
-    up = side.cross(ax)
+    up = ax.cross(side)                       # (ax, side, up) を右手系に(上は +Z のまま)
     return mathutils.Matrix(((ax.x, side.x, up.x, 0.0),
                              (ax.y, side.y, up.y, 0.0),
                              (ax.z, side.z, up.z, 0.0),

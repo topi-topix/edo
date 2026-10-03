@@ -629,6 +629,18 @@ def stair_y(d, u, v, in_parcel):
 
 def t_edge_dist(t, u, v):
     """段の縁までの距離[間]。**穴の縁も段の縁**(穴の中の点は穴の縁から法面が下りる)。"""
+    # ⚠ **穴の中の点から見て、穴の縁より近くに段は無い。**外輪の線のうち穴の中を通る部分は
+    #   穴で抜かれていて段の縁ではない。従前は外輪までの距離をそのまま採ったので、穴の中を通る
+    #   外輪の線から盛土の法面が生えていた(2026-10-03 岡部 西端の帯: 勝手道の角に +0.63m の膨らみ)。
+    #   ⭕ 穴の中では「穴の縁までの距離」を下限に取る(外輪の外なら外輪までとの大きい方)。
+    hs = [hp for hp in t_holes(t) if _pt_in_ring(hp, u, v)]
+    if hs:
+        dh = min(poly_edge_dist(hp, u, v) for hp in hs)
+        if not _pt_in_ring(t["poly"], u, v):
+            dh = max(dh, poly_edge_dist(t["poly"], u, v))
+        for kp in t_keeps(t):
+            dh = min(dh, poly_edge_dist(kp, u, v))
+        return dh
     best = poly_edge_dist(t["poly"], u, v)
     # ⚠ **抜きの縁を段の縁と見るのは、外輪の中にいるときだけ。**
     #   抜きの矩形は外輪より外へはみ出して書いてよい(区画で切られる)ので、

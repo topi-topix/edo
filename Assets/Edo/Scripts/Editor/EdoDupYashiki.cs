@@ -11,7 +11,12 @@
 //   その区画の類型表の built が hand なら **必ず残す**(図から起こした邸・手組み資産)。
 //
 // 【使い方】Edo/屋敷/旧邸の重複を検める → 表を読む → Edo/屋敷/旧邸の重複を畳む
-//   畳むほうはシーンからルートを外し、対応する Edo_Yashiki_*.prefab も消す。
+//   畳むほうはシーンからルートを外し、対応する <ルート名>.prefab も消す。
+//   名指しで畳むなら Collapse(名前…)(ダイアログを出さない — MCP から叩ける)。
+//
+// 【見るルート】旧邸 Edo_Yashiki_* に加え、山王の旧ビルダーが建てた Edo_Sanno_* / Edo_SannoBo_*
+//   (2026-09-26 EDO-0465 で足した。観理院 Edo_Sanno_Kanriin が類型と二重だった)。
+//   社地そのもの(Edo_Sanno_Sha)は区画 sannosha_prec が hand なので残る側に落ちる。
 //   ⛔ 押す前にシーンを保存しておくこと(戻すのは Undo ではなく git)。
 //   ⛔ 「プレハブへ書き戻す(全部・強制)」は押さない(docs/lessons.md・シーンが膨らむ)。
 using System.Collections.Generic;
@@ -22,7 +27,7 @@ using UnityEngine;
 
 public static class EdoDupYashiki
 {
-    const string Root = "Edo_Yashiki_";
+    static readonly string[] Roots = { "Edo_Yashiki_", "Edo_Sanno_", "Edo_SannoBo_" };
     const string PrefabDir = "Assets/Edo/Prefabs/Scene/";
 
     /// <summary>ルート go が最も多くの実体を置いている区画の id。判らなければ null。</summary>
@@ -43,14 +48,16 @@ public static class EdoDupYashiki
         return best;
     }
 
-    /// <summary>畳める旧邸(= hand でない区画に載る Edo_Yashiki_*)を、区画 id つきで並べる。</summary>
+    static bool IsOldRoot(string n) { foreach (var r in Roots) if (n.StartsWith(r)) return true; return false; }
+
+    /// <summary>畳める旧邸(= hand でない区画に載る旧ビルダーのルート)を、区画 id つきで並べる。</summary>
     public static List<KeyValuePair<GameObject, string>> Survey(StringBuilder log)
     {
         var outp = new List<KeyValuePair<GameObject, string>>();
         var scene = EditorSceneManager.GetActiveScene();
         foreach (var r in scene.GetRootGameObjects())
         {
-            if (!r.name.StartsWith(Root)) continue;
+            if (!IsOldRoot(r.name)) continue;
             int v, t;
             string pid = ParcelOf(r, out v, out t);
             if (pid == null) { if (log != null) log.AppendLine("? " + r.name + " — 区画に載っていない(手で見ること)"); continue; }
@@ -84,6 +91,23 @@ public static class EdoDupYashiki
                 "戻すのは git です。先にシーンを保存しておいてください。\n\n" + sb,
                 "畳む", "やめる")) return;
 
+        Debug.Log("[旧邸の重複] " + Fold(dup) + "\n" + sb);
+    }
+
+    /// <summary>名指しした旧ルートだけを畳む(ダイアログ無し)。Survey が「畳」と判定した物に限る —
+    /// hand の区画に載る物・区画に載らない物は名指ししても畳まない。</summary>
+    public static string Collapse(params string[] names)
+    {
+        var sb = new StringBuilder();
+        var want = new HashSet<string>(names);
+        var dup = Survey(sb).FindAll(kv => want.Contains(kv.Key.name));
+        var got = new HashSet<string>(); foreach (var kv in dup) got.Add(kv.Key.name);
+        foreach (var n in names) if (!got.Contains(n)) sb.AppendLine("✗ " + n + " — 畳める旧ルートに無い(残した)");
+        return Fold(dup) + "\n" + sb;
+    }
+
+    static string Fold(List<KeyValuePair<GameObject, string>> dup)
+    {
         int gone = 0, assets = 0;
         foreach (var kv in dup)
         {
@@ -93,8 +117,8 @@ public static class EdoDupYashiki
             string path = PrefabDir + name + ".prefab";
             if (AssetDatabase.LoadAssetAtPath<GameObject>(path) != null && AssetDatabase.DeleteAsset(path)) assets++;
         }
-        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+        if (gone > 0) EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
         AssetDatabase.Refresh();
-        Debug.Log("[旧邸の重複] ルート " + gone + " 本・プレハブ " + assets + " 本を畳んだ。シーンを保存すること。\n" + sb);
+        return "ルート " + gone + " 本・プレハブ " + assets + " 本を畳んだ。シーンを保存すること。";
     }
 }

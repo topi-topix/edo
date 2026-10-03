@@ -102,7 +102,9 @@ public static partial class EdoBuild
         float built = 0f;
         if (root != null)
             foreach (Transform grp in root)
-                if (grp.name == "Kakoi" || grp.name == "Mon") built += FootprintXZ(grp);
+                if (grp.name == "Kakoi") built += FootprintXZ(grp);
+                else if (grp.name == "Mon")   // ⭐ 門構えは札の足元の面積(EDO-0491)── 札の無い駒は建っていない
+                    foreach (Transform t in grp) { var sp = SpecOf(t.gameObject); if (sp != null) built += EdoPartSpec.FootArea(sp, t); }
         return Mathf.Max(0f, GOTEN_KENPEI * Mathf.Min(a, GOTEN_FUKUI_M2) - built);
     }
 

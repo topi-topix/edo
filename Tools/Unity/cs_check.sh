@@ -23,6 +23,10 @@ for d in $P/Library/ScriptAssemblies/*.dll; do
   case "$(basename $d)" in Assembly-CSharp-Editor.dll) continue;; esac
   refs+=("-r:$d")
 done
+# ⭐ 札の試験(Assets/Edo/Scripts/Editor/Tests・EDO-0491)は NUnit を読む ── 同梱の nunit を参照に足す(Unity でも自動参照される)
+for d in $P/Library/PackageCache/com.unity.ext.nunit@*/net472/unity-custom/nunit.framework.dll(N); do refs+=("-r:$d"); done
+#    net472 の nunit は mscorlib の型を指すので、NetStandard の橋(shim)も足す
+for d in $U/Resources/Scripting/NetStandard/compat/2.1.0/shims/netfx/mscorlib.dll(N); do refs+=("-r:$d"); done
 # ⚠ 行で割る — 空白を含むフォルダ(`Starter Assets`)で語に割ると CS2001 の偽の誤りが出る(2026-09-26)
 srcs=(${(f)"$(find Assets -path '*/Editor/*' -name '*.cs')"})
 $DN exec $CSC -nologo -target:library -nostdlib+ -langversion:9.0 -define:UNITY_EDITOR -out:$OUT "${refs[@]}" "${srcs[@]}" 2>&1 | grep -v "warning CS" || true

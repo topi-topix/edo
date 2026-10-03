@@ -34,6 +34,8 @@ public static partial class EdoBuild
         public float[] heights;
         /// <summary>始まり・終わりの端が突き付ける相手の駒(無ければ打ち切り)。</summary>
         public List<GameObject> startTo = new List<GameObject>(), endTo = new List<GameObject>();
+        /// <summary>隅の腕の中へ入り得る相手(石段の袖)── 隅の腕が呑む量を測る(<see cref="KadoArmNeeds"/>・2026-09-26・EDO-0437 第7巡)。</summary>
+        public IList<GameObject> kadoAbut;
         /// <summary>始まり・終わりの端が**入隅の通す側**(相手の土留めがこちらの見え面へ突き付ける)── 端は線の端点のまま・打ち切りの駒を使わない
         /// (2026-09-26・EDO-0437)。</summary>
         public bool startThrough, endThrough;
@@ -189,16 +191,48 @@ public static partial class EdoBuild
             { log.AppendLine("    ⛔ " + name + " 隅 " + i + ": 隅の駒が焼いていない(見付 " + hk + ")— 据えない"); continue; }
             var kg = Place(path, new Vector3(P[i].x, crest - hk, P[i].y), yaw, Vector3.one, parent, name + "_kado" + i);
             // 稜線を二本の天端の線の交点へ: 天端の帯の前の縁を各々の見え面の向きで測って寄せる
-            for (int pass = 0; pass < 2; pass++)
+            //   ⭐ 寄せて測るを収まるまで(EdoBuild.Converge・EDO-0454)── 決め打ちの2巡を置き換えた。
+            //   稜線と天端はどちらも**狙い**(柔らかい・許容0の欠陥ではない)⇒ 未達は ⚠ で刷って据える(従前どおり退けない)。
             {
-                var vs = Body(kg.transform, 999999); float top = float.MinValue; foreach (var v in vs) top = Mathf.Max(top, v.y);
-                float e1 = float.MinValue, e2 = float.MinValue;
-                foreach (var v in vs) if (v.y >= top - 0.15f)
-                { Vector2 r = new Vector2(v.x, v.z) - P[i]; e1 = Mathf.Max(e1, Vector2.Dot(r, f1)); e2 = Mathf.Max(e2, Vector2.Dot(r, f2)); }
-                kg.transform.position -= new Vector3(f1.x * e1 + f2.x * e2, 0f, f1.y * e1 + f2.y * e2);
-                float c = crestOf(kg); if (!float.IsNaN(c)) kg.transform.position += Vector3.up * (crest - c);
+                Vector2 f1c = f1, f2c = f2, Pi = P[i]; float crestC = crest; var kgc = kg;
+                Func<Vector2> edges = () =>
+                {
+                    var vs = Body(kgc.transform, 999999); float top = float.MinValue; foreach (var v in vs) top = Mathf.Max(top, v.y);
+                    float e1 = float.MinValue, e2 = float.MinValue;
+                    foreach (var v in vs) if (v.y >= top - 0.15f)
+                    { Vector2 r = new Vector2(v.x, v.z) - Pi; e1 = Mathf.Max(e1, Vector2.Dot(r, f1c)); e2 = Mathf.Max(e2, Vector2.Dot(r, f2c)); }
+                    return new Vector2(e1, e2);
+                };
+                var os = Converge(new[]
+                {
+                    Tori.Custom(kg.name + " 稜線", kg, false, -0.002f, 0.002f,
+                        () => { var e = edges(); return Mathf.Abs(e.x) >= Mathf.Abs(e.y) ? e.x : e.y; },
+                        () => { var e = edges(); var d = new Vector3(f1c.x * e.x + f2c.x * e.y, 0f, f1c.y * e.x + f2c.y * e.y);
+                                kgc.transform.position -= d; return d.magnitude; }),
+                    Tori.Custom(kg.name + " 天端", kg, false, -0.002f, 0.002f,
+                        () => { float c = crestOf(kgc); return float.IsNaN(c) ? float.NaN : c - crestC; },
+                        () => { float c = crestOf(kgc); if (float.IsNaN(c)) return float.NaN; kgc.transform.position += Vector3.up * (crestC - c); return Mathf.Abs(crestC - c); }),
+                });
+                if (os.Reason.Length > 0) log.AppendLine("    ⚠ " + name + " 隅 " + i + ": " + os.Summary());
             }
             { float c2 = crestOf(kg); if (!float.IsNaN(c2)) worstCrest = Mathf.Max(worstCrest, Mathf.Abs(c2 - crest)); }
+            // ⭐ 隅の腕の中へ石段の袖が入るか(硬い・許容0 のめり込み ── 2026-09-26・EDO-0437 第7巡)。城の石垣の出隅と同じ器(KadoArmNeeds・
+            //   8 方向の光線)で、腕ごとに要る長さを測る。野面の隅は腕を詰めた組を焼いていない ⇒ 呑むなら ⚠ に要る腕の長さと駒の型を刷る(部材方へ)。
+            //   当たる先: 野面の土留めの出隅で石段の袖が腕へ入る所(山王 前庭の北東 TW_Zentei_N_kado2 × 参道の階の東の袖)。
+            if (w.kadoAbut != null && w.kadoAbut.Count > 0)
+            {
+                var kvs = Body(kg.transform, 999999); float kLo = float.MaxValue, kHi = float.MinValue, t1 = float.MinValue, t2 = float.MinValue;
+                Vector2 a1 = -dir[i - 1], a2 = dir[i];
+                foreach (var v in kvs) { kLo = Mathf.Min(kLo, v.y); kHi = Mathf.Max(kHi, v.y); Vector2 r = new Vector2(v.x, v.z) - P[i]; t1 = Mathf.Max(t1, Vector2.Dot(r, a1)); t2 = Mathf.Max(t2, Vector2.Dot(r, a2)); }
+                float n1, n2; string b1, b2;
+                KadoArmNeeds(kg, P[i], kLo, kHi, a1, a2, w.kadoAbut, float.MaxValue, out n1, out b1, out n2, out b2);
+                var ci = System.Globalization.CultureInfo.InvariantCulture;
+                if (b1 != null || b2 != null)
+                    log.AppendLine("    ⚠ " + name + " 隅 " + i + "(" + System.IO.Path.GetFileNameWithoutExtension(path) + "): 腕が相手を呑む ── 要る腕 " +
+                                   (b1 != null ? "前の区間の側 " + n1.ToString("F3", ci) + "(" + b1 + "・今 " + t1.ToString("F3", ci) + ")" : "前の区間の側 今のまま " + t1.ToString("F3", ci)) + " / " +
+                                   (b2 != null ? "次の区間の側 " + n2.ToString("F3", ci) + "(" + b2 + "・今 " + t2.ToString("F3", ci) + ")" : "次の区間の側 今のまま " + t2.ToString("F3", ci)) +
+                                   "。腕を詰めた野面の隅は焼いていない(部材方へ: 型 Sanno_Nozura_Kado90・見付 " + hk.ToString("F2", ci) + "・腕の長さは隅の稜線の点からの走り)");
+            }
             var sp1 = span(kg, P[i], dir[i - 1]); var sp2 = span(kg, P[i], dir[i]);
             fixedSpans.Add(new[] { sc + sp1[0], sc + sp2[1], i, 0 });
             // 隅の見え面は二つ ⇒ 天端の帯の数え(TuckUnderCrest)には両面の間の対角を渡す(列が稜線の天端を通る)
@@ -338,22 +372,26 @@ public static partial class EdoBuild
                 { Vector3 a1; int c1; float cc = ContactPts(pk0, visK(pr), nIn3, out a1, out c1); if (!float.IsNaN(cc) && (float.IsNaN(cm) || cc < cm)) cm = cc; }
                 return cm;
             };
-            for (int pass = 0; pass < 3; pass++)
-            {
+            seat0(kg, crest, fN, Q);
+            {   // 一手目の見当: 天端の前の縁の切り口の端(天端の帯で、線から ±0.06 の頂点の走りの外向きの最大)を Q へ
+                //   ⚠ 野面の頭は不揃いで、端の石の頭が帯の下に入ると 0.7m 手前を「端」と読む(SW の東端・2026-09-26)⇒ 見当に留め、次の手で切り口を相手の面で測る
+                var vs = Body(kg.transform, 999999); float tp = float.MinValue; foreach (var v in vs) tp = Mathf.Max(tp, v.y);
+                float e = float.MinValue;
+                foreach (var v in vs) if (v.y >= tp - 0.12f)
+                { Vector2 r = new Vector2(v.x, v.z) - Q; if (Mathf.Abs(Vector2.Dot(r, fN)) < 0.06f) e = Mathf.Max(e, Vector2.Dot(r, dOut)); }
+                if (e != float.MinValue) kg.transform.position -= new Vector3(dOut.x, 0f, dOut.y) * e;
                 seat0(kg, crest, fN, Q);
-                if (pass == 0)
-                {   // 一手目の見当: 天端の前の縁の切り口の端(天端の帯で、線から ±0.06 の頂点の走りの外向きの最大)を Q へ
-                    //   ⚠ 野面の頭は不揃いで、端の石の頭が帯の下に入ると 0.7m 手前を「端」と読む(SW の東端・2026-09-26)⇒ 見当に留め、次の手で切り口を相手の面で測る
-                    var vs = Body(kg.transform, 999999); float tp = float.MinValue; foreach (var v in vs) tp = Mathf.Max(tp, v.y);
-                    float e = float.MinValue;
-                    foreach (var v in vs) if (v.y >= tp - 0.12f)
-                    { Vector2 r = new Vector2(v.x, v.z) - Q; if (Mathf.Abs(Vector2.Dot(r, fN)) < 0.06f) e = Mathf.Max(e, Vector2.Dot(r, dOut)); }
-                    if (e != float.MinValue) kg.transform.position -= new Vector3(dOut.x, 0f, dOut.y) * e;
-                }
-                // ⭐ 切り口を相手の面へ: 相手の面の法線で触れている箇所を測り、走りに沿って寄せる(接して 0)
-                float tc = touch(); if (float.IsNaN(tc) || along < 0.2f) break;
-                if (Mathf.Abs(tc) < 0.002f) break;
-                kg.transform.position += new Vector3(dOut.x, 0f, dOut.y) * (tc / along);
+            }
+            // ⭐ 切り口を相手の面へ: 相手の面の法線で触れている箇所を測り、走りに沿って寄せて据え直す(接して 0)。
+            //   寄せると据えが変わり据えると当たりが開く ⇒ 収まるまで(EdoBuild.Converge・EDO-0454。決め打ちの3巡を置き換えた)。
+            //   硬い制約(めり込み)の合否はこの後の退ける判定が測る ── ここは寄せるだけ。
+            if (along >= 0.2f)
+            {
+                var kgc = kg; float crestC = crest; Vector2 fNc = fN, Qc = Q, dOc = dOut; float alongC = along;
+                Converge(new[] { Tori.Custom(kg.name + "→相手の面", kg, true, -0.002f, 0.002f, touch,
+                    () => { float tc = touch(); if (float.IsNaN(tc)) return float.NaN;
+                            kgc.transform.position += new Vector3(dOc.x, 0f, dOc.y) * (tc / alongC); seat0(kgc, crestC, fNc, Qc);
+                            return Mathf.Abs(tc / alongC); }) });
             }
             // ⛔ 硬い制約(許容0): 据えた斜め切りの駒が相手へ見える所でめり込むなら退ける(設計面より上の頂点どうしを相手の面の法線で測る)。
             //   (女坂の足の袖 TW_Onna_N_000 へ −0.63・SE は控えが石段の上へ 1.97 浮いた・2026-09-26 ── 切り口の端の読み違い)。
@@ -477,10 +515,13 @@ public static partial class EdoBuild
                     { Vector2 r = new Vector2(v.x, v.z) - Q; if (Mathf.Abs(Vector2.Dot(r, fN)) < 0.10f) e = Mathf.Max(e, Vector2.Dot(r, dOut)); }
                     if (e != float.MinValue) kg.transform.position -= dOut3 * e;
                 }
-                for (int pass = 0; pass < 4; pass++)
+                // 寄せると据えが変わる ⇒ 収まるまで(EdoBuild.Converge・EDO-0454。決め打ちの4巡を置き換えた)。
+                //   硬い制約(めり込み)の合否はこの後の cfin/cOth が測って退ける ── ここは寄せるだけ。
                 {
-                    float tc = touchOn(kg, to, dOut3); if (float.IsNaN(tc) || Mathf.Abs(tc) < 0.002f) break;
-                    kg.transform.position += dOut3 * tc; seat0(kg, crest, fN, Q);
+                    var kgc = kg; float crestC = crest; Vector2 fNc = fN, Qc = Q; Vector3 dO3 = dOut3; var toC = to;
+                    Converge(new[] { Tori.Custom(kg.name + "→相手", kg, true, -0.002f, 0.002f, () => touchOn(kgc, toC, dO3),
+                        () => { float tc = touchOn(kgc, toC, dO3); if (float.IsNaN(tc)) return float.NaN;
+                                kgc.transform.position += dO3 * tc; seat0(kgc, crestC, fNc, Qc); return Mathf.Abs(tc); }) });
                 }
                 cfin = touchOn(kg, to, dOut3);
                 cOth = other.Count > 0 ? touchOn(kg, other, -dOut3) : float.NaN;
@@ -714,6 +755,37 @@ public static partial class EdoBuild
         if (float.IsNaN(h) || h >= maxBack - 1e-4f) return 0f;
         return maxBack - h;
     }
+    /// <summary>**受けの駒の天端の上に立つ走りの端を、受けの駒が足の下に在る所まで詰める**(2026-09-26・EDO-0437 第6巡)。
+    /// 端 <paramref name="end"/> から走りの内 <paramref name="inward"/> へ 0.02m 刻みで進み、走りの芯と両脇(±<paramref name="halfT"/>)の三本の
+    /// 鉛直の光線が <paramref name="beds"/>(土留め・石垣)の上向きの面に当たり、その面が描かれた地表 <paramref name="groundAt"/> 以上(= 足は地面でなく
+    /// 受けの駒の天端に載る)になる最初の所までの距離を返す(端がもう受けの上なら 0・<paramref name="maxBack"/> までに無ければ 0 = 動かさない)。
+    /// ⭐ 受けの駒が途切れる所(石段の袖へ突き付けた土留めの端)で塀も止める ── ⛔ 受けの外へ延ばして低い袖・地面の上へ浮かせない。硬い条件(浮き・めり込み 0)。
+    /// 呼び手が「走りの中ほどが受けの天端に載る run」だけに掛ける(地面に立つ run には掛けない)。
+    /// 当たる先: 座の無い板塀・柵が土留め・石垣の天端に載る run の端(山王 前庭の南西の板塀 `Ita_ZSW` の東の端 ── 女坂の袖の上)。</summary>
+    public static float RetractEndToBedEdge(Vector2 end, Vector2 inward, IList<GameObject> beds, float halfT, float yTop, float maxBack, Func<float, float, float> groundAt)
+    {
+        if (beds == null || beds.Count == 0 || maxBack <= 0.01f) return 0f;
+        Vector2 d = inward.normalized, nrm = new Vector2(d.y, -d.x);
+        for (float s = 0f; s <= maxBack + 1e-4f; s += 0.02f)
+        {
+            bool ok = true;
+            foreach (float lat in new[] { -halfT, 0f, halfT })
+            {
+                Vector2 q = end + d * s + nrm * lat;
+                float h = RayToBodies(beds, new Vector3(q.x, yTop, q.y), Vector3.down, 8f);
+                float g = groundAt(q.x, q.y);
+                if (float.IsNaN(h) || (!float.IsNaN(g) && yTop - h < g - 0.01f)) { ok = false; break; }
+            }
+            if (ok) return s;
+        }
+        return 0f;
+    }
+    /// <summary>点 <paramref name="p"/> の真上から下ろした光線が <paramref name="beds"/> の上向きの面に最初に当たる高さ(当たらなければ NaN)。</summary>
+    public static float BedTopAt(Vector2 p, IList<GameObject> beds, float yTop)
+    {
+        float h = RayToBodies(beds, new Vector3(p.x, yTop, p.y), Vector3.down, 8f);
+        return float.IsNaN(h) ? float.NaN : yTop - h;
+    }
     /// <summary>**土の側(背)の天端の足りなさ**(2026-09-25・EDO-0430)。駒 <paramref name="g"/> の上向きの面を 0.05m 刻みで引き、
     /// **背の帯**(見え面 <paramref name="faces"/> の裏へ <see cref="SOIL_SIDE"/> 進むと駒の外へ出る点 = 裏込めの土が触れる所)のうち、
     /// 検査と皮が「天端」と読む点(周り <see cref="CREST_R"/> の同じ駒の最高から <see cref="CREST_BAND"/> 以内 ── <c>TopIndex.Top</c> と同じ篩)について、
@@ -813,7 +885,8 @@ public static partial class EdoBuild
         Func<float, float, float> faceGroundAt, float probe,
         Transform parent, Func<float, float, int, string> straight, Func<float, int, string> kado, Func<bool, int, string> dan,
         Func<bool, int, string> kiri, Func<float, string> mikiriPath, float[] heights, List<GameObject> pool, System.Text.StringBuilder log,
-        Func<float, bool, bool, float, int, string> kiriEnd = null, Func<float, bool, float, string> noriEnd = null)
+        Func<float, bool, bool, float, int, string> kiriEnd = null, Func<float, bool, float, string> noriEnd = null,
+        IList<GameObject> kadoAbut = null)
     {
         var res = new List<KeyValuePair<GameObject, Vector2>>();
         int n = segs.Count; if (n == 0) return res;
@@ -905,7 +978,7 @@ public static partial class EdoBuild
         foreach (int c in order)
         {
             var ch = chains[c];
-            var w = new NozuraWall();
+            var w = new NozuraWall { kadoAbut = kadoAbut };
             var cum = new List<float>(); float acc = 0f;
             foreach (var kv in ch)
             {

@@ -170,7 +170,7 @@ def kidan(hu, hv, out, depth, name, finish=()):
       ⛔ バッターを付けない — 最下段が出の分だけ外へ出て、石段の端・土留めの通りを越える
       (2026-09-13 に基壇(根入れ)の帯で 0.095〜0.55 m 食い込んだ)。面は鉛直で `out` に揃える。
 
-    ⭐ `finish` に挙げた面(`+X`/`+Z`/`-Z`)は**見え掛りの切石+葛石の縁**に仕上げる【U 部材方 2026-09-14】:
+    ⭐ `finish` に挙げた面(`+X`/`-X`/`+Z`/`-Z`)は**見え掛りの切石+葛石の縁**に仕上げる【U 部材方 2026-09-14】:
       天端の一段 0.20 を**長い葛石**(目地 約 1.8・稜の面取り 0.02)で通し、その下を**羽目石**(目地 約 0.95)
       一段で受ける。羽目石の面は葛石の面から 0.015 内へ引いて**縁の影の線**を出す。
       ⛔ 外形は変えない(葛石の面 = `out` の面・下端 = −depth)。"""
@@ -212,6 +212,8 @@ def kidan(hu, hv, out, depth, name, finish=()):
         dressed("-Z", u0, u1, v0, v0 + th, True)
     if "+X" in fin:
         dressed("+X", v0 + th, v1 - th, u1 - th, u1, False)
+    if "-X" in fin:                                  # ⛔ 無いと平の段積みだけ外れて −X の面が空く(EDO-0445)
+        dressed("-X", v0 + th, v1 - th, u0, u0 + th, False)
     for c in range(nc):
         z0 = -depth + depth * c / float(nc)
         z1 = -depth + depth * (c + 1) / float(nc)
@@ -236,10 +238,41 @@ def kidan(hu, hv, out, depth, name, finish=()):
     objs.append(SB._stone(u0 + th, u1 - th, v0 + th, v1 - th, -0.22, 0.0, mat,
                           SB.rng_of("romon_kidan", name, "cap"), name + "_cap",
                           chamfer=SH.KAME_MEJI, tile=SB.KIRISHI_TILE))
+    _kidan_faces_closed(objs, u0, u1, v0, v1, depth, name)
     for o in objs:                                   # 論理 → Blender(Rz180°・det +1)
         o.data.transform(Matrix.Diagonal((-1.0, -1.0, 1.0, 1.0)))
         o.data.update()
     return objs
+
+
+def _kidan_faces_closed(objs, u0, u1, v0, v1, depth, name, n=12):
+    """**硬い条件(許容0)** — 基壇の四面を外から水平の光線で撃ち、面の奥行 0.42 のうちに石へ当たらない
+    光線を数える。1 本でも抜けたら焼かない(EDO-0445: `finish` の −X が平の段積みだけ外して面が空いた)。
+    撃つのは各面の端から 5 cm 内・高さは根入れの上下 5 cm の内。"""
+    import bmesh
+    from mathutils import Vector
+    from mathutils.bvhtree import BVHTree
+    bm = bmesh.new()
+    for o in objs:
+        bm.from_mesh(o.data)
+    bvh = BVHTree.FromBMesh(bm)
+    bm.free()
+    miss = {}
+    for side, org, d, a0, a1, along_u in (("+X", u1, -1.0, v0, v1, False), ("-X", u0, 1.0, v0, v1, False),
+                                          ("+Z", v1, -1.0, u0, u1, True), ("-Z", v0, 1.0, u0, u1, True)):
+        for i in range(n + 1):
+            # ⚠ 光線を目地の面の中に通さない(面どうしを掠めて石と石の間を抜ける偽陽性)⇒ 端数でずらす
+            a = a0 + 0.05 + (a1 - a0 - 0.10) * (i + 0.137) / float(n + 1)
+            for j in range(4):
+                z = -depth + 0.05 + (depth - 0.10) * j / 3.0
+                p = Vector((a, org - d * 1.0, z)) if along_u else Vector((org - d * 1.0, a, z))
+                r = Vector((0.0, d, 0.0)) if along_u else Vector((d, 0.0, 0.0))
+                loc, nrm, idx, dist = bvh.ray_cast(p, r, 1.0 + 0.42)
+                if idx is None:
+                    miss[side] = miss.get(side, 0) + 1
+    if miss:
+        raise SystemExit("[kidan] ⛔ %s の基壇の面が抜ける(水平の光線が石に当たらない本数)%s" % (name, miss))
+    print("[kidan] %s 四面の光線 %d 本 抜け 0 ⭕" % (name, 4 * (n + 1) * 4))
 
 
 def soban_sided(pts, hu, hv, out, colR, h, half, name):

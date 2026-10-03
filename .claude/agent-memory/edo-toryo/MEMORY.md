@@ -9,6 +9,7 @@
 - [再生中に建てるとシーンは消える](playmode-discards-scene-edits.md) — isPlaying を先に聞く。資産(プレハブ・地形)への書き込みだけ残る
 - [30秒を超える execute_code は6回走る](akasaka-open-resent-six-times.md) — 赤坂・作業場を開く・重い計測。menu の赤坂へ戻すも6回開く・計測は割ってファイルへ
 - [execute_code の replay は履歴の番号](execute-code-replay-index-is-history.md) — index=0 で前の Stage が再び走った。⛔replay せず送り直す
+- [長い Stage は印のファイルで再送を止める・狙いだけの Converge は2巡](long-run-guard-and-soft-only-converge.md) — delayCall は発火せず。active scene を先に聞く
 
 - [古い port 登録で「instances なし」が一回おき](pitfall-bridge-drops-after-domain-reload.md) — 6400→6401 退避 + 別プロジェクトの残骸。待たずに再送
 - [start --unity が通っても claim が付いていないことがある](pitfall-unity-claim-not-verified.md) — status で「資源: unity」を見るまで MCP を叩かない
@@ -38,6 +39,7 @@
 - [測って置く。事後に寄せる関数を持たない](measure-dont-nudge.md) — 帯の頂点では門柱が消えて偽の穴。閉じは三角形で測る
 - [段を跨ぐ渡廊下は区間に割る](roka-dan-step-joint.md) — 段の柱は低い側。折れ目に 0.19m の口(雨押えの部材が無い)
 - [設計面を地形へ写す二つの罠](grade-transfer-cliff-and-dropped-cells.md) — 石垣の見え面を双一次で跨がない・縮めた設計面の外に前の巡の切盛が残る
+- [区画を引き直すと焼いていない算出物の欄が線の外に据わる](stale-impl-after-parcel-redraw.md) — 岡部の杭列 484 個が 4〜11m 外。RetireOutsidePoly で退ける
 - [区画の線を動かすと前の造成が隣に残る](prev-grade-left-in-neighbor-after-parcel-move.md) — Stage1_Grade(prev) が類型の区画も戻す。隣の塀が浮く恐れ
 - [造成は変わった段だけ流し直す](regrade-only-the-changed-block.md) — 全面だと築山と池が平らに戻り掘り直せない
 - [番所はピボットが奥行の芯・部材は片手](bansho-pivot-and-protrude.md) — protrude は躯体の外面の越える量。対に振らないと袖塀へ 0.22 めり込む
@@ -73,6 +75,7 @@
 - [石垣の隅は区間の端ごとに・T 字の継ぎ目・二段築の下段](run-corners-seams-and-tiers.md) — PlaceRunCorners/PlaceTierBelow。控えは外向きの駒で・基壇の向きは低い地盤で測り直す
 - [野面の網の罠](nozura-net-face-crest-end.md) — 見え面は設計面と天端の列の控えで・端の行は口の地表・端の光線は前の地表まで・打ち切りは低い端だけ
 - [斜めの取り合いは相手の面の法線で測る・法の楔](oblique-contact-and-batter-wedge.md) — 走りの筋では −0.27 の嘘。入隅の鉛直な小口は縮めても法へ入る
+- [野面の見え面の土の帯は皮の辺](skin-edge-across-nozura-face.md) — 抜けでなく天端下の点と足元の点を結ぶ皮の三角形。光線で駒/皮/地形の先着を数える
 - [野面の土留めの罠](nozura-wall-traps.md) — 見え面は局所+Z・殻の石垣は光線で測る・足元の溝は天端の帯(CREST_BAND)で解消・背の帯の溝は据えで消えない(前が0.4〜0.75飛び出す)・Stage7 の順
 - [袖の根入れは丈で取る・埋まる隅は先に測る](sode-neiri-and-buried-crest.md) — 足元は設計面で測る(皮は嘘)。男坂も 3.20 を焼いた。25.94 の隅は古い読み
 
@@ -81,7 +84,23 @@
 - [短い返しは票が割れて裏返る・袖は run の走る段だけ・別 run の出隅を芯で測ると入隅と誤る](short-return-tie-and-sode-extent.md) — RunLowHand/OverlapAlong/ShortSegConvexEnd。段の小口は中ほどで突き付け(跨ぐ段は解けない)
 - [野面 第3巡の測りの罠](nozura-round3-measure-traps.md) — 最も離れる向きの Contact は段石×隅 0.17 を見落とす・外形の中の面の無い点で皮が溝・法切り駒の見付は足元の面で
 
+- [敷石の面取りの口・門の上向きの面の下の皮・同じ高さの重なり](fumiishi-chamfer-and-floor-cover.md) — 天端の帯で口を閉じる。門の面は深さ 0.15 で拾う。重なりは下の側を 0.01 ずつ
+
+- [板塀を天端・法肩に据える罠](panel-on-crest-and-shoulder-traps.md) — 帯は天端の最高で・法肩の下りは描かれた地表で・Itabei5 は 3m 未満に割れない
+- [水平の袖の継ぎ目は面取りの下で・鉛直な端は法の隅で楔](flat-sode-chamfer-and-batter-wedge.md) — 天端の帯では V を 0.015 の口と読む。男坂 052f × kado1 は帯の下で 0.05/0.2m 入る
+- [段石×野面は全端を包絡で・野面を焼き直したら跨ぐ端の za を測り直す](nozura-envelope-and-rebake-za.md) — 中ほどの中央値は石の出入りを均して d 0。焼いた組が 0.06 外れた
+- [隅の腕を袖の実測で選ぶ・足元の溝は cap の掘り・空きの点の塞ぎ](kado-short-arm-and-foot-groove.md) — KadoShortArm は詰めた後の袖で測る。天端の四角い抜けは部材
+- [別の駒の天端・段に被る隅石を退ける](crest-of-other-and-step-yield.md) — 法の足が下の天端に載る所で皮が天端に張り付く。YieldWallsToSteps。MeshInside は一つずつ
+- [MidSection は世界座標・内外は MeshInside で](post-board-run-and-mesh-inside.md) — 重ねて板が 438m 飛んだ。総当たりの光線は 25 分ふさいだ(二度目)
+
+- [袖の背に沿う返しの隅は法で袖へ入る](kado-arm-along-sode-back-batter.md) — 見える所は面一でも W0.31/E0.47 入る。解くのは返しの腕を一辺切った Kado90(部材)
+
+- [光付けは2次元で上げる・remap 済みでも材 null](scribe-2d-and-stale-fbx-material.md) — 列の窓の最大は法肩で浮き目地で食い込む。桃色は ForceUpdate で再 import
+
 ## 測り方・関門
+
+- [偶奇の多数決の内外判定は野面で偽のめり込み](parity-inside-test-false-intrusion.md) — 袖×SW の隅 0.234 は偽。当たり0の向きが在れば外
+- [悪化の申告はまず prefab を git で比べる](regression-claim-diff-prefab-first.md) — EDO-0437 の3件は駒が動いていなかった。郭の階の南の袖は EK の隅の腕の中(腕 −0.04 の隅が要る)
 
 - [Contact の筋 0.1m は疎な駒で偽の隙](contact-cell-too-fine-on-sparse-meshes.md) — 段石・袖で「測れず/0.015」。0.25m で測る。女坂の曲がりの袖の口は別件
 - [段石の浮きは袖に塞がれない端だけで数える](dan-float-read-behind-sode.md) — 底−地表は男坂で 0.43m 出るが袖の裏の空洞
@@ -93,9 +112,13 @@
 - [面の輪郭ぎわの残差は物差しの話](terrace-rim-residual-is-the-ruler.md) — 失敗点が全部1セル以内なら造成の欠陥でない。均すと段が埋まり崖に盛土
 - [池が掘れていないの正体は水面の紛失と 2m 格子](pond-carved-but-water-lost.md) — ⛔掘り直さない。CreateNoCarve で水面だけ
 - [作業場の書き戻しは台帳0件で黙る](koba-writeback-ledger-empty.md) — 段別の邸は本体が台帳に載らない。Convert(自邸名)で拾う
+- [類型を何軒も建て直す作業場](typology-multi-parcel-koba.md) — 隣は20m以内だけ・残りは実体を足す。BuildParcel は自分で切り出すので wrote=0 が正常
+- [並びの区画のログの浮きは後の造成で古くなる](typology-log-stale-after-neighbor-regrade.md) — 共有辺の地表が動く。建て終えてから数え直す
 - [プレハブの grep で名が出ないのは正常](prefab-yaml-has-guids-not-names.md) — 参照は GUID。検めるのは LoadAssetAtPath で childCount
 
 ## 検査の読み方
+
+- [袖の脇の入りは見える地表で割る](sode-side-bite-below-skin.md) — 女坂の北の袖×回廊の出隅は全部 皮の下。MeasureSodeSideBites・裏の面の偽の入り
 
 - [退役した Stage が残ると検査が嘘の件数を出す](retired-stage-makes-fake-counts.md) — 449=1278−829 は別の母集団の引き算
 - [退ける門と検査は同じ測りで](machiya-clash-gate-weaker-than-check.md) — 門だけ屋根を外すと検査でめり込み。揃えた犠牲は駒1個だけ
@@ -111,3 +134,7 @@
 - [法の足元の土の縁は底の読み違い](batter-toe-read-as-bottom.md) — 駒の底は根入れ済みだった。皮の塞ぎが法の途中を底と読む。段ごとの値で追う
 - [見え面の足元の山形は外形の中の節点](wall-foot-ridge-from-nodes-under-hull.md) — 皮が近くの点を地形のまま描いた。CleanAt・差で混ぜる・Stage9 は6回走る
 - [盛土の床・基壇の向き・設計面の縁の溝](fill-only-floor-and-base-facing.md) — fillOnly を皮の面にしない・BlockOutward・DesignOut は地形で埋める
+- [総当たりの計測は Unity を1時間ふさぐ](brute-force-measure-hangs-unity.md) — kubomi.cs で TCS timed out 100回超。升の索引+印で打つ・着手前に log を見る
+- [落とした後の Stage9 は空の皮を焼く](unity-kill-leaves-holes-without-skin.md) — 穴は地形・皮はシーン。null の皮には最新の資産を差してから流す
+- [線の上の基壇・柵は区画外に出る](line-sitting-pieces-pivot-out.md) — float 0.25mm・端の控え・芯置き。材 null の一体駒は屋根を躯体と数える
+- [隅の腕は短辺を越えて区画外へ出る](kado-arm-overruns-short-edge.md) — 岡部 P2〜P4 が 0.7〜1.3m 外。閉じの検査は見ない・駒の頂点を PIP

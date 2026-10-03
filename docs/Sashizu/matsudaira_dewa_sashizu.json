@@ -6591,2387 +6591,2407 @@
    "src": "普請奉行の決め 2026-10-03(EDO-0554 検分3巡の残り)"
   }
  ],
- "planting": [
-  {
-   "zone": "G_Sensui",
-   "layer": "主木",
-   "role": "高木",
-   "species": "クロマツ",
-   "cert": "B",
-   "n": 3,
-   "clr": 2.5,
-   "spacing": 7.3,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "groupGap": [
-    14.5,
-    29.1
-   ],
-   "groups": [
-    {
-     "n": 3,
-     "where": "築山の頂と肩(不等辺三角)",
-     "box": [
-      -21.5,
-      39.5,
-      -16.5,
-      43.5
-     ]
-    }
-   ],
-   "parts": [
-    {
-     "api": "JG.Pine(\"Big\", 1)",
-     "prefab": "Tree_BlackPine_Big_Green_01",
-     "n": 1,
-     "scale": 1.2
-    },
-    {
-     "api": "JG.Pine(\"Mid\", 2)",
-     "prefab": "Tree_BlackPine_Mid_Green_02",
-     "n": 1,
-     "scale": 1.2
-    },
-    {
-     "api": "JG.Pine(\"Mid\", 3)",
-     "prefab": "Tree_BlackPine_Mid_Green_03",
-     "n": 1,
-     "scale": 1.2
-    }
-   ],
-   "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
-  },
-  {
-   "zone": "G_Sensui",
-   "layer": "主木(傾ける松)",
-   "role": "高木",
-   "species": "クロマツ",
-   "cert": "B",
-   "n": 1,
-   "clr": 2.5,
-   "spacing": 7.3,
-   "tilt": [
-    8.0,
-    8.0
-   ],
-   "tiltDir": "-u",
-   "groupGap": [
-    14.5,
-    29.1
-   ],
-   "at": [
-    [
-     -35.4,
-     41.6
-    ]
-   ],
-   "parts": [
-    {
-     "api": "JG.Pine(\"Mid\", 1)",
-     "prefab": "Tree_BlackPine_Mid_Green_01",
-     "n": 1,
-     "scale": 1.2
-    }
-   ],
-   "pondClr": 0.6,
-   "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
-  },
-  {
-   "zone": "G_Sensui",
-   "layer": "背の常緑高木",
-   "role": "高木",
-   "species": "カシ・シイ",
-   "cert": "B",
-   "n": 3,
-   "clr": 2.5,
-   "spacing": 7.3,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "groupGap": [
-    14.5,
-    29.1
-   ],
-   "groups": [
-    {
-     "n": 3,
-     "where": "築山の東の肩 ── 諸役所を隠す",
-     "box": [
-      -16.5,
-      37.5,
-      -13.8,
-      44.5
-     ]
-    }
-   ],
-   "parts": [
-    {
-     "api": "Own.Jouryoku(\"Big\")",
-     "prefab": "Tree_Jouryoku_Big",
-     "n": 1,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Jouryoku(\"Big\", 2)",
-     "prefab": "Tree_Jouryoku_Big_02",
-     "n": 1,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Jouryoku(\"Big\", 3)",
-     "prefab": "Tree_Jouryoku_Big_03",
-     "n": 1,
-     "scale": 1.0
-    }
-   ],
-   "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
-  },
-  {
-   "zone": "G_Sensui",
-   "layer": "中木(常緑)",
-   "role": "中木",
-   "species": "モッコク・モチノキ・カシ・シイ",
-   "cert": "B",
-   "n": 15,
-   "clr": 1.6,
-   "spacing": 4.5,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "groupGap": [
-    7.3,
-    14.6
-   ],
-   "groups": [
-    {
-     "n": 3,
-     "where": "背山(岩屋の背)",
-     "box": [
-      -34.5,
-      34.0,
-      -31.0,
-      37.8
-     ]
-    },
-    {
-     "n": 3,
-     "where": "南東の垣際(大書院の画面の左奥)",
-     "box": [
-      -31.5,
-      42.2,
-      -28.0,
-      45.5
-     ],
-     "src": "林方の設計 2026-10-04(EDO-0554)"
-    },
-    {
-     "n": 1,
-     "where": "南西の隅(大書院の画面の右奥・御錠口の廊下を隠す)",
-     "at": [
-      [
-       -45.8,
-       45.0
+ "planting": {
+  "groups": [
+   {
+    "zone": "G_Sensui",
+    "layer": "主木",
+    "role": "高木",
+    "species": "クロマツ",
+    "cert": "B",
+    "n": 3,
+    "clr": 2.5,
+    "spacing": 7.3,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "groupGap": [
+     14.5,
+     29.1
+    ],
+    "groups": [
+     {
+      "n": 3,
+      "where": "築山の頂と肩(不等辺三角)",
+      "box": [
+       -21.5,
+       39.5,
+       -16.5,
+       43.5
       ]
+     }
+    ],
+    "parts": [
+     {
+      "api": "JG.Pine(\"Big\", 1)",
+      "prefab": "Tree_BlackPine_Big_Green_01",
+      "n": 1,
+      "scale": 1.2
+     },
+     {
+      "api": "JG.Pine(\"Mid\", 2)",
+      "prefab": "Tree_BlackPine_Mid_Green_02",
+      "n": 1,
+      "scale": 1.2
+     },
+     {
+      "api": "JG.Pine(\"Mid\", 3)",
+      "prefab": "Tree_BlackPine_Mid_Green_03",
+      "n": 1,
+      "scale": 1.2
+     }
+    ],
+    "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
+   },
+   {
+    "zone": "G_Sensui",
+    "layer": "主木(傾ける松)",
+    "role": "高木",
+    "species": "クロマツ",
+    "cert": "B",
+    "n": 1,
+    "clr": 2.5,
+    "spacing": 7.3,
+    "tilt": [
+     8.0,
+     8.0
+    ],
+    "tiltDir": "-u",
+    "groupGap": [
+     14.5,
+     29.1
+    ],
+    "at": [
+     [
+      -35.4,
+      41.6
      ]
-    },
-    {
-     "n": 5,
-     "where": "東の垣際",
-     "box": [
-      -12.0,
-      30.0,
-      -10.0,
-      42.5
-     ],
-     "src": "林方の設計 2026-10-04(EDO-0554)",
-     "keepClear": "枝折戸(-8,44)の前 v42.5〜47.5 は空ける"
-    },
-    {
-     "n": 3,
-     "where": "垣の前(南の汀と建仁寺垣 NJ_Oku_N_Niwa の間)── モッコク・モチ",
-     "box": [
-      -44.2,
-      44.7,
-      -34.8,
-      45.5
-     ],
-     "src": "庭方の設計 2026-10-03(EDO-0554 検分第3巡)",
-     "rule": "中仕切の垣 NJ_Oku_N_Niwa(v47.5)から幹 2.0m 以上 ── 林方 4巡目"
-    }
-   ],
-   "parts": [
-    {
-     "api": "Own.Jouryoku(\"Mid\")",
-     "prefab": "Tree_Jouryoku_Mid",
-     "n": 5,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Jouryoku(\"Mid\", 2)",
-     "prefab": "Tree_Jouryoku_Mid_02",
-     "n": 5,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Jouryoku(\"Small\")",
-     "prefab": "Tree_Jouryoku_Small",
-     "n": 5,
-     "scale": 1.0
-    }
-   ],
-   "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
-  },
-  {
-   "zone": "G_Sensui",
-   "layer": "中木(落葉)",
-   "role": "中木",
-   "species": "イロハモミジ",
-   "cert": "B",
-   "n": 6,
-   "clr": 1.6,
-   "spacing": 4.5,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "groupGap": [
-    7.3,
-    14.6
-   ],
-   "groups": [
-    {
-     "n": 3,
-     "where": "築山の西の中腹(松の黒に明るい緑)",
-     "box": [
-      -25.0,
-      37.0,
-      -22.0,
-      44.0
-     ]
-    },
-    {
-     "n": 3,
-     "where": "池の北西(御居間の画面の左・大書院の右)",
-     "box": [
-      -46.5,
-      31.0,
-      -43.0,
-      34.0
-     ]
-    }
-   ],
-   "parts": [
-    {
-     "api": "Own.Momiji(\"Mid\")",
-     "prefab": "Tree_Momiji_Mid",
-     "n": 2,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Momiji(\"Mid\", 2)",
-     "prefab": "Tree_Momiji_Mid_02",
-     "n": 2,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Momiji(\"Mid\", 3)",
-     "prefab": "Tree_Momiji_Mid_03",
-     "n": 2,
-     "scale": 1.0
-    }
-   ],
-   "pondClr": "crown",
-   "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
-  },
-  {
-   "zone": "G_Sensui",
-   "layer": "低木・刈込",
-   "role": "低木",
-   "species": "サツキ・ツツジ",
-   "cert": "B",
-   "n": 29,
-   "clr": 0.8,
-   "spacing": 1.45,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "groupGap": [
-    5.5,
-    null
-   ],
-   "groups": [
-    {
-     "n": 7,
-     "where": "築山の西裾の大刈込",
-     "box": [
-      -26.5,
-      38.5,
-      -24.6,
-      45.0
-     ]
-    },
-    {
-     "n": 5,
-     "n_floor": 5,
-     "n_forbid": [
-      6
-     ],
-     "where": "御泉水の西縁の背後",
-     "packRatio": 1.0,
-     "pattern": "単列",
-     "pitch": [
-      0.8,
-      1.2
-     ],
-     "along": {
-      "line": "sensui.pond.outline",
-      "segment": [
-       16,
-       19
-      ],
-      "side": "out",
-      "offset": [
-       "pondKeepout",
-       1.0
+    ],
+    "parts": [
+     {
+      "api": "JG.Pine(\"Mid\", 1)",
+      "prefab": "Tree_BlackPine_Mid_Green_01",
+      "n": 1,
+      "scale": 1.2
+     }
+    ],
+    "pondClr": 0.6,
+    "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
+   },
+   {
+    "zone": "G_Sensui",
+    "layer": "背の常緑高木",
+    "role": "高木",
+    "species": "カシ・シイ",
+    "cert": "B",
+    "n": 3,
+    "clr": 2.5,
+    "spacing": 7.3,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "groupGap": [
+     14.5,
+     29.1
+    ],
+    "groups": [
+     {
+      "n": 3,
+      "where": "築山の東の肩 ── 諸役所を隠す",
+      "box": [
+       -16.5,
+       37.5,
+       -13.8,
+       44.5
+      ]
+     }
+    ],
+    "parts": [
+     {
+      "api": "Own.Jouryoku(\"Big\")",
+      "prefab": "Tree_Jouryoku_Big",
+      "n": 1,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Jouryoku(\"Big\", 2)",
+      "prefab": "Tree_Jouryoku_Big_02",
+      "n": 1,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Jouryoku(\"Big\", 3)",
+      "prefab": "Tree_Jouryoku_Big_03",
+      "n": 1,
+      "scale": 1.0
+     }
+    ],
+    "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
+   },
+   {
+    "zone": "G_Sensui",
+    "layer": "中木(常緑)",
+    "role": "中木",
+    "species": "モッコク・モチノキ・カシ・シイ",
+    "cert": "B",
+    "n": 15,
+    "clr": 1.6,
+    "spacing": 4.5,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "groupGap": [
+     7.3,
+     14.6
+    ],
+    "groups": [
+     {
+      "n": 3,
+      "where": "背山(岩屋の背)",
+      "box": [
+       -34.5,
+       34.0,
+       -31.0,
+       37.8
       ]
      },
-     "mix": {
-      "JC.Azalea01": 2,
-      "JC.Azalea04": 3
+     {
+      "n": 3,
+      "where": "南東の垣際(大書院の画面の左奥)",
+      "box": [
+       -31.5,
+       42.2,
+       -28.0,
+       45.5
+      ],
+      "src": "林方の設計 2026-10-04(EDO-0554)"
+     },
+     {
+      "n": 1,
+      "where": "南西の隅(大書院の画面の右奥・御錠口の廊下を隠す)",
+      "at": [
+       [
+        -45.8,
+        45.0
+       ]
+      ]
+     },
+     {
+      "n": 5,
+      "where": "東の垣際",
+      "box": [
+       -12.0,
+       30.0,
+       -10.0,
+       42.5
+      ],
+      "src": "林方の設計 2026-10-04(EDO-0554)",
+      "keepClear": "枝折戸(-8,44)の前 v42.5〜47.5 は空ける"
+     },
+     {
+      "n": 3,
+      "where": "垣の前(南の汀と建仁寺垣 NJ_Oku_N_Niwa の間)── モッコク・モチ",
+      "box": [
+       -44.2,
+       44.7,
+       -34.8,
+       45.5
+      ],
+      "src": "庭方の設計 2026-10-03(EDO-0554 検分第3巡)",
+      "rule": "中仕切の垣 NJ_Oku_N_Niwa(v47.5)から幹 2.0m 以上 ── 林方 4巡目"
      }
-    },
-    {
-     "n": 5,
-     "where": "東の岬の付け根(傾ける松の根締め)",
-     "near": [
-      -34.91,
-      41.69
-     ],
-     "r": 2.0,
-     "packRatio": 1.0,
-     "pattern": "三日月",
-     "pitch": [
-      0.8,
-      1.2
-     ],
-     "arc": [
-      "+u",
-      "+v"
-     ],
-     "arcAbout": "主木(傾ける松)",
-     "n_floor": 3,
-     "n_forbid": [
-      4
-     ],
-     "mix": {
-      "JC.Azalea01": 2,
-      "JC.Azalea04": 3
+    ],
+    "parts": [
+     {
+      "api": "Own.Jouryoku(\"Mid\")",
+      "prefab": "Tree_Jouryoku_Mid",
+      "n": 5,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Jouryoku(\"Mid\", 2)",
+      "prefab": "Tree_Jouryoku_Mid_02",
+      "n": 5,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Jouryoku(\"Small\")",
+      "prefab": "Tree_Jouryoku_Small",
+      "n": 5,
+      "scale": 1.0
      }
-    },
-    {
-     "n": 5,
-     "where": "南西の垣際",
-     "box": [
-      -47,
-      45.6,
-      -44.8,
-      47.1
-     ]
-    },
-    {
-     "n": 7,
-     "where": "南の垣際",
-     "box": [
-      -36.5,
-      46.4,
-      -30.0,
-      47.1
-     ]
-    }
-   ],
-   "parts": [
-    {
-     "api": "JC.Azalea01",
-     "prefab": "Azalea A 01",
-     "n": 12,
-     "scale": 1.0,
-     "scaleJitter": [
-      0.85,
-      1.35
-     ]
-    },
-    {
-     "api": "JC.Azalea04",
-     "prefab": "Azalea A 04",
-     "n": 17,
-     "scale": 1.0,
-     "scaleJitter": [
-      0.7,
-      1.05
-     ]
-    }
-   ],
-   "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
-  },
-  {
-   "zone": "G_Sensui",
-   "layer": "刈込(平庭)",
-   "role": "低木",
-   "species": "ツゲ・サツキ",
-   "cert": "B",
-   "n": 11,
-   "clr": 0.8,
-   "spacing": 1.45,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "groupGap": [
-    5.5,
-    null
-   ],
-   "groups": [
-    {
-     "n": 3,
-     "box": [
-      -15.5,
-      30.0,
-      -12.5,
-      32.5
-     ],
-     "where": "大広間の板縁の前・一"
-    },
-    {
-     "n": 5,
-     "box": [
-      -22.5,
-      29.5,
-      -19.0,
-      31.5
-     ],
-     "where": "大広間の板縁の前・二"
-    },
-    {
-     "n": 3,
-     "box": [
-      -12.5,
-      36.0,
-      -10.5,
-      38.5
-     ],
-     "where": "大広間の板縁の前・三(大きさを揃えない)"
-    }
-   ],
-   "parts": [
-    {
-     "api": "JG.Boxwood(1)",
-     "prefab": "Plant_Boxwood_Spring_01",
-     "n": 4,
-     "scale": 1.0
-    },
-    {
-     "api": "JG.Boxwood(2)",
-     "prefab": "Plant_Boxwood_Spring_02",
-     "n": 4,
-     "scale": 1.0
-    },
-    {
-     "api": "JG.Boxwood(3)",
-     "prefab": "Plant_Boxwood_Spring_03",
-     "n": 3,
-     "scale": 1.0
-    }
-   ],
-   "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
-  },
-  {
-   "zone": "G_Sensui",
-   "layer": "下草",
-   "role": "下草",
-   "species": "シダ・ヤブラン",
-   "cert": "B",
-   "n": 40,
-   "clr": 0.4,
-   "spacing": 1.45,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "under": 3,
-   "parts": [
-    {
-     "api": "JG.Fern(1)",
-     "prefab": "Plant_PaintedFern_Spring_01",
-     "n": 20,
-     "scale": 1.0
-    },
-    {
-     "api": "JG.Fern(2)",
-     "prefab": "Plant_PaintedFern_Spring_02",
-     "n": 20,
-     "scale": 1.0
-    }
-   ],
-   "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
-  },
-  {
-   "zone": "G_Roji_Soto",
-   "layer": "主木",
-   "role": "高木",
-   "species": "クロマツ",
-   "cert": "B",
-   "n": 3,
-   "clr": 2.5,
-   "spacing": 7.3,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "groupGap": [
-    14.5,
-    29.1
-   ],
-   "groups": [
-    {
-     "n": 3,
-     "where": "遠見の山の東と南の肩(V9 の背)",
-     "box": [
-      -67.4,
-      35.6,
-      -64.6,
-      38.4
-     ]
-    }
-   ],
-   "parts": [
-    {
-     "api": "JG.Pine(\"Big\", 1)",
-     "prefab": "Tree_BlackPine_Big_Green_01",
-     "n": 1,
-     "scale": 1.2
-    },
-    {
-     "api": "JG.Pine(\"Mid\", 2)",
-     "prefab": "Tree_BlackPine_Mid_Green_02",
-     "n": 1,
-     "scale": 1.2
-    },
-    {
-     "api": "JG.Pine(\"Mid\", 3)",
-     "prefab": "Tree_BlackPine_Mid_Green_03",
-     "n": 1,
-     "scale": 1.2
-    }
-   ],
-   "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
-  },
-  {
-   "zone": "G_Roji_Soto",
-   "layer": "中木(常緑)",
-   "role": "中木",
-   "species": "モチノキ・カシ・シイ",
-   "cert": "B",
-   "n": 6,
-   "clr": 1.6,
-   "spacing": 4.5,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "groupGap": [
-    7.3,
-    14.6
-   ],
-   "groups": [
-    {
-     "n": 3,
-     "where": "建仁寺垣の前",
-     "box": [
-      -63.6,
-      31.5,
-      -61.0,
-      33.5
-     ]
-    },
-    {
-     "n": 3,
-     "where": "腰掛の背",
-     "box": [
-      -64.0,
-      45.6,
-      -61.2,
-      47.0
-     ]
-    }
-   ],
-   "parts": [
-    {
-     "api": "Own.Jouryoku(\"Mid\")",
-     "prefab": "Tree_Jouryoku_Mid",
-     "n": 2,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Jouryoku(\"Mid\", 2)",
-     "prefab": "Tree_Jouryoku_Mid_02",
-     "n": 2,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Jouryoku(\"Small\")",
-     "prefab": "Tree_Jouryoku_Small",
-     "n": 2,
-     "scale": 1.0
-    }
-   ],
-   "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
-  },
-  {
-   "zone": "G_Roji_Soto",
-   "layer": "低木・刈込",
-   "role": "低木",
-   "species": "ツツジ(刈込 ≤1.0m)",
-   "cert": "B",
-   "n": 7,
-   "clr": 0.8,
-   "spacing": 1.45,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "groupGap": [
-    5.5,
-    null
-   ],
-   "groups": [
-    {
-     "n": 7,
-     "where": "遠見の山の西の法",
-     "box": [
-      -71.0,
-      32.8,
-      -69.4,
-      37.6
-     ]
-    }
-   ],
-   "parts": [
-    {
-     "api": "JC.Azalea01",
-     "prefab": "Azalea A 01",
-     "n": 3,
-     "scale": 1.0,
-     "scaleJitter": [
-      0.85,
-      1.35
-     ]
-    },
-    {
-     "api": "JC.Azalea04",
-     "prefab": "Azalea A 04",
-     "n": 4,
-     "scale": 1.0,
-     "scaleJitter": [
-      0.7,
-      1.05
-     ]
-    }
-   ],
-   "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
-  },
-  {
-   "zone": "G_Roji_Soto",
-   "layer": "低木(飛石沿い)",
-   "role": "低木",
-   "species": "アセビ・ツゲ",
-   "cert": "B",
-   "n": 5,
-   "clr": 0.8,
-   "spacing": 1.45,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "groupGap": [
-    5.5,
-    null
-   ],
-   "groups": [
-    {
-     "n": 5,
-     "where": "外露地の飛石沿い",
-     "along": {
-      "route": "R_Roji",
-      "side": "both"
-     }
-    }
-   ],
-   "parts": [
-    {
-     "api": "JG.Boxwood(1)",
-     "prefab": "Plant_Boxwood_Spring_01",
-     "n": 2,
-     "scale": 1.0
-    },
-    {
-     "api": "JG.Boxwood(2)",
-     "prefab": "Plant_Boxwood_Spring_02",
-     "n": 2,
-     "scale": 1.0
-    },
-    {
-     "api": "JG.Boxwood(3)",
-     "prefab": "Plant_Boxwood_Spring_03",
-     "n": 1,
-     "scale": 1.0
-    }
-   ],
-   "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
-  },
-  {
-   "zone": "G_Roji_Soto",
-   "layer": "下草",
-   "role": "下草",
-   "species": "シダ・ヤブラン・苔",
-   "cert": "B",
-   "n": 25,
-   "clr": 0.4,
-   "spacing": 1.45,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "under": 3,
-   "parts": [
-    {
-     "api": "JG.Fern(1)",
-     "prefab": "Plant_PaintedFern_Spring_01",
-     "n": 12,
-     "scale": 1.0
-    },
-    {
-     "api": "JG.Fern(2)",
-     "prefab": "Plant_PaintedFern_Spring_02",
-     "n": 13,
-     "scale": 1.0
-    }
-   ],
-   "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
-  },
-  {
-   "zone": "G_Roji_Uchi",
-   "layer": "中木(常緑)",
-   "role": "中木",
-   "species": "モチノキ・シイ・カシ",
-   "cert": "B",
-   "n": 6,
-   "clr": 1.6,
-   "spacing": 4.5,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "groupGap": [
-    7.3,
-    14.6
-   ],
-   "groups": [
-    {
-     "n": 3,
-     "where": "茶屋の背(塀を隠す)",
-     "box": [
-      -72.8,
-      42.0,
-      -70.6,
-      46.8
-     ],
-     "keepout": "Ido_Niwa"
-    },
-    {
-     "n": 3,
-     "where": "躙口から見て左の塀際",
-     "box": [
-      -71.9,
-      39.4,
-      -70.4,
-      41.8
-     ]
-    }
-   ],
-   "parts": [
-    {
-     "api": "Own.Jouryoku(\"Mid\")",
-     "prefab": "Tree_Jouryoku_Mid",
-     "n": 2,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Jouryoku(\"Mid\", 2)",
-     "prefab": "Tree_Jouryoku_Mid_02",
-     "n": 2,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Jouryoku(\"Small\")",
-     "prefab": "Tree_Jouryoku_Small",
-     "n": 2,
-     "scale": 1.0
-    }
-   ],
-   "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
-  },
-  {
-   "zone": "G_Roji_Uchi",
-   "layer": "中木(落葉)",
-   "role": "中木",
-   "species": "イロハモミジ",
-   "cert": "B",
-   "n": 1,
-   "clr": 1.6,
-   "spacing": 4.5,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "groupGap": [
-    7.3,
-    14.6
-   ],
-   "at": [
-    [
-     -66.0,
-     40.0
-    ]
-   ],
-   "parts": [
-    {
-     "api": "Own.Momiji(\"Mid\", 3)",
-     "prefab": "Tree_Momiji_Mid_03",
-     "n": 1,
-     "scale": 1.0
-    }
-   ],
-   "where": "蹲踞に枝を差し掛ける",
-   "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
-  },
-  {
-   "zone": "G_Roji_Uchi",
-   "layer": "低木・刈込",
-   "role": "低木",
-   "species": "アセビ・ツゲ",
-   "cert": "B",
-   "n": 5,
-   "clr": 0.8,
-   "spacing": 1.45,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "groupGap": [
-    5.5,
-    null
-   ],
-   "groups": [
-    {
-     "n": 5,
-     "where": "蹲踞まわり",
-     "box": [
-      -68.8,
-      39.3,
-      -66.4,
-      41.0
-     ]
-    }
-   ],
-   "parts": [
-    {
-     "api": "JG.Boxwood(1)",
-     "prefab": "Plant_Boxwood_Spring_01",
-     "n": 2,
-     "scale": 1.0
-    },
-    {
-     "api": "JG.Boxwood(2)",
-     "prefab": "Plant_Boxwood_Spring_02",
-     "n": 2,
-     "scale": 1.0
-    },
-    {
-     "api": "JG.Boxwood(3)",
-     "prefab": "Plant_Boxwood_Spring_03",
-     "n": 1,
-     "scale": 1.0
-    }
-   ],
-   "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
-  },
-  {
-   "zone": "G_Roji_Uchi",
-   "layer": "下草",
-   "role": "下草",
-   "species": "シダ・苔",
-   "cert": "B",
-   "n": 15,
-   "clr": 0.4,
-   "spacing": 1.45,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "under": 3,
-   "parts": [
-    {
-     "api": "JG.Fern(1)",
-     "prefab": "Plant_PaintedFern_Spring_01",
-     "n": 8,
-     "scale": 1.0
-    },
-    {
-     "api": "JG.Fern(2)",
-     "prefab": "Plant_PaintedFern_Spring_02",
-     "n": 7,
-     "scale": 1.0
-    }
-   ],
-   "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
-  },
-  {
-   "zone": "G_Tsubo_Koshoin",
-   "layer": "中木(落葉)",
-   "role": "中木",
-   "species": "イロハモミジ",
-   "cert": "B",
-   "n": 1,
-   "clr": 1.6,
-   "spacing": 4.5,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "groupGap": [
-    7.3,
-    14.6
-   ],
-   "at": [
-    [
-     -49.4,
-     27.6
-    ]
-   ],
-   "parts": [
-    {
-     "api": "Own.Momiji(\"Mid\", 3)",
-     "prefab": "Tree_Momiji_Mid_03",
-     "n": 1,
-     "scale": 1.0
-    }
-   ],
-   "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
-  },
-  {
-   "zone": "G_Tsubo_Koshoin",
-   "layer": "下草",
-   "role": "下草",
-   "species": "苔・ヤブラン",
-   "cert": "B",
-   "n": 7,
-   "clr": 0.4,
-   "spacing": 1.45,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "under": 3,
-   "parts": [
-    {
-     "api": "JG.Fern(1)",
-     "prefab": "Plant_PaintedFern_Spring_01",
-     "n": 4,
-     "scale": 1.0
-    },
-    {
-     "api": "JG.Fern(2)",
-     "prefab": "Plant_PaintedFern_Spring_02",
-     "n": 3,
-     "scale": 1.0
-    }
-   ],
-   "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
-  },
-  {
-   "zone": "G_Koshoin_Nishi",
-   "layer": "中木(常緑)",
-   "role": "中木",
-   "species": "モチノキ・カシ",
-   "cert": "B",
-   "n": 3,
-   "clr": 1.6,
-   "spacing": 4.5,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "groupGap": [
-    7.3,
-    14.6
-   ],
-   "groups": [
-    {
-     "n": 3,
-     "box": [
-      -60.6,
-      15,
-      -59.2,
-      25
-     ],
-     "where": "小書院の西"
-    }
-   ],
-   "parts": [
-    {
-     "api": "Own.Jouryoku(\"Mid\")",
-     "prefab": "Tree_Jouryoku_Mid",
-     "n": 1,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Jouryoku(\"Mid\", 2)",
-     "prefab": "Tree_Jouryoku_Mid_02",
-     "n": 1,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Jouryoku(\"Small\")",
-     "prefab": "Tree_Jouryoku_Small",
-     "n": 1,
-     "scale": 1.0
-    }
-   ],
-   "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
-  },
-  {
-   "zone": "G_Koshoin_Nishi",
-   "layer": "下草",
-   "role": "下草",
-   "species": "シダ・苔",
-   "cert": "B",
-   "n": 9,
-   "clr": 0.4,
-   "spacing": 1.45,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "under": 3,
-   "parts": [
-    {
-     "api": "JG.Fern(1)",
-     "prefab": "Plant_PaintedFern_Spring_01",
-     "n": 4,
-     "scale": 1.0
-    },
-    {
-     "api": "JG.Fern(2)",
-     "prefab": "Plant_PaintedFern_Spring_02",
-     "n": 5,
-     "scale": 1.0
-    }
-   ],
-   "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
-  },
-  {
-   "zone": "G_OkuNishiNiwa",
-   "layer": "主木",
-   "role": "高木",
-   "species": "クロマツ",
-   "cert": "B",
-   "n": 8,
-   "clr": 2.5,
-   "spacing": 7.3,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "groupGap": [
-    14.5,
-    29.1
-   ],
-   "groups": [
-    {
-     "n": 5,
-     "where": "客土の北の帯",
-     "box": [
-      -58,
-      49,
-      -52,
-      54
-     ]
-    },
-    {
-     "n": 3,
-     "where": "客土の東の帯",
-     "box": [
-      -55,
-      58,
-      -50,
-      63
-     ]
-    }
-   ],
-   "parts": [
-    {
-     "api": "JG.Pine(\"Big\", 1)",
-     "prefab": "Tree_BlackPine_Big_Green_01",
-     "n": 1,
-     "scale": 1.65
-    },
-    {
-     "api": "JG.Pine(\"Big\", 2)",
-     "prefab": "Tree_BlackPine_Big_Green_02",
-     "n": 1,
-     "scale": 1.65
-    },
-    {
-     "api": "JG.Pine(\"Big\", 3)",
-     "prefab": "Tree_BlackPine_Big_Green_03",
-     "n": 1,
-     "scale": 1.65
-    },
-    {
-     "api": "JG.Pine(\"Mid\", 1)",
-     "prefab": "Tree_BlackPine_Mid_Green_01",
-     "n": 1,
-     "scale": 1.65
-    },
-    {
-     "api": "JG.Pine(\"Mid\", 2)",
-     "prefab": "Tree_BlackPine_Mid_Green_02",
-     "n": 1,
-     "scale": 1.65
-    },
-    {
-     "api": "JG.Pine(\"Mid\", 3)",
-     "prefab": "Tree_BlackPine_Mid_Green_03",
-     "n": 1,
-     "scale": 1.65
-    },
-    {
-     "api": "JG.Pine(\"Small\", 1)",
-     "prefab": "Tree_BlackPine_Small_Green_01",
-     "n": 1,
-     "scale": 1.65
-    },
-    {
-     "api": "JG.Pine(\"Small\", 2)",
-     "prefab": "Tree_BlackPine_Small_Green_02",
-     "n": 1,
-     "scale": 1.65
-    }
-   ]
-  },
-  {
-   "zone": "G_OkuNishiNiwa",
-   "layer": "中木(常緑)",
-   "role": "中木",
-   "species": "モッコク・モチノキ",
-   "cert": "B",
-   "n": 13,
-   "clr": 1.6,
-   "spacing": 4.5,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "groupGap": [
-    7.3,
-    14.6
-   ],
-   "groups": [
-    {
-     "n": 5,
-     "where": "奥御殿の西妻の前",
-     "box": [
-      -52,
-      48,
-      -48,
-      61
-     ]
-    },
-    {
-     "n": 5,
-     "where": "回遊路の外側",
-     "along": {
-      "route": "R_OkuNiwa2",
-      "side": "out"
-     }
-    },
-    {
-     "n": 3,
-     "where": "回遊路の外側",
-     "along": {
-      "route": "R_OkuNiwa2",
-      "side": "out"
-     }
-    }
-   ],
-   "parts": [
-    {
-     "api": "Own.Jouryoku(\"Mid\")",
-     "prefab": "Tree_Jouryoku_Mid",
-     "n": 3,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Jouryoku(\"Mid\", 2)",
-     "prefab": "Tree_Jouryoku_Mid_02",
-     "n": 2,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Jouryoku(\"Mid\", 3)",
-     "prefab": "Tree_Jouryoku_Mid_03",
-     "n": 2,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Jouryoku(\"Small\")",
-     "prefab": "Tree_Jouryoku_Small",
-     "n": 2,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Jouryoku(\"Small\", 2)",
-     "prefab": "Tree_Jouryoku_Small_02",
-     "n": 2,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Jouryoku(\"Small\", 3)",
-     "prefab": "Tree_Jouryoku_Small_03",
-     "n": 2,
-     "scale": 1.0
-    }
-   ]
-  },
-  {
-   "zone": "G_OkuNishiNiwa",
-   "layer": "中木(落葉)",
-   "role": "中木",
-   "species": "イロハモミジ",
-   "cert": "B",
-   "n": 6,
-   "clr": 1.6,
-   "spacing": 4.5,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "groupGap": [
-    7.3,
-    14.6
-   ],
-   "groups": [
-    {
-     "n": 3,
-     "where": "回遊路の北から1つめの折れの内側",
-     "size": "Mid",
-     "along": {
-      "route": "R_OkuNiwa2",
-      "side": "in",
-      "atVertex": "vMin"
-     }
-    },
-    {
-     "n": 3,
-     "where": "回遊路の南辺の折れの外側(客土の東)",
-     "size": "Small",
-     "box": [
-      -58.5,
-      59.5,
-      -50.0,
-      65.0
-     ]
-    }
-   ],
-   "parts": [
-    {
-     "api": "Own.Momiji(\"Mid\")",
-     "prefab": "Tree_Momiji_Mid",
-     "n": 1,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Momiji(\"Mid\", 2)",
-     "prefab": "Tree_Momiji_Mid_02",
-     "n": 1,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Momiji(\"Mid\", 3)",
-     "prefab": "Tree_Momiji_Mid_03",
-     "n": 1,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Momiji(\"Small\")",
-     "prefab": "Tree_Momiji_Small",
-     "n": 1,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Momiji(\"Small\", 2)",
-     "prefab": "Tree_Momiji_Small_02",
-     "n": 1,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Momiji(\"Small\", 3)",
-     "prefab": "Tree_Momiji_Small_03",
-     "n": 1,
-     "scale": 1.0
-    }
-   ],
-   "pondClr": "crown"
-  },
-  {
-   "zone": "G_OkuNishiNiwa",
-   "layer": "低木・刈込",
-   "role": "低木",
-   "species": "ツゲ・マサキ",
-   "cert": "B",
-   "n": 15,
-   "clr": 0.8,
-   "spacing": 1.45,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "groupGap": [
-    5.5,
-    null
-   ],
-   "groups": [
-    {
-     "n": 7,
-     "where": "回遊路の縁",
-     "along": {
-      "route": "R_OkuNiwa2",
-      "side": "both"
-     }
-    },
-    {
-     "n": 5,
-     "where": "回遊路の縁",
-     "along": {
-      "route": "R_OkuNiwa2",
-      "side": "both"
-     }
-    },
-    {
-     "n": 3,
-     "where": "回遊路の縁",
-     "along": {
-      "route": "R_OkuNiwa2",
-      "side": "both"
-     }
-    }
-   ],
-   "parts": [
-    {
-     "api": "JG.Boxwood(1)",
-     "prefab": "Plant_Boxwood_Spring_01",
-     "n": 5,
-     "scale": 1.0
-    },
-    {
-     "api": "JG.Boxwood(2)",
-     "prefab": "Plant_Boxwood_Spring_02",
-     "n": 5,
-     "scale": 1.0
-    },
-    {
-     "api": "JG.Boxwood(3)",
-     "prefab": "Plant_Boxwood_Spring_03",
-     "n": 5,
-     "scale": 1.0
-    }
-   ]
-  },
-  {
-   "zone": "G_OkuNishiNiwa",
-   "layer": "下草",
-   "role": "下草",
-   "species": "シダ・ヤブラン",
-   "cert": "B",
-   "n": 81,
-   "clr": 0.4,
-   "spacing": 1.45,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "under": 3,
-   "parts": [
-    {
-     "api": "JG.Fern(1)",
-     "prefab": "Plant_PaintedFern_Spring_01",
-     "n": 41,
-     "scale": 1.0
-    },
-    {
-     "api": "JG.Fern(2)",
-     "prefab": "Plant_PaintedFern_Spring_02",
-     "n": 40,
-     "scale": 1.0
-    }
-   ]
-  },
-  {
-   "zone": "G_OkuNiwa",
-   "layer": "中木(落葉)",
-   "role": "中木",
-   "species": "イロハモミジ",
-   "cert": {
-    "grade": "B / U",
-    "src": "[橋本・堀1998]"
+    ],
+    "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
    },
-   "n": 1,
-   "clr": 1.6,
-   "spacing": 4.5,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "at": [
-    [
-     -41.4,
-     65.0
-    ]
-   ],
-   "parts": [
-    {
-     "api": "Own.Momiji(\"Small\")",
-     "prefab": "Tree_Momiji_Small",
-     "n": 1,
-     "scale": 1.0
-    }
-   ],
-   "pondClr": "crown"
-  },
-  {
-   "zone": "G_OkuNiwa",
-   "layer": "低木・刈込",
-   "role": "低木",
-   "species": "サツキ",
-   "cert": "B",
-   "n": 7,
-   "clr": 0.8,
-   "spacing": 1.45,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "groupGap": [
-    5.5,
-    null
-   ],
-   "groups": [
-    {
-     "n": 7,
-     "where": "遣水の南岸",
-     "along": {
-      "line": "sensui.yarimizu",
-      "side": "+v",
-      "offset": [
-       "nosujiHalf",
+   {
+    "zone": "G_Sensui",
+    "layer": "中木(落葉)",
+    "role": "中木",
+    "species": "イロハモミジ",
+    "cert": "B",
+    "n": 6,
+    "clr": 1.6,
+    "spacing": 4.5,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "groupGap": [
+     7.3,
+     14.6
+    ],
+    "groups": [
+     {
+      "n": 3,
+      "where": "築山の西の中腹(松の黒に明るい緑)",
+      "box": [
+       -25.0,
+       37.0,
+       -22.0,
+       44.0
+      ]
+     },
+     {
+      "n": 3,
+      "where": "池の北西(御居間の画面の左・大書院の右)",
+      "box": [
+       -46.5,
+       31.0,
+       -43.0,
+       34.0
+      ]
+     }
+    ],
+    "parts": [
+     {
+      "api": "Own.Momiji(\"Mid\")",
+      "prefab": "Tree_Momiji_Mid",
+      "n": 2,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Momiji(\"Mid\", 2)",
+      "prefab": "Tree_Momiji_Mid_02",
+      "n": 2,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Momiji(\"Mid\", 3)",
+      "prefab": "Tree_Momiji_Mid_03",
+      "n": 2,
+      "scale": 1.0
+     }
+    ],
+    "pondClr": "crown",
+    "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
+   },
+   {
+    "zone": "G_Sensui",
+    "layer": "低木・刈込",
+    "role": "低木",
+    "species": "サツキ・ツツジ",
+    "cert": "B",
+    "n": 29,
+    "clr": 0.8,
+    "spacing": 1.45,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "groupGap": [
+     5.5,
+     null
+    ],
+    "groups": [
+     {
+      "n": 7,
+      "where": "築山の西裾の大刈込",
+      "box": [
+       -26.5,
+       38.5,
+       -24.6,
+       45.0
+      ]
+     },
+     {
+      "n": 5,
+      "n_floor": 5,
+      "n_forbid": [
+       6
+      ],
+      "where": "御泉水の西縁の背後",
+      "packRatio": 1.0,
+      "pattern": "単列",
+      "pitch": [
+       0.8,
        1.2
       ],
-      "footMin": 0.33,
-      "minWidth": 0.3
-     }
-    }
-   ],
-   "parts": [
-    {
-     "api": "JC.Azalea01",
-     "prefab": "Azalea A 01",
-     "n": 2,
-     "scale": 1.0
-    },
-    {
-     "api": "JC.Azalea03",
-     "prefab": "Azalea A 03",
-     "n": 2,
-     "scale": 1.0
-    },
-    {
-     "api": "JC.Azalea04",
-     "prefab": "Azalea A 04",
-     "n": 3,
-     "scale": 1.0
-    }
-   ],
-   "keepoutByLayer": {
-    "kaki": 0.3,
-    "route": 0.45
-   },
-   "uRange": [
-    -46,
-    -34
-   ]
-  },
-  {
-   "zone": "G_OkuNiwa",
-   "layer": "下草",
-   "role": "下草",
-   "species": "シダ・コケ",
-   "cert": "B",
-   "n": 18,
-   "clr": 0.4,
-   "spacing": 1.45,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "under": {
-    "高木": 3,
-    "中木": 3,
-    "低木": 1
-   },
-   "parts": [
-    {
-     "api": "JG.Fern(1)",
-     "prefab": "Plant_PaintedFern_Spring_01",
-     "n": 9,
-     "scale": 1.0
-    },
-    {
-     "api": "JG.Fern(2)",
-     "prefab": "Plant_PaintedFern_Spring_02",
-     "n": 9,
-     "scale": 1.0
-    }
-   ]
-  },
-  {
-   "zone": "G_OkuNiwaSE",
-   "layer": "花木",
-   "role": "中木",
-   "species": "ウメ",
-   "cert": "B",
-   "n": 11,
-   "clr": 1.0,
-   "spacing": 4.5,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "groupGap": [
-    7.3,
-    null
-   ],
-   "groups": [
-    {
-     "n": 5,
-     "where": "西の塊",
-     "box": [
-      16.6,
-      67.0,
-      22.5,
-      69.8
-     ]
-    },
-    {
-     "n": 3,
-     "where": "宴の平場の添え(一列)",
-     "box": [
-      23.0,
-      67.0,
-      29.0,
-      67.9
-     ],
-     "row": true
-    },
-    {
-     "n": 3,
-     "where": "東の塊",
-     "box": [
-      29.5,
-      67.0,
-      36.0,
-      69.25
-     ]
-    }
-   ],
-   "parts": [
-    {
-     "api": "Own.Ume(\"Mid\")",
-     "prefab": "Tree_Ume_Mid",
-     "n": 2,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Ume(\"Mid\", 2)",
-     "prefab": "Tree_Ume_Mid_02",
-     "n": 2,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Ume(\"Mid\", 3)",
-     "prefab": "Tree_Ume_Mid_03",
-     "n": 1,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Ume(\"Small\")",
-     "prefab": "Tree_Ume_Small",
-     "n": 3,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Ume(\"Small\", 2)",
-     "prefab": "Tree_Ume_Small_02",
-     "n": 2,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Ume(\"Small\", 3)",
-     "prefab": "Tree_Ume_Small_03",
-     "n": 1,
-     "scale": 1.0
-    }
-   ]
-  },
-  {
-   "zone": "G_Inari",
-   "layer": "中木(常緑)",
-   "role": "中木",
-   "species": "モチノキ・シイ",
-   "cert": "B",
-   "n": 5,
-   "clr": 1.6,
-   "spacing": 4.5,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "groupGap": [
-    7.3,
-    14.6
-   ],
-   "groups": [
-    {
-     "n": 5,
-     "where": "社の背後",
-     "box": [
-      41.5,
-      66,
-      46,
-      71
-     ]
-    }
-   ],
-   "parts": [
-    {
-     "api": "Own.Jouryoku(\"Mid\")",
-     "prefab": "Tree_Jouryoku_Mid",
-     "n": 1,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Jouryoku(\"Mid\", 2)",
-     "prefab": "Tree_Jouryoku_Mid_02",
-     "n": 1,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Jouryoku(\"Mid\", 3)",
-     "prefab": "Tree_Jouryoku_Mid_03",
-     "n": 1,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Jouryoku(\"Small\")",
-     "prefab": "Tree_Jouryoku_Small",
-     "n": 1,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Jouryoku(\"Small\", 2)",
-     "prefab": "Tree_Jouryoku_Small_02",
-     "n": 1,
-     "scale": 1.0
-    }
-   ]
-  },
-  {
-   "zone": "G_Inari",
-   "layer": "低木・刈込",
-   "role": "低木",
-   "species": "ツゲ",
-   "cert": "B",
-   "n": 13,
-   "clr": 0.8,
-   "spacing": 1.45,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "groupGap": [
-    5.5,
-    null
-   ],
-   "groups": [
-    {
-     "n": 5,
-     "where": "参道の両脇",
-     "along": {
-      "route": "R_Inari",
-      "side": "both"
-     }
-    },
-    {
-     "n": 3,
-     "where": "参道の両脇",
-     "along": {
-      "route": "R_Inari",
-      "side": "both"
-     }
-    },
-    {
-     "n": 5,
-     "where": "社の北の袖",
-     "box": [
-      39.0,
-      66.8,
-      42.0,
-      {
-       "clearOf": "service.Inari",
-       "face": "v0",
-       "side": "-v",
-       "margin": 0.4
+      "along": {
+       "line": "sensui.pond.outline",
+       "segment": [
+        16,
+        19
+       ],
+       "side": "out",
+       "offset": [
+        "pondKeepout",
+        1.0
+       ]
+      },
+      "mix": {
+       "JC.Azalea01": 2,
+       "JC.Azalea04": 3
       }
-     ]
-    }
-   ],
-   "parts": [
-    {
-     "api": "JG.Boxwood(1)",
-     "prefab": "Plant_Boxwood_Spring_01",
-     "n": 5,
-     "scale": 1.0
-    },
-    {
-     "api": "JG.Boxwood(2)",
-     "prefab": "Plant_Boxwood_Spring_02",
-     "n": 5,
-     "scale": 1.0
-    },
-    {
-     "api": "JG.Boxwood(3)",
-     "prefab": "Plant_Boxwood_Spring_03",
-     "n": 3,
-     "scale": 1.0
-    }
-   ]
-  },
-  {
-   "zone": "G_Inari",
-   "layer": "下草",
-   "role": "下草",
-   "species": "シダ",
-   "cert": "B",
-   "n": 15,
-   "clr": 0.4,
-   "spacing": 1.45,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "under": 3,
-   "parts": [
-    {
-     "api": "JG.Fern(1)",
-     "prefab": "Plant_PaintedFern_Spring_01",
-     "n": 8,
-     "scale": 1.0
-    },
-    {
-     "api": "JG.Fern(2)",
-     "prefab": "Plant_PaintedFern_Spring_02",
-     "n": 7,
-     "scale": 1.0
-    }
-   ]
-  },
-  {
-   "zone": "G_Shirasu",
-   "layer": "主木(門被り)",
-   "role": "高木",
-   "species": "クロマツ(門被り仕立て)",
-   "cert": "B",
-   "n": 1,
-   "clr": 2.5,
-   "spacing": 7.3,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "at": [
-    [
-     -1.5,
-     3.5
-    ]
-   ],
-   "parts": [
-    {
-     "api": "JG.Pine(\"Big\", 1)",
-     "prefab": "Tree_BlackPine_Big_Green_01",
-     "n": 1,
-     "scale": 1.65
-    }
-   ],
-   "keepoutSkip": [
-    "K_Mon",
-    "表門",
-    "区画線"
-   ]
-  },
-  {
-   "zone": "G_Tomomachi",
-   "layer": "中木(常緑)",
-   "role": "中木",
-   "species": "モッコク・モチノキ",
-   "cert": "B",
-   "n": 3,
-   "clr": 1.6,
-   "spacing": 4.5,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "groups": [
-    {
-     "n": 3,
-     "where": "供待の東縁",
-     "box": [
-      17,
-      2.48,
-      19,
-      15
-     ]
-    }
-   ],
-   "parts": [
-    {
-     "api": "Own.Jouryoku(\"Mid\")",
-     "prefab": "Tree_Jouryoku_Mid",
-     "n": 1,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Jouryoku(\"Mid\", 2)",
-     "prefab": "Tree_Jouryoku_Mid_02",
-     "n": 1,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Jouryoku(\"Mid\", 3)",
-     "prefab": "Tree_Jouryoku_Mid_03",
-     "n": 1,
-     "scale": 1.0
-    }
-   ]
-  },
-  {
-   "zone": "G_Sawa",
-   "layer": "中木(常緑)",
-   "role": "中木",
-   "species": "モチノキ・シイ",
-   "cert": "U(置き場所=意匠の選択)/ B(樹種の型)",
-   "n": 5,
-   "clr": 1.6,
-   "spacing": 4.5,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "groups": [
-    {
-     "n": 5,
-     "where": "沢の下手(V8 から滝への視線は空ける)",
-     "box": [
-      -34.0,
-      70.5,
-      -32.5,
-      73.5
-     ]
-    }
-   ],
-   "parts": [
-    {
-     "api": "Own.Jouryoku(\"Mid\")",
-     "prefab": "Tree_Jouryoku_Mid",
-     "n": 1,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Jouryoku(\"Mid\", 2)",
-     "prefab": "Tree_Jouryoku_Mid_02",
-     "n": 1,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Jouryoku(\"Mid\", 3)",
-     "prefab": "Tree_Jouryoku_Mid_03",
-     "n": 1,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Jouryoku(\"Small\")",
-     "prefab": "Tree_Jouryoku_Small",
-     "n": 1,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Jouryoku(\"Small\", 2)",
-     "prefab": "Tree_Jouryoku_Small_02",
-     "n": 1,
-     "scale": 1.0
-    }
-   ]
-  },
-  {
-   "zone": "G_Sawa",
-   "layer": "下草",
-   "role": "下草",
-   "species": "シダ・コケ",
-   "cert": "U(置き場所=意匠の選択)/ B(樹種の型)",
-   "n": 15,
-   "clr": 0.4,
-   "spacing": 1.45,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "under": {
-    "中木": 3
-   },
-   "parts": [
-    {
-     "api": "JG.Fern(1)",
-     "prefab": "Plant_PaintedFern_Spring_01",
-     "n": 8,
-     "scale": 1.0
-    },
-    {
-     "api": "JG.Fern(2)",
-     "prefab": "Plant_PaintedFern_Spring_02",
-     "n": 7,
-     "scale": 1.0
-    }
-   ]
-  },
-  {
-   "zone": "G_Tanikage",
-   "layer": "谷陰の常緑",
-   "role": "高木",
-   "species": "常緑広葉(雑木)",
-   "cert": "B",
-   "n": 14,
-   "clr": 2.5,
-   "spacing": 5.5,
-   "tilt": [
-    0.0,
-    3.0
-   ],
-   "tiltDir": "random",
-   "parts": [
-    {
-     "api": "Own.Jouryoku(\"Big\")",
-     "prefab": "Tree_Jouryoku_Big",
-     "n": 5,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Jouryoku(\"Big\", 2)",
-     "prefab": "Tree_Jouryoku_Big_02",
-     "n": 5,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Jouryoku(\"Big\", 3)",
-     "prefab": "Tree_Jouryoku_Big_03",
-     "n": 4,
-     "scale": 1.0
-    }
-   ]
-  },
-  {
-   "zone": "G_OkuNiwa",
-   "layer": "南縁の常緑(V8 の稜)",
-   "role": "中木",
-   "species": "常緑広葉(雑木)",
-   "cert": {
-    "grade": "B",
-    "src": "[橋本・堀1998]"
-   },
-   "n": 4,
-   "clr": 1.6,
-   "spacing": 3.0,
-   "tilt": [
-    0.0,
-    5.0
-   ],
-   "tiltDir": "random",
-   "groups": [
-    {
-     "n": 1,
-     "where": "滝添えの役木(V8 の正面左)",
-     "at": [
-      [
-       -30.0,
-       64.75
+     },
+     {
+      "n": 5,
+      "where": "東の岬の付け根(傾ける松の根締め)",
+      "near": [
+       -34.91,
+       41.69
+      ],
+      "r": 2.0,
+      "packRatio": 1.0,
+      "pattern": "三日月",
+      "pitch": [
+       0.8,
+       1.2
+      ],
+      "arc": [
+       "+u",
+       "+v"
+      ],
+      "arcAbout": "主木(傾ける松)",
+      "n_floor": 3,
+      "n_forbid": [
+       4
+      ],
+      "mix": {
+       "JC.Azalea01": 2,
+       "JC.Azalea04": 3
+      }
+     },
+     {
+      "n": 5,
+      "where": "南西の垣際",
+      "box": [
+       -47,
+       45.6,
+       -44.8,
+       47.1
       ]
-     ]
-    },
-    {
-     "n": 3,
-     "where": "返しの板塀の角を隠す",
-     "box": [
-      -29.4,
-      63.4,
-      -27.0,
-      65.3
-     ]
-    }
-   ],
-   "parts": [
-    {
-     "api": "Own.Jouryoku(\"Mid\")",
-     "prefab": "Tree_Jouryoku_Mid",
-     "n": 2,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Jouryoku(\"Mid\", 2)",
-     "prefab": "Tree_Jouryoku_Mid_02",
-     "n": 1,
-     "scale": 1.0
-    },
-    {
-     "api": "Own.Jouryoku(\"Mid\", 3)",
-     "prefab": "Tree_Jouryoku_Mid_03",
-     "n": 1,
-     "scale": 1.0
-    }
-   ]
-  },
-  {
-   "zone": "G_OkuNiwa",
-   "layer": "低木・刈込(塀際・二重化)",
-   "role": "低木",
-   "species": "サツキ",
-   "cert": "B",
-   "n": 8,
-   "clr": 0.8,
-   "spacing": 1.45,
-   "keepoutByLayer": {
-    "route": 0.45
+     },
+     {
+      "n": 7,
+      "where": "南の垣際",
+      "box": [
+       -36.5,
+       46.4,
+       -30.0,
+       47.1
+      ]
+     }
+    ],
+    "parts": [
+     {
+      "api": "JC.Azalea01",
+      "prefab": "Azalea A 01",
+      "n": 12,
+      "scale": 1.0,
+      "scaleJitter": [
+       0.85,
+       1.35
+      ]
+     },
+     {
+      "api": "JC.Azalea04",
+      "prefab": "Azalea A 04",
+      "n": 17,
+      "scale": 1.0,
+      "scaleJitter": [
+       0.7,
+       1.05
+      ]
+     }
+    ],
+    "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
    },
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "groupGap": [
-    2.0,
-    3.0
-   ],
-   "groups": [
-    {
-     "n": 5,
-     "where": "塀際・西",
-     "box": [
-      -42.5,
-      63.6,
-      -39.5,
-      64.4
-     ]
-    },
-    {
-     "n": 3,
-     "where": "塀際・東",
-     "box": [
-      -38.5,
-      63.6,
-      -37.2,
-      64.4
-     ]
-    }
-   ],
-   "parts": [
-    {
-     "api": "JC.Azalea01",
-     "prefab": "Azalea A 01",
-     "n": 3,
-     "scale": 1.0
-    },
-    {
-     "api": "JC.Azalea03",
-     "prefab": "Azalea A 03",
-     "n": 3,
-     "scale": 1.0
-    },
-    {
-     "api": "JC.Azalea04",
-     "prefab": "Azalea A 04",
-     "n": 2,
-     "scale": 1.0
-    }
-   ],
-   "uRange": [
-    -46,
-    -34
-   ]
-  },
-  {
-   "zone": "G_OkuNiwa",
-   "layer": "低木・刈込(木戸まわり)",
-   "role": "低木",
-   "species": "ツゲ",
-   "cert": "B",
-   "n": 5,
-   "clr": 0.8,
-   "spacing": 1.2,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "groupGap": [
-    2.0,
-    3.0
-   ],
-   "groups": [
-    {
-     "n": 5,
-     "where": "滝見の木戸の西脇",
-     "box": [
-      -35.2,
-      64.8,
-      -33.3,
-      65.4
-     ]
-    }
-   ],
-   "parts": [
-    {
-     "api": "JG.Boxwood(1)",
-     "prefab": "Plant_Boxwood_Spring_01",
-     "n": 2,
-     "scale": 1.0
-    },
-    {
-     "api": "JG.Boxwood(2)",
-     "prefab": "Plant_Boxwood_Spring_02",
-     "n": 2,
-     "scale": 1.0
-    },
-    {
-     "api": "JG.Boxwood(3)",
-     "prefab": "Plant_Boxwood_Spring_03",
-     "n": 1,
-     "scale": 1.0
-    }
-   ],
-   "uRange": [
-    -35.2,
-    -33.3
-   ]
-  },
-  {
-   "zone": "G_Inari",
-   "layer": "下草(鳥居の足元)",
-   "role": "下草",
-   "species": "シダ",
-   "cert": "U 設計値",
-   "n": 8,
-   "clr": 0.3,
-   "spacing": 0.4,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "keepoutByLayer": {
-    "route": "toriiFoot",
-    "tenkei": "toriiFoot"
+   {
+    "zone": "G_Sensui",
+    "layer": "刈込(平庭)",
+    "role": "低木",
+    "species": "ツゲ・サツキ",
+    "cert": "B",
+    "n": 11,
+    "clr": 0.8,
+    "spacing": 1.45,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "groupGap": [
+     5.5,
+     null
+    ],
+    "groups": [
+     {
+      "n": 3,
+      "box": [
+       -15.5,
+       30.0,
+       -12.5,
+       32.5
+      ],
+      "where": "大広間の板縁の前・一"
+     },
+     {
+      "n": 5,
+      "box": [
+       -22.5,
+       29.5,
+       -19.0,
+       31.5
+      ],
+      "where": "大広間の板縁の前・二"
+     },
+     {
+      "n": 3,
+      "box": [
+       -12.5,
+       36.0,
+       -10.5,
+       38.5
+      ],
+      "where": "大広間の板縁の前・三(大きさを揃えない)"
+     }
+    ],
+    "parts": [
+     {
+      "api": "JG.Boxwood(1)",
+      "prefab": "Plant_Boxwood_Spring_01",
+      "n": 4,
+      "scale": 1.0
+     },
+     {
+      "api": "JG.Boxwood(2)",
+      "prefab": "Plant_Boxwood_Spring_02",
+      "n": 4,
+      "scale": 1.0
+     },
+     {
+      "api": "JG.Boxwood(3)",
+      "prefab": "Plant_Boxwood_Spring_03",
+      "n": 3,
+      "scale": 1.0
+     }
+    ],
+    "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
    },
-   "groups": [
-    {
-     "n": 3,
-     "where": "二の鳥居の北",
-     "box": [
-      37.8,
-      69.15,
-      39.0,
-      69.75
-     ],
-     "row": true
-    },
-    {
-     "n": 5,
-     "where": "社の手前・南",
-     "box": [
-      37.2,
-      70.85,
-      39.0,
-      71.02
-     ],
-     "row": true
-    }
-   ],
-   "parts": [
-    {
-     "api": "JG.Fern(1)",
-     "prefab": "Plant_PaintedFern_Spring_01",
-     "n": 4,
-     "scale": 1.0
-    },
-    {
-     "api": "JG.Fern(2)",
-     "prefab": "Plant_PaintedFern_Spring_02",
-     "n": 4,
-     "scale": 1.0
-    }
-   ]
-  },
-  {
-   "zone": "G_Inari",
-   "layer": "下草(社の北の袖)",
-   "role": "下草",
-   "species": "シダ",
-   "cert": "U 設計値",
-   "n": 7,
-   "clr": 0.4,
-   "spacing": 1.45,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "groups": [
-    {
-     "n": 7,
-     "where": "社の北の袖",
-     "box": [
-      38.8,
-      67.95,
-      42.6,
-      {
-       "clearOf": "service.Inari",
-       "face": "v0",
-       "side": "-v",
-       "margin": 0.05
+   {
+    "zone": "G_Sensui",
+    "layer": "下草",
+    "role": "下草",
+    "species": "シダ・ヤブラン",
+    "cert": "B",
+    "n": 40,
+    "clr": 0.4,
+    "spacing": 1.45,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "under": 3,
+    "parts": [
+     {
+      "api": "JG.Fern(1)",
+      "prefab": "Plant_PaintedFern_Spring_01",
+      "n": 20,
+      "scale": 1.0
+     },
+     {
+      "api": "JG.Fern(2)",
+      "prefab": "Plant_PaintedFern_Spring_02",
+      "n": 20,
+      "scale": 1.0
+     }
+    ],
+    "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
+   },
+   {
+    "zone": "G_Roji_Soto",
+    "layer": "主木",
+    "role": "高木",
+    "species": "クロマツ",
+    "cert": "B",
+    "n": 3,
+    "clr": 2.5,
+    "spacing": 7.3,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "groupGap": [
+     14.5,
+     29.1
+    ],
+    "groups": [
+     {
+      "n": 3,
+      "where": "遠見の山の東と南の肩(V9 の背)",
+      "box": [
+       -67.4,
+       35.6,
+       -64.6,
+       38.4
+      ]
+     }
+    ],
+    "parts": [
+     {
+      "api": "JG.Pine(\"Big\", 1)",
+      "prefab": "Tree_BlackPine_Big_Green_01",
+      "n": 1,
+      "scale": 1.2
+     },
+     {
+      "api": "JG.Pine(\"Mid\", 2)",
+      "prefab": "Tree_BlackPine_Mid_Green_02",
+      "n": 1,
+      "scale": 1.2
+     },
+     {
+      "api": "JG.Pine(\"Mid\", 3)",
+      "prefab": "Tree_BlackPine_Mid_Green_03",
+      "n": 1,
+      "scale": 1.2
+     }
+    ],
+    "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
+   },
+   {
+    "zone": "G_Roji_Soto",
+    "layer": "中木(常緑)",
+    "role": "中木",
+    "species": "モチノキ・カシ・シイ",
+    "cert": "B",
+    "n": 6,
+    "clr": 1.6,
+    "spacing": 4.5,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "groupGap": [
+     7.3,
+     14.6
+    ],
+    "groups": [
+     {
+      "n": 3,
+      "where": "建仁寺垣の前",
+      "box": [
+       -63.6,
+       31.5,
+       -61.0,
+       33.5
+      ]
+     },
+     {
+      "n": 3,
+      "where": "腰掛の背",
+      "box": [
+       -64.0,
+       45.6,
+       -61.2,
+       47.0
+      ]
+     }
+    ],
+    "parts": [
+     {
+      "api": "Own.Jouryoku(\"Mid\")",
+      "prefab": "Tree_Jouryoku_Mid",
+      "n": 2,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Jouryoku(\"Mid\", 2)",
+      "prefab": "Tree_Jouryoku_Mid_02",
+      "n": 2,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Jouryoku(\"Small\")",
+      "prefab": "Tree_Jouryoku_Small",
+      "n": 2,
+      "scale": 1.0
+     }
+    ],
+    "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
+   },
+   {
+    "zone": "G_Roji_Soto",
+    "layer": "低木・刈込",
+    "role": "低木",
+    "species": "ツツジ(刈込 ≤1.0m)",
+    "cert": "B",
+    "n": 7,
+    "clr": 0.8,
+    "spacing": 1.45,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "groupGap": [
+     5.5,
+     null
+    ],
+    "groups": [
+     {
+      "n": 7,
+      "where": "遠見の山の西の法",
+      "box": [
+       -71.0,
+       32.8,
+       -69.4,
+       37.6
+      ]
+     }
+    ],
+    "parts": [
+     {
+      "api": "JC.Azalea01",
+      "prefab": "Azalea A 01",
+      "n": 3,
+      "scale": 1.0,
+      "scaleJitter": [
+       0.85,
+       1.35
+      ]
+     },
+     {
+      "api": "JC.Azalea04",
+      "prefab": "Azalea A 04",
+      "n": 4,
+      "scale": 1.0,
+      "scaleJitter": [
+       0.7,
+       1.05
+      ]
+     }
+    ],
+    "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
+   },
+   {
+    "zone": "G_Roji_Soto",
+    "layer": "低木(飛石沿い)",
+    "role": "低木",
+    "species": "アセビ・ツゲ",
+    "cert": "B",
+    "n": 5,
+    "clr": 0.8,
+    "spacing": 1.45,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "groupGap": [
+     5.5,
+     null
+    ],
+    "groups": [
+     {
+      "n": 5,
+      "where": "外露地の飛石沿い",
+      "along": {
+       "route": "R_Roji",
+       "side": "both"
       }
-     ],
-     "row": true
-    }
-   ],
-   "parts": [
-    {
-     "api": "JG.Fern(1)",
-     "prefab": "Plant_PaintedFern_Spring_01",
-     "n": 4,
-     "scale": 1.0
-    },
-    {
-     "api": "JG.Fern(2)",
-     "prefab": "Plant_PaintedFern_Spring_02",
-     "n": 3,
-     "scale": 1.0
-    }
-   ]
-  },
-  {
-   "zone": "G_Sawa",
-   "layer": "中木(常緑)",
-   "role": "中木",
-   "species": "モチノキ・シイ",
-   "cert": "U(庭方 2026-10-03・EDO-0535 ── 新しい土井境の塀の石垣基壇(線から約2.4m)から d≥3.0m)",
-   "n": 3,
-   "clr": 1.6,
-   "spacing": 3.0,
-   "tilt": [
-    0.0,
-    4.0
-   ],
-   "tiltDir": "random",
-   "groups": [
-    {
-     "n": 3,
-     "where": "滝の背(東)── 奥の基壇と塀を隠す",
-     "box": [
-      -29.8,
-      67.0,
-      -28.6,
-      70.0
+     }
+    ],
+    "parts": [
+     {
+      "api": "JG.Boxwood(1)",
+      "prefab": "Plant_Boxwood_Spring_01",
+      "n": 2,
+      "scale": 1.0
+     },
+     {
+      "api": "JG.Boxwood(2)",
+      "prefab": "Plant_Boxwood_Spring_02",
+      "n": 2,
+      "scale": 1.0
+     },
+     {
+      "api": "JG.Boxwood(3)",
+      "prefab": "Plant_Boxwood_Spring_03",
+      "n": 1,
+      "scale": 1.0
+     }
+    ],
+    "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
+   },
+   {
+    "zone": "G_Roji_Soto",
+    "layer": "下草",
+    "role": "下草",
+    "species": "シダ・ヤブラン・苔",
+    "cert": "B",
+    "n": 25,
+    "clr": 0.4,
+    "spacing": 1.45,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "under": 3,
+    "parts": [
+     {
+      "api": "JG.Fern(1)",
+      "prefab": "Plant_PaintedFern_Spring_01",
+      "n": 12,
+      "scale": 1.0
+     },
+     {
+      "api": "JG.Fern(2)",
+      "prefab": "Plant_PaintedFern_Spring_02",
+      "n": 13,
+      "scale": 1.0
+     }
+    ],
+    "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
+   },
+   {
+    "zone": "G_Roji_Uchi",
+    "layer": "中木(常緑)",
+    "role": "中木",
+    "species": "モチノキ・シイ・カシ",
+    "cert": "B",
+    "n": 6,
+    "clr": 1.6,
+    "spacing": 4.5,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "groupGap": [
+     7.3,
+     14.6
+    ],
+    "groups": [
+     {
+      "n": 3,
+      "where": "茶屋の背(塀を隠す)",
+      "box": [
+       -72.8,
+       42.0,
+       -70.6,
+       46.8
+      ],
+      "keepout": "Ido_Niwa"
+     },
+     {
+      "n": 3,
+      "where": "躙口から見て左の塀際",
+      "box": [
+       -71.9,
+       39.4,
+       -70.4,
+       41.8
+      ]
+     }
+    ],
+    "parts": [
+     {
+      "api": "Own.Jouryoku(\"Mid\")",
+      "prefab": "Tree_Jouryoku_Mid",
+      "n": 2,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Jouryoku(\"Mid\", 2)",
+      "prefab": "Tree_Jouryoku_Mid_02",
+      "n": 2,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Jouryoku(\"Small\")",
+      "prefab": "Tree_Jouryoku_Small",
+      "n": 2,
+      "scale": 1.0
+     }
+    ],
+    "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
+   },
+   {
+    "zone": "G_Roji_Uchi",
+    "layer": "中木(落葉)",
+    "role": "中木",
+    "species": "イロハモミジ",
+    "cert": "B",
+    "n": 1,
+    "clr": 1.6,
+    "spacing": 4.5,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "groupGap": [
+     7.3,
+     14.6
+    ],
+    "at": [
+     [
+      -66.0,
+      40.0
      ]
-    }
-   ],
-   "parts": [
-    {
-     "api": "Own.Jouryoku(\"Mid\")",
-     "prefab": "Tree_Jouryoku_Mid",
-     "n": 1,
-     "scale": 1.0
-    }
-   ],
-   "scatterPending": "planting_out.json の撒き手(旧生成器)が無いので未撒き(EDO-0535)"
+    ],
+    "parts": [
+     {
+      "api": "Own.Momiji(\"Mid\", 3)",
+      "prefab": "Tree_Momiji_Mid_03",
+      "n": 1,
+      "scale": 1.0
+     }
+    ],
+    "where": "蹲踞に枝を差し掛ける",
+    "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
+   },
+   {
+    "zone": "G_Roji_Uchi",
+    "layer": "低木・刈込",
+    "role": "低木",
+    "species": "アセビ・ツゲ",
+    "cert": "B",
+    "n": 5,
+    "clr": 0.8,
+    "spacing": 1.45,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "groupGap": [
+     5.5,
+     null
+    ],
+    "groups": [
+     {
+      "n": 5,
+      "where": "蹲踞まわり",
+      "box": [
+       -68.8,
+       39.3,
+       -66.4,
+       41.0
+      ]
+     }
+    ],
+    "parts": [
+     {
+      "api": "JG.Boxwood(1)",
+      "prefab": "Plant_Boxwood_Spring_01",
+      "n": 2,
+      "scale": 1.0
+     },
+     {
+      "api": "JG.Boxwood(2)",
+      "prefab": "Plant_Boxwood_Spring_02",
+      "n": 2,
+      "scale": 1.0
+     },
+     {
+      "api": "JG.Boxwood(3)",
+      "prefab": "Plant_Boxwood_Spring_03",
+      "n": 1,
+      "scale": 1.0
+     }
+    ],
+    "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
+   },
+   {
+    "zone": "G_Roji_Uchi",
+    "layer": "下草",
+    "role": "下草",
+    "species": "シダ・苔",
+    "cert": "B",
+    "n": 15,
+    "clr": 0.4,
+    "spacing": 1.45,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "under": 3,
+    "parts": [
+     {
+      "api": "JG.Fern(1)",
+      "prefab": "Plant_PaintedFern_Spring_01",
+      "n": 8,
+      "scale": 1.0
+     },
+     {
+      "api": "JG.Fern(2)",
+      "prefab": "Plant_PaintedFern_Spring_02",
+      "n": 7,
+      "scale": 1.0
+     }
+    ],
+    "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
+   },
+   {
+    "zone": "G_Tsubo_Koshoin",
+    "layer": "中木(落葉)",
+    "role": "中木",
+    "species": "イロハモミジ",
+    "cert": "B",
+    "n": 1,
+    "clr": 1.6,
+    "spacing": 4.5,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "groupGap": [
+     7.3,
+     14.6
+    ],
+    "at": [
+     [
+      -49.4,
+      27.6
+     ]
+    ],
+    "parts": [
+     {
+      "api": "Own.Momiji(\"Mid\", 3)",
+      "prefab": "Tree_Momiji_Mid_03",
+      "n": 1,
+      "scale": 1.0
+     }
+    ],
+    "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
+   },
+   {
+    "zone": "G_Tsubo_Koshoin",
+    "layer": "下草",
+    "role": "下草",
+    "species": "苔・ヤブラン",
+    "cert": "B",
+    "n": 7,
+    "clr": 0.4,
+    "spacing": 1.45,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "under": 3,
+    "parts": [
+     {
+      "api": "JG.Fern(1)",
+      "prefab": "Plant_PaintedFern_Spring_01",
+      "n": 4,
+      "scale": 1.0
+     },
+     {
+      "api": "JG.Fern(2)",
+      "prefab": "Plant_PaintedFern_Spring_02",
+      "n": 3,
+      "scale": 1.0
+     }
+    ],
+    "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
+   },
+   {
+    "zone": "G_Koshoin_Nishi",
+    "layer": "中木(常緑)",
+    "role": "中木",
+    "species": "モチノキ・カシ",
+    "cert": "B",
+    "n": 3,
+    "clr": 1.6,
+    "spacing": 4.5,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "groupGap": [
+     7.3,
+     14.6
+    ],
+    "groups": [
+     {
+      "n": 3,
+      "box": [
+       -60.6,
+       15,
+       -59.2,
+       25
+      ],
+      "where": "小書院の西"
+     }
+    ],
+    "parts": [
+     {
+      "api": "Own.Jouryoku(\"Mid\")",
+      "prefab": "Tree_Jouryoku_Mid",
+      "n": 1,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Jouryoku(\"Mid\", 2)",
+      "prefab": "Tree_Jouryoku_Mid_02",
+      "n": 1,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Jouryoku(\"Small\")",
+      "prefab": "Tree_Jouryoku_Small",
+      "n": 1,
+      "scale": 1.0
+     }
+    ],
+    "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
+   },
+   {
+    "zone": "G_Koshoin_Nishi",
+    "layer": "下草",
+    "role": "下草",
+    "species": "シダ・苔",
+    "cert": "B",
+    "n": 9,
+    "clr": 0.4,
+    "spacing": 1.45,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "under": 3,
+    "parts": [
+     {
+      "api": "JG.Fern(1)",
+      "prefab": "Plant_PaintedFern_Spring_01",
+      "n": 4,
+      "scale": 1.0
+     },
+     {
+      "api": "JG.Fern(2)",
+      "prefab": "Plant_PaintedFern_Spring_02",
+      "n": 5,
+      "scale": 1.0
+     }
+    ],
+    "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)"
+   },
+   {
+    "zone": "G_OkuNishiNiwa",
+    "layer": "主木",
+    "role": "高木",
+    "species": "クロマツ",
+    "cert": "B",
+    "n": 8,
+    "clr": 2.5,
+    "spacing": 7.3,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "groupGap": [
+     14.5,
+     29.1
+    ],
+    "groups": [
+     {
+      "n": 5,
+      "where": "客土の北の帯",
+      "box": [
+       -58,
+       49,
+       -52,
+       54
+      ]
+     },
+     {
+      "n": 3,
+      "where": "客土の東の帯",
+      "box": [
+       -55,
+       58,
+       -50,
+       63
+      ]
+     }
+    ],
+    "parts": [
+     {
+      "api": "JG.Pine(\"Big\", 1)",
+      "prefab": "Tree_BlackPine_Big_Green_01",
+      "n": 1,
+      "scale": 1.65
+     },
+     {
+      "api": "JG.Pine(\"Big\", 2)",
+      "prefab": "Tree_BlackPine_Big_Green_02",
+      "n": 1,
+      "scale": 1.65
+     },
+     {
+      "api": "JG.Pine(\"Big\", 3)",
+      "prefab": "Tree_BlackPine_Big_Green_03",
+      "n": 1,
+      "scale": 1.65
+     },
+     {
+      "api": "JG.Pine(\"Mid\", 1)",
+      "prefab": "Tree_BlackPine_Mid_Green_01",
+      "n": 1,
+      "scale": 1.65
+     },
+     {
+      "api": "JG.Pine(\"Mid\", 2)",
+      "prefab": "Tree_BlackPine_Mid_Green_02",
+      "n": 1,
+      "scale": 1.65
+     },
+     {
+      "api": "JG.Pine(\"Mid\", 3)",
+      "prefab": "Tree_BlackPine_Mid_Green_03",
+      "n": 1,
+      "scale": 1.65
+     },
+     {
+      "api": "JG.Pine(\"Small\", 1)",
+      "prefab": "Tree_BlackPine_Small_Green_01",
+      "n": 1,
+      "scale": 1.65
+     },
+     {
+      "api": "JG.Pine(\"Small\", 2)",
+      "prefab": "Tree_BlackPine_Small_Green_02",
+      "n": 1,
+      "scale": 1.65
+     }
+    ]
+   },
+   {
+    "zone": "G_OkuNishiNiwa",
+    "layer": "中木(常緑)",
+    "role": "中木",
+    "species": "モッコク・モチノキ",
+    "cert": "B",
+    "n": 13,
+    "clr": 1.6,
+    "spacing": 4.5,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "groupGap": [
+     7.3,
+     14.6
+    ],
+    "groups": [
+     {
+      "n": 5,
+      "where": "奥御殿の西妻の前",
+      "box": [
+       -52,
+       48,
+       -48,
+       61
+      ]
+     },
+     {
+      "n": 5,
+      "where": "回遊路の外側",
+      "along": {
+       "route": "R_OkuNiwa2",
+       "side": "out"
+      }
+     },
+     {
+      "n": 3,
+      "where": "回遊路の外側",
+      "along": {
+       "route": "R_OkuNiwa2",
+       "side": "out"
+      }
+     }
+    ],
+    "parts": [
+     {
+      "api": "Own.Jouryoku(\"Mid\")",
+      "prefab": "Tree_Jouryoku_Mid",
+      "n": 3,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Jouryoku(\"Mid\", 2)",
+      "prefab": "Tree_Jouryoku_Mid_02",
+      "n": 2,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Jouryoku(\"Mid\", 3)",
+      "prefab": "Tree_Jouryoku_Mid_03",
+      "n": 2,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Jouryoku(\"Small\")",
+      "prefab": "Tree_Jouryoku_Small",
+      "n": 2,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Jouryoku(\"Small\", 2)",
+      "prefab": "Tree_Jouryoku_Small_02",
+      "n": 2,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Jouryoku(\"Small\", 3)",
+      "prefab": "Tree_Jouryoku_Small_03",
+      "n": 2,
+      "scale": 1.0
+     }
+    ]
+   },
+   {
+    "zone": "G_OkuNishiNiwa",
+    "layer": "中木(落葉)",
+    "role": "中木",
+    "species": "イロハモミジ",
+    "cert": "B",
+    "n": 6,
+    "clr": 1.6,
+    "spacing": 4.5,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "groupGap": [
+     7.3,
+     14.6
+    ],
+    "groups": [
+     {
+      "n": 3,
+      "where": "回遊路の北から1つめの折れの内側",
+      "size": "Mid",
+      "along": {
+       "route": "R_OkuNiwa2",
+       "side": "in",
+       "atVertex": "vMin"
+      }
+     },
+     {
+      "n": 3,
+      "where": "回遊路の南辺の折れの外側(客土の東)",
+      "size": "Small",
+      "box": [
+       -58.5,
+       59.5,
+       -50.0,
+       65.0
+      ]
+     }
+    ],
+    "parts": [
+     {
+      "api": "Own.Momiji(\"Mid\")",
+      "prefab": "Tree_Momiji_Mid",
+      "n": 1,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Momiji(\"Mid\", 2)",
+      "prefab": "Tree_Momiji_Mid_02",
+      "n": 1,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Momiji(\"Mid\", 3)",
+      "prefab": "Tree_Momiji_Mid_03",
+      "n": 1,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Momiji(\"Small\")",
+      "prefab": "Tree_Momiji_Small",
+      "n": 1,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Momiji(\"Small\", 2)",
+      "prefab": "Tree_Momiji_Small_02",
+      "n": 1,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Momiji(\"Small\", 3)",
+      "prefab": "Tree_Momiji_Small_03",
+      "n": 1,
+      "scale": 1.0
+     }
+    ],
+    "pondClr": "crown"
+   },
+   {
+    "zone": "G_OkuNishiNiwa",
+    "layer": "低木・刈込",
+    "role": "低木",
+    "species": "ツゲ・マサキ",
+    "cert": "B",
+    "n": 15,
+    "clr": 0.8,
+    "spacing": 1.45,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "groupGap": [
+     5.5,
+     null
+    ],
+    "groups": [
+     {
+      "n": 7,
+      "where": "回遊路の縁",
+      "along": {
+       "route": "R_OkuNiwa2",
+       "side": "both"
+      }
+     },
+     {
+      "n": 5,
+      "where": "回遊路の縁",
+      "along": {
+       "route": "R_OkuNiwa2",
+       "side": "both"
+      }
+     },
+     {
+      "n": 3,
+      "where": "回遊路の縁",
+      "along": {
+       "route": "R_OkuNiwa2",
+       "side": "both"
+      }
+     }
+    ],
+    "parts": [
+     {
+      "api": "JG.Boxwood(1)",
+      "prefab": "Plant_Boxwood_Spring_01",
+      "n": 5,
+      "scale": 1.0
+     },
+     {
+      "api": "JG.Boxwood(2)",
+      "prefab": "Plant_Boxwood_Spring_02",
+      "n": 5,
+      "scale": 1.0
+     },
+     {
+      "api": "JG.Boxwood(3)",
+      "prefab": "Plant_Boxwood_Spring_03",
+      "n": 5,
+      "scale": 1.0
+     }
+    ]
+   },
+   {
+    "zone": "G_OkuNishiNiwa",
+    "layer": "下草",
+    "role": "下草",
+    "species": "シダ・ヤブラン",
+    "cert": "B",
+    "n": 81,
+    "clr": 0.4,
+    "spacing": 1.45,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "under": 3,
+    "parts": [
+     {
+      "api": "JG.Fern(1)",
+      "prefab": "Plant_PaintedFern_Spring_01",
+      "n": 41,
+      "scale": 1.0
+     },
+     {
+      "api": "JG.Fern(2)",
+      "prefab": "Plant_PaintedFern_Spring_02",
+      "n": 40,
+      "scale": 1.0
+     }
+    ]
+   },
+   {
+    "zone": "G_OkuNiwa",
+    "layer": "中木(落葉)",
+    "role": "中木",
+    "species": "イロハモミジ",
+    "cert": {
+     "grade": "B / U",
+     "src": "[橋本・堀1998]"
+    },
+    "n": 1,
+    "clr": 1.6,
+    "spacing": 4.5,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "at": [
+     [
+      -41.4,
+      65.0
+     ]
+    ],
+    "parts": [
+     {
+      "api": "Own.Momiji(\"Small\")",
+      "prefab": "Tree_Momiji_Small",
+      "n": 1,
+      "scale": 1.0
+     }
+    ],
+    "pondClr": "crown"
+   },
+   {
+    "zone": "G_OkuNiwa",
+    "layer": "低木・刈込",
+    "role": "低木",
+    "species": "サツキ",
+    "cert": "B",
+    "n": 7,
+    "clr": 0.8,
+    "spacing": 1.45,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "groupGap": [
+     5.5,
+     null
+    ],
+    "groups": [
+     {
+      "n": 7,
+      "where": "遣水の南岸",
+      "along": {
+       "line": "sensui.yarimizu",
+       "side": "+v",
+       "offset": [
+        "nosujiHalf",
+        1.2
+       ],
+       "footMin": 0.33,
+       "minWidth": 0.3
+      }
+     }
+    ],
+    "parts": [
+     {
+      "api": "JC.Azalea01",
+      "prefab": "Azalea A 01",
+      "n": 2,
+      "scale": 1.0
+     },
+     {
+      "api": "JC.Azalea03",
+      "prefab": "Azalea A 03",
+      "n": 2,
+      "scale": 1.0
+     },
+     {
+      "api": "JC.Azalea04",
+      "prefab": "Azalea A 04",
+      "n": 3,
+      "scale": 1.0
+     }
+    ],
+    "keepoutByLayer": {
+     "kaki": 0.3,
+     "route": 0.45
+    },
+    "uRange": [
+     -46,
+     -34
+    ]
+   },
+   {
+    "zone": "G_OkuNiwa",
+    "layer": "下草",
+    "role": "下草",
+    "species": "シダ・コケ",
+    "cert": "B",
+    "n": 18,
+    "clr": 0.4,
+    "spacing": 1.45,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "under": {
+     "高木": 3,
+     "中木": 3,
+     "低木": 1
+    },
+    "parts": [
+     {
+      "api": "JG.Fern(1)",
+      "prefab": "Plant_PaintedFern_Spring_01",
+      "n": 9,
+      "scale": 1.0
+     },
+     {
+      "api": "JG.Fern(2)",
+      "prefab": "Plant_PaintedFern_Spring_02",
+      "n": 9,
+      "scale": 1.0
+     }
+    ]
+   },
+   {
+    "zone": "G_OkuNiwaSE",
+    "layer": "花木",
+    "role": "中木",
+    "species": "ウメ",
+    "cert": "B",
+    "n": 11,
+    "clr": 1.0,
+    "spacing": 4.5,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "groupGap": [
+     7.3,
+     null
+    ],
+    "groups": [
+     {
+      "n": 5,
+      "where": "西の塊",
+      "box": [
+       16.6,
+       67.0,
+       22.5,
+       69.8
+      ]
+     },
+     {
+      "n": 3,
+      "where": "宴の平場の添え(一列)",
+      "box": [
+       23.0,
+       67.0,
+       29.0,
+       67.9
+      ],
+      "row": true
+     },
+     {
+      "n": 3,
+      "where": "東の塊",
+      "box": [
+       29.5,
+       67.0,
+       36.0,
+       69.25
+      ]
+     }
+    ],
+    "parts": [
+     {
+      "api": "Own.Ume(\"Mid\")",
+      "prefab": "Tree_Ume_Mid",
+      "n": 2,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Ume(\"Mid\", 2)",
+      "prefab": "Tree_Ume_Mid_02",
+      "n": 2,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Ume(\"Mid\", 3)",
+      "prefab": "Tree_Ume_Mid_03",
+      "n": 1,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Ume(\"Small\")",
+      "prefab": "Tree_Ume_Small",
+      "n": 3,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Ume(\"Small\", 2)",
+      "prefab": "Tree_Ume_Small_02",
+      "n": 2,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Ume(\"Small\", 3)",
+      "prefab": "Tree_Ume_Small_03",
+      "n": 1,
+      "scale": 1.0
+     }
+    ]
+   },
+   {
+    "zone": "G_Inari",
+    "layer": "中木(常緑)",
+    "role": "中木",
+    "species": "モチノキ・シイ",
+    "cert": "B",
+    "n": 5,
+    "clr": 1.6,
+    "spacing": 4.5,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "groupGap": [
+     7.3,
+     14.6
+    ],
+    "groups": [
+     {
+      "n": 5,
+      "where": "社の背後",
+      "box": [
+       41.5,
+       66,
+       46,
+       71
+      ]
+     }
+    ],
+    "parts": [
+     {
+      "api": "Own.Jouryoku(\"Mid\")",
+      "prefab": "Tree_Jouryoku_Mid",
+      "n": 1,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Jouryoku(\"Mid\", 2)",
+      "prefab": "Tree_Jouryoku_Mid_02",
+      "n": 1,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Jouryoku(\"Mid\", 3)",
+      "prefab": "Tree_Jouryoku_Mid_03",
+      "n": 1,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Jouryoku(\"Small\")",
+      "prefab": "Tree_Jouryoku_Small",
+      "n": 1,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Jouryoku(\"Small\", 2)",
+      "prefab": "Tree_Jouryoku_Small_02",
+      "n": 1,
+      "scale": 1.0
+     }
+    ]
+   },
+   {
+    "zone": "G_Inari",
+    "layer": "低木・刈込",
+    "role": "低木",
+    "species": "ツゲ",
+    "cert": "B",
+    "n": 13,
+    "clr": 0.8,
+    "spacing": 1.45,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "groupGap": [
+     5.5,
+     null
+    ],
+    "groups": [
+     {
+      "n": 5,
+      "where": "参道の両脇",
+      "along": {
+       "route": "R_Inari",
+       "side": "both"
+      }
+     },
+     {
+      "n": 3,
+      "where": "参道の両脇",
+      "along": {
+       "route": "R_Inari",
+       "side": "both"
+      }
+     },
+     {
+      "n": 5,
+      "where": "社の北の袖",
+      "box": [
+       39.0,
+       66.8,
+       42.0,
+       {
+        "clearOf": "service.Inari",
+        "face": "v0",
+        "side": "-v",
+        "margin": 0.4
+       }
+      ]
+     }
+    ],
+    "parts": [
+     {
+      "api": "JG.Boxwood(1)",
+      "prefab": "Plant_Boxwood_Spring_01",
+      "n": 5,
+      "scale": 1.0
+     },
+     {
+      "api": "JG.Boxwood(2)",
+      "prefab": "Plant_Boxwood_Spring_02",
+      "n": 5,
+      "scale": 1.0
+     },
+     {
+      "api": "JG.Boxwood(3)",
+      "prefab": "Plant_Boxwood_Spring_03",
+      "n": 3,
+      "scale": 1.0
+     }
+    ]
+   },
+   {
+    "zone": "G_Inari",
+    "layer": "下草",
+    "role": "下草",
+    "species": "シダ",
+    "cert": "B",
+    "n": 15,
+    "clr": 0.4,
+    "spacing": 1.45,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "under": 3,
+    "parts": [
+     {
+      "api": "JG.Fern(1)",
+      "prefab": "Plant_PaintedFern_Spring_01",
+      "n": 8,
+      "scale": 1.0
+     },
+     {
+      "api": "JG.Fern(2)",
+      "prefab": "Plant_PaintedFern_Spring_02",
+      "n": 7,
+      "scale": 1.0
+     }
+    ]
+   },
+   {
+    "zone": "G_Shirasu",
+    "layer": "主木(門被り)",
+    "role": "高木",
+    "species": "クロマツ(門被り仕立て)",
+    "cert": "B",
+    "n": 1,
+    "clr": 2.5,
+    "spacing": 7.3,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "at": [
+     [
+      -1.5,
+      3.5
+     ]
+    ],
+    "parts": [
+     {
+      "api": "JG.Pine(\"Big\", 1)",
+      "prefab": "Tree_BlackPine_Big_Green_01",
+      "n": 1,
+      "scale": 1.65
+     }
+    ],
+    "keepoutSkip": [
+     "K_Mon",
+     "表門",
+     "区画線"
+    ]
+   },
+   {
+    "zone": "G_Tomomachi",
+    "layer": "中木(常緑)",
+    "role": "中木",
+    "species": "モッコク・モチノキ",
+    "cert": "B",
+    "n": 3,
+    "clr": 1.6,
+    "spacing": 4.5,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "groups": [
+     {
+      "n": 3,
+      "where": "供待の東縁",
+      "box": [
+       17,
+       2.48,
+       19,
+       15
+      ]
+     }
+    ],
+    "parts": [
+     {
+      "api": "Own.Jouryoku(\"Mid\")",
+      "prefab": "Tree_Jouryoku_Mid",
+      "n": 1,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Jouryoku(\"Mid\", 2)",
+      "prefab": "Tree_Jouryoku_Mid_02",
+      "n": 1,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Jouryoku(\"Mid\", 3)",
+      "prefab": "Tree_Jouryoku_Mid_03",
+      "n": 1,
+      "scale": 1.0
+     }
+    ]
+   },
+   {
+    "zone": "G_Sawa",
+    "layer": "中木(常緑)",
+    "role": "中木",
+    "species": "モチノキ・シイ",
+    "cert": "U(置き場所=意匠の選択)/ B(樹種の型)",
+    "n": 5,
+    "clr": 1.6,
+    "spacing": 4.5,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "groups": [
+     {
+      "n": 5,
+      "where": "沢の下手(V8 から滝への視線は空ける)",
+      "box": [
+       -34.0,
+       70.5,
+       -32.5,
+       73.5
+      ]
+     }
+    ],
+    "parts": [
+     {
+      "api": "Own.Jouryoku(\"Mid\")",
+      "prefab": "Tree_Jouryoku_Mid",
+      "n": 1,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Jouryoku(\"Mid\", 2)",
+      "prefab": "Tree_Jouryoku_Mid_02",
+      "n": 1,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Jouryoku(\"Mid\", 3)",
+      "prefab": "Tree_Jouryoku_Mid_03",
+      "n": 1,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Jouryoku(\"Small\")",
+      "prefab": "Tree_Jouryoku_Small",
+      "n": 1,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Jouryoku(\"Small\", 2)",
+      "prefab": "Tree_Jouryoku_Small_02",
+      "n": 1,
+      "scale": 1.0
+     }
+    ]
+   },
+   {
+    "zone": "G_Sawa",
+    "layer": "下草",
+    "role": "下草",
+    "species": "シダ・コケ",
+    "cert": "U(置き場所=意匠の選択)/ B(樹種の型)",
+    "n": 15,
+    "clr": 0.4,
+    "spacing": 1.45,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "under": {
+     "中木": 3
+    },
+    "parts": [
+     {
+      "api": "JG.Fern(1)",
+      "prefab": "Plant_PaintedFern_Spring_01",
+      "n": 8,
+      "scale": 1.0
+     },
+     {
+      "api": "JG.Fern(2)",
+      "prefab": "Plant_PaintedFern_Spring_02",
+      "n": 7,
+      "scale": 1.0
+     }
+    ]
+   },
+   {
+    "zone": "G_Tanikage",
+    "layer": "谷陰の常緑",
+    "role": "高木",
+    "species": "常緑広葉(雑木)",
+    "cert": "B",
+    "n": 14,
+    "clr": 2.5,
+    "spacing": 5.5,
+    "tilt": [
+     0.0,
+     3.0
+    ],
+    "tiltDir": "random",
+    "parts": [
+     {
+      "api": "Own.Jouryoku(\"Big\")",
+      "prefab": "Tree_Jouryoku_Big",
+      "n": 5,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Jouryoku(\"Big\", 2)",
+      "prefab": "Tree_Jouryoku_Big_02",
+      "n": 5,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Jouryoku(\"Big\", 3)",
+      "prefab": "Tree_Jouryoku_Big_03",
+      "n": 4,
+      "scale": 1.0
+     }
+    ]
+   },
+   {
+    "zone": "G_OkuNiwa",
+    "layer": "南縁の常緑(V8 の稜)",
+    "role": "中木",
+    "species": "常緑広葉(雑木)",
+    "cert": {
+     "grade": "B",
+     "src": "[橋本・堀1998]"
+    },
+    "n": 4,
+    "clr": 1.6,
+    "spacing": 3.0,
+    "tilt": [
+     0.0,
+     5.0
+    ],
+    "tiltDir": "random",
+    "groups": [
+     {
+      "n": 1,
+      "where": "滝添えの役木(V8 の正面左)",
+      "at": [
+       [
+        -30.0,
+        64.75
+       ]
+      ]
+     },
+     {
+      "n": 3,
+      "where": "返しの板塀の角を隠す",
+      "box": [
+       -29.4,
+       63.4,
+       -27.0,
+       65.3
+      ]
+     }
+    ],
+    "parts": [
+     {
+      "api": "Own.Jouryoku(\"Mid\")",
+      "prefab": "Tree_Jouryoku_Mid",
+      "n": 2,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Jouryoku(\"Mid\", 2)",
+      "prefab": "Tree_Jouryoku_Mid_02",
+      "n": 1,
+      "scale": 1.0
+     },
+     {
+      "api": "Own.Jouryoku(\"Mid\", 3)",
+      "prefab": "Tree_Jouryoku_Mid_03",
+      "n": 1,
+      "scale": 1.0
+     }
+    ]
+   },
+   {
+    "zone": "G_OkuNiwa",
+    "layer": "低木・刈込(塀際・二重化)",
+    "role": "低木",
+    "species": "サツキ",
+    "cert": "B",
+    "n": 8,
+    "clr": 0.8,
+    "spacing": 1.45,
+    "keepoutByLayer": {
+     "route": 0.45
+    },
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "groupGap": [
+     2.0,
+     3.0
+    ],
+    "groups": [
+     {
+      "n": 5,
+      "where": "塀際・西",
+      "box": [
+       -42.5,
+       63.6,
+       -39.5,
+       64.4
+      ]
+     },
+     {
+      "n": 3,
+      "where": "塀際・東",
+      "box": [
+       -38.5,
+       63.6,
+       -37.2,
+       64.4
+      ]
+     }
+    ],
+    "parts": [
+     {
+      "api": "JC.Azalea01",
+      "prefab": "Azalea A 01",
+      "n": 3,
+      "scale": 1.0
+     },
+     {
+      "api": "JC.Azalea03",
+      "prefab": "Azalea A 03",
+      "n": 3,
+      "scale": 1.0
+     },
+     {
+      "api": "JC.Azalea04",
+      "prefab": "Azalea A 04",
+      "n": 2,
+      "scale": 1.0
+     }
+    ],
+    "uRange": [
+     -46,
+     -34
+    ]
+   },
+   {
+    "zone": "G_OkuNiwa",
+    "layer": "低木・刈込(木戸まわり)",
+    "role": "低木",
+    "species": "ツゲ",
+    "cert": "B",
+    "n": 5,
+    "clr": 0.8,
+    "spacing": 1.2,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "groupGap": [
+     2.0,
+     3.0
+    ],
+    "groups": [
+     {
+      "n": 5,
+      "where": "滝見の木戸の西脇",
+      "box": [
+       -35.2,
+       64.8,
+       -33.3,
+       65.4
+      ]
+     }
+    ],
+    "parts": [
+     {
+      "api": "JG.Boxwood(1)",
+      "prefab": "Plant_Boxwood_Spring_01",
+      "n": 2,
+      "scale": 1.0
+     },
+     {
+      "api": "JG.Boxwood(2)",
+      "prefab": "Plant_Boxwood_Spring_02",
+      "n": 2,
+      "scale": 1.0
+     },
+     {
+      "api": "JG.Boxwood(3)",
+      "prefab": "Plant_Boxwood_Spring_03",
+      "n": 1,
+      "scale": 1.0
+     }
+    ],
+    "uRange": [
+     -35.2,
+     -33.3
+    ]
+   },
+   {
+    "zone": "G_Inari",
+    "layer": "下草(鳥居の足元)",
+    "role": "下草",
+    "species": "シダ",
+    "cert": "U 設計値",
+    "n": 8,
+    "clr": 0.3,
+    "spacing": 0.4,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "keepoutByLayer": {
+     "route": "toriiFoot",
+     "tenkei": "toriiFoot"
+    },
+    "groups": [
+     {
+      "n": 3,
+      "where": "二の鳥居の北",
+      "box": [
+       37.8,
+       69.15,
+       39.0,
+       69.75
+      ],
+      "row": true
+     },
+     {
+      "n": 5,
+      "where": "社の手前・南",
+      "box": [
+       37.2,
+       70.85,
+       39.0,
+       71.02
+      ],
+      "row": true
+     }
+    ],
+    "parts": [
+     {
+      "api": "JG.Fern(1)",
+      "prefab": "Plant_PaintedFern_Spring_01",
+      "n": 4,
+      "scale": 1.0
+     },
+     {
+      "api": "JG.Fern(2)",
+      "prefab": "Plant_PaintedFern_Spring_02",
+      "n": 4,
+      "scale": 1.0
+     }
+    ]
+   },
+   {
+    "zone": "G_Inari",
+    "layer": "下草(社の北の袖)",
+    "role": "下草",
+    "species": "シダ",
+    "cert": "U 設計値",
+    "n": 7,
+    "clr": 0.4,
+    "spacing": 1.45,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "groups": [
+     {
+      "n": 7,
+      "where": "社の北の袖",
+      "box": [
+       38.8,
+       67.95,
+       42.6,
+       {
+        "clearOf": "service.Inari",
+        "face": "v0",
+        "side": "-v",
+        "margin": 0.05
+       }
+      ],
+      "row": true
+     }
+    ],
+    "parts": [
+     {
+      "api": "JG.Fern(1)",
+      "prefab": "Plant_PaintedFern_Spring_01",
+      "n": 4,
+      "scale": 1.0
+     },
+     {
+      "api": "JG.Fern(2)",
+      "prefab": "Plant_PaintedFern_Spring_02",
+      "n": 3,
+      "scale": 1.0
+     }
+    ]
+   },
+   {
+    "zone": "G_Sawa",
+    "layer": "中木(常緑)",
+    "role": "中木",
+    "species": "モチノキ・シイ",
+    "cert": "U(庭方 2026-10-03・EDO-0535 ── 新しい土井境の塀の石垣基壇(線から約2.4m)から d≥3.0m)",
+    "n": 3,
+    "clr": 1.6,
+    "spacing": 3.0,
+    "tilt": [
+     0.0,
+     4.0
+    ],
+    "tiltDir": "random",
+    "groups": [
+     {
+      "n": 3,
+      "where": "滝の背(東)── 奥の基壇と塀を隠す",
+      "box": [
+       -29.8,
+       67.0,
+       -28.6,
+       70.0
+      ]
+     }
+    ],
+    "parts": [
+     {
+      "api": "Own.Jouryoku(\"Mid\")",
+      "prefab": "Tree_Jouryoku_Mid",
+      "n": 1,
+      "scale": 1.0
+     }
+    ],
+    "scatterPending": "planting_out.json の撒き手(旧生成器)が無いので未撒き(EDO-0535)"
+   }
+  ],
+  "bandDef": {
+   "avoid": {
+    "basis": "幹の芯",
+    "kyoukaiRoadM": 2.0,
+    "kakoiInsideM": 2.0,
+    "kakoiLineFrom": "kyoukaiRoadM",
+    "edaShitaOverRoadM": 4.0,
+    "kakoiLines": [
+     "parcel",
+     "run",
+     "fence",
+     "nakajikiri",
+     "kaki"
+    ],
+    "hard": true,
+    "src": "林方の設計 2026-10-04(EDO-0554)── plantRule.clearance と同じ値"
+   }
   }
- ],
+ },
  "tenkei": [
   {
    "name": "T_Kutsunugi_V1",

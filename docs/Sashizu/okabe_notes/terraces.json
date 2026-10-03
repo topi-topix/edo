@@ -2,5 +2,6 @@
  "terraces/0/_": "区域は下絵 `UserData/EDO0502/an1/saitei_okabe2/plans2.py` plan_1()の pads(Shumen)を 0.25間 格子で輪郭化し 0.35間 で間引いた多角形。⛔ 縁の土留め・法面の位置は棟梁がこの区域と地形から解く(規則2・5)",
  "terraces/1/_": "区域は下絵 `UserData/EDO0502/an1/saitei_okabe2/plans2.py` plan_1()の pads(Kadonouchi)を 0.25間 格子で輪郭化し 0.35間 で間引いた多角形。⛔ 縁の土留め・法面の位置は棟梁がこの区域と地形から解く(規則2・5)",
  "terraces/2/_": "区域は下絵 `UserData/EDO0502/an1/saitei_okabe2/plans2.py` plan_1()の pads(Higashi)を 0.25間 格子で輪郭化し 0.35間 で間引いた多角形。⛔ 縁の土留め・法面の位置は棟梁がこの区域と地形から解く(規則2・5)",
- "terraces/3/_": "区域は下絵 `UserData/EDO0502/an1/saitei_okabe2/plans2.py` plan_1()の pads(Nishi)を 0.25間 格子で輪郭化し 0.35間 で間引いた多角形。⛔ 縁の土留め・法面の位置は棟梁がこの区域と地形から解く(規則2・5)"
+ "terraces/3/_": "区域は下絵 `UserData/EDO0502/an1/saitei_okabe2/plans2.py` plan_1()の pads(Nishi)を 0.25間 格子で輪郭化し 0.35間 で間引いた多角形。⛔ 縁の土留め・法面の位置は棟梁がこの区域と地形から解く(規則2・5)",
+ "terraces/4/_": "通用門の内の溜り(EDO-0530 B)。区域の四角は名目で、奥行 3間は門の内面から取る ── 石垣の位置と端は棟梁が門の実寸と地形から解く(規則2・5)"
 }

@@ -1,6 +1,6 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 488c9ce83940 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 d27cffdc8ad0 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
@@ -555,7 +555,7 @@ EdoBuildQueue.cs — 長い建て直しを MCP の 1 回の呼び出しの中で
 | `EdoBuild.SplitEdges(m, want)` | `int` | 面 | 辺を半分に割る(光付けの割り足し・2026-09-27 EDO-0437)。 ⟶ 返す: 割った辺の数 | — |
 | `EdoBuild.ScribeToBed(go, bedAt, meshName, step=…)` | `Scribe` | 駒どうし・天端・床 | 部材の下端を床へ光付けする(削り合わせ・2026-09-27 EDO-0437 施主裁定 案A)。 | — |
 | `EdoBuild.RecentreInBand(go, s, bedAt, tol, maxSink=…)` | `bool` | 硬 天端・床・区域 | 浮きと根入れの帯の真ん中へ据える(硬い ±tol)。 | Typology(BuildParcel) |
-| `EdoBuild.RootToBed(go, bedAt, step=…, only=…)` | `Scribe` | 地面・天端 | 根入れで据える(埋めて隠す・2026-09-27 施主「基本は埋める、違和感が見える所だけ光付け」── docs/oki-kata.md §0a)。 | Typology(BuildParcel・Inspect) |
+| `EdoBuild.RootToBed(go, bedAt, step=…, only=…)` | `Scribe` | 地面・天端 | 根入れで据える(埋めて隠す・2026-09-27 施主「基本は埋める、違和感が見える所だけ光付け」── docs/oki-kata.md §0a)。 | Typology(BuildParcel・Inspect), MatsudairaDewa(Stage6_Zosaku) |
 | `EdoBuild.SinkToBed(go, bedAt, step=…)` | `Scribe` | 硬 地面・区域 | 硬い・地面(浮き 0): 駒の下端の当たり(RootToBed)を相手 bedAt で測り、 最も浮いた当たりが相手に触れる所まで上下に動かす(下端 − 相手 の最大 = 0)。 | OkabeYashiki(PlaceFences) |
 | `EdoBuild.VisibleAboveBed(go, bedAt, step=…)` | `float` |  | 駒の見える丈[m] = 全高 − 下端の最も深い根入れ(RootToBed の最小が負の分)。 | OkabeYashiki(PlaceFences) |
 | `EdoBuild.WaistOutside(go, poly, bandH=…)` | `float` | 区域 | 駒の腰(壁体の最低点から bandH まで)の全頂点が区画の多角形の外へ出る最大[m](0 = 内)。 | OkabeYashiki(PlaceFences・PlaceOmoteNagaya) |

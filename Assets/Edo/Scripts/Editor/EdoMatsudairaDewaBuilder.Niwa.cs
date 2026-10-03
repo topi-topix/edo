@@ -643,8 +643,13 @@ public static partial class EdoMatsudairaDewaBuilder
         // ⚠ 中仕切の駒は Stage6 が `Fuzoku/Nakajikiri` に置く。`Group("Nakajikiri")` だと
         //    空の新規グループを作って **0 件で黙って成功**していた(2026-09-04 棟梁)。
         var walls = Group("Fuzoku/Nakajikiri"); int off = 0;
+        // ⛔ 木戸そのもの(Stage6 が kind=庭木戸 で据えた冠木門)は板塀の駒ではない ── 開口の芯に居るので消してしまう
+        //   (EDO-0535: 木戸を u−33〜−32 へ移した巡で NJ_Taki_Kido 本体を非アクティブにした)。
+        var kidoNames = new HashSet<string>();
+        foreach (var o in A(D["nakajikiri"])) { var w = O(o); if (StrOf(w, "kind") == "庭木戸") kidoNames.Add(StrOf(w, "name")); }
         foreach (Transform t in walls)
         {
+            if (kidoNames.Contains(t.name)) { t.gameObject.SetActive(true); continue; }
             var rs = t.GetComponentsInChildren<Renderer>(); if (rs.Length == 0) continue;
             var bb = rs[0].bounds; foreach (var r in rs) bb.Encapsulate(r.bounds);
             var c = new Vector2(bb.center.x, bb.center.z);

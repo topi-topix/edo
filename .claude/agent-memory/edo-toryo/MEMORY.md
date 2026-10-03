@@ -18,6 +18,8 @@
 - [delayCall は他窓の reload で消える・指図の同時書き](delaycall-lost-and-shared-sashizu.md) — Stage は直に呼ぶ。流す前に指図の sha と impl の src を見る
 - [別セッションの赤い .cs で Editor アセンブリが焼けない](editor-dll-blocked-by-other-session.md) — dll の mtime が止まり CPU も静か。⛔refresh を繰り返さず console の error を読む
 
+- [作業場が前の窓の邸で dirty・旧い退避は前の案の造成前](koba-left-dirty-by-other-window.md) — UnwrittenIn を見て保存→開く。案ごとに退避を分ける
+
 ## 部材の据え方
 
 - [綴りで部材を選ぶ器は似た新部材で倒れる](part-pick-by-spelling-breaks-on-new-sibling.md) — 小鳥居が焼けた途端に一ノ・二ノ鳥居が消えた。名指しの行を先に外す
@@ -40,6 +42,7 @@
 - [測って置く。事後に寄せる関数を持たない](measure-dont-nudge.md) — 帯の頂点では門柱が消えて偽の穴。閉じは三角形で測る
 - [段を跨ぐ渡廊下は区間に割る](roka-dan-step-joint.md) — 段の柱は低い側。折れ目に 0.19m の口(雨押えの部材が無い)
 - [設計面を地形へ写す二つの罠](grade-transfer-cliff-and-dropped-cells.md) — 石垣の見え面を双一次で跨がない・縮めた設計面の外に前の巡の切盛が残る
+- [区域外を退ける群の降り方・写し戻しの罠](retire-outside-walk-and-restore.md) — 子1つの入れ物を駒と読み338本消した。写し戻しは ConvertToPrefabInstance で繋ぐ
 - [区画を引き直すと焼いていない算出物の欄が線の外に据わる](stale-impl-after-parcel-redraw.md) — 岡部の杭列 484 個が 4〜11m 外。RetireOutsidePoly で退ける
 - [区画の線を動かすと前の造成が隣に残る](prev-grade-left-in-neighbor-after-parcel-move.md) — Stage1_Grade(prev) が類型の区画も戻す。隣の塀が浮く恐れ
 - [造成は変わった段だけ流し直す](regrade-only-the-changed-block.md) — 全面だと築山と池が平らに戻り掘り直せない
@@ -60,6 +63,7 @@
 - [参道の起点を門の実面へ移すと奥の棟が押し出される](jisha-maeniwa-origin-pushes-out-mune.md) — 前庭 1.8→6.6m と引き換えに成満寺が 3/4→2/4。本堂は退かない
 - [本堂と山門は Body(withRoof:false) が屋根を落とさない](honden-body-does-not-drop-roof.md) — 軒と壁体を出し分ける分岐が黙って無効になる。頂点数で先に検める
 - [庫裏の SmallHouse は 14.5×10.5m で本堂並み](jisha-kuri-smallhouse-is-14m.md) — 狭い境内の「収まらず未建」は離れを緩めても直らない。部材の側の話
+- [塀の腰で止まる端・6e が木戸を消す](run-end-at-wall-plinth-and-6e-kido.md) — 段ごとの当たりの最も奥へ。口は壁の法線でヤード側から測る
 - [口の縁は門の実メッシュで測る・端は点で取る](run-end-at-opening.md) — 射影だけだと横のずれが落ちて 0.822m の口。柱物は帯でなく断面(SectionAt)
 - [GetDetailLayer/GetHoles は寸法を [w,h] と偽る](terrain-detail-array-dims-lie.md) — 中身は [y,x]。正方でない範囲は DetailBlock で読み直す
 - [筋割りの Contact は平らな面どうしを見落とす](contact-cells-miss-flat-faces.md) — 柱と礎石で屋形が 1.93m 沈んだ。鉛直は RestOn(面で測る)

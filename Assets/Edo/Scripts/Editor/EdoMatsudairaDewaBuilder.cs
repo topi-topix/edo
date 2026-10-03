@@ -2906,7 +2906,17 @@ public static partial class EdoMatsudairaDewaBuilder
                     if (Vector2.Distance(new Vector2(rb.center.x, rb.center.z), outer) < rb.extents.magnitude + 3f) near.Add(c);
                 }
                 float y0 = DesignY(outer - dirK * 2f);
+                // ⚠ 帯の全体で最初に触れる所(最小)で止めると、塀の腰(下の張り出し)に当たって上の壁面との間に口が残る
+                //   (EDO-0535 NJ_Oku_S_E: 外周の塀と 16° で斜交・腰で止まり上の壁面まで 0.46〜0.64m)。
+                //   ⭕ 高さの段ごとに最初に触れる所を測り、その**最も奥**まで延ばす(下は呑まれる ── めり込みは数えない)。
+                //   ⛔ 他より 1m 以上奥の段は目地や開口を抜けた光線として採らない。
                 float reach = EdoBuild.ReachToBodies(inner, dirK, near, 0.05f, y0, y0 + h, lenK + 3f);
+                if (!float.IsNaN(reach))
+                    for (float yb = y0; yb < y0 + h - 0.05f; yb += 0.2f)
+                    {
+                        float rb = EdoBuild.ReachToBodies(inner, dirK, near, 0.05f, yb, yb + 0.2f, lenK + 3f);
+                        if (!float.IsNaN(rb) && rb > reach && rb < reach + 1f) reach = rb;
+                    }
                 if (float.IsNaN(reach)) sb.AppendLine("★ 中仕切 " + nm + ": 外周の塀に届かない(端は指図のまま)");
                 else
                 {
@@ -2989,6 +2999,7 @@ public static partial class EdoMatsudairaDewaBuilder
                 float gw = F(k["w"]);
                 int gacross = Mathf.Max(1, Mathf.RoundToInt(gw / 1.98f));
                 bool upFromA = gyb > gya;
+                float gSink = 0f;
                 var gmod = AssetDatabase.LoadAssetAtPath<GameObject>(EdoAssets.Own.DanishiStep);
                 if (gmod == null) { sb.AppendLine("⚠ 段石が無い: " + EdoAssets.Own.DanishiStep); continue; }
                 for (int i = 0; i < gn; i++)
@@ -3026,12 +3037,22 @@ public static partial class EdoMatsudairaDewaBuilder
                         if (have2 > 0.05f) go.transform.localScale = new Vector3((gw / gacross) / have2, 1f, 1f);
                         var bb2 = EdoBuild.RB(go);
                         go.transform.position += new Vector3(cc.x - bb2.center.x, gtop - bb2.max.y, cc.y - bb2.center.z);
+                        // ⭐ 横勾配のある斜面では一直線の蹴上だけだと下手の縁が浮く(EDO-0535 滝見の段で最大 0.165m)。
+                        //   浮きは許容0(硬い)── 下端を描かれた地表で測り、浮いた分だけ根入れで沈める(EdoBuild.RootToBed・oki-kata §0a)。
+                        //   山手の埋まりは柔らかい(自然石の乱れ段は地山へ据え込む)── 最大を報告へ出す。当たる先: 当邸の庭の段すべて。
+                        var rt = EdoBuild.RootToBed(go, (x, z) => TerrainY(x, z), 0.05f);
+                        if (!float.IsNaN(rt.hi) && rt.hi > 0.005f)
+                        {
+                            go.transform.position -= new Vector3(0f, rt.hi, 0f);
+                            gSink = Mathf.Max(gSink, rt.hi);
+                        }
                         nDan++;
                     }
                 }
                 sb.AppendLine("庭の段 " + nm + " " + gn + "段×" + gacross + "枚 蹴上" + gkeri.ToString("F3")
                               + " 踏面" + gfumi.ToString("F3") + " 走り" + ghor.ToString("F2")
                               + " (" + Mathf.Min(gya, gyb).ToString("F2") + "→" + Mathf.Max(gya, gyb).ToString("F2") + ")"
+                              + (gSink > 0f ? " 下手の浮きを根入れで消した最大 " + gSink.ToString("F3") + "m" : "")
                               + (Has(k, "orikaeshi") && !Has(k, "via")
                                  ? "  ⚠ orikaeshi=" + F(k["orikaeshi"]) + " なのに via が無い(折れ点が指図に無い→指図方へ)" : ""));
                 continue;

@@ -2638,10 +2638,14 @@ public static class EdoSannoShaRebuild
         }
         return false;
     }
-    /// <summary>道の芯線(算出物 `routes[].world` と指図 `fumotomichi[].pts`)を集める。</summary>
+    /// <summary>道の芯線(指図 `sando.pts`・算出物 `routes[].world`・指図 `fumotomichi[].pts`)を集める。</summary>
     static List<List<Vector2>> Michi()
     {
         var r = new List<List<Vector2>>();
+        // ⭐ 参道の芯線(指図 `sando.pts`)を**先頭**に置く ── 鳥居の足元では動線 `routes[表参]` も距離 0 で並ぶが、
+        //   動線は参道の写しで、参道を寄せたとき古いまま残り二ノ鳥居が斜めを向いた(EDO-0515)。同点は先に来た方が勝つ。
+        var sp = Pts(L(D(Doc, "sando"), "pts"));
+        if (sp.Count >= 2) r.Add(sp);
         foreach (var o in L(Impl, "routes"))
         { var d = o as Dictionary<string, object>; if (d != null) r.Add(Pts(L(d, "world"))); }
         foreach (var o in L(Doc, "fumotomichi"))

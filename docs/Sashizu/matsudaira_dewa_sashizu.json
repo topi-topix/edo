@@ -12529,12 +12529,12 @@
    ]
   },
   "hayashi": {
-   "at": "2026-10-03",
-   "verdict": "fail",
-   "hash": "904dde6131692d08",
-   "note": "3巡で止まった(高4中4低1): 植栽の撒き直しの生成器が無く古い配置の1278点のまま・法尻の林縁(帯W3)に層が無い ほか",
+   "at": "2026-10-04",
+   "verdict": "pass",
+   "hash": "261a25ac3c68d7e8",
+   "note": "4巡目 助言: 中2=植栽の欄に道際2.0m・囲いの内2.0m・枝下4.0mの宣言が無い(未検査)・垣の前の中木の塊が建仁寺垣から0.9〜1.7m。低1=庭の外の林床の塗りの欄が無い。K023〜K026 継続",
    "chapters": {
-    "planting": "548b04170e9f",
+    "planting": "0968ee896a57",
     "plantRule": "509f145e8399",
     "slopeArea": "2070edd4d29d",
     "slopePlanting": "cabd7ebef213",
@@ -12545,25 +12545,29 @@
     {
      "at": "2026-10-03T22:22:49+09:00",
      "verdict": "fail"
+    },
+    {
+     "at": "2026-10-04T07:56:16+09:00",
+     "verdict": "pass"
     }
    ]
   },
   "fushin": {
-   "at": "2026-10-03",
-   "verdict": "fail",
-   "hash": "2e7d5b049ddf7e3b",
-   "note": "3巡で止まった(高1中3低2): 池の余り水の暗渠の落とし先・蔵門の坂の勾配 ほか",
+   "at": "2026-10-04",
+   "verdict": "pass",
+   "hash": "5c2de4e00b5efb1e",
+   "note": "4巡目 指摘付きで可: 蔵門の内の坂の切土0.27〜0.30>0.25 は巡の中で直し、残り中1低2",
    "chapters": {
-    "terraces": "30b659a68b98",
+    "terraces": "bf65fe609d43",
     "planes": "679c36217269",
     "edgeProfiles": "9a96f3e8e6d1",
     "sections": "4ef694240b1d",
     "terraceWalls": "1385511eed2f",
     "ishigaki": "b5bed1646006",
     "fuchi": "4f53cda18c2b",
-    "kaidans": "23812c0af65c",
-    "ramps": "31f617ab27a2",
-    "drains": "5e7ee066c9f6",
+    "kaidans": "2d6657ae6ee8",
+    "ramps": "86843974b00a",
+    "drains": "ae0254623ae6",
     "valleys": "193dcdb4a59c",
     "py": "e9f89ca2796a28b0"
    },
@@ -12571,6 +12575,10 @@
     {
      "at": "2026-10-03T22:22:49+09:00",
      "verdict": "fail"
+    },
+    {
+     "at": "2026-10-04T07:56:16+09:00",
+     "verdict": "pass"
     }
    ]
   }

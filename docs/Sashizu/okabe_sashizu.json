@@ -5337,8 +5337,8 @@
   "kenzu": {
    "at": "2026-10-03",
    "verdict": "pass",
-   "hash": "4589e7c3836e9abe",
-   "note": "advisory 中1低2・前巡6件解消: 裏門の門口の幅と型が未記入/塀の内の坂の折れ点で法尻が区画線から0.5m/水抜きの溝が勝手・家臣の道を横切る所に蓋の記載なし",
+   "hash": "060e000e449920d6",
+   "note": "advisory 中2低1: 塀の内の坂の法尻は約1m寄せでは区画線の1.5m内に入らない(4m寄せか塀側に1m未満の土留め)/水抜きの溝が道と9度で17m並走し暗渠2間では13m開き溝が残る/裏門の型が未決",
    "chapters": {
     "const": "7671754f3301",
     "polygon": "e3f5d4a182c0",
@@ -5351,20 +5351,20 @@
     "runs": "27a4d7112018",
     "fences": "0edaa0f40910",
     "gate": "c4ef7ec2b711",
-    "komon": "c0591a8b40c5",
+    "komon": "26ea6e0bc063",
     "munes": "acd3d8187429",
     "links": "4f53cda18c2b",
-    "gardens": "cfbdf77bbff7",
-    "service": "95c9cc69fd5b",
+    "gardens": "429bf367e26f",
+    "service": "3bb70a014fc9",
     "wells": "d832a0759a85",
     "kaidans": "3d1acf450dad",
     "sando": "389ff7854e0a",
     "sections": "d24a69c967d9",
     "grading": "36e63730de64",
     "edgeProfile": "c0e7acb6857f",
-    "routes": "97b35915800c",
+    "routes": "e70950e25236",
     "han": "c9330b86f116",
-    "ramps": "e640c760e524",
+    "ramps": "16d9199c319d",
     "certSigs": "82e25aae8d4b",
     "roofs": "19502f0758ac",
     "groundLayers": "9025f5de107c",
@@ -5373,7 +5373,7 @@
     "tsukiyama": "9406344b59cd",
     "akichi": "c381e32054cc",
     "py": "d915f69c40037e8f",
-    "md": "a4114571df1c8105"
+    "md": "96eb632d9425a61a"
    },
    "rounds": [
     {
@@ -5403,17 +5403,21 @@
     {
      "at": "2026-10-03T14:59:01+09:00",
      "verdict": "pass"
+    },
+    {
+     "at": "2026-10-03T15:02:37+09:00",
+     "verdict": "pass"
     }
    ]
   },
   "niwashi": {
    "at": "2026-10-03",
    "verdict": "pass",
-   "hash": "f52fe40a13368a9a",
-   "note": "合格 低2: 築山の離れの文言 1.94→1.8m/溝が物資の道を横切る所に石の蓋か暗渠",
+   "hash": "e060ea52a7867913",
+   "note": "合格 指摘0・溝の横切りは1か所 u−13,v130.5",
    "chapters": {
-    "gardens": "cfbdf77bbff7",
-    "routes": "97b35915800c",
+    "gardens": "429bf367e26f",
+    "routes": "e70950e25236",
     "tsukiyama": "9406344b59cd",
     "py": "d915f69c40037e8f"
    },
@@ -5445,14 +5449,18 @@
     {
      "at": "2026-10-03T14:59:02+09:00",
      "verdict": "pass"
+    },
+    {
+     "at": "2026-10-03T15:02:37+09:00",
+     "verdict": "pass"
     }
    ]
   },
   "kosho": {
    "at": "2026-10-03",
    "verdict": "pass",
-   "hash": "4589e7c3836e9abe",
-   "note": "advisory 中2低1: 米蔵の確度を U/B・存在U へ下げる/東の平場と台地の縁の長屋の家臣が表門を日々通る(潜りU と明記か通用門へ)/裏門の前例を komon の cert にも",
+   "hash": "060e000e449920d6",
+   "note": "合格 指摘0・前巡の4件解消",
    "chapters": {
     "const": "7671754f3301",
     "polygon": "e3f5d4a182c0",
@@ -5465,20 +5473,20 @@
     "runs": "27a4d7112018",
     "fences": "0edaa0f40910",
     "gate": "c4ef7ec2b711",
-    "komon": "c0591a8b40c5",
+    "komon": "26ea6e0bc063",
     "munes": "acd3d8187429",
     "links": "4f53cda18c2b",
-    "gardens": "cfbdf77bbff7",
-    "service": "95c9cc69fd5b",
+    "gardens": "429bf367e26f",
+    "service": "3bb70a014fc9",
     "wells": "d832a0759a85",
     "kaidans": "3d1acf450dad",
     "sando": "389ff7854e0a",
     "sections": "d24a69c967d9",
     "grading": "36e63730de64",
     "edgeProfile": "c0e7acb6857f",
-    "routes": "97b35915800c",
+    "routes": "e70950e25236",
     "han": "c9330b86f116",
-    "ramps": "e640c760e524",
+    "ramps": "16d9199c319d",
     "certSigs": "82e25aae8d4b",
     "roofs": "19502f0758ac",
     "groundLayers": "9025f5de107c",
@@ -5487,7 +5495,7 @@
     "tsukiyama": "9406344b59cd",
     "akichi": "c381e32054cc",
     "py": "d915f69c40037e8f",
-    "md": "a4114571df1c8105"
+    "md": "96eb632d9425a61a"
    },
    "rounds": [
     {
@@ -5516,6 +5524,10 @@
     },
     {
      "at": "2026-10-03T14:59:02+09:00",
+     "verdict": "pass"
+    },
+    {
+     "at": "2026-10-03T15:02:37+09:00",
      "verdict": "pass"
     }
    ]

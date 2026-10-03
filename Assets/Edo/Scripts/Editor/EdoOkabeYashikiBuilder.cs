@@ -958,10 +958,52 @@ public static class EdoOkabeYashikiBuilder
                 if (kp != null && AssetDatabase.LoadAssetAtPath<GameObject>(kp) != null)
                 {
                     var gk = Group("Fences");
-                    float gy = Graded.At(c0.x, c0.y); if (float.IsNaN(gy)) gy = EdoBuild.Ground(c0.x, c0.y);
-                    // ⚠ ピボット = 開口の芯・地盤レベル(底は −0.140 で沓石が地盤より下へ出る)
-                    var go0 = EdoBuild.Place(kp, new Vector3(c0.x, gy, c0.y), psi0, Vector3.one,
-                                             gk, "Kuguri");
+                    // ⭐ 置き場は EdoBuild.PlaceBest(EDO-0502 裁定・docs/oki-kata.md §4a)。
+                    //   柔らかい: 指図の s(狙い)── 同じ run の上を狙いから近い順に試す。
+                    //   硬い: ①見える丈 ≥ 戸の丈 k.h(法の上で戸が埋まらず開く姿になる)②腰の区画外 0。
+                    //   ⛔ 法は均さない(地形に触らない)。
+                    float fs0 = 0f, fs1 = 0f;
+                    foreach (var fo in A(D["fences"]) ?? new List<object>())
+                    { var fd0 = O(fo); if (fd0 != null && (int)F(fd0["edge"]) == e0) { fs0 = F(fd0["s0"]); fs1 = F(fd0["s1"]); } }
+                    float doorH = Has(k, "h") ? F(k["h"]) : 0f;
+                    var spots = new List<float>();
+                    for (int q = 0; q < 2000; q++)
+                    {
+                        float d0 = 0.25f * ((q + 1) / 2) * (q % 2 == 0 ? 1f : -1f);
+                        float sq = s + d0;
+                        if (sq - w / 2f >= fs0 + w && sq + w / 2f <= fs1 - w) spots.Add(sq);
+                        if (Mathf.Abs(d0) > fs1 - fs0) break;
+                    }
+                    var hards = new List<EdoBuild.Hard> {
+                        new EdoBuild.Hard("見える丈 ≥ 戸の丈", g => { float v = EdoBuild.VisibleAboveBed(g, EdoBuild.Ground); return !float.IsNaN(v) && v >= doorH; }),
+                        new EdoBuild.Hard("区域", g => EdoBuild.WaistOutside(g, Poly) <= SEAM_TOL),
+                    };
+                    var tally = new EdoBuild.SeiyakuTally();
+                    float kIn = 0f;
+                    System.Func<float, GameObject> placeK = sq =>
+                    {
+                        Vector2 cq = EdgePt(e0, sq);
+                        var g = EdoBuild.Place(kp, new Vector3(cq.x, EdoBuild.Ground(cq.x, cq.y), cq.y), psi0, Vector3.one, gk, "Kuguri");
+                        if (g == null) return null;
+                        float was; kIn = EdoBuild.InsetRunToPoly(new List<GameObject> { g }, Poly, -ow, 0.50f, out was, 0.005f, SEAM_TOL);
+                        if (float.IsNaN(kIn)) { kIn = 0f; return g; }   // 区域の硬い制約で退く
+                        EdoBuild.SinkToBed(g, EdoBuild.Ground, 0.05f);
+                        return g;
+                    };
+                    var go0 = EdoBuild.PlaceBest<float>(spots, spots.Count, placeK, hards, new List<EdoBuild.Soft>(), tally);
+                    if (go0 == null)
+                        sb.AppendLine("★ 潜り戸: 硬い制約を満たす置き場が run の上に無い ── 建てない・柵の口も開けない" + tally.Summary());
+                    else
+                    {
+                        // 列の内寄せ(下)で柵と同じ量だけ動かすので、ここでは線の上へ戻す(芯を列と揃える)
+                        go0.transform.position += new Vector3(ow.x * kIn, 0f, ow.y * kIn);
+                        var cw = go0.transform.position;
+                        float sGot = Vector2.Dot(new Vector2(cw.x, cw.z) - EdgePt(e0, 0f), (EdgePt(e0, 1f) - EdgePt(e0, 0f)).normalized);
+                        if (Mathf.Abs(sGot - s) > 0.01f)
+                            sb.AppendLine("⚠ 潜り戸: 狙い s=" + s.ToString("F2") + " → " + sGot.ToString("F2") + "(" + (sGot - s).ToString("+0.00;-0.00")
+                                        + "m)── 狙いでは見える丈が戸の丈 " + doorH.ToString("F2") + "m に届かない" + tally.Summary());
+                        s = sGot;
+                    }
                     keep(e0, go0);
                     if (go0 != null)
                     {
@@ -970,7 +1012,8 @@ public static class EdoOkabeYashikiBuilder
                         openW = kw2;
                     }
                 }
-                gaps.Add(new float[] { e0, s - openW / 2f, s + openW / 2f });
+                // 戸が建たなければ柵に口を開けない(口だけ開けると素通しになる)
+                if (kuguri > 0) gaps.Add(new float[] { e0, s - openW / 2f, s + openW / 2f });
             }
         }
         int posts = 0, runs = 0; float wMeasured = 0f;

@@ -2114,6 +2114,22 @@ public static partial class EdoBuild
         return RootToBed(go, bedAt, step);
     }
 
+    /// <summary>駒の**見える丈**[m] = 全高 − 下端の最も深い根入れ(<see cref="RootToBed"/> の最小が負の分)。
+    /// 法の上に立つ戸・門で「開く姿になるか」を測る(戸の丈と比べる・EDO-0502 岡部の潜り戸 0.54m)。測れなければ NaN。</summary>
+    public static float VisibleAboveBed(GameObject go, Func<float, float, float> bedAt, float step = 0.05f)
+    {
+        var rt = RootToBed(go, bedAt, step);
+        if (float.IsNaN(rt.lo)) return float.NaN;
+        var b = RB(go);
+        return b.size.y + Mathf.Min(0f, rt.lo);
+    }
+
+    /// <summary>駒の腰(壁体の最低点から <paramref name="bandH"/> まで)の全頂点が区画の多角形の外へ出る最大[m](0 = 内)。</summary>
+    public static float WaistOutside(GameObject go, Vector2[] poly, float bandH = 1.2f)
+    {
+        return OutsideBy(LowBandPoints(go.transform, bandH), poly, Vector2.zero);
+    }
+
     /// <summary><see cref="RootToBed"/> が「下端に届いている」とみなす駒の下端の差[m]。【U】部材の継ぎの誤差より大きく、床の厚み(0.28)より小さく。</summary>
     const float ROOT_TOUCH = 0.05f;
 

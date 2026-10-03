@@ -52,9 +52,11 @@
    `build_sashizu.py <邸>` で焼き直してコミットする。⚠ 指図方へ渡すと起動の読み直しだけで 15〜25 分かかり、
    御成の道筋を男坂へ替える数十行の直しが一時間を超えた。⛔ 意匠は直に直さない(規則17 は変わらない)。
 
-2. ⛔ **検分を飛ばして見せない。**
-   `python3 Tools/Sashizu/review_gate.py` が赤の指図は、実装しない・ユーザーに見せない。
-   見せる = 裁定を仰ぐ・レンダを出す・指図の Artifact を案内する、のすべて(規則18)。
+2. ⛔ **検分を飛ばして実装しない。**
+   `python3 Tools/Sashizu/review_gate.py` が赤の指図は実装しない(規則18)。
+   ⭕ **見せるのは止めない**(2026-10-03 施主指示・規則22)。描きかけの図・建てかけのレンダは、求められたら
+   その場で、節目では頼まれなくても出す。題の頭に「途中・未検査」と何が未検査かを添える。
+   ⛔「検査が通っていないので見せられない」と答えない(→ `docs/reporting-protocol.md` 規則14)。
    ⚠ 2026-09-01、松江松平の庭が庭方に一度も検められないまま Stage7 まで実装され、差し戻された。
 
 3. ⛔ **自分で合否を出さない。**
@@ -198,7 +200,7 @@ claim を全部返す。この事跡だけが窓の外に残り、**普請場の
 | ユーザーに何か書く前 | **`docs/reporting-protocol.md`**(規則16・一件一葉) |
 | 起票・他セッションへの連絡 | **`docs/session-board.md`** |
 | claim・worktree・git | **`docs/session-coordination.md`** |
-| 指図を出す前・実装前 | `python3 Tools/Sashizu/review_gate.py` |
+| 実装に入る前 | `python3 Tools/Sashizu/review_gate.py` |
 | 屋敷の中身 | スキル `unity-buke-yashiki` / 石垣 `unity-modular-stonewall` / 地表 `unity-surface-authoring` |
 
 ---

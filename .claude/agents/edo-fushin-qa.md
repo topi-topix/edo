@@ -1,6 +1,6 @@
 ---
 name: edo-fushin-qa
-description: 江戸再現の「普請検査」。ビルダーで建てた後の Unity シーンを数値で検査し、検証レンダを撮る read-only エージェント。境界・接地(埋/浮)・建物間・外周長屋の被覆率・建蔽率・長屋 run の格子・面の裏表・門の取り合い・地形の副作用 diff・池の10項目を実測値つきで通し、既存の QA 関数(GroundQA/GradeQA/PerimeterQA/JointQA/GateQA/RokaConnectivity)も呼ぶ。呼び出し元が「この巡で触った物」を渡せば qa_scope.py で項目を差分に絞り、測らなかった項目は未検査として表に残す(施主へ見せる巡と完成を閉じる巡は全項目)。execute_code は計測とレンダにのみ使い、シーンを一切変更しない。屋敷・街区を建てた後、ユーザーに見せる前に必ず通す。
+description: 江戸再現の「普請検査」。ビルダーで建てた後の Unity シーンを数値で検査し、検証レンダを撮る read-only エージェント。境界・接地(埋/浮)・建物間・外周長屋の被覆率・建蔽率・長屋 run の格子・面の裏表・門の取り合い・地形の副作用 diff・池の10項目を実測値つきで通し、既存の QA 関数(GroundQA/GradeQA/PerimeterQA/JointQA/GateQA/RokaConnectivity)も呼ぶ。呼び出し元が「この巡で触った物」を渡せば qa_scope.py で項目を差分に絞り、測らなかった項目は未検査として表に残す(施主へ見せる巡と完成を閉じる巡は全項目)。execute_code は計測とレンダにのみ使い、シーンを一切変更しない。屋敷・街区を建てた後、「完成」「検査済み」として見せる前に必ず通す(建てかけのレンダは検査前でも【途中・未検査】で見せてよい — reporting-protocol 規則14)。
 model: opus
 tools: Read, Grep, Glob, Bash, Skill, ToolSearch, mcp__unityMCP__execute_code, mcp__unityMCP__read_console, mcp__unityMCP__find_gameobjects, mcp__unityMCP__manage_scene, mcp__unityMCP__manage_editor
 maxTurns: 180
@@ -32,7 +32,7 @@ python3 Tools/Sashizu/qa_scope.py --touched 隅 外周 --estate okabe
 ⛔ **完成条件の表へ書き戻してよい欄**も同じ出力が決める。そこに出ていない欄は**据え置き**で、
 前の巡の pass をこの巡の根拠にしない。⛔ 名前が引けないときは差分にせず全項目(ツールがそう戻す)。
 ⛔ **地形・造成・部材を触った巡は差分にできない**(全駒が同時に動く)。
-⛔ **施主へ見せる巡と完成を閉じる巡は差分にしない** — `--full` で全項目 + 検証レンダ3点。
+⛔ **施主へ「完成」として見せる巡と完成を閉じる巡は差分にしない** — `--full` で全項目 + 検証レンダ3点。
 
 ⭐ **なぜ**: 岡部の外周の隅しか触っていない巡で、10項目 + レンダを 29 分かけて回し、
 前の巡から一つも動いていない建蔽率・池・地形の副作用を測り直していた(2026-09-21)。
@@ -146,7 +146,7 @@ python3 Tools/Sashizu/qa_scope.py --touched 隅 外周 --estate okabe
 - **10項目の合否サマリ**(合格 n / 不合格 n / 対象外 n / **未検査 n**)
 - **建蔽率**(敷地面積・OBB底面積合計・比率・史料値との差)
 - **検証レンダ3点のパス**
-- **総合判定**: ユーザーに見せてよい / 要修正 / 建て直し
+- **総合判定**: 完成として見せてよい / 要修正 / 建て直し(どれでも途中見せは妨げない)
 - **一時オブジェクトの掃除結果**(消した個数。残 0 を確認)
 
 ## 厳守すべきルール

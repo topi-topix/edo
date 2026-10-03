@@ -1676,7 +1676,7 @@ def build_html(issues, pending, commits, claims, states, summary, reviews, typol
                                 esc(impl)))
         elif st.get("state"):
             p.append('<span class="state">%s</span>' % esc(st["state"]))
-        # 検図関門(2026-09-01 新設)。⛔ 赤の指図は実装しない・ユーザーに見せない。
+        # 検図関門(2026-09-01 新設)。⛔ 赤の指図は実装しない(見せるのは止めない・2026-10-03 規則22)。
         rv = reviews.get(e)
         if rv and rv.get("rows"):
             p.append('<div class="gate%s">' % (" gate-red" if rv["red"] else ""))

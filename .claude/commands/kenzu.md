@@ -1,9 +1,9 @@
 ---
-description: 指図(設計図)をユーザーに出す前に検分する — 三役を並列に、変わった章だけ、上限10件、最大3巡(Workflow sashizu-review)
+description: 指図(設計図)を実装に入る前に検分する — 三役を並列に、変わった章だけ、上限10件、最大3巡(Workflow sashizu-review)
 argument-hint: "<邸名(doi / matsudaira_dewa / sanno / okabe …)>"
 ---
 
-指図を**ユーザーに見せる前・実装に入る前**の関門。検分の輪は Workflow `sashizu-review` に書いてあり、
+指図を**実装に入る前**の関門。⛔ 見せる関門ではない — 途中の図は検分前でも「途中・未検査」と札を付けて見せる(`docs/reporting-protocol.md` 規則14)。検分の輪は Workflow `sashizu-review` に書いてあり、
 反復の上限(3 巡)・返り値の上限(指摘 10 件・要約 1,500 字)・差分だけ見ることをコードで守る。
 ⭐ **既定は実装前に 1 巡**(2026-09-19 施主裁定)。2 巡目に回す前に「建つ姿が変わる指摘か」を問い、書式・符牒・帳簿の
 指摘は落とす。実装の車線に入った邸(`docs/Sashizu/<邸>_kansei.json` が在る)は対象外 — 関門は `kansei_gate.py`。

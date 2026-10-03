@@ -15,14 +15,14 @@
 ⛔ **地形・造成を触った巡は差分にできない。**地形が動くと全駒の接地・池・境界が同時に動く
 (規則3「面の高さは地形が決める」)。`--touched 地形` を渡すと全項目に戻る。
 
-⛔ **完成の一巡は差分にしない。**`kansei_gate.py` の表を閉じる巡と、施主へ見せる巡は
+⛔ **完成の一巡は差分にしない。**`kansei_gate.py` の表を閉じる巡と、施主へ「完成」として見せる巡は
 全項目 + レンダ。`--full` を渡すか `--touched` を省く。
 
 【使い方】
     python3 Tools/Sashizu/qa_scope.py --touched 外周 隅           # 要る項目と未検査の項目を刷る
     python3 Tools/Sashizu/qa_scope.py --touched 棟 --estate okabe # 邸を添えると書き戻せる欄も出る
     python3 Tools/Sashizu/qa_scope.py --list                      # 触った物の名前の一覧
-    python3 Tools/Sashizu/qa_scope.py --full                      # 全項目(完成の一巡・見せる前)
+    python3 Tools/Sashizu/qa_scope.py --full                      # 全項目(完成の一巡・完成として見せる前)
     python3 Tools/Sashizu/qa_scope.py --touched 外周 --json       # 検査役へ渡す形
 
 正典の表は `docs/Sashizu/qa_scope.json`。項目の中身は `unity-buke-yashiki/references/qa-and-pitfalls.md`。
@@ -76,7 +76,7 @@ def main():
     ap = argparse.ArgumentParser(description="検査の差分 — 触った物から要る検査項目を決める")
     ap.add_argument("--touched", nargs="*", default=[], help="この巡で触った物(--list で名前の一覧)")
     ap.add_argument("--estate", help="邸(完成条件の表の欄を併せて刷る)")
-    ap.add_argument("--full", action="store_true", help="全項目(完成の一巡・施主へ見せる前)")
+    ap.add_argument("--full", action="store_true", help="全項目(完成の一巡・施主へ完成として見せる前)")
     ap.add_argument("--list", action="store_true", help="触った物の名前の一覧")
     ap.add_argument("--json", action="store_true", help="json で刷る(検査役へ渡す形)")
     a = ap.parse_args()
@@ -128,7 +128,7 @@ def main():
           % ("・".join(cols) if cols else "無し(この巡では一つも閉じられない)"))
     if skipped:
         print("⛔ 上に出ていない欄は**据え置き**。前の巡の pass をこの巡の根拠にしない。")
-    print("\n⛔ 施主へ見せる巡と完成を閉じる巡は差分にしない — `--full` で全項目 + 検証レンダ3点。")
+    print("\n⛔ 施主へ「完成」として見せる巡と完成を閉じる巡は差分にしない — `--full` で全項目 + 検証レンダ3点。")
     if a.estate:
         print("\n今の表: python3 Tools/Sashizu/kansei_gate.py %s" % a.estate)
     return 0

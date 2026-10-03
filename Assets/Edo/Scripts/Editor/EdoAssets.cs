@@ -2390,7 +2390,9 @@ public static class EdoAssets
         ///
         /// 焼いてあるもの(Dobei = 練塀。腕は折れ点から ±2.26m・高さ 1.455m・s を掛けて据える。
         /// s=1.818 で据えれば片腕は世界で 4.10m):
-        /// 00 00M 01 01M 06 07 08 08M 11 11M 14 14M 18 18M 19 31 38M 41 62 62M 88M 91 95 95M ／
+        /// 00 00M 01 01M 02M 03 04M 06 07 07M 08 08M 09 09M 10M 11 11M 12 12M 13 14 14M 16 16M 18 18M 19 19M
+        /// 22 22M 27 31 35 35M 38M 39 41 62 62M 67 76M 78 88M 89M 91 95 95M ／
+        /// (02M〜89M のうち岡部の新しい区画の 23 本は整数の角で焼いた・EDO-0502 2026-10-03)
         /// Ishigaki 31・31M ／ Tsuijibei 31 ／ Nagaya 38M。無い角度は:
         ///   blender --background --python Tools/Blender/build_kado.py -- --part dobei --deg &lt;符号つき角度&gt; --render
         ///

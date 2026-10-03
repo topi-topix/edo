@@ -21,9 +21,11 @@ import json
 import math
 import os
 import re
+import sys
 import subprocess
 
 import sashizu_lib
+import utsushi_check
 from sashizu_lib import R, _SVN, Proj, cf_color, cutfill_legend
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -34,6 +36,12 @@ DEM = os.path.join(DOC, "sotobori_dem.json")
 PARCELS = os.path.join(DOC, "parcels.json")   # 町割の正典。⛔ 読むだけ(編集は Edo/敷地割)
 TER = os.path.join(DOC, "sotobori_terrain.json")
 OUT = os.path.join(DOC, "sotobori_sashizu.html")
+OUT_KEII = os.path.join(DOC, "sotobori_keii.html")   # 経緯の図(写しではない)
+
+# 試し焼き(utsushi_check.py --inputs)用: `--out <path>` で写しと別頁を docs の外へ出す。
+if "--out" in sys.argv:
+    OUT = sys.argv[sys.argv.index("--out") + 1]
+    OUT_KEII = OUT.replace("_sashizu.html", "_keii.html")
 VEX = 3.0          # 断面の垂直倍率
 KAN = ["其一", "其二", "其三", "其四", "其五", "其六", "其七", "其八", "其九", "其十",
        "其十一", "其十二", "其十三", "其十四", "其十五", "其十六", "其十七", "其十八",
@@ -1056,25 +1064,6 @@ def pending_table(d):
     return tbl(["", "事項", "状態", "中身", "確度"], rows)
 
 
-def history():
-    try:
-        log = subprocess.check_output(
-            ["git", "-C", ROOT, "log", "--date=short", "--pretty=%h|%ad|%s", "--",
-             "docs/Sashizu/sotobori_sashizu.json", "docs/Sashizu/sotobori_kosho.md"]).decode()
-    except Exception:
-        log = ""
-    rows = []
-    for ln in log.strip().split("\n"):
-        if not ln.strip():
-            continue
-        hh, dt, sub = ln.split("|", 2)
-        rows.append("<tr><td><code>%s</code></td><td>%s</td><td class='note' style='text-align:left'>%s</td></tr>"
-                    % (hh, dt, html.escape(sub)))
-    if not rows:
-        rows = ["<tr><td colspan='3' class='note'>初版(未コミット)</td></tr>"]
-    return tbl(["commit", "日付", "件名"], rows)
-
-
 # ---------------------------------------------------------------- 組み立て
 def plate(h, num, title, meta=""):
     """章を開く。前の章が開いていれば閉じてから開く(閉じ忘れで div が入れ子になる)。"""
@@ -1105,11 +1094,12 @@ def main():
         n[0] += 1
         return KAN[n[0] - 1]
 
-    h = ['<meta charset="utf-8">', "<title>%s</title>" % html.escape(d["title"]),
+    utsushi = d["title"] + ("の写し" if d["title"].endswith("指図") else " 指図の写し")
+    h = ['<meta charset="utf-8">', "<title>%s</title>" % html.escape(utsushi),
          "<style>%s</style>" % css, '<div class="wrap">']
     h.append('<p class="eyebrow">%s ／ %s ／ 基準年次 %s</p>'
              % (html.escape(d["subtitle"]), html.escape(d["board"]), html.escape(d["year"])))
-    h.append("<h1>%s</h1>" % html.escape(d["title"]))
+    h.append("<h1>%s</h1>" % html.escape(utsushi))
     h.append('<p class="lede">2026-08-22 の造成リセットが、虎ノ門の橋の東面から東の外堀を'
              '<b>掘削もろとも現代の地面へ戻していた</b>。水面のメッシュは張られたままだったので、'
              '乾いた地面の中に水の板が沈み、両岸の総石垣も土に埋まっていた。'
@@ -1118,7 +1108,7 @@ def main():
              'この指図はそれを動かさない。'
              '<b>⭐ 00001 は 2026-08-29 に、00002・00003 は 2026-08-31 に実装を終え、'
              '施工後の7検査を回した ── <b>5件 ⭕・2件 △</b>。</b>⚠ △ は凍結域 K1 の中に'
-             '未是正のセルが1つ残るため(其十五 の施工記録と、未解決 U14)。'
+             '未是正のセルが1つ残るため(経緯の図 <code>sotobori_keii.html</code> の施工の記録と、未解決 U14)。'
              '<b>数値の正典は <code>sotobori_sashizu.json</code>、文章の正典は <code>sotobori_kosho.md</code>、'
              '実測は <code>sotobori_terrain.json</code>。</b>この頁はその三つから組んだもので、実装は読んでいない。</p>')
     sv = {r["id"]: r for r in ter["survey"]}
@@ -1221,7 +1211,11 @@ def main():
     h.append("<ul class='prose'>%s</ul>"
              % "".join("<li>⛔ %s</li>" % inline(html.escape(r)) for r in d["works"]["forbid"]))
 
-    plate(h, nx(), "石垣との取り合い", "背面の地盤が天端の直下にあるか")
+    plate(h, nx(), "施工の段階", "地形の編集は Undo の外 ── 2026-08-31 実施済")
+    h.append(stage_table(d))
+    plate(h, nx(), "検査", "1件でも落ちたら退避から戻す")
+    h.append(check_table(d))
+    h.append("<h3>石垣との取り合い — 背面の地盤が天端の直下にあるか</h3>")
     h.append(back_table(d, ter))
     h.append('<p class="cap">石垣は <b>1個も動かさない</b>(CLAUDE.md 絶対規則1)。'
              '底は y=0 にあり、床はその %.2f m 上に来るので、掘っても石垣は浮かない。'
@@ -1280,9 +1274,32 @@ def main():
              '⚠ <code>CWC_v6</code> の yaw・sy は 2026-09-01 にプレハブから確定した'
              '(<code>base</code> 2.00 + 4 × 1.2560 = 7.024 = 記録の天端 7.02)。</p>')
 
-    plate(h, nx(), "継ぎ目の詳細平面", "距離程 %.1f–%.1f ── 縦断にも横断にも現れない区間"
+    plate(h, nx(), "考証と決めごと", "文章の正典は sotobori_kosho.md")
+    h.append('<div class="prose">%s</div>' % prose)
+    plate(h, nx(), "未解決", "推定で埋めない対象")
+    h.append('<p class="cap">%s</p>' % inline(html.escape(d["unresolvedNote"])))
+    h.append(pending_table(d))
+    h.append('<p class="cap" style="margin-top:44px">@@PLATES@@。'
+             '<b>組み直すときは図を落としていないか必ず数える。</b></p>')
+    h.append('<div class="foot">組んだ日 %s ／ 設計値 <code>sotobori_sashizu.json</code> ／ '
+             '文章 <code>sotobori_kosho.md</code> ／ 実測 <code>sotobori_terrain.json</code>。'
+             'Y は海抜 m(Unity の Y がそのまま標高)。</div>'
+             % subprocess.check_output(["date", "+%Y-%m-%d %H:%M"]).decode().strip())
+    h.append("</div>")      # 最後の章
+    h.append("</div>")      # .wrap
+
+    # ⛔ **写しに載せない図は別の頁へ出す**(2026-10-03 施主裁定 EDO-0558 — docs/Sashizu/README.md 決めごと2c)。
+    #    継ぎ目の詳細平面は「裁定で消えたものの記録」なので経緯の図。改訂の表は git log が持つので焼かない。
+    sv_n = n[0]
+    n[0] = 0
+    hh = ['<meta charset="utf-8">', "<title>外堀 経緯の図</title>",
+          "<style>%s</style>" % css, '<div class="wrap">',
+          '<p class="eyebrow">経緯の図 ／ 指図の写しではない</p>', "<h1>外堀 経緯の図</h1>",
+          '<p class="lede">継ぎ目(00002 × 00003)の詳細平面(2026-09-01 の裁定A で躯体の定義がどう変わったかの記録)と、2026-08-31 の施工の記録(施工後の実測・事故・残る未是正)。'
+          '指図の写しから外した図(決めごと2c)で、正典は指図 <code>sotobori_sashizu.json</code>。</p>']
+    plate(hh, nx(), "継ぎ目の詳細平面", "距離程 %.1f–%.1f ── 縦断にも横断にも現れない区間"
           % (ter["gaps"][1]["from"], ter["gaps"][1]["to"]))
-    fig(h, junction_svg(d, dem, ter),
+    fig(hh, junction_svg(d, dem, ter),
         cap="⚠ <b>この %.1f m は縦断の基準線が途切れる区間で、横断の最寄りは ニ(560m)で 60m 下流</b>にある。"
             "ところが<b>図の最大の争点はここに集まる</b> ── U7 の折れ(この指図で唯一の確度A の史料主張)、"
             "SW3a の 23 駒、隅駒 CWC3_v2 / CWC3_v6、そして継ぎ目の残置。そこで平面で1面を割いた。"
@@ -1308,8 +1325,8 @@ def main():
             % (ter["gaps"][1]["length"], d["ishigaki"].get("faceToPivot", 4.80),
                d["ishigaki"].get("faceToPivot", 4.80), d["ishigaki"].get("pieceLen", 2.60),
                d["ishigaki"].get("pieceLen", 2.60)))
-    h.append(fan_table(d))
-    h.append('<p class="cap">⭐ <b>これは裁定で消えたものの記録で、いまの設計面には当たらない</b>'
+    hh.append(fan_table(d))
+    hh.append('<p class="cap">⭐ <b>これは裁定で消えたものの記録で、いまの設計面には当たらない</b>'
              '(<code>ishigaki.cornerFan.resolvedBy</code>)。裁定前に、出隅ごとに'
              '<b>半径 %.2f m の円(全面 %.2f m²)のうち「水面の外 かつ 設計面が水面 %.2f より低い」所</b>'
              'を測ったもの。水面の内外は汀線の多角形で厳密に、設計面は '
@@ -1327,12 +1344,11 @@ def main():
                 [b["waterY"] for b in d["water"] if b.get("works")][0],
                 d["ishigaki"].get("faceToPivot", 4.80), d["ishigaki"].get("pieceLen", 2.60)))
 
-    plate(h, nx(), "施工の段階", "地形の編集は Undo の外 ── 2026-08-31 実施済")
-    h.append(stage_table(d))
+    plate(hh, nx(), "施工の記録", "2026-08-31 実施 ── 施工後の実測・事故・残る未是正")
     pw = ter.get("postWork2026_0831")
     if pw:
         a = pw["applied"]
-        h.append('<p class="cap">⭐ <b>%s に実施した。</b>%s '
+        hh.append('<p class="cap">⭐ <b>%s に実施した。</b>%s '
                  '設計どおり動いたセル <b>%s(%s m²)</b>／工区 %s m²、'
                  '設計面との最大誤差 <b>%.3f m</b>(%s)。%s</p>'
                  % (pw["date"], inline(html.escape(pw["what"])),
@@ -1340,7 +1356,7 @@ def main():
                     "{:,}".format(a["workAreaM2"]), a["maxErrorVsDesign_m"],
                     inline(html.escape(a["note"])), inline(html.escape(pw["baseline"]))))
         inc = pw["incident"]
-        h.append('<div class="box"><p><b>⛔ 施工中に踏んだ事故(復旧済)</b><br>'
+        hh.append('<div class="box"><p><b>⛔ 施工中に踏んだ事故(復旧済)</b><br>'
                  '%s<br><b>原因</b> ── %s<br><b>なぜ検算が見逃したか</b> ── %s<br>'
                  '<b>復旧</b> ── %s<br>%s</p></div>'
                  % (inline(html.escape(inc["what"])), inline(html.escape(inc["cause"])),
@@ -1351,44 +1367,28 @@ def main():
                 % (c["id"], inline(html.escape(c["measured"])), html.escape(c["verdict"]),
                    inline(html.escape(c.get("note", "—"))))
                 for c in pw["checks"]]
-        h.append("<h4>施工後の検査(実測)</h4>")
-        h.append(tbl(["id", "実測", "判定", "註"], rows))
+        hh.append("<h4>施工後の検査(実測)</h4>")
+        hh.append(tbl(["id", "実測", "判定", "註"], rows))
         rs = pw.get("residual")
         if rs:
-            h.append('<div class="box"><p><b>⛔ まだ残っている未是正(%s 検図)</b><br>%s</p></div>'
+            hh.append('<div class="box"><p><b>⛔ まだ残っている未是正(%s 検図)</b><br>%s</p></div>'
                      % (rs["date"], "<br>".join(
                          "%s<br><b>是正</b> ── %s"
                          % (inline(html.escape(it["what"])), inline(html.escape(it["fix"])))
                          for it in rs["items"])))
-    plate(h, nx(), "検査", "1件でも落ちたら退避から戻す")
-    h.append(check_table(d))
-    plate(h, nx(), "考証と決めごと", "文章の正典は sotobori_kosho.md")
-    h.append('<div class="prose">%s</div>' % prose)
-    plate(h, nx(), "未解決", "推定で埋めない対象")
-    h.append('<p class="cap">%s</p>' % inline(html.escape(d["unresolvedNote"])))
-    h.append(pending_table(d))
-    plate(h, nx(), "改訂",
-          "git log — sotobori_sashizu.json + sotobori_kosho.md")
-    h.append(history())
-    h.append('<p class="cap">⚠ <b>この表は組んだ時点の <code>git log</code> を焼いたもので、'
-             '構造上いちばん新しいコミット(この頁を生んだ改訂そのもの)を載せられない。</b>'
-             'この頁を組み直してからコミットするので、<b>最新の1件は常に欠ける</b> ── '
-             '完全な経緯は <code>git log docs/Sashizu/sotobori_sashizu.json '
-             'docs/Sashizu/sotobori_kosho.md</code> で見ること(2026-09-01 検図)。</p>')
-    h.append('<p class="cap" style="margin-top:44px">@@PLATES@@。'
-             '<b>組み直すときは図を落としていないか必ず数える。</b></p>')
-    h.append('<div class="foot">組んだ日 %s ／ 設計値 <code>sotobori_sashizu.json</code> ／ '
-             '文章 <code>sotobori_kosho.md</code> ／ 実測 <code>sotobori_terrain.json</code>。'
-             'Y は海抜 m(Unity の Y がそのまま標高)。</div>'
-             % subprocess.check_output(["date", "+%Y-%m-%d %H:%M"]).decode().strip())
-    h.append("</div>")      # 最後の章
-    h.append("</div>")      # .wrap
+    hh.append("</div>")
+    hh.append('<div class="foot">指図の写しではない。生成器 <code>Tools/Sashizu/build_sotobori_sashizu.py</code>。'
+              'この頁は生成物なので直接編集しない。</div></div>')
+    open(OUT_KEII, "w", encoding="utf-8").write("\n".join(hh))
+    print("wrote %s" % OUT_KEII)
+    n[0] = sv_n
     out = "\n".join(h)
     nsvg = out.count("<svg")
     out = out.replace("@@PLATES@@", "章 %d ／ 図版(SVG) %d 面" % (n[0], nsvg))
     open(OUT, "w", encoding="utf-8").write(out)
     print("wrote %s ／ 章 %d ／ 図版(SVG) %d 面 ／ %.0f KB"
           % (OUT, n[0], nsvg, os.path.getsize(OUT) / 1024))
+    utsushi_check.check_html("sotobori", OUT)
 
 
 if __name__ == "__main__":

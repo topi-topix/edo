@@ -135,6 +135,16 @@ if os.path.exists(CLI):
         t = subprocess.run([sys.executable, tcli, "--quiet"], capture_output=True, text=True, env=env)
         if t.stdout.strip():
             print(t.stdout.strip())
+    # 指図の写しの関門(2026-10-03・EDO-0558) — 写し(<邸>_sashizu.html)の章立てが決めごと2c から
+    #   外れていないか(裁定図・経緯の図・履歴を写しに混ぜない)。html を読むだけで速い。`--quiet` は無傷なら無言。
+    ucli = os.path.join(MAIN_ROOT, "Tools", "Sashizu", "utsushi_check.py")
+    if os.path.exists(ucli):
+        try:
+            u = subprocess.run([sys.executable, ucli, "--quiet"], capture_output=True, text=True, env=env, timeout=10)
+            if u.stdout.strip():
+                print(u.stdout.strip())
+        except Exception:
+            pass
     # 算出物の焼き手(2026-09-22・EDO-0386) — 実装(C#)が読む `<邸>_impl.json` は指図に無い従属値の
     #   焼き出しで、邸ごとの生成器が焼いていた。その生成器は 2026-09-20 の共通化で消え、**main には
     #   焼き手が一つも残らなかった**。焼き直せない欄は黙って腐る —— 岡部の `corners[].deg` は 13 隅

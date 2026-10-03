@@ -38,9 +38,10 @@ import json
 import math
 import os
 import re
-import subprocess
+import sys
 
 import sashizu_lib
+import utsushi_check
 from sashizu_lib import R, _pat, _SVN, Proj, dem_color, dem_legend, _iso, cutfill_legend
 from cliff_polyline import Cliff
 
@@ -53,6 +54,14 @@ RECON = os.path.join(DOC, "niwa_sakyo_edo_recon.json")     # 復元の手順の�
 WORLD = os.path.join(DOC, "niwa_sakyo_edo_world.json")     # 復元した面(生成器が書く派生物)
 PARCELS = os.path.join(DOC, "parcels.json")
 OUT = os.path.join(DOC, "niwa_sakyo_sashizu.html")
+OUT_KEII = os.path.join(DOC, "niwa_sakyo_keii.html")        # 経緯の図(写しではない)
+OUT_SAITEI = os.path.join(DOC, "niwa_sakyo_saitei_p1.html")  # 裁定図(写しではない)
+
+# 試し焼き(utsushi_check.py --inputs)用: `--out <path>` で写しと別頁を docs の外へ出す。
+if "--out" in sys.argv:
+    OUT = sys.argv[sys.argv.index("--out") + 1]
+    OUT_KEII = OUT.replace("_sashizu.html", "_keii.html")
+    OUT_SAITEI = OUT.replace("_sashizu.html", "_saitei_p1.html")
 TSUBO = 3.305785
 VEX = 2.4      # 断面の垂直倍率
 
@@ -3865,28 +3874,8 @@ def pending_table(d):
             "<th class='note'>件</th>"
             "<th class='note'>中身</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>"
             "<p class='cap'>「図」の列は、その未解決を図で見られる図版の番号。"
-            "<b>P-1 は裁定図(%s)</b>で、どこ・現況の実測値・三案・断面・変わる数値・推奨が"
+            "<b>P-1 は %s</b>で、どこ・現況の実測値・三案・断面・変わる数値・推奨が"
             "そろっている。</p>" % FIGREF.get("saitei", "—"))
-
-
-def history():
-    try:
-        log = subprocess.check_output(
-            ["git", "-C", ROOT, "log", "--date=short", "--pretty=%h|%ad|%s", "--",
-             "docs/Sashizu/niwa_sakyo_sashizu.json", "docs/Sashizu/niwa_sakyo_kosho.md"]).decode()
-    except Exception:
-        log = ""
-    rows = []
-    for ln in log.strip().split("\n"):
-        if not ln.strip():
-            continue
-        hh, dt, sub = ln.split("|", 2)
-        rows.append("<tr><td><code>%s</code></td><td>%s</td><td class='note'>%s</td></tr>"
-                    % (hh, dt, html.escape(sub)))
-    if not rows:
-        rows = ["<tr><td colspan='3' class='note'>初版(未コミット)</td></tr>"]
-    return ("<div class='tw'><table><thead><tr><th>commit</th><th>日付</th><th class='note'>件名</th>"
-            "</tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>")
 
 
 # ---------------------------------------------------------------- 組み立て
@@ -3952,7 +3941,7 @@ def zumen_table(nsec):
             "</tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>"
             "<p class='cap'>⛔ <b>必須の図が揃っているかを冒頭で自己申告する</b>"
             "(2026-09-01 検図 K10)。<b>○ %d ／ ✗ %d(欠図)／ — %d(非該当)</b>。"
-            "断面は %d 面(東西・南北・斜)に加えて、明治の復元面との対比を東西・南北で重ねてある。"
+            "断面は %d 面(東西・南北・斜)。明治の復元面との対比は経緯の図 <code>niwa_sakyo_keii.html</code> へ移した。"
             "<br>⛔ <b>欠けている図を「後で描く」と書いて先へ進まない</b> — "
             "描けない理由(この図では御殿の室割りが無いこと)がそのまま未解決である。</p>"
             % (ok, ng, na, nsec))
@@ -4106,12 +4095,12 @@ def main():
         n[0] += 1
         return KAN[n[0] - 1]
 
-    h = ['<meta charset="utf-8">', "<title>丹羽左京大夫上屋敷 指図</title>",
+    h = ['<meta charset="utf-8">', "<title>丹羽左京大夫上屋敷 指図の写し</title>",
          "<style>%s</style>" % css, '<div class="wrap">']
     # ⛔ **表紙に家格(「外様」)を書かない** — 武鑑に語が無く典拠を持たない【?】。
     #    断定と否認を同じ頁に同居させない(CLAUDE.md 規則7・2026-09-01 考証 Ko-A)。
     h.append('<p class="eyebrow">永田馬場 山王坂 ／ 陸奥二本松藩 十万七百石 ／ 大広間詰</p>')
-    h.append("<h1>丹羽左京大夫長富 上屋敷 指図</h1>")
+    h.append("<h1>丹羽左京大夫長富 上屋敷 指図の写し</h1>")
     h.append('<p class="lede">安政三年(1856)の姿。切絵図の直違紋で<b>上屋敷</b>と確定し、'
              '溜池遺跡の発掘(都埋文258)が<b>長屋地区・蔵跡・池跡・井戸・境界石垣・埋立造成</b>を出している'
              '【S 記載事項に限る。⚠ 本文未入手・抄録のみ】。'
@@ -4140,13 +4129,14 @@ def main():
                 "{:,}".format(d["norm"]["tsuboBand"][1]),
                 (area / TSUBO) / (sum(d["norm"]["tsuboBand"]) / 2.0)))
 
-    # ⛔ **必須8図の充足表**は図版番号が要るので、ここに枠だけ置いて最後に差し替える。
-    ZPLACE = len(h)
-    h.append("")
+
+    # ⭐ 写しの外へ出した図は、図版番号の代わりに頁の名で引く(pending の「図」の列が読む)。
+    FIGREF["meiji"] = "経緯の図 <code>niwa_sakyo_keii.html</code>"
+    FIGREF["saitei"] = "裁定図 <code>niwa_sakyo_saitei_p1.html</code>"
 
     # 其一
     FIGREF["haichi"] = KAN[n[0]]
-    plate(h, nx(), "敷地全体 配置図",
+    plate(h, nx(), "配置図",
           "北が上 ／ %s 坪【P】 ／ 表門 = 東辺 z=839" % "{:,.0f}".format(area / TSUBO))
     fig(h, haichi_svg(d, geo, dem, KAN[n[0] - 1]),
         legend='<span style="color:var(--shu)">■ 表向・表門</span>'
@@ -4171,7 +4161,7 @@ def main():
 
     # 其二 現況図
     FIGREF["genkyo"] = KAN[n[0]]
-    plate(h, nx(), "現況図(造成前の地形)",
+    plate(h, nx(), "現況図 — 造成前の地盤",
           "段彩 2 m ／ 等高線 2 m(10 m 太線) ／ 確度P")
     fig(h, genkyo_svg(d, geo, dem, KAN[n[0] - 1]),
         legend=dem_legend(),
@@ -4182,7 +4172,7 @@ def main():
             "%s。⚠ <b>自然の谷底ならこうはならない</b>。"
             "2026-08-11 の実装時にはこの造成をラプラシアン緩和で復元した地形があり、"
             "棟はその上に置かれた。<b>その復元は 2026-08-22 の地形の作り直しで消えている。</b>"
-            "結果として、いまの地盤では御殿が地中へ深く入る(其三・其四)。<b>未解決 P-1。</b>"
+            "結果として、いまの地盤では御殿が地中へ深く入る(切盛図・棟の接地の章)。<b>未解決 P-1。</b>"
             "<br>⭕ <b>地盤は正本 <code>base_dem.json</code> からの切り出しに一本化した</b>"
             "。正本が東と南へ広がったので、当邸だけ別経路で"
             "参照ハイトマップから直に切っていた <code>build_niwa_sakyo_dem.py</code> は捨てた — "
@@ -4204,17 +4194,15 @@ def main():
             "<b>CLAUDE.md 規則3(|設計面 − 自然地形| ≤ 0.5 m)を満たすのは4棟だけ。未解決 P-1。</b>")
     h.append("</div>")
 
-    # 其四 棟の接地
-    plate(h, nx(), "棟の接地", "座 ／ 外形の下の地形 ／ 埋没 — 規則3の合否")
-    fig(h, seat_svg(d, geo, dem, KAN[n[0] - 1]),
-        cap="<b>棟ごとに、外形の下の自然地形の幅(灰の棒)と、そこへ据えた座(朱の線)を並べた。</b>"
-            "座は <code>CenterSeat</code> が中心・四隅・四辺中点の9点で採った地形の最小値から"
-            "沈め代を引いた高さ。<b>棒の上端が朱の線より上に出ている量が、そのまま棟が地中へ入る深さ</b>。")
-    h.append(munes_table(d, dem, geo))
-    h.append('<p class="cap">(u, v) は<b>表門の芯を原点とする世界軸グリッド</b>(u=東+ / v=北+、単位は間)。'
-             '⚠ <b>建物の寸法は在庫部材の実寸で決まっていて間の倍数ではない</b> — '
-             'グリッドは位置の読み取りのためのもので、寸法をこれに丸めていない。'
-             '⛔ <b>室割りは無い</b>(未解決 P-9)。</p>')
+    # 断面(全断面 同一縮尺・一章に束ねる)
+    sscale = section_scale(d)
+    FIGREF["sections"] = KAN[n[0]]
+    plate(h, nx(), "断面", "%d 面 ／ 垂直倍率 ×%.1f ／ 全断面 同一縮尺" % (len(d["sections"]), VEX))
+    for s in d["sections"]:
+        h.append("<h3>%s — %s</h3>" % (html.escape(s["name"]), html.escape(s["view"])))
+        fig(h, section_svg(d, geo, dem, s, KAN[n[0] - 1], sscale),
+            cap=inline(s.get("_", "")) if s.get("_") else
+                "地盤の実線と造成前の破線が<b>完全に重なる</b> — 造成していないことがこの図で読める。")
     h.append("</div>")
 
     # 其五 動線
@@ -4239,7 +4227,7 @@ def main():
     h.append("</div>")
 
     # 其六 外周の展開
-    plate(h, nx(), "外周の展開", "辺0 → 辺%d を一列に伸ばす ／ 駒ごとの天端と地盤" % (len(geo.P) - 1))
+    plate(h, nx(), "外周と役割", "外周の展開 ／ 辺0 → 辺%d を一列に伸ばす ／ 駒ごとの天端と地盤" % (len(geo.P) - 1))
     fig(h, tenkai_svg(d, geo, dem, KAN[n[0] - 1]),
         legend='<span style="color:var(--hei)">■ 築地塀</span>'
                '<span style="color:var(--nagaya)">■ 盲長屋</span>'
@@ -4274,194 +4262,53 @@ def main():
              % next(r["edge"] for r in d["runs"] if r["kind"] == "Nagaya"))
     h.append("</div>")
 
-    # 其七 取り合い
-    plate(h, nx(), "取り合い 詳細", "面で決める ／ 芯で合わせない ／ 図4面 + 表")
-    fig(h, toriai_svg(d, geo, KAN[n[0] - 1]),
-        cap="<b>① 表門 ↔ 築地塀(J1 / J2)。</b>実装は塀の端を『門の実測半幅 + 0.35 m』で"
-            "止めているので、<b>閉じの検査が見る面(塀の妻面 ↔ 螻羽の外端)が 0.35 m 開く</b>。"
-            "⭕ <b>螻羽の下の 1.89 m は隙間ではない</b> — 螻羽(屋根の端)は軸部(袖壁)より"
-            "外へ出ているので、塀の妻面と軸部のあいだのその距離は<b>屋根の陰</b>である。"
-            "<b>直すのは 0.35 m だけ(未解決 P-3)。</b>動かすのは塀の側(門は開口の芯に固定)。")
-    fig(h, toriai_nagaya_svg(d, KAN[n[0] - 1]),
-        cap="<b>② 家臣長屋 西 ↔ 東(J3)。</b>芯間 7.80 m に対し壁の実寸は 7.91 m なので"
-            "<b>壁が 0.11 m めり込む</b>(許容 −0.00 を超える)。"
-            "⭕ <b>屋根が 0.69 m 重なるのは長屋の連なりとして正しい姿</b>で、"
-            "機械検査の「外形の重なり」はここを拾う — だから除外規約を置いてある。"
-            "<b>直すのは壁の面(未解決 P-4)。</b>")
-    fig(h, toriai_chain_svg(d, geo, KAN[n[0] - 1]),
-        cap="<b>③ 盲長屋の鎖 ↔ 隅(J4 / J5)。</b>鎖の実延長が辺より長く、中央寄せなので"
-            "<b>両端が隅の外へ出る</b>。⛔ <b>run の端を「丸ごとの駒が並んだ成り行き」にしない</b> — "
-            "端は隅の面に合わせ、端数は鎖の中で吸う(sashizu.md §3f)。"
-            "駒数を落とすと今度は端数が余るので、<b>端数を隅と開口のどちらで吸うかがユーザーの裁定"
-            "(未解決 P-2)。</b>")
-    fig(h, toriai_bansho_svg(d, geo, KAN[n[0] - 1]),
-        cap="<b>④ 門と番所 ↔ 区画線(J8 / J9)。</b>門の芯が区画線の上に乗っているので、"
-            "門の屋根も番所も線の外(通り側)へ出る。"
-            "⚠ <b>区画線は南北で傾いている</b>ので、はみ出し量は番所の南端と北端で違う — "
-            "取り合い表の値は門の芯の位置で測った代表値である。"
-            "<b>どこを区画線と見るか(敷居の芯か・軸部の外面か)が決まっていない(未解決 P-7)。</b>")
-    h.append("<h3>取り合い表</h3>")
-    h.append(joints_table(d, geo))
+    # 棟の接地(欄があれば載せる章)
+    FIGREF["setchi"] = KAN[n[0]]
+    plate(h, nx(), "棟の接地", "座 ／ 外形の下の地形 ／ 埋没 — 規則3の合否")
+    fig(h, seat_svg(d, geo, dem, KAN[n[0] - 1]),
+        cap="<b>棟ごとに、外形の下の自然地形の幅(灰の棒)と、そこへ据えた座(朱の線)を並べた。</b>"
+            "座は <code>CenterSeat</code> が中心・四隅・四辺中点の9点で採った地形の最小値から"
+            "沈め代を引いた高さ。<b>棒の上端が朱の線より上に出ている量が、そのまま棟が地中へ入る深さ</b>。")
+    h.append(munes_table(d, dem, geo))
+    h.append('<p class="cap">(u, v) は<b>表門の芯を原点とする世界軸グリッド</b>(u=東+ / v=北+、単位は間)。'
+             '⚠ <b>建物の寸法は在庫部材の実寸で決まっていて間の倍数ではない</b> — '
+             'グリッドは位置の読み取りのためのもので、寸法をこれに丸めていない。'
+             '⛔ <b>室割りは無い</b>(未解決 P-9)。</p>')
     h.append("</div>")
 
-    # 断面(全断面 同一縮尺)
-    sscale = section_scale(d)
-    FIGREF["sections"] = "%s〜%s" % (KAN[n[0]], KAN[n[0] + len(d["sections"]) - 1])
-    for s in d["sections"]:
-        plate(h, nx(), s["name"], s["view"] + " ／ 垂直倍率 ×%.1f ／ 全断面 同一縮尺" % VEX)
-        fig(h, section_svg(d, geo, dem, s, KAN[n[0] - 1], sscale),
-            cap=inline(s.get("_", "")) if s.get("_") else
-                "地盤の実線と造成前の破線が<b>完全に重なる</b> — 造成していないことがこの図で読める。")
-        h.append("</div>")
-
-    # 明治16年の実測 vs 現況DEM(⭐ 裁定の根拠なので裁定図より前に置く)
-    FIGREF["meiji"] = KAN[n[0]]
-    nread = sum(1 for a in RECON_SPEC["anchors"] if a["y"] is not None)
-    plate(h, nx(), "明治16年の実測 vs 現況DEM",
-          "五千分一東京図(0.3175 m/px)原寸実見 ／ 標高点 %d 点(うち値が読めるのは %d 点)"
-          " ／ 三区分は Δ から機械で分ける" % (len(RECON_SPEC["anchors"]), nread))
-    h.append('<div class="box"><p>⛔ <b>現況DEM の「造成前」は、『当プロジェクトのシーンで'
-             '我々が流した造成の前』という意味であって、近代開発の前ではない。</b>'
-             '<code>base_dem.json</code> 自身が「これは現代の地面であって江戸の地面ではない」と'
-             '明記しており、丹羽区画には<b>衆議院議員会館の掘削</b>と<b>官邸側の盛土</b>が'
-             'そのまま入っている。'
-             '<br>⭐ <b>そこで錨を明治16年(1883)の五千分一東京図に取り替えた。</b>'
-             '安政三年(1856)の27年後で、当区画に近代の建物が入る前である。'
-             '標高点の<b>読み値は確度A</b>(原寸実見)、<b>世界座標は確度P(±3 m)</b>'
-             ' — ⚠ 2026-09-01 に「±10〜20 m」から訂正した(区画の輪郭5辺で較正した残差が 1〜3 m)。'
-             '<br>⚠ <b>2026-09-01 に考証の訂正が3件入った</b> — '
-             '<b>(1) 崖の向き</b>(南北の直線 → WNW–ESE の折れ線・X ≳ −185 で東西へ抜ける)/ '
-             '<b>(2) 錨2点を典拠から外した</b>(原図の地境線から<b>京極の区画内</b>と判明。'
-             'あわせて「南は近代の盛土」という結論も撤回した)/ '
-             '<b>(3) 台地の錨1点の値を「?」へ格下げ</b>(公開スキャンで数字が判読不能)。'
-             '<br>⭐ <b>[都埋文258]【S】は「丹羽家屋敷が西側の低地を順次埋め立て造成して'
-             '屋敷化する過程」を書く</b>ので、<b>明治16年の谷底の高さには丹羽自身が江戸期に'
-             '入れた埋立が既に含まれている</b> — つまりこの面は「江戸の丹羽の地面」の'
-             '最良の代理であり、従前 案(d) として別に立てていた「埋立造成を史実として再現する」は'
-             '<b>この錨の中に吸収されている</b>。'
-             '<br>復元の手順の仕様は <code>docs/Sashizu/niwa_sakyo_edo_recon.json</code>、'
-             '面は <code>docs/Sashizu/niwa_sakyo_edo_world.json</code>'
-             '(生成器 <code>Tools/Sashizu/build_niwa_sakyo_recon.py</code>)。'
-             '⛔ <b>復元は丹羽の区画の中だけで行う</b>(2026-08-24 に岡部が越境した前例)。</p></div>')
-    fig(h, meiji_svg(d, geo, dem, demA, KAN[n[0] - 1]),
-        legend="".join(_sw(c) + lab + "</span>" for _k, lab, c in MJ_CLASS)
-               + '<span style="color:var(--ink)">◎ 明治16年の標高点(区画内)</span>'
-               '<span style="color:var(--dim)">○ 同(区画外)</span>'
-               '<span style="color:var(--ink)">┄ 崖の法尻 / 法肩</span>',
-        cap="<b>現況DEM は明治16年の面と、場所によって符号が反転して食い違う。</b>"
-            "西端はほぼ一致する【本物の地形】、中央〜東は現況が大きく低い【近代の掘削】。"
-            "<br>⭐ <b>崖の向きを訂正した結果、台地の錨 ⊙24.8 が法肩のすぐ下に正しく乗った</b> — "
-            "残差は表のとおりで、<b>これは当てはめに使っていない点なので独立した検算である</b>。"
-            "<br>⚠ <b>区画内で値の読める錨は %d 点しかない</b>(表の「区画」「読み」の欄)。"
-            "⭕ <b>区画の外の錨も当てはめには使う</b>が、<b>復元そのものは区画の中だけ</b>で行う。"
-            "<br>⛔ <b>残るのは台地面の高さの典拠</b> — 帯の上端だった錨は数字が判読不能へ"
-            "格下げされ、区画外10m の参照 ⊙28【B】と現況DEM は<b>どちらも高い側</b>を指す。"
-            "<b>どちらで受けるかは考証の判断なので、指図方は決めていない【?】</b>(未解決 P-15)。"
-            % sum(1 for a, c in zip(RECON_SPEC["anchors"], RECON_OUT["anchors"])
-                  if c["in"] and a["y"] is not None))
-    fig(h, meiji_sec_svg(d, geo, dem, demA, KAN[n[0] - 1]),
-        cap="<b>同じ切り位置で、復元面(実線)と現況DEM(破線)を重ねた。</b>"
-            "⛔ <b>区画の外では両者が完全に一致する</b> — 復元を区画の中でクリップしているためで、"
-            "<b>区画線の上に段が立つ</b>のはその帰結である(摺り付けない)。"
-            "⚠ <b>これは隠すべきものではない</b> — 隣家(京極・内藤・社人八家)がまだ"
-            "近代の掘削・盛土を履いているという事実そのものだからで、"
-            "<b>境の面は明治16年の実測を共通の錨にして突き合わせる</b>"
-            "(EDO-0093 のユーザー裁定 = 復元は各邸が自分の区画内で行い、境界は情報共有する)。")
-    fig(h, meiji_sec_ns_svg(d, geo, dem, demA, KAN[n[0] - 1]),
-        cap="<b>南北の切り位置で重ねた。</b>⛔ <b>訂正した崖の東半は東西に走る</b>"
-            "(法尻 Z≈803 / 法肩 Z≈819)ので、<b>東西断面ではその区間と平行になって図に出ない</b> — "
-            "この向きが要る(2026-09-01 検図 K5)。"
-            "⚠ <b>行き先未決の家臣長屋2棟はまさにこの帯に立っている。</b>")
-    h.append("<h3>復元の手順と当てはまり</h3>")
-    h.append(recon_table(d, geo, dem, demA))
-    h.append("<h3>台地面のモデル — 水平面か、東上がりの面か</h3>")
-    h.append(plateau_model_table(d, geo))
+    # 庭
+    FIGREF["niwa"] = KAN[n[0]]
+    plate(h, nx(), "庭", "⛔ 庭方の検分は不合格(2026-09-01) ／ 図は0枚 ／ 池は未再現")
+    pl = d["planting"]
+    h.append('<div class="box"><p><b>池は掘っていない。</b>都埋文258 の発掘で池跡は確認されている'
+             '【S 記載事項に限る】が、<b>位置も形状も不明</b>【?】なので推定で掘らない(CLAUDE.md 規則7)。'
+             '庭は seed=%d で <b>%d 本</b>の松・低木を撒いたもので、区画の縁 %.1f m 以内と'
+             '建屋の外形 +%.1f m を避ける。松の比率 %.0f %%。'
+             '⛔ 自作の低ポリゴンの木は使っていない(規則10)— 在庫のパックから採っている。'
+             '<br>⚠ <b>これは「見る場所(入側)とセットになった庭」ではなく、空地に木を撒いたもの</b>である。'
+             '庭として成立しているかは <code>edo-niwashi</code> の検分に回すこと。</p></div>'
+             % (pl["seed"], pl["count"], pl["edgeClear"], pl["buildClear"], pl["pineRatio"] * 100))
+    h.append('<div class="box"><p>⛔ <b>庭方(<code>edo-niwashi</code>)の検分は 2026-09-01 に'
+             '<b>不合格</b>である。</b>指摘は<b>未解決へ立てるところまで</b>を反映してあり、'
+             '<b>庭そのものの設計はしていない</b> — 見所・園路・築山・池・石組・植栽の層は'
+             '<b>作庭の意匠</b>で、CLAUDE.md 規則17 のとおり'
+             '<b>庭方が設計してから指図方が数値へ書き起こす</b>順序になる。'
+             '<br>立っている未解決: %s。'
+             '<br>⚠ <b>この節に図は1枚も無い</b>(未解決 %s)。庭園図・園路図・'
+             '主視点からの視野図・水の縦断の4面が要る — <b>図の無い庭は検図できない。</b>'
+             '<br>⭐ 1本あたりの受け持ちは <b>%s m²</b>(敷地 ÷ 本数)= 一辺 <b>%.1f m</b> の'
+             '正方形に1本にあたる。⚠ <b>層は主木と低木の2層だけ</b>で、中木も下草も落葉樹も無い。</p></div>'
+             % ("・".join("<b>%s</b>(%s)" % (q["id"], html.escape(q["title"].split(" — ")[0]))
+                          for q in d["pending"] if q.get("fig") == "niwa"),
+                "・".join(q["id"] for q in d["pending"]
+                          if q.get("fig") == "niwa" and "図が1枚も無い" in q["title"]),
+                "{:,.0f}".format(area / max(pl["count"], 1)),
+                math.sqrt(area / max(pl["count"], 1))))
     h.append("</div>")
 
-    # 裁定図(P-1)
-    S = sai(d)
-    FIGREF["saitei"] = KAN[n[0]]          # ⛔ 図版番号は手で数えない(pending の参照に使う)
-    plate(h, nx(), "裁定図(P-1)　%s" % S["title"],
-          "① どこ ② 現況 ③ 三案 同一縮尺 ④ 断面の対比 ⑤ 変わる数値 ⑥ 推奨")
-    h.append('<div class="box"><p>⛔ <b>これは裁定を仰ぐための図で、指図方は案を選んでいない。</b>'
-             'CLAUDE.md 規則16 の6点セット(どこ / 背景 / 選択肢 A・B・C / 推奨 / 影響 / 裁定図)を'
-             'この一節で満たす。<b>裁定が下りるまで「未解決 P-1」は未解決のまま</b>で、'
-             '本文も実装も動かさない。⛔ <b>埋没・合格数・崖の比高と勾配・区画線の段は'
-             '<code>niwa_sakyo_dem.json</code> と <code>niwa_sakyo_edo_world.json</code> から'
-             '毎回算出している</b>(規則4)。'
-             '<br>⭐ <b>三案とも棟は1棟も動かない。動くのは地盤だけ</b>である — '
-             '従前の三案は現況DEM を起点に「棟をどこへ寄せるか」を問うていたが、'
-             '<b>その現況DEM が江戸の地面ではなかった</b>ので、問いそのものを'
-             '<b>「地盤をどの面に置くか」</b>へ立て直した(前の節)。'
-             '<br>⛔ <b>「骨格(①②)だけに留める中間案」は計算した結果 図として成立しないので'
-             '入れていない</b> — 理由と数値は前の節の「復元の手順と当てはまり」の ④⑤ の行が持つ。'
-             '<br>⭐ <b>A/B/C は <code>niwa_sakyo_kosho.md</code> の 案(a)(b)(c) と対応する</b> — '
-             '対応は見出しと表の「案」の列に併記した(<b>%s</b> ／ <b>%s</b> ／ <b>%s</b>)。</p></div>'
-             % (sai_gian(sai_opt(d, "A")), sai_gian(sai_opt(d, "B")), sai_gian(sai_opt(d, "C"))))
-    fig(h, sai_key_svg(d, geo, dem, KAN[n[0] - 1]),
-        legend=dem_legend(),
-        cap="<b>① どこの話か。</b>濃い枠と名札を付けた3棟(表御殿・奥御殿・土蔵三)が"
-            "現況で特に深く埋まっている駒で、朱の破線が③の切り取り範囲。"
-            "<b>② いま何がどうなっているか</b>を右に実測で並べた — 順位は埋没の深い順。"
-            "<br>⚠ <b>朱の斜線は現況の人工の平場</b>で、"
-            "前の節の三区分では<b>近代の掘削</b>にあたる区域である。"
-            "表御殿・奥御殿はその底に据えられていて、東の台地との間を急な段が落ちる — "
-            "<b>その落差がそのまま現況の埋没の量になっている</b>。"
-            "<br>⭐ <b>A案・B案はこの区域を明治16年の谷底へ戻す</b>ので、"
-            "埋没は棟を動かさずに解消する(③④の図)。")
-    fig(h, sai_plan_svg(d, geo, dem, KAN[n[0] - 1]),
-        legend='<span style="color:var(--hei)">■ 築地塀(三案とも動かない)</span>'
-               '<span style="color:var(--nagaya)">■ 盲長屋(同)</span>'
-               '<span style="color:var(--shu)">● 表門(同)</span>'
-               + _sw("var(--cut4)") + "埋没 3m 超</span>"
-               + _sw("var(--cut2)") + "0.5〜3m</span>"
-               + _sw("var(--nomove)") + "0.5m 以下(規則3 合格)</span>"
-               + '<span style="color:var(--dim)">┄ 行き先未決</span>'
-               '<span style="color:var(--dim)">┄ 崖の法尻 / 法肩(折れ線)</span>',
-        cap="<b>③ 三案を同じ縮尺・同じ範囲で並べた。</b>案ごとに別の図にすると差が読めないので"
-            "並べてある(CLAUDE.md 2026-08-30)。"
-            "<b>棟も外周も表門も三案とも一切動かない — 違いはすべて地盤の段彩に出ている。</b>"
-            "<br>⚠ <b>A案・B案では復元した崖の面に載る駒</b>を破線と「?」で示した"
-            "(⛔ どの駒かは<b>崖の折れ線に当てて毎回測る</b> — 手で並べない)。"
-            "行き先は配置の判断なので<b>指図方は決めていない</b> — "
-            "制約(外形が法肩の折れ線より台地側)だけを⑤の表に出してある。"
-            "<br>⚠ <b>崖は折れ線</b>(北=WNW–ESE の斜め → 東西)なので、"
-            "<b>破線は縦一直線ではない</b>。"
-            "<br>⭐ <b>A案とB案の違いは台地面の高さだけ</b>で、"
-            "谷底と崖は同じ錨・同じ手順である。")
-    fig(h, sai_sec_svg(d, geo, dem, KAN[n[0] - 1]),
-        cap="<b>④ 断面の対比。</b>埋没は平面図では読めない — <b>何メートル地中に入っているかは断面でしか"
-            "分からない</b>ので、<b>同じ切り位置(z=839)を三案の面で切って</b>上下に並べた。"
-            "<br>⛔ <b>棟は三案とも動かないので、段どうしの違いはすべて地盤の違いである。</b>"
-            "<b>z=839 は表門・表御殿・崖・谷底・西の通りを一本で切る唯一の位置</b>で、"
-            "三段すべてに表門が写る。"
-            "<br>⚠ <b>四段目だけ切り位置が違う</b> — 土蔵三棟は"
-            "西へ 8 m・南へ 6 m ずつ斜めに並ぶので東西にも南北にも串刺しにできず、"
-            "三棟の中心を通る斜の線で切って<b>復元した崖の法肩から法尻まで</b>通してある。"
-            "⭐ この線は訂正した崖(WNW–ESE)と<b>ほぼ直交する</b>ので、崖の姿がそのまま出る。")
-    h.append("<h3>⑤ 案ごとに何がどれだけ変わるか</h3>")
-    h.append(sai_case_table(d, geo, dem))
-    h.append('<p class="cap">「最大の埋没」は、その案でのすべての駒(棟・付属屋・表門)の埋没の最大。'
-             '<b>行き先未決の駒(復元した崖の面に載るもの)は分母からも最大値からも外してある</b>。'
-             '<br>⛔ <b>建蔽率はここでは出さない</b> — 三案とも棟を動かさないので'
-             '建築面積は変わらず、分母(敷地全体)も変わらないからである(次節の「建蔽率」が持つ)。'
-             '<br>⚠ <b>「区画線の段」は摺り付けていない量そのもの</b>で、'
-             '<b>隣家がまだ近代の掘削・盛土を履いている</b>ことを表す。'
-             '⛔ 丹羽側から隣家の地盤を持ち上げて隠さない(2026-08-24 に岡部が越境した前例)。</p>')
-    h.append("<h3>外形の重なり</h3>")
-    h.append(sai_overlap_table(d, geo, dem))
-    h.append('<p class="cap">⭕ <b>三案とも棟を動かさないので、重なりは現況のままである</b> — '
-             '長屋どうしの軒の重なりは機械検査と同じ除外規約で外してある(未解決 P-4 が別に見る)。</p>')
-    h.append("<h3>駒ごとの内訳(A案 / B案 / C案)</h3>")
-    h.append(sai_body_table(d, geo, dem))
-    h.append('<p class="cap">⛔ <b>「下の起伏」を必ず併記する</b> — '
-             '台地を<b>水平面</b>で復元しているので、台地の上では起伏が 0.00 m になり、'
-             '<b>埋没は沈め代(<code>const.sink</code>)そのもの</b>になる。'
-             'つまり<b>台地の上の「規則3 合格」は恒真に近く、独立した検査ではない</b>。'
-             '岡部が 2026-08-25 に同じ性質を <code>okabe_edo_recon.json</code> に明記している。'
-             '<br>⚠ <b>表門は区画線をまたぐ</b>ので、復元する案では区画の中(復元面)と'
-             '外(現況)の両方を踏む — <b>その段差が門の埋没に出る</b>(未解決 P-7 と同じ根)。</p>')
-    h.append(sai_prose(d, dem))
+    # 隣家
+    plate(h, nx(), "隣家との取り合い", "囲いを誰が受け持つか")
+    h.append(neighbors_table(d, geo))
     h.append("</div>")
 
     # 建蔽率
@@ -4515,41 +4362,6 @@ def main():
              '廊下から壁が見える(memory <code>goten-asset-blender-todo</code>)。未解決 P-9。</p>')
     h.append("</div>")
 
-    # 庭
-    FIGREF["niwa"] = KAN[n[0]]
-    plate(h, nx(), "庭", "⛔ 庭方の検分は不合格(2026-09-01) ／ 図は0枚 ／ 池は未再現")
-    pl = d["planting"]
-    h.append('<div class="box"><p><b>池は掘っていない。</b>都埋文258 の発掘で池跡は確認されている'
-             '【S 記載事項に限る】が、<b>位置も形状も不明</b>【?】なので推定で掘らない(CLAUDE.md 規則7)。'
-             '庭は seed=%d で <b>%d 本</b>の松・低木を撒いたもので、区画の縁 %.1f m 以内と'
-             '建屋の外形 +%.1f m を避ける。松の比率 %.0f %%。'
-             '⛔ 自作の低ポリゴンの木は使っていない(規則10)— 在庫のパックから採っている。'
-             '<br>⚠ <b>これは「見る場所(入側)とセットになった庭」ではなく、空地に木を撒いたもの</b>である。'
-             '庭として成立しているかは <code>edo-niwashi</code> の検分に回すこと。</p></div>'
-             % (pl["seed"], pl["count"], pl["edgeClear"], pl["buildClear"], pl["pineRatio"] * 100))
-    h.append('<div class="box"><p>⛔ <b>庭方(<code>edo-niwashi</code>)の検分は 2026-09-01 に'
-             '<b>不合格</b>である。</b>指摘は<b>未解決へ立てるところまで</b>を反映してあり、'
-             '<b>庭そのものの設計はしていない</b> — 見所・園路・築山・池・石組・植栽の層は'
-             '<b>作庭の意匠</b>で、CLAUDE.md 規則17 のとおり'
-             '<b>庭方が設計してから指図方が数値へ書き起こす</b>順序になる。'
-             '<br>立っている未解決: %s。'
-             '<br>⚠ <b>この節に図は1枚も無い</b>(未解決 %s)。庭園図・園路図・'
-             '主視点からの視野図・水の縦断の4面が要る — <b>図の無い庭は検図できない。</b>'
-             '<br>⭐ 1本あたりの受け持ちは <b>%s m²</b>(敷地 ÷ 本数)= 一辺 <b>%.1f m</b> の'
-             '正方形に1本にあたる。⚠ <b>層は主木と低木の2層だけ</b>で、中木も下草も落葉樹も無い。</p></div>'
-             % ("・".join("<b>%s</b>(%s)" % (q["id"], html.escape(q["title"].split(" — ")[0]))
-                          for q in d["pending"] if q.get("fig") == "niwa"),
-                "・".join(q["id"] for q in d["pending"]
-                          if q.get("fig") == "niwa" and "図が1枚も無い" in q["title"]),
-                "{:,.0f}".format(area / max(pl["count"], 1)),
-                math.sqrt(area / max(pl["count"], 1))))
-    h.append("</div>")
-
-    # 隣家
-    plate(h, nx(), "隣家との取り合い", "囲いを誰が受け持つか")
-    h.append(neighbors_table(d, geo))
-    h.append("</div>")
-
     # Stage
     plate(h, nx(), "実装の順序",
           "⛔ 流し直し不可(未解決 P-19) ／ 建っているのは 2026-08-11 の版")
@@ -4567,34 +4379,6 @@ def main():
              '<br>⭕ <b>造成をしないので地形のバックアップは要らない</b>(地形を一切触らない)。</p>')
     h.append("</div>")
 
-    # 機械検査
-    bad, skipped, nrect = checks(d, geo, dem)
-    plate(h, nx(), "機械検査", "%d 件が落ちる ／ %d 矩形 %d 組の総当たり ／ 図を出す前に必ず回す"
-          % (len(bad), nrect, nrect * (nrect - 1) // 2))
-    h.append(checks_table(bad, skipped, nrect))
-    h.append('<p class="cap">⛔ <b>目視では必ず見落とすので、外形の重なり・区画からの出入り・'
-             '規則3の埋没・鎖のはみ出し・取り合いの規約を機械で検めてから図を出す</b>'
-             '(sashizu.md §4)。<b>落ちた項目はすべて「未解決」に立ててある</b> — '
-             'この検査に通っていないものが図に残っているのは、'
-             '<b>直すのが設計の判断だから</b>であって、見落としているからではない。</p>')
-    h.append("</div>")
-
-    # 御届が伝える屋敷の中身(確度Sの一次史料 vs 当図)
-    FIGREF["todoke"] = KAN[n[0]]
-    plate(h, nx(), "御届が伝える屋敷の中身",
-          "確度%s(%s)の一次史料【%s】 ／ 当図の数は図から数える"
-          % (d["todoke"]["acc"], d["todoke"]["accNote"], d["todoke"]["src"]))
-    h.append('<div class="box"><p>%s</p></div>' % inline(d["todoke"]["_"]))
-    h.append(todoke_table(d, geo))
-    # ⛔ **柱書を三重に持たない**(規則4・2026-09-01 考証 Ko-I)。
-    #    読み方(下限としてしか使えないこと・向き・位置は書かれていないこと)は
-    #    上の枠 = json `todoke._` が正で、ここでは参照だけにする。
-    h.append('<p class="cap">⛔ <b>読み方は上の枠が正</b>(数は「壊れた数」= 在った数の下限 ／ '
-             '使ってよい向きは「当図はこの下限に届いていない」だけ ／ '
-             'どこに在ったかは書かれていない)。<b>同じ説明をここに書き写さない。</b>'
-             '未解決 P-25。</p>')
-    h.append("</div>")
-
     # 未解決
     plate(h, nx(), "未解決", "%d 件(高 %d / 中 %d / 低 %d)"
           % (len(d["pending"]), sum(1 for p in d["pending"] if p["pri"] == "高"),
@@ -4606,29 +4390,254 @@ def main():
              '指図方の領分ではない — <b>本文脈とユーザーの裁定に回す</b>。</p>')
     h.append("</div>")
 
-    # 考証
+    # 機械検査
+    bad, skipped, nrect = checks(d, geo, dem)
+    plate(h, nx(), "検査", "%d 件が落ちる ／ %d 矩形 %d 組の総当たり ／ 図を出す前に必ず回す"
+          % (len(bad), nrect, nrect * (nrect - 1) // 2))
+    h.append(checks_table(bad, skipped, nrect))
+    h.append('<p class="cap">⛔ <b>目視では必ず見落とすので、外形の重なり・区画からの出入り・'
+             '規則3の埋没・鎖のはみ出し・取り合いの規約を機械で検めてから図を出す</b>'
+             '(sashizu.md §4)。<b>落ちた項目はすべて「未解決」に立ててある</b> — '
+             'この検査に通っていないものが図に残っているのは、'
+             '<b>直すのが設計の判断だから</b>であって、見落としているからではない。</p>')
+    h.append("<h3>必須の図が揃っているか</h3>")
+    h.append(zumen_table(len(d["sections"])))
+    h.append("</div>")
+
+    # 御届が伝える屋敷の中身(確度Sの一次史料 vs 当図)
+    FIGREF["todoke"] = KAN[n[0]]
     FIGREF["kosho"] = KAN[n[0]]
-    plate(h, nx(), "考証", "典拠と確度 ／ 正典は niwa_sakyo_kosho.md")
+    plate(h, nx(), "考証と決めごと", "典拠と確度 ／ 正典は niwa_sakyo_kosho.md")
+    h.append("<h3>御届が伝える屋敷の中身 — 確度%s(%s)の一次史料【%s】</h3>"
+             % (d["todoke"]["acc"], html.escape(d["todoke"]["accNote"]), d["todoke"]["src"]))
+    h.append('<div class="box"><p>%s</p></div>' % inline(d["todoke"]["_"]))
+    h.append(todoke_table(d, geo))
+    # ⛔ **柱書を三重に持たない**(規則4・2026-09-01 考証 Ko-I)。
+    #    読み方(下限としてしか使えないこと・向き・位置は書かれていないこと)は
+    #    上の枠 = json `todoke._` が正で、ここでは参照だけにする。
+    h.append('<p class="cap">⛔ <b>読み方は上の枠が正</b>(数は「壊れた数」= 在った数の下限 ／ '
+             '使ってよい向きは「当図はこの下限に届いていない」だけ ／ '
+             'どこに在ったかは書かれていない)。<b>同じ説明をここに書き写さない。</b>'
+             '未解決 P-25。</p>')
+    h.append("<h3>考証</h3>")
     h.append('<div class="prose">%s</div>' % prose)
     h.append("</div>")
 
-    plate(h, nx(), "履歴", "経緯は git log が持つ(指図の本文には残さない)")
-    h.append(history())
-    h.append("</div>")
+
+    # ⛔ **写しに載せない図は別の頁へ出す**(2026-10-03 施主裁定 EDO-0558 — docs/Sashizu/README.md 決めごと2c)。
+    #    裁定図は裁定図として、史料と現況の比べ・取り合いの実測は経緯の図として、それぞれ単独の頁にする。
+    def side_page(out, title, eyebrow, lede, blocks):
+        sv = n[0]
+        n[0] = 0
+        hh = ['<meta charset="utf-8">', "<title>%s</title>" % title,
+              "<style>%s</style>" % css, '<div class="wrap">',
+              '<p class="eyebrow">%s</p>' % eyebrow, "<h1>%s</h1>" % title,
+              '<p class="lede">%s</p>' % lede]
+        blocks(hh)
+        hh.append('<div class="foot">指図の写しではない。生成器 <code>Tools/Sashizu/build_niwa_sakyo_sashizu.py</code>。'
+                  'この頁は生成物なので直接編集しない。</div></div>')
+        n[0] = sv
+        open(out, "w", encoding="utf-8").write("\n".join(hh))
+        print("組んだ: %s" % os.path.relpath(out, ROOT))
+
+    def keii_blocks(hh):
+        # 其七 取り合い
+        plate(hh, nx(), "取り合い 詳細", "面で決める ／ 芯で合わせない ／ 図4面 + 表")
+        fig(hh, toriai_svg(d, geo, KAN[n[0] - 1]),
+            cap="<b>① 表門 ↔ 築地塀(J1 / J2)。</b>実装は塀の端を『門の実測半幅 + 0.35 m』で"
+                "止めているので、<b>閉じの検査が見る面(塀の妻面 ↔ 螻羽の外端)が 0.35 m 開く</b>。"
+                "⭕ <b>螻羽の下の 1.89 m は隙間ではない</b> — 螻羽(屋根の端)は軸部(袖壁)より"
+                "外へ出ているので、塀の妻面と軸部のあいだのその距離は<b>屋根の陰</b>である。"
+                "<b>直すのは 0.35 m だけ(未解決 P-3)。</b>動かすのは塀の側(門は開口の芯に固定)。")
+        fig(hh, toriai_nagaya_svg(d, KAN[n[0] - 1]),
+            cap="<b>② 家臣長屋 西 ↔ 東(J3)。</b>芯間 7.80 m に対し壁の実寸は 7.91 m なので"
+                "<b>壁が 0.11 m めり込む</b>(許容 −0.00 を超える)。"
+                "⭕ <b>屋根が 0.69 m 重なるのは長屋の連なりとして正しい姿</b>で、"
+                "機械検査の「外形の重なり」はここを拾う — だから除外規約を置いてある。"
+                "<b>直すのは壁の面(未解決 P-4)。</b>")
+        fig(hh, toriai_chain_svg(d, geo, KAN[n[0] - 1]),
+            cap="<b>③ 盲長屋の鎖 ↔ 隅(J4 / J5)。</b>鎖の実延長が辺より長く、中央寄せなので"
+                "<b>両端が隅の外へ出る</b>。⛔ <b>run の端を「丸ごとの駒が並んだ成り行き」にしない</b> — "
+                "端は隅の面に合わせ、端数は鎖の中で吸う(sashizu.md §3f)。"
+                "駒数を落とすと今度は端数が余るので、<b>端数を隅と開口のどちらで吸うかがユーザーの裁定"
+                "(未解決 P-2)。</b>")
+        fig(hh, toriai_bansho_svg(d, geo, KAN[n[0] - 1]),
+            cap="<b>④ 門と番所 ↔ 区画線(J8 / J9)。</b>門の芯が区画線の上に乗っているので、"
+                "門の屋根も番所も線の外(通り側)へ出る。"
+                "⚠ <b>区画線は南北で傾いている</b>ので、はみ出し量は番所の南端と北端で違う — "
+                "取り合い表の値は門の芯の位置で測った代表値である。"
+                "<b>どこを区画線と見るか(敷居の芯か・軸部の外面か)が決まっていない(未解決 P-7)。</b>")
+        hh.append("<h3>取り合い表</h3>")
+        hh.append(joints_table(d, geo))
+        hh.append("</div>")
+
+        # 明治16年の実測 vs 現況DEM(⭐ 裁定の根拠なので裁定図より前に置く)
+        pass  # FIGREF["meiji"] は頁の名(上で控えた)
+        nread = sum(1 for a in RECON_SPEC["anchors"] if a["y"] is not None)
+        plate(hh, nx(), "明治16年の実測 vs 現況DEM",
+              "五千分一東京図(0.3175 m/px)原寸実見 ／ 標高点 %d 点(うち値が読めるのは %d 点)"
+              " ／ 三区分は Δ から機械で分ける" % (len(RECON_SPEC["anchors"]), nread))
+        hh.append('<div class="box"><p>⛔ <b>現況DEM の「造成前」は、『当プロジェクトのシーンで'
+                 '我々が流した造成の前』という意味であって、近代開発の前ではない。</b>'
+                 '<code>base_dem.json</code> 自身が「これは現代の地面であって江戸の地面ではない」と'
+                 '明記しており、丹羽区画には<b>衆議院議員会館の掘削</b>と<b>官邸側の盛土</b>が'
+                 'そのまま入っている。'
+                 '<br>⭐ <b>そこで錨を明治16年(1883)の五千分一東京図に取り替えた。</b>'
+                 '安政三年(1856)の27年後で、当区画に近代の建物が入る前である。'
+                 '標高点の<b>読み値は確度A</b>(原寸実見)、<b>世界座標は確度P(±3 m)</b>'
+                 ' — ⚠ 2026-09-01 に「±10〜20 m」から訂正した(区画の輪郭5辺で較正した残差が 1〜3 m)。'
+                 '<br>⚠ <b>2026-09-01 に考証の訂正が3件入った</b> — '
+                 '<b>(1) 崖の向き</b>(南北の直線 → WNW–ESE の折れ線・X ≳ −185 で東西へ抜ける)/ '
+                 '<b>(2) 錨2点を典拠から外した</b>(原図の地境線から<b>京極の区画内</b>と判明。'
+                 'あわせて「南は近代の盛土」という結論も撤回した)/ '
+                 '<b>(3) 台地の錨1点の値を「?」へ格下げ</b>(公開スキャンで数字が判読不能)。'
+                 '<br>⭐ <b>[都埋文258]【S】は「丹羽家屋敷が西側の低地を順次埋め立て造成して'
+                 '屋敷化する過程」を書く</b>ので、<b>明治16年の谷底の高さには丹羽自身が江戸期に'
+                 '入れた埋立が既に含まれている</b> — つまりこの面は「江戸の丹羽の地面」の'
+                 '最良の代理であり、従前 案(d) として別に立てていた「埋立造成を史実として再現する」は'
+                 '<b>この錨の中に吸収されている</b>。'
+                 '<br>復元の手順の仕様は <code>docs/Sashizu/niwa_sakyo_edo_recon.json</code>、'
+                 '面は <code>docs/Sashizu/niwa_sakyo_edo_world.json</code>'
+                 '(生成器 <code>Tools/Sashizu/build_niwa_sakyo_recon.py</code>)。'
+                 '⛔ <b>復元は丹羽の区画の中だけで行う</b>(2026-08-24 に岡部が越境した前例)。</p></div>')
+        fig(hh, meiji_svg(d, geo, dem, demA, KAN[n[0] - 1]),
+            legend="".join(_sw(c) + lab + "</span>" for _k, lab, c in MJ_CLASS)
+                   + '<span style="color:var(--ink)">◎ 明治16年の標高点(区画内)</span>'
+                   '<span style="color:var(--dim)">○ 同(区画外)</span>'
+                   '<span style="color:var(--ink)">┄ 崖の法尻 / 法肩</span>',
+            cap="<b>現況DEM は明治16年の面と、場所によって符号が反転して食い違う。</b>"
+                "西端はほぼ一致する【本物の地形】、中央〜東は現況が大きく低い【近代の掘削】。"
+                "<br>⭐ <b>崖の向きを訂正した結果、台地の錨 ⊙24.8 が法肩のすぐ下に正しく乗った</b> — "
+                "残差は表のとおりで、<b>これは当てはめに使っていない点なので独立した検算である</b>。"
+                "<br>⚠ <b>区画内で値の読める錨は %d 点しかない</b>(表の「区画」「読み」の欄)。"
+                "⭕ <b>区画の外の錨も当てはめには使う</b>が、<b>復元そのものは区画の中だけ</b>で行う。"
+                "<br>⛔ <b>残るのは台地面の高さの典拠</b> — 帯の上端だった錨は数字が判読不能へ"
+                "格下げされ、区画外10m の参照 ⊙28【B】と現況DEM は<b>どちらも高い側</b>を指す。"
+                "<b>どちらで受けるかは考証の判断なので、指図方は決めていない【?】</b>(未解決 P-15)。"
+                % sum(1 for a, c in zip(RECON_SPEC["anchors"], RECON_OUT["anchors"])
+                      if c["in"] and a["y"] is not None))
+        fig(hh, meiji_sec_svg(d, geo, dem, demA, KAN[n[0] - 1]),
+            cap="<b>同じ切り位置で、復元面(実線)と現況DEM(破線)を重ねた。</b>"
+                "⛔ <b>区画の外では両者が完全に一致する</b> — 復元を区画の中でクリップしているためで、"
+                "<b>区画線の上に段が立つ</b>のはその帰結である(摺り付けない)。"
+                "⚠ <b>これは隠すべきものではない</b> — 隣家(京極・内藤・社人八家)がまだ"
+                "近代の掘削・盛土を履いているという事実そのものだからで、"
+                "<b>境の面は明治16年の実測を共通の錨にして突き合わせる</b>"
+                "(EDO-0093 のユーザー裁定 = 復元は各邸が自分の区画内で行い、境界は情報共有する)。")
+        fig(hh, meiji_sec_ns_svg(d, geo, dem, demA, KAN[n[0] - 1]),
+            cap="<b>南北の切り位置で重ねた。</b>⛔ <b>訂正した崖の東半は東西に走る</b>"
+                "(法尻 Z≈803 / 法肩 Z≈819)ので、<b>東西断面ではその区間と平行になって図に出ない</b> — "
+                "この向きが要る(2026-09-01 検図 K5)。"
+                "⚠ <b>行き先未決の家臣長屋2棟はまさにこの帯に立っている。</b>")
+        hh.append("<h3>復元の手順と当てはまり</h3>")
+        hh.append(recon_table(d, geo, dem, demA))
+        hh.append("<h3>台地面のモデル — 水平面か、東上がりの面か</h3>")
+        hh.append(plateau_model_table(d, geo))
+        hh.append("</div>")
+
+    def saitei_blocks(hh):
+        # 裁定図(P-1)
+        S = sai(d)
+        pass  # FIGREF["saitei"] は頁の名(上で控えた)
+        plate(hh, nx(), "裁定図(P-1)　%s" % S["title"],
+              "① どこ ② 現況 ③ 三案 同一縮尺 ④ 断面の対比 ⑤ 変わる数値 ⑥ 推奨")
+        hh.append('<div class="box"><p>⛔ <b>これは裁定を仰ぐための図で、指図方は案を選んでいない。</b>'
+                 'CLAUDE.md 規則16 の6点セット(どこ / 背景 / 選択肢 A・B・C / 推奨 / 影響 / 裁定図)を'
+                 'この一節で満たす。<b>裁定が下りるまで「未解決 P-1」は未解決のまま</b>で、'
+                 '本文も実装も動かさない。⛔ <b>埋没・合格数・崖の比高と勾配・区画線の段は'
+                 '<code>niwa_sakyo_dem.json</code> と <code>niwa_sakyo_edo_world.json</code> から'
+                 '毎回算出している</b>(規則4)。'
+                 '<br>⭐ <b>三案とも棟は1棟も動かない。動くのは地盤だけ</b>である — '
+                 '従前の三案は現況DEM を起点に「棟をどこへ寄せるか」を問うていたが、'
+                 '<b>その現況DEM が江戸の地面ではなかった</b>ので、問いそのものを'
+                 '<b>「地盤をどの面に置くか」</b>へ立て直した(前の節)。'
+                 '<br>⛔ <b>「骨格(①②)だけに留める中間案」は計算した結果 図として成立しないので'
+                 '入れていない</b> — 理由と数値は前の節の「復元の手順と当てはまり」の ④⑤ の行が持つ。'
+                 '<br>⭐ <b>A/B/C は <code>niwa_sakyo_kosho.md</code> の 案(a)(b)(c) と対応する</b> — '
+                 '対応は見出しと表の「案」の列に併記した(<b>%s</b> ／ <b>%s</b> ／ <b>%s</b>)。</p></div>'
+                 % (sai_gian(sai_opt(d, "A")), sai_gian(sai_opt(d, "B")), sai_gian(sai_opt(d, "C"))))
+        fig(hh, sai_key_svg(d, geo, dem, KAN[n[0] - 1]),
+            legend=dem_legend(),
+            cap="<b>① どこの話か。</b>濃い枠と名札を付けた3棟(表御殿・奥御殿・土蔵三)が"
+                "現況で特に深く埋まっている駒で、朱の破線が③の切り取り範囲。"
+                "<b>② いま何がどうなっているか</b>を右に実測で並べた — 順位は埋没の深い順。"
+                "<br>⚠ <b>朱の斜線は現況の人工の平場</b>で、"
+                "前の節の三区分では<b>近代の掘削</b>にあたる区域である。"
+                "表御殿・奥御殿はその底に据えられていて、東の台地との間を急な段が落ちる — "
+                "<b>その落差がそのまま現況の埋没の量になっている</b>。"
+                "<br>⭐ <b>A案・B案はこの区域を明治16年の谷底へ戻す</b>ので、"
+                "埋没は棟を動かさずに解消する(③④の図)。")
+        fig(hh, sai_plan_svg(d, geo, dem, KAN[n[0] - 1]),
+            legend='<span style="color:var(--hei)">■ 築地塀(三案とも動かない)</span>'
+                   '<span style="color:var(--nagaya)">■ 盲長屋(同)</span>'
+                   '<span style="color:var(--shu)">● 表門(同)</span>'
+                   + _sw("var(--cut4)") + "埋没 3m 超</span>"
+                   + _sw("var(--cut2)") + "0.5〜3m</span>"
+                   + _sw("var(--nomove)") + "0.5m 以下(規則3 合格)</span>"
+                   + '<span style="color:var(--dim)">┄ 行き先未決</span>'
+                   '<span style="color:var(--dim)">┄ 崖の法尻 / 法肩(折れ線)</span>',
+            cap="<b>③ 三案を同じ縮尺・同じ範囲で並べた。</b>案ごとに別の図にすると差が読めないので"
+                "並べてある(CLAUDE.md 2026-08-30)。"
+                "<b>棟も外周も表門も三案とも一切動かない — 違いはすべて地盤の段彩に出ている。</b>"
+                "<br>⚠ <b>A案・B案では復元した崖の面に載る駒</b>を破線と「?」で示した"
+                "(⛔ どの駒かは<b>崖の折れ線に当てて毎回測る</b> — 手で並べない)。"
+                "行き先は配置の判断なので<b>指図方は決めていない</b> — "
+                "制約(外形が法肩の折れ線より台地側)だけを⑤の表に出してある。"
+                "<br>⚠ <b>崖は折れ線</b>(北=WNW–ESE の斜め → 東西)なので、"
+                "<b>破線は縦一直線ではない</b>。"
+                "<br>⭐ <b>A案とB案の違いは台地面の高さだけ</b>で、"
+                "谷底と崖は同じ錨・同じ手順である。")
+        fig(hh, sai_sec_svg(d, geo, dem, KAN[n[0] - 1]),
+            cap="<b>④ 断面の対比。</b>埋没は平面図では読めない — <b>何メートル地中に入っているかは断面でしか"
+                "分からない</b>ので、<b>同じ切り位置(z=839)を三案の面で切って</b>上下に並べた。"
+                "<br>⛔ <b>棟は三案とも動かないので、段どうしの違いはすべて地盤の違いである。</b>"
+                "<b>z=839 は表門・表御殿・崖・谷底・西の通りを一本で切る唯一の位置</b>で、"
+                "三段すべてに表門が写る。"
+                "<br>⚠ <b>四段目だけ切り位置が違う</b> — 土蔵三棟は"
+                "西へ 8 m・南へ 6 m ずつ斜めに並ぶので東西にも南北にも串刺しにできず、"
+                "三棟の中心を通る斜の線で切って<b>復元した崖の法肩から法尻まで</b>通してある。"
+                "⭐ この線は訂正した崖(WNW–ESE)と<b>ほぼ直交する</b>ので、崖の姿がそのまま出る。")
+        hh.append("<h3>⑤ 案ごとに何がどれだけ変わるか</h3>")
+        hh.append(sai_case_table(d, geo, dem))
+        hh.append('<p class="cap">「最大の埋没」は、その案でのすべての駒(棟・付属屋・表門)の埋没の最大。'
+                 '<b>行き先未決の駒(復元した崖の面に載るもの)は分母からも最大値からも外してある</b>。'
+                 '<br>⛔ <b>建蔽率はここでは出さない</b> — 三案とも棟を動かさないので'
+                 '建築面積は変わらず、分母(敷地全体)も変わらないからである(次節の「建蔽率」が持つ)。'
+                 '<br>⚠ <b>「区画線の段」は摺り付けていない量そのもの</b>で、'
+                 '<b>隣家がまだ近代の掘削・盛土を履いている</b>ことを表す。'
+                 '⛔ 丹羽側から隣家の地盤を持ち上げて隠さない(2026-08-24 に岡部が越境した前例)。</p>')
+        hh.append("<h3>外形の重なり</h3>")
+        hh.append(sai_overlap_table(d, geo, dem))
+        hh.append('<p class="cap">⭕ <b>三案とも棟を動かさないので、重なりは現況のままである</b> — '
+                 '長屋どうしの軒の重なりは機械検査と同じ除外規約で外してある(未解決 P-4 が別に見る)。</p>')
+        hh.append("<h3>駒ごとの内訳(A案 / B案 / C案)</h3>")
+        hh.append(sai_body_table(d, geo, dem))
+        hh.append('<p class="cap">⛔ <b>「下の起伏」を必ず併記する</b> — '
+                 '台地を<b>水平面</b>で復元しているので、台地の上では起伏が 0.00 m になり、'
+                 '<b>埋没は沈め代(<code>const.sink</code>)そのもの</b>になる。'
+                 'つまり<b>台地の上の「規則3 合格」は恒真に近く、独立した検査ではない</b>。'
+                 '岡部が 2026-08-25 に同じ性質を <code>okabe_edo_recon.json</code> に明記している。'
+                 '<br>⚠ <b>表門は区画線をまたぐ</b>ので、復元する案では区画の中(復元面)と'
+                 '外(現況)の両方を踏む — <b>その段差が門の埋没に出る</b>(未解決 P-7 と同じ根)。</p>')
+        hh.append(sai_prose(d, dem))
+        hh.append("</div>")
+
+    side_page(OUT_KEII, "丹羽左京大夫上屋敷 経緯の図", "経緯の図 ／ 指図の写しではない",
+              "明治16年の実測と現況の地盤の比べ、および表門まわりの取り合いの実測。"
+              "指図の写しから外した図(決めごと2c)で、正典は指図 <code>niwa_sakyo_sashizu.json</code>。",
+              keii_blocks)
+    side_page(OUT_SAITEI, "丹羽左京大夫上屋敷 裁定図 P-1", "裁定図 ／ 指図の写しではない",
+              "未解決 P-1 の裁定を仰ぐ図。裁定が下りたら json の欄を直し、この頁は役目を終える。",
+              saitei_blocks)
 
     h.append('<div class="foot">図版 %d 面。'
              '数値の正典 <code>docs/Sashizu/niwa_sakyo_sashizu.json</code> ／ '
              '文章 <code>docs/Sashizu/niwa_sakyo_kosho.md</code> ／ '
              '地盤 <code>docs/Sashizu/niwa_sakyo_dem.json</code> ／ '
              '生成器 <code>Tools/Sashizu/build_niwa_sakyo_sashizu.py</code>。'
-             'この頁は生成物なので直接編集しない。</div>' % _SVN[0])
+             'この頁は生成物なので直接編集しない。</div>' % sum(x.count("<svg") for x in h))
     h.append("</div>")
     # ⛔ **必須8図の充足表を冒頭へ差し込む**(図版番号が要るのでここで組む)。
-    hz = []
-    plate(hz, "図", "必須の図が揃っているか", "sashizu.md §3 の8図 ／ 欠図は理由まで書く")
-    hz.append(zumen_table(len(d["sections"])))
-    hz.append("</div>")
-    h[ZPLACE] = "\n".join(hz)
     body = "\n".join(h)
     # ⭐ 前方参照の札(figtok)を実際の図版番号へ置き換える。残ったら落とす。
     body = re.sub(r"@@FIG:([a-zA-Z0-9_]+)@@",
@@ -4647,6 +4656,7 @@ def main():
     open(OUT, "w", encoding="utf-8").write(body)
     over = check_text_overflow(body)
     print("組んだ: %s" % os.path.relpath(OUT, ROOT))
+    utsushi_check.check_html("niwa_sakyo", OUT)
     if embad:
         print("  ⛔ 強調 `**` の偶奇が合わない %d 件" % len(embad))
         for q in embad:

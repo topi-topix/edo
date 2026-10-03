@@ -2830,9 +2830,9 @@ def build(est, deep=False, out=None):
         n[0] += 1
         return KAN[n[0] - 1]
 
-    h = ['<meta charset="utf-8">', "<title>%s 指図</title>" % esc(title), "<style>%s</style>" % css, '<div class="wrap">']
+    h = ['<meta charset="utf-8">', "<title>%s 指図の写し</title>" % esc(title), "<style>%s</style>" % css, '<div class="wrap">']
     h.append('<p class="eyebrow">安政三年 ／ 共通の生成器 build_sashizu.py ／ %s</p>' % datetime.date.today())
-    h.append("<h1>%s 指図</h1>" % esc(title))
+    h.append("<h1>%s 指図の写し</h1>" % esc(title))
     h.append('<p class="lede">数値の正典は <code>%s_sashizu.json</code>、文章の正典は <code>%s_kosho.md</code>、'
              '地盤は <code>%s</code>。この頁は共通の生成器がその三つから組んだもので、実装は読んでいない。'
              '座標と部材の端は書かない — 取り合いと境界は Unity で実メッシュから測る(規則2・19)。</p>' % (est, est, M.dem_name))
@@ -3026,6 +3026,8 @@ def build(est, deep=False, out=None):
         print("  %s D01 文書の記法が字になっている: %d 件(母集団 %s 字・引用の面 %d 件は別枠)"
               % ("⛔" if mk_n else "○", mk_n, "{:,}".format(mk["chars"]), mk["quoted"]))
     print("書いた: %s (%.0f KB)  %.0f 秒" % (os.path.relpath(out, ROOT), os.path.getsize(out) / 1024, time.time() - t_all))
+    import utsushi_check  # noqa: E402  写しの章立て(決めごと2c)
+    utsushi_check.check_html(est, out)
     print("検査 不合格 %d / 未検査 %d / 建蔽率 %.1f%% / 図版 %d 面 / 読めなかった欄 %d" % (ng, na, C.kenpei, n[0], len(M.notes)))
     for cid, what, res, st in C.rows:
         if st != "ok":

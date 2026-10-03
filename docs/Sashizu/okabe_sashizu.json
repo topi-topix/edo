@@ -1391,14 +1391,15 @@
    "name": "TW_Kado_Sode",
    "between": [
     "法(主面↔東の平場)の端",
-    "Kadonouchi 西の縁"
+    "Kadonouchi の縁(法の端が突き当たる所・区画の座標で南の縁)"
    ],
    "kind": "袖石垣 野面",
    "top": "段違いの run(例 21.0/19.5/18.0)・各 run 一直線",
    "h": "0.6→4.5",
    "stop": "落差0.6未満で止め土羽",
    "cert": "U",
-   "hard": true
+   "hard": true,
+   "dirNote": "方位の語「西の縁」は誤り ── 線を解くと門の内の南の縁(2026-10-03 普請奉行の上書き)"
   },
   {
    "name": "TW_Kado_Hokuto",

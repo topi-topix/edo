@@ -1,11 +1,11 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 ad9e99097627 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 435c7f0ad596 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
 
-- 公開関数 294 本(注釈なし 25)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
+- 公開関数 297 本(注釈なし 25)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
 - 同じ道具が刷る目録: 邸ビルダーのメニュー → Stage と中の関数 `docs/builder-mokuroku.md` / 部材の名 `docs/edoassets-mokuroku.md`。
 - 札: **硬** = 注釈に「硬い/許容0」・**柔** = 「柔らかい/狙い」がある(判定ではなく注釈の語)。相手の札(地面・駒どうし・天端・床・断面・面・隅・区域)も注釈の語を拾っただけ。
 - 呼んでいる所 = 定義のファイルの外で `EdoBuild.<名>(` と書いている C# ファイル(`Edo` と `Builder/Rebuild` を落とした名)と、その中の呼んでいる関数(Stage)。同じ名の多重定義はまとめて数える。`EdoBuild` の中どうしの呼び出しは載せない。
@@ -17,7 +17,7 @@
 | ファイル | 何の道具か(ファイル冒頭の注釈) | 当たる先 | 関数 |
 |---|---|---|---|
 | [EdoBuild.cs](#edobuildcs) | 配置・資産系の共有基盤 (Phase 2c, 2026-08-26) | — | 46 |
-| [EdoBuildGamae.cs](#edobuildgamaecs) | ══════════════════════════════════════════════════════════════════════ | — | 16 |
+| [EdoBuildGamae.cs](#edobuildgamaecs) | ══════════════════════════════════════════════════════════════════════ | — | 17 |
 | [EdoBuildGoten.cs](#edobuildgotencs) | 御殿複合(表向・中奥・奥向の3核)を組む — EdoBuild の一部(規則21「置く・測る・突き付ける・据えるは | — | 3 |
 | [EdoBuildHifu.cs](#edobuildhifucs) | 縁の皮 — 地形に穴を開け、穴の縁から部材の面までを皮のメッシュで描く (EdoBuild の partial・2026-09-24・EDO-0430) | 切通しの石段(山王の女坂・男坂・参道の階)・天端を地盤に揃えた土留め(山王・土井・岡部の郭)・ 造成した面の縁(全邸の段の縁)。 | 12 |
 | [EdoBuildInari.cs](#edobuildinarics) | 稲荷 — 小祠と鳥居を据える (EdoBuild の partial・2026-09-21・EDO-0326) | — | 3 |
@@ -38,7 +38,7 @@
 | [EdoBuildSueru.cs](#edobuildsuerucs) | 埋め込む駒・差し込む駒・載せる駒を据える (EdoBuild の partial・2026-09-23・EDO-0274) | 山王の前庭の井戸(板石敷・井筒+井桁・井戸屋形)。 | 16 |
 | [EdoBuildSukima.cs](#edobuildsukimacs) | EdoBuildSukima.cs — 建物と隣の構造物の間の隙のうち、通りから裏手(敷地の内側)へ抜ける物だけを柵で塞ぐ(EDO-0503)。 | 類型ビルダーの町屋の囲い(表店の列の端・角・後ろの棟との間)── 町屋の全区画。 | 1 |
 | [EdoBuildUeru.cs](#edobuilduerucs) | 植木を斜面に据える (EdoBuild の partial・2026-09-23・EDO-0401) | SeatPlant を呼ぶ所すべて(今は山王の社叢の下層と名指しの木 = Stage7_Shaso だけ)。 | 10 |
-| [EdoBuildZosei.cs](#edobuildzoseics) | EdoBuild — 造成(平場を採る)。2026-09-27・EDO-0477 P1(山王 Stage1_Grade と松江松平 DesignY の型を、図を持たない区画へ)。 | 類型ビルダーで建てる全区画(武家・寺社・町屋・公有地)。 | 6 |
+| [EdoBuildZosei.cs](#edobuildzoseics) | EdoBuild — 造成(平場を採る)。2026-09-27・EDO-0477 P1(山王 Stage1_Grade と松江松平 DesignY の型を、図を持たない区画へ)。 | 類型ビルダーで建てる全区画(武家・寺社・町屋・公有地)。 | 8 |
 | [EdoGeom.cs](#edogeomcs) | 純幾何ヘルパの共有置き場 (Phase 2c, 2026-08-26) | — | 7 |
 | [EdoParcels.cs](#edoparcelscs) | 町割(敷地割)の正典 — docs/Sashizu/parcels.json | — | 15 |
 
@@ -127,6 +127,8 @@
 | `EdoBuild.STATION_END_CLEAR` | `float` | 硬・柔 区域 | 表の辺の上で、門構えの幅の中の道がいちばん平らな所(柔らかい: 狙い)を返す(2026-09-30 EDO-0491)。 | — |
 | `EdoBuild.STATION_MOVE_RANGE` | `float` | 床 | 辺の中央で幅の中の道の高さの差がこれ以下なら中央に置く[m]【確度 U】── 差は基壇の布石(GamaeKidan)が受ける。 | — |
 | `EdoBuild.FlattestStation(a, b, half, range, rangeMid)` | `Vector2` |  | ⚠ 注釈なし | Typology(BuildParcel) |
+| `EdoBuild.HIRABA_BAND` | `float` |  | 平場の連なりを測る高さの幅[m](±)= 棟の系統差の許し(CLAUDE.md 規則3)と同じ。 | — |
+| `EdoBuild.HirabaStation(a, b, inward, half, d0, depth, note)` | `Vector2` | 硬・柔 床・区域 | 門を、奥の自然の平場の真ん中の前に置く(柔らかい: 狙い・2026-10-03 EDO-0514 施主裁定 B「樹下の表門を平場の中央の前へ」)。 | Typology(BuildParcel) |
 | `EdoBuild.KIDAN_FLOAT_TOL` | `float` | 地面・区域 | 門構えの基壇の布石の浮きの線[m] ── 超えれば布石を敷く。 | — |
 | `EdoBuild.KIDAN_EMBED` | `float` | 硬 地面 | 基壇の布石の下端を地面へ入れる深さ[m](硬い)= 段塀の布石と同じ(DAN_STONE_EMBED)。 | — |
 | `EdoBuild.KIDAN_BULGE` | `float` | 硬 地面・天端・床・区域 | 門構えの駒の下に布石の基壇を敷く(2026-09-30 EDO-0491・施主「門が浮いてます」)。 | — |
@@ -631,7 +633,10 @@ EdoBuild — 造成(平場を採る)。2026-09-27・EDO-0477 P1(山王 Stage1_Gr
 | 関数 | 返す | 札 | 何をするか(注釈の一文目) | 呼んでいる所 |
 |---|---|---|---|---|
 | `EdoBuild.EDGE_BERM` | `float` | 区域 | 区画の縁に沿って地山のまま残す幅[m] = 塀の足元(厚み 0.4〜0.6)+ 犬走り。 | — |
-| `EdoBuild.BaseDem()` | `Func<float, float, float>` |  | 造成前の地盤(`docs/Sashizu/base_dem.json`・2m 格子の双一次)。 | — |
+| `EdoBuild.BaseDem()` | `Func<float, float, float>` |  | 造成前の地盤(`docs/Sashizu/base_dem.json`・2m 格子の双一次)。 | Assets |
+| `Kindai`(class) | — | | 近代の造作の範囲(EdoAssets.Eg.KindaiSpec)。 | |
+| `EdoBuild.KindaiList()` | `List<Kindai>` |  | 近代の造作を除く帳を読む(無ければ空)。 | — |
+| `EdoBuild.ApplyKindaiNear(parcel, reach=…)` | `string` | 地面・区域 | 区画の外の地形へ、近代の造作を除いた地盤を書く(区画を建てる前に呼ぶ・冪等)。 | Assets, Typology(BuildParcel) |
 | `Hiraba`(class) | — | | 平場の結果(棟ごと)。 | |
 | `MonPad`(class) | — | | 棟の足あとごとに平場を採り、法面で地山へ擦り付ける。 | |
 | `EdoBuild.MonPadWithSode(mon, la, lb, inward, sode, depth)` | `MonPad` | 区域 | 門構えの平場を袖の塀の下まで延ばす(EDO-0514・施主 2026-10-03「敷地・道の造成、整地も選択肢に」)。 | Typology(BuildParcel) |

@@ -81,6 +81,9 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         public bool muneZu;
         public bool kyakuden, gomado;        // 絵図に在る客殿・護摩堂(mune_zu の筆だけ読む)
         public bool kodachi;                 // 絵図で棟の無い空きに木の点(境内の庭に明地の木立を入れる)
+        // 門の置き場(EDO-0514 施主裁定 B 2026-10-03)。null = 既定(道がいちばん平らな所 FlattestStation)/
+        //    "hiraba" = 奥の自然の平場の真ん中の前(EdoBuild.HirabaStation)。⛔ 座標は書かない ── 決め方の名だけ。
+        public string gateStation;
         public Dictionary<string, object> raw;
         public bool Hand { get { return built == "hand"; } }
     }
@@ -194,6 +197,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 tacchu = I(d, "tacchu", 0), tokinokane = Bo(d, "tokinokane", false),
                 maeniwaKen = I(d, "maeniwa_ken", 0), muneZu = Bo(d, "mune_zu", false),
                 kyakuden = Bo(d, "kyakuden", false), gomado = Bo(d, "gomado", false), kodachi = Bo(d, "kodachi", false),
+                gateStation = S(d, "gate_station"),
             };
             var hall = IA(d, "main_hall_ken");
             if (hall != null && hall.Length >= 2) { s.hallW = hall[0]; s.hallD = hall[1]; }
@@ -488,6 +492,9 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         EdoBuild.GradePads(poly, new List<Vector2[]>(), 0f, out restoreNote);
         // ⭐ 区画に接する道のうち、指図で造成すると決めた道(欄の zosei)を均す(冪等・区画の中は触らない・2026-09-30 EDO-0495)
         string michiNote = EdoBuild.GradeMichiNear(poly);
+        // ⭐ 区画に接する近代の造作を除く(帳 docs/Sashizu/kindai.json・EDO-0514)── 区画の外(道)の地形を江戸の地盤へ戻す(冪等)
+        string kindaiNote = EdoBuild.ApplyKindaiNear(poly);
+        if (!string.IsNullOrEmpty(kindaiNote)) michiNote = string.IsNullOrEmpty(michiNote) ? kindaiNote : michiNote + " / " + kindaiNote;
         float spread, pad;
         try { pad = Pad(id, out spread); }
         catch (Exception ex) { return "⛔ " + id + ": 面の高さが測れない — " + ex.Message; }
@@ -544,7 +551,13 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 }
                 // ⭐ 置き場 = 表の辺の上で道がいちばん平らな所(柔らかい・EdoBuild.FlattestStation)── 門の敷居は水平なので、道の傾きぶん下手が浮く
                 float sr, srMid; var station = EdoBuild.FlattestStation(front.a, front.b, GateWidth(s, gp) * 0.5f, out sr, out srMid);
-                if (Vector2.Distance(station, front.mid) > 0.25f)
+                if (s.gateStation == "hiraba")
+                {   // ⭐ 奥の自然の平場の真ん中の前(EDO-0514・欄 gate_station)── 前庭の奥 = 門構えの平場 2間 + 前庭の狙い、帯の奥行 = 主屋の梁間
+                    string hn; float mz = s.maeniwaKen > 0 ? s.maeniwaKen * 1.818f : MAENIWA_MIN;
+                    station = EdoBuild.HirabaStation(front.a, front.b, -front.outward, GateWidth(s, gp) * 0.5f, 2f * 1.818f + mz, Mathf.Max(s.hallD, 4) * 1.818f, out hn);
+                    log.Add(string.Format("  門構えの置き場(欄 gate_station=hiraba): {0}・辺の中央から {1:F1}m", hn, Vector2.Distance(station, front.mid)));
+                }
+                else if (Vector2.Distance(station, front.mid) > 0.25f)
                     log.Add(string.Format("  ⚠ 門構えを辺の中央から {0:F1}m 寄せた ── 幅の中の道の高さの差 {1:F2}m → {2:F2}m(道がいちばん平らな所・柔らかい)",
                                           Vector2.Distance(station, front.mid), srMid, sr));
                 else log.Add(string.Format("  門構えの置き場: 辺の中央(幅の中の道の高さの差 {0:F2}m)", sr));

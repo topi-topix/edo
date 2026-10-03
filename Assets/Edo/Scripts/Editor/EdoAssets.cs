@@ -87,6 +87,9 @@ public static class EdoAssets
         /// (屋号・業種・地色・印・文字・典拠)。画像は `Tools/Unity/bake_noren.py` が在庫の shop01/shop02 の画像から
         /// 暖簾と看板の四角だけを塗り替えて焼く。掛けるのは `EdoBuild.HangNoren`(軒ごと・隣で同じ店を続けない)。</summary>
         public const string NorenSpec = "docs/Sashizu/noren.json";
+        /// <summary>**近代の造作を除く帳**(EDO-0514)。造成前の地盤(base_dem・現代の測量)のうち、江戸の地面でないと判じた範囲。
+        /// 読むのは <c>EdoBuild.BaseDem()</c>(範囲の中を外周から調和補間)と <c>EdoBuild.ApplyKindaiNear</c>(区画の外の地形へ書く)。</summary>
+        public const string KindaiSpec = "docs/Sashizu/kindai.json";
         public static string NorenTex(string shop, string key) { return "Assets/Edo/Textures/Noren/" + shop + "_" + key + ".jpg"; }
         public static string NorenMat(string shop, string key) { return "Assets/Edo/Materials/Noren/M_Noren_" + shop + "_" + key + ".mat"; }
 

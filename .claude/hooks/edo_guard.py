@@ -110,8 +110,24 @@ def holding(sess):
     return "・".join(got)
 
 
+def is_shimai(ev):
+    """文脈計の止めを持ち越してよい呼び出しか(掲示板・claim の返却・仕舞い)。
+
+    文脈計が「①手仕舞い」として求めている当の手を止めると、止めの指示どおりに掲示板へ書こうとした
+    一手が弾かれる(2026-10-03 実測: 掲示板の書き込みが断られた 97 件のうち 44 件が文脈計・EDO-0542)。"""
+    import re
+    if (ev.get("tool_name") or "") != "Bash":
+        return False
+    return bool(re.search(r"(edo_board\.py|build_board_html\.py|edo_session\.py\s+(?:--session\s+\S+\s+)?"
+                          r"(?:release|finish|status|wait|unwait)\b)",
+                          (ev.get("tool_input") or {}).get("command") or ""))
+
+
 def context_meter(ev, sess):
-    """文脈の天井(計画 A-2)。天井の上では発話ごとに一度 exit 2。人間の発話の時刻も刻む。"""
+    """文脈の天井(計画 A-2)。天井の上では発話ごとに一度 exit 2。人間の発話の時刻も刻む。
+    ⭐ 手仕舞いの打ち方(is_shimai)では止めず、段も回数も刻まずに次の道具へ持ち越す(EDO-0542)。"""
+    if is_shimai(ev):
+        return
     tp = ev.get("transcript_path") or ""
     if not tp or not os.path.exists(tp):
         return
@@ -488,17 +504,20 @@ def selftest():
                        "message": {"usage": {"input_tokens": 6000,
                                              "cache_read_input_tokens": 300000}}}) + "\n")
 
-    def fire():
+    def fire(cmd="true"):
         r = subprocess.run([sys.executable, os.path.abspath(__file__)], capture_output=True, text=True,
                            input=json.dumps({"session_id": sid, "transcript_path": tp,
-                                             "tool_name": "Bash", "tool_input": {"command": "true"}}))
+                                             "tool_name": "Bash", "tool_input": {"command": cmd}}))
         return r.returncode == 2
     try:
-        for usr, want, name in ((U1, True, "通しで: 306K の transcript で鳴る"),
-                                (U1, False, "通しで: 同じ発話では二度目は通る"),
-                                (U2, True, "通しで: 次の発話でまた鳴る")):
+        for usr, want, name, cmd in (
+                (U1, False, "通しで: 天井の上でも掲示板の書き込みは通す(止めを次の手へ持ち越す・EDO-0542)",
+                 "python3 Tools/Session/edo_board.py list --estate infra"),
+                (U1, True, "通しで: 306K の transcript で鳴る", "true"),
+                (U1, False, "通しで: 同じ発話では二度目は通る", "true"),
+                (U2, True, "通しで: 次の発話でまた鳴る", "true")):
             transcript(usr)
-            if fire() != want:
+            if fire(cmd) != want:
                 e2e += 1
                 print("  ⛔ %s — %s のはずが逆" % (name, "止" if want else "通"))
         n = json.load(open(state, encoding="utf-8")).get("ctx_stops")
@@ -518,8 +537,8 @@ def selftest():
                 pass
     bad += e2e
     print(("⛔ 門番の型 — 破れ %d 件" % bad) if bad else
-          "⭕ 門番 — %d 型(文脈の再武装 %d・丸読みの関門 %d・役の見込み %d・Unity の役 %d・通しの配線 4)"
-          % (len(cases) + len(reads) + len(agents) + len(uroles) + len(rolecmds) + 4, len(cases), len(reads),
+          "⭕ 門番 — %d 型(文脈の再武装 %d・丸読みの関門 %d・役の見込み %d・Unity の役 %d・通しの配線 5)"
+          % (len(cases) + len(reads) + len(agents) + len(uroles) + len(rolecmds) + 5, len(cases), len(reads),
              len(agents), len(uroles) + len(rolecmds)))
     return 1 if bad else 0
 

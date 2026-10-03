@@ -56,7 +56,7 @@
     必ず添える。**⛔ 地の文の末尾に問いを埋めない。
     ⛔ **預かった仕事の外で気付いた事を、その通で裁定・質問に立てない** — 掲示板へ起票し、報告に一行添えるだけ。
     → 正典 **`docs/reporting-protocol.md`**(規則12)。全経路に例外なく効く。<!-- obl:report-protocol -->
-17. **意匠を決める役と書き起こす役を混ぜない。** 庭の中=`edo-niwashi` / 庭の外の植生と地表=`edo-hayashikata` /
+17. **意匠を決める役と書き起こす役を混ぜない。** 庭の中=`edo-niwashi` / 庭の外の植生=`edo-hayashikata` /
     石垣=`unity-modular-stonewall` / 部材=`edo-buzai` に**設計させ**、指図方は数値へ書き起こすだけ。
 18. **検分は実装前に1巡。関門が赤なら実装しない**(見せるのは止めない ── 規則22)。 検分は `/kenzu <邸>`(差分だけ・指摘 ≤10)、
     記録は `docs/Sashizu/<屋敷>_sashizu.json` の `reviews`、見張りは `review_gate.py`。検分役は read-only なので
@@ -154,7 +154,7 @@
 ### 作業 → 呼ぶエージェント(`.claude/agents/`。何をする役かは各役の description が正典)
 
 **`edo-sashizukata`** 指図方(唯一の書き込み可。⛔ 図を一から起こすときだけ呼ぶ ── 建った敷地の欄の上書きは普請奉行が直に直す・施主裁定A 2026-09-27)/ **`edo-kosho`** 考証方 / **`edo-kenzu`** 検図方 /
-**`edo-niwashi`** 庭方(庭の中・垣・排水の検分と設計)/ **`edo-hayashikata`** 林方(社叢・斜面の林・屋敷林・地表の検分と設計)/ **`edo-zaiko`** 在庫方 / **`edo-buzai`** 部材方 /
+**`edo-niwashi`** 庭方(庭の中の検分と設計)/ **`edo-hayashikata`** 林方(社叢・斜面の林・屋敷林・林床の検分と設計)/ **`edo-zaiko`** 在庫方 / **`edo-buzai`** 部材方 /
 **`edo-toryo`** 棟梁(建てる)/ **`edo-fushin-qa`** 普請検査(計測とレンダのみ)
 
 ⭐ `edo-toryo` / `edo-fushin-qa` へは **Unity を握ったまま前景で**渡す(役は窓と同じ身元で門番を通る。返すと待ち行列の先頭へ回る)。

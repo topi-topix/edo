@@ -28,6 +28,9 @@ public static partial class EdoBuild
         public float runLen = 2.0f, pitchMax = 1.8f;
         /// <summary>低い側が地表で決まらない区間の手掛かり(区間の中点 → 低い側の向き。無ければ zero)。</summary>
         public Func<Vector2, Vector2, Vector2> lowHint;
+        /// <summary>true なら低い側を地表で測らず <see cref="lowHint"/> に従う(口の返し ── 見え面は口の内と決まっている。
+        /// 地表で測ると返しの裏(本体の石垣の法の下)の方が低く出て裏返る・EDO-0502 第8巡)。</summary>
+        public bool lowForce;
     }
 
     /// <summary>**見付に合う丈の城の石垣の直線の駒**(2026-10-03・EDO-0502)。見付 ≤ 4.00(+0.01)なら素の <c>JC.CastleWall</c>、
@@ -97,6 +100,7 @@ public static partial class EdoBuild
             // 低い側(描かれた地表を線の両側で ── 駒の奥行 + 0.6 離す)
             int vn, vx;
             Vector2 lowN = LowSide(a, b, groundAt, 3.0f, 0.05f, null, out vn, out vx);
+            if (w.lowForce && w.lowHint != null) { Vector2 h0 = w.lowHint(a, b); if (h0 != Vector2.zero) lowN = Vector2.Dot(h0, nrm) >= 0f ? nrm : -nrm; }
             if (lowN == Vector2.zero || vn == vx)
             {
                 Vector2 h = w.lowHint != null ? w.lowHint(a, b) : Vector2.zero;
@@ -316,5 +320,76 @@ public static partial class EdoBuild
         if (!float.IsNaN(gap) && gap > 0.005f && warn != null)
             warn.Add("段石 " + top.name + ": " + maxN + " 段積んでも地面まで " + gap.ToString("F2") + "m 届かない");
         return n;
+    }
+
+    /// <summary>折れ線 <paramref name="nodes"/> の上の点 q の道のり s と、線からの符号付きの離れ t(左手 = 正)。最も近い区間で測る。</summary>
+    public static Vector2 ArcOf(List<Vector2> nodes, Vector2 q)
+    {
+        float best = float.MaxValue, bs = 0f, bt = 0f, s0 = 0f;
+        for (int k = 0; k + 1 < nodes.Count; k++)
+        {
+            Vector2 a = nodes[k], b = nodes[k + 1]; float L = Vector2.Distance(a, b); if (L < 1e-4f) continue;
+            Vector2 d = (b - a) / L; float u = Mathf.Clamp(Vector2.Dot(q - a, d), 0f, L);
+            Vector2 foot = a + d * u; float dist = Vector2.Distance(q, foot);
+            if (dist < best) { best = dist; bs = s0 + u; bt = Vector2.Dot(q - a, new Vector2(-d.y, d.x)); }
+            s0 += L;
+        }
+        return new Vector2(bs, bt);
+    }
+
+    /// <summary>折れ線の道のり s の点(世界 xz)と、その区間の向き。</summary>
+    public static Vector2 ArcPoint(List<Vector2> nodes, float s, out Vector2 dir)
+    {
+        float s0 = 0f; dir = Vector2.right;
+        for (int k = 0; k + 1 < nodes.Count; k++)
+        {
+            Vector2 a = nodes[k], b = nodes[k + 1]; float L = Vector2.Distance(a, b); if (L < 1e-4f) continue;
+            dir = (b - a) / L;
+            if (s <= s0 + L || k + 2 == nodes.Count) return a + dir * (s - s0);
+            s0 += L;
+        }
+        return nodes[nodes.Count - 1];
+    }
+
+    /// <summary>**土留めの口の端を、口を通る石段の実面で決める**(EDO-0502 第8巡)。紙の口 <paramref name="gap"/>(道のり s0,s1)の近く
+    /// (±2m)にある石段の駒の実メッシュの頂点のうち、土留めの線から <paramref name="band"/> 以内の物を線へ射影し、その最小・最大を口とする
+    /// (= 石段の側面が土留めの線を切る所)。硬い(許容0): 口の端と石段の側面の間に隙を残さない。駒が線の近くに無ければ紙の口のまま ⚠。
+    /// 当たる先: 石段・坂が段の土留めを切る口(岡部 TW_Kado_Shumen×K_Dan1・TW_Kado_Hokuto×K_Kuruwa・TW_Higashi_Tsuyo×K_Tsuyo)。</summary>
+    public static Vector2 GapFromPieces(List<Vector2> nodes, Vector2 gap, IList<GameObject> pieces, float band, out string note)
+    {
+        float mn = float.MaxValue, mx = float.MinValue; int n = 0;
+        foreach (var g in pieces)
+        {
+            if (g == null) continue;
+            foreach (var v in Body(g.transform, 4000))
+            {
+                var st = ArcOf(nodes, new Vector2(v.x, v.z));
+                if (Mathf.Abs(st.y) > band || st.x < gap.x - 2f || st.x > gap.y + 2f) continue;
+                mn = Mathf.Min(mn, st.x); mx = Mathf.Max(mx, st.x); n++;
+            }
+        }
+        if (n == 0) { note = "⚠ 石段の駒が線の近くに無い ── 紙の口 [" + gap.x.ToString("F2") + "," + gap.y.ToString("F2") + "] のまま"; return gap; }
+        note = "口 [" + gap.x.ToString("F2") + "," + gap.y.ToString("F2") + "] → 石段の実面 [" + mn.ToString("F2") + "," + mx.ToString("F2") + "]";
+        return new Vector2(mn, mx);
+    }
+
+    /// <summary>**口の端の返し**(EDO-0502 第8巡・スキル unity-modular-stonewall の小口の作法)。土留めの口の端 <paramref name="p"/>(天端の前の縁の上)から、
+    /// 口の軸 <paramref name="axis"/>(低い側 → 高い側)に沿って、口の床が天端に届く所まで短い run を引く(天端 = <paramref name="crest"/>・見え面は口の内 <paramref name="inward"/> へ)。
+    /// 長さは測って決める: 口の内 0.4m の床(<paramref name="groundAt"/>)が天端に初めて届く所まで(上限 <paramref name="maxLen"/>)。
+    /// 返り値 = 天端の前の縁の折れ線(2 点)。床が始めから天端に届いていれば null(返しは要らない)。
+    /// 硬い: 口の脇に土の壁を見せない(返しの見え面が口の床まで)。当たる先: 段の土留めの口(石段・坂の切通し)全部。</summary>
+    public static List<Vector2> GapReturnLine(Vector2 p, Vector2 axis, Vector2 inward, float crest, Func<float, float, float> groundAt, float maxLen, out float len)
+    {
+        len = 0f;
+        for (float t = 0.25f; t <= maxLen; t += 0.25f)
+        {
+            Vector2 q = p + axis * t + inward * 0.4f;
+            float gy = groundAt(q.x, q.y);
+            if (float.IsNaN(gy) || gy >= crest - 0.01f) break;   // 床が天端に届いた(最初に届く所で止める)
+            len = t;
+        }
+        if (len < 0.3f) return null;
+        len += 0.25f;
+        return new List<Vector2> { p, p + axis * len };
     }
 }

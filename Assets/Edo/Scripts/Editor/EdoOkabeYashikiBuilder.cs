@@ -486,6 +486,41 @@ public static class EdoOkabeYashikiBuilder
         return sb.ToString();
     }
 
+    /// <summary>坂の縦断 `profS`([s, y] の並び・同じ s に二つの高さ = 石段)と芯 `pts` から、均す芯の節点(世界 xz)と高さを起こす(EDO-0502 第8巡)。
+    /// 石段の段差は、その坂を名指す石段(kaidans[].atRoute)の平面 a→b を芯へ射影した道のりの両端に分ける(手前 = 前の勾配の延長・奥 = 段の上の高さ)。
+    /// 石段が見つからない段差は ⛔ null(発明しない)。</summary>
+    static KeyValuePair<Vector2[], float[]> ProfSNodes(Dictionary<string, object> r, Frame f, out string note)
+    {
+        note = "";
+        var line = new List<Vector2>(); foreach (var q in A(Get(r, "pts"))) { var v = A(q); line.Add(f.W(F(v[0]), F(v[1]))); }
+        var prof = new List<Vector2>(); foreach (var q in A(Get(r, "profS"))) { var v = A(q); prof.Add(new Vector2(F(v[0]), F(v[1]))); }
+        string nm = S(Get(r, "name"));
+        var st = new List<Vector2>();   // 石段の平面の道のり [s0, s1]
+        foreach (var ko in A(Get(D, "kaidans")) ?? new List<object>())
+        {
+            var k = O(ko); if (k == null || S(Get(k, "atRoute")) != nm || !Has(k, "a") || !Has(k, "b")) continue;
+            var av = A(k["a"]); var bv = A(k["b"]);
+            float sa = EdoBuild.ArcOf(line, f.W(F(av[0]), F(av[1]))).x, sbb = EdoBuild.ArcOf(line, f.W(F(bv[0]), F(bv[1]))).x;
+            st.Add(new Vector2(Mathf.Min(sa, sbb), Mathf.Max(sa, sbb)));
+        }
+        var ss = new List<float>(); var yy = new List<float>();
+        for (int i = 0; i < prof.Count; i++)
+        {
+            bool step = i + 1 < prof.Count && Mathf.Abs(prof[i + 1].x - prof[i].x) < 0.01f;
+            if (!step) { if (i > 0 && Mathf.Abs(prof[i - 1].x - prof[i].x) < 0.01f) continue; ss.Add(prof[i].x); yy.Add(prof[i].y); continue; }
+            int si = st.FindIndex(z => prof[i].x >= z.x - 0.5f && prof[i].x <= z.y + 0.5f);
+            if (si < 0) { note = "道のり " + prof[i].x.ToString("F2") + " の段差に石段が無い"; return default(KeyValuePair<Vector2[], float[]>); }
+            float s0 = st[si].x, s1 = st[si].y;
+            float y0 = prof[i].y;
+            if (i > 0 && prof[i].x - prof[i - 1].x > 1e-3f) y0 = Mathf.Lerp(prof[i - 1].y, prof[i].y, (s0 - prof[i - 1].x) / (prof[i].x - prof[i - 1].x));
+            ss.Add(s0); yy.Add(y0); ss.Add(s1); yy.Add(prof[i + 1].y);
+            note += "段 " + s0.ToString("F2") + "〜" + s1.ToString("F2") + " ";
+        }
+        var pts = new Vector2[ss.Count]; var ys = yy.ToArray();
+        for (int i = 0; i < ss.Count; i++) { Vector2 d; pts[i] = EdoBuild.ArcPoint(line, ss[i], out d); }
+        return new KeyValuePair<Vector2[], float[]>(pts, ys);
+    }
+
     /// <summary>**折れ線の坂の路盤**(案1・EDO-0502)。`ramps[]` のうち `pts` と `profY` を持つ坂
     /// (R_UraZaka・R_GakeZaka)は造成の算出物(impl.graded)に入っていない(sashizu_lib.ramp_y が別勘定にしている)ので、
     /// 造成の直後にここで均す。置き方は `EdoBuild.GradeSaka`。
@@ -504,12 +539,25 @@ public static class EdoOkabeYashikiBuilder
             string nm = S(r["name"]);
             var pl = A(Get(r, "pts")); var py = A(Get(r, "profY"));
             if (pl == null) continue;
+            Vector2[] pts; float[] ys; bool[] pin;
             if (py == null || py.Count != pl.Count)
-            { sb.AppendLine("坂 " + nm + ": 折れ線の芯はあるが profY が無い(または点の数が合わない)── ここでは均さない"); continue; }
-            var pts = new Vector2[pl.Count]; var ys = new float[pl.Count]; var pin = new bool[pl.Count];
-            for (int i = 0; i < pl.Count; i++)
-            { var q = A(pl[i]); pts[i] = f.W(F(q[0]), F(q[1])); ys[i] = F(py[i]); }
-            pin[0] = true; pin[pl.Count - 1] = true;          // 門の内面・平場の角は動かさない
+            {
+                var ps = A(Get(r, "profS"));
+                if (ps == null || ps.Count < 2)
+                { sb.AppendLine("坂 " + nm + ": 折れ線の芯はあるが profY も profS も無い ── ここでは均さない"); continue; }
+                // 案1 の縦断 profS(道のり s・高さ)から芯の節点を起こす(EDO-0502 第8巡 ── 算出物 graded に表の坂の路盤が入っておらず、
+                //   石段の奥に高さ 2.25m の土の壁が立っていた)。同じ s に二つの高さ = 石段:石段の平面(kaidans[].a→b)の両端の s に分けて置く。
+                string ps0; var cp = ProfSNodes(r, f, out ps0); if (cp.Key == null) { sb.AppendLine("坂 " + nm + ": " + ps0 + " ── 均さない"); continue; }
+                pts = cp.Key; ys = cp.Value; pin = new bool[pts.Length];
+                sb.AppendLine("坂 " + nm + ": profS から芯の節点 " + pts.Length + " を起こした(" + ps0 + ")");
+            }
+            else
+            {
+                pts = new Vector2[pl.Count]; ys = new float[pl.Count]; pin = new bool[pl.Count];
+                for (int i = 0; i < pl.Count; i++)
+                { var q = A(pl[i]); pts[i] = f.W(F(q[0]), F(q[1])); ys[i] = F(py[i]); }
+            }
+            pin[0] = true; pin[pts.Length - 1] = true;          // 門の内面・平場の角は動かさない
             float width = Has(r, "w") ? F(r["w"]) : F(r["wKen"]) * ken;
             bool hasToe = Has(r, "toeRule");
             // 硬い: 1.5m(指図 toeRule)。法尻は法の面と今の地盤の交わりを線で測る(EdoBuild.GradeSaka の toeLine)。節点の距離は参考に刷る
@@ -1882,6 +1930,12 @@ public static class EdoOkabeYashikiBuilder
         var topOf = new Dictionary<string, float>();
         var log = new System.Text.StringBuilder();
         int skipped = 0;
+        // ⭐ 石段を先に据える(EDO-0502 第8巡)── 口の端は据わった石段の側面の実面で決める(EdoBuild.GapFromPieces)。
+        //   石段の据え(PlaceKaidans)は土留めを見ない(段石の天端=踏面・下は皮の地表まで積む)ので順を入れ替えても据えは同じ。
+        var kwait = new List<string>();
+        sb.AppendLine("  " + PlaceKaidans(kwait) + "(土留めより先に据えた)");
+        foreach (var x in kwait) sb.AppendLine("    ★ " + x);
+        var kaiRoot = GameObject.Find(GN) == null ? null : GameObject.Find(GN).transform.Find("Fuzoku/Kaidan");
         foreach (var o in tws)
         {
             var w = O(o); if (w == null) continue;
@@ -1899,11 +1953,69 @@ public static class EdoOkabeYashikiBuilder
             string kind = S(Get(w, "kind")) ?? "";
             if (kind.Contains("打込接ぎ"))
             {
+                // 口の端 = 口を通る石段(gaps[].by の K_*)の実面。同じ口を名指す欄(K_Dan1 と R_OmoteZaka)は一つに
+                var rets = new List<KeyValuePair<List<Vector2>, Vector2>>();   // 返しの線と口の内の向き
+                {
+                    var gl = A(Get(w, "gaps")) ?? new List<object>(); var ng = new List<Vector2>(); var seen = new List<Vector2>();
+                    for (int gi = 0; gi < gl.Count; gi++)
+                    {
+                        var gd = O(gl[gi]); var g = new Vector2(F(Get(gd, "s0")), F(Get(gd, "s1")));
+                        if (seen.Exists(z => Mathf.Abs(z.x - g.x) < 0.01f && Mathf.Abs(z.y - g.y) < 0.01f)) continue;
+                        seen.Add(g);
+                        string by = null;
+                        foreach (var g2 in gl) { var d2 = O(g2); string b2 = S(Get(d2, "by")); if (b2 != null && b2.StartsWith("K_") && Mathf.Abs(F(Get(d2, "s0")) - g.x) < 0.01f) by = b2; }
+                        Dictionary<string, object> kd = null;
+                        foreach (var ko in A(D["kaidans"]) ?? new List<object>()) { var k2 = O(ko); if (k2 != null && S(Get(k2, "name")) == by) kd = k2; }
+                        if (by == null || kd == null || kaiRoot == null) { ng.Add(g); sb.AppendLine("    口 " + key + " [" + g.x.ToString("F2") + "," + g.y.ToString("F2") + "]: 石段の名が無い ── 紙の口のまま ⚠"); continue; }
+                        var pcs = new List<GameObject>(); foreach (Transform c in kaiRoot) if (c.name.StartsWith(by + "_")) pcs.Add(c.gameObject);
+                        string gnote; var gm = EdoBuild.GapFromPieces(nodes, g, pcs, 1.0f, out gnote);
+                        // 石段が紙の口より狭い端だけ石段の面へ詰める(隙 0)。広い端は石段が石垣の下へ入る(めり込み=数えない・埋めて隠す)ので紙の口のまま
+                        var g1 = new Vector2(Mathf.Max(g.x, gm.x), Mathf.Min(g.y, gm.y));
+                        gnote += " ⇒ 口 [" + g1.x.ToString("F2") + "," + g1.y.ToString("F2") + "]";
+                        ng.Add(g1);
+                        sb.AppendLine("    口 " + key + " × " + by + ": " + gnote);
+                        // 返し(口の端の小口を直角に折り返す短い run)── 軸 = 石段の a→b(高い側へ向ける・測る)
+                        var av = A(kd["a"]); var bv = A(kd["b"]);
+                        Vector2 ax = (Grid.W(F(bv[0]), F(bv[1])) - Grid.W(F(av[0]), F(av[1]))).normalized;
+                        Vector2 dirL; Vector2 mid = EdoBuild.ArcPoint(nodes, (g1.x + g1.y) * 0.5f, out dirL);
+                        float hp = SkinGround(mid.x + ax.x * 3f, mid.y + ax.y * 3f), hm = SkinGround(mid.x - ax.x * 3f, mid.y - ax.y * 3f);
+                        if (!float.IsNaN(hp) && !float.IsNaN(hm) && hm > hp) ax = -ax;
+                        // 返しの長さの上限 = 石段の駒の高い側への実の奥行(測る)と、口を通る坂の切通しの延長(指図 ramps[].kiritoshi.lenM)の大きい方
+                        float stairDeep = 0f;
+                        foreach (var pc in pcs) foreach (var v in EdoBuild.Body(pc.transform, 4000)) stairDeep = Mathf.Max(stairDeep, Vector2.Dot(new Vector2(v.x, v.z) - mid, ax));
+                        float capLen = stairDeep;
+                        foreach (var g2 in gl)
+                        {
+                            string b2 = S(Get(O(g2), "by")); if (b2 == null || Mathf.Abs(F(Get(O(g2), "s0")) - g.x) > 0.01f) continue;
+                            foreach (var ro in A(Get(D, "ramps")) ?? new List<object>()) { var rd = O(ro); if (rd != null && S(Get(rd, "name")) == b2 && O(Get(rd, "kiritoshi")) != null) capLen = Mathf.Max(capLen, F(Get(O(Get(rd, "kiritoshi")), "lenM"))); }
+                        }
+                        foreach (float se in new[] { g1.x, g1.y })
+                        {
+                            Vector2 dd; Vector2 pe = EdoBuild.ArcPoint(nodes, se, out dd);
+                            Vector2 inw = new Vector2(ax.y, -ax.x); if (Vector2.Dot(inw, mid - pe) < 0f) inw = -inw;
+                            float rl; var line = EdoBuild.GapReturnLine(pe, ax, inw, tops[0], SkinGround, capLen, out rl);
+                            sb.AppendLine("      返し @s=" + se.ToString("F2") + ": " + (line == null ? "要らない(口の床が天端に届く)" : "長さ " + rl.ToString("F2") + "m(上限 " + capLen.ToString("F2") + ")"));
+                            if (line != null) rets.Add(new KeyValuePair<List<Vector2>, Vector2>(line, inw));
+                        }
+                    }
+                    gaps = ng;
+                }
                 var cw = new EdoBuild.CrestWall { name = key, nodes = nodes, nodeTops = tops, gaps = gaps, runAlongX = false, runLen = 2.0f, pitchMax = 1.8f,
                                                   pathOfH = EdoBuild.CastleWallOfExpose };   // 見付 4m 超は丈違いの駒(TW_Kado_Shumen 4.5・EDO-0502)
                 float wf; int bs;
                 var made = EdoBuild.PlaceCrestWall(cw, SkinGround, grp, runEnds, segPieces, log, out wf, out bs);
                 castle.AddRange(made);
+                for (int ri = 0; ri < rets.Count; ri++)
+                {
+                    var inw = rets[ri].Value;
+                    var rw = new EdoBuild.CrestWall { name = key + "_Kaeshi" + ri, nodes = rets[ri].Key, nodeTops = new List<float> { tops[0], tops[0] }, gaps = new List<Vector2>(),
+                                                      runAlongX = false, runLen = 2.0f, pitchMax = 1.8f, pathOfH = EdoBuild.CastleWallOfExpose, lowHint = (pa, pb) => inw, lowForce = true };
+                    float rwf; int rbs;
+                    // 返しは隅の駒を組まない(runEnds に入れない)── 口の端の小口の面と返しの見え面は同じ面(石段の脇)に揃う
+                    var rm = EdoBuild.PlaceCrestWall(rw, SkinGround, grp, null, null, log, out rwf, out rbs);
+                    castle.AddRange(rm);
+                    sb.AppendLine("      返し " + rw.name + ": 城の石垣 " + rm.Count + " 駒" + (rbs > 0 ? "・埋まり退けた " + rbs : "") + "・底の浮き 最悪 " + (float.IsNegativeInfinity(rwf) ? "-" : rwf.ToString("+0.000;-0.000") + "m"));
+                }
                 sb.AppendLine("  " + key + "(" + kind + "・" + S(Get(w, "mode")) + "): 城の石垣 " + made.Count + " 駒・天端 " + tops[0].ToString("F2")
                             + "・口 " + gaps.Count + "・駒の底の浮き 最悪 " + (float.IsNegativeInfinity(wf) ? "-" : wf.ToString("+0.000;-0.000") + "m") + (bs > 0 ? "・全体が埋まり退けた " + bs : ""));
             }
@@ -2054,7 +2166,7 @@ public static class EdoOkabeYashikiBuilder
         sb.AppendLine(PlaceWells(wait));
         sb.AppendLine(PlaceKekkai(wait));
         sb.AppendLine(PlaceTakegaki(wait));
-        sb.AppendLine(PlaceKaidans(wait));
+        sb.AppendLine("石段: 2b(段の土留め)で先に据えた ── 口の端を石段の実面で決めるため(EDO-0502 第8巡)");
         sb.AppendLine(PlaceSando(wait));
         sb.AppendLine("── 据えなかったもの(部材待ち・欄待ち)" + wait.Count + " 件 ──");
         foreach (var w in wait) sb.AppendLine("  ★ " + w);
@@ -2098,9 +2210,13 @@ public static class EdoOkabeYashikiBuilder
         var faces = FlatFaces(sb);
         // 面の外 = 算出物 graded(法面を含む設計の地盤)。駒の下に落ちた節点は造成前の地盤(base_dem)で引く。区画の外は今の地形
         var G = Graded; var ok = new bool[G.h.Length]; for (int i = 0; i < ok.Length; i++) ok[i] = !float.IsNaN(G.h[i]);
+        // ⭐ 坂の路盤(GradeRamps が造成の後に均す ramps[])は算出物 graded に入っていない ── 皮が graded のまま描くと坂の上に元の面の
+        //   高さ(表の坂で 21.0)の土を被せ、返しの石垣と石段の奥を埋める(EDO-0502 第8巡)。坂の帯(芯から 幅/2 + 坂の高低差 × 切の法)の
+        //   中は、GradeRamps が均した今の地形を設計の地盤とする。
+        var gh = RampPatchedDesign(G, sb);
         var design = new EdoBuild.SkinDesign
         {
-            x0 = G.x0, z0 = G.z0, step = G.step, nx = G.nx, nz = G.nz, h = G.h, ok = ok,
+            x0 = G.x0, z0 = G.z0, step = G.step, nx = G.nx, nz = G.nz, h = gh, ok = ok,
             batterCut = C("batterCut"), batterFill = C("batterFill"), baseAt = EdoBuild.BaseDem(), own = Poly
         };
         // ⛔ 地形の木の升には穴を開けない(Unity は穴の升の地形の木を黙って落とす)── 区画の中の地形の木の点を渡す
@@ -2120,6 +2236,38 @@ public static class EdoOkabeYashikiBuilder
         sb.AppendLine("  " + rep);
         sb.Append(EdoBuild.SkinGapTable(parts, faces, tol));
         return sb.ToString();
+    }
+
+    /// <summary>算出物 graded の写しに、坂の路盤(ramps[] の芯・幅・縦断)の帯の中だけ今の地形(GradeRamps の均し)を写す(EDO-0502 第8巡)。
+    /// 帯 = 芯から 幅/2 + (坂の高低差) × 切の法 batterCut(切通しの法が届きうる最大)。帯の外・区画の外は graded のまま。⛔ 地形には触らない。</summary>
+    static float[] RampPatchedDesign(WGrid G, System.Text.StringBuilder sb)
+    {
+        var h = (float[])G.h.Clone(); var f = Grid; float ken = C("ken"), bc = C("batterCut"); int n = 0;
+        foreach (var o in A(Get(D, "ramps")) ?? new List<object>())
+        {
+            var r = O(o); if (r == null) continue; var pl = A(Get(r, "pts")); if (pl == null || pl.Count < 2) continue;
+            var line = new List<Vector2>(); foreach (var q in pl) { var v = A(q); line.Add(f.W(F(v[0]), F(v[1]))); }
+            float lo = float.MaxValue, hi = float.MinValue;
+            foreach (var key in new[] { "profY", "profS" })
+                foreach (var q in A(Get(r, key)) ?? new List<object>()) { var v = A(q); float y = v != null ? F(v[v.Count - 1]) : F(q); lo = Mathf.Min(lo, y); hi = Mathf.Max(hi, y); }
+            if (lo > hi) continue;
+            float width = Has(r, "w") ? F(r["w"]) : F(r["wKen"]) * ken;
+            float band = width * 0.5f + (hi - lo) * bc;
+            for (int j = 0; j < G.nz; j++)
+                for (int i = 0; i < G.nx; i++)
+                {
+                    int k = j * G.nx + i; if (float.IsNaN(h[k])) continue;
+                    float x = G.x0 + i * G.step, z = G.z0 + j * G.step;
+                    if (Mathf.Abs(EdoBuild.ArcOf(line, new Vector2(x, z)).y) > band) continue;
+                    // 芯の端より先(道のりの外)は帯に数えない
+                    var st = EdoBuild.ArcOf(line, new Vector2(x, z)); float L = 0f; for (int m = 1; m < line.Count; m++) L += Vector2.Distance(line[m - 1], line[m]);
+                    if (st.x <= 1e-3f || st.x >= L - 1e-3f) continue;
+                    float g = EdoBuild.Ground(x, z); if (float.IsNaN(g) || Mathf.Abs(g - h[k]) < 0.02f) continue;
+                    h[k] = g; n++;
+                }
+        }
+        if (sb != null) sb.AppendLine("  坂の路盤を設計の地盤へ写した節点 " + n + "(算出物 graded に坂が無い所)");
+        return h;
     }
 
     /// <summary>皮が高さを揃える**平らな面**(指図 terraces の poly を世界へ)。算出物 graded が面の中(縁から 1.5m 内)で面の高さから

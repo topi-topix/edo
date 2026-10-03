@@ -1,18 +1,18 @@
 export const meta = {
   name: 'sashizu-review',
-  description: '指図の検分の輪 — 三役(検図・考証・庭方)を並列に、変わった章だけ、指摘は上限10件、最大3巡で止まる',
+  description: '指図の検分の輪 — 検分役(検図・考証・庭方・林方・普請方)を並列に、変わった章だけ、指摘は上限10件、最大3巡で止まる',
   whenToUse: '指図を書き終えて検分に出すとき(/kenzu から)。ユーザーに見せる前・実装に入る前。',
   phases: [{ title: '検分' }, { title: '直し' }],
 }
 // 使い方(/kenzu が組み立てる): args = { estate: 'doi', changed: '<review_gate.py --changed の出力>',
-//   roles: ['edo-kenzu','edo-kosho','edo-niwashi'], ledger: '<review_ledger.py show の出力>', rounds: 3 }
+//   roles: ['edo-kenzu','edo-kosho','edo-niwashi','edo-hayashikata','edo-fushinkata'], ledger: '<review_ledger.py show の出力>', rounds: 3 }
 // 文字列 'doi' だけでも動く(全役・全章)。
 const A = (typeof args === 'string') ? { estate: args.trim().split(/\s+/)[0] } : (args || {})
 const estate = A.estate
 if (!estate) throw new Error('args.estate(邸名)が要る')
-const ROLES = A.roles || ['edo-kenzu', 'edo-kosho', 'edo-niwashi']
+const ROLES = A.roles || ['edo-kenzu', 'edo-kosho', 'edo-niwashi', 'edo-hayashikata', 'edo-fushinkata']
 const MAXR = A.rounds || 3
-const LABEL = { 'edo-kenzu': '検図', 'edo-kosho': '考証', 'edo-niwashi': '庭方' }
+const LABEL = { 'edo-kenzu': '検図', 'edo-kosho': '考証', 'edo-niwashi': '庭方', 'edo-hayashikata': '林方', 'edo-fushinkata': '普請方' }
 
 const FINDINGS = {
   type: 'object',

@@ -67,3 +67,4 @@
 - [竪格子の柵の駒と HoriSaku の走りの向き](tategoshi-saku-module-and-hori-saku-axis.md) — 袖は machikido.sode_* を共用・HoriSaku の杭は実は +X・fence 札の笠木の出(2026-10-02)
 - [練塀の隅を一括で焼く・meta を写す](dobei-kado-batch-meta-clone.md) — 整数角で焼く・guid だけ替えた meta で remap 不要(2026-10-03)
 - [練塀の隅の腕を短く焼く](dobei-kado-short-arms.md) — 小口が無く切るだけ・継ぎ目側へ切り上げ・腕は局所 2.256(×1.818)(2026-10-03)
+- [畝の土は FJG Soil を 8m で・Paving と Meadow は灰色に見える](hatake-une-paving-dirt-and-seam.md) — 茶の矩形・u を芯で折り返す・端落としは 6%(2026-10-03)

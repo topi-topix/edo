@@ -259,7 +259,11 @@ def sid(default=None, strict=True):
     **同じ作業ディレクトリの生きた claim を引き継ぐ**(指図は worktree ごとに cwd が
     分かれ、Unity はメインに1つなので実用上は一意)。
     """
-    e = os.environ.get("EDO_SESSION_ID") or default
+    # ⭐ Claude Code は Bash の環境に CLAUDE_CODE_SESSION_ID(フックの session_id と同じ UUID)を
+    #   置く。これを拾えば Bash 直叩きでもフックと同じ身元になり、EDO_SESSION_ID を付け忘れた
+    #   掲示板の書き込みが「決められない」で断られない(2026-10-03 実測: 断られた 20 件の主因)。
+    e = (os.environ.get("EDO_SESSION_ID") or default
+         or os.environ.get("CLAUDE_CODE_SESSION_ID"))
     if e:
         # ⚠ **必ず切り詰める。** フック(edo_guard.py)は session_id を [:12] にして渡すので、
         #   ここで切らないと「フル UUID を渡した自分」が別人になり、自分の claim を他人の
@@ -1513,6 +1517,19 @@ def _selftest_roles():
         chk("フル UUID は切り詰めて通す", sid_of("48127409-8224-4eeb-b6ef-d69c5d798ace") == "48127409-822")
         chk("8 字に縮めた身元は止める(EDO-0097 の真因)", sid_of("16f6ad80") is None)
         chk("役が自作した身元は止める", sid_of("toryo-dewa01") is None)
+        cc0 = os.environ.get("CLAUDE_CODE_SESSION_ID")
+        os.environ.pop("EDO_SESSION_ID", None)
+        os.environ["CLAUDE_CODE_SESSION_ID"] = "48127409-8224-4eeb-b6ef-d69c5d798ace"
+        try:
+            chk("EDO_SESSION_ID が無くても Claude Code の session_id で身元が決まる(掲示板の断り 20 件)",
+                sid() == "48127409-822")
+        except SystemExit:
+            chk("EDO_SESSION_ID が無くても Claude Code の session_id で身元が決まる(掲示板の断り 20 件)", False)
+        finally:
+            if cc0 is None:
+                os.environ.pop("CLAUDE_CODE_SESSION_ID", None)
+            else:
+                os.environ["CLAUDE_CODE_SESSION_ID"] = cc0
         s = "selftst2-rol"
         touch(s, resources=["unity"])
         c, fp = mine(s)

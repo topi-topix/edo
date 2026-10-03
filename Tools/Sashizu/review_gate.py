@@ -38,14 +38,16 @@ CLAUDE.md のルーティング表に edo-niwashi は載っていたのに、**�
 ⭐ **効くのは実装前まで(2026-09-19 施主裁定2=A)。** 実装の車線に入った敷地(`kansei_gate.py --init` で
 `<邸>_kansei.json` が在る)ではこの関門は鳴らず、完成条件の表が関門になる。指摘は建つ姿を変える物だけ。
 
-⛔ **関門が赤の指図を実装しない。赤のシーンをユーザーに見せない。**
+⛔ **関門が赤の指図を実装しない。**赤のまま「完成」「検査済み」として見せない。
+⭕ **途中見せは止めない**(2026-10-03 施主指示・CLAUDE.md 規則22)── 描きかけの図・建てかけのレンダは
+   赤のままでも「途中・未検査」と札を付けて見せる。正典 docs/reporting-protocol.md 規則14。
 
 ⚠ **【移行期間】2026-09-01 ユーザー裁定(案B)。** この関門は 2026-09-01 の新設で、
 全6邸が赤で立ち上がった(赤17件)。⛔ 全員を即時停止させない — 赤の大半は
 「関門が新しくて記録が無い」だけで、土井は検図14巡・岡部は検図12巡を実際に通している。
   ⭕ 検分を通すまで、従来どおり作業を続けてよい(実装・指図の改訂とも)
-  ⛔ ただし**新たにユーザーへ見せる前には必ず通す**(裁定を仰ぐ・レンダを出す・
-     指図の Artifact を案内する、のすべて)。ここが移行中も動かない一線
+  ⛔ ただし**実装に入る前・完成として出す前には必ず通す**。ここが移行中も動かない一線
+     (2026-10-03 改: 見せる・方針を問うのは関門の外。途中見せは「途中・未検査」の札で)
   ⛔ 「記録が無い」は「通していない」ではない。⛔ それでも遡って pass を書かない
      (過去の検分はいまの指図を見ていない)
 正典: CLAUDE.md 絶対規則18 / 展開は EDO-0099。
@@ -199,6 +201,26 @@ def estate_names():
                 names.add(d)
     return sorted(names)
 
+# 林方(植生の役)が見る欄。庭方の `_NIWA_HINTS` と重ねない(EDO-0410)
+_HAYASHI_KEYS = ("planting", "plantRule", "slopeArea", "slopePlanting", "slopeBands", "surface")
+
+
+# 普請方(土木の役)が見る欄 — 造成・排水・土留め・段をつなぐ石段と坂(EDO-0410・2026-10-03 施主指示)
+_FUSHIN_KEYS = ("terraces", "planes", "grading", "edgeProfile", "edgeProfiles", "sections",
+                "terraceWalls", "ishigaki", "slopeDoryu", "fuchi", "boundaryPlinth",
+                "kaidans", "ramps", "amaochi", "drains", "valleys")
+
+
+def _needs_fushin(d):
+    """普請方が要るか — 造成・排水・土留めの欄が1つでも埋まっていれば要る。"""
+    return any(d.get(k) for k in _FUSHIN_KEYS)
+
+
+def _needs_hayashi(d):
+    """林方が要るか — 庭の外の植生か地表の欄が1つでも埋まっていれば要る。"""
+    return any(d.get(k) for k in _HAYASHI_KEYS)
+
+
 # 検分役 → (日本語名, その役が見る範囲のキー, いつ要るか)
 #   keys=None は「指図全体」。required は指図の中身を受け取って True/False を返す
 REVIEWERS = collections.OrderedDict([
@@ -224,15 +246,35 @@ REVIEWERS = collections.OrderedDict([
         #   池・水の系・築山・庭の断面・主視点・中仕切の規則が指紋のキーに入っておらず、
         #   ⛔ **いま壊れている物がちょうどこの穴に落ちた**(指図を書き換えても検分が
         #   「検め直し」にならなかった)。⭕ 庭の意匠が載るキーはすべて入れる。
-        keys=["gardens", "planting", "plantRule", "tenkei",
-              "slopeArea", "slopePlanting", "routes",
+        # ⭐ 2026-10-03 施主裁定(EDO-0410): 庭の外の植生(社叢・斜面の林・屋敷林)と地表の塗り分け
+        #   (`planting` / `plantRule` / `slopeArea` / `slopePlanting` / `slopeBands` / `surface`)は
+        #   林方(edo-hayashikata)の範囲へ移した。庭の中の植栽は `gardens[]` に載るので庭方に残る。
+        keys=["gardens", "tenkei", "routes",
               "sensui", "mizu", "tsukiyama", "gardenSections",
               "viewpoints", "nakajikiriRule"],
         # ⚠ 庭方は**範囲キー**を持つので按分する — `kosho.md` は庭方の範囲外(考証の文章)、
         #   `.py` は庭の検査と図版そのものなので入れる。
         files=("py",),
-        why="庭が庭として成立しているか(主景・見所・園路・作庭の作法・植栽の時代考証)",
+        why="庭が庭として成立しているか(主景・見所・園路・作庭の作法・庭木の時代考証)",
         required=lambda d: _needs_niwashi(d))),
+    ("hayashi", dict(
+        label="林方(edo-hayashikata)",
+        # ⭐ 2026-10-03 施主裁定(EDO-0410)で庭方から分けた。庭の外の樹林(社叢・斜面の林・
+        #   屋敷林・低地の林)と地表の塗り分け。欄は山王の形(planting{bandDef,parts,plantRule,
+        #   clearance,slopeRule,namedTrees}・surface{recipes,zones})。`slopeBands` は社叢の帯の定義。
+        keys=list(_HAYASHI_KEYS),
+        files=("py",),
+        why="庭の外の植生と地表(樹種構成・階層・密度・林縁・斜面の林・地表の塗り分け・典拠と確度)",
+        required=lambda d: _needs_hayashi(d))),
+    ("fushin", dict(
+        label="普請方(edo-fushinkata)",
+        # ⭐ 2026-10-03 施主指示(EDO-0410): 造成・排水・土留めを普請奉行の直の判断から専門役へ移した。
+        #   検図方は図の成立(断面の検算・重なり)を見る。普請方は土木として妥当か(地形に従うか・
+        #   縁の受け・水の落とし先)を見る。
+        keys=list(_FUSHIN_KEYS),
+        files=("py",),
+        why="土木として成立しているか(平場の高さ・切盛・縁の受け・土留めの型・水の落とし先・石段と坂の落差)",
+        required=lambda d: _needs_fushin(d))),
 ])
 
 
@@ -240,7 +282,8 @@ REVIEWERS = collections.OrderedDict([
 #   「庭・植栽・点景のどれかがあれば」だけだと、**庭の実体はあるのに点景しか書いていない
 #   段階の指図**で要求が立たない — 一番検分が要る時期に関門がすり抜ける。
 #   ⭕ 「この敷地に庭があるか」を、書きかけでも拾える手がかりから判断する。
-_NIWA_HINTS = ("gardens", "planting", "plantRule", "tenkei", "slopePlanting", "slopeArea")
+#   ⚠ 2026-10-03(EDO-0410): planting / plantRule / slopePlanting / slopeArea は林方の欄へ移した。
+_NIWA_HINTS = ("gardens", "tenkei", "gardenSections", "sensui", "tsukiyama")
 # 棟・郭・区域の**名前**に現れる、庭の存在を示す語(書きかけでも拾える)
 #   ⛔ 「池」は入れない — 外堀の題「溜**池**堰下流」のような**地名**を拾ってしまう。
 #      庭の池は「泉水」「主庭」など別の語で必ず現れるので、取りこぼしにはならない。
@@ -851,7 +894,7 @@ def record(name, key, verdict, note):
         "検分役は read-only で自分では書けない。`hash` はその検分が見た範囲の指紋で、"
         "指図を書き換えるとずれ、検分は自動で『検め直しが要る』になる。"
         "見張りは `python3 Tools/Sashizu/review_gate.py`。"
-        "⛔ 関門が赤の指図を実装しない・赤のシーンをユーザーに見せない。"))
+        "⛔ 関門が赤の指図を実装しない(途中見せは止めない・CLAUDE.md 規則22)。"))
     rv = doc.setdefault("reviews", collections.OrderedDict())
     prev = rv.get(key) or {}
     hist = list(prev.get("rounds") or [])
@@ -957,15 +1000,16 @@ def _main():
                         "(`python3 Tools/Sashizu/review_gate.py`)")
     print("\n".join(lines))
     if not quiet and total:
-        print("\n⛔ 赤 %d 件。**関門が赤の指図を実装しない・赤のシーンをユーザーに見せない。**"
+        print("\n⛔ 赤 %d 件。**関門が赤の指図を実装しない**(途中見せは止めない・規則22)。"
               "\n   検分に出す → 結果を `--record <屋敷> <役> <pass|fail>` で書き戻す。"
               "\n"
               "\n⚠ **【移行期間】2026-09-01 ユーザー裁定(案B)。**関門は新設で全邸が赤で"
               "立ち上がったので、\n   ⭕ **検分を通すまで従来どおり作業を続けてよい**"
               "(実装・指図の改訂とも)。\n"
-              "   ⛔ **ただし新たにユーザーへ見せる前には必ず通す** — 見せる=裁定を仰ぐ・"
-              "レンダを出す・\n      指図の Artifact を案内する、のすべて。ここが移行中も"
+              "   ⛔ **ただし実装に入る前・完成として出す前には必ず通す**。ここが移行中も"
               "動かない一線。\n"
+              "   ⭕ 途中の図・レンダは赤のままでも「途中・未検査」と札を付けて見せる"
+              "(2026-10-03・規則22)。\n"
               "   ⛔ 「記録が無い」は「通していない」ではない。⛔ それでも遡って pass は"
               "書かない。" % total)
     sys.exit(1 if total else 0)

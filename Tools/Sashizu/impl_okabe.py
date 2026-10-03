@@ -100,7 +100,10 @@ def bake_base(M, poly, d):
             prev = b9
         if r["s1"] - prev > 0.5:
             thin.append([round(prev, 3), round(r["s1"], 3)])
-        out.append({"run": r["name"], "s": r["s"], "cap": round(unit * r["s"], 3),
+        s = r.get("s")
+        if s is None:                                  # 案1: 指図は sFrom(天端 − 法尻の地形)だけ ── 露出の最大を 1/4 刻みで切り上げ
+            s = max(0.25, math.ceil(max(vs) / unit * 4 - 1e-9) / 4)
+        out.append({"run": r["name"], "s": s, "cap": round(unit * s, 3),
                     "lo": round(min(vs), 3), "hi": round(max(vs), 3), "segs": segs, "thin": thin})
     return out
 

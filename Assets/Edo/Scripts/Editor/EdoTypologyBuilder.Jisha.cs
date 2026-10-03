@@ -51,7 +51,10 @@ public static partial class EdoTypologyBuilder
     const float JISHA_JITTER       = 1.5f;   // 附属の置き場の点数の揺らぎ[m](EDO-0476・区画ごとの種で決定的)
     const int   JISHA_TRIES        = 72;     // PlaceBest に試させる置き場の数(旧: 三巡 × 24)
 
-    enum JMode { Main, Near, Back, Front }
+    enum JMode { Main, Near, Back, Front, Low }
+    /// <summary>勝手まわりの棟(JMode.Low)を置く平場の落ち[m] ── 足あとの下の造成前の地盤の**最も高い所**が本堂の中央値より
+    /// これ以上低い所だけ(EDO-0532・U)。主の平場の縁の斜面(幅 5m 前後)を跨がせない。</summary>
+    const float JISHA_LOW_DROP = 0.8f;
 
     class JItem
     {
@@ -117,6 +120,16 @@ public static partial class EdoTypologyBuilder
             }
         }
         return true;
+    }
+
+    /// <summary>矩形の下の造成前の地盤(BaseDem)の分位 <paramref name="frac"/>(0.5 = 中央値・1 = 最も高い所)── 1m 格子で引く。</summary>
+    static float JDemMedian(Func<float, float, float> dem, Vector2[] c, float frac = 0.5f)
+    {
+        var hs = new List<float>();
+        var ex = c[1] - c[0]; var ez = c[3] - c[0];
+        int nx = Mathf.Max(1, Mathf.CeilToInt(ex.magnitude)), nz = Mathf.Max(1, Mathf.CeilToInt(ez.magnitude));
+        for (int i = 0; i <= nx; i++) for (int j = 0; j <= nz; j++) { var q = c[0] + ex * (i / (float)nx) + ez * (j / (float)nz); hs.Add(dem(q.x, q.y)); }
+        hs.Sort(); return hs[Mathf.Clamp(Mathf.RoundToInt(frac * (hs.Count - 1)), 0, hs.Count - 1)];
     }
 
     static float JMinEdge(Vector2[] poly, Vector2[] c)
@@ -257,8 +270,18 @@ public static partial class EdoTypologyBuilder
                 added.Add("物置(作事小屋の駒で代用)"); monoN++;
             }
         }
+        // ⭐ 低い平場の勝手まわり(表の low_terrace=katte・EDO-0532 施主裁定A)── 使用人の長屋(2×6間)と薪小屋を
+        //    主の平場より一段低い平場に置く。目標の棟数(蔵・物置)を食わせないよう目標の後に足す。【用途は裁定・置き場は U】
+        if (s.lowTerrace == "katte")
+        {
+            JAdd(items, dropped, g, "GeninNagaya", EdoAssets.Own.ObiNagaya(6f, 2f), JMode.Low, yawVK, 8f, true);
+            JAdd(items, dropped, g, "Makigoya", EdoAssets.Own.ObiMonooki, JMode.Low, yawVK, 8.5f, true);
+        }
         int want = items.Count + dropped.Count;
         items = items.OrderBy(i => i.rank).ToList();
+        var dem = EdoBuild.BaseDem();
+        float hallBase = float.NaN;              // 本堂の足あとの下の造成前の地盤の中央値(勝手まわりの平場の落ちを測る基準)
+        Vector2 kuriC = Vector2.zero; bool kuriDone = false;
 
         // 縁の向き(帯へ寄せる駒の向きの候補)
         var edgeYaws = new List<float>();
@@ -348,6 +371,8 @@ public static partial class EdoTypologyBuilder
                         if (gm < JISHA_GAP_TIGHT) continue;
                         if (lane != null && it.mode != JMode.Main && JSep(rc, lane) < 0.5f) continue;
                         var c = JCenter(wc);
+                        // 勝手まわりは主の平場より JISHA_LOW_DROP 低い平場だけ(硬い・本堂が建たなければ置かない)
+                        if (it.mode == JMode.Low && (float.IsNaN(hallBase) || JDemMedian(dem, wc, 1f) > hallBase - JISHA_LOW_DROP)) continue;   // 足あとの最も高い所で(斜面を跨がせない)
                         // ⭐ 附属は**いちばん近い区画の辺(塀)と平行か直角**に据える(2026-10-01 施主「塀と平行であったりすると思う」EDO-0495)。
                         //    ⛔ それまで向きの候補は区画の全部の辺と門の辺から採り、置き場の点数だけで選んでいた ── 折れの多い敷地で
                         //    遠い辺に揃った向きが選ばれ、蔵・物置が近くの塀から 20〜40° 振れて見えた(十坊・樹下 15 棟)。
@@ -386,6 +411,12 @@ public static partial class EdoTypologyBuilder
                                 break;
                             }
                             case JMode.Near:  sc = Vector2.Distance(c, hallC); break;
+                            case JMode.Low:
+                            {   // 庫裏(無ければ本堂)に近く、開口面(+Z)が庫裏の方を向く向きを先に
+                                var to = (kuriDone ? kuriC : hallC) - c; float r = yaw * Mathf.Deg2Rad;
+                                sc = to.magnitude + (Vector2.Dot(new Vector2(Mathf.Sin(r), Mathf.Cos(r)), to) < 0f ? 8f : 0f);
+                                break;
+                            }
                             case JMode.Back:  sc = JMinEdge(poly, wc) - 0.35f * vc; break;
                             default:          sc = JMinEdge(poly, wc) + 0.35f * vc; break;
                         }
@@ -490,11 +521,13 @@ public static partial class EdoTypologyBuilder
             placedN++;
             float wa = (it.wall[1] - it.wall[0]) * (it.wall[3] - it.wall[2]);
             if (it.mode == JMode.Main) hallArea += wa; else annexArea += wa;
+            if (it.label == "Kuri") { kuriC = JCenter(JCorners(it.wall, new Vector2(placed.transform.position.x, placed.transform.position.z), placed.transform.eulerAngles.y)); kuriDone = true; }
             if (it.mode == JMode.Main)
             {
                 var pp = new Vector2(placed.transform.position.x, placed.transform.position.z);
                 var wc = JCorners(it.wall, pp, placed.transform.eulerAngles.y);
                 hallC = JCenter(wc); hallDone = true;
+                hallBase = JDemMedian(dem, wc);
                 float vf = wc.Min(q => Vector2.Dot(q - gateC, vDir));
                 // 参道 = 門から本堂の前面まで(半幅 JISHA_LANE)。以後の棟は入れない。
                 lane = new[] { gateC - uDir * JISHA_LANE, gateC + uDir * JISHA_LANE,

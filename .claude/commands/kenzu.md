@@ -1,9 +1,9 @@
 ---
-description: 指図(設計図)をユーザーに出す前に検分する — 三役を並列に、変わった章だけ、上限10件、最大3巡(Workflow sashizu-review)
+description: 指図(設計図)を実装に入る前に検分する — 検分役を並列に、変わった章だけ、上限10件、最大3巡(Workflow sashizu-review)
 argument-hint: "<邸名(doi / matsudaira_dewa / sanno / okabe …)>"
 ---
 
-指図を**ユーザーに見せる前・実装に入る前**の関門。検分の輪は Workflow `sashizu-review` に書いてあり、
+指図を**実装に入る前**の関門。⛔ 見せる関門ではない — 途中の図は検分前でも「途中・未検査」と札を付けて見せる(`docs/reporting-protocol.md` 規則14)。検分の輪は Workflow `sashizu-review` に書いてあり、
 反復の上限(3 巡)・返り値の上限(指摘 10 件・要約 1,500 字)・差分だけ見ることをコードで守る。
 ⭐ **既定は実装前に 1 巡**(2026-09-19 施主裁定)。2 巡目に回す前に「建つ姿が変わる指摘か」を問い、書式・符牒・帳簿の
 指摘は落とす。実装の車線に入った邸(`docs/Sashizu/<邸>_kansei.json` が在る)は対象外 — 関門は `kansei_gate.py`。
@@ -17,7 +17,7 @@ argument-hint: "<邸名(doi / matsudaira_dewa / sanno / okabe …)>"
    `python3 Tools/Sashizu/review_ledger.py <邸> --open`(前巡の未解決)、
    `python3 Tools/Sashizu/decision_gate.py <邸>`(閉じた決定が図に届いているか。⛔ が出た項は今巡で図へ届かせる)。
 3. **Workflow を名前で起動する**: `Workflow(name: "sashizu-review", args: {estate, changed, ledger, roles})`。
-   `roles` は `review_gate.py <邸>` が要るとした役だけ(庭が無い邸は庭方を外す)。
+   `roles` は `review_gate.py <邸>` が要るとした役だけ(庭が無い邸は庭方を、庭の外の植生・地表の欄が無い邸は林方を、造成・排水・土留めの欄が無い邸は普請方を外す)。
 4. 返り値(役ごとの verdict・findings ≤10・counts・truncated・summary)を見て、
    `review_gate.py --record <邸> <役> <pass|fail> "<summary の要点 ≤300 字>"` を役ごとに 1 本の Bash で書く(→ CLAUDE.md 規則18 <!-- obl:review-record -->)。
    新規の指摘は `review_ledger.py <邸> --add` に、解消は `--close` に写し、`--round-end` で巡を締める。

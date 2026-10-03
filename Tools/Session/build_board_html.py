@@ -1676,7 +1676,7 @@ def build_html(issues, pending, commits, claims, states, summary, reviews, typol
                                 esc(impl)))
         elif st.get("state"):
             p.append('<span class="state">%s</span>' % esc(st["state"]))
-        # 検図関門(2026-09-01 新設)。⛔ 赤の指図は実装しない・ユーザーに見せない。
+        # 検図関門(2026-09-01 新設)。⛔ 赤の指図は実装しない(見せるのは止めない・2026-10-03 規則22)。
         rv = reviews.get(e)
         if rv and rv.get("rows"):
             p.append('<div class="gate%s">' % (" gate-red" if rv["red"] else ""))
@@ -1858,7 +1858,10 @@ def check_fresh():
     if baked == now:
         print("焼いた一枚は今の掲示板と同じ版(%s)— そのまま上げてよい" % now)
         return 0
-    print("⛔ 焼いてから掲示板が動いた(焼き %s → 板 %s)— `--stage <写す先>` で焼き直してから上げること"
+    # ⚠ これは「一枚を上げる前」の照合で、掲示板への書き込みを断ったのではない — 直前の note/post は
+    #   板に入っている(自分の書き込みでも版は動く)。断られたと読んで書き直す窓が続いた(2026-10-03・9 件)。
+    print("⛔ 焼いてから掲示板が動いた(焼き %s → 板 %s)— `--stage <写す先>` で焼き直してから上げること\n"
+          "   (掲示板への書き込みは済んでいる。自分の note/post でも版は動く — 書き直さず焼き直すだけ)"
           % (baked or "(無し)", now))
     return 1
 

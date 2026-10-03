@@ -8,36 +8,36 @@
    "label": "隙 0",
    "what": "塀と塀・門と塀・長屋 run の駒どうしの隙・めり込み・裏表(許容 0)",
    "how": "edo-fushin-qa 項目 6(run の格子)・7(裏表)・8(門の取り合い)、JointQA / GateQA",
-   "value": "表門両端の素通し0.71m×2・壁/隅の下の隙 最大丈2.74m(P35)・石垣と塀の間0.03〜0.08m・継ぎ目0.04m(辺26/27未検査)",
-   "verdict": "fail",
-   "at": "2026-10-03",
+   "value": null,
+   "verdict": null,
+   "at": null,
    "note": ""
   },
   "boundary": {
    "label": "境界侵犯 0",
    "what": "棟・塀・木・石が区画 / 庭の区域 / 建物 / 水面 / 道へ入らない",
    "how": "edo-fushin-qa 項目 1(境界)と区域の点検(EdoGeom.PIP)",
-   "value": "壁体の腰の区画外 最大0.001m(IG_SE_Hei_0)・軒0.266m(許容)",
-   "verdict": "pass",
-   "at": "2026-10-03",
+   "value": null,
+   "verdict": null,
+   "at": null,
    "note": ""
   },
   "ground": {
    "label": "埋没・浮き 0",
    "what": "地面との隙が −0.01〜+0.01 の外の駒が 0(oki-kata §4)",
    "how": "edo-fushin-qa 項目 2(接地)と GroundQA",
-   "value": "浮き424駒(御殿12棟0.34〜0.62m・隅37基 最大4.43m・竹垣201)・全没156駒(池の部材95)",
-   "verdict": "fail",
-   "at": "2026-10-03",
+   "value": null,
+   "verdict": null,
+   "at": null,
    "note": ""
   },
   "match": {
    "label": "突き合わせ 0",
    "what": "指図(意図)と実装の食い違いが 0 件",
    "how": "Unity メニュー Edo/<敷地>/指図と実装を突き合わせる",
-   "value": "区画と指図の座標0件・開口と run 0件・表門の完備★0",
-   "verdict": "pass",
-   "at": "2026-10-03",
+   "value": null,
+   "verdict": null,
+   "at": null,
    "note": ""
   },
   "render": {
@@ -54,34 +54,8 @@
  "completed": null,
  "history": [
   {
-   "at": "2026-10-03T01:21:48+09:00",
-   "event": "init",
-   "zu_red": 2,
-   "quote": "いまのままで良いです。"
-  },
-  {
-   "at": "2026-10-03T10:34:41+09:00",
-   "event": "record",
-   "item": "gap",
-   "verdict": "fail"
-  },
-  {
-   "at": "2026-10-03T10:34:41+09:00",
-   "event": "record",
-   "item": "boundary",
-   "verdict": "pass"
-  },
-  {
-   "at": "2026-10-03T10:34:41+09:00",
-   "event": "record",
-   "item": "ground",
-   "verdict": "fail"
-  },
-  {
-   "at": "2026-10-03T10:34:42+09:00",
-   "event": "record",
-   "item": "match",
-   "verdict": "pass"
+   "at": "2026-10-03T15:28:39+09:00",
+   "event": "init"
   }
  ]
 }

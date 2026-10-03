@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 361(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 362(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -44,8 +44,8 @@
 | `Eg.NorenMat(shop, key)` | 関数 | — | BuildMachiya(NorenKitMaterial・NorenMaterial・NorenVariants) |
 | `Eg.Shop01Taru` | string | `s01_taru.obj` — 店先の小物 | — |
 | `Eg.Shop01Oke` | string | `oke.obj` | — |
-| `Eg.TexShop01` | string | `shop01.jpg` — テクスチャ(マテリアル生成用) | SannoSha(Stage5_Monzencho) |
-| `Eg.TexShop02` | string | `shop02.jpg` | SannoSha(Stage5_Monzencho) |
+| `Eg.TexShop01` | string | `shop01.jpg` — テクスチャ(マテリアル生成用) | — |
+| `Eg.TexShop02` | string | `shop02.jpg` | — |
 | `Eg.TexOke` | string | `oke.jpg` | — |
 | `Eg.TexKomodaru` | string | `komodaru.jpg` | — |
 | `Eg.TexKidobanya` | string | `kidobanya.jpg` | — |
@@ -211,7 +211,7 @@
 | `Own.SannoInari` | string | `Sanno_Inari_Kasuga_1ken.fbx` — 山王社の稲荷社 — 一間社春日造(縋破風形式)・銅板葺【A 千代田区の実測 = `bom` 行32】。 | — |
 | `Own.SannoUmaya(nuKen, nvKen, ewMm, nsMm)` | 関数 | 山王社の御厩(供の棟)。nuKen(東西=X・桁行)×nvKen(南北=Z・梁間)[間]、 ewMm×nsMm = 柱芯[mm]。 | — |
 | `Own.SannoKura(nuKen, nvKen, ewMm, nsMm)` | 関数 | 山王社の御蔵 — 土蔵造・置屋根【`bom` 行33】。 | — |
-| `Own.SannoDan(keri, fumi, w, i)` | 関数 | 山王社の段石(石段の一段)。蹴上 keri / 踏面 fumi / 幅 w[m]、 個体 i の偶奇で a / b を振る(⛔ 片方だけを53段並べない — 目地が一直線に立つ)。 | SannoSha(Dan) |
+| `Own.SannoDan(keri, fumi, w, i)` | 関数 | 山王社の段石(石段の一段)。蹴上 keri / 踏面 fumi / 幅 w[m]、 個体 i の偶奇で a / b を振る(⛔ 片方だけを53段並べない — 目地が一直線に立つ)。 | SannoSha(Dan), TypologyBuilder.Katte(Katte) |
 | `Own.SannoDanNearest(width, i)` | 関数 | 幅が最も近い焼けた段石(SannoDan の綴りの物の中から・個体 i の偶奇で a / b)。 | SannoSha(Stage5b_Fumiishi) |
 | `Own.IshidanSode(keri, fumi, i)` | 関数 | 石段の袖(袖石垣)の1段ぶんの駒 — どの石段にも使える汎用の型(寸法は蹴上 keri・踏面 fumi[m] から従属)。 | BuildIshidan(FitObliqueEnd・PlaceIshidanSode), SannoSha(AbutStairsToWalls・Stage2_Kaidan) |
 | `Own.ISHIDAN_SODE_DEPTH_STD` | float | 袖の丈(天端の線から下端まで)の既定 2.20 = 最大見付 1.74 + 根入れ 0.46。 | BuildIshidan(MiterIshidanSode), SannoSha(Stage2_Kaidan) |
@@ -273,9 +273,9 @@
 | `Own.NagayaOmote2F(len)` | 関数 | 二階建ての表長屋(案A・ユーザー裁定 2026-08-29)。 | OkabeYashiki(AssetByKey・PlaceOmoteNagaya), MatsudairaDewa(Stage2_Perimeter) |
 | `Own.NagayaOmoteMon(len, gateFromLeft, nikai)` | 関数 | 長屋門(ユーザー裁定 2026-08-30)— 表長屋の躯体を門の上まで通し、 その足元に門口を抜いた版。 | Doi(Stage2_Perimeter), MatsudairaDewa(Stage2_Perimeter), OkabeYashiki(PlaceOmoteNagaya) |
 | `Own.NagayaOmote(len, tsuma)` | 関数 | tsuma=false は両端を突き付けにした版(`--ends none`)。 | OkabeYashiki(AssetByKey・PlaceOmoteNagaya), Doi(Stage2_Perimeter), MatsudairaDewa(Stage2_Perimeter), NagayaOmote |
-| `Own.ObiNagaya(wKen, dKen)` | 関数 | 崖下の詰人長屋(岡部邸 `service` の N1/N2、`roofs.ObiNagaya`)。 | OkabeYashiki(AssetByKey・ReportNishiRest) |
-| `Own.ObiNagaya(wKen)` | 関数 | 梁間は家臣長屋の規約どおり 2.5間(`const.nagayaD` = 4.545m)固定。 | OkabeYashiki(AssetByKey・ReportNishiRest) |
-| `Own.ObiMonooki` | string | 崖下の物置(岡部邸 `service.M1`)。 | OkabeYashiki(AssetByKey) |
+| `Own.ObiNagaya(wKen, dKen)` | 関数 | 崖下の詰人長屋(岡部邸 `service` の N1/N2、`roofs.ObiNagaya`)。 | OkabeYashiki(AssetByKey・ReportNishiRest), TypologyBuilder.Jisha(JishaOmoya) |
+| `Own.ObiNagaya(wKen)` | 関数 | 梁間は家臣長屋の規約どおり 2.5間(`const.nagayaD` = 4.545m)固定。 | OkabeYashiki(AssetByKey・ReportNishiRest), TypologyBuilder.Jisha(JishaOmoya) |
+| `Own.ObiMonooki` | string | 崖下の物置(岡部邸 `service.M1`)。 | OkabeYashiki(AssetByKey), TypologyBuilder.Jisha(JishaOmoya) |
 | `Own.ObiKawaya` | string | 崖下のかわや(岡部邸 `service.K_Obi`)。 | OkabeYashiki(AssetByKey) |
 | `Own.UraNagaya(wKen)` | 関数 | 裏長屋(裏店)— 割長屋。町屋24町の路地に並ぶ九尺二間の棟(類型共用)。 | BuildMachiya(MachiyaRun・UraNagayaRun), TypologyBuilder.Machiya(Machiya・UraNagaya) |
 | `Own.UraNagayaMunewari(wKen)` | 関数 | 裏長屋 — 棟割長屋(背中合わせ)。UraNagaya と同じ割りだが 奥行 4間(2間+2間)で、大棟を挟んで ±Z の両面に戸が並ぶ。 | BuildMachiya(MachiyaRun・UraNagayaRun), TypologyBuilder.Machiya(Machiya・UraNagaya) |
@@ -312,7 +312,7 @@
 | `Own.MSannoDanishi` | string | `Danishi.mat` — 山王社の段石の材(`Danishi`)。 | — |
 | `Own.MJishinban` | string | `M_Jishinban.mat` | — |
 | `Own.MGateStone` | string | `GateStone.mat` | — |
-| `Own.Mat(name)` | 関数 | 自作マテリアルの名前引き(規則11: パスの literal はここ以外に書かない) | Build(DressBare), BuildRun(TintFoliage), SannoSha(MonzenMat), SolidMat(Named) |
+| `Own.Mat(name)` | 関数 | 自作マテリアルの名前引き(規則11: パスの literal はここ以外に書かない) | Build(DressBare), BuildRun(TintFoliage), SolidMat(Named) |
 | `Own.SolidMatDir` | string | `Solid` — 色だけの無地の材質(URP/Lit)を置く場所。 | SolidMat(Get・Migrate) |
 | `Own.SolidMat(hex)` | 関数 | — | SolidMat(Get) |
 | `Own.GenMeshDir` | string | `Gen` — コードで起こしたメッシュの置き場。`EdoSolidMesh.Save(mesh, 名)` が `&lt;名&gt;_&lt;中身の指紋&gt;.asset` で 1 枚だけ起こす(EDO-0332)。 | SolidMesh(Get・Save), BuildHifu(ClearEdgeSkins) |
@@ -383,6 +383,7 @@
 | `Own.Tateishi(size, variant)` | 関数 | 立石(縦長の庭石)3種。松江松平上屋敷の庭(`tenkei[].stones[]` の 主石・副石・鏡石、`sensui.iwaya` の鏡石ほか)向け。 | DoiBuilder.Niwa(ResolveNiwaApi), MatsudairaDewa(ResolveApi) |
 | `Own.Hiraishi(kind)` | 関数 | 大型の平石2種(天井石・伏石)。松江松平上屋敷の庭向け。 | MatsudairaDewa(ResolveApi) |
 | `Own.Ishibashi()` | 関数 | 切石橋(切石の一枚物の橋)。松江松平上屋敷の庭向け。 | MatsudairaDewa(ResolveApi) |
+| `Own.HatakeUne` | string | 菜園の畝(うね)1本・1間(樹下邸の菜園・EDO-0532)。 | TypologyBuilder.Katte(Katte) |
 | `Own.Ikegaki(end)` | 関数 | 刈込の生垣モジュール(ツゲ・マサキの見立て・1 間 × 1.90m × 0.80m、葉カード・材 M_FJG_Plant_Boxwood_01_Spring・LOD1)。 | MatsudairaDewaBuilder.Niwa(Stage6d_Tenkei) |
 | `Own.YotsumeGaki(h)` | 関数 | 四つ目垣 1スパン(1間)。親柱1 + 立子5 + 胴縁(h1.2 で4段 / h0.9 で3段)+ 棕櫚縄の結び。 | DoiBuilder.Niwa(Niwa_G_Kaki・ResolveNiwaApi), OkabeYashiki(PlaceNiwaItem・PlaceTakegaki), Doi(PlaceTakegaki) |
 | `Own.YotsumeGakiPost(h)` | 関数 | 四つ目垣の run の +X 端に足す親柱1本。 | DoiBuilder.Niwa(Niwa_G_Kaki・ResolveNiwaApi), OkabeYashiki(PlaceNiwaItem・PlaceTakegaki), Doi(PlaceTakegaki) |

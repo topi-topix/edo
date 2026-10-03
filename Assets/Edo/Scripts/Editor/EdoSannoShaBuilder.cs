@@ -515,66 +515,13 @@ public static class EdoSannoShaBuilder
         return "SKIP: superseded by EdoSannoBukeBuilder.Stage1_Juge(2026-08-26 樹下二重定義解消)";
     }
 
-    // ---------- Stage 5: 山王門前町 ----------
+    // ---------- Stage 5: 山王門前町(引退) ----------
+    // 2026-10-03 引退(EDO-0527 施主指示「古いものであれば削除」): 門前町は類型ビルダー(Edo_Typo_sanno_monzen_1〜4)が
+    // 受け持つ。8 月の組(Edo_Sanno_Monzencho)は赤坂から既に外れていて、プレハブと作業場の隣にだけ残っていた ──
+    // プレハブごと消した。旧実装は git log で追う。
     public static string Stage5_Monzencho()
     {
-        // ⛔ **検図関門**(規則18)。指図が不合格のまま建てると、直った瞬間に建て直しになる。
-        //   判定は `docs/Sashizu/sanno_sashizu.json` の `reviews` — 記録は
-        //   `python3 Tools/Sashizu/review_gate.py --record sanno <役> <pass|fail>` が書く。
-        var reviewGate = EdoSashizuExport.ReviewGate("sanno"); if (reviewGate != null) return reviewGate;
-        var exist = GameObject.Find(GROUP_M);
-        if (exist != null && exist.transform.childCount > 0) return "SKIP: Monzencho exists";
-        var root = Group(GROUP_M, null);
-        var mS1 = MonzenMat("M_Shop01", EdoAssets.Eg.TexShop01);
-        var mS2 = MonzenMat("M_Shop02", EdoAssets.Eg.TexShop02);
-        int n = 0;
-        for (int seg = 0; seg < MONZEN_ROAD.Length - 1; seg++)
-        {
-            Vector2 a = MONZEN_ROAD[seg], b = MONZEN_ROAD[seg + 1];
-            Vector2 d = (b - a).normalized;
-            Vector2 nrm = new Vector2(-d.y, d.x); // 左法線(北西側)
-            float len = Vector2.Distance(a, b);
-            for (float t = 5f; t <= len - 5f; t += 7.7f)
-            {
-                for (int side = 0; side < 2; side++)
-                {
-                    // 南側(丘側)は西寄り半分だけ(山裾)
-                    if (side == 1 && seg == 0 && t > len * 0.6f) continue;
-                    Vector2 c = a + d * t + nrm * (side == 0 ? 5.4f : -5.4f);
-                    float y = Ground(c.x, c.y);
-                    float yaw = Mathf.Atan2(-nrm.x, -nrm.y) * Mathf.Rad2Deg + (side == 0 ? 0f : 180f);
-                    bool big = (n % 3 == 1);
-                    var go = Place(big ? PShop02 : PShop01, new Vector3(c.x, y, c.y), yaw, Vector3.one * ES, root, "Monzen_" + n);
-                    SeatBottom(go, y - 0.10f);
-                    foreach (var r in go.GetComponentsInChildren<Renderer>()) r.sharedMaterial = big ? mS2 : mS1;
-                    n++;
-                }
-            }
-        }
-        // 木戸(両端)
-        for (int i = 0; i < 2; i++)
-        {
-            Vector2 p = i == 0 ? MONZEN_ROAD[0] + (MONZEN_ROAD[1] - MONZEN_ROAD[0]).normalized * 2f
-                              : MONZEN_ROAD[2] + (MONZEN_ROAD[1] - MONZEN_ROAD[2]).normalized * 2f;
-            Vector2 d = i == 0 ? (MONZEN_ROAD[1] - MONZEN_ROAD[0]).normalized : (MONZEN_ROAD[2] - MONZEN_ROAD[1]).normalized;
-            float yaw = Mathf.Atan2(d.x, d.y) * Mathf.Rad2Deg;   // 木戸面(ローカルz)=通行方向
-
-            var kido = Place(PKido, Vector3.zero, yaw, Vector3.one * ES, root, "Kido_" + i);
-            CenterSeat(kido, p.x, p.y, 0.05f);
-        }
-        return "monzencho houses=" + n;
-    }
-    static Material MonzenMat(string name, string texPath)
-    {
-        string matPath = EdoAssets.Own.Mat(name);
-        var m = AssetDatabase.LoadAssetAtPath<Material>(matPath);
-        if (m != null) return m;
-        m = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-        var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(texPath);
-        if (tex != null) m.mainTexture = tex;
-        System.IO.Directory.CreateDirectory("Assets/Edo/Materials");
-        AssetDatabase.CreateAsset(m, matPath);
-        return m;
+        return "SKIP: superseded by EdoTypologyBuilder(sanno_monzen_1〜4)";
     }
 
     // ---------- Stage 6: スプラット(参道広場・山麓の通り・門前町・境内・山の斜面) ----------

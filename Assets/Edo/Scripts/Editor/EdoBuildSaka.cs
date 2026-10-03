@@ -24,6 +24,10 @@ public static partial class EdoBuild
         /// <summary>法尻を**法の面と今の地盤の交わり**で測った区画の線からの最短[m](芯の 0.5m ごとに路肩から法の面を外へ 0.1m 刻みで歩く)。
         /// toeMin(節点)は格子の節点の距離 ── 2m 格子では法尻の位置を一升の精度でしか言えない。toeNodeMin に残す。</summary>
         public float toeLine = float.PositiveInfinity, toeNodeMin = float.PositiveInfinity;
+        /// <summary>描かれた法尻(節点の間の一次の描きで盛りが 0.02 に落ちる点)の区画の線からの最短[m]・締めて盛らなかった節点の数。</summary>
+        public float toeRender = float.PositiveInfinity; public int unfilled;
+        /// <summary>路面の節点(締めない)の盛りが描かれて下りる点の区画の線からの最短[m]。路肩が線に近い坂で toeMin を割る ── 芯を寄せる話(呼び手が刷る)。</summary>
+        public float toeRoad = float.PositiveInfinity;
         public List<Vector2> curbLine = new List<Vector2>();
         public bool ok;
         public string note;
@@ -142,6 +146,9 @@ public static partial class EdoBuild
         int w = x1 - x0 + 1, h = z1 - z0 + 1;
         var H = td.GetHeights(x0, z0, w, h);
         float half = width * 0.5f, area = cell * cell;
+        // 描かれる地表の法尻を守るため、節点ごとの新しい高さを一度ためてから書く(下の「描かれた法尻」の締め)
+        var NW = new float[h, w]; var CUR = new float[h, w]; var ROAD = new bool[h, w];
+        for (int iz = 0; iz < h; iz++) for (int ix = 0; ix < w; ix++) NW[iz, ix] = float.NaN;
         for (int iz = 0; iz < h; iz++)
             for (int ix = 0; ix < w; ix++)
             {
@@ -202,8 +209,43 @@ public static partial class EdoBuild
                     }
                 }
                 else { res.cutMax = Mathf.Max(res.cutMax, cur - nw); res.cutM3 += (cur - nw) * area; }
-                if (write) H[iz, ix] = (nw - tp.y) / ts.y;
+                NW[iz, ix] = nw; CUR[iz, ix] = cur; ROAD[iz, ix] = hh <= 0f;
             }
+        // ⭐ **描かれた法尻**(2026-10-03・EDO-0502 普請検査: 法尻 1.39〜1.49m < 硬い 1.5m)。地表は節点の間を一次で描くので、
+        //   盛った節点の盛りは隣の(盛らない)節点まで一升ぶん滑らかに下りる ── 法の線で測った法尻(toeLine)より区画の線へ近く描かれる。
+        //   盛り > 0.02 の各節点から 8 方の隣へ、描かれた盛りが 0.02 に落ちる点を測り、区画の線から toeMin を割る節点は**盛らない**
+        //   (路面の節点は締めない ── 道が凹む。路面で割るなら芯を寄せる側の話として toeMin に返す)。硬い。
+        float toeRender = float.PositiveInfinity, toeRoad = float.PositiveInfinity; int unfilled = 0;
+        for (int pass = 0; pass < 8; pass++)
+        {
+            bool changed = false; toeRender = float.PositiveInfinity; toeRoad = float.PositiveInfinity;
+            for (int iz = 0; iz < h; iz++)
+                for (int ix = 0; ix < w; ix++)
+                {
+                    if (float.IsNaN(NW[iz, ix])) continue;
+                    float f = NW[iz, ix] - CUR[iz, ix]; if (f <= 0.02f) continue;
+                    var p = new Vector2(tp.x + (x0 + ix) * cell, tp.z + (z0 + iz) * cell);
+                    float worst = float.PositiveInfinity;
+                    for (int dz = -1; dz <= 1; dz++)
+                        for (int dx = -1; dx <= 1; dx++)
+                        {
+                            if (dx == 0 && dz == 0) continue;
+                            int jz = iz + dz, jx = ix + dx;
+                            float fn = (jz >= 0 && jz < h && jx >= 0 && jx < w && !float.IsNaN(NW[jz, jx])) ? NW[jz, jx] - CUR[jz, jx] : 0f;
+                            if (fn > 0.02f) continue;
+                            float tt = (f - 0.02f) / Mathf.Max(1e-5f, f - fn);
+                            var q = p + new Vector2(dx, dz) * cell * Mathf.Clamp01(tt);
+                            worst = Mathf.Min(worst, EdoGeom.PIP(parcel, q) ? DistPolyLine(parcel, q) : 0f);
+                        }
+                    if (worst < toeMin && !ROAD[iz, ix]) { NW[iz, ix] = CUR[iz, ix]; changed = true; unfilled++; continue; }
+                    if (ROAD[iz, ix]) toeRoad = Mathf.Min(toeRoad, worst); else toeRender = Mathf.Min(toeRender, worst);
+                }
+            if (!changed) break;
+        }
+        res.toeRender = toeRender; res.toeRoad = toeRoad; res.unfilled = unfilled;
+        if (write)
+            for (int iz = 0; iz < h; iz++) for (int ix = 0; ix < w; ix++)
+                if (!float.IsNaN(NW[iz, ix])) H[iz, ix] = (NW[iz, ix] - tp.y) / ts.y;
         // 法尻を線で測る(書き込みの前の地盤 = SampleHeight は SetHeights の前なので今の地盤)
         {
             float L = st[st.Length - 1];
@@ -239,7 +281,7 @@ public static partial class EdoBuild
             }
         }
         res.toeNodeMin = res.toeMin;
-        res.toeMin = res.toeLine;
+        res.toeMin = Mathf.Min(res.toeLine, res.toeRender);
         if (write) { td.SetHeightsDelayLOD(x0, z0, H); td.SyncHeightmap(); }
         if (probeCurb && !float.IsInfinity(probeMin)) res.curbS0 = Mathf.Max(0f, probeMin - 2f * cell);   // 一升の余裕を二つ取って縁を始める
         if (useCurb)

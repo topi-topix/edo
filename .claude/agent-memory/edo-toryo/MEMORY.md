@@ -99,6 +99,8 @@
 
 - [光付けは2次元で上げる・remap 済みでも材 null](scribe-2d-and-stale-fbx-material.md) — 列の窓の最大は法肩で浮き目地で食い込む。桃色は ForceUpdate で再 import
 
+- [長屋は全幅で並べると躯体が開く・御殿は縁の下に当たり無し・棟門は札で・描かれた法尻](nagaya-body-vs-gable-and-rendered-toe.md) — FitBodyToSpan/PlaceGamae/toeRender
+
 ## 測り方・関門
 
 - [偶奇の多数決の内外判定は野面で偽のめり込み](parity-inside-test-false-intrusion.md) — 袖×SW の隅 0.234 は偽。当たり0の向きが在れば外

@@ -204,10 +204,12 @@ public static class EdoSashizuExport
         var P = EdoParcels.Get(hs.parcel);
 
         var gate = D(doc, "gate");
+        // ⚠ 指図は「意図だけ」(規則2)なので `gate.pos`(座標)を持たない邸がある(岡部 2026-10-03・EDO-0502)。
+        //   無ければ辺+s から取る ── ⛔ 持たない欄を読んで落ちない(落ちると突き合わせ全体が測れない)。
         var gp = A(gate, "pos");
-        Vector2 jsonPos = new Vector2(gp[0], gp[1]);
         Vector2 fromEdge = EdgePtOf(P, (int)F(gate, "edge"), F(gate, "s"));
-        sb.AppendLine("表門: json pos=" + jsonPos + " / 辺+s から=" + fromEdge +
+        Vector2 jsonPos = (gp != null && gp.Length >= 2) ? new Vector2(gp[0], gp[1]) : fromEdge;
+        sb.AppendLine("表門: " + (gp != null && gp.Length >= 2 ? "json pos=" + jsonPos + " / " : "(指図に pos なし)") + "辺+s から=" + fromEdge +
                       " 差=" + (jsonPos - fromEdge).magnitude.ToString("F3") + "m");
         sb.AppendLine("グリッド原点=(" + gx0 + "," + gz0 + ") 表門芯との差=" +
                       (new Vector2(gx0, gz0) - jsonPos).magnitude.ToString("F3") + "m");
@@ -321,10 +323,13 @@ public static class EdoSashizuExport
                     var km = o as Dictionary<string, object>; if (km == null) continue;
                     if (km.ContainsKey("inRun") && km["inRun"] != null) continue;
                     if (km.ContainsKey("asset") || km.ContainsKey("api")) names.Add(Str(km, "name"));
+                    // 岡部(EDO-0502): `asset` を持たず `w` を持つ小門は既定の棟門で据わる。門長屋(`host`)の口は駒を持たない
+                    else if (km.ContainsKey("w") && km["w"] != null && (!km.ContainsKey("host") || km["host"] == null)) names.Add(Str(km, "name"));
                 }
                 // ⚠ **表門と汀の潜りは名前を持たない**(`gate` は単数・潜りは `nishi.saku.kuguri`)。
                 //   ⛔ 教えないと、据えた門と戸が「孤児の囲い」に数えられる(2026-09-04 に実際に出た)。
-                if (D(doc, "gate") != null) names.Add("Omotemon");
+                //   門長屋(`gate.host`)の口は長屋の駒が持つので、Omotemon は据わらない(岡部 案1・EDO-0502)。
+                if (D(doc, "gate") != null && !D(doc, "gate").ContainsKey("host")) names.Add("Omotemon");
                 if (D(D(D(doc, "nishi"), "saku"), "kuguri") != null) names.Add("Kuguri");
                 // ⚠ 表門の両番所も名前を持たない(`gate.plan.sPos.banshoW/E` の欄)。Stage 5 は `Bansho_W/E` の名で据える。
                 //   ⛔ 教えないと据えた番所が「孤児の囲い」になる(2026-09-06 棟梁 報告4)。

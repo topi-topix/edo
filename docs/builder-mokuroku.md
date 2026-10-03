@@ -381,7 +381,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `GateInNagaya(kak, r, call, nikai, gS, gW, label, wait)` | `string` |  | 門長屋の口の向きを検めて、要れば引き直す(案1・EDO-0502)。 |
 | `PlaceNagayaPiece(kak, name, path, edge, sMid, seat, call, wait, lastH)` | `bool` |  | — |
 | `PlaceIshigaki()` | `string` |  | 基壇石垣。run ごとの倍率 `s` で据える(壁高 4.0s / 天端幅 1.4s / 底厚 2.4s)。 |
-| `PlaceKomon()` | `string` |  | 袋小路へ開く通用口。指図 `komon[]` の 辺・走り s・門口の幅 w・敷居 sill が正典。 |
+| `PlaceKomon()` | `string` |  | — |
 | `FaceOut(go, e)` | `float` |  | 据えた現物の外面(辺 e の区画線から外向きへの最大の張り出し[m])。 |
 | `PlaceFences()` | `string` |  | 木柵(辺5=溜池の堤)。基礎も整地も石垣も持たない地形なりなので天端を持たない。 |
 | `MeasureRunWidth(path, parent, psi)` | `float` |  | 部材を1枚置いて走り方向の実寸を測り、すぐ捨てる。 |

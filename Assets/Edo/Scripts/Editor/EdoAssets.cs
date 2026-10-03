@@ -2406,6 +2406,23 @@ public static class EdoAssets
                  + UnityEngine.Mathf.RoundToInt(UnityEngine.Mathf.Abs(deg)).ToString("00") + (deg < 0f ? "M" : "") + ".fbx";
         }
 
+        /// <summary>**腕の短い隅**(<see cref="Kado(string,float)"/> と同じ留め継ぎ・同じ据え・同じ s)。素の腕の先を走りに直角に切った物
+        /// (練塀は小口を持たない ── 切り口は隣の隅の腕へ重ねて埋める)。<paramref name="armIn"/> = 入りの腕(局所 −Z)/
+        /// <paramref name="armOut"/> = 出の腕の、据え点から腕の先までの走り[**局所** m・s を掛ける前]。綴りは cm(`_A110x45`)。
+        /// <paramref name="armFull"/> = 素の腕(`EdoBuild.KadoGauge` で測る)── 両腕とも素なら接尾辞なし(= <see cref="Kado(string,float)"/>)。
+        /// 腕の長さは区画から `EdoBuild.KadoArms` が選ぶ(⛔ 邸ビルダーで決めない)。
+        /// 焼いてあるもの(Dobei・EDO-0502 2026-10-03 岡部の南東の短い辺 2.06〜3.31m): **89M_A226x110**(P1)/ **39_A110x45**(P2)/
+        /// **35_A45x65**(P3)/ **09_A65x226**(P4)。材 `s_heimap`(.meta は既存 Dobei_Kado の remap 済みを写した)。
+        ///   blender --background --python Tools/Blender/build_kado.py -- --part dobei --deg &lt;整数角&gt; --arms &lt;入り&gt;,&lt;出&gt; --render</summary>
+        public static string Kado(string part, float deg, float armIn, float armOut, float armFull)
+        {
+            int a = UnityEngine.Mathf.RoundToInt(armIn * 100f), b = UnityEngine.Mathf.RoundToInt(armOut * 100f);
+            int f = UnityEngine.Mathf.RoundToInt(armFull * 100f);
+            string p = Kado(part, deg);
+            if (a >= f && b >= f) return p;
+            return p.Substring(0, p.Length - 4) + "_A" + a + "x" + b + ".fbx";
+        }
+
         /// <summary>**丈違いの石垣の隅**(`Castle Wall` の留め継ぎ・丈 <paramref name="h"/> m)。
         /// 素の 4m の下へ 1m の段を**勾配(0.25/m)のまま**継ぎ足した物で、天端 1.4m 幅と面の通りは直線材の
         /// `JC.CastleWall` と一致する(⛔ 縦に引き伸ばしていない)。据えは <see cref="Kado"/> と同じ:

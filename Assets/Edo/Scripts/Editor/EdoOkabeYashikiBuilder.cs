@@ -1078,7 +1078,10 @@ public static class EdoOkabeYashikiBuilder
         var list = A(Get(IMPL, "corners"));
         if (list == null) return "隅部材: 算出物に corners が無い(`python3 Tools/Sashizu/bake_impl.py okabe --write`)";
         var P = Poly; int n = P.Length;
-        int made = 0, skip = 0; var miss = new List<string>(); var degWarn = new List<string>();
+        int made = 0, skip = 0; var miss = new List<string>(); var degWarn = new List<string>(); var armNote = new List<string>();
+        // 腕の短い隅(EDO-0502): 同じ部材の隅が両端に立つ辺は、腕を EdoBuild.KadoArms で区画から選ぶ
+        var kadoAt = new Dictionary<int, string>();
+        foreach (var o in list) { var c = O(o); if (c != null && Has(c, "part")) kadoAt[((int)F(c["vertex"]) % n + n) % n] = S(c["part"]); }
         foreach (var o in list)
         {
             var c = O(o); if (c == null) continue;
@@ -1093,12 +1096,25 @@ public static class EdoOkabeYashikiBuilder
                 degWarn.Add(S(c["id"]) + " 算出物 " + F(c["deg"]).ToString("+0.0;-0.0")
                           + "° ≠ 実測 " + deg.ToString("+0.0;-0.0") + "°");
             string path = EdoAssets.Own.Kado(part, deg);
+            string armArg = "";
+            float full, faceDepth;
+            if (EdoBuild.KadoGauge(path, out full, out faceDepth))
+            {
+                string pt = part; Vector2 arms; string an;
+                bool ok = EdoBuild.KadoArms(P, (int)F(c["vertex"]), k => kadoAt.ContainsKey(k) && kadoAt[k] == pt, OutNormal,
+                                            ES, full, faceDepth, INUBASHIRI, INUBASHIRI + C("dobeiT"), 0.05f, 0.5f, out arms, out an);
+                if (an != null) armNote.Add(S(c["id"]) + ": " + an);
+                if (!ok) { skip++; continue; }                // 腕が成り立たない隅は据えない(note に出る)
+                path = EdoAssets.Own.Kado(part, deg, arms.x, arms.y, full);
+                if (arms.x < full - 1e-3f || arms.y < full - 1e-3f)
+                    armArg = " --arms " + arms.x.ToString("0.00") + "," + arms.y.ToString("0.00");
+            }
             var src = AssetDatabase.LoadAssetAtPath<GameObject>(path);
             if (src == null)
             {
                 miss.Add(S(c["id"]) + " → " + path
                        + "(blender --background --python Tools/Blender/build_kado.py -- --part "
-                       + part.ToLowerInvariant() + " --deg " + deg.ToString("F1") + ")");
+                       + part.ToLowerInvariant() + " --deg " + Mathf.RoundToInt(deg) + armArg + ")");
                 continue;
             }
             int v = (int)F(c["vertex"]);
@@ -1120,6 +1136,8 @@ public static class EdoOkabeYashikiBuilder
                     + string.Join(" / ", degWarn.ToArray()));
         if (miss.Count > 0)
             sb.Append("\n★ 部材が無い " + miss.Count + " 件 — " + string.Join(" / ", miss.ToArray()));
+        if (armNote.Count > 0)
+            sb.Append("\n★ 隅の腕 " + armNote.Count + " 件 — " + string.Join(" / ", armNote.ToArray()));
         return sb.ToString();
     }
 

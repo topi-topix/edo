@@ -66,3 +66,4 @@
 - [VM のスープに recalc を掛けると面がでたらめに裏返る](soup-recalc-flips-faces.md) — orient_outward で部品ごと・外から撃って裏面は素通りで数える(2026-10-02)
 - [竪格子の柵の駒と HoriSaku の走りの向き](tategoshi-saku-module-and-hori-saku-axis.md) — 袖は machikido.sode_* を共用・HoriSaku の杭は実は +X・fence 札の笠木の出(2026-10-02)
 - [練塀の隅を一括で焼く・meta を写す](dobei-kado-batch-meta-clone.md) — 整数角で焼く・guid だけ替えた meta で remap 不要(2026-10-03)
+- [練塀の隅の腕を短く焼く](dobei-kado-short-arms.md) — 小口が無く切るだけ・継ぎ目側へ切り上げ・腕は局所 2.256(×1.818)(2026-10-03)

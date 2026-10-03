@@ -12,6 +12,9 @@
         # 短い腕(石垣だけ)。腕 = 据え点(両腕の控えの線の交点)から腕の先までの走り[m]。
         # 順は (Unity 局所 −Z の腕, +X の腕)。→ Ishigaki_Kado_90_H0400_A159x200(EDO-0430)
         # 腕は負でもよい(P の手前・留めの三角の中で打ち切る)。--arms 2.0,-0.04 → _A200x-4(EDO-0437)
+    blender --background --python Tools/Blender/build_kado.py -- --part dobei --deg 39 --arms 1.10,0.45 --render
+        # 練塀の短い腕(EDO-0502)。順は (入りの腕 = 局所 −Z, 出の腕)。素の腕は 2.256(局所)。小口は塞がない。
+        # 腕の長さは EdoBuild.KadoArms が区画から選ぶ(隣の隅の腕と重ねて隙を作らない)→ Dobei_Kado_39_A110x45
 
 【なぜ要るか】在庫の出隅ブロック `Castle Wall Corner`(2.4m 角)が成立するのは折れ角 Δ≳60°。
   Δ が浅いと片面を合わせても apex が反対側の壁面から `2.4·cosΔ` はみ出す
@@ -58,7 +61,7 @@ import vklib as V
 
 FLIP_THK = False        # --flipthk で立てる。書き出し名に T が付く
 H_OUT = None            # --h で立てる(石垣だけ)。丈を m で。書き出し名に _H<cm4桁> が付く
-ARMS = None             # --arms aZ,aX で立てる(石垣だけ)。腕の長さ m。書き出し名に _A<cm>x<cm> が付く
+ARMS = None             # --arms aZ,aX で立てる(石垣・練塀)。腕の長さ m。書き出し名に _A<cm>x<cm> が付く
 
 ROOT = V.REPO
 JC   = os.path.join(ROOT, "Assets/Japanese Castle")
@@ -463,6 +466,26 @@ def shorten_arm(o, a, y_end, n=None):
     return o
 
 
+def cut_arm(o, a, y_end):
+    """入りの腕(+Y へ延びる)を y = a の走りに直角な面で切り、先を捨てる(石垣以外 ── 素の腕の先に小口が無い部材)。
+    ⛔ 頂点を寄せて縮めない(瓦と板の柄が潰れる)。切り口は塞がない ── 隣の隅の腕の中へ埋まる長さで焼く。
+    a は据え点(折れ点)からの走り[局所 m]。a ≥ 素の先なら切らない(名の上でだけ素の長さを名乗る)。"""
+    if a >= y_end - 1e-3:
+        return o
+    if a < 0.25:
+        raise SystemExit("[kado] ⛔ 腕 %.3f が短すぎる(留めの三角に掛かる)" % a)
+    me = o.data
+    bm = bmesh.new(); bm.from_mesh(me)
+    bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], dist=1e-6,
+                           plane_co=Vector((0, a, 0)), plane_no=Vector((0, 1, 0)),
+                           clear_outer=True, clear_inner=False)
+    bmesh.ops.delete(bm, geom=[e for e in bm.edges if not e.link_faces], context='EDGES')
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
+    bm.to_mesh(me); bm.free(); me.update()
+    print("[kado]   腕を %.3f で切った(素の先 %.3f)。y 最大 %.4f" % (a, y_end, max(v.co.y for v in me.vertices)))
+    return o
+
+
 def asuf():
     """腕の接尾辞。(−Z の腕, +X の腕)を cm で。既定(両腕とも 1 モジュール)は付けない。"""
     return "" if ARMS is None else "_A%dx%d" % (int(round(ARMS[0] * 100)), int(round(ARMS[1] * 100)))
@@ -511,11 +534,16 @@ def build(part, deg, arms=None):
         # 短い腕(EDO-0430): 腕ごとに走りに直角な面で切り、素の小口(y = n_pos·pitch の面)を切り口へ移して塞ぐ。
         #   ⭐ 断面は走りに沿って一定なので、素の小口がそのまま切り口の形になる(UV も素の小口のまま)。
         #   armB は armA の鏡なので、長さ aX で切った armA の複製を鏡に映す。
-        if part != "ishigaki":
-            raise SystemExit("[kado] --arms は石垣だけ")
         full = armA
-        armA = shorten_arm(_dup(full, "armA_s"), ARMS[0], n_pos * pitch, n)
-        armB = mirror_across(shorten_arm(_dup(full, "armB_s"), ARMS[1], n_pos * pitch, n), n)
+        if part == "ishigaki":
+            armA = shorten_arm(_dup(full, "armA_s"), ARMS[0], n_pos * pitch, n)
+            armB = mirror_across(shorten_arm(_dup(full, "armB_s"), ARMS[1], n_pos * pitch, n), n)
+        else:
+            # 練塀ほか(EDO-0502): 素の腕の先は小口を持たない(表裏2枚の板と瓦)ので、走りに直角に切るだけ。
+            #   切り口は隣の隅の腕へ重ねて埋める前提(EdoBuild.KadoArms が重なりを持たせて腕を選ぶ)。
+            ymax = max(v.co.y for v in full.data.vertices)
+            armA = cut_arm(_dup(full, "armA_s"), ARMS[0], ymax)
+            armB = mirror_across(cut_arm(_dup(full, "armB_s"), ARMS[1], ymax), n)
         bpy.data.objects.remove(full, do_unlink=True)
     o = V.join([armA, armB], "%s_%02d%s%s%s" % (p["out"], round(abs(deg)), "" if deg > 0 else "M", "T" if FLIP_THK else "", hsuf() + asuf()))
     if mune is not None:

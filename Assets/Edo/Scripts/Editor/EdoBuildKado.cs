@@ -38,6 +38,90 @@ public static partial class EdoBuild
         return Mathf.DeltaAngle(hIn, hOut);
     }
 
+    /// <summary>**留め継ぎの隅部材の素の寸法を、焼いた FBX の実メッシュから測る**(実体化しない・局所 = 据える前の部材の単位)。
+    /// <paramref name="armFull"/> = 入りの腕(局所 −Z)の据え点から腕の先までの走り /
+    /// <paramref name="faceDepth"/> = 据え点から壁体の外面(局所 −X・化粧面)までの控え(軒下の壁の帯 15〜80% の高さで測る)。
+    /// 部材の約束は `build_kado.py`(留め面は据え点を通る・化粧面は Blender +X = Unity −X)。
+    /// ⭐ 練塀 `Dobei_Kado_*` で 2.256 / 0.295(2026-10-03 実測・EDO-0502)。⛔ 値を書き写さない ── 部材を焼き直せば変わる。</summary>
+    public static bool KadoGauge(string path, out float armFull, out float faceDepth)
+    {
+        armFull = faceDepth = float.NaN;
+        var vs = BodyAt(path, Vector3.zero, 0f, true);
+        if (vs.Count == 0) return false;
+        float y0 = float.MaxValue, y1 = float.MinValue;
+        foreach (var v in vs) { if (v.y < y0) y0 = v.y; if (v.y > y1) y1 = v.y; }
+        float full = float.MinValue;
+        foreach (var v in vs) if (v.z < 0f && Mathf.Abs(v.x) < 1.0f) full = Mathf.Max(full, -v.z);
+        if (full == float.MinValue) return false;
+        float lo = y0 + (y1 - y0) * 0.15f, hi = y0 + (y1 - y0) * 0.80f, face = float.MinValue;
+        foreach (var v in vs)
+            if (v.y >= lo && v.y <= hi && v.z < -0.4f * full && Mathf.Abs(v.x) < 1.0f) face = Mathf.Max(face, -v.x);
+        if (face == float.MinValue) return false;
+        armFull = full; faceDepth = face;
+        return true;
+    }
+
+    /// <summary>**短い辺で隅部材の腕を選ぶ。**頂点 <paramref name="vertex"/> の隅の (入りの腕, 出の腕) を**局所の長さ**で返す
+    /// (`EdoAssets.Own.Kado(part, deg, armIn, armOut, armFull)` へそのまま渡す。<paramref name="stepLocal"/> 刻み)。
+    /// 腕は据え点(= 区画の線から <paramref name="faceIn"/> + faceDepth·scale 内の、両辺の内寄せ線の交点 ── <see cref="KadoFace"/> が据える所)から測る。
+    ///
+    /// <para>辺ごとに決める。辺の両端の隅の素の腕(<paramref name="armFullLocal"/>·scale)が**どちらも収まる**なら素のまま。
+    /// 「収まる」= 腕の先が相手の端の隅の壁を越えない: 相手の隅が出隅なら相手の**外面**の内寄せ線の交点(犬走りの線)まで、
+    /// 入隅なら相手の**内面**(<paramref name="bodyIn"/>)の交点まで ── それより先は区画の外(出隅)か庭(入隅)へ突き出る。
+    /// どちらかが収まらなければ、その辺の両端の腕を**据え点どうしの間の半分**に揃える
+    /// (隅でない端なら全部を一本で持つ)。⚠ 丸めは**継ぎ目の側へ切り上げる**(重ねて埋める ── 切り下げると腕の間が隙になる・許容0)。
+    /// ただし収まる上限は切り下げで守る(区域侵犯・許容0)。上限が要る長さに届かなければ note に隙を出す。</para>
+    ///
+    /// <para>硬い条件(許容0): 腕が <paramref name="minArm"/>(世界)未満なら false(部材が成り立たない ── 焼かない・据えない)。
+    /// 当たる先: 練塀・築地塀の留め継ぎの隅すべて(岡部の南東の 2〜3m の辺が初例・EDO-0502)。凸凹の判定は
+    /// <paramref name="outNormal"/> で取るので、区画の回り(時計・反時計)に依らない。</para></summary>
+    public static bool KadoArms(Vector2[] poly, int vertex, Func<int, bool> isKado, Func<int, Vector2> outNormal,
+                                float scale, float armFullLocal, float faceDepthLocal, float faceIn, float bodyIn,
+                                float stepLocal, float minArm, out Vector2 armsLocal, out string note)
+    {
+        int n = poly.Length;
+        int v = ((vertex % n) + n) % n;
+        Func<int, int> W = k => ((k % n) + n) % n;
+        // 頂点 k の内寄せの係数: 出隅は +tan(Δ/2)、入隅は −tan(Δ/2)
+        Func<int, bool> convex = k =>
+        {
+            Vector2 dOut = (poly[W(k + 1)] - poly[W(k)]).normalized;
+            return Vector2.Dot(dOut, outNormal(W(k - 1))) < 0f;
+        };
+        Func<int, float> tanH = k =>
+            (convex(k) ? 1f : -1f) * Mathf.Tan(Mathf.Abs(KadoDeg(poly, W(k))) * 0.5f * Mathf.Deg2Rad);
+        float pivotIn = faceIn + faceDepthLocal * scale, fullW = armFullLocal * scale;
+        string nt = null;
+        // 辺 e(始点 i → 終点 j)の (始点の隅の出の腕, 終点の隅の入りの腕)
+        Func<int, Vector2> edge = e =>
+        {
+            int i = W(e), j = W(e + 1);
+            float L = (poly[j] - poly[i]).magnitude;
+            bool ki = isKado(i), kj = isKado(j);
+            float si = ki ? pivotIn * tanH(i) : 0f, sj = kj ? pivotIn * tanH(j) : 0f;
+            float maxI = L - (convex(j) ? faceIn : bodyIn) * tanH(j) - si;
+            float maxJ = L - (convex(i) ? faceIn : bodyIn) * tanH(i) - sj;
+            if ((!ki || fullW <= maxI) && (!kj || fullW <= maxJ)) return new Vector2(armFullLocal, armFullLocal);
+            float need = L - si - sj, share = (ki && kj) ? need * 0.5f : need;
+            Func<float, float, float> pick = (mx, want) => Mathf.Min(armFullLocal,
+                Mathf.Min(Mathf.Floor(mx / scale / stepLocal + 1e-4f) * stepLocal,
+                          Mathf.Ceil(want / scale / stepLocal - 1e-4f) * stepLocal));
+            float aI = ki ? pick(maxI, share) : 0f, aJ = kj ? pick(maxJ, share) : 0f;
+            if ((aI + aJ) * scale < need - 1e-3f)
+                nt = (nt == null ? "" : nt + " / ") + "辺" + e + " 腕の間に隙 " + (need - (aI + aJ) * scale).ToString("F2") + "m";
+            return new Vector2(aI, aJ);
+        };
+        armsLocal = new Vector2(edge(v - 1).y, edge(v).x);
+        note = nt;
+        if (Mathf.Min(armsLocal.x, armsLocal.y) * scale < minArm)
+        {
+            note = (note == null ? "" : note + " / ") + "腕 " + (Mathf.Min(armsLocal.x, armsLocal.y) * scale).ToString("F2")
+                 + "m < " + minArm.ToString("F2") + "m ── 隅部材が成り立たない";
+            return false;
+        }
+        return true;
+    }
+
     /// <summary>**隅部材の両腕の外面を、平行移動だけで <paramref name="target"/>(区画線から外向きへ。犬走りなら −0.30)へ据える。**
     /// 折れ点 = 辺 <paramref name="e1"/> の終点 = 辺 e1+1 の始点。<b>yaw は動かさない</b>(折れ角は部材が持つ)。
     ///

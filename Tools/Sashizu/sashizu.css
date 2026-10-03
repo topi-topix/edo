@@ -75,11 +75,19 @@ details.tb .tw{margin:0}
 .secbox{margin-top:14px;background:var(--paper2);border:1px solid var(--rule);padding:10px 14px 12px}
 .secbox h4{margin:0 0 8px}
 .secrow{display:flex;gap:12px;align-items:stretch;flex-wrap:wrap}
-.secrow .key{flex:0 0 200px;max-width:100%;display:flex;align-items:center;border-right:1px solid var(--rule);padding-right:12px}
-.secrow .sec{flex:1 1 560px;min-width:0;display:flex;align-items:center}
+.secrow .key{flex:0 0 300px;max-width:100%;display:flex;align-items:center;border-right:1px solid var(--rule);padding-right:12px}
+.secrow .sec{flex:1 1 600px;min-width:0;display:flex;align-items:center}
 .secrow .sec svg{display:block;width:100%;height:auto}
 details.ks{border-top:1px solid var(--rule);padding:4px 0}
 details.ks>summary{cursor:pointer;font-family:"Hiragino Mincho ProN","Yu Mincho",serif;font-size:16px;padding:8px 2px;color:var(--ink)}
 details.ks .ksb{padding:0 4px 10px}
 ul.sent{margin:6px 0 10px;padding-left:1.3em}
 ul.sent li{margin:3px 0}
+/* 図の拡大表示 */
+#zv{position:fixed;inset:0;z-index:50;background:rgba(20,18,14,.82);display:flex;flex-direction:column}
+#zv[hidden]{display:none!important}
+#zvbar{display:flex;gap:8px;align-items:center;justify-content:flex-end;padding:10px 16px;color:#fff;font-size:13px}
+#zvbar button{font:inherit;padding:4px 12px;border:1px solid #fff;background:transparent;color:#fff;cursor:pointer;border-radius:3px}
+#zvbar span{min-width:4em;text-align:center}
+#zvc{flex:1;overflow:auto;cursor:grab;padding:0 16px 16px}
+#zvi{background:var(--paper2);margin:0 auto}

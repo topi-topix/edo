@@ -1059,13 +1059,15 @@ public static class EdoOkabeYashikiBuilder
                     all.Add(g0);
                 }
             }
-            if (d <= 0f && (ep == null || ep.Count == 0)) continue;
+            // 硬い・地面(浮き 0): 杭の足(下端の当たり)を**描かれた地表**で測って据える(EdoBuild.SinkToBed)。
+            //   ⛔ 設計面 Graded で据えない ── 汀では地表(2m 格子)が区画線の際で外の低い節点へ下りるので、設計面より
+            //   0.4〜1.4m 低い(32/46 駒が浮いた・EDO-0502)。
             foreach (var g0 in all)
             {
                 if (g0 == null) continue;
-                var pp = g0.transform.position;
-                float gy2 = Graded.At(pp.x, pp.z); if (float.IsNaN(gy2)) gy2 = EdoBuild.Ground(pp.x, pp.z);
-                g0.transform.position = new Vector3(pp.x, gy2, pp.z);
+                var sr = EdoBuild.SinkToBed(g0, EdoBuild.Ground, 0.05f);
+                if (float.IsNaN(sr.hi)) inset.Append("\n★ 木柵 " + g0.name + ": 足の当たりが測れない");
+                else if (sr.hi > 0.01f) inset.Append("\n★ 木柵 " + g0.name + ": 据えた後も浮き " + sr.hi.ToString("F3") + "m");
             }
             if (d > 0f) inset.Append(" ｜ 辺" + kv.Key + " の列を内へ " + d.ToString("F3") + "m(外へ " + was.ToString("F3") + "m 出ていた)");
         }

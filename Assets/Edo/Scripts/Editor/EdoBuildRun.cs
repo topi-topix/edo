@@ -1251,8 +1251,49 @@ public static partial class EdoBuild
 
     /// <summary>折れ線(区画の辺の鎖)に段塀の区切りと座を引く。道のりは折れ線の頭から。
     /// 動的計画(状態 = 区切りの節 × 座の候補)で「区間の数 + 段の二乗 + 半端な段・大きすぎる段・角の段・標準から外れた座の罰」
-    /// を最小にする。硬い条件は冒頭の註(布石が届く・埋めが DAN_BURY_MAX 以内)。</summary>
-    public static List<DanSec> DanPlan(IList<Vector2> chain, out string note)
+    /// を最小にする。硬い条件は冒頭の註(布石が届く・埋めが DAN_BURY_MAX 以内)。
+    /// <para><paramref name="gates"/> = 門の口(鎖の道のり x=始め・y=終わり)。⭐ 門の柱で鎖を切り、門の両側を別々に区切る(EDO-0514)──
+    /// 門の口の地面は塀が立たないので見ない、門の脇の段は門が隠すので値段を取らない、門の柱から DAN_GATE_CLEAR 内に段を切らない(狙い)。
+    /// ⛔ 2026-10-03 まで門を知らず、区切りが坂の高さだけで決まって門が平らな区間の片寄りに立った(樹下の表門・施主「アンバランス」)。
+    /// 当たる先: 類型の練塀で門を持つ全区画。</para></summary>
+    public static List<DanSec> DanPlan(IList<Vector2> chain, out string note, IList<Vector2> gates = null)
+    {
+        if (gates == null || gates.Count == 0) return DanPlanCore(chain, out note, false, false);
+        var segL = new List<float>(); float L = 0f;
+        for (int i = 0; i + 1 < chain.Count; i++) { float l = Vector2.Distance(chain[i], chain[i + 1]); segL.Add(l); L += l; }
+        var gs = gates.Select(g => new Vector2(Mathf.Clamp(Mathf.Min(g.x, g.y), 0f, L), Mathf.Clamp(Mathf.Max(g.x, g.y), 0f, L)))
+                      .Where(g => g.y - g.x > 1e-3f).OrderBy(g => g.x).ToList();
+        var outp = new List<DanSec>(); var notes = new List<string>();
+        float s0 = 0f; bool lo = false;
+        for (int k = 0; k <= gs.Count; k++)
+        {
+            float s1 = k < gs.Count ? gs[k].x : L; bool hi = k < gs.Count;
+            if (s1 - s0 > 0.05f)
+            {
+                string pn; var part = DanPlanCore(SubChain(chain, segL, s0, s1), out pn, lo, hi);
+                foreach (var d in part) outp.Add(new DanSec { a = d.a + s0, b = d.b + s0, W = d.W });
+                notes.Add(pn);
+            }
+            if (k < gs.Count) { s0 = Mathf.Max(s0, gs[k].y); lo = true; }
+        }
+        note = string.Format("門で {0} 本に切った: {1}", notes.Count, string.Join(" / ", notes.ToArray()));
+        return outp;
+    }
+
+    public const float DAN_GATE_CLEAR = 3.636f;   // 段を門の柱から離す[m](狙い)= 2間 ── 門の脇に短い切れ端と段を作らない(EDO-0514)
+
+    /// <summary>折れ線の道のり s0〜s1 を切り出す(端は補間・間の頂点はそのまま)。</summary>
+    static List<Vector2> SubChain(IList<Vector2> chain, List<float> segL, float s0, float s1)
+    {
+        var pts = new List<Vector2> { ChainAt(chain, segL, s0) };
+        float c = 0f;
+        for (int i = 0; i + 1 < segL.Count; i++) { c += segL[i]; if (c > s0 + 1e-3f && c < s1 - 1e-3f) pts.Add(chain[i + 1]); }
+        pts.Add(ChainAt(chain, segL, s1));
+        return pts;
+    }
+
+    /// <summary>DanPlan の本体(門の無い一続きの鎖)。<paramref name="gateLo"/>/<paramref name="gateHi"/> = 頭・尻が門の柱。</summary>
+    static List<DanSec> DanPlanCore(IList<Vector2> chain, out string note, bool gateLo, bool gateHi)
     {
         var segL = new List<float>(); float L = 0f;
         for (int i = 0; i + 1 < chain.Count; i++) { float l = Vector2.Distance(chain[i], chain[i + 1]); segL.Add(l); L += l; }
@@ -1299,6 +1340,8 @@ public static partial class EdoBuild
         }
         var nearCorner = new bool[N + 1];
         for (int k = 0; k <= N; k++) foreach (var cc in corners) if (Mathf.Abs(E[k] - cc) < DAN_CORNER_CLEAR) { nearCorner[k] = true; break; }
+        var nearGate = new bool[N + 1];   // 門の柱から DAN_GATE_CLEAR 内の節(EDO-0514)
+        for (int k = 0; k <= N; k++) nearGate[k] = (gateLo && E[k] < DAN_GATE_CLEAR - 1e-3f) || (gateHi && L - E[k] < DAN_GATE_CLEAR - 1e-3f);
         // 片側が平場に面する節(その側の帯の地面が前後 DAN_FLAT_ALONG の間で DAN_FLAT_TOL 以内に揃う)と、そこから DAN_FLAT_MARGIN 内の節
         var flatAt = new bool[N + 1];
         for (int k = 0; k <= N; k++)
@@ -1363,6 +1406,7 @@ public static partial class EdoBuild
                             if (d < DAN_STEP_MIN - DAN_FLOAT_TOL) pen += 5f;
                             if (d > DAN_STEP_MAX) pen += 10f * (d - DAN_STEP_MAX) + 2f;
                             if (nearCorner[i]) pen += 30f;
+                            if (nearGate[i]) pen += 30f;
                             if (nearFlat[i]) pen += 8f;
                         }
                         float c = stC[i][kk] + pen;
@@ -1391,12 +1435,13 @@ public static partial class EdoBuild
         // 同じ座の隣り合う区間は一つに畳む(段 0 の区切りは建てる側で意味が無い)
         for (int k = outp.Count - 1; k > 0; k--)
             if (Mathf.Abs(outp[k].W - outp[k - 1].W) < 0.005f) { outp[k - 1] = new DanSec { a = outp[k - 1].a, b = outp[k].b, W = outp[k - 1].W }; outp.RemoveAt(k); }
-        float mx = 0f, mnStep = float.MaxValue; int nStep = 0, nCorner = 0, nSmall = 0, nFlat = 0;
+        float mx = 0f, mnStep = float.MaxValue; int nStep = 0, nCorner = 0, nSmall = 0, nFlat = 0, nGate = 0;
         for (int k = 0; k + 1 < outp.Count; k++)
         {
             float d = Mathf.Abs(outp[k + 1].W - outp[k].W); if (d > 1e-3f) { nStep++; mnStep = Mathf.Min(mnStep, d); if (d < DAN_STEP_MIN - DAN_FLOAT_TOL) nSmall++; if (nearFlat[Mathf.Clamp(Mathf.RoundToInt(outp[k].b / DAN_Q), 0, N)]) nFlat++; }
             mx = Mathf.Max(mx, d);
             foreach (var cc in corners) if (Mathf.Abs(outp[k].b - cc) < DAN_CORNER_CLEAR) { nCorner++; break; }
+            if (d > 1e-3f && ((gateLo && outp[k].b < DAN_GATE_CLEAR - 1e-3f) || (gateHi && L - outp[k].b < DAN_GATE_CLEAR - 1e-3f))) nGate++;
         }
         for (int k = 0; k < outp.Count; k++)
         {
@@ -1404,12 +1449,13 @@ public static partial class EdoBuild
             for (int m = 0; m < ns; m++) if (ss[m] >= outp[k].a - 1e-4f && ss[m] <= outp[k].b + 1e-4f) { lo = Mathf.Min(lo, gsLo[m]); hi = Mathf.Max(hi, gsHi[m]); }
             if (outp[k].W < hi - DAN_BURY_MAX - 0.01f || outp[k].W > lo + reach + 0.01f) forced++;
         }
-        note = string.Format("段塀 {0:F0}m を {1} 区間・段 {2}・段 {3:F2}〜{4:F2}m(半端な段の線 {5:F2}・上限 {6:F2}){7}{8}{9}{10}", L, outp.Count, nStep,
+        note = string.Format("段塀 {0:F0}m を {1} 区間・段 {2}・段 {3:F2}〜{4:F2}m(半端な段の線 {5:F2}・上限 {6:F2}){7}{8}{9}{10}{11}", L, outp.Count, nStep,
                              nStep > 0 ? mnStep : 0f, mx, DAN_STEP_MIN, DAN_STEP_MAX,
                              nSmall > 0 ? string.Format("・⚠ 半端な段 {0}(狙い)", nSmall) : "",
                              nCorner > 0 ? string.Format("・⚠ 角から {0:F1}m 以内の段 {1}(狙い)", DAN_CORNER_CLEAR, nCorner) : "",
                              forced > 0 ? string.Format("・⚠ 布石と根入れで受けきれない急な区間 {0}(埋めを深くした)", forced) : "",
-                             nFlat > 0 ? string.Format("・⚠ 平場に面する段 {0}(狙い)", nFlat) : "");
+                             nFlat > 0 ? string.Format("・⚠ 平場に面する段 {0}(狙い)", nFlat) : "",
+                             nGate > 0 ? string.Format("・⚠ 門の柱から {0:F1}m 以内の段 {1}(狙い)", DAN_GATE_CLEAR, nGate) : "");
         return outp;
     }
 
@@ -2054,6 +2100,18 @@ public static partial class EdoBuild
                 }
         }
         return res;
+    }
+
+    /// <summary>**硬い・地面(浮き 0)**: 駒の下端の当たり(<see cref="RootToBed"/>)を相手 <paramref name="bedAt"/> で測り、
+    /// 最も浮いた当たりが相手に触れる所まで上下に動かす(下端 − 相手 の最大 = 0)。他の当たりは相手に埋まる(据えは埋めて隠す)。
+    /// 返すのは動かした後に測り直した値。当たる先: 杭・柱で立つ柵(EDO-0502 岡部の汀の木柵 ── 設計面 Graded で据えて、
+    /// 2m 格子の地表が区画線の際で外の低い節点へ下りる所で 32/46 駒・最大 1.59m 浮いた)。</summary>
+    public static Scribe SinkToBed(GameObject go, Func<float, float, float> bedAt, float step = 0.05f)
+    {
+        var rt = RootToBed(go, bedAt, step);
+        if (float.IsNaN(rt.hi)) return rt;
+        go.transform.position -= Vector3.up * rt.hi;
+        return RootToBed(go, bedAt, step);
     }
 
     /// <summary><see cref="RootToBed"/> が「下端に届いている」とみなす駒の下端の差[m]。【U】部材の継ぎの誤差より大きく、床の厚み(0.28)より小さく。</summary>

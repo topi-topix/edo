@@ -6420,43 +6420,58 @@
    {
     "name": "主面",
     "area": "terrace:Shumen",
-    "recipe": "yashikiji"
+    "recipe": "yashikiji",
+    "by": "普請奉行(敷く場所)── 塗りの型は庭方の下書きを林方が転記した仮置き(U)。白洲・叩き・道の型は考証方と決める(分担の訂正 EDO-0410 e603e3c3・2026-10-03)",
+    "pending": "考証方と型を決める"
    },
    {
     "name": "門の内",
     "area": "terrace:Kadonouchi",
-    "recipe": "kadonouchi"
+    "recipe": "kadonouchi",
+    "by": "普請奉行(敷く場所)── 塗りの型は庭方の下書きを林方が転記した仮置き(U)。白洲・叩き・道の型は考証方と決める(分担の訂正 EDO-0410 e603e3c3・2026-10-03)",
+    "pending": "考証方と型を決める"
    },
    {
     "name": "通用門の内の溜り",
     "area": "terrace:TsuyoTamari",
-    "recipe": "kadonouchi"
+    "recipe": "kadonouchi",
+    "by": "普請奉行(敷く場所)── 塗りの型は庭方の下書きを林方が転記した仮置き(U)。白洲・叩き・道の型は考証方と決める(分担の訂正 EDO-0410 e603e3c3・2026-10-03)",
+    "pending": "考証方と型を決める"
    },
    {
     "name": "東の平場",
     "area": "terrace:Higashi",
-    "recipe": "kura"
+    "recipe": "kura",
+    "by": "普請奉行(敷く場所)── 塗りの型は庭方の下書きを林方が転記した仮置き(U)。白洲・叩き・道の型は考証方と決める(分担の訂正 EDO-0410 e603e3c3・2026-10-03)",
+    "pending": "考証方と型を決める"
    },
    {
     "name": "北東の郭",
     "area": "terrace:Hokuto",
-    "recipe": "kakuba"
+    "recipe": "kakuba",
+    "by": "普請奉行(敷く場所)── 塗りの型は庭方の下書きを林方が転記した仮置き(U)。白洲・叩き・道の型は考証方と決める(分担の訂正 EDO-0410 e603e3c3・2026-10-03)",
+    "pending": "考証方と型を決める"
    },
    {
     "name": "西の平場",
     "area": "terrace:Nishi",
-    "recipe": "nagaya"
+    "recipe": "nagaya",
+    "by": "普請奉行(敷く場所)── 塗りの型は庭方の下書きを林方が転記した仮置き(U)。白洲・叩き・道の型は考証方と決める(分担の訂正 EDO-0410 e603e3c3・2026-10-03)",
+    "pending": "考証方と型を決める"
    },
    {
     "name": "作事置場",
     "area": "akichi:SakujiOkiba",
-    "recipe": "sakuji"
+    "recipe": "sakuji",
+    "by": "普請奉行(敷く場所)── 塗りの型は庭方の下書きを林方が転記した仮置き(U)。白洲・叩き・道の型は考証方と決める(分担の訂正 EDO-0410 e603e3c3・2026-10-03)",
+    "pending": "考証方と型を決める"
    },
    {
     "name": "白洲",
     "area": "garden:Hakusu",
     "recipe": "jari",
-    "by": "庭方"
+    "by": "普請奉行(敷く場所)── 塗りの型は庭方の下書きを林方が転記した仮置き(U)。白洲・叩き・道の型は考証方と決める(分担の訂正 EDO-0410 e603e3c3・2026-10-03)",
+    "pending": "考証方と型を決める"
    },
    {
     "name": "書院の泉水",
@@ -6466,12 +6481,16 @@
    {
     "name": "表門から主面への坂",
     "area": "ramp:R_OmoteZaka",
-    "recipe": "sakamichi"
+    "recipe": "sakamichi",
+    "by": "普請奉行(敷く場所)── 塗りの型は庭方の下書きを林方が転記した仮置き(U)。白洲・叩き・道の型は考証方と決める(分担の訂正 EDO-0410 e603e3c3・2026-10-03)",
+    "pending": "考証方と型を決める"
    },
    {
     "name": "崖を下る坂",
     "area": "ramp:R_GakeZaka",
-    "recipe": "sakamichi"
+    "recipe": "sakamichi",
+    "by": "普請奉行(敷く場所)── 塗りの型は庭方の下書きを林方が転記した仮置き(U)。白洲・叩き・道の型は考証方と決める(分担の訂正 EDO-0410 e603e3c3・2026-10-03)",
+    "pending": "考証方と型を決める"
    }
   ],
   "layers": "L_grass・L_dirt・L_bare・L_moss・L_shirasu は在る(Assets/Edo/Terrain/layers/)。groundLayers.cert の『他3枚は未登録』は古い",

@@ -11,6 +11,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.IO;
 using UnityEngine;
 
@@ -65,6 +66,25 @@ public static partial class EdoBuild
     /// <summary>門構えの平場(2026-09-30 EDO-0491)。<see cref="foot"/> = 門構えの足元(札の foot の凸包)、
     /// <see cref="a"/>〜<see cref="b"/> = 区画の線の上で門構えが掛かる区間(表の辺への射影)。</summary>
     public class MonPad { public Vector2[] foot; public Vector2 a, b; }
+
+    /// <summary>門構えの平場を**袖の塀の下まで**延ばす(EDO-0514・施主 2026-10-03「敷地・道の造成、整地も選択肢に」)。
+    /// 区画の線(<paramref name="la"/>→<paramref name="lb"/>)に沿って門構えの区間の左右へ <paramref name="sode"/> ずつ、内へ
+    /// <paramref name="depth"/> の帯を足した凸包を平場の足あとにする。高さは今までどおり区画の線の上の道の高さ(区間が左右へ延びるので、
+    /// 坂でも門の芯の高さに近い中央値)。⭐ 門と左右の袖の塀が一枚の平場に立つ ── 段塀(<see cref="DanPlan"/>)は門の左右を
+    /// 区切らないので、袖の塀は布石を見せずに門と同じ高さで並ぶ。区画の外(道)は触らない。
+    /// 当たる先: 門が練塀の辺に立つ類型の全区画(呼び手が渡す)。</summary>
+    public static MonPad MonPadWithSode(MonPad mon, Vector2 la, Vector2 lb, Vector2 inward, float sode, float depth)
+    {
+        if (mon == null) return null;
+        var ed = lb - la; float L2 = ed.sqrMagnitude; if (L2 < 1e-6f) return mon;
+        float L = Mathf.Sqrt(L2);
+        float t0 = Vector2.Dot(mon.a - la, ed) / L2 - sode / L, t1 = Vector2.Dot(mon.b - la, ed) / L2 + sode / L;
+        t0 = Mathf.Clamp01(t0); t1 = Mathf.Clamp01(t1);
+        Vector2 a = la + ed * t0, b = la + ed * t1, n = inward.normalized * depth;
+        var pts = new List<Vector2>(mon.foot) { a, b, a + n, b + n };
+        var arr = pts.ToArray();
+        return new MonPad { foot = EdoGeom.HullXZ(arr).Select(k => arr[k]).ToArray(), a = a, b = b };
+    }
 
     /// <summary>区画の縁への距離。ただし <paramref name="exA"/>〜<paramref name="exB"/>(辺の上の区間)は縁と見なさない。</summary>
     static float DistToPolyEdgeExcept(Vector2[] poly, Vector2 q, Vector2 exA, Vector2 exB)

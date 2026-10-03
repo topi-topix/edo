@@ -563,7 +563,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `Stage5_MonTorii()` | `string` | 公 | 算出物 `gates` の芯・yaw・敷居の高さへ据える。 |
 | `ToriiPart()` | `string` |  | 石造明神鳥居の部材。⭐ まず `bom[鳥居].手当` を見る(正典は指図)。 |
 | `OnFumotomichi(p, keep)` | `bool` |  | 点が社の小道(指図 `fumotomichi[]`)の上か、その辺から keep の内か。 |
-| `Michi()` | `List<List<Vector2>>` |  | 道の芯線(算出物 `routes[].world` と指図 `fumotomichi[].pts`)を集める。 |
+| `Michi()` | `List<List<Vector2>>` |  | 道の芯線(指図 `sando.pts`・算出物 `routes[].world`・指図 `fumotomichi[].pts`)を集める。 |
 | `ToriiFacing(p, face)` | `bool` |  | 鳥居の正面(部材の +Z)の向き。⭐ 指図は鳥居の yaw を書かない(座だけ)ので、 鳥居が載っている道の芯線の接線から引く ── 正面は境内から遠い側(参詣者が来る方)。 |
 | `ToriiNameOf(designName)` | `string` | 公 | 鳥居の名 → シーンの名(⛔ 部材のパスではない)。 |
 | `Stage6_Shaden()` | `string` | 公 | 社殿。⭐ 部材のピボット = その棟の区画 (u0,v0,du,dv) の中心・地盤レベル。 |

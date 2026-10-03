@@ -807,6 +807,9 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                     foreach (var q in ga) { float t = Vector2.Dot(q - front.a, ed) / L2; t0 = Mathf.Min(t0, t); t1 = Mathf.Max(t1, t); }
                     t0 = Mathf.Clamp01(t0); t1 = Mathf.Clamp01(t1);
                     monPad = new EdoBuild.MonPad { foot = EdoGeom.HullXZ(ga).Select(k => ga[k]).ToArray(), a = front.a + ed * t0, b = front.a + ed * t1 };
+                    // ⭐ 練塀の門は袖の塀の下まで平場を延ばす ── 門と袖が一枚の平場に立つ(EDO-0514・施主 2026-10-03)
+                    if (EnclosureFor(s, front, true) == "dobei")
+                        monPad = EdoBuild.MonPadWithSode(monPad, front.a, front.b, -front.outward, EdoBuild.DAN_GATE_SODE, 2f * 1.818f);
                     gamaePad = pads.Count;
                 }
             }

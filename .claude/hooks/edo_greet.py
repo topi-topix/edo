@@ -51,14 +51,14 @@ if os.path.exists(CLI):
               "**1セッション1タスク** — 仕舞う票を名乗り、終わったら "
               "`finish --task EDO-xxxx --msg \"<結果>\"` で票を閉じて窓を閉じる"
               "(docs/session-board.md §1c)。")
-    # 文脈計(計画 E-2): このセッションの文脈を 1 行。300K を超えたら /compact(docs/fushin-bugyo.md)。
+    # 文脈計(計画 E-2): このセッションの文脈を 1 行。500K(2026-10-03 施主裁定A)を超えたら /compact(docs/fushin-bugyo.md)。
     tp = ev.get("transcript_path") or ""
     tr = os.path.join(MAIN_ROOT, "Tools", "Session", "token_report.py")
     if tp and os.path.exists(tp) and os.path.exists(tr):
         t = subprocess.run([sys.executable, tr, "--self"], capture_output=True, text=True,
                            env=dict(env, EDO_TRANSCRIPT=tp))
         if t.stdout.strip():
-            print("文脈計: %s(天井 300K。超えたら手仕舞いして /compact — 門番が発話ごとに一度止める)" % t.stdout.strip())
+            print("文脈計: %s(天井 500K。超えたら手仕舞いして /compact — 門番が発話ごとに一度止める)" % t.stdout.strip())
     # 掲示板の digest(裁定待ち・ブロッカー・open)。CLI は**メインの checkout の物**を使う
     # (worktree のブランチには main を取り込むまで無いことがある)
     bcli = os.path.join(MAIN_ROOT, "Tools", "Session", "edo_board.py")

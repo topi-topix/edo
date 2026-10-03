@@ -48,6 +48,26 @@ public static class EdoSashizuSurfacePaint
     [MenuItem("Edo/地表/山王社の地表を検める")]
     public static void VerifySannoMenu() { Debug.Log(Verify(EdoSannoShaBuilder.SashizuRel)); }
 
+    [MenuItem("Edo/地表/岡部筑前守上屋敷の地表を塗る(指図の surface)")]
+    public static void PaintOkabeMenu() { Debug.Log(Paint(EdoOkabeYashikiBuilder.SashizuRel)); }
+
+    [MenuItem("Edo/地表/岡部筑前守上屋敷の地表を検める")]
+    public static void VerifyOkabeMenu() { Debug.Log(Verify(EdoOkabeYashikiBuilder.SashizuRel)); }
+
+    /// <summary>芯 c(世界)を幅 2·hw の帯にする(線分ごとの四角+折れの八角で継ぐ)。</summary>
+    static void Band(List<Vector2[]> res, Vector2[] c, float hw)
+    {
+        for (int i = 0; i < c.Length; i++)
+        {
+            var oct = new Vector2[8];
+            for (int k = 0; k < 8; k++) { float an = k * Mathf.PI / 4f + Mathf.PI / 8f; oct[k] = c[i] + new Vector2(Mathf.Cos(an), Mathf.Sin(an)) * hw / Mathf.Cos(Mathf.PI / 8f); }
+            res.Add(oct);
+            if (i == c.Length - 1) continue;
+            var dir = (c[i + 1] - c[i]).normalized; var nrm = new Vector2(-dir.y, dir.x) * hw;
+            res.Add(new[] { c[i] + nrm, c[i + 1] + nrm, c[i + 1] - nrm, c[i] - nrm });
+        }
+    }
+
     // ───────────────────────── 指図を読む ─────────────────────────
     class Zone { public string name, area; public Recipe recipe; public List<Vector2[]> polys; }
     class Recipe
@@ -82,8 +102,9 @@ public static class EdoSashizuSurfacePaint
         var surf = G(doc, "surface") as Dictionary<string, object>;
         if (surf == null) { err = "⛔ " + rel + " に surface 欄が無い(塗り方は指図に書く・ここで発明しない)"; return null; }
 
-        // 境内グリッド (u,v)[間] → 世界
-        var gk = G(G(doc, "grid") as Dictionary<string, object>, "keidai") as Dictionary<string, object>;
+        // 境内グリッド (u,v)[間] → 世界。⭐ 岡部は grid.shukaku(EDO-0502)── keidai が無ければ shukaku を読む
+        var gd = G(doc, "grid") as Dictionary<string, object>;
+        var gk = (G(gd, "keidai") ?? G(gd, "shukaku")) as Dictionary<string, object>;
         float ken = Cv(G(G(doc, "const") as Dictionary<string, object>, "ken"));
         Func<float, float, Vector2> uv = (u, v) => new Vector2(
             Cv(G(gk, "x0")) + (u * Cv(G(gk, "ux")) + v * Cv(G(gk, "vx"))) * ken,
@@ -120,18 +141,36 @@ public static class EdoSashizuSurfacePaint
                     if (ar != null && ar.Count >= 3) { res.Add(WorldPoly(ar, world)); continue; }
                     var pts = G(t, "pts") as List<object>; var wv = G(t, "w");
                     if (pts == null || pts.Count < 2 || wv == null) continue;
-                    var c = WorldPoly(pts, world); float hw = Cv(wv) * 0.5f;
-                    for (int i = 0; i < c.Length; i++)
-                    {
-                        var oct = new Vector2[8];
-                        for (int k = 0; k < 8; k++) { float an = k * Mathf.PI / 4f + Mathf.PI / 8f; oct[k] = c[i] + new Vector2(Mathf.Cos(an), Mathf.Sin(an)) * hw / Mathf.Cos(Mathf.PI / 8f); }
-                        res.Add(oct);
-                        if (i == c.Length - 1) continue;
-                        var dir = (c[i + 1] - c[i]).normalized; var nrm = new Vector2(-dir.y, dir.x) * hw;
-                        res.Add(new[] { c[i] + nrm, c[i + 1] + nrm, c[i + 1] - nrm, c[i] - nrm });
-                    }
+                    Band(res, WorldPoly(pts, world), Cv(wv) * 0.5f);
                 }
             }
+            else if (area.StartsWith("ramp:"))
+            {
+                // 坂(ramps[])の芯 pts(グリッド u,v)を幅 w[m](無ければ wKen 間)の帯に(EDO-0502 岡部)。⛔ 幅を発明しない
+                string nm = area.Substring(5);
+                foreach (var o in (G(doc, "ramps") as List<object>) ?? new List<object>())
+                {
+                    var t = o as Dictionary<string, object>;
+                    if ((G(t, "name") as string) != nm) continue;
+                    var pts = G(t, "pts") as List<object>;
+                    float wm = G(t, "w") != null ? Cv(G(t, "w")) : (G(t, "wKen") != null ? Cv(G(t, "wKen")) * ken : 0f);
+                    if (pts == null || pts.Count < 2 || wm <= 0f) continue;
+                    Band(res, WorldPoly(pts, uv), wm * 0.5f);
+                }
+            }
+            else if (area.StartsWith("akichi:"))
+            {
+                // 明地(akichi[])の矩形 u0..u1 × v0..v1(グリッド)(EDO-0502 岡部)
+                string nm = area.Substring(7);
+                foreach (var o in (G(doc, "akichi") as List<object>) ?? new List<object>())
+                {
+                    var t = o as Dictionary<string, object>;
+                    if ((G(t, "name") as string) != nm) continue;
+                    float u0 = Cv(G(t, "u0")), u1 = Cv(G(t, "u1")), v0 = Cv(G(t, "v0")), v1 = Cv(G(t, "v1"));
+                    res.Add(new[] { uv(u0, v0), uv(u1, v0), uv(u1, v1), uv(u0, v1) });
+                }
+            }
+            // ⚠ band:<名> はまだ読まない(帯の定義が planting の側にあり、塗り手が読む形が決まっていない)── 塗らずに名を出す
             return res;
         };
 
@@ -162,7 +201,11 @@ public static class EdoSashizuSurfacePaint
             var zone = new Zone { name = G(z, "name") as string, area = G(z, "area") as string };
             string rn = G(z, "recipe") as string;
             if (rn == null || !recipes.TryGetValue(rn, out zone.recipe))
-            { err = "⛔ zones[" + zone.name + "] の recipe '" + rn + "' が recipes に無い"; return null; }
+            {
+                // ⚠ 決めの無い zone(岡部の泉水「庭方が決める」)は塗らずに名を出す ── 範囲(extent)の中なら前の塗りの上に下の zone が乗る
+                plan.notes.Add("✗ " + zone.name + " — recipe '" + rn + "' が recipes に無い(決めが無いので塗らない)");
+                continue;
+            }
             zone.polys = resolve(zone.area);
             if (zone.polys.Count == 0) { plan.notes.Add("✗ " + zone.name + " — area '" + zone.area + "' が指図に無い(塗らない)"); continue; }
             plan.zones.Add(zone);

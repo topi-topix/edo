@@ -9,7 +9,7 @@
 
 止めるもの: コードに BuildParcel( の直呼びがあって、EdoBuildQueue を通していないもの。
 直し方:   EdoBuildQueue.Enqueue("<scratchpad>/<dir>", "id1", "id2", ...) を呼ぶだけにし、
-          Bash の until ループで <dir>/_done を待つ(Unity へ問い合わせを重ねない)。
+          待つのは `python3 Tools/Unity/build_queue_wait.py <dir>` の一手(Unity へ問い合わせを重ねない・EDO-0517)。
 """
 import json
 import re
@@ -32,7 +32,7 @@ def main():
         "⛔ 長い建て直しを execute_code の中で直に回さない(EDO-0503)。\n"
         "   時間切れになると MCP が同じ命令を自動で送り直し、建て直しが何巡もくり返す(2026-10-03 に Unity を再起動した事故)。\n"
         "   → execute_code では EdoBuildQueue.Enqueue(\"<scratchpad>/<dir>\", \"id1\", \"id2\", ...) を呼ぶだけにし、\n"
-        "     Bash の until ループで <dir>/_done を待つ。区画ごとの log は <dir>/<id>.txt。\n")
+        "     待つのは python3 Tools/Unity/build_queue_wait.py <dir> の一手。区画ごとの log は <dir>/<id>.txt。\n")
     return 2
 
 if __name__ == "__main__":

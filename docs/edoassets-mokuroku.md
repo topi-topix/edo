@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 362(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 365(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -187,13 +187,13 @@
 |---|---|---|---|
 | `Own.KasugaLantern` | string | `KasugaLantern.prefab` | DoiBuilder.Niwa(ResolveNiwaApi), SannoSha |
 | `Own.YukimiLantern` | string | `YukimiLantern.prefab` | DoiBuilder.Niwa(ResolveNiwaApi) |
-| `Own.DanishiStep` | string | `P_DanishiStep2m.prefab` | Doi(PlaceFumiishi・PlaceKaidans), OkabeYashiki(AssetByKey・PlaceKaidans), MatsudairaDewa(Stage6_Zosaku), SannoSha ほか1 |
+| `Own.DanishiStep` | string | `P_DanishiStep2m.prefab` | OkabeYashiki(AssetByKey・PlaceKaidanAB・PlaceKaidans), Doi(PlaceFumiishi・PlaceKaidans), MatsudairaDewa(Stage6_Zosaku), SannoSha ほか1 |
 | `Own.MichibataIshi` | string | `P_MichibataIshi2m.prefab` | SannoSha |
 | `Own.Broadleaf` | string | ⛔ 使用禁止(Obsolete)。`BroadleafTree.prefab` — 常緑の広葉樹(モッコク・モチノキ・カシ・シイの見立て)。 | — |
 | `Own.Jouryoku(size, i=…)` | 関数 | 常緑広葉樹(モッコク・モチノキ・シラカシ・スダジイの見立て)。 | TypologyBuilder.Niwa(DeShare), DoiBuilder.Niwa(ResolveNiwaApi), MatsudairaDewa(ResolveApi), OkabeYashiki(PlantByKey) ほか1 |
 | `Own.Jokuroku(size)` | 関数 | ⛔ 使用禁止(Obsolete)。⛔ 綴りの誤り(常緑の訓みは Jouryoku)。 | — |
-| `Own.Teiboku(size, i=…)` | 関数 | 常緑の照葉低木(サカキ・アオキ・ヤブツバキの見立て)。 | BuildRun(EdgeFacesSlope), SannoSha(TreePath), TypologyBuilder.Niwa(MomijiPalFor) |
-| `Own.Matsu(size, i=…)` | 関数 | クロマツ(社叢)。山王社の社叢の高木。⭐ 林の松 — 在庫の `JG.Pine` は独立して枝を張った庭の松で樹形が別。 | SannoSha(TreePath), TypologyBuilder.Niwa |
+| `Own.Teiboku(size, i=…)` | 関数 | 常緑の照葉低木(サカキ・アオキ・ヤブツバキの見立て)。 | BuildRun(EdgeFacesSlope), OkabeYashiki(PlantByKey), SannoSha(TreePath), TypologyBuilder.Niwa(MomijiPalFor) |
+| `Own.Matsu(size, i=…)` | 関数 | クロマツ(社叢)。山王社の社叢の高木。⭐ 林の松 — 在庫の `JG.Pine` は独立して枝を張った庭の松で樹形が別。 | OkabeYashiki(PlantByKey), SannoSha(TreePath), TypologyBuilder.Niwa |
 | `Own.SannoRomon(duKen, dvKen, pX, mX, pZ, mZ)` | 関数 | 山王社の楼門(隨身門)・坂下の門(仁王門)兼用。 | — |
 | `Own.SannoRomon(duKen, dvKen, passMm, widthMm, pX, mX, pZ, mZ)` | 関数 | 山王社の楼門(隨身門)— 明治16年実測図の寸法(ユーザー裁定C 2026-09-14)。 | — |
 | `Own.SannoSakashitamon(duKen, dvKen, passMm, widthMm, pX, mX, pZ, mZ)` | 関数 | 山王社の坂下の門(仁王門)— 明治16年実測図 第2稿の読み(2026-09-14)。 | — |
@@ -237,12 +237,12 @@
 | `Own.DanKiriEnd(d, deg, nori)` | 関数 | SannoDanKiri の端: 平面で斜めに切る。 | BuildIshidan(CutStairEndsToBatter・MeasureStepEndOnBatter) |
 | `Own.NearestBaked(path, tol)` | 関数 | 綴りの数だけが違う焼いてある兄弟を引く(EDO-0430 2026-09-26)。 | BuildIshidan(CutStairEndsToBatter) |
 | `Own.IsSannoNozura(meshAssetPath)` | 関数 | メッシュの資産パスが山王の野面の乱積みの駒(1間・隅・切り・法切り・見切り ── `Sanno_Nozura_*`)か。 | SannoSha(AbutStairsToWalls) |
-| `Own.SannoNozura(h, grade, i)` | 関数 | 野面の乱積みの土留め — 1間の駒(山王社の前庭の縁。 | BuildNozura(PlaceNozuraRun), BuildRim(BridgeCorner), SannoSha(Nozura), TypologyBuilder.Rim(Rim) |
-| `Own.SannoNozuraKiri(risesToPlusX, i)` | 関数 | 野面の乱積みの打ち切り — 根石一段が地中へ沈む駒(見付 0.2 未満で壁を終える所)。 | SannoSha(Nozura), TypologyBuilder.Rim(Rim) |
-| `Own.SannoNozuraKado(h, i)` | 関数 | 野面の乱積みの出隅 90° の隅の駒(2026-09-25・山王 本殿の西の土留め `TW_Nozura_ShadenW` の帯の北西・南西の隅。 | SannoSha(Nozura), TypologyBuilder.Rim(Rim) |
+| `Own.SannoNozura(h, grade, i)` | 関数 | 野面の乱積みの土留め — 1間の駒(山王社の前庭の縁。 | BuildNozura(PlaceNozuraRun), BuildRim(BridgeCorner), OkabeYashiki(PlaceCurb), SannoSha(Nozura) ほか1 |
+| `Own.SannoNozuraKiri(risesToPlusX, i)` | 関数 | 野面の乱積みの打ち切り — 根石一段が地中へ沈む駒(見付 0.2 未満で壁を終える所)。 | OkabeYashiki(PlaceCurb), SannoSha(Nozura), TypologyBuilder.Rim(Rim) |
+| `Own.SannoNozuraKado(h, i)` | 関数 | 野面の乱積みの出隅 90° の隅の駒(2026-09-25・山王 本殿の西の土留め `TW_Nozura_ShadenW` の帯の北西・南西の隅。 | OkabeYashiki(PlaceCurb), SannoSha(Nozura), TypologyBuilder.Rim(Rim) |
 | `Own.SannoNozuraKadoCut(h, i, axis, at)` | 関数 | SannoNozuraKado の片腕を袖の背の面で一度だけ切った版(EDO-0437 2026-09-27・参道の階の前庭の北の縁の口の出隅。 | SannoSha(Nozura) |
 | `Own.SannoNozuraKadoCut(h, i, axis, at, arm)` | 関数 | SannoNozuraKadoCut の切った側の腕を arm に詰めた版(EDO-0437 2026-09-27 r16)。 | SannoSha(Nozura) |
-| `Own.SannoNozuraDan(risesToPlusX, i)` | 関数 | 野面の乱積みの段の境の駒(2026-09-25・帯 `SukibeiSoto` 29.65 → `SukibeiSoto_Chu` 29.25 の差 0.40 を 1間で流す) = SannoNozura(1.50, ±… | SannoSha(Nozura), TypologyBuilder.Rim(Rim) |
+| `Own.SannoNozuraDan(risesToPlusX, i)` | 関数 | 野面の乱積みの段の境の駒(2026-09-25・帯 `SukibeiSoto` 29.65 → `SukibeiSoto_Chu` 29.25 の差 0.40 を 1間で流す) = SannoNozura(1.50, ±… | OkabeYashiki(PlaceCurb), SannoSha(Nozura), TypologyBuilder.Rim(Rim) |
 | `Own.SannoNozuraMikiri` | string | `Sanno_Nozura_Mikiri.fbx` — 見切りの大きな野面石(男坂の下で城の石垣と野面の乱積みを継ぐ1点)。 | — |
 | `Own.SannoNozuraMikiriH(h)` | 関数 | 丈を合わせた見切り石(2026-09-26 EDO-0437・男坂の口の両脇 TW_Zentei_W の端 2 か所)。 | SannoSha(Nozura) |
 | `Own.SannoNozuraKiriEnd(deg, atPlusX, faceLonger, h, i)` | 関数 | 片端を斜めの鉛直面で切った野面の乱積みの駒(2026-09-26 EDO-0437・前庭の南の土留め TW_Zentei_SW の東端 / SE の西端を女坂の袖の外面へ当てる)。 | BuildNozura, SannoSha(Nozura) |
@@ -271,7 +271,7 @@
 | `Own.Fuchiishi(runKen, w=…)` | 関数 | 切石の縁石(白洲・平場の縁。指図 `fuchi[]`)。 | MatsudairaDewa(Stage6_Zosaku) |
 | `Own.NagayaOmote(len)` | 関数 | 長さ可変の表長屋。在庫の `knagaya01c/l/r` を窓割り(bay=2.6874m)で切って 並べ、両端に妻(破風・鬼・妻壁)を継いだ一体物。 | OkabeYashiki(AssetByKey・PlaceOmoteNagaya), Doi(Stage2_Perimeter), MatsudairaDewa(Stage2_Perimeter), NagayaOmote |
 | `Own.NagayaOmote2F(len)` | 関数 | 二階建ての表長屋(案A・ユーザー裁定 2026-08-29)。 | OkabeYashiki(AssetByKey・PlaceOmoteNagaya), MatsudairaDewa(Stage2_Perimeter) |
-| `Own.NagayaOmoteMon(len, gateFromLeft, nikai)` | 関数 | 長屋門(ユーザー裁定 2026-08-30)— 表長屋の躯体を門の上まで通し、 その足元に門口を抜いた版。 | Doi(Stage2_Perimeter), MatsudairaDewa(Stage2_Perimeter), OkabeYashiki(PlaceOmoteNagaya) |
+| `Own.NagayaOmoteMon(len, gateFromLeft, nikai)` | 関数 | 長屋門(ユーザー裁定 2026-08-30)— 表長屋の躯体を門の上まで通し、 その足元に門口を抜いた版。 | OkabeYashiki(AssetByKey・GateInNagaya・PlaceOmoteNagaya), Doi(Stage2_Perimeter), MatsudairaDewa(Stage2_Perimeter) |
 | `Own.NagayaOmote(len, tsuma)` | 関数 | tsuma=false は両端を突き付けにした版(`--ends none`)。 | OkabeYashiki(AssetByKey・PlaceOmoteNagaya), Doi(Stage2_Perimeter), MatsudairaDewa(Stage2_Perimeter), NagayaOmote |
 | `Own.ObiNagaya(wKen, dKen)` | 関数 | 崖下の詰人長屋(岡部邸 `service` の N1/N2、`roofs.ObiNagaya`)。 | OkabeYashiki(AssetByKey・ReportNishiRest), TypologyBuilder.Jisha(JishaOmoya) |
 | `Own.ObiNagaya(wKen)` | 関数 | 梁間は家臣長屋の規約どおり 2.5間(`const.nagayaD` = 4.545m)固定。 | OkabeYashiki(AssetByKey・ReportNishiRest), TypologyBuilder.Jisha(JishaOmoya) |
@@ -346,7 +346,7 @@
 
 | 名 | 種 | 中身・注釈の一文目 | 使っている所 |
 |---|---|---|---|
-| `Own.Typ.Komegura` | string | 米蔵 3間(梁間)× 4間(桁行)。石腰+白漆喰の大壁・妻に観音扉・切妻の本瓦。 | Typology(Plan) |
+| `Own.Typ.Komegura` | string | 米蔵 3間(梁間)× 4間(桁行)。石腰+白漆喰の大壁・妻に観音扉・切妻の本瓦。 | OkabeYashiki(AssetByKey), Typology(Plan) |
 | `Own.Typ.Umaya` | string | 厩 3間(梁間)× 4間(桁行)。板壁・桟瓦・前面(+Z)は吹き放ちで 足元に半高の板壁、馬房を4つ(桁行4間なので1房ちょうど1間)。 | Typology(Plan) |
 | `Own.Typ.SakujiKoya` | string | 作事小屋 2間(梁間)× 3間(桁行)。 | Typology(Plan), TypologyBuilder.Jisha(JishaOmoya) |
 | `Own.Typ.Takeyarai` | string | 竹矢来(たけやらい)— 2間モジュールの透ける囲い(類型共用・EDO-0363)。 | BuildRun(FenceRun・NeribeiStepRun), BuildGamae(FenceEndPiece), PartSpec(Bake) |
@@ -360,6 +360,9 @@
 |---|---|---|---|
 | `Own.Umaya` | string | 厩 4×9間(岡部邸 `service.Umaya`)。 | OkabeYashiki(AssetByKey) |
 | `Own.Tomomachi` | string | 供待 3×5間(岡部邸 `service.Tomomachi`)。 | OkabeYashiki(AssetByKey) |
+| `Own.Kura4x5` | string | 土蔵 4×5間(岡部邸 `service.Kura1` / `Kura2`・EDO-0502)。 | OkabeYashiki(AssetByKey) |
+| `Own.Makigura` | string | 薪蔵(板倉) 4×3間(岡部邸 `service.Makigura`・EDO-0502)。 | OkabeYashiki(AssetByKey) |
+| `Own.Tomomachi35` | string | 供待 3.5×5間(岡部邸 `service.Tomomachi`・EDO-0502 で 3×5 から改めた)。 | OkabeYashiki(AssetByKey) |
 | `Own.NandoKoya` | string | 納戸小屋 1.5×1間・板葺(岡部邸 `service.Nando_Nagatsubone`)。 | OkabeYashiki(AssetByKey) |
 | `Own.Kurumayose` | string | 車寄 3間(間口)× 2間(奥行)(岡部邸 `munes[0]` / `roofs.Goten_Kurumayose`)。 | OkabeYashiki(AssetByKey) |
 | `Own.KurumayoseCut` | string | 車寄(切り欠き済み) — 玄関棟の屋根へ差し込むための納めを部材の側で解いた版 【2026-09-04 ユーザー裁定10=A】。 | OkabeYashiki(AssetByKey) |

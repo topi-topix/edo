@@ -8,36 +8,36 @@
    "label": "隙 0",
    "what": "塀と塀・門と塀・長屋 run の駒どうしの隙・めり込み・裏表(許容 0)",
    "how": "edo-fushin-qa 項目 6(run の格子)・7(裏表)・8(門の取り合い)、JointQA / GateQA",
-   "value": null,
-   "verdict": null,
-   "at": null,
+   "value": "長屋躯体の継ぎ目0.644×8・袖塀↔門柱0.63/0.65・汀の木柵 継ぎ目0.014×32/段差9/1.72(2026-10-03 初回・段の土留め9本と排水は未建)",
+   "verdict": "fail",
+   "at": "2026-10-03",
    "note": ""
   },
   "boundary": {
    "label": "境界侵犯 0",
    "what": "棟・塀・木・石が区画 / 庭の区域 / 建物 / 水面 / 道へ入らない",
    "how": "edo-fushin-qa 項目 1(境界)と区域の点検(EdoGeom.PIP)",
-   "value": null,
-   "verdict": null,
-   "at": null,
+   "value": "壁体越境2(最大0.053 SE_Hei_0b)・裏門の坂の盛土の裾1.39〜1.49<1.5・木0",
+   "verdict": "fail",
+   "at": "2026-10-03",
    "note": ""
   },
   "ground": {
    "label": "埋没・浮き 0",
    "what": "地面との隙が −0.01〜+0.01 の外の駒が 0(oki-kata §4)",
    "how": "edo-fushin-qa 項目 2(接地)と GroundQA",
-   "value": null,
-   "verdict": null,
-   "at": null,
+   "value": "御殿5棟 浮0.341・木柵の板端21/45 最大2.30・植栽 埋2(−0.055)・蔵1/厩 −0.777 と E11/E17/E23 −0.117 は根入れか要確認",
+   "verdict": "fail",
+   "at": "2026-10-03",
    "note": ""
   },
   "match": {
    "label": "突き合わせ 0",
    "what": "指図(意図)と実装の食い違いが 0 件",
    "how": "Unity メニュー Edo/<敷地>/指図と実装を突き合わせる",
-   "value": null,
-   "verdict": null,
-   "at": null,
+   "value": "突き合わせの道具が落ちる(EdoSashizuExport.CheckScene・gate.pos 欠)・件数未測",
+   "verdict": "fail",
+   "at": "2026-10-03",
    "note": ""
   },
   "render": {
@@ -56,6 +56,30 @@
   {
    "at": "2026-10-03T15:28:39+09:00",
    "event": "init"
+  },
+  {
+   "at": "2026-10-03T18:05:09+09:00",
+   "event": "record",
+   "item": "gap",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-10-03T18:05:09+09:00",
+   "event": "record",
+   "item": "boundary",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-10-03T18:05:09+09:00",
+   "event": "record",
+   "item": "ground",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-10-03T18:05:09+09:00",
+   "event": "record",
+   "item": "match",
+   "verdict": "fail"
   }
  ]
 }

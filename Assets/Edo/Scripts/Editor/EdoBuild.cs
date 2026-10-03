@@ -1059,6 +1059,37 @@ public static partial class EdoBuild
         return L;
     }
 
+    /// <summary>**躯体の足跡**(屋根の材を除いた頂点の外接)を、駒の**ローカル・無回転**で測る。
+    /// <para>⭐ 附属屋・長屋の照合と据えは**躯体**で行う ── 軒込みの外接(`ObbFootprint`)は四周の軒の出
+    /// (0.37〜1.0m)だけ大きく、足跡と比べると「合わない」と出る・中心で据えると軒の出の偏りぶん躯体がずれる
+    /// (岡部の附属屋 PlaceBox・EDO-0502)。返す <paramref name="center"/> は躯体の芯(ピボットからの偏り)。</para>
+    /// <para>測れなければ(断面が取れない)false ── 呼び手は軒込みで測ったと名乗る。
+    /// 条件の硬さ: 測るだけ(硬い/柔らかいは呼び手が名乗る)。</para></summary>
+    public static bool BodyFootprintLocal(string prefabPath, out Vector2 center, out float w, out float d)
+    {
+        center = Vector2.zero; w = 0f; d = 0f;
+        // 躯体を測る高さ = 丈の 1/4(軒先より下・基壇より上 ── 軒高は丈の半ばより上に在る)の水平断面(SectionAt)。
+        //   ⛔ 屋根の材を落とした頂点の外接では測らない ── 垂木・桁(wood の材)が軒先まで出ていて軒込みになる
+        //   (帯の長屋 33×3間 が 60.73×7.45 と出た・2026-10-03)
+        var all = BodyAt(prefabPath, Vector3.zero, 0f, true);
+        if (all.Count == 0) return false;
+        float y0 = float.MaxValue, y1 = float.MinValue;
+        foreach (var v in all) { y0 = Mathf.Min(y0, v.y); y1 = Mathf.Max(y1, v.y); }
+        float yMid = y0 + (y1 - y0) * 0.25f;
+        var s0 = SectionAt(prefabPath, Vector3.zero, 0f, yMid, false);
+        if (s0.Count < 3) s0 = SectionAt(prefabPath, Vector3.zero, 0f, yMid, true);
+        if (s0.Count < 3) return false;
+        float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
+        foreach (var v in s0)
+        {
+            if (v.x < mnx) mnx = v.x; if (v.x > mxx) mxx = v.x;
+            if (v.z < mnz) mnz = v.z; if (v.z > mxz) mxz = v.z;
+        }
+        center = new Vector2((mnx + mxx) * 0.5f, (mnz + mxz) * 0.5f);
+        w = mxx - mnx; d = mxz - mnz;
+        return true;
+    }
+
     /// <summary>メッシュ内の頂点添字を局所 Y 昇順に並べ替えた添字表(メッシュ資産ごとに 1 度だけ作ってキャッシュ)。
     /// <see cref="BodyExRoof"/> の単一メッシュ間引きが使う下ごしらえ。</summary>
     static readonly Dictionary<Mesh, int[]> _yOrderCache = new Dictionary<Mesh, int[]>();

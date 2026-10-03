@@ -59,7 +59,9 @@ paths:
   ガードのマーカーは active にする。
   ⛔ **区画の建て直し(`BuildParcel`)を execute_code の中で直に回さない。** 30 秒を超えると MCP が同じ命令を送り直し、
   21 区画の一括が 3 巡くり返して CPU 100% のまま止まらず、施主が Unity を再起動した(2026-10-03・EDO-0503)。
-  ⭐ `EdoBuildQueue.Enqueue("<scratchpad>/<dir>", "id1", ...)` で予約だけして即座に返し、Bash の until ループで
-  `<dir>/_done` を待つ。見張りは `.claude/hooks/edo_mcp_long_guard.py`(直呼びを止める)。
+  ⭐ `EdoBuildQueue.Enqueue("<scratchpad>/<dir>", "id1", ...)` で予約だけして即座に返し、
+  `python3 Tools/Unity/build_queue_wait.py <dir>` の一手で待つ(手書きの until を書かない)。見張りは
+  `.claude/hooks/edo_mcp_long_guard.py`(直呼びを止める)。予約は update の拍と SessionState で流れるので、
+  Unity が背面でも・途中で再読み込みが走っても続く(EDO-0517)。止めるのは `Edo/普請/建て直しの予約: 止める`。
 - **Blender の FBX を入れたらマテリアルを remap する**(`Edo/御殿/…マテリアルをremap`)。
 

@@ -2958,6 +2958,17 @@ public static class EdoAssets
         /// 生成: blender --background --python Tools/Blender/build_okabe_fuzokuya.py -- tomomachi</summary>
         public const string Tomomachi = FuzokuyaDir + "Okabe_Tomomachi.fbx";
 
+        /// <summary>**土蔵** 4×5間(岡部邸 `service.Kura1` / `Kura2`・EDO-0502)。実寸 10.128 × 7.123 × 8.889。
+        /// ピボット = 足跡の中心・地盤。**+X = 桁行(5間)・観音扉は −X の妻**(⚠ 開口の面が +Z でない ── 据えは −X を `face` へ)。
+        /// 生成: Tools/Blender/build_okabe_fuzokuya.py(明細 UserData/EDO0502/buzai_meisai.json)</summary>
+        public const string Kura4x5 = FuzokuyaDir + "Okabe_Kura_4x5ken.fbx";
+        /// <summary>**薪蔵(板倉)** 4×3間(岡部邸 `service.Makigura`・EDO-0502)。実寸 7.872 × 3.901 × 6.554。
+        /// ピボット・向きは <see cref="Umaya"/> と同じ。</summary>
+        public const string Makigura = FuzokuyaDir + "Okabe_Makigura_4x3ken.fbx";
+        /// <summary>**供待** 3.5×5間(岡部邸 `service.Tomomachi`・EDO-0502 で 3×5 から改めた)。実寸 9.870 × 4.756 × 8.255。
+        /// ピボット・向きは <see cref="Umaya"/> と同じ。</summary>
+        public const string Tomomachi35 = FuzokuyaDir + "Okabe_Tomomachi_3.5x5ken.fbx";
+
         /// <summary>**納戸小屋** 1.5×1間・**板葺**(岡部邸 `service.Nando_Nagatsubone`)。
         /// 長局の物干の道具を仕舞う小屋。⛔ **瓦を葺いていない** — `roof 2x2` の勾配は
         /// 0.5456 固定で 1間の小屋には棟が高すぎるため、指図どおり板葺(勾配 0.40【U】)にした。

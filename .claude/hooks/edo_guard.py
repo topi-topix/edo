@@ -11,7 +11,7 @@ stdin に PreToolUse の JSON が来る(session_id / tool_name / tool_input)。
 ⛔ **一つの発話につき高々一度**しか止めない — モデルは自分で `/compact` できないので、
 止め続ければ一歩も進めない。⭕ 逆に「段ごとに一度」だけだと**一度素通りした後は永久に黙る**:
 2026-09-21 の実測では 306K で一度止めた後、7 件の宿題を片付けて 414K に達するまで一度も鳴らなかった。
-そこで再武装する — ①新しい段(300K/450K/600K)を超えた ②**人が話した**(止めを受け取る相手が
+そこで再武装する — ①新しい段(500K/650K/800K・2026-10-03 施主裁定A で 300K から上げた)を超えた ②**人が話した**(止めを受け取る相手が
 今そこにいて `/compact` を打てる)③前の止めから 100K 伸びた。
 
 【丸読みの関門】(2026-09-21・EDO-0259 後半)手引きの丸読みを止める。`sources.md` は 356KB
@@ -75,7 +75,7 @@ def run(args, sess, agent=""):
     sys.exit(0)
 
 
-CTX_STAGES = (300000, 450000, 600000)
+CTX_STAGES = (500000, 650000, 800000)   # 2026-10-03 施主裁定A(旧 300K/450K/600K は止まりすぎた)
 CTX_REARM = 100000          # 同じ発話の中でも、前の止めからこれだけ伸びたらもう一度止める
 SESS_DIR = os.path.join(MAIN_ROOT, ".git", "edo-session")   # claim(.git/edo-locks)・板(.git/edo-board)と同じ前例
 
@@ -166,13 +166,13 @@ def context_meter(ev, sess):
     if stop:
         got = holding(sess)
         sys.stderr.write(
-            "⛔ 文脈計: この会話の文脈が %dK トークンで、天井 300K の上にいる — %s"
+            "⛔ 文脈計: この会話の文脈が %dK トークンで、天井 %dK の上にいる — %s"
             "(docs/fushin-bugyo.md「文脈の作法」)。\n"
             "   費用は「文脈の大きさ × 往復の数」。ここから先の往復は毎回 %dK を読み直す。\n"
             "   ① 手仕舞い — 畳めなかった残タスクを board へ task で起票し、claim を返す%s\n"
             "   ② ユーザーに **`/compact`(定型: 裁定・_pending・claim・次の一手だけ残す)か新セッション**を求める\n"
             "   この止めは**一つの発話につき一度**。次の呼び出しは通るので、まず①を済ませてから②を頼む。\n"
-            % (ctx // 1000, why, ctx // 1000,
+            % (ctx // 1000, CTX_STAGES[0] // 1000, why, ctx // 1000,
                ("(いま握っているのは %s)" % got) if got else "(いま握っている物は無い)"))
         sys.exit(2)
 
@@ -209,12 +209,12 @@ def big_read(ti):
     except OSError:
         pass
     sys.stderr.write(
-        "⛔ 丸読みの関門: %s は %dKB(≈%dK トークン・天井 300K の %d%%)。\n"
+        "⛔ 丸読みの関門: %s は %dKB(≈%dK トークン・天井 %dK の %d%%)。\n"
         "   要る節だけ読む: `Read(offset=…, limit=…)` か `grep -n` で当たりを付ける。\n"
         "   ⚠ どうしても全部要るなら **limit を明に付けて**読み直せば通る(丸読みは決めてやること)。\n"
         "%s"
         % (os.path.relpath(fp, MAIN_ROOT) if fp.startswith(MAIN_ROOT) else fp,
-           sz // 1024, sz // 4096, min(99, (sz // 4096) * 100 // 300),
+           sz // 1024, sz // 4096, CTX_STAGES[0] // 1000, min(99, (sz // 4096) * 1000 * 100 // CTX_STAGES[0]),
            ("   見出しの索引:\n" + "\n".join(idx) + "\n") if idx else ""))
     sys.exit(2)
 
@@ -380,17 +380,17 @@ def selftest():
     U1, U2 = "2026-09-21T06:00:00Z", "2026-09-21T07:00:00Z"
     cases = [
         # (状態, 文脈, 最後の発話, 止まるか, 何を守る型か)
-        ({}, 250000, U1, False, "天井の下では鳴らない"),
-        ({}, 306000, U1, True, "300K を初めて超えたら止める"),
-        ({"ctx_stage": 1, "ctx_stop_user": U1, "ctx_stop_ctx": 306000}, 320000, U1,
+        ({}, 450000, U1, False, "天井の下では鳴らない"),
+        ({}, 506000, U1, True, "500K を初めて超えたら止める"),
+        ({"ctx_stage": 1, "ctx_stop_user": U1, "ctx_stop_ctx": 506000}, 520000, U1,
          False, "同じ発話の中では二度止めない(⛔ 自分で /compact できないので進めなくなる)"),
-        ({"ctx_stage": 1, "ctx_stop_user": U1, "ctx_stop_ctx": 306000}, 320000, U2,
+        ({"ctx_stage": 1, "ctx_stop_user": U1, "ctx_stop_ctx": 506000}, 520000, U2,
          True, "⭐ 人が話したら再武装(2026-09-21 に 7 件素通りした穴)"),
-        ({"ctx_stage": 1, "ctx_stop_user": U1, "ctx_stop_ctx": 306000}, 414000, U1,
+        ({"ctx_stage": 1, "ctx_stop_user": U1, "ctx_stop_ctx": 506000}, 614000, U1,
          True, "⭐ 同じ発話でも 100K 伸びたら再武装(自走の巡)"),
-        ({"ctx_stage": 1, "ctx_stop_user": U1, "ctx_stop_ctx": 306000}, 460000, U1,
-         True, "次の段(450K)は発話に関わらず止める"),
-        ({"ctx_stage": 1, "ctx_stop_user": U1, "ctx_stop_ctx": 306000}, 320000, None,
+        ({"ctx_stage": 1, "ctx_stop_user": U1, "ctx_stop_ctx": 506000}, 660000, U1,
+         True, "次の段(650K)は発話に関わらず止める"),
+        ({"ctx_stage": 1, "ctx_stop_user": U1, "ctx_stop_ctx": 506000}, 520000, None,
          False, "発話の時刻が読めない時は、伸びと段だけで決める"),
     ]
     bad = 0
@@ -502,7 +502,7 @@ def selftest():
                        "message": {"content": "次のタスクお願いします"}}) + "\n")
             f.write(j({"type": "assistant", "timestamp": usr,
                        "message": {"usage": {"input_tokens": 6000,
-                                             "cache_read_input_tokens": 300000}}}) + "\n")
+                                             "cache_read_input_tokens": 500000}}}) + "\n")
 
     def fire(cmd="true"):
         r = subprocess.run([sys.executable, os.path.abspath(__file__)], capture_output=True, text=True,
@@ -513,7 +513,7 @@ def selftest():
         for usr, want, name, cmd in (
                 (U1, False, "通しで: 天井の上でも掲示板の書き込みは通す(止めを次の手へ持ち越す・EDO-0542)",
                  "python3 Tools/Session/edo_board.py list --estate infra"),
-                (U1, True, "通しで: 306K の transcript で鳴る", "true"),
+                (U1, True, "通しで: 506K の transcript で鳴る", "true"),
                 (U1, False, "通しで: 同じ発話では二度目は通る", "true"),
                 (U2, True, "通しで: 次の発話でまた鳴る", "true")):
             transcript(usr)

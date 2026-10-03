@@ -39,6 +39,9 @@ ROLE_WORDS = ("検図方", "考証方", "庭方", "林方", "普請方", "指図
 MARKS = "⭕⛔⭐⚠"
 
 
+
+CEILING = 500000     # 文脈の天井(2026-10-03 施主裁定A で 300K から上げた)。>300K/>400K の欄は過去と比べるため残す
+
 def _iter(fp):
     with open(fp, encoding="utf-8", errors="replace") as fh:
         for line in fh:
@@ -169,7 +172,7 @@ def scan_main(fp, since):
     各行に usage が付く(途中行は output 0)。message.id で畳まないと往復と cache_read が約 2 倍に膨らむ
     (2026-09-19 に直した — それ以前の数字は膨らんでいる)。"""
     r = dict(sid=os.path.basename(fp)[:8], title="-", first=None, last=None, turns=0, users=0,
-             read=0, write=0, out=0, maxctx=0, over300=0, over400=0, compacts=0, stops=guard_stops(fp),
+             read=0, write=0, out=0, maxctx=0, over300=0, over400=0, overceil=0, compacts=0, stops=guard_stops(fp),
              agents=collections.Counter(), board_posts=0, msgs=[], streak_max=0, streaks=[])
     last_txt = None
     st = Streaks()
@@ -227,6 +230,7 @@ def scan_main(fp, since):
         c = _ctx(u)
         r["over300"] += c > 300000
         r["over400"] += c > 400000
+        r["overceil"] += c > CEILING
     return r
 
 
@@ -344,7 +348,7 @@ def main():
         print("  合計: 往復 %d / cache_read %s / 文脈>300K の往復 %d%% / 門番が止めた回数 %d"
               % (tot["turns"], fmt_m(tot["read"]), 100 * tot["o3"] // tot["turns"], tot["stops"]))
         # ⛔ 「天井の上なのに一度も止まっていない」= 機構が効いていない証拠(0 件は合格ではない・規則19)
-        mute = [r for r in rows if r["over300"] and r["stops"] == 0]
+        mute = [r for r in rows if r["overceil"] and r["stops"] == 0]
         if mute:
             print("  ⚠ 天井を超えたのに門番が一度も止めていないセッション %d 本: %s"
                   % (len(mute), " ".join(r["sid"] for r in mute[:6])))

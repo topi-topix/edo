@@ -1960,7 +1960,9 @@ class Checks(object):
                if gd.get("clearance") == "keidai" for c in (gd.get("clusters") or [])]
         bl = kd.get("doRinKenBandLayers") or []
         T = [q for q in P if q.get("group") in grp]
-        Tb = [q for q in P if str(q.get("group") or "").startswith("社叢 帯") and q.get("layer") in bl]
+        # 拾う帯の group の頭は邸が名乗る(`doRinKenBandGroups`)。無ければ山王の「社叢 帯」(2026-10-03 土井の林方の検分)
+        bgs = tuple(kd.get("doRinKenBandGroups") or ["社叢 帯"])
+        Tb = [q for q in P if str(q.get("group") or "").startswith(bgs) and q.get("layer") in bl]
         R = L.do_rin_rects(M.d)
         if not (T or Tb) or not R:
             self.add("C27", "堂の外面から林の幹", "未検査 — 退避 keidai の区の塊・帯の %s に撒いた木が無い(塊 %d・棟 %d)"
@@ -2189,8 +2191,14 @@ class Checks(object):
         """
         M = self.M
         gs = [gd for gd in (M.d.get("gardens") or []) if gd.get("clusterGapMin") is not None]
+        # 庭の外の林の塊(`planting.viewClusters`)に `planting.clusterGapMin` を当てる邸(土井 2026-10-03 林方の検分)
+        #   ── 撒いた点の group は「林の塊／<塊の名>」。区に見立てて同じ物差しで測る
+        pl = M.d.get("planting") or {}
+        if pl.get("clusterGapMin") is not None and pl.get("viewClusters"):
+            gs = gs + [{"name": "林の塊", "clusterGapMin": pl["clusterGapMin"],
+                        "clusters": [c for c in pl["viewClusters"] if isinstance(c, dict) and c.get("name")]}]
         if not gs:
-            self.add("C28", "塊どうしの間", "未検査 — `gardens[].clusterGapMin` の宣言が無い", "na")
+            self.add("C28", "塊どうしの間", "未検査 — `gardens[].clusterGapMin`・`planting.clusterGapMin` の宣言が無い", "na")
             return
         fn, P = self.planting_points()
         if fn is None or isinstance(P, Exception):

@@ -3394,14 +3394,20 @@
    "lenM": 310,
    "hMax": 4.5,
    "cert": "延長と最大高=下絵 `UserData/EDO0502/an1/saitei_okabe2/plans2.py` plan_1() の inner_walls(U)/ 段を石垣で受ける構え=[富山市埋文]A・長府毛利 [菊地2003]A / 上限 4.5 は門の内と主面の境の高さ(2026-10-03 普請奉行の決め・検図 K329)=U",
-   "certSig": "U/A"
+   "certSig": "U/A",
+   "excludes": [
+    "grading.omoteNagayaDai"
+   ]
   },
   "kyoIshigaki": {
    "label": "境の石垣",
    "lenM": 295,
    "hMax": 2.6,
    "cert": "下絵 `UserData/EDO0502/an1/saitei_okabe2/plans2.py` plan_1() の perim_walls(U)── 辺ごとの値は runs[].kyoIshigaki",
-   "certSig": "U"
+   "certSig": "U",
+   "excludes": [
+    "grading.omoteNagayaDai"
+   ]
   },
   "kindaiJokyo": {
    "label": "近代造成の除去(史実の土工ではない)",
@@ -3450,7 +3456,12 @@
    "hFrom": "台の天端 − 道の地盤(edgeProfile)。棟梁が実地形から導く。値は裁定図 k3 の測り【P】",
    "stoneKata": null,
    "cert": "長屋塀型表長屋(石組溝の護岸石垣を土留めとしその直上に建つ・屋敷境の塀を兼ねる)=[追川2017]**A** / 当家への適用=**U**(施主裁定 EDO-0529 B)/ 石垣の積み方=**典拠なし(U)・未決**",
-   "certSig": "A/U"
+   "certSig": "A/U",
+   "hMax": 4.71,
+   "notCappedBy": [
+    "grading.kyoIshigaki.hMax",
+    "grading.danIshigaki.hMax"
+   ]
   }
  },
  "edgeProfile": {
@@ -4679,42 +4690,42 @@
   "kenzu": {
    "at": "2026-10-03",
    "verdict": "fail",
-   "hash": "3aecc61108d6aa12",
-   "note": "3巡で停止。残11(高2: 通用門の段3.8m/勾配67%・裏門の物資の道が西の平場に届かない。中7: N1と二階長屋N40_1の重なり1.06m²・辺40/41長屋と東の平場の差2.4〜3.8m・表門の北の袖2.68mに番所が入らない・門の内/主面の境4.5mと切通しの受け・E5〜E23棟内落差1.3m・門の内の角1.0mの段・築山が水面に掛かる。低2)。解消: 厩の越境・旧い門口の段",
+   "hash": "9ce0bf54c9bce1a6",
+   "note": "4〜6巡(ack後3巡)で停止。K324/K325/K327 解消。残5(中4・低1): N40_1 の座16.5 が背の地盤13.0〜13.3から3.2〜3.5m盛り/北東の窪み13.1 が16.5の面に挟まれた深さ3.4mの穴/N40_0・N40_1 境の3.0mの段の受け無し/裏門を外した後の勝手の道が門の内の角1.0mの段で途切れる/辺26 の区画線の内に0.13〜0.36mの段",
    "chapters": {
     "const": "7671754f3301",
     "polygon": "e3f5d4a182c0",
-    "edges": "0e2b8a173dbb",
+    "edges": "35560e026e53",
     "grid": "ac8bc4e81d75",
-    "planes": "54cd20f8aebe",
-    "terraces": "1b5112a3d209",
+    "planes": "5819cac5464b",
+    "terraces": "1ef6f9a9477b",
     "terraceWalls": "4f53cda18c2b",
     "certs": "4dabbb540194",
-    "runs": "0c58a6db2ce3",
+    "runs": "36c1d8580ae0",
     "fences": "0edaa0f40910",
-    "gate": "d0bdb8194be0",
-    "komon": "87d1923eedbb",
+    "gate": "c4ef7ec2b711",
+    "komon": "95fb36919429",
     "munes": "acd3d8187429",
     "links": "4f53cda18c2b",
-    "gardens": "0c5c3fb44c86",
-    "service": "d0975f93d5c6",
+    "gardens": "44f8f64f73f6",
+    "service": "ff29e19c5ade",
     "wells": "90b80d247df4",
-    "kaidans": "5dda6b088cd3",
+    "kaidans": "3671a387401c",
     "sando": "389ff7854e0a",
-    "sections": "8cc66e2cfd04",
-    "grading": "b80cb662c3dc",
+    "sections": "d24a69c967d9",
+    "grading": "5e27aba87a31",
     "edgeProfile": "c0e7acb6857f",
-    "routes": "3c92a2508e27",
+    "routes": "b9c4d040de38",
     "han": "c9330b86f116",
-    "ramps": "0fdcd132eac2",
+    "ramps": "13e6b9711784",
     "certSigs": "82e25aae8d4b",
     "roofs": "19502f0758ac",
     "groundLayers": "9025f5de107c",
-    "joints": "92e599a38bf1",
-    "nishiMichi": "864b67a9107d",
-    "tsukiyama": "884dfc61c236",
+    "joints": "b01c37a4dc47",
+    "nishiMichi": "b59fb297f0cd",
+    "tsukiyama": "e93bfdccf2cf",
     "py": "d915f69c40037e8f",
-    "md": "2ab092ab82ae22bb"
+    "md": "ea8d30517282a8df"
    },
    "rounds": [
     {
@@ -4732,18 +4743,22 @@
     {
      "at": "2026-10-03T12:13:15+09:00",
      "verdict": "fail"
+    },
+    {
+     "at": "2026-10-03T13:25:56+09:00",
+     "verdict": "fail"
     }
    ]
   },
   "niwashi": {
    "at": "2026-10-03",
-   "verdict": "fail",
-   "hash": "7a23672da4fd0881",
-   "note": "1巡 advisory(中2・低1): 台所と台所の蔵が庭の東の縁2〜3mに垣も目隠しも無い→v≈64.5に垣と常緑3本/副山の裾が汀#16〜#18へ約1間食い込む→裾を0.5間下げるか削り残し→掘りの順を書く/東の回遊路が副山の頂の脇を越える→谷(v77〜84)へ寄せる",
+   "verdict": "pass",
+   "hash": "ed01a32ffa6a8355",
+   "note": "条件付きで可(高0・中2・低1): 目隠しの垣と回遊路が18m平行に重なる→垣をv64.0へ・路の芯v65.3以上/築山の裾の離れ0.51〜0.74m→池の側をさらに0.4m引く/垣は建仁寺垣6尺・遣水の所だけ0.6m開ける・常緑はモッコク2カシ1をu-8〜-12へ(B)。水尻の流路が崖の坂と同じ線",
    "chapters": {
-    "gardens": "0c5c3fb44c86",
-    "routes": "3c92a2508e27",
-    "tsukiyama": "884dfc61c236",
+    "gardens": "44f8f64f73f6",
+    "routes": "b9c4d040de38",
+    "tsukiyama": "e93bfdccf2cf",
     "py": "d915f69c40037e8f"
    },
    "rounds": [
@@ -4762,48 +4777,52 @@
     {
      "at": "2026-10-03T12:13:16+09:00",
      "verdict": "fail"
+    },
+    {
+     "at": "2026-10-03T13:25:56+09:00",
+     "verdict": "pass"
     }
    ]
   },
   "kosho": {
    "at": "2026-10-03",
-   "verdict": "fail",
-   "hash": "3aecc61108d6aa12",
-   "note": "3巡で停止。高1: 裏門(辺21)が山王社の社地へ開く(典拠なし)。中: 表門を袋小路の奥・通用門を三べ坂とする読みは原図(NDL1286657)で紋と文字の位置の照合待ち。低: 厩/N1/蔵1の存在=Aに典拠ID無し。2巡で表長屋の典拠の辺・御殿の葺材(桟瓦U)・主面の型の確度Bは直った",
+   "verdict": "pass",
+   "hash": "9ce0bf54c9bce1a6",
+   "note": "advisory(高0・中2・低3): [追川2017]の『表門に連なる塀に長屋塀を避けた』を本文と照合(辺39に効く)/N40_0 だけ道なりで隣と3mの段/厩の存在は原文が『馬場』でB相当/台の高さ3.1〜4.7mは型の外なのでcertに高さ=P/U/図の袋小路の章に撤回済みの判断が残る",
    "chapters": {
     "const": "7671754f3301",
     "polygon": "e3f5d4a182c0",
-    "edges": "0e2b8a173dbb",
+    "edges": "35560e026e53",
     "grid": "ac8bc4e81d75",
-    "planes": "54cd20f8aebe",
-    "terraces": "1b5112a3d209",
+    "planes": "5819cac5464b",
+    "terraces": "1ef6f9a9477b",
     "terraceWalls": "4f53cda18c2b",
     "certs": "4dabbb540194",
-    "runs": "0c58a6db2ce3",
+    "runs": "36c1d8580ae0",
     "fences": "0edaa0f40910",
-    "gate": "d0bdb8194be0",
-    "komon": "87d1923eedbb",
+    "gate": "c4ef7ec2b711",
+    "komon": "95fb36919429",
     "munes": "acd3d8187429",
     "links": "4f53cda18c2b",
-    "gardens": "0c5c3fb44c86",
-    "service": "d0975f93d5c6",
+    "gardens": "44f8f64f73f6",
+    "service": "ff29e19c5ade",
     "wells": "90b80d247df4",
-    "kaidans": "5dda6b088cd3",
+    "kaidans": "3671a387401c",
     "sando": "389ff7854e0a",
-    "sections": "8cc66e2cfd04",
-    "grading": "b80cb662c3dc",
+    "sections": "d24a69c967d9",
+    "grading": "5e27aba87a31",
     "edgeProfile": "c0e7acb6857f",
-    "routes": "3c92a2508e27",
+    "routes": "b9c4d040de38",
     "han": "c9330b86f116",
-    "ramps": "0fdcd132eac2",
+    "ramps": "13e6b9711784",
     "certSigs": "82e25aae8d4b",
     "roofs": "19502f0758ac",
     "groundLayers": "9025f5de107c",
-    "joints": "92e599a38bf1",
-    "nishiMichi": "864b67a9107d",
-    "tsukiyama": "884dfc61c236",
+    "joints": "b01c37a4dc47",
+    "nishiMichi": "b59fb297f0cd",
+    "tsukiyama": "e93bfdccf2cf",
     "py": "d915f69c40037e8f",
-    "md": "2ab092ab82ae22bb"
+    "md": "ea8d30517282a8df"
    },
    "rounds": [
     {
@@ -4821,6 +4840,10 @@
     {
      "at": "2026-10-03T12:13:15+09:00",
      "verdict": "fail"
+    },
+    {
+     "at": "2026-10-03T13:25:56+09:00",
+     "verdict": "pass"
     }
    ]
   }
@@ -5233,5 +5256,9 @@
    "order": "削り残しを先に整えてから池を掘る(裾と汀の間 0.5間 の地山を残すため)"
   }
  ],
- "_reviews": "**検図関門。**この指図を誰が検めたか。⛔ 呼んだ側(普請奉行)が結果を書き戻す — 検分役は read-only で自分では書けない。`hash` はその検分が見た範囲の指紋で、指図を書き換えるとずれ、検分は自動で『検め直しが要る』になる。見張りは `python3 Tools/Sashizu/review_gate.py`。⛔ 関門が赤の指図を実装しない・赤のシーンをユーザーに見せない。"
+ "_reviews": "**検図関門。**この指図を誰が検めたか。⛔ 呼んだ側(普請奉行)が結果を書き戻す — 検分役は read-only で自分では書けない。`hash` はその検分が見た範囲の指紋で、指図を書き換えるとずれ、検分は自動で『検め直しが要る』になる。見張りは `python3 Tools/Sashizu/review_gate.py`。⛔ 関門が赤の指図を実装しない・赤のシーンをユーザーに見せない。",
+ "_rounds_ack": {
+  "at": "2026-10-03T13:15:08+09:00",
+  "quote": "施主 2026-10-03: 裁定1『作業が楽かどうかではなく、事実として一番合うものを選んでください』裁定2『Cかな』裁定3『お任せします。一番事実として妥当なものを選んでください』"
+ }
 }

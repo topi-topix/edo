@@ -763,19 +763,48 @@ public static partial class EdoBuild
     ///
     /// <para>候補は <see cref="EdgeCandidates"/>(局所XZの凸包・EDO-0383)— 以前の一様な添字間引きは
     /// 区画の外へ最も出ている頂点を間引きで落とすことがあり、区域侵犯を見逃す方向で危険だった。</para></summary>
+    /// <para><paramref name="tol"/> = 測りの分解能(線の上に法肩を据えた駒の頂点は float の往復で 0.1〜0.3mm
+    /// 線を跨ぐ・EDO-0502 岡部の基壇 108 駒)。⛔ 狙いの緩めに使わない — 1mm を超えて渡さない。</para>
     public static float KeepInsidePoly(GameObject go, Vector2[] poly, Vector2 runDir, float maxPull,
-                                       out float before, float step = 0.01f)
+                                       out float before, float step = 0.01f, float tol = 0f)
     {
         var pts = EdgeCandidates(go.transform);
         before = OutsideBy(pts, poly, Vector2.zero);
-        if (before <= 0f) return 0f;
+        if (before <= tol) return 0f;
         runDir = runDir.normalized;
         for (float d = step; d <= maxPull + 1e-4f; d += step)
         {
-            if (OutsideBy(pts, poly, -runDir * d) <= 0f)
+            if (OutsideBy(pts, poly, -runDir * d) <= tol)
             { go.transform.position += new Vector3(-runDir.x * d, 0f, -runDir.y * d); return -d; }
-            if (OutsideBy(pts, poly, runDir * d) <= 0f)
+            if (OutsideBy(pts, poly, runDir * d) <= tol)
             { go.transform.position += new Vector3(runDir.x * d, 0f, runDir.y * d); return d; }
+        }
+        return float.NaN;
+    }
+
+    /// <summary>**硬い(許容0)・区域**: 区画線の上に一列で据えた駒(柵・潜り戸など)を、**列ごと**同じ量だけ
+    /// <paramref name="inward"/> の向きへ引き、列のどの駒の実メッシュ(<see cref="EdgeCandidates"/>)も区画の外へ
+    /// 出ない最小の量に納める。返り値 = 引いた量[m](0 = 元から内側)、<paramref name="maxPush"/> で収まらなければ
+    /// 動かさず NaN。<paramref name="before"/> = 引く前に最も外へ出ていた量。
+    /// ⭐ 駒ごとに引くと、奥行の違う駒(潜り戸の柱 0.17 と柵の板 0.055)の芯が列の中で食い違う ── 列で一つの量にする。
+    /// ⛔ 走りに沿って引く <see cref="KeepInsidePoly"/>(重ねて並べる駒の端)とは別物。ピボットを線に置いた駒の
+    ///   外側の半分を内へ入れる道具(EDO-0502 岡部の汀の木柵: 板 0.055・潜り 0.170 外)。</summary>
+    public static float InsetRunToPoly(IList<GameObject> run, Vector2[] poly, Vector2 inward, float maxPush,
+                                       out float before, float step = 0.005f, float tol = 0f)
+    {
+        before = 0f;
+        if (run == null || run.Count == 0 || poly == null) return 0f;
+        var pts = new List<Vector3>();
+        foreach (var go in run) if (go != null) pts.AddRange(EdgeCandidates(go.transform));
+        before = OutsideBy(pts, poly, Vector2.zero);
+        if (before <= tol) return 0f;
+        inward = inward.normalized;
+        for (float d = step; d <= maxPush + 1e-4f; d += step)
+        {
+            if (OutsideBy(pts, poly, inward * d) > tol) continue;
+            foreach (var go in run) if (go != null)
+                go.transform.position += new Vector3(inward.x * d, 0f, inward.y * d);
+            return d;
         }
         return float.NaN;
     }

@@ -516,6 +516,8 @@ public static class EdoOkabeYashikiBuilder
 
     /// <summary>石垣の駒の素の寸法(スケール1)。`unity-modular-stonewall` の作法。
     /// 指図は run ごとの倍率 `s` を持ち、壁高 = `const.baseUnit`×s / 天端幅 1.4s / 底厚 2.4s。</summary>
+    /// <summary>区画線の上に据えた駒の頂点が float の往復で線を跨ぐ量の上限(実測 0.25mm)。測りの分解能で、狙いの緩めではない。</summary>
+    const float SEAM_TOL = 0.001f;
     const float IG_RUN = 2.00f;          // 駒の走り方向の実体長
     const float IG_PITCH_MAX = 1.80f;    // ピッチの上限(重なり 0.20m を必ず残す)
     /// <summary>隅部材・練塀の直線材に共通の倍率。素の部材は江戸暦の単位なので ES を掛ける。</summary>
@@ -786,7 +788,8 @@ public static class EdoOkabeYashikiBuilder
         foreach (var o in A(Get(IMPL, "base")) ?? new List<object>())
         { var e = O(o); if (e != null) baseByRun[S(e["run"])] = e; }
 
-        int made = 0, seg = 0; var miss = new List<string>(); float thin = 0f;
+        int made = 0, seg = 0, pulled = 0, retired = 0; var miss = new List<string>(); float thin = 0f;
+        var gone = new List<string>();
         foreach (var r in Runs)
         {
             if (!r.Ishigaki) continue;
@@ -815,13 +818,32 @@ public static class EdoOkabeYashikiBuilder
                     var go = EdoBuild.Place(EdoAssets.JC.CastleWall,
                         new Vector3(p.x, r.SeatAt(mid) - wallH, p.y), psi,
                         Vector3.one * sc, grp, "IG_" + r.name + "_" + made);
-                    if (go != null) made++;
+                    if (go == null) continue;
+                    made++;
+                    // 硬い・区域(許容0・EDO-0502): 実メッシュが区画の外へ出たら、走りに沿って引いて収める。
+                    //   区間の途中の駒は重ね(0.20s)の範囲だけ。**区間の両端の駒は駒一つ分(unit)まで**引く ──
+                    //   隅では控え(2.4s)が隣の辺を跨ぎ、短い区間(0.4m の返しなど)では駒が辺の先へ突き出す。
+                    //   引いた端は隣の辺の駒の小口が塞ぐ(出隅は片方の面を通し、もう一方を端点へ・石垣の作法)。
+                    //   それでも収まらない駒は退ける。
+                    float was;
+                    bool segEnd = (i == 0 || i == N - 1);
+                    float mv = EdoBuild.KeepInsidePoly(go, Poly, EdgePt(r.edge, 1f) - EdgePt(r.edge, 0f),
+                                                       segEnd ? unit : 0.20f * sc, out was, 0.01f, SEAM_TOL);
+                    if (float.IsNaN(mv))
+                    { gone.Add(go.name + " " + was.ToString("F2") + "m"); UnityEngine.Object.DestroyImmediate(go); retired++; }
+                    else if (mv != 0f) pulled++;
                 }
                 seg++;
             }
         }
+        // 門: 引き・退けの後に、残った駒を同じ実メッシュで検める(0 で無ければ退ける)
+        var gate = new List<string>();
+        retired += EdoBuild.RetireOutsidePoly(grp, Poly, gate, "石垣基壇", SEAM_TOL);
         var sb = new System.Text.StringBuilder();
-        sb.Append("石垣基壇: " + made + " 駒 / " + seg + " 区間");
+        sb.Append("石垣基壇: " + (made - retired) + " 駒 / " + seg + " 区間");
+        if (pulled > 0) sb.Append(" ｜ 区画の内へ走りに沿って引いた " + pulled + " 駒");
+        if (retired > 0) sb.Append("\n★ 石垣基壇: 区画の外へ出て退けた " + retired + " 駒(硬い・区域): " + string.Join(" / ", gone.ToArray()));
+        foreach (var g in gate) sb.Append("\n★ " + g);
         if (thin > 0.05f) sb.Append(" ｜ 基壇を置かない区間 " + thin.ToString("F1") + "m(露出 < baseMin)");
         if (miss.Count > 0)
             sb.Append("\n★ 算出物 base に無い run " + miss.Count + " 件: " + string.Join(" / ", miss.ToArray()));
@@ -893,6 +915,10 @@ public static class EdoOkabeYashikiBuilder
         // 柵に開く口(指図が持つものだけ。実装で発明しない)。⭕ **潜りの戸を先に据えて実寸を測り**、
         // その幅で柵を空ける(⛔ 開口の呼び寸法で空けない — 戸の柱のぶん柵が食い込む)
         var gaps = new List<float[]>();     // {edge, s0, s1}
+        var byEdge = new Dictionary<int, List<GameObject>>();   // 辺 → 線の上に据えた駒(列ごと区画の内へ納める)
+        var endPosts = new Dictionary<int, List<GameObject>>(); // 辺 → 区間の +X 端の杭
+        System.Action<int, GameObject> keep = delegate(int ed, GameObject g0)
+        { if (g0 == null) return; List<GameObject> l; if (!byEdge.TryGetValue(ed, out l)) byEdge[ed] = l = new List<GameObject>(); l.Add(g0); };
         var saku = O(Get(O(Get(D, "nishi")), "saku"));
         int kuguri = 0;
         if (saku != null)
@@ -914,6 +940,7 @@ public static class EdoOkabeYashikiBuilder
                     // ⚠ ピボット = 開口の芯・地盤レベル(底は −0.140 で沓石が地盤より下へ出る)
                     var go0 = EdoBuild.Place(kp, new Vector3(c0.x, gy, c0.y), psi0, Vector3.one,
                                              gk, "Kuguri");
+                    keep(e0, go0);
                     if (go0 != null)
                     {
                         kuguri++;
@@ -966,6 +993,7 @@ public static class EdoOkabeYashikiBuilder
                     // ⛔ **SeatBottom で据えない** — 根入れ 0.12 のぶん浮く。`position.y = 地盤` を直に
                     var go = EdoBuild.Place(fpath, new Vector3(p.x, gy, p.y), psi, Vector3.one,
                                             fen, S(fd["name"]) + "_" + posts);
+                    keep(e, go);
                     if (go != null) posts++;
                 }
                 // ⛔ run の +X 端に端の杭を1本(足さないと最後の板が宙で終わる)
@@ -974,12 +1002,52 @@ public static class EdoOkabeYashikiBuilder
                     float gy = Graded.At(pe.x, pe.y); if (float.IsNaN(gy)) gy = EdoBuild.Ground(pe.x, pe.y);
                     var gp2 = EdoBuild.Place(EdoAssets.Own.HoriSakuPost, new Vector3(pe.x, gy, pe.y),
                                              psi, Vector3.one, fen, S(fd["name"]) + "_Post" + posts);
+                    // 端の杭は列の内寄せの量を決めない(隅の先で隣の辺を跨ぐのは走りの向きの話)── 後で走りに沿って納める
+                    if (gp2 != null) { List<GameObject> l2; if (!endPosts.TryGetValue(e, out l2)) endPosts[e] = l2 = new List<GameObject>(); l2.Add(gp2); }
                     if (gp2 != null) posts++;
                 }
             }
             runs++;
         }
-        sb.Append("木柵: " + posts + " 枚 / " + runs + " run(駒の実寸 " + wMeasured.ToString("F3") + "m)");
+        // 硬い・区域(許容0・EDO-0502): 線の上に芯を置いた柵と潜りは外側の半分が区画の外へ出る。
+        //   列ごと同じ量だけ内へ引き、引いた先の地盤で据え直す(⛔ 駒ごとに引かない ── 潜りと板の芯が食い違う)
+        var inset = new System.Text.StringBuilder();
+        foreach (var kv in byEdge)
+        {
+            float was;
+            float d = EdoBuild.InsetRunToPoly(kv.Value, Poly, -OutNormal(kv.Key), 0.50f, out was, 0.005f, SEAM_TOL);
+            if (float.IsNaN(d))
+            {
+                foreach (var g0 in kv.Value) if (g0 != null) UnityEngine.Object.DestroyImmediate(g0);
+                inset.Append("\n★ 木柵 辺" + kv.Key + ": 0.50m 引いても区画の外(" + was.ToString("F3") + "m)── 退けた " + kv.Value.Count + " 駒");
+                continue;
+            }
+            var all = new List<GameObject>(kv.Value);
+            List<GameObject> ep;
+            if (endPosts.TryGetValue(kv.Key, out ep))
+            {
+                Vector2 runDir = EdgePt(kv.Key, 1f) - EdgePt(kv.Key, 0f);
+                foreach (var g0 in ep)
+                {
+                    if (d > 0f) g0.transform.position += new Vector3(-OutNormal(kv.Key).x * d, 0f, -OutNormal(kv.Key).y * d);
+                    float w0; float mv = EdoBuild.KeepInsidePoly(g0, Poly, runDir, 0.50f, out w0, 0.01f, SEAM_TOL);
+                    if (float.IsNaN(mv))
+                    { inset.Append("\n★ 木柵 辺" + kv.Key + ": 端の杭 " + g0.name + " が区画の外(" + w0.ToString("F3") + "m)── 退けた"); UnityEngine.Object.DestroyImmediate(g0); continue; }
+                    if (mv != 0f) inset.Append(" ｜ 端の杭 " + g0.name + " を走りに沿って " + mv.ToString("F2") + "m 引いた(隅で隣の辺を " + w0.ToString("F3") + "m 跨いでいた)");
+                    all.Add(g0);
+                }
+            }
+            if (d <= 0f && (ep == null || ep.Count == 0)) continue;
+            foreach (var g0 in all)
+            {
+                if (g0 == null) continue;
+                var pp = g0.transform.position;
+                float gy2 = Graded.At(pp.x, pp.z); if (float.IsNaN(gy2)) gy2 = EdoBuild.Ground(pp.x, pp.z);
+                g0.transform.position = new Vector3(pp.x, gy2, pp.z);
+            }
+            if (d > 0f) inset.Append(" ｜ 辺" + kv.Key + " の列を内へ " + d.ToString("F3") + "m(外へ " + was.ToString("F3") + "m 出ていた)");
+        }
+        sb.Append("木柵: " + posts + " 枚 / " + runs + " run(駒の実寸 " + wMeasured.ToString("F3") + "m)" + inset);
         if (gaps.Count > 0) sb.Append(" ｜ 潜りの口 " + gaps.Count + " 箇所(戸 " + kuguri + " 枚)");
         // 指図の柵の丈と**据えた現物の天端**を突き合わせる。
         // ⚠ 天端は **pivot(地盤)+ fenceH** に来るべき。⛔ bbox の高さで比べない —

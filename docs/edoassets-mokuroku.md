@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 359(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 360(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -296,7 +296,8 @@
 | `Own.Kui(dia)` | 関数 | 汀の杭 1本(岡部邸 `nishi.kuiretsu`)。 | OkabeYashiki(AssetByKey・PlaceKuiretsu・ReportNishiRest), BuildRun(FenceRun・KuiRun) |
 | `Own.KuiNuki` | string | 杭列の貫(`nishi.kuiretsu.nuki`)。 | OkabeYashiki(AssetByKey・PlaceKuiretsu) |
 | `Own.GotenRoofIrimoya(wKen, dKen)` | 関数 | 御殿の入母屋屋根を間数で引く。⚠ 実体は Goten.RoofIrimoya_ で、 これはそこへの転送(⛔ パスの literal を二重に書かないため)。 | OkabeYashiki(AssetByKey・PlaceMunes) |
-| `Own.Kado(part, deg)` | 関数 | 折れ角のある隅の部材(留め継ぎ)。生成は Tools/Blender/build_kado.py。 | MatsudairaDewa(PlaceKado・RendBounds), BuildKado, OkabeYashiki(PlaceKado) |
+| `Own.Kado(part, deg)` | 関数 | 折れ角のある隅の部材(留め継ぎ)。生成は Tools/Blender/build_kado.py。 | BuildKado(KadoGauge), MatsudairaDewa(PlaceKado・RendBounds), OkabeYashiki(PlaceKado) |
+| `Own.Kado(part, deg, armIn, armOut, armFull)` | 関数 | 腕の短い隅(Kado と同じ留め継ぎ・同じ据え・同じ s)。 | BuildKado(KadoGauge), MatsudairaDewa(PlaceKado・RendBounds), OkabeYashiki(PlaceKado) |
 | `Own.IshigakiKado(deg, h)` | 関数 | 丈違いの石垣の隅(`Castle Wall` の留め継ぎ・丈 h m)。 | BuildKado(KadoArm), SannoSha(Stage3_Dodome) |
 | `Own.IshigakiKado(deg, h, armNegZ, armPosX)` | 関数 | 腕の短い石垣の隅(IshigakiKado と同じ留め継ぎ・同じ据え: position = 両腕の控えの線の交点 P・y = 天端 − h / yaw = 入りの run の駒の yaw / scale = 1)。 | BuildKado(KadoArm), SannoSha(Stage3_Dodome) |
 | `Own.NagayaKado(deg, armNegZ, armPosX, tsuma)` | 関数 | 出隅の隅長屋(L 字の長屋の角・EDO-0500 2026-10-01 観理院 北東の施主指摘 ── 妻を突っ込む納めは屋根が重なり窓が途中で切れた)。 | BuildRun(NagayaKadoPlace) |

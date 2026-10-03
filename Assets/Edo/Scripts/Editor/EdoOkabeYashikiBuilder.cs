@@ -346,6 +346,29 @@ public static class EdoOkabeYashikiBuilder
     /// ⚠ 現況の地形を一切読まないので**冪等** — 何度流しても同じ結果になる。</summary>
     public static float DesignY(Vector2 p) { return Graded.At(p.x, p.y); }
 
+    /// <summary>算出物の欄が**いまの指図から焼かれていない**(`baked.carried` に名がある = 前の指図のまま据え置き)か。
+    /// 案1(EDO-0502)では planting・migiwa・gardens・rails・kui・checks が据え置き。⛔ 据え置きの欄で建てない
+    /// (前の配置の庭・植栽が今の棟の上に建つ)── 据えずに名を報告へ出す(規則19: 未検査であって合格ではない)。</summary>
+    static bool Stale(string col)
+    {
+        var bk = O(Get(IMPL, "baked"));
+        var car = bk == null ? null : Get(bk, "carried");
+        if (car is Dictionary<string, object>) return ((Dictionary<string, object>)car).ContainsKey(col);
+        var cl = car as List<object>;
+        if (cl != null) foreach (var q in cl) if (S(q) == col) return true;
+        return false;
+    }
+
+    /// <summary>据え置きの欄から前に建てた群を**退ける**(SetActive(false)・消さない)。焼き直したら次の流しで建て直る。</summary>
+    static string RetireStaleGroup(string child, string col)
+    {
+        var root = GameObject.Find(GN); if (root == null) return "";
+        var tr = root.transform.Find(child); if (tr == null || !tr.gameObject.activeSelf) return "";
+        Group(child);                                    // 書き戻しの台帳に載せる(EDO-0282②)
+        tr.gameObject.SetActive(false);
+        return "(前の指図の " + child + " を退けた ── 算出物 " + col + " が据え置き)";
+    }
+
     static float ImplTol(string key, float ifMissing)
     {
         var c = O(Get(IMPL, "checks"));
@@ -454,6 +477,45 @@ public static class EdoOkabeYashikiBuilder
                           + " — `graded` の格子が区画を覆いきっていない(生成器の窓を広げること)");
         sb.AppendLine("⚠ ここに出るのは**いまの地形からの移動量**であって切盛量ではない。"
                       + "切盛の妥当性は指図の『切盛』の段別表が持つ");
+        sb.Append(GradeRamps());
+        return sb.ToString();
+    }
+
+    /// <summary>**折れ線の坂の路盤**(案1・EDO-0502)。`ramps[]` のうち `pts` と `profY` を持つ坂
+    /// (R_UraZaka・R_GakeZaka)は造成の算出物(impl.graded)に入っていない(sashizu_lib.ramp_y が別勘定にしている)ので、
+    /// 造成の直後にここで均す。置き方は `EdoBuild.GradeSaka`。
+    /// 硬い: `toeRule` を持つ坂は盛土の法尻を区画の線から 1.5m 以上内(節点で測るので一升ぶん厳しく取る)。
+    /// 柔らかい: 芯は指図の `pts`(狙い)── 法尻のために途中の点を内へ寄せたら ⚠ で量を出す。端の点(門の内面・平場の角)は動かさない。
+    /// ⚠ R_OmoteZaka(`profS`・切通しの石垣・石垣の段)はここで均さない ── 算出物の造成と石段の欄で受ける(報告に出す)。</summary>
+    static string GradeRamps()
+    {
+        var sb = new System.Text.StringBuilder();
+        var f = Grid; float ken = C("ken");
+        float bf = C("batterFill"), bc = C("batterCut");
+        var t = Terrain.activeTerrain; float cell = t.terrainData.size.x / (t.terrainData.heightmapResolution - 1);
+        foreach (var o in A(Get(D, "ramps")) ?? new List<object>())
+        {
+            var r = O(o); if (r == null) continue;
+            string nm = S(r["name"]);
+            var pl = A(Get(r, "pts")); var py = A(Get(r, "profY"));
+            if (pl == null) continue;
+            if (py == null || py.Count != pl.Count)
+            { sb.AppendLine("坂 " + nm + ": 折れ線の芯はあるが profY が無い(または点の数が合わない)── ここでは均さない"); continue; }
+            var pts = new Vector2[pl.Count]; var ys = new float[pl.Count]; var pin = new bool[pl.Count];
+            for (int i = 0; i < pl.Count; i++)
+            { var q = A(pl[i]); pts[i] = f.W(F(q[0]), F(q[1])); ys[i] = F(py[i]); }
+            pin[0] = true; pin[pl.Count - 1] = true;          // 門の内面・平場の角は動かさない
+            float width = Has(r, "w") ? F(r["w"]) : F(r["wKen"]) * ken;
+            bool hasToe = Has(r, "toeRule");
+            float toe = hasToe ? 1.5f + cell : 0f;            // 硬い: 1.5m(指図 toeRule)+ 節点の一升
+            var res = EdoBuild.GradeSaka(Poly, pts, ys, pin, width, bf, bc, toe, hasToe ? 6f : 0f, true);
+            if (!res.ok) { sb.AppendLine("★ 坂 " + nm + ": " + res.note); continue; }
+            sb.AppendLine("坂 " + nm + ": 路盤を均した 節点 " + res.nodes + "|盛 " + res.fillM3.ToString("F0") + "m³(最大 "
+                        + res.fillMax.ToString("F2") + "m)/ 切 " + res.cutM3.ToString("F0") + "m³(最大 " + res.cutMax.ToString("F2") + "m)"
+                        + (hasToe ? "|法尻と区画の線 " + (float.IsInfinity(res.toeMin) ? "盛り無し" : res.toeMin.ToString("F2") + "m(節点・一升 "
+                        + cell.ToString("F2") + "m を引いて " + (res.toeMin - cell).ToString("F2") + "m ≥ 1.5 ✔)") : "")
+                        + (res.shift > 0f ? "|⚠ 法尻のため芯の途中を内へ " + res.shift.ToString("F2") + "m 寄せた(指図の芯は狙い)" : ""));
+        }
         return sb.ToString();
     }
 
@@ -568,7 +630,7 @@ public static class EdoOkabeYashikiBuilder
             if (!r.Dobei)
             { sb.AppendLine("★ run " + r.name + " の kind が未知: " + r.kind); continue; }
             Vector2 outw = OutNormal(r.edge);
-            // ⭐ **隅の返し**の納め(其十九)。隣が長屋の run なら、その**実測の妻面**へ突き付ける。
+            // ⭐ **隅の返し**の納め(指図「隅の納め」の章・K063 章番号で引かない)。隣が長屋の run なら、その**実測の妻面**へ突き付ける。
             //   ⛔ 呼び寸法で継がない(可動側は返し=練塀の側)。
             float rs0 = r.s0, rs1 = r.s1;
             foreach (var nr in Runs)
@@ -669,6 +731,13 @@ public static class EdoOkabeYashikiBuilder
             { var q = O(o); if (q != null && S(q["name"]) == r.name && Has(q, "asset")) key = S(q["asset"]); }
             string path = key != null ? AssetByKey(key, call, 0f)
                         : (nikai ? EdoAssets.Own.NagayaOmote2F(call) : EdoAssets.Own.NagayaOmote(call));
+            // ⭐ 案1(EDO-0502): 門長屋 ── `gate.host` / `komon[].host` がこの run を名指しするなら、
+            //   口を駒の中に抜いた版(NagayaOmoteMon)を引く。口の位置は**部材のローカル +X の端から**
+            //   測る(生成器の `--gate <左端から>`)。どちらの端が s0 側かは据えてから実ベクトルで見る
+            //   ので、ここでは s0 側から測った版を先に引き、PlaceNagayaPiece の後で向きを検めて引き直す。
+            float gS, gW; string gLabel; bool hosted = HostedGate(r.name, out gS, out gW, out gLabel);
+            if (hosted && (key == null || !key.Contains("NagayaOmoteMon")))
+                path = EdoAssets.Own.NagayaOmoteMon(call, Mathf.Round((gS - r.s0) * 1000f) / 1000f, nikai);
             if (path == null || AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
             {
                 miss++;
@@ -679,14 +748,19 @@ public static class EdoOkabeYashikiBuilder
                 continue;
             }
             if (PlaceNagayaPiece(kak, r.name, path, r.edge, (r.s0 + r.s1) * 0.5f,
-                                 r.SeatAt((r.s0 + r.s1) * 0.5f), call, wait, ref lastH)) { made++; nagH = lastH; }
+                                 r.SeatAt((r.s0 + r.s1) * 0.5f), call, wait, ref lastH))
+            {
+                made++; if (!hosted) nagH = lastH;
+                if (hosted) sb.Append(GateInNagaya(kak, r, call, nikai, gS, gW, gLabel, wait));
+            }
         }
 
         // ---- 表門 — 長屋の躯体に門口を抜いた版(裁定12=A)
         {
             var g = O(Get(D, "gate"));
             var gp = g == null ? null : O(Get(g, "plan"));
-            if (gp != null && Has(gp, "monW"))
+            // 案1(EDO-0502): 門長屋(`gate.host`)の口は上の run の駒が持つ ── 別の門を据えない(二重になる)
+            if (gp != null && Has(gp, "monW") && !Has(g, "host"))
             {
                 float monW = F(gp["monW"]);
                 // ⚠ 門口は**部材のローカル +X の左端から**測る。門は桁行の中央に開くので monW/2。
@@ -748,6 +822,9 @@ public static class EdoOkabeYashikiBuilder
         // 表門の棟高は別に見る(指図 gate.plan.monH)
         {
             var gp2 = O(Get(O(Get(D, "gate")), "plan"));
+            // 案1: 門長屋(gate.host)なら、その駒の実丈で見る(⛔ 最後に据えた駒の丈で門を裁かない)
+            string gh = S(Get(O(Get(D, "gate")), "host"));
+            if (gh != null) { var ht = kak.Find(gh); lastH = ht != null ? EdoBuild.RB(ht.gameObject).size.y : 0f; }
             if (gp2 != null && Has(gp2, "monH") && lastH > 0.1f && Mathf.Abs(lastH - F(gp2["monH"])) > 0.15f)
                 wait.Add("表門の棟高: 指図 gate.plan.monH " + F(gp2["monH"]).ToString("0.###")
                        + "m / 据えた現物の実丈 " + lastH.ToString("0.###") + "m");
@@ -755,6 +832,43 @@ public static class EdoOkabeYashikiBuilder
         sb.Append("表長屋・表門: " + made + " 棟" + (nikai ? "(二階)" : "(平屋)")
                 + (miss > 0 ? " / 部材の無いもの " + miss : ""));
         return sb.ToString();
+    }
+
+    /// <summary>**門長屋の口の向きを検めて、要れば引き直す**(案1・EDO-0502)。
+    /// 口の芯は部材のローカル +X で `len/2 − gc`(gc = 生成器の `--gate` の左端からの距離。
+    /// 2026-10-03 に 17.68_mon5.5 / 20.07_mon16 の奥の壁の抜けで実測: 芯 +3.34 / −5.96)。
+    /// 据えた駒の +X が s の増える向きなら口は s = sMid + (len/2 − gc)、減る向きなら s = sMid − (len/2 − gc)。
+    /// ⭕ 指図の口の s に合う gc を実ベクトルから出し、違えばその版で据え直す(⛔ 式で向きを決め切らない)。
+    /// 硬い: 口の芯のずれ ≤ 0.05m。部材が無ければ据え直さず ★ に出す。</summary>
+    static string GateInNagaya(Transform kak, Run r, float call, bool nikai, float gS, float gW, string label, List<string> wait)
+    {
+        var t = kak.Find(r.name); if (t == null) return "";
+        float sMid = (r.s0 + r.s1) * 0.5f;
+        Vector3 dirXw = t.rotation * Vector3.right;
+        Vector2 ed = (EdgePt(r.edge, sMid + 1f) - EdgePt(r.edge, sMid)).normalized;
+        float sSign = (dirXw.x * ed.x + dirXw.z * ed.y) >= 0f ? 1f : -1f;
+        // 口の芯 s = sMid + sSign·(call/2 − gc) ⇒ gc = call/2 − sSign·(gS − sMid)
+        float gc = Mathf.Round((call * 0.5f - sSign * (gS - sMid)) * 1000f) / 1000f;
+        string want = EdoAssets.Own.NagayaOmoteMon(call, gc, nikai);
+        string have = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(t.gameObject);
+        if (have != want)
+        {
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(want) == null)
+            {
+                wait.Add(label + "(門長屋 " + r.name + "): 口が s=" + gS.ToString("0.###") + " に来る版が無い " + want
+                       + " → build_nagaya_omote.py -- " + call.ToString("0.###") + " --gate " + gc.ToString("0.###")
+                       + " " + gW.ToString("0.###") + " <有効高>" + (nikai ? " --floors 2" : ""));
+                return "";
+            }
+            float dummy = 0f; var tmp = new List<string>();
+            // ⚠ 差し替えは Place の後に旧を消す(棟梁の memory: ownpath-float-suffix-and-destroy-before-place)
+            var old = t.gameObject; old.name = r.name + "__old";
+            PlaceNagayaPiece(kak, r.name, want, r.edge, sMid, r.SeatAt(sMid), call, tmp, ref dummy);
+            UnityEngine.Object.DestroyImmediate(old);
+            wait.AddRange(tmp);
+        }
+        return "(" + label + ": 門長屋 " + r.name + " の口 s=" + gS.ToString("0.###") + "・幅 " + gW.ToString("0.###")
+             + "m・部材 " + System.IO.Path.GetFileNameWithoutExtension(want) + ")";
     }
 
     /// <summary>長屋の一本物を据える。ピボット = 走りの中心・土台の底・**壁の外面**。
@@ -892,6 +1006,10 @@ public static class EdoOkabeYashikiBuilder
             var k = O(o); if (k == null) continue;
             string nm = S(k["name"]);
             int e = (int)F(k["edge"]);
+            // 案1(EDO-0502): 門長屋を潜る門(`host`)は口を長屋の駒が持つ ── S2 の表長屋で据えた
+            if (Has(k, "host")) { sb.AppendLine("小門 " + nm + ": 門長屋 " + S(k["host"]) + " の口として据えた(別に置かない)"); continue; }
+            if (!Has(k, "w"))
+            { sb.AppendLine("★ 小門 " + nm + "(" + S(k["kind"]) + "): 指図 komon[].w(門口の幅)が null ── 型と幅が未決なので据えない"); continue; }
             float sPos = F(k["s"]), w = F(k["w"]);
             if (!Has(k, "sill")) { sb.AppendLine("★ 小門 " + nm + ": 指図に sill が無い"); continue; }
             float sill = F(k["sill"]);
@@ -1428,7 +1546,7 @@ public static class EdoOkabeYashikiBuilder
             // ---- 部材そのもので建つ棟(車寄)。⭕ 2026-09-04 裁定10=A
             //   入母屋を架けない別種なので部材キットでは組めない。`roofs[].asset` が部材を名指しする。
             //   ⚠ **玄関棟の屋根面へ差し込む**ので、その面より内側を切り欠いて据える。
-            //   ⛔ 切り欠きの線は**指図 其十九 の食い込みの線**が正典 — 実装で決めない。
+            //   ⛔ 切り欠きの線は**指図 `roofs[].sashikomi.kirikaki`(取り合いの食い込みの線)**が正典(K063 章番号で引かない) — 実装で決めない。
             if (rf != null && Has(rf, "asset") && !Has(m, "ridge"))
             {
                 string kp = AssetByKey(S(rf["asset"]), u1 - u0, v1 - v0);
@@ -1690,6 +1808,12 @@ public static class EdoOkabeYashikiBuilder
             // ---- 表長屋(引数は **m**)
             case "NagayaOmote":   return a0 > 0f ? EdoAssets.Own.NagayaOmote(a0) : null;
             case "NagayaOmote2F": return a0 > 0f ? EdoAssets.Own.NagayaOmote2F(a0) : null;
+            // ---- 門長屋(案1・EDO-0502)。`Own.NagayaOmoteMon(len, 左端からの口の芯, 二階か)`。第3引数は true/false
+            case "NagayaOmoteMon":
+                return a0 > 0f && args.Count >= 2
+                     ? EdoAssets.Own.NagayaOmoteMon(a0, a1, key.Replace(" ", "").EndsWith(",true)")) : null;
+            // ---- 米蔵(案1・指図 service[Komegura].asset = `Own.Typ.Komegura`)
+            case "Komegura":   return EdoAssets.Own.Typ.Komegura;
             // ---- 崖下(法尻の帯)。⚠ 引数は **間** なので足跡から引く(指図は m で書いている)
             case "ObiNagaya":  return wKen > 0f ? EdoAssets.Own.ObiNagaya(wKen, dKen) : null;
             case "ObiMonooki": return EdoAssets.Own.ObiMonooki;
@@ -1823,7 +1947,9 @@ public static class EdoOkabeYashikiBuilder
             // ⭕ **`face` が外を向く面を決める**(2026-09-06 指図方)。u+/u-/v+/v-。
             //   ⛔ 棟の芯に置かない — 部材のピボットが**壁の外面**なら、その面の線の上に置く。
             string face = Has(s2, "face") ? S(s2["face"]) : null;
-            bool wallPivot = key.Contains("NagayaOmote");   // ピボット = 走りの中心・土台の底・壁の外面
+            bool wallPivot = key.Contains("NagayaOmote");
+            // 案1(EDO-0502): 棟の芯での面の高さは `yAt`(`yFrom` = 東の平場の勾配の面・棟の下の均し)。無い棟は `y`
+            float sy = Has(s2, "yAt") ? F(s2["yAt"]) : F(s2["y"]);   // ピボット = 走りの中心・土台の底・壁の外面
             if (wallPivot && face == null)
             {
                 pivotOdd++;
@@ -1856,12 +1982,12 @@ public static class EdoOkabeYashikiBuilder
             if (wallPivot)
             {
                 // ⛔ 足跡の照合(PlaceBox)は中心前提なので使わない。ピボットは壁の外面・土台の底
-                var go2 = EdoBuild.Place(path, new Vector3(c.x, F(s2["y"]), c.y), yaw, Vector3.one, grp, nm);
+                var go2 = EdoBuild.Place(path, new Vector3(c.x, sy, c.y), yaw, Vector3.one, grp, nm);
                 if (go2 == null) { wait.Add("附属屋 " + nm + ": 据えられない " + path); continue; }
-                EdoBuild.SeatBottom(go2, F(s2["y"]) - 0.10f);
+                EdoBuild.SeatBottom(go2, sy - 0.10f);
                 made++;
             }
-            else if (PlaceBox(grp, nm, path, c, F(s2["y"]), du, dv, yaw, wait)) made++;
+            else if (PlaceBox(grp, nm, path, c, sy, du, dv, yaw, wait)) made++;
         }
         var sb = new System.Text.StringBuilder("附属屋: " + made + " 棟据えた");
         if (noAsset > 0) sb.Append(" / " + noAsset + " 棟は部材が引けない");
@@ -2016,6 +2142,7 @@ public static class EdoOkabeYashikiBuilder
     /// ⛔ **無い丈は据えずに一覧へ出す**(勝手に近い丈へ寄せない — 見透しの遮蔽の計算が丈で決まる)。</summary>
     static string PlaceTakegaki(List<string> wait)
     {
+        if (Stale("rails")) { wait.Add("法肩の竹垣: 算出物 rails が前の指図のまま ── 据えない"); var gr = Group("Fuzoku/Takegaki"); Clear(gr); return "竹垣: 据え置きの欄"; }
         var rails = A(Get(IMPL, "rails"));
         if (rails == null) { wait.Add("算出物に rails(法肩の竹垣)が無い"); return "竹垣: 算出物待ち"; }
         var grp = Group("Fuzoku/Takegaki"); Clear(grp);
@@ -2094,6 +2221,8 @@ public static class EdoOkabeYashikiBuilder
         {
             var k = O(o); if (k == null) continue;
             string nm = S(k["name"]);
+            if (Has(k, "a") && Has(k, "b") && Has(k, "yBot") && Has(k, "yTop"))
+            { made += PlaceKaidanAB(grp, k, wait); continue; }   // 案1の書式(EDO-0502)
             if (!Has(k, "y0") || !Has(k, "y1"))
             {
                 wait.Add("石段 " + nm + ": 指図 kaidans[].y0 / y1(足元と天端の標高)が無い。"
@@ -2136,6 +2265,73 @@ public static class EdoOkabeYashikiBuilder
         return "石段: " + made + " 枚";
     }
 
+    static bool RouteExists(string nm)
+    {
+        foreach (var o in A(Get(D, "routes")) ?? new List<object>()) { var r = O(o); if (r != null && S(Get(r, "name")) == nm) return true; }
+        return false;
+    }
+
+    /// <summary>案1の石段の書式 `{a, b, yBot, yTop, steps, flights?, landingKen?, fumi, wKen, planeLen}`(EDO-0502)。
+    /// ⭐ **a・b のどちらが足元かは指図に無い**(K_Tsuyo は a が下、K_Kuruwa は a が上)── 造成後の地盤を
+    ///   両端の 0.5m 外で測り、低い方を足元に取る(測って決める・規則21)。
+    /// 踏面 = (平面長 − 踊り場) / (段数 − 段の組の数)。蹴上 = (yTop − yBot)/段数。段石の**天端を踏面の高さ**へ
+    /// (段石の上面が踏む面・触れる所は上面と段の下の段石)。踊り場は最初の組の最後の蹴上の高さで敷く。
+    /// ⛔ 袖(袖石垣)と段の掘割の皮はまだ据えない ── EdoBuildIshidan の組へ移すのは次の巡(報告に出す)。</summary>
+    static int PlaceKaidanAB(Transform grp, Dictionary<string, object> k, List<string> wait)
+    {
+        var f = Grid; float ken = C("ken");
+        string nm = S(k["name"]);
+        var av = A(k["a"]); var bv = A(k["b"]);
+        Vector2 A0 = f.W(F(av[0]), F(av[1])), B0 = f.W(F(bv[0]), F(bv[1]));
+        float L = (B0 - A0).magnitude; if (L < 0.3f) { wait.Add("石段 " + nm + ": a と b が近すぎる"); return 0; }
+        Vector2 dir = (B0 - A0) / L;
+        float ya = Graded.At((A0 - dir * 0.5f).x, (A0 - dir * 0.5f).y), yb = Graded.At((B0 + dir * 0.5f).x, (B0 + dir * 0.5f).y);
+        if (!float.IsNaN(ya) && !float.IsNaN(yb) && ya > yb) { var t0 = A0; A0 = B0; B0 = t0; dir = -dir; }
+        float yBot = F(k["yBot"]), yTop = F(k["yTop"]);
+        int steps = Mathf.Max(1, (int)F(k["steps"]));
+        var fl = new List<int>();
+        foreach (var q in A(Get(k, "flights")) ?? new List<object>()) fl.Add((int)F(q));
+        if (fl.Count == 0) fl.Add(steps);
+        float landing = Has(k, "landingKen") ? F(k["landingKen"]) * ken : 0f;
+        float tread = (L - landing * (fl.Count - 1)) / Mathf.Max(1, steps - fl.Count);
+        float rise = (yTop - yBot) / steps;
+        float wid = (Has(k, "wKen") ? F(k["wKen"]) : 1f) * ken;
+        if (Has(k, "fumi") && Mathf.Abs(tread - F(k["fumi"])) > 0.02f)
+            wait.Add("石段 " + nm + ": a〜b の長さ " + L.ToString("F2") + "m から出る踏面 " + tread.ToString("F3")
+                   + "m が指図の fumi " + F(k["fumi"]).ToString("0.###") + " と違う(据えは a〜b に合わせた)");
+        Vector2 side = new Vector2(dir.y, -dir.x);
+        float yaw = Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg;
+        int across = Mathf.Max(1, Mathf.RoundToInt(wid / 1.98f));
+        int made = 0, riser = 0; float x = 0f;
+        System.Action<float, float, float, string> lay = delegate(float xs, float len, float top, string tag)
+        {
+            int nAlong = Mathf.Max(1, Mathf.CeilToInt(len / Mathf.Max(0.3f, tread) - 0.01f));
+            for (int a2 = 0; a2 < nAlong; a2++)
+                for (int j = 0; j < across; j++)
+                {
+                    float tt = (j - (across - 1) * 0.5f) * (wid / across);
+                    Vector2 c = A0 + dir * (xs + len * (a2 + 0.5f) / nAlong) + side * tt;
+                    var go = EdoBuild.Place(EdoAssets.Own.DanishiStep, new Vector3(c.x, top, c.y), yaw, Vector3.one, grp, nm + "_" + tag + "_" + a2 + "_" + j);
+                    if (go == null) continue;
+                    var bb = EdoBuild.RB(go);   // 段石の上面 = 踏面(触れる面)
+                    go.transform.position += new Vector3(c.x - bb.center.x, top - bb.max.y, c.y - bb.center.z);
+                    made++;
+                }
+        };
+        for (int fi = 0; fi < fl.Count; fi++)
+        {
+            for (int i = 1; i <= fl[fi]; i++)
+            {
+                riser++;
+                if (riser >= steps) break;                         // 最後の蹴上は上の面へ上がる
+                float top = yBot + rise * riser;
+                if (i == fl[fi] && fi < fl.Count - 1) { lay(x, landing, top, "odoriba"); x += landing; }
+                else { lay(x, tread, top, riser.ToString()); x += tread; }
+            }
+        }
+        return made;
+    }
+
     // ---------------------------------------------------------------- 参道
     /// <summary>参道(表門の軸を通る白洲)。⭕ **屋根を架けない**(2026-08-19 ユーザー裁定 —
     /// 前庭は開けた白洲で、屋根は式台・車寄せまで)。実体は**地表の塗り**なので、
@@ -2144,10 +2340,10 @@ public static class EdoOkabeYashikiBuilder
     {
         var sd = O(Get(D, "sando"));
         if (sd == null) return "参道: 指図に sando が無い";
-        wait.Add("参道(u=" + F(sd["u"]).ToString("0.##") + " / v " + F(sd["v0"]).ToString("0.##")
-               + "〜" + F(sd["v1"]).ToString("0.##") + "間・幅" + F(sd["width"]).ToString("0.##")
-               + "間): 据える物は無い(白洲=地表の塗り)。⭕ 地表の巡で受ける — "
-               + "指図が『どの地表層で塗るか』を持っていないので、そこは欄待ち");
+        // 案1(EDO-0502): 参道は `{route, wKen, layer}`(動線 routes[route] を幅 wKen 間で layer に塗る)
+        wait.Add("参道(動線 " + S(Get(sd, "route")) + "・幅 " + F(Get(sd, "wKen")).ToString("0.##")
+               + "間・地表 " + (S(Get(sd, "layer")) ?? "?") + "): 据える物は無い(白洲=地表の塗り)。⭕ 地表の巡で受ける"
+               + (RouteExists(S(Get(sd, "route"))) ? "" : " ── ⚠ 指図の routes に " + S(Get(sd, "route")) + " が無い"));
         return "参道: 据える物なし(地表の巡へ)";
     }
 
@@ -2172,6 +2368,9 @@ public static class EdoOkabeYashikiBuilder
         var gate = ReviewGate(); if (gate != null) return gate;
         var wait = new List<string>();
         var sb = new System.Text.StringBuilder();
+        if (Stale("gardens"))
+            return "庭: ⛔ 算出物 gardens が前の指図のまま(baked.carried)── 据えない" + RetireStaleGroup("Niwa", "gardens")
+                 + "\n" + AnkyoReport();
         var items = A(Get(IMPL, "gardens"));
         if (items == null)
         { return "庭: 算出物に gardens が無い — ⛔ main に焼き手が無い欄(EDO-0386)。掲示板へ起票すること"; }
@@ -2211,6 +2410,54 @@ public static class EdoOkabeYashikiBuilder
         sb.Append('\n').Append("── 据えなかったもの " + wait.Count + " 件 ──");
         foreach (var w in wait) sb.Append("\n  ★ ").Append(w);
         return sb.ToString();
+    }
+
+    /// <summary>**水抜きの溝が道を通る区間(暗渠)を測る**(案1・EDO-0502・指図 gardens[].mizu.outflow.crossings)。
+    /// 溝の芯(outflow.route)のうち、物資・家臣の道(routes の R_Katte・R_Kashin)の芯から道幅の半分(R_UraZaka の幅 1.5間 を
+    /// 道の幅に採る ── routes は幅を持たないので、続く坂の幅)以内にある長さ。⭐ 全長を蓋にする(検図の参考・15巡)。
+    /// ⛔ 蓋の切石の駒はまだ名指されていない(在庫方へ照会)ので据えず、区間と長さだけを出す。</summary>
+    static string AnkyoReport()
+    {
+        var f = Grid; float ken = C("ken");
+        Dictionary<string, object> mizu = null;
+        foreach (var o in A(Get(D, "gardens")) ?? new List<object>()) { var g = O(o); var m = O(Get(g, "mizu")); if (m != null) mizu = m; }
+        var of = O(Get(mizu, "outflow")); var rt = A(Get(of, "route"));
+        if (rt == null) return "暗渠: 指図に outflow.route が無い";
+        float half = 0f;
+        foreach (var o in A(Get(D, "ramps")) ?? new List<object>()) { var r = O(o); if (r != null && S(r["name"]) == "R_UraZaka") half = (Has(r, "w") ? F(r["w"]) : F(r["wKen"]) * ken) * 0.5f; }
+        var roads = new List<Vector2[]>();
+        foreach (var o in A(Get(D, "routes")) ?? new List<object>())
+        {
+            var r = O(o); string nm = S(Get(r, "name")); if (nm != "R_Katte" && nm != "R_Kashin") continue;
+            var pl = A(r["pts"]); var w = new Vector2[pl.Count];
+            for (int i = 0; i < pl.Count; i++) { var q = A(pl[i]); w[i] = f.W(F(q[0]), F(q[1])); }
+            roads.Add(w);
+        }
+        // ⚠ 崖の区間は溝が坂(R_GakeZaka)の谷側の路肩を並んで走る(outflow.cliffDitch)── 道の下ではないので数えない。
+        //   坂の下の端(芯の最後の点)と同じ溝の点から先だけを測る
+        int kStart = 0;
+        foreach (var o in A(Get(D, "ramps")) ?? new List<object>())
+        {
+            var r = O(o); if (r == null || S(r["name"]) != "R_GakeZaka") continue;
+            var gp = A(r["pts"]); var last = A(gp[gp.Count - 1]);
+            for (int k = 0; k < rt.Count; k++) { var q = A(rt[k]); if (Mathf.Abs(F(q[0]) - F(last[0])) < 0.01f && Mathf.Abs(F(q[1]) - F(last[1])) < 0.01f) kStart = k; }
+        }
+        float tot = 0f; Vector2 a0 = Vector2.zero, a1 = Vector2.zero; bool any = false;
+        for (int k = kStart; k + 1 < rt.Count; k++)
+        {
+            var qa = A(rt[k]); var qb = A(rt[k + 1]);
+            Vector2 A0 = f.W(F(qa[0]), F(qa[1])), B0 = f.W(F(qb[0]), F(qb[1]));
+            float L = (B0 - A0).magnitude; int n = Mathf.Max(1, Mathf.CeilToInt(L / 0.1f));
+            for (int i = 0; i < n; i++)
+            {
+                Vector2 p = Vector2.Lerp(A0, B0, (i + 0.5f) / n); float bd = float.MaxValue;
+                foreach (var w in roads) for (int j = 0; j + 1 < w.Length; j++) bd = Mathf.Min(bd, DistSeg(p, w[j], w[j + 1]));
+                if (bd <= half) { tot += L / n; if (!any) a0 = p; a1 = p; any = true; }
+            }
+        }
+        return "暗渠(溝が道の内を通る区間): " + tot.ToString("F1") + "m(道幅 " + (half * 2f).ToString("F2") + "m で測る・始 "
+             + a0.x.ToString("F1") + "," + a0.y.ToString("F1") + " 〜 終 " + a1.x.ToString("F1") + "," + a1.y.ToString("F1")
+             + ")── 全長を蓋。⛔ 蓋の切石の駒が未選定で据えない";
     }
 
     /// <summary>**池の水面だけを張る**(2026-09-04 普請奉行の裁定)。
@@ -2808,6 +3055,9 @@ public static class EdoOkabeYashikiBuilder
         var gate = ReviewGate(); if (gate != null) return gate;
         var sb = new System.Text.StringBuilder();
         var wait = new List<string>();
+        if (Stale("planting") || Stale("kui") || Stale("rails") || Get(D, "nishi") == null)
+            return "西の斜面: ⛔ 算出物 planting/kui/rails が前の指図のまま、指図に nishi の欄が無い(案1)── 据えない"
+                 + RetireStaleGroup("Nishi", "planting・kui・rails");
         sb.AppendLine(PlantFromImpl(wait));
         sb.AppendLine(PlaceTesuri(wait));
         sb.AppendLine(PlaceKuiretsu(wait));
@@ -3128,6 +3378,37 @@ public static class EdoOkabeYashikiBuilder
         return tot;
     }
 
+    /// <summary>run が開口の**門長屋**か(案1・EDO-0502)。指図の `gate.host` / `komon[].host` が
+    /// その run を名指しし、口がその run の区間の内にあるとき true。⛔ 名指しの無い run は門長屋と見なさない。</summary>
+    static bool HostsOpening(string run, int edge, float a, float b)
+    {
+        var g = O(Get(D, "gate"));
+        if (g != null && S(Get(g, "host")) == run && (int)F(g["edge"]) == edge) return true;
+        foreach (var o in A(Get(D, "komon")) ?? new List<object>())
+        { var k = O(o); if (k != null && S(Get(k, "host")) == run && (int)F(k["edge"]) == edge) return true; }
+        return false;
+    }
+
+    /// <summary>門長屋の口(辺 e の走り s・幅 w)。run を名指しする `gate` / `komon[]` を引く。無ければ false。</summary>
+    static bool HostedGate(string run, out float s, out float w, out string label)
+    {
+        s = 0f; w = 0f; label = null;
+        var g = O(Get(D, "gate"));
+        if (g != null && S(Get(g, "host")) == run)
+        {
+            var gpl = O(Get(g, "plan"));
+            s = F(g["s"]); w = Has(gpl, "monkuchi") ? F(gpl["monkuchi"]) : 0f; label = S(Get(g, "name")) ?? "表門";
+            return true;
+        }
+        foreach (var o in A(Get(D, "komon")) ?? new List<object>())
+        {
+            var k = O(o); if (k == null || S(Get(k, "host")) != run) continue;
+            s = F(k["s"]); w = F(k["w"]); label = S(Get(k, "label")) ?? S(k["name"]);
+            return true;
+        }
+        return false;
+    }
+
     /// <summary>指図の開口(表門・通用口)。**辺と s の区間**で返す。</summary>
     static List<float[]> Openings()
     {
@@ -3135,13 +3416,15 @@ public static class EdoOkabeYashikiBuilder
         var g = O(Get(D, "gate"));
         if (g != null)
         {
-            float w = F(O(g["plan"])["monW"]), s = F(g["s"]);
+            // 案1(EDO-0502): 門口の幅は `plan.monkuchi`(門長屋の駒の中の口)。無い旧い指図だけ monW
+            var gpl = O(Get(g, "plan"));
+            float w = Has(gpl, "monkuchi") ? F(gpl["monkuchi"]) : F(Get(gpl, "monW")), s = F(g["s"]);
             outp.Add(new float[] { F(g["edge"]), s - w / 2f, s + w / 2f, 0f });   // 0 = 表門
         }
         foreach (var o in A(Get(D, "komon")) ?? new List<object>())
         {
             var k = O(o); if (k == null) continue;
-            float s = F(k["s"]), w = F(k["w"]);
+            float s = F(k["s"]), w = F(k["w"]);   // ⚠ w が null(型未決)の門は幅 0 の口として数える
             outp.Add(new float[] { F(k["edge"]), s - w / 2f, s + w / 2f, 1f });   // 1 = 小門
         }
         return outp;
@@ -3215,6 +3498,7 @@ public static class EdoOkabeYashikiBuilder
             foreach (var r in Runs)
             {
                 if (r.edge != e) continue;
+                if (HostsOpening(r.name, e, op[1], op[2])) continue;   // 門長屋は口を自分の駒の中に抜く(案1)
                 float ov = Mathf.Min(r.s1, op[2]) - Mathf.Max(r.s0, op[1]);
                 if (ov > worst) { worst = ov; who = r.name; }
             }

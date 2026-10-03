@@ -1,6 +1,6 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 1a341bc50762 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 8eb3c0ab179d -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
@@ -106,7 +106,7 @@
 | `EdoBuild.IsRoofLabel(name)` | `bool` |  | 材やサブメッシュの名で屋根を見分ける。IsRoofName(和名)に 英名の roof / 屋根 を足したもの。 | — |
 | `EdoBuild.BodyBelowRoofAt(prefabPath, pos, yaw)` | `List<Vector3>` |  | 一体メッシュの駒の「一層目の躯体」の世界頂点(実体化しない)。 | — |
 | `EdoBuild.BodyExRoofAt(prefabPath, pos, yaw, bodyParts=…, roofParts=…)` | `List<Vector3>` | 区域 | 一体メッシュの駒の「躯体」全部(屋根の材を除いたすべての材)の世界頂点(実体化しない)。 | MatsudairaDewa(YaguraSeat) |
-| `EdoBuild.BodyFootprintLocal(prefabPath, center, w, d)` | `bool` | 硬・柔 断面 | 躯体の足跡(屋根の材を除いた頂点の外接)を、駒のローカル・無回転で測る。 | OkabeYashiki(PlaceBox・PlaceService) |
+| `EdoBuild.BodyFootprintLocal(prefabPath, center, w, d)` | `bool` | 硬・柔 断面 | 躯体の足跡(屋根の材を除いた頂点の外接)を、駒のローカル・無回転で測る。 | OkabeYashiki(PlaceBox・PlaceService), SashizuExport(CheckScene) |
 | `EdoBuild.BodyExRoof(tr, maxSamples=…)` | `List<Vector3>` |  | Body 相当だが、単一メッシュに焼かれた駒(庫裏・墓地・鐘楼・山門など、 Blender 側で屋根まで join した部材)も材(サブメッシュ)の名で屋根を見分けて落とす (BodyExRoofAt の、実体化済み T… | Typology(OutsideBy), TypologyBuilder.Jisha(JExt), TypologyBuilder.Keidai(NiwaKeidai) |
 | `EdoBuild.CorridorSpan(pts, A, B, perpDir, perpLo, perpHi, yLo, yHi, s0, s1)` | `bool` | 地面・断面・隅 | 塀の通り道(回廊)を、その駒がどこからどこまで塞いでいるか。 | MatsudairaDewa(YaguraKeepout) |
 | `EdoBuild.CorridorJambs(pts, A, B, perpDir, perpLo, perpHi, yLo, yHi, p0, p1, s0, s1)` | `bool` | 床 | 回廊を塞ぐ駒の「塞ぎ始め・塞ぎ終わりの点」(CorridorSpan の点版)。 | — |
@@ -193,7 +193,7 @@ EdoBuild — 段の土留め(石垣・野面)を天端の折れ線へ据える(2
 | `EdoBuild.SkinGapTable(parts, faces, faceTol)` | `string` | 地面・駒どうし | 皮と部材の隙を三つに分けて刷る(2026-09-25 普請奉行の決め・EDO-0430): A 面の高さで塞がる(外が面の中・部材の底 ≤ 面 + 許容)/ B 駒が浮く(外が面の中・底 &gt; 面 + 許容 ── 駒… | SannoSha(HifuGapTable・Stage9_Hifu), OkabeYashiki(Stage3b_Hifu) |
 | `EdoBuild.ClearEdgeSkins(parent)` | `int` |  | ⚠ 注釈なし | OkabeYashiki(Stage1_Grade・Stage3b_Hifu), SannoSha(Stage9_Hifu・UnSkin) |
 | `DrawnGround`(class) | — | | 描かれた地表を引く掴み。穴の升では皮の高さ(皮が無ければ NaN = 何も描かれていない)、 それ以外は地形(SampleHeight)。 | |
-| `EdoBuild.Drawn()` | `DrawnGround` | 地面 | 描かれた地表の掴みを作る(DrawnGround)。 | SannoSha(AbutStairsToWalls・HifuMeasure・RetractRunEndsFromWalls…), SannoSashizuCheck(Check) |
+| `EdoBuild.Drawn()` | `DrawnGround` | 地面 | 描かれた地表の掴みを作る(DrawnGround)。 | SannoSha(AbutStairsToWalls・HifuMeasure・RetractRunEndsFromWalls…), OkabeYashiki(PlantFromImpl), SannoSashizuCheck(Check) |
 | `EdoBuild.DrawnExpected()` | `DrawnGround` | 地面 | 皮を外している間も、外す前の皮を描かれた地表として読む掴み(2026-09-26・EDO-0437 第11巡)。 | SannoSha(AbutStairsToWalls) |
 | `PartTops`(class) | — | | 部材の上を向いた面の最も高い所を引く掴み(駒が他の駒の下に入っているかを見る)。 | |
 | `AtariBed`(class) | — | | 当たりの床 = 下端が接すると決めた相手の面だけを返す床。 | |
@@ -668,7 +668,7 @@ EdoBuild — 継ぎ目を躯体の実面で納める(2026-10-03・EDO-0502 岡�
 
 | 関数 | 返す | 札 | 何をするか(注釈の一文目) | 呼んでいる所 |
 |---|---|---|---|---|
-| `EdoBuild.SeatPlant(go, sink, bury, flt, buryMax=…, floatMax=…, footBand=…, maxSamples=…)` | `bool` | 地面 | 植木を足元の当たりで据える。戻り値 = 埋没 ≤ buryMax かつ 根元の浮き ≤ floatMax で据わったか。 ⟶ 返す: 埋没 ≤ buryMax かつ 根元の浮き ≤ floatMax で据わったか | — |
+| `EdoBuild.SeatPlant(go, sink, bury, flt, buryMax=…, floatMax=…, footBand=…, maxSamples=…, drawn=…)` | `bool` | 地面 | 植木を足元の当たりで据える。戻り値 = 埋没 ≤ buryMax かつ 根元の浮き ≤ floatMax で据わったか。 ⟶ 返す: 埋没 ≤ buryMax かつ 根元の浮き ≤ floatMax で据わったか | — |
 | `EdoBuild.TrunkFootBand` | `float` | 地面・断面 | ── 幹の足(2026-09-25・EDO-0409)────────────────────────────────────────────── ⭐ 何が足りなかったか: 社叢の木は点へピボットを置いていた(⛔ 規則2… | — |
 | `EdoBuild.Lod0Filters(root)` | `List<MeshFilter>` |  | LOD0 の MeshFilter(LODGroup が無ければ見えている全部)。 | — |
 | `EdoBuild.Lod0PointsRootFrame(root)` | `List<Vector3>` |  | LOD0 の全頂点を「ルートの回転と位置を外した枠」(= 世界の m・ルートの向き)で。 | AssetCatalog(MeasureTree) |
@@ -679,7 +679,7 @@ EdoBuild — 継ぎ目を躯体の実面で納める(2026-10-03・EDO-0502 岡�
 | `EdoBuild.TrunkFootLocal(prefab)` | `Vector2` |  | ⚠ 注釈なし | SannoSashizuCheck(Check), SannoSha(Stage7_Shaso), Trees(Plant) |
 | `EdoBuild.TreePivotForTrunk(point, footLocal, widthScale, rotationRad)` | `Vector2` | 地面 | 地形の木(TreeInstance)のピボットの世界 xz = 点 − R(rotation)·(幹の足 × widthScale)。 | SannoSha(Stage7_Shaso), Trees(Plant) |
 | `EdoBuild.TrunkFootWorld(go, foot)` | `bool` |  | 据えた木の幹の足の中心(世界)。傾き・scale は据えたとおり(帯は上向きに 0.3m)。 | Typology(Inspect) |
-| `EdoBuild.SeatPlantAt(go, trunkXZ, sink, bury, flt, buryMax=…, floatMax=…)` | `bool` |  | 幹の足の中心を trunkXZ へ寄せてから SeatPlant で据える。 | OkabeYashiki(PlantFromImpl), SannoSha(Stage7_Shaso) |
+| `EdoBuild.SeatPlantAt(go, trunkXZ, sink, bury, flt, buryMax=…, floatMax=…, drawn=…)` | `bool` |  | 幹の足の中心を trunkXZ へ寄せてから SeatPlant で据える。 | OkabeYashiki(PlantFromImpl), SannoSha(Stage7_Shaso) |
 
 ## EdoBuildZosei.cs
 
@@ -711,7 +711,7 @@ EdoBuild — 造成(平場を採る)。2026-09-27・EDO-0477 P1(山王 Stage1_Gr
 | 関数 | 返す | 札 | 何をするか(注釈の一文目) | 呼んでいる所 |
 |---|---|---|---|---|
 | `EdoGeom.PIP(poly, p)` | `bool` |  | point-in-polygon (偶奇則)。 | OkabeYashiki(GradeQA・ImplQA・PaintSplat…), SannoSha(InUngradedParcel・Nozura・OnFumotomichi…), DoiBuilder.Niwa(EditNiwaHeights・InWater・PondOverlapsCell…), Typology(Edges・Inner・Inspect…), Doi(GradeQA・ParcelOutQA・PointInPoly…) ほか10 |
-| `EdoGeom.SignedArea(poly)` | `float` |  | 符号付き面積。CCW で正。 | OkabeYashiki(SkinGround), TypologyBuilder.Jisha(JishaOmoya), TypologyBuilder.Keidai(NiwaKeidai) |
+| `EdoGeom.SignedArea(poly)` | `float` |  | 符号付き面積。CCW で正。 | OkabeYashiki(SkinGround・TerracePolyAt), TypologyBuilder.Jisha(JishaOmoya), TypologyBuilder.Keidai(NiwaKeidai) |
 | `EdoGeom.InwardNormal(poly, i)` | `Vector2` |  | 辺 i (poly[i]→poly[i+1]) の、多角形の内側を向く単位法線。 | GotenTypoTest(Build), OkabeYashiki(OutNormal), Typology(Outward), TypologyBuilder.Jisha(JishaOmoya) |
 | `EdoGeom.DistToEdge(p, a, b)` | `float` | 区域 | 点 p から線分 ab への最短距離。 ⚠ 長さ0の線分では NaN を返してはいけない。 | SannoSha(KeepClearOfFlushWalls・OnFumotomichi・Stage4_Kakoi), TypologyBuilder.Niwa(NiwaChisen・NiwaTsubo), OkabeYashiki(Stage2_Perimeter), Typology(FrontEdge), TypologyBuilder.Jisha(JishaOmoya) ほか1 |
 | `EdoGeom.LineIntersect(p0, d0, p1, d1, fallback)` | `Vector2` |  | 点 p から多角形の外周(全辺)への最短距離。 | — |

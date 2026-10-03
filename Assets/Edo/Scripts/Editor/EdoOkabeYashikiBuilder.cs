@@ -669,6 +669,7 @@ public static class EdoOkabeYashikiBuilder
     /// 指図は run ごとの倍率 `s` を持ち、壁高 = `const.baseUnit`×s / 天端幅 1.4s / 底厚 2.4s。</summary>
     /// <summary>区画線の上に据えた駒の頂点が float の往復で線を跨ぐ量の上限(実測 0.25mm)。測りの分解能で、狙いの緩めではない。</summary>
     const float SEAM_TOL = 0.001f;
+    const float PAD_TOL = 0.02f;   // 附属屋の足あとの埋没・浮きの見逃し(測りの誤差)。硬い条件の許容0 の誤差幅で、設計値ではない
     const float IG_RUN = 2.00f;          // 駒の走り方向の実体長
     const float IG_PITCH_MAX = 1.80f;    // ピッチの上限(重なり 0.20m を必ず残す)
     /// <summary>隅部材・練塀の直線材に共通の倍率。素の部材は江戸暦の単位なので ES を掛ける。</summary>
@@ -2149,6 +2150,23 @@ public static class EdoOkabeYashikiBuilder
         return faces;
     }
 
+    /// <summary>点 <paramref name="q"/> を含む**面**(指図 terraces の poly を世界へ・勾配の面も含む)のうち最も小さい物。無ければ区画。
+    /// 当たる先: 棟の下の均し(EdoBuild.LevelPad)の範囲 ── 面の外(段の土留めの向こうの下の面)の節点を触らない(EDO-0502 第7巡)。</summary>
+    static Vector2[] TerracePolyAt(Vector2 q)
+    {
+        Vector2[] best = null; float area = float.MaxValue; var f = Grid;
+        foreach (var o in A(D["terraces"]) ?? new List<object>())
+        {
+            var t = O(o); if (t == null) continue;
+            var pl = A(Get(t, "poly")); if (pl == null || pl.Count < 3) continue;
+            var poly = new Vector2[pl.Count];
+            for (int i = 0; i < pl.Count; i++) { var p = A(pl[i]); poly[i] = f.W(F(p[0]), F(p[1])); }
+            if (!EdoGeom.PIP(poly, q)) continue;
+            float a = Mathf.Abs(EdoGeom.SignedArea(poly)); if (a < area) { area = a; best = poly; }
+        }
+        return best ?? Poly;
+    }
+
     /// <summary>**皮が描く地表**(Stage3b の縁の皮が描く高さ)を、皮を起こす前に引く: 平らな面の中は面の高さ、外は設計の地盤 graded と
     /// 地形の低い方(区画の外・graded の無い所は地形)。⭐ 段の土留めの駒の底・見え面の前の地表はこれで測る ── 2m 格子の地形は見え面の足元で
     /// 段を描けず最大 1.77m 盛り上がる(駒の底がその盛りに載り、皮が盛りを削ると駒が浮いた・EDO-0502 第5巡)。
@@ -2715,7 +2733,7 @@ public static class EdoOkabeYashikiBuilder
                         float g = EdoBuild.Ground(wp.x, wp.z); lo = Mathf.Min(lo, g); hi = Mathf.Max(hi, g);
                     }
                     float bot = EdoBuild.RB(bgo).min.y;
-                    if (hi - bot > 0.15f || bot - lo > 0.15f)
+                    if (hi - bot > PAD_TOL || bot - lo > PAD_TOL)   // 硬い(埋没・浮き 0): 測りの誤差 PAD_TOL だけ見逃す(旧 0.15 で厩の −0.14 が素通りした・第6巡)
                     {
                         // 面の高さは地形が決める(規則3): 足あと(四隅+芯)の造成後の地盤の中央値へ棟の底を据え、その高さで均す。
                         //   指図の yAt と ±0.25m を超えて違えば ⚠(欄の上書きは普請奉行)
@@ -2724,7 +2742,7 @@ public static class EdoOkabeYashikiBuilder
                         var cq = (foot[0] + foot[2]) * 0.5f; gs.Add(EdoBuild.Ground(cq.x, cq.y));
                         gs.RemoveRange(0, 2); gs.Sort(); float med = gs[gs.Count / 2];
                         bgo.transform.position += new Vector3(0f, med - bot, 0f);
-                        float cm, fm; int nn = EdoBuild.LevelPad(Poly, foot, med, C("batterFill"), C("batterCut"), out cm, out fm);
+                        float cm, fm; int nn = EdoBuild.LevelPad(TerracePolyAt(cq), foot, med, C("batterFill"), C("batterCut"), out cm, out fm);   // ⭐ 均しは棟の建つ面の中だけ(⛔ 区画で切ると段の土留めを越えて下の面を 2.01m 盛った・第7巡)
                         wait.Add("附属屋 " + nm + ": 足あとの地盤 " + lo.ToString("F2") + "〜" + hi.ToString("F2") + " が棟の底 " + bot.ToString("F2")
                                + "(指図 yAt)と食い違う ⇒ 底を足元の中央値 " + med.ToString("F2") + " へ据え、棟の下を均した(EdoBuild.LevelPad 節点 " + nn
                                + "・切 " + cm.ToString("F2") + " / 盛 " + fm.ToString("F2") + "m)" + (Mathf.Abs(med - sy) > 0.25f ? " ⚠ 指図の yAt " + sy.ToString("F2") + " と " + (med - sy).ToString("+0.00;-0.00") + "m(±0.25 を超える ── 欄の上書きは普請奉行)" : ""));
@@ -3850,6 +3868,8 @@ public static class EdoOkabeYashikiBuilder
         }
         var grp = Group("Nishi/Planting"); Clear(grp);
         var f = Grid;
+        // ⭐ 据えは描かれた地表(縁の皮を含む)で ── 皮は Stage3b が起こした後。⛔ 格子で据えると皮の上で浮く・埋まる(第6巡 266 本)
+        var drawnG = EdoBuild.Drawn();
         int made = 0, noPart = 0, noAsset = 0, seatBad = 0; var seatBadLog = new List<string>();
         var byZone = new Dictionary<string, int>();
         var missing = new HashSet<string>();
@@ -3885,7 +3905,7 @@ public static class EdoOkabeYashikiBuilder
             }
             // ⭕ 幹の足を点へ寄せ、足の当たりで描かれた地表へ据える(EdoBuild.SeatPlantAt)。⛔ 外接の底で据えない
             float bu, fl;
-            if (!EdoBuild.SeatPlantAt(go, c, 0f, out bu, out fl))
+            if (!EdoBuild.SeatPlantAt(go, c, 0f, out bu, out fl, 1.0f, 0.7f, drawnG))
             { seatBad++; if (seatBadLog.Count < 8) seatBadLog.Add(go.name + " 埋没 " + bu.ToString("F2") + " 浮き " + fl.ToString("F2")); }
             if (Has(q, "name")) placed[S(q["name"])] = go;
             made++;

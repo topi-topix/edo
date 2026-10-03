@@ -297,6 +297,11 @@ public static class EdoSashizuExport
                 }
                 var names = new List<string>();
                 foreach (var o in Get2(doc, "runs")) names.Add(Str(o as Dictionary<string, object>, "name"));
+                // ⚠ 辺の端を隣の辺の線で切った練塀の駒は `Kiri_<run>` の名で据わる(岡部 EDO-0502・端の切りの駒)。
+                //   ⛔ 教えないと据えた切りの駒が「孤児の囲い」に数えられる(2026-10-04 第6巡の突き合わせ)。
+                //   切りの駒は**有っても無くてもよい**(端が斜めに当たる辺の端だけ)ので、孤児の判定にだけ使い、在る無しは問わない。
+                var optional = new List<string>();
+                foreach (var o in Get2(doc, "runs")) { var rn = Str(o as Dictionary<string, object>, "name"); if (rn != null) optional.Add("Kiri_" + rn); }
                 foreach (var o in Get2(doc, "fences")) names.Add(Str(o as Dictionary<string, object>, "name"));
                 // 隅部材は **`runs` ではなく留め継ぎの表**に居る(留め継ぎは run ではない)。
                 // ⚠ これを教えないと、据えた隅が全部「孤児の囲い」に見える(2026-08-30 に実際に出た)。
@@ -387,6 +392,7 @@ public static class EdoSashizuExport
                 {
                     bool known = false;
                     foreach (var nm in names) if (nm != null && (h == nm || h.StartsWith(nm + "_"))) { known = true; break; }
+                    if (!known) foreach (var nm in optional) if (h == nm || h.StartsWith(nm + "_")) { known = true; break; }
                     if (!known) bad("外周", "孤児の囲い: " + h);
                 }
             }
@@ -529,7 +535,24 @@ public static class EdoSashizuExport
                         else if (fc == "-v") sv = F(s2, "v1") - back;
                         else if (fc == "+v") sv = F(s2, "v0") + back;
                     }
-                    chk(fz == null ? null : fz.Find("Service"), Str(s2, "name"),
+                    // ⭐ 附属屋は**躯体の芯**でも比べる(EdoBuild.BodyFootprintLocal・規則21)── 岡部の PlaceBox は躯体の芯を矩形の芯へ寄せるので、
+                    //   ピボットで比べると躯体の偏り(岡部の蔵 0.07m)を「ずれ」と誤る(2026-10-04 第6巡の突き合わせ 4 件)。
+                    //   ⚠ 前の作り方(ピボットを矩形の芯へ置いた邸 ── 松江松平・土井)を赤にしないため、**躯体の芯かピボットのどちらかが合えば**通す。
+                    //   `seat`(面納め)の附属屋・躯体を測れない駒は従来どおりピボット。
+                    var sg2 = fz == null ? null : fz.Find("Service");
+                    var st2 = sg2 == null ? null : sg2.Find(Str(s2, "name"));
+                    Vector2 bcW; float bw2, bd2;
+                    string bp2 = st2 == null ? null : PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(st2.gameObject);
+                    if (seat == null && st2 != null && !string.IsNullOrEmpty(bp2) && EdoBuild.BodyFootprintLocal(bp2, out bcW, out bw2, out bd2))
+                    {
+                        seen.Add(Str(s2, "name"));
+                        var wp2 = st2.TransformPoint(new Vector3(bcW.x, 0f, bcW.y));
+                        float dd2 = Vector2.Distance(new Vector2(wp2.x, wp2.z), W(su, sv));
+                        float dp2 = Vector2.Distance(new Vector2(st2.position.x, st2.position.z), W(su, sv));
+                        if (dd2 > 0.02f && dp2 > 0.02f) bad(secOf("主郭", Str(s2, "name")), "附属屋 " + Str(s2, "name") + " の躯体の芯が " + dd2.ToString("F2") + "m(ピボット " + dp2.ToString("F2") + "m)ずれている");
+                        continue;
+                    }
+                    chk(sg2, Str(s2, "name"),
                         W(su, sv), "附属屋", secOf("主郭", Str(s2, "name")));
                 }
             }

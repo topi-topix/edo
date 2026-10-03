@@ -32,22 +32,30 @@ public static partial class EdoBuild
     /// で据わったか。<paramref name="bury"/> = 最も深い当たり(枝葉を含む)の埋没[m]、<paramref name="flt"/> = 根元の浮き[m]
     /// (根元の当たりのうち最も地面に近い所の隙。負なら根元は地中)。
     /// 根元 = 局所の上向き(transform.up)で最も低い当たりから <paramref name="footBand"/> 以内の当たり。
-    /// ⛔ 基準点(ピボット)の高さは使わない。⛔ 谷側の樹冠の下の隙を浮きと数えない。当たりが測れなければ false(NaN を返す)。</summary>
+    /// ⛔ 基準点(ピボット)の高さは使わない。⛔ 谷側の樹冠の下の隙を浮きと数えない。当たりが測れなければ false(NaN を返す)。
+    /// <paramref name="drawn"/> = 描かれた地表の掴み(<see cref="Drawn"/>)。⭐ 縁の皮を起こした邸では**皮の後に一度だけ作って渡す** ──
+    /// 渡さなければ地形の格子(heightmap)で引き、皮の上で浮き 0.44・埋まり 0.26 が出た(岡部 第6巡・266 本・EDO-0502)。
+    /// 皮の無い所・皮の升の継ぎ目(NaN)は地形で引く。当たる先: 皮のある邸で木を GameObject で据える所(岡部 Stage5・山王 Stage7 の名指しの木)。</summary>
     public static bool SeatPlant(GameObject go, float sink, out float bury, out float flt,
                                  float buryMax = 1.0f, float floatMax = 0.7f, float footBand = 0.3f,
-                                 int maxSamples = 60000)
+                                 int maxSamples = 60000, DrawnGround drawn = null)
     {
         bury = flt = float.NaN;
         var pts = GroundCandidates(go.transform, maxSamples);
         if (pts.Count == 0) return false;
         var probe = Probe();
+        System.Func<float, float, float> G = (x, z) =>
+        {
+            if (drawn == null) return probe.At(x, z);
+            float d = drawn.At(x, z); return float.IsNaN(d) ? probe.At(x, z) : d;
+        };
         Vector3 up = go.transform.up;
         float hmin = float.MaxValue;
         foreach (var p in pts) hmin = Mathf.Min(hmin, Vector3.Dot(p, up));
         float cmin = float.MaxValue, fmin = float.MaxValue;   // 全部の当たりの最小の隙 / 根元の当たりの最小の隙
         foreach (var p in pts)
         {
-            float c = p.y - probe.At(p.x, p.z);
+            float c = p.y - G(p.x, p.z);
             if (c < cmin) cmin = c;
             if (Vector3.Dot(p, up) <= hmin + footBand && c < fmin) fmin = c;
         }
@@ -291,11 +299,11 @@ public static partial class EdoBuild
     /// <summary>幹の足の中心を <paramref name="trunkXZ"/> へ寄せてから <see cref="SeatPlant"/> で据える。
     /// ⛔ ピボットを点へ置かない。傾いた木も幹の足が点に来る(水平に寄せるだけなので SeatPlant の鉛直の据えと独立)。</summary>
     public static bool SeatPlantAt(GameObject go, Vector2 trunkXZ, float sink, out float bury, out float flt,
-                                   float buryMax = 1.0f, float floatMax = 0.7f)
+                                   float buryMax = 1.0f, float floatMax = 0.7f, DrawnGround drawn = null)
     {
         Vector3 f;
         if (TrunkFootWorld(go, out f))
             go.transform.position += new Vector3(trunkXZ.x - f.x, 0f, trunkXZ.y - f.z);
-        return SeatPlant(go, sink, out bury, out flt, buryMax, floatMax, TrunkFootBand);
+        return SeatPlant(go, sink, out bury, out flt, buryMax, floatMax, TrunkFootBand, 60000, drawn);
     }
 }

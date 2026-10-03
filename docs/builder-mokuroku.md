@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 20 本・メニュー 79・関数 661(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 20 本・メニュー 79・関数 672(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -18,7 +18,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoDoiBuilder.cs](#edodoibuildercs) | 土井大隅守上屋敷(三河刈谷藩2万3千石・譜代・雁間)ビルダー。 | 15 | 84 |
 | [EdoMatsudairaDewaBuilder.Niwa.cs](#edomatsudairadewabuilderniwacs) | 松平出羽守上屋敷 — 庭の工程(池・築山・水の系・石組・点景・滝見口)。 | 9 | 30 |
 | [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 15 | 97 |
-| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 17 | 101 |
+| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 17 | 112 |
 | [EdoSannoShaBuilder.cs](#edosannoshabuildercs) | 山王権現社(日枝神社)本体+樹下家邸+山王門前町ビルダー (2026-08-11。観理院は 2026-09-26 に類型へ移し削除) | 1 | 31 |
 | [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 13 | 102 |
 | [EdoSanyashikiRebuild.cs](#edosanyashikirebuildcs) | 三屋敷(太田・加納・鍋島=松平肥前守)の区画を下書きv3へ更新 (2026-08-08) | 0 | 6 |
@@ -338,8 +338,8 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `Edo/岡部筑前守上屋敷/造成を検査 GradeQA` | `GradeQAMenu` | `GradeQA`, `ImplTol`, `Window` |
 | `Edo/岡部筑前守上屋敷/2 外周(練塀・基壇・木柵・隅)` | `Stage2Menu` | `Stage2_Perimeter`, `ReviewGate`, `Group`, `Clear` |
 | `Edo/岡部筑前守上屋敷/3 主郭(棟・廊下・附属屋・井戸・結界・石段)` | `Stage3Menu` | `Stage3_Shukaku`, `ReviewGate`, `PlaceMunes`, `PlaceLinks` |
-| `Edo/岡部筑前守上屋敷/4 庭(部材を据える・地形には触らない)` | `Stage4Menu` | `Stage4_Niwa`, `ReviewGate`, `A`, `Get` |
-| `Edo/岡部筑前守上屋敷/5 西の斜面(林・松・帯・汀)` | `Stage5Menu` | `Stage5_Nishi`, `ReviewGate`, `PlantFromImpl`, `PlaceTesuri` |
+| `Edo/岡部筑前守上屋敷/4 庭(部材を据える・地形には触らない)` | `Stage4Menu` | `Stage4_Niwa`, `ReviewGate`, `Stale`, `RetireStaleGroup` |
+| `Edo/岡部筑前守上屋敷/5 西の斜面(林・松・帯・汀)` | `Stage5Menu` | `Stage5_Nishi`, `ReviewGate`, `Stale`, `RetireStaleGroup` |
 | `Edo/岡部筑前守上屋敷/外周の閉じを検査 ClosureQA` | `ClosureQAMenu` | `ClosureQA`, `Openings` |
 | `Edo/岡部筑前守上屋敷/開口と run の食い違いを検査 OpeningQA` | `OpeningQAMenu` | `OpeningQA`, `Openings` |
 | `Edo/岡部筑前守上屋敷/区画と指図の座標を突き合わせる` | `ParcelQAMenu` | `ParcelQA`, `A`, `Get` |
@@ -365,15 +365,20 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `EdgePt(e, s)` | `Vector2` | 公 | 辺 e の始点から走り s[m] の世界座標。 |
 | `OutNormal(e)` | `Vector2` | 公 | 辺 e の外向き単位法線。符号付き面積から決めるので凹みのある区画でも全辺で一貫する。 |
 | `DesignY(p)` | `float` | 公 | 敷地内の一点の造成後の高さ[m]。区画の外は NaN。 |
+| `Stale(col)` | `bool` |  | 算出物の欄がいまの指図から焼かれていない(`baked.carried` に名がある = 前の指図のまま据え置き)か。 |
+| `RetireStaleGroup(child, col)` | `string` |  | 据え置きの欄から前に建てた群を退ける(SetActive(false)・消さない)。 |
 | `ImplTol(key, ifMissing)` | `float` |  | — |
 | `Group(child)` | `Transform` |  | 群を辿る(無ければ作る)。⭐ 中身は共通の一本道 EdoYashikiPrefab.Group。 |
 | `Clear(t)` | `void` |  | — |
 | `Stage0_Backup()` | `string` | 公 | 着工前の地形を .bin へ。無いときだけ書く。 |
 | `Window(x0, z0, w, h)` | `void` |  | 造成とその検査が使う窓。区画の外接矩形 + 余白。 |
 | `Stage1_Grade()` | `string` | 公 | — |
+| `GradeRamps()` | `string` |  | 折れ線の坂の路盤(案1・EDO-0502)。 |
+| `PlaceCurb(nm, line, pts, ys, curbH)` | `string` |  | 坂の路肩の野面石の縁(toeFix)を、路肩の線へ野面の乱積みで据える。 |
 | `GradeQA()` | `string` | 公 | 敷地内の全セルで ／地形 − 設計面／ を測る。 |
 | `Stage2_Perimeter()` | `string` | 公 | — |
 | `PlaceOmoteNagaya(kak, wait)` | `string` |  | 外周の表長屋と表門。⭕ 2026-09-04 裁定12=A(二階・棟 7.183 / 表門の棟 8.5)。 |
+| `GateInNagaya(kak, r, call, nikai, gS, gW, label, wait)` | `string` |  | 門長屋の口の向きを検めて、要れば引き直す(案1・EDO-0502)。 |
 | `PlaceNagayaPiece(kak, name, path, edge, sMid, seat, call, wait, lastH)` | `bool` |  | — |
 | `PlaceIshigaki()` | `string` |  | 基壇石垣。run ごとの倍率 `s` で据える(壁高 4.0s / 天端幅 1.4s / 底厚 2.4s)。 |
 | `PlaceKomon()` | `string` |  | 袋小路へ開く通用口。指図 `komon[]` の 辺・走り s・門口の幅 w・敷居 sill が正典。 |
@@ -398,13 +403,17 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `YawTo(du, dv)` | `float` | 公 | ローカル +X をグリッドの向き (du, dv) へ向ける yaw[°]。 |
 | `PlaceBox(grp, nm, path, c, y, wKen, dKen, yaw, wait)` | `bool` |  | 箱状の附属屋を一つ据える(足跡の中心・地盤レベル)。 |
 | `OrientOf(key, du, dv, xu, xv, note)` | `void` |  | 部材ごとの向きの規約。⛔ 「長いほうへ +X」で一律に決めない — 部材の doc が正典。 |
+| `FrontLocalYaw(key)` | `float` |  | 部材の開口の面がローカルのどの軸か(+Z を 0° として時計回りの yaw[°])。 |
 | `PlaceService(wait)` | `string` |  | — |
 | `PlaceWells(wait)` | `string` |  | — |
 | `PlaceKekkai(wait)` | `string` |  | 表向と奥向を屋外でも分ける結界の塀。練塀ではなく「のし塀+瓦」 (屋敷の内部の仕切りなので外構より軽くする — 指図 `_kekkai`)。 |
 | `PlaceTakegaki(wait)` | `string` |  | 法肩の竹垣(四つ目垣)。⚠ 2026-09-04 まで据える処理が無かった上、 最初に通したときは在庫の `Eg.TakeGaki`(竹の菱格子=網代風で四つ目垣ではない)を 非一様スケールで伸ばしていた。 |
 | `PlaceKaidans(wait)` | `string` |  | 石段。⚠ 足元と天端の標高は指図が持つ(`y0`/`y1`)。 |
+| `RouteExists(nm)` | `bool` |  | — |
+| `PlaceKaidanAB(grp, k, wait)` | `int` |  | 案1の石段の書式 `{a, b, yBot, yTop, steps, flights?, landingKen?, fumi, wKen, planeLen}`(EDO-0502)。 |
 | `PlaceSando(wait)` | `string` |  | 参道(表門の軸を通る白洲)。⭕ 屋根を架けない(2026-08-19 ユーザー裁定 — 前庭は開けた白洲で、屋根は式台・車寄せまで)。 |
 | `Stage4_Niwa()` | `string` | 公 | — |
+| `AnkyoReport()` | `string` |  | 水抜きの溝が道を通る区間(暗渠)を測る(案1・EDO-0502・指図 gardens[].mizu.outflow.crossings)。 |
 | `PlaceWaterSurface(items, wait)` | `string` |  | 池の水面だけを張る(2026-09-04 普請奉行の裁定)。 |
 | `PaintSplat(items, wait)` | `string` |  | 地表を塗る(2026-09-04 指図方が `layer` を宣言した分)。 |
 | `PlaceNiwaItem(sub, g, kind, key, pts, missing, wait)` | `int` |  | 庭の一節を据える。部材ごとに据え方が違うので種別で分ける。 |
@@ -423,6 +432,8 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `PlaceKuiretsu(wait)` | `string` |  | 汀線に沿う松の丸太杭。⭐ 本数は汀線の実長から算出する(⛔ 辺5の長さを流用しない — 2026-09-03 庭方4巡目)。 |
 | `ReportNishiRest(wait)` | `string` |  | 西の斜面のうち、据える物が無いか部材待ちのものを一覧に出す。 |
 | `UnionLen(ivs, lo, hi)` | `float` |  | — |
+| `HostsOpening(run, edge, a, b)` | `bool` |  | run が開口の門長屋か(案1・EDO-0502)。 |
+| `HostedGate(run, s, w, label)` | `bool` |  | 門長屋の口(辺 e の走り s・幅 w)。 |
 | `Openings()` | `List<float[]>` |  | 指図の開口(表門・通用口)。辺と s の区間で返す。 |
 | `ClosureQA()` | `string` | 公 | 外周が全周で閉じているかを辺ごとに数字で出す。 |
 | `OpeningQA()` | `string` | 公 | 開口の上に囲いが載っていないか。指図は run の `s` で既に開口を避けてあるので、 ここが 0 でなければ指図か区画のどちらかが動いた合図(実装は開口を切り直さない)。 |

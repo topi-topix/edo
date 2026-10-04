@@ -1,0 +1,63 @@
+{
+    "prefab": "Assets/Edo/Models/Nagaya/Doi_Nagayamon_kutai.fbx",
+    "kind": "building",
+    "source": "blender:build_nagaya_omote.py(11.82 --body --floors 2 --gate 5.91 3.636 3.3 --gate-drop 0.8 --bansho 1 --bansho-ux +1 --kuguri 3.183 0.9 1.9 --doorh 3 --kabuki 0.3 --gate-post 0.24 --bansho-out 0.5)",
+    "unitScale": 1.0,
+    "yBottom": 0.0,
+    "foot": [
+        {
+            "x": -5.87979,
+            "y": -0.00298
+        },
+        {
+            "x": 5.87979,
+            "y": -0.00298
+        },
+        {
+            "x": 5.87979,
+            "y": -3.08677
+        },
+        {
+            "x": -5.87979,
+            "y": -3.08677
+        }
+    ],
+    "front": 0.0,
+    "back": -3.08677,
+    "jambL": {
+        "x": -5.91,
+        "z0": -3.08677,
+        "z1": 0.0,
+        "y0": 0.35,
+        "y1": 1.8
+    },
+    "jambR": {
+        "x": 5.91,
+        "z0": -3.08677,
+        "z1": 0.0,
+        "y0": 0.35,
+        "y1": 1.8
+    },
+    "passage": {
+        "x0": -1.818,
+        "x1": 1.818,
+        "sillY": -0.8
+    },
+    "eave": {
+        "x0": -6.23213,
+        "x1": 6.23213,
+        "z0": -3.72632,
+        "z1": 0.65517,
+        "y0": 0.0,
+        "y1": 7.18272
+    },
+    "faceOut": 0.0,
+    "faceIn": -3.08677,
+    "copingOverhang": 0.0,
+    "height": 7.18272,
+    "passageKuguri": {
+        "x0": 2.277,
+        "x1": 3.177,
+        "sillY": -0.8
+    }
+}

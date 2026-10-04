@@ -917,6 +917,9 @@ public static class EdoOkabeYashikiBuilder
 
         // ---- 石垣基壇 --------------------------------------------------
         sb.AppendLine(PlaceIshigaki());
+        // ---- 硬い・地面(浮き 0): 練塀・隅・端を切った駒を、描かれた地表と基壇の天端の高い方へ組ごと据える(EdoBuild.SinkGroupToBed)。
+        //      ⛔ 指図の seat(下絵の値)を底に残さない ── 辺34 で 2.6〜2.8m 埋まった(2026-10-04 EDO-0502 第12巡)。
+        sb.AppendLine(SeatHeiOnBed(kak));
 
         // ---- 通用口(小門)── ⭐ 練塀より先に据えた(門構えを先に・docs/oki-kata.md §2)
 
@@ -1333,6 +1336,41 @@ public static class EdoOkabeYashikiBuilder
                    + "m が呼び " + call.ToString("0.###") + "m と食い違う"
                    + "(⚠ 呼び寸法は**破風まで含む全幅**で、隣と突き付く)");
         return true;
+    }
+
+    /// <summary>練塀(表裏の f/b を一組)・隅 Kado_*・端を切った Kiri_* を、床 = 描かれた地表と基壇 IG_* の天端の高い方
+    /// (<see cref="EdoBuild.Bed"/>)へ組ごと据える(<see cref="EdoBuild.SinkGroupToBed"/>)。長屋・門は触らない。</summary>
+    static string SeatHeiOnBed(Transform kak)
+    {
+        var igs = new List<GameObject>();
+        var igT = Group("Ishigaki"); foreach (Transform c in igT) if (c.gameObject.activeInHierarchy) igs.Add(c.gameObject);
+        var bed = new EdoBuild.Bed(igs);
+        var groups = new Dictionary<string, List<GameObject>>();
+        foreach (Transform c in kak)
+        {
+            if (!c.gameObject.activeInHierarchy) continue;
+            string nm = c.name, key = null;
+            if (nm.StartsWith("Kado_") || nm.StartsWith("Kiri_")) key = nm;
+            else
+            {
+                for (int k = 0; k < Runs.Length; k++)
+                    if (Runs[k].Dobei && nm.StartsWith(Runs[k].name + "_")) { key = (nm.EndsWith("f") || nm.EndsWith("b")) ? nm.Substring(0, nm.Length - 1) : nm; break; }
+            }
+            if (key == null) continue;
+            List<GameObject> L; if (!groups.TryGetValue(key, out L)) groups[key] = L = new List<GameObject>();
+            L.Add(c.gameObject);
+        }
+        int n = 0, nan = 0; float up = 0f, dn = 0f; string upN = "-", dnN = "-";
+        foreach (var kv in groups)
+        {
+            float mv = EdoBuild.SinkGroupToBed(kv.Value, bed.At);
+            if (float.IsNaN(mv)) { nan++; continue; }
+            n++;
+            if (mv > up) { up = mv; upN = kv.Key; }
+            if (mv < dn) { dn = mv; dnN = kv.Key; }
+        }
+        return "練塀・隅を床へ据えた(浮き 0): " + n + " 組(測れず " + nan + ")・最も上げた +" + up.ToString("F2") + "m @" + upN
+             + " / 最も下げた " + dn.ToString("F2") + "m @" + dnN;
     }
 
     // ---------------------------------------------------------------- 石垣基壇

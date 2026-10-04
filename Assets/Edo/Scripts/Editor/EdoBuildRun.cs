@@ -2126,6 +2126,36 @@ public static partial class EdoBuild
         return RootToBed(go, bedAt, step);
     }
 
+    /// <summary>**硬い・地面(浮き 0)── 一組の駒を同じ量だけ床へ据える**(2026-10-04 EDO-0502 第12巡 岡部 N_Hei_31:
+    /// 指図の座(下絵の値)で置いた練塀が、線の上の描かれた地表 26.1〜26.3 へ 2.6〜2.8m 埋まった)。
+    /// 組の各駒の下端の当たり(<see cref="RootToBed"/>)を <paramref name="bedAt"/> で測り、組の中で**最も浮いた当たり**が
+    /// 床に触れる所まで組ごと上下に動かす(他の当たりは床へ埋まる ── 据えは埋めて隠す)。表裏の板を別々の高さにしない。
+    /// ⛔ 指図の seat を底の座標として残さない(座は下絵の値。触れる所は測る)。
+    /// 当たる先: DobeiRun の表裏の駒・隅の駒・端を切った駒(岡部 Stage2 の外周)。DobeiRun で外周を建てる他邸
+    /// (松平出羽・山王・三屋敷・大和守)も同じ呼び方で据えられる。⟶ 返す: 動かした量[m](+ = 上げた・測れなければ NaN)</summary>
+    public static float SinkGroupToBed(IList<GameObject> group, Func<float, float, float> bedAt, float step = 0.05f)
+    {
+        // ⭐ 当たり = 駒の格子ごとの最下点(GroundCandidates ── メッシュの在る所だけ)のうち、駒の下端から ROOT_TOUCH 以内の点。
+        //    ⛔ RootToBed の足跡の箱で測らない ── 隅の L 字の駒では箱が L の外の空き(区画の外の低い道)まで覆い、
+        //    偽の浮き 2.30m で Kado_P7 を沈めた(2026-10-04 第12巡の初回)。軒・笠の下の点は下端から離れるので拾わない。
+        float hi = float.NaN;
+        foreach (var g in group)
+        {
+            if (g == null) continue;
+            var pts = GroundCandidates(g.transform, 4000);
+            float yb = float.MaxValue; foreach (var p in pts) yb = Mathf.Min(yb, p.y);
+            foreach (var p in pts)
+            {
+                if (p.y > yb + ROOT_TOUCH) continue;
+                float b = bedAt(p.x, p.z); if (float.IsNaN(b)) continue;
+                float d = p.y - b; if (float.IsNaN(hi) || d > hi) hi = d;
+            }
+        }
+        if (float.IsNaN(hi)) return float.NaN;
+        foreach (var g in group) if (g != null) g.transform.position -= Vector3.up * hi;
+        return -hi;
+    }
+
     /// <summary>駒の**見える丈**[m] = 全高 − 下端の最も深い根入れ(<see cref="RootToBed"/> の最小が負の分)。
     /// 法の上に立つ戸・門で「開く姿になるか」を測る(戸の丈と比べる・EDO-0502 岡部の潜り戸 0.54m)。測れなければ NaN。</summary>
     public static float VisibleAboveBed(GameObject go, Func<float, float, float> bedAt, float step = 0.05f)

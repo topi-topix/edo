@@ -372,8 +372,10 @@ public static class EdoAssets
         /// 整数へ丸めて 2間で据えると居間棟へ **0.909m 食い込む**(2026-09-06)。
         /// ⇒ 引数は `float` で、名前は Python の `("%g")` と同じく**末尾の 0 を落とす**
         /// (1.5 → `1.5ken` / 2 → `2ken`)。⛔ `ToString("0.#")` はロケールで小数点が
-        /// 変わるので使わない(InvariantCulture で書く)。</para></summary>
-        public static readonly float[] RoofKirizumaKen = { 1f, 1.5f, 2f, 3f, 4f, 5f, 6f, 7f, 8f, 9f, 10f, 12f };
+        /// 変わるので使わない(InvariantCulture で書く)。</para>
+        /// <para>2.5間 = 土井の `L_OkuNagatsubone`(2026-10-04 EDO-0533)。
+        /// 生成: blender --background --python Tools/Blender/build_goten_roof.py -- kirizuma 2.5</para></summary>
+        public static readonly float[] RoofKirizumaKen = { 1f, 1.5f, 2f, 2.5f, 3f, 4f, 5f, 6f, 7f, 8f, 9f, 10f, 12f };
         public static string RoofKirizuma(float nKen)
         {
             return RoofDir + "Goten_Roof_Kirizuma_" + KenTag(nKen) + "ken.fbx";

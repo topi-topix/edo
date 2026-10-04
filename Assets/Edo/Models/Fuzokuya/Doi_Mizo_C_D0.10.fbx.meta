@@ -3,7 +3,12 @@ guid: ccde93d72cbd94e4f9064b7f4eb1e9c1
 ModelImporter:
   serializedVersion: 24501
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: M_FJG_Terrain_Ground_Soil_01
+    second: {fileID: 2100000, guid: aa85e13dd275ba54a9d13a26fb199ad2, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0

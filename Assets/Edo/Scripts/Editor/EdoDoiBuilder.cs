@@ -1349,6 +1349,9 @@ public static partial class EdoDoiBuilder
     /// ⛔ 置き方はここに書かない(規則21)── 指図の区間・天端・口・取り合いを読み、EdoBuild へ渡して実メッシュで測った値を刷るだけ。
     /// 建てない: 隣の持ち(build:false)・待ち(after)・表門と通用門と通用門の入る棟と表門の下の基壇(S3 で門と一緒に)。
     /// 硬い(許容0 = ✗): 区域侵犯・天端 = 欄の coping・天端 ≥ 道の最高・露出 ≤ boundaryPlinthMax・継ぎ目の隙。柔らかい(⚠): 露出 0.3〜1.2・段塀の段が 0.3 の倍数。</summary>
+    /// <summary>表長屋を出隅の留めの部材(二等分の面で切った版)で据える折れの下限[度]。これより浅い折れは従来の素の棟+走りに沿って引く
+    /// (剪断の留め Own.NagayaOmote2FKutaiMiter は 10° 前後まで ── 土井には無い)。</summary>
+    const float MITER_CUT_MIN_DEG = 30f;
     public static string Stage2_Perimeter()
     {
         { var gate0 = EdoSashizuExport.ReviewGate("doi"); if (gate0 != null) return gate0; }
@@ -1417,14 +1420,75 @@ public static partial class EdoDoiBuilder
         float inu = C("inubashiri");
         var nag = new Dictionary<string, GameObject>(); var nagRun = new List<Run>();
         float worstBed = 0f; string worstBedN = null;
+        // 出隅の留め(EDO-0533 2026-10-04): 棟の端が区画の出隅の頂点で、隣の辺の表長屋(同じ座・二階)と出会うなら、
+        // 二等分の面で切った留めの部材(Own.NagayaOmote2FKutaiMiterCut)で据える ── 型は EdoBuild.FaceLineCorner / PickMiterCut(EdoBuildTsugime.cs)
+        Func<Run, bool> nagBuilt = x => x.nagaya && x.build && x.after == null && !komonIn.ContainsKey(x.name) && cr.inset.ContainsKey(x.edge);
+        // 頂点 v(辺 v−1 の終わり・辺 v の始め)で出会う相手の棟。無ければ null
+        Func<Run, bool, Run> miterMate = (r, hiEnd) =>
+        {
+            if (!r.nikai || float.IsNaN(r.seat)) return null;
+            int ep = hiEnd ? r.edge : (r.edge - 1 + nP) % nP, en = hiEnd ? (r.edge + 1) % nP : r.edge;
+            if (hiEnd ? r.s1 < EdgeLen(r.edge) - EdoBuild.VTX_TOL : r.s0 > EdoBuild.VTX_TOL) return null;
+            Vector2 dp = Dir(ep), dn = Dir(en);
+            if (Vector2.Dot(dn, OutNormal(ep)) >= 0f || Vector2.Angle(dp, dn) < MITER_CUT_MIN_DEG) return null;   // 入隅・浅い折れは留めない
+            foreach (var x in Runs)
+            {
+                if (x == r || !nagBuilt(x) || !x.nikai || float.IsNaN(x.seat) || Mathf.Abs(x.seat - r.seat) > 0.001f) continue;
+                if (hiEnd ? (x.edge == en && x.s0 <= EdoBuild.VTX_TOL) : (x.edge == ep && x.s1 >= EdgeLen(ep) - EdoBuild.VTX_TOL)) return x;
+            }
+            return null;
+        };
+        var miterQ = new Dictionary<int, Vector2>();               // 頂点 → Q
+        var miterAt = new Dictionary<int, List<KeyValuePair<GameObject, bool>>>();   // 頂点 → (棟, 留めた端が +X か)
+        var miterRuns = new HashSet<string>();
         foreach (var r in Runs)
         {
             if (!r.nagaya || !r.build) continue;
             if (r.after != null) { sb.AppendLine("  表長屋 " + r.name + ": 待ち(" + r.after + ")── 建てない"); continue; }
             if (komonIn.ContainsKey(r.name)) { sb.AppendLine("  表長屋 " + r.name + ": 通用門が入る棟 ── 門と一緒に S3 で据える(s=" + r.s0.ToString("F2") + "〜" + r.s1.ToString("F2") + " を空けた)"); continue; }
             if (!cr.inset.ContainsKey(r.edge)) { Wait("表長屋 " + r.name + ": 辺" + r.edge + " に基壇が無く外面の線が決まらない"); continue; }
+            Vector2 o = OutNormal(r.edge), d = Dir(r.edge);
+            Vector2 org = EdgePt(r.edge, 0f) - o * (cr.inset[r.edge] + inu);
             float L = Mathf.Round((r.s1 - r.s0) * 100f) / 100f;
-            string path = EdoAssets.Own.KutaiOf(r.nikai ? EdoAssets.Own.NagayaOmote2F(L) : EdoAssets.Own.NagayaOmote(L));
+            string path;
+            // ── 出隅の留め: 端ごとに Q と折れ角を求め、要る長さ(Q から反対の端)で焼いた版を札で引く
+            Run mLo = miterMate(r, false), mHi = miterMate(r, true);
+            float sLo = r.s0, sHi = r.s1, thLo = 0f, thHi = 0f;
+            if (mLo != null)
+            {
+                int v = r.edge, ep = (v - 1 + nP) % nP;
+                Vector2 q = EdoBuild.FaceLineCorner(EdgePt(ep, 0f), Dir(ep), OutNormal(ep), cr.inset[ep] + inu, EdgePt(v, 0f), d, o, cr.inset[v] + inu);
+                miterQ[v] = q; sLo = Vector2.Dot(q - org, d); thLo = Vector2.Angle(Dir(ep), d);
+            }
+            if (mHi != null)
+            {
+                int v = (r.edge + 1) % nP;
+                Vector2 q = EdoBuild.FaceLineCorner(EdgePt(r.edge, 0f), d, o, cr.inset[r.edge] + inu, EdgePt(v, 0f), Dir(v), OutNormal(v), cr.inset[v] + inu);
+                miterQ[v] = q; sHi = Vector2.Dot(q - org, d); thHi = Vector2.Angle(d, Dir(v));
+            }
+            bool mitered = mLo != null || mHi != null;
+            // 局所 +X の向き(YawFace で +Z = 外向き ⇒ +X = (o.y, −o.x))が走りの + か − か ⇒ 札の −X / +X 端と欄の s0 / s1 端を対応づける
+            bool plusXisHi = Vector2.Dot(new Vector2(o.y, -o.x), d) > 0f;
+            float thL = plusXisHi ? thLo : thHi, thR = plusXisHi ? thHi : thLo;
+            float need = sHi - sLo, lenSpec = float.NaN;
+            if (mitered)
+            {
+                if (!r.nikai) { Wait("表長屋 " + r.name + ": 出隅の留めは二階の版しか無い"); continue; }
+                bool got = EdoBuild.PickMiterCut(x => EdoAssets.Own.NagayaOmote2FKutaiMiterCut(x, thL, thR), need, out path, out lenSpec);
+                if (!got)
+                {
+                    float lc = Mathf.Ceil(need * 100f - 1e-3f) / 100f;
+                    Wait("表長屋 " + r.name + ": 出隅の留めの部材が無いか長さが合わない(要る長さ = Q から反対の端 " + need.ToString("F3") + "m・控え c = "
+                       + (cr.inset[r.edge] + inu).ToString("F3") + "・札 " + (float.IsNaN(lenSpec) ? "-" : lenSpec.ToString("F3")) + ")── 伸縮しない ⇒ 建てない → "
+                       + "blender --background --python Tools/Blender/build_nagaya_omote.py -- " + lc.ToString("0.##") + " --body --floors 2 --miter-cut "
+                       + thL.ToString("0.###") + " " + thR.ToString("0.###") + " --render");
+                    continue;
+                }
+                var cut = EdoBuild.SpecMiterCutEnds(EdoPartSpec.Get(path));
+                if (cut[0] != (thL > 0f) || cut[1] != (thR > 0f))
+                { Wait("表長屋 " + r.name + ": 札の留めた端(−X " + cut[0] + " / +X " + cut[1] + ")が欄の出隅の端と合わない " + path); continue; }
+            }
+            else path = EdoAssets.Own.KutaiOf(r.nikai ? EdoAssets.Own.NagayaOmote2F(L) : EdoAssets.Own.NagayaOmote(L));
             var spec = EdoPartSpec.Get(path);
             if (!Exists(path) || spec == null)
             {
@@ -1432,14 +1496,29 @@ public static partial class EdoDoiBuilder
                    + " → blender --background --python Tools/Blender/build_nagaya_omote.py -- " + L.ToString("0.##") + " --body" + (r.nikai ? " --floors 2" : ""));
                 continue;
             }
-            Vector2 o = OutNormal(r.edge), d = Dir(r.edge);
-            Vector2 org = EdgePt(r.edge, 0f) - o * (cr.inset[r.edge] + inu);
-            Vector2 p = org + d * ((r.s0 + r.s1) * 0.5f);
+            Vector2 p = org + d * ((sLo + sHi) * 0.5f);
             var go = EdoBuild.Place(path, new Vector3(p.x, float.IsNaN(r.seat) ? EdoBuild.Ground(p.x, p.y) : r.seat, p.y), YawFace(o), Vector3.one, kak, r.name);
             if (go == null) continue;
             Vector3 fw = go.transform.TransformPoint(new Vector3(0f, 0f, spec.front));
             go.transform.position -= new Vector3(o.x, 0f, o.y) * Vector2.Dot(new Vector2(fw.x, fw.z) - org, o);
-            EdoBuild.AbutBodyAlong(go, org, d, r.s0, true);
+            // 走り: 留めた端の札 jamb を Q へ(硬い)── 反対の妻は札の長さで隣の棟の端へ着く(長い分 ≤0.03 は隣の妻へ埋める)。留めない棟は従来どおり s0 へ
+            if (mLo != null) EdoBuild.AbutBodyAlong(go, org, d, sLo, true);
+            else if (mHi != null) EdoBuild.AbutBodyAlong(go, org, d, sHi, false);
+            else EdoBuild.AbutBodyAlong(go, org, d, r.s0, true);
+            if (mitered)
+            {
+                miterRuns.Add(r.name);
+                foreach (var hv in new[] { false, true })
+                {
+                    if ((hv ? mHi : mLo) == null) continue;
+                    int v = hv ? (r.edge + 1) % nP : r.edge; List<KeyValuePair<GameObject, bool>> l;
+                    if (!miterAt.TryGetValue(v, out l)) miterAt[v] = l = new List<KeyValuePair<GameObject, bool>>();
+                    l.Add(new KeyValuePair<GameObject, bool>(go, hv == plusXisHi));
+                }
+                sb.AppendLine("  ⭕ 表長屋 " + r.name + ": 出隅の留め " + System.IO.Path.GetFileNameWithoutExtension(path) + "(札の長さ " + lenSpec.ToString("F3")
+                            + "・要る長さ Q〜反対の端 " + need.ToString("F3") + "・差 " + (lenSpec - need).ToString("+0.000;-0.000") + "・控え c = " + (cr.inset[r.edge] + inu).ToString("F3")
+                            + "・Q は頂点から走りで " + (mLo != null ? sLo : EdgeLen(r.edge) - sHi).ToString("F3") + ")");
+            }
             float crest;
             if (!EdoBuild.SeatOnCrest(go, ig, 0f, out crest)) { Wait("表長屋 " + r.name + ": 足の下に基壇の天端が無い ── 欄の seat で据えたまま"); continue; }
             // 当たり = 土台の底 × 基壇の天端(天端の前の縁から奥へ、土台の外面の帯 0.3m)
@@ -1454,10 +1533,22 @@ public static partial class EdoDoiBuilder
         // 区画の頂点の端の棟: 出隅の折れが 90° を超えると、線から内へ控えた棟の妻の腰が隣の辺の外へ出る ⇒ 走りに沿って引く(硬い・区域)
         foreach (var r in nagRun)
         {
+            if (miterRuns.Contains(r.name)) continue;   // 留めた棟は引かない(引くと留めの口が開く ── Q で閉じている)
             bool lo = r.s0 <= EdoBuild.VTX_TOL, hi = r.s1 >= EdgeLen(r.edge) - EdoBuild.VTX_TOL; if (!lo && !hi) continue;
             float before; float pl = EdoBuild.PullAlongInside(new List<GameObject> { nag[r.name] }, P, hi ? -Dir(r.edge) : Dir(r.edge), 0.6f, out before, 1.2f);
             if (before > 0.001f) sb.AppendLine("  " + (float.IsNaN(pl) ? "✗" : "⚠") + " 表長屋 " + r.name + ": 頂点の端の妻の腰が " + before.ToString("F3") + "m 隣の辺の外 ⇒ 走りに沿って "
                                             + (float.IsNaN(pl) ? "0.6m 引いても収まらない" : pl.ToString("F3") + "m 引いた(隣の棟と重なる・出隅の留めの部材が無い)"));
+        }
+        // 出隅の留めの閉じ(硬い): 頂点で出会う二棟の留めた端の札 jamb の外面の点がどちらも Q に来ているか
+        foreach (var kv in miterAt)
+        {
+            var l = kv.Value; l.RemoveAll(x => x.Key == null);
+            if (l.Count < 2) { sb.AppendLine("  ⚠ 表長屋 頂点" + kv.Key + ": 出隅の留めの相手が据わっていない(片方だけ)"); warn++; continue; }
+            float g = EdoBuild.MiterCornerGap(l[0].Key, l[0].Value, l[1].Key, l[1].Value);
+            bool okc = !float.IsNaN(g) && g <= 0.001f;
+            if (okc) ok++; else bad++;
+            sb.AppendLine("  " + (okc ? "⭕" : "✗") + " 表長屋 頂点" + kv.Key + " の出隅の留め " + l[0].Key.name + " × " + l[1].Key.name + ": 留めた端の外面の点どうし "
+                        + (float.IsNaN(g) ? "札が無い" : g.ToString("F4") + "m") + "(Q = " + miterQ[kv.Key].x.ToString("F3") + ", " + miterQ[kv.Key].y.ToString("F3") + ")");
         }
         // 継ぎ目(札の躯体の端どうし・硬い隙 0)と区画の線(腰 1.2m・硬い)
         float worstSeam = 0f; string worstSeamN = "-"; int seams = 0;

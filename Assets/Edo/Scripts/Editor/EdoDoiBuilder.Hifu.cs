@@ -6,7 +6,7 @@ using UnityEngine;
 // 土井 S4b 縁の皮(案A・EDO-0533)── 2m 格子の地形では描けない土留めの天端の奥・石段の踏面・面の縁の升に穴を開け、
 //  0.25m の皮で描く(EdoBuild.CutEdgeSkin・岡部 Stage3b / 山王 Stage9 と同じ型)。
 //  ⛔ 置き方はここに書かない(規則21)── 渡す部材・面・設計の地盤を集めるだけ。
-//  ⚠ 造成(1)・土留め(4a)を流した後は皮が古い ── 4a の後に必ずこれを流し直す。
+//  ⚠ 造成(1)・土留め(4a)・排水(9)を流した後は皮が古い ── 4a・9 の後に必ずこれを流し直す。
 public static partial class EdoDoiBuilder
 {
     [MenuItem(MENU + "4b 縁の皮(土留め・石段の足元の升を皮で描く)")]
@@ -26,6 +26,9 @@ public static partial class EdoDoiBuilder
         foreach (Transform c in Group("Dodome")) if (c.gameObject.activeInHierarchy) { parts.Add(c.gameObject); band.Add(c.gameObject); }
         int stairN = 0;
         foreach (var r in Group("Fuzoku/Kaidan").GetComponentsInChildren<MeshRenderer>()) { parts.Add(r.gameObject); stairN++; }
+        // 溝・桝・蓋石・水切り(S9 排水・群 Mizo)── 天端を地盤に据えて地形の下へ潜るので、升に穴を開けて皮で描く(⚠ S9 の後にこれを流し直す)
+        int mizoN = 0;
+        foreach (Transform c in Group("Mizo")) if (c.gameObject.activeInHierarchy) { parts.Add(c.gameObject); mizoN++; }
         // 面 = 指図 terraces のうち設計の地盤が面の高さに収まる物(勾配の面は graded のまま描く)
         var faces = new List<EdoBuild.SkinFace>(); var f = Grid; var G = Graded;
         foreach (var o in A(D["terraces"]) ?? new List<object>())
@@ -76,7 +79,7 @@ public static partial class EdoDoiBuilder
                                        crestBandParts: band, plantPoints: plant, faceKeepOut: keep);
         AssetDatabase.SaveAssetIfDirty(EdoBuild.T().terrainData);
         sb.AppendLine("  庭の土工の矩形 " + keep.Count + " を面の縁から外した");
-        sb.AppendLine("  古い皮を外して塞いだ升 " + filled + " / 部材 " + rep.parts + "(土留め " + band.Count + "・石段 " + stairN + ")/ 面 " + faces.Count + " / 守った点 " + plant.Count);
+        sb.AppendLine("  古い皮を外して塞いだ升 " + filled + " / 部材 " + rep.parts + "(土留め " + band.Count + "・石段 " + stairN + "・溝 " + mizoN + ")/ 面 " + faces.Count + " / 守った点 " + plant.Count);
         sb.AppendLine("  " + rep);
         sb.Append(EdoBuild.SkinGapTable(parts, faces, tol));
         return sb.ToString();

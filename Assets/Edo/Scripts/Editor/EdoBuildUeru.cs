@@ -19,6 +19,13 @@
 //       (⛔ 黙って浮かせない・埋めない — 呼び手が数えて刷る)。閾値は完成の表と同じ数(規則4 の許容0)。
 //    〔硬い制約〕埋没 ≤ buryMax・根元の浮き ≤ floatMax。据わらない木は置いたうえで名指しする。
 //
+// ⭐⭐ 2026-10-04 EDO-0533 普請検査 第1回(土井 南の崖_中木0004 浮き +0.092): 上の 2) の「持ち上げる」が根元を地表から
+//    浮かせていた(山側の枝葉の埋まり 1.0 に当てて根元の下手を 0.09 浮かせた)。根元の浮きは**許容0(硬い)**で、
+//    枝葉の埋まりの上限より先に効く。⇒ 根元は**根元の帯の最も浮いた当たり**(<see cref="RootBandGap"/> ── 局所の上向きで
+//    最も低い当たりから ROOT_TOUCH 以内・検査と同じ測り)まで沈め切り、持ち上げは根元が浮かない余地の内だけ。
+//    余地が足りず枝葉の埋まりが buryMax を超える木は「据わらない」と返す(⛔ 浮かせて辻褄を合わせない)。
+//    flt は**根元の帯の最も浮いた当たり**の隙(≤ 0 が合格)に改めた(旧は最も地面に近い当たり ── 坂の下手の浮きを隠した)。
+//
 // 当たる先: SeatPlant を呼ぶ所すべて(今は山王の社叢の下層と名指しの木 = Stage7_Shaso だけ)。
 //   類型の庭の NiwaField.Put は SeatOnGround+起伏の据え直し+Contact で据えていて、同じ「谷側の樹冠を
 //   浮きと数える」誤りは持たない(最小の隙で数えている)。
@@ -28,14 +35,14 @@ using UnityEngine;
 
 public static partial class EdoBuild
 {
-    /// <summary>植木を足元の当たりで据える。戻り値 = 埋没 ≤ <paramref name="buryMax"/> かつ 根元の浮き ≤ <paramref name="floatMax"/>
-    /// で据わったか。<paramref name="bury"/> = 最も深い当たり(枝葉を含む)の埋没[m]、<paramref name="flt"/> = 根元の浮き[m]
-    /// (根元の当たりのうち最も地面に近い所の隙。負なら根元は地中)。
-    /// 根元 = 局所の上向き(transform.up)で最も低い当たりから <paramref name="footBand"/> 以内の当たり。
+    /// <summary>植木を足元の当たりで据える。戻り値 = 埋没 ≤ <paramref name="buryMax"/> かつ 根元の浮き ≤ 0(許容0・硬い)
+    /// かつ ≤ <paramref name="floatMax"/> で据わったか。<paramref name="bury"/> = 最も深い当たり(枝葉を含む)の埋没[m]、
+    /// <paramref name="flt"/> = 根元の浮き[m](**根元の帯の当たりのうち最も浮いた所**の隙 ── <see cref="RootBandGap"/> と同じ測り。負なら根元は全部地中)。
+    /// 根元 = 局所の上向き(transform.up)で最も低い当たりから <see cref="ROOT_TOUCH"/> 以内の当たり(沈めの基準の帯は <paramref name="footBand"/>)。
     /// ⛔ 基準点(ピボット)の高さは使わない。⛔ 谷側の樹冠の下の隙を浮きと数えない。当たりが測れなければ false(NaN を返す)。
     /// <paramref name="drawn"/> = 描かれた地表の掴み(<see cref="Drawn"/>)。⭐ 縁の皮を起こした邸では**皮の後に一度だけ作って渡す** ──
     /// 渡さなければ地形の格子(heightmap)で引き、皮の上で浮き 0.44・埋まり 0.26 が出た(岡部 第6巡・266 本・EDO-0502)。
-    /// 皮の無い所・皮の升の継ぎ目(NaN)は地形で引く。当たる先: 皮のある邸で木を GameObject で据える所(岡部 Stage5・山王 Stage7 の名指しの木)。</summary>
+    /// 皮の無い所・皮の升の継ぎ目(NaN)は地形で引く。当たる先: 皮のある邸で木を GameObject で据える所(岡部 Stage5・土井 Stage8・山王 Stage7 の名指しの木)。</summary>
     public static bool SeatPlant(GameObject go, float sink, out float bury, out float flt,
                                  float buryMax = 1.0f, float floatMax = 0.7f, float footBand = 0.3f,
                                  int maxSamples = 60000, DrawnGround drawn = null)
@@ -52,19 +59,51 @@ public static partial class EdoBuild
         Vector3 up = go.transform.up;
         float hmin = float.MaxValue;
         foreach (var p in pts) hmin = Mathf.Min(hmin, Vector3.Dot(p, up));
-        float cmin = float.MaxValue, fmin = float.MaxValue;   // 全部の当たりの最小の隙 / 根元の当たりの最小の隙
+        // 全部の当たりの最小の隙 / 根元(footBand)の当たりの最小の隙 / 根元の帯(ROOT_TOUCH)の当たりの最大の隙
+        float cmin = float.MaxValue, fmin = float.MaxValue, rmax = float.MinValue;
         foreach (var p in pts)
         {
             float c = p.y - G(p.x, p.z);
             if (c < cmin) cmin = c;
-            if (Vector3.Dot(p, up) <= hmin + footBand && c < fmin) fmin = c;
+            float h = Vector3.Dot(p, up);
+            if (h <= hmin + footBand && c < fmin) fmin = c;
+            if (h <= hmin + ROOT_TOUCH && c > rmax) rmax = c;
         }
-        float dy = -sink - fmin;                          // 1) 根元を地表へ
-        if (-(cmin + dy) > buryMax) dy = -buryMax - cmin; // 2) 山側の枝葉が埋まりすぎるなら持ち上げる
+        float dy = -sink - fmin;                          // 1) 根元を地表へ(sink だけ潜らせる)
+        if (rmax + dy > 0f) dy = -rmax;                   // 1') 硬い・浮き 0: 根元の帯の最も浮いた当たり(坂の下手の縁)も地表へ
+        if (-(cmin + dy) > buryMax)                       // 2) 山側の枝葉が埋まりすぎるなら、根元が浮かない余地の内だけ持ち上げる
+            dy += Mathf.Min(-buryMax - cmin - dy, Mathf.Max(0f, -(rmax + dy)));
         go.transform.position += new Vector3(0f, dy, 0f);
         bury = Mathf.Max(0f, -(cmin + dy));
-        flt = fmin + dy;
-        return bury <= buryMax + 1e-4f && flt <= floatMax + 1e-4f;
+        flt = rmax + dy;
+        return bury <= buryMax + 1e-4f && flt <= 1e-4f && flt <= floatMax + 1e-4f;
+    }
+
+    /// <summary>**根元の帯の隙**(2026-10-04 EDO-0533 普請検査 第1回 ── 斜面の根元の浮き 4 本)。当たり = 格子ごとの最下点
+    /// (<see cref="GroundCandidates"/>)のうち、局所の上向き(transform.up)で最も低い当たりから <paramref name="band"/> 以内の点
+    /// (= 幹の足・根張りの底・株の底)。その 下端 − <paramref name="bedAt"/> の最小(lo)・最大(hi = 最も浮いた所)を返す。
+    /// ⭐ 検査(普請検査の根元の浮き)と同じ測り。⛔ 足跡の外接の箱(<see cref="RootToBed"/>)で代えない ── 放射に張る根張りでは箱の隅が
+    /// 根の無い所に出て、坂の下手で浮きを過大に測り木を沈め過ぎた(土井 Matsu_Naka_0 の幹の足 1.24m 埋まり)。
+    /// 当たる先: 木・低木・刈込・下草の据え(<see cref="SeatPlant"/>・<see cref="NiwaField"/>.Put・<see cref="NiwaLeanTree"/>)── 全邸の庭と植栽。</summary>
+    public static Scribe RootBandGap(GameObject go, System.Func<float, float, float> bedAt, int maxSamples = 4000, float band = ROOT_TOUCH)
+    {
+        var res = new Scribe { lo = float.NaN, hi = float.NaN };
+        var pts = GroundCandidates(go.transform, maxSamples);
+        if (pts.Count == 0) return res;
+        Vector3 up = go.transform.up;
+        float hmin = float.MaxValue;
+        foreach (var p in pts) hmin = Mathf.Min(hmin, Vector3.Dot(p, up));
+        foreach (var p in pts)
+        {
+            if (Vector3.Dot(p, up) > hmin + band) continue;
+            float b = bedAt(p.x, p.z);
+            if (float.IsNaN(b)) { res.spanN++; continue; }
+            float d = p.y - b; res.atariN++;
+            if (float.IsNaN(res.lo) || d < res.lo) res.lo = d;
+            if (float.IsNaN(res.hi) || d > res.hi) { res.hi = d; res.hiAt = new Vector3(p.x, b, p.z); }
+            if (d > 0.01f) res.shortN++;
+        }
+        return res;
     }
 
     // ── 幹の足(2026-09-25・EDO-0409)──────────────────────────────────────────────

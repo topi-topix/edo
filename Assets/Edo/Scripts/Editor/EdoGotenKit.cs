@@ -165,6 +165,31 @@ public static class EdoGotenKit
         return n;
     }
 
+    /// <summary>**渡廊下・階段廊下の柱の足を地面まで下ろす**(硬い: 浮き 0)。<see cref="Roka"/> の柱は床の高さから立つので、
+    /// 床下の地面が床より低い所で柱が宙に浮く(土井 L_OkuNagatsubone +0.62・L_HiromaOku +0.48〜0.77 ── 普請検査 2026-10-04)。
+    /// 柱の頭(桁の下)は動かさず、触れている箇所(EdoBuild.Contact = 足と地表の隙)を測って足だけを地表 −root まで伸ばす
+    /// (伸ばした後に足を実測して平行移動する ── ピボットが底とは限らない)。
+    /// 当たる先: 土井の渡廊下・階段廊下(EdoDoiBuilder.PlaceLinksA)。郭の段をまたぐ・床下の地面が下がる渡廊下すべて。
+    /// ⟶ 返す: 伸ばした柱の数。<paramref name="maxStretch"/> = 伸ばした量の最大[m]。</summary>
+    public static int RokaFeetToGround(GameObject roka, float root, out float maxStretch)
+    {
+        int n = 0; maxStretch = 0f;
+        foreach (Transform c in roka.transform)
+        {
+            if (!c.name.StartsWith("Goten_Column")) continue;
+            Vector3 at; int cnt;
+            float gap = EdoBuild.Contact(c.gameObject, out at, out cnt);
+            if (float.IsNaN(gap) || gap <= 0f) continue;
+            var b0 = EdoBuild.RB(c.gameObject); float top = b0.max.y, h = b0.size.y; if (h < 0.01f) continue;
+            float k = (h + gap + root) / h;
+            var ls = c.localScale; c.localScale = new Vector3(ls.x, ls.y * k, ls.z);
+            float topNow = EdoBuild.RB(c.gameObject).max.y;
+            c.position += new Vector3(0f, top - topNow, 0f);             // 頭を元の高さへ(足が下がる)
+            n++; maxStretch = Mathf.Max(maxStretch, gap + root);
+        }
+        return n;
+    }
+
     public static GameObject Mune(string name, Transform parent, Vector3 pos, float yaw,
                                   int nx, int nzZashiki, int iri = 1,
                                   float floor = 0.62f, string roofAsset = null,

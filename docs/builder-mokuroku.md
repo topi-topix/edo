@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 89・関数 791(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 89・関数 796(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -16,7 +16,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 |---|---|---|---|
 | [EdoDoiBuilder.Dan.cs](#edodoibuilderdancs) | ══════════════════════════════════════════════════════════════════════ | 1 | 6 |
 | [EdoDoiBuilder.Hifu.cs](#edodoibuilderhifucs) | 土井 S4b 縁の皮(案A・EDO-0533)── 2m 格子の地形では描けない土留めの天端の奥・石段の踏面・面の縁の升に穴を開け、 | 1 | 2 |
-| [EdoDoiBuilder.Mizo.cs](#edodoibuildermizocs) | 土井 S9 排水(案A・EDO-0533)── 指図 drains[D1〜D13] の segs/masu/cross/toriai/outletBuild と drainKata(型 A〜P)を読み、 | 1 | 3 |
+| [EdoDoiBuilder.Mizo.cs](#edodoibuildermizocs) | 土井 S9 排水(案A・EDO-0533)── 指図 drains[D1〜D13] の segs/masu/cross/toriai/outletBuild と drainKata(型 A〜P)を読み、 | 1 | 8 |
 | [EdoDoiBuilder.Mon.cs](#edodoibuildermoncs) | ══════════════════════════════════════════════════════════════════════ | 1 | 16 |
 | [EdoDoiBuilder.Mune.cs](#edodoibuildermunecs) | ══════════════════════════════════════════════════════════════════════ | 1 | 9 |
 | [EdoDoiBuilder.Niwa.cs](#edodoibuilderniwacs) | 土井大隅守上屋敷 — 奥庭(Stage6)。 | 3 | 72 |
@@ -80,7 +80,12 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 
 | 関数 | 返す | 公開 | 何をするか(注釈の一文目) |
 |---|---|---|---|
+| `Gk(d, k)` | `object` |  | 欄が無ければ null(指図の drains は系統ごとに持つ欄が違う ── 索引子で引くと KeyNotFound で S9 ごと落ちる)。 |
 | `Stage9_Mizo()` | `string` | 公 | — |
+| `PiecesByPrefix9(prefix, root)` | `List<GameObject>` |  | 群の下で名が prefix(または prefix_…)の段を持つ駒(Stage9 の piecesByPrefix と同じ引き方)。 |
+| `BuildDanOchi9(g, grp, solvedEnds, receivers, masuOf, kf, line)` | `void` |  | 型 H(段落ち)の区間: 頭の底(始点の区間の尻・入る区間の尻 ── 線の頭から 3m 内)と尻の狙い(欄の 段 × 1段/吐口が塀の水抜きなら塀の外の道 + bottomAboveRoad)を 欄から読み、EdoBui… |
+| `BuildHariOtoshi9(g, grp, byId, edgeChk, kf, line)` | `void` |  | 区間の欄 drop(型 I 張り石の落とし): 始点 = 座の「辺N 側の縁」のうち受ける区間に最も近い所・終点 = 受ける区間の線(垂線の足)を引き、 頭 = 座の縁の地盤(この区間の尻の底が低ければそれ)・法尻 =… |
+| `BuildUke9(g, grp, masuAt, edgeChk, line)` | `void` |  | 型 J(玉石の受け)の区間: 線「受け: <条件> のうち <起点> に最も近い所に a×b 間」を読み、起点の桝(据えた位置)・指名の辺・勾配の上限を EdoBuild.PlaceUke(置き場は PlaceBest… |
 | `ToArr(mc)` | `string[]` |  | — |
 
 ## EdoDoiBuilder.Mon.cs

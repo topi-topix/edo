@@ -59,6 +59,82 @@ public static partial class EdoBuild
         return d;
     }
 
+    // ───────────────────────────── 出隅の留めの長屋(二等分の面で切った版・EDO-0533 2026-10-04)
+    //  据えの型: ① 両辺の壁の外面の線(区画の線から内へ c = 基壇の控え + 犬走り)の交点 Q を求める(FaceLineCorner)
+    //            ② 要る長さ = Q から反対の端(隣の棟の躯体の端の s)までの壁の外面の長さ ⇒ 焼いた版を札の長さで引く(PickMiterCut)
+    //            ③ 札の front を壁の外面の線へ・留めた端の札 jamb を Q へ(AbutBodyAlong)── 反対の妻は隣の棟へ突き付く
+    //  ⛔ ピボット・外接箱で決めない。⛔ 伸縮しない。⛔ 留めた棟に PullAlongInside を掛けない(引くと留めの口が開く)。
+    //  硬い: 札の長さが要る長さより 0.001 を超えて短い(留めか継ぎ目に隙)⇒ 建てない。柔らかい: 長い分(≤ 0.03)は隣の妻へ埋めて隠す。
+    //  当たる先: 区画の出隅の頂点で、両辺の表長屋(同じ座・同じ二階)が出会う所すべて ── 土井 頂点13(E12_N03 × E13_N01)。
+    //            土井 頂点15(E14_N1 × E15_N1・待ち)・岡部/松江松平の外周の出隅も同じ口で引ける(焼いてあれば)。
+
+    /// <summary>二本の**壁の外面の線**(辺の始点 <paramref name="a1"/>・走り <paramref name="d1"/>・外向き <paramref name="out1"/> の線から内へ
+    /// <paramref name="c1"/>)の交点 Q(外隅)。平行なら (NaN, NaN)。⭐ 控えが辺ごとに違っても Q は二本の線の交点のまま(二等分の面は
+    /// 二本の線の角だけで決まる ⇒ 焼いた留めの切り口は c に依らず合う・変わるのは長さだけ)。</summary>
+    public static Vector2 FaceLineCorner(Vector2 a1, Vector2 d1, Vector2 out1, float c1, Vector2 a2, Vector2 d2, Vector2 out2, float c2)
+    {
+        d1 = d1.normalized; d2 = d2.normalized;
+        Vector2 p1 = a1 - out1.normalized * c1, p2 = a2 - out2.normalized * c2;
+        float den = d1.x * d2.y - d1.y * d2.x;
+        if (Mathf.Abs(den) < 1e-5f) return new Vector2(float.NaN, float.NaN);
+        Vector2 w = p2 - p1;
+        return p1 + d1 * ((w.x * d2.y - w.y * d2.x) / den);
+    }
+
+    /// <summary>札の躯体の長さ(jambR.x − jambL.x)。札が無ければ NaN。</summary>
+    public static float SpecBodyLen(EdoPartSpec.Spec sp)
+    {
+        return sp == null || sp.jambL == null || sp.jambR == null ? float.NaN : sp.jambR.x - sp.jambL.x;
+    }
+
+    /// <summary>**長さの決まった留めの駒を、要る長さ <paramref name="need"/> から札で引く**。名の長さは 0.01m 刻み(<paramref name="pathOf"/>)なので、
+    /// 四捨五入と切り上げの二つを試し、**焼いてあって札の長さが need − <paramref name="shortTol"/> 〜 need + <paramref name="longTol"/> に入る**最初の版を返す。
+    /// 返り値 = 採れたか。<paramref name="path"/> = 採った版(採れなければ焼くべき版 = 切り上げの名)、<paramref name="lenSpec"/> = その札の長さ(無ければ NaN)。
+    /// ⛔ 伸縮しない ── 合わなければ呼び手は建てずに待つ(硬い)。当たる先: 出隅の留めの長屋(<c>EdoAssets.Own.NagayaOmote2FKutaiMiterCut</c>)。</summary>
+    public static bool PickMiterCut(Func<float, string> pathOf, float need, out string path, out float lenSpec,
+                                    float shortTol = 0.001f, float longTol = 0.03f)
+    {
+        float lr = Mathf.Round(need * 100f) / 100f, lc = Mathf.Ceil(need * 100f - 1e-3f) / 100f;
+        path = pathOf(lc); lenSpec = float.NaN;
+        foreach (float L in lr == lc ? new[] { lr } : new[] { lr, lc })
+        {
+            string p = pathOf(L);
+            if (!System.IO.File.Exists(p)) continue;
+            var sp = EdoPartSpec.Get(p); float len = SpecBodyLen(sp);
+            if (float.IsNaN(len)) continue;
+            lenSpec = len;
+            float diff = len - need;
+            if (diff >= -shortTol && diff <= longTol) { path = p; return true; }
+        }
+        return false;
+    }
+
+    /// <summary>札の足の外形から、**どちらの端が留めて切ってあるか**を読む(背の側の足の端が躯体の端 jamb より 0.05m 以上内へ入る端 = 切った端)。
+    /// 返す: (−X 端が切ってあるか, +X 端が切ってあるか)。札の端と欄の端の取り違え(局所 ±X と走りの向き)を据える前に捕まえる(硬い)。</summary>
+    public static bool[] SpecMiterCutEnds(EdoPartSpec.Spec sp)
+    {
+        if (sp == null || sp.jambL == null || sp.jambR == null || sp.foot == null || sp.foot.Count == 0) return new[] { false, false };
+        float zb = float.MaxValue; foreach (var q in sp.foot) zb = Mathf.Min(zb, q.y);
+        float mn = float.MaxValue, mx = float.MinValue;
+        foreach (var q in sp.foot) if (q.y <= zb + 0.01f) { mn = Mathf.Min(mn, q.x); mx = Mathf.Max(mx, q.x); }
+        return new[] { mn - sp.jambL.x > 0.05f, sp.jambR.x - mx > 0.05f };
+    }
+
+    /// <summary>出隅で出会う二棟の**留めた端の札 jamb の外面の点**(局所 x = jamb.x・z = front)どうしの距離[m](0 = 外隅 Q で閉じている)。
+    /// <paramref name="aRight"/> = a の留めた端が +X 端か。札が無ければ NaN。</summary>
+    public static float MiterCornerGap(GameObject a, bool aRight, GameObject b, bool bRight)
+    {
+        Func<GameObject, bool, Vector2> pt = (go, right) =>
+        {
+            var path = UnityEditor.PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(go);
+            var sp = string.IsNullOrEmpty(path) ? null : EdoPartSpec.Get(path);
+            if (sp == null || sp.jambL == null || sp.jambR == null) return new Vector2(float.NaN, float.NaN);
+            return EdoPartSpec.W(go.transform, right ? sp.jambR.x : sp.jambL.x, sp.front);
+        };
+        Vector2 pa = pt(a, aRight), pb = pt(b, bRight);
+        return float.IsNaN(pa.x) || float.IsNaN(pb.x) ? float.NaN : Vector2.Distance(pa, pb);
+    }
+
     /// <summary>**長屋・門長屋の土台の底(当たり)を、足の下の基壇の天端 <paramref name="crest"/> へ据える**(高さだけ・硬い ±0.001)。
     /// 当たり = 躯体の外面の帯(外面の線 <paramref name="frontLine"/> から奥へ 0.3m・<see cref="Body"/> の全頂点)の最下点。
     /// 走り <paramref name="along"/> の区間 [<paramref name="skipLo"/>, <paramref name="skipHi"/>](<paramref name="frontLine"/> からの s)は除く ──

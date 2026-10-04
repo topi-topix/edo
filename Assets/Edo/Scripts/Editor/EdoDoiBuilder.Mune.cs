@@ -205,16 +205,33 @@ public static partial class EdoDoiBuilder
                 Vector2 wh = alongU ? (hiAtEnd ? f.W(u1, v1) : f.W(u0, v0)) : (hiAtEnd ? f.W(u0, v1) : f.W(u1, v0));
                 float yaw = (alongU ? YawAlongU() : YawAlongV()) + (hiAtEnd ? 180f : 0f);
                 string kn;
-                var kg = EdoGotenKit.KaidanRoka(nm, grp, new Vector3(wh.x, y, wh.y), yaw, run, floor, drop,
+                // 廊下の根(名 nm)は他の廊下と同じ原点・向き(走りの頭の端)に置き、段の組は上の端から張る子にする
+                // (突き合わせは根の原点を指図の端と比べる ── 根を上の端に置くと走りの長さぶん「ずれ」に数えた・普請検査 2026-10-04)
+                var w0 = alongU ? f.W(u0, v0) : f.W(u1, v0);
+                var root = new GameObject(nm); root.transform.SetParent(grp, false);
+                root.transform.position = new Vector3(w0.x, y, w0.y);
+                root.transform.rotation = Quaternion.Euler(0f, alongU ? YawAlongU() : YawAlongV(), 0f);
+                Undo.RegisterCreatedObjectUndo(root, "kaidan");
+                var lp = root.transform.InverseTransformPoint(new Vector3(wh.x, y, wh.y));
+                var kg = EdoGotenKit.KaidanRoka(nm + "_Kaidan", root.transform, lp, hiAtEnd ? 180f : 0f, run, floor, drop,
                                                 EdoAssets.Goten.KaidanRoka(run * f.ken, drop), out kn);
-                if (kg != null) { Undo.RegisterCreatedObjectUndo(kg.transform.parent.gameObject, "kaidan"); line(0, "廊下 " + nm + "(階段廊下 " + run + "間・落差 " + drop + "): " + kn); }
+                if (kg != null)
+                {
+                    float st; int nf = EdoGotenKit.RokaFeetToGround(kg.transform.parent.gameObject, 0.05f, out st);
+                    line(0, "廊下 " + nm + "(階段廊下 " + run + "間・落差 " + drop + "): " + kn + (nf > 0 ? "・柱の足を地面まで下ろした " + nf + " 本(最大 " + st.ToString("F3") + "m)" : ""));
+                }
                 else line(2, "廊下 " + nm + ": 階段廊下が組めない ── " + kn);
                 continue;
             }
             float yF = FaceY(u0, v0, u1, v1, F(l["y"]), "廊下 " + nm);
             var w = alongU ? f.W(u0, v0) : f.W(u1, v0);
             var g = EdoGotenKit.Roka(nm, grp, new Vector3(w.x, yF, w.y), alongU ? YawAlongU() : YawAlongV(), run, floor, colStart: false, colEnd: false);
-            if (g != null) { Undo.RegisterCreatedObjectUndo(g, "roka"); line(0, "廊下 " + nm + ": " + run + "間"); }
+            if (g != null)
+            {
+                Undo.RegisterCreatedObjectUndo(g, "roka");
+                float st; int nf = EdoGotenKit.RokaFeetToGround(g, 0.05f, out st);
+                line(0, "廊下 " + nm + ": " + run + "間" + (nf > 0 ? "・柱の足を地面まで下ろした " + nf + " 本(最大 " + st.ToString("F3") + "m)" : ""));
+            }
         }
     }
 

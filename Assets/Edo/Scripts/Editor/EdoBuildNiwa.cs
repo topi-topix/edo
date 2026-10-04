@@ -198,6 +198,9 @@ public static partial class EdoBuild
         /// <summary>高木・中木の上手の最深の埋まり[m]【確度 U】。斜度の沈めを足した後の、幹の足の下端の最も深い所。
         /// 丈 10m 超の幹なので 1.5m 埋めても見えは崩れない。越える坂(足の半径 0.5m で約 45°超)には置かない(硬い制約)。</summary>
         public const float TREE_BURY_MAX = 1.5f;
+        /// <summary>低木・刈込・下草の根元の帯の最深の埋まり[m]【確度 U】(2026-10-04 EDO-0533 普請検査 第1回)。根元の帯の最も浮いた所を
+        /// 地表まで沈め切った(浮き 0・硬い)後の、帯の最も深い所の上限。株の丈 0.5〜1.5m の半分を越えて埋めない目安。越える坂には置かない(DropNeire)。</summary>
+        public const float SHRUB_BURY_MAX = 0.40f;
         /// <summary>**高木**(囲いから幹で 2.0 / 軒から樹冠で 0.3)。塊の芯々は樹冠半径の和×0.45〜0.75 —
         /// ⭐ 三本の松が**株**に見える寄り(⛔ 0.7〜1.1 では芯々8〜11m で孤立木3本になる・検分⑥)。</summary>
         public static NiwaSet Tree
@@ -351,6 +354,14 @@ public static partial class EdoBuild
         /// 木の沈めは <c>Neire</c>/<c>MaxNeire</c>(上手の最深)にも数え、置けなかった木は <c>DropNeire</c>(上限は TREE_BURY_MAX)に入る。</summary>
         public int SlopeSink;
         public float MaxSlopeTan;
+        /// <summary><c>RootSunk</c> = 根元の帯の最も浮いた当たりを地表まで沈め切った木・低木・下草の数(最大 <c>MaxRootSunk</c>[m])
+        /// ── 2026-10-04 EDO-0533 普請検査 第1回(下草・刈込は根入れを測らず、坂の下手の根元が 0.02〜0.16 浮いた)。</summary>
+        public int RootSunk;
+        public float MaxRootSunk;
+        /// <summary>**据わる床**(相手の地表)。null なら地形(<see cref="Ground"/>)。⭐ 縁の皮を起こした邸は描かれた地表
+        /// (<see cref="Drawn"/>().At)を渡す ── 地形の格子で据えると皮の升で根元が浮く(土井 Kari_Oku_4 +0.016・2026-10-04)。</summary>
+        public Func<float, float, float> BedAt;
+        Func<float, float, float> Bed { get { return BedAt ?? (Func<float, float, float>)Ground; } }
         // Put が区画の線で断ったときの控え — 越えた量と実樹冠(呼び手の Put が内へ寄せ直すのに使う)
         float _edgeNeed, _lastRR;
         public float WorstSteep;
@@ -573,9 +584,13 @@ public static partial class EdoBuild
             //    その量だけ沈めて上手を埋める。上限を超える坂には置かない(浮きは許容0・§4a の硬い制約)。
             //    ⛔ 2026-09-29 まで井戸・灯籠は 1 点の接地だけを見て、十坊 8・9 の井戸が坂の下手で 0.75m 浮いていた(EDO-0472)。
             //    当たる先: NiwaSet.Stone を使う全駒(井戸・灯籠・景石・飛石・手水鉢)── 類型の全区画と山王の境内。
+            // ⭐ 木・低木・下草(plant)は**根元の帯の当たり**(<see cref="RootBandGap"/>)で測る ── 足跡の外接の箱(RootToBed)は放射の根張りの
+            //    隅の根の無い所まで測り、坂の下手の浮きを過大に取って沈め過ぎた(2026-10-04 土井 Matsu_Naka_0 幹の足 1.24m 埋まり)。剛体の据え物は従前どおり箱。
+            bool plant = o.Tall || o.NeireMax <= 0f;
+            var bed = Bed;
             if (o.NeireMax > 0f)
             {
-                var nr = RootToBed(go, Ground, 0.05f);
+                var nr = plant ? RootBandGap(go, bed) : RootToBed(go, bed, 0.05f);
                 if (!float.IsNaN(nr.hi) && nr.hi > 0.005f)
                 {
                     if (nr.hi > o.NeireMax)
@@ -595,8 +610,8 @@ public static partial class EdoBuild
             if (o.SlopeSinkK > 0f)
             {
                 float footR;
-                float tan = FootSlope(go, Ground, out footR);
-                var nr = RootToBed(go, Ground, 0.05f);
+                float tan = FootSlope(go, bed, out footR);
+                var nr = plant ? RootBandGap(go, bed) : RootToBed(go, bed, 0.05f);
                 if (!float.IsNaN(tan) && !float.IsNaN(nr.hi))
                 {
                     float want = sink + footR * tan * o.SlopeSinkK;            // 下手の縁の埋まり
@@ -614,6 +629,28 @@ public static partial class EdoBuild
                         Neire++; MaxNeire = Mathf.Max(MaxNeire, deepest);
                         rb = RB(go);
                     }
+                }
+            }
+            // ⭐⭐ **硬い・根元の浮き 0**(2026-10-04 EDO-0533 普請検査 第1回 ── 下草 Sk_Juka_0 +0.158・Sk_Juka_14 +0.114・刈込 Kari_Oku_4 +0.016)。
+            //    SeatOnGround は最も地面に近い 1 点(坂の上手)を着けるだけで、低木・下草(NeireMax 0)は根入れを測らず、坂の下手の根元が浮いた。
+            //    全ての木・低木・下草で根元の帯の最も浮いた当たり(検査と同じ測り)を据わる床まで沈め切る。帯の最深が上限
+            //    (高木・中木 TREE_BURY_MAX・低木/下草 SHRUB_BURY_MAX)を越える坂には置かない(DropNeire)。
+            //    当たる先: NiwaField.Put で据える全ての植物 ── 類型の庭(EdoTypologyBuilder.Niwa)・土井の泉水と奥庭・NiwaClump・NiwaPutNear。
+            if (plant)
+            {
+                var fr = RootBandGap(go, bed);
+                if (!float.IsNaN(fr.hi) && fr.hi > 0f)
+                {
+                    float deepest = fr.hi - fr.lo;                               // 沈め切った後の帯の最深の埋まり
+                    float lim = o.Tall ? NiwaSet.TREE_BURY_MAX : NiwaSet.SHRUB_BURY_MAX;
+                    if (deepest > lim)
+                    {
+                        WorstNeire = Mathf.Max(WorstNeire, deepest);
+                        UnityEngine.Object.DestroyImmediate(go); DropNeire++; return null;
+                    }
+                    go.transform.position -= new Vector3(0f, fr.hi, 0f);
+                    RootSunk++; MaxRootSunk = Mathf.Max(MaxRootSunk, fr.hi);
+                    rb = RB(go);
                 }
             }
             float rr = Mathf.Max(rb.size.x, rb.size.z) * 0.5f;      // ⭐ 実バウンズで測り直す
@@ -1347,11 +1384,13 @@ public static partial class EdoBuild
     /// <summary>**据えた木を傾ける**(指図 `lean: {deg, to}`)。足の芯を軸に頭を倒し(<see cref="NiwaTilt"/>)、倒して浮いた根張りの縁を
     /// 当たり(<see cref="RootToBed"/>)で測って地面まで沈める(**硬い**: 浮き 0)。返り値 = 沈めた量[m]。
     /// <paramref name="deepest"/> = 沈めた後の最も深い埋まり[m](&gt; NiwaSet.TREE_BURY_MAX なら呼び手が ⚠ で刷る)。</summary>
-    public static float NiwaLeanTree(GameObject go, Vector2 towardXZ, float deg, out float deepest)
+    /// <param name="bedAt">据わる床(null なら地形)。⭐ 根元は<see cref="RootBandGap"/>(根元の帯の当たり)で測る ── 傾けた木の足跡の外接の箱は
+    /// 根の無い隅を測って沈め過ぎた(2026-10-04 土井 Matsu_Naka_0)。当たる先: 庭の傾けた木(土井の泉水の松・以後の lean の全て)。</param>
+    public static float NiwaLeanTree(GameObject go, Vector2 towardXZ, float deg, out float deepest, Func<float, float, float> bedAt = null)
     {
         deepest = 0f;
         NiwaTilt(go, towardXZ, deg);
-        var rt = RootToBed(go, Ground, 0.05f);
+        var rt = RootBandGap(go, bedAt ?? (Func<float, float, float>)Ground);
         if (float.IsNaN(rt.hi) || rt.hi <= 0.005f) { deepest = float.IsNaN(rt.lo) ? 0f : -rt.lo; return 0f; }
         go.transform.position -= new Vector3(0f, rt.hi, 0f);
         deepest = rt.hi - rt.lo;
@@ -1364,6 +1403,9 @@ public static partial class EdoBuild
         /// <summary>据えた丈(実メッシュ)・見え高(天端 − max(地表, 水面))・狙いの天端からの不足(柔らかい・正 = 低い)・
         /// 水中の足で沈めた量(≤0)・陸の根入れ(下手の浮きを沈めた量)。</summary>
         public float H, expose, topShort, wetSink, neire;
+        /// <summary>天端 − 天端の面の下の地表の最も高い所[m](<see cref="NiwaGroundUnderTop"/> ── 検査の「天端まで埋没」と同じ測り。≤ 0 = 天端まで埋まる ✗)・
+        /// 埋まりを解くため硬い条件の余地の内で持ち上げた量[m](2026-10-04 EDO-0533 普請検査 第1回)。</summary>
+        public float topAbove, topLift;
         /// <summary>水中の当たりの標本数・陸の根入れが NiwaSet.STONE_NEIRE_MAX を越えたか(越えても沈める ── 埋めて隠す・⚠ で刷る)。</summary>
         public int wetN; public bool neireOver;
     }
@@ -1383,7 +1425,7 @@ public static partial class EdoBuild
                                            float aimTop = float.NaN, bool fromBed = false,
                                            Vector2 tiltTo = default(Vector2), float tiltDeg = 0f)
     {
-        rep = new NiwaIshiRep { H = float.NaN, expose = float.NaN, topShort = float.NaN, wetSink = 0f, neire = 0f };
+        rep = new NiwaIshiRep { H = float.NaN, expose = float.NaN, topShort = float.NaN, wetSink = 0f, neire = 0f, topAbove = float.NaN, topLift = 0f };
         if (string.IsNullOrEmpty(path) || float.IsNaN(scale) || scale <= 0f) return null;
         var go = Place(path, new Vector3(xz.x, Ground(xz.x, xz.y), xz.y), yaw, Vector3.one * scale, parent, name);
         if (go == null) return null;
@@ -1418,6 +1460,29 @@ public static partial class EdoBuild
         }
         if (hasWater) { int wn; rep.wetSink = NiwaSinkWetFeet(go, waterY, bedSink, out wn); rep.wetN = wn; }
         NiwaSpanY(go, out lo, out hi);
+        // ⭐ 硬い・天端まで埋めない(2026-10-04 EDO-0533 普請検査 第1回 ── 護岸の石 13 が天端まで埋まった): 天端の面の下の地表の最も高い所より
+        //    天端が低ければ、**硬い条件の余地の内だけ**持ち上げる ── 陸の当たりは浮かない(最も浮いた当たり ≤ 0)・水中の足は池床 −bedSink より下。
+        //    余地が無ければ動かさず topAbove ≤ 0 を刷る(⛔ 浮かせて辻褄を合わせない ── 石の大きさ・汀の地形の欄の問題として呼び手が名指す)。
+        //    当たる先: NiwaIshiSueru で据える全ての石(護岸・玉石・荒磯・州浜の玉石・岩島・橋挟み石・乱杭・景石)── 土井の泉水・以後の指図の庭。
+        if (!fromBed)
+        {
+            float gTop = NiwaGroundUnderTop(go);
+            if (!float.IsNaN(gTop) && hi < gTop + 0.02f)
+            {
+                var ra = RootToBed(go, Ground, 0.05f);
+                float room = float.IsNaN(ra.hi) ? 0f : Mathf.Max(0f, -ra.hi);
+                if (hasWater)
+                {
+                    Func<float, float, float> wetBed = (x, z) => { float g = Ground(x, z); return g < waterY ? g : float.NaN; };
+                    var rw = RootToBed(go, wetBed, 0.05f);
+                    if (!float.IsNaN(rw.hi)) room = Mathf.Min(room, Mathf.Max(0f, -bedSink - rw.hi));
+                }
+                float lift = Mathf.Min(gTop + 0.02f - hi, room);
+                if (lift > 0.001f) { go.transform.position += new Vector3(0f, lift, 0f); rep.topLift = lift; NiwaSpanY(go, out lo, out hi); }
+            }
+            float gTop2 = NiwaGroundUnderTop(go);
+            rep.topAbove = float.IsNaN(gTop2) ? float.NaN : hi - gTop2;
+        }
         if (!float.IsNaN(aimTop)) rep.topShort = aimTop - hi;
         float refY = hasWater ? Mathf.Max(g0, waterY) : g0;
         rep.expose = hi - refY;
@@ -1794,40 +1859,106 @@ public static partial class EdoBuild
     // 当たる先(この小節の全関数): EdoDoiBuilder.Niwa 6b(呑口の据え土の外形)・6e(石橋の橋台石・奥庭の延段)・6h(松の atSoft・奥庭の生垣)。
     // 以後、指図が座標で石・木・延段を持つ庭の全て(石橋の掛かる庭・塀の内に株立ちを並べる刈込垣・狙いの点の柔らかい植栽)。
 
-    /// <summary>橋台石一つの据えの記録。deckUnder = 測った版の下面[m]・stoneTop = 据えた石の天端・gapGround = 版の下面 − 石の位置の地表
+    /// <summary>**島の見えている汀**(描かれた地表が水面を切る線)を、設計の島の輪郭 <paramref name="lineW"/>(世界・島の芯 <paramref name="isleW"/> の周り)から測る。
+    /// 輪郭を <paramref name="step"/> m ごとに割り、各点で島の外向きの法線(芯から離れる向き)に ±<paramref name="reach"/> m を 0.02m 刻みに引いて、
+    /// 外へ向かって地表が水面より上 → 下へ変わる所のうち輪郭に最も近い所(線形の内挿)を採る。切る所が無い点は輪郭のまま(<paramref name="fallback"/> に数える)。
+    /// ⭐ 掘り残しの島は地形の格子(2m)で輪郭より丸く小さく出る ── 輪郭の外へ inset で寄せた護岸の石が水中の斜面に載り、水中の足の硬い条件
+    /// (池床 −seatToBed)で天端が水面の下まで沈んだ(2026-10-04 EDO-0533 普請検査 第1回 Gogan_Naka_N 19 石・最深 −0.41)。
+    /// ⛔ 設計の輪郭の線で汀の物を据えない(池の汀の PondEdge と同じ作法 ── 「見えている水際に取り合わせる」)。
+    /// <paramref name="worstShift"/> = 輪郭から測った汀までの最大のずれ[m](± ── 正 = 輪郭の外)。当たる先: 中島・岩島の護岸と州浜(土井 Gogan_Naka_N)。</summary>
+    public static List<Vector2> NiwaIsleShore(IList<Vector2> lineW, Vector2 isleW, float waterY, float reach, float step,
+                                              Func<float, float, float> bedAt, out int fallback, out float worstShift)
+    {
+        fallback = 0; worstShift = 0f;
+        var res = new List<Vector2>();
+        if (lineW == null || lineW.Count < 2) return res;
+        var bed = bedAt ?? (Func<float, float, float>)Ground;
+        // 割った点と接線
+        var P = new List<Vector2>(); var Tn = new List<Vector2>();
+        for (int i = 0; i + 1 < lineW.Count; i++)
+        {
+            Vector2 a = lineW[i], b = lineW[i + 1]; float L = Vector2.Distance(a, b);
+            if (L < 1e-5f) continue;
+            int n = Mathf.Max(1, Mathf.CeilToInt(L / Mathf.Max(0.02f, step)));
+            for (int k = 0; k < n; k++) { P.Add(Vector2.Lerp(a, b, (float)k / n)); Tn.Add((b - a) / L); }
+        }
+        P.Add(lineW[lineW.Count - 1]); Tn.Add(Tn.Count > 0 ? Tn[Tn.Count - 1] : Vector2.right);
+        const float ds = 0.02f;
+        for (int i = 0; i < P.Count; i++)
+        {
+            var t = (i > 0 && i < P.Count - 1) ? (Tn[i - 1] + Tn[i]).normalized : Tn[i];
+            if (t.sqrMagnitude < 1e-8f) t = Tn[i];
+            var nrm = new Vector2(t.y, -t.x);
+            if (Vector2.Dot(nrm, P[i] - isleW) < 0f) nrm = -nrm;            // 島の外向き
+            float best = float.NaN;
+            float hPrev = bed(P[i].x - nrm.x * reach, P[i].y - nrm.y * reach) - waterY;
+            for (float sv = -reach + ds; sv <= reach + 1e-5f; sv += ds)
+            {
+                var q = P[i] + nrm * sv;
+                float h = bed(q.x, q.y) - waterY;
+                if (!float.IsNaN(h) && !float.IsNaN(hPrev) && hPrev >= 0f && h < 0f)
+                {
+                    float sc = sv - ds + ds * hPrev / Mathf.Max(1e-6f, hPrev - h);
+                    if (float.IsNaN(best) || Mathf.Abs(sc) < Mathf.Abs(best)) best = sc;
+                }
+                hPrev = h;
+            }
+            if (float.IsNaN(best)) { fallback++; res.Add(P[i]); continue; }
+            if (Mathf.Abs(best) > Mathf.Abs(worstShift)) worstShift = best;
+            res.Add(P[i] + nrm * best);
+        }
+        return res;
+    }
+
+    /// <summary>橋台石一つの据えの記録。deckUnder = 測った版の下面[m]・stoneTop = 版の下面の範囲の内の石の天端・gapGround = 版の下面 − 石の位置の地表
     /// (≤ 0 = 版が地表に載る ── 石は全身が埋まるので据えない = buried)・longGot = 据えた石の平面の長い方の実長(狙い long ── 柔らかい)・
-    /// footFloat = 下端の当たりの最大の浮き(陸 ≤ 0・水中 ≤ −seatToBed が硬い)・wet = 足元が水中・grew = 足が届かず丈を増した。</summary>
-    public struct NiwaAbutRep { public float deckUnder, stoneTop, gapGround, longGot, footFloat; public bool wet, buried, grew; public string why; }
+    /// footFloat = 下端の当たりの最大の浮き(陸 ≤ 0・水中 ≤ −seatToBed が硬い)・wet = 足元が水中・grew = 足が届かず丈を増した・
+    /// inside = 石の平面が版の下面の範囲に収まった・pokeOut = 版の下面の範囲の外の石の頂点の、版の下面からの最大の出[m](&gt; 0 = 版の脇で下面より上に出る ── 柔らかい ⚠)・
+    /// shrunk = 版の幅に収めるため長さを縮めた。</summary>
+    public struct NiwaAbutRep { public float deckUnder, stoneTop, gapGround, longGot, footFloat, pokeOut; public bool wet, buried, grew, inside, shrunk; public string why; }
 
     /// <summary>**石橋の版の端に見える橋台石を据える**(指図 `hashi[].abutStone`)。
     /// <para>① 版 <paramref name="deck"/> の実メッシュを橋軸 a→b に射影して版の端(<paramref name="atA"/> なら a 側の端)を測り、端から
     /// <paramref name="inFromEnd"/> m 内の帯(±0.20m)の頂点の最も低い所 = **版の下面**を測る(⛔ topY − T の算術で代えない)。
-    /// ② 石の平面の長い方を <paramref name="longM"/> に縮尺し、**広い面を橋軸に直交**(広い面の法線 = 橋軸 ── <see cref="NiwaBroadFaceYaw"/>)、
-    /// 足の芯をその位置(橋の幅の芯)へ。③ **天端 = 版の下面**(硬い: 接する)。④ 足の当たりが陸なら地表から浮かない・水中なら池床
+    /// ② **版の下面の平面の範囲**(下面から 0.02m 以内の頂点の、橋軸 s・幅 t の範囲)を測る。
+    /// ③ 石の平面の長い方を <paramref name="longM"/> に縮尺し、**広い面を橋軸に直交**(<see cref="NiwaBroadFaceYaw"/>)。石の実メッシュの
+    /// s・t の範囲を測り、**版の下面の範囲の内**へ寄せる(s の芯は端から inFromEnd ── 柔らかい・範囲に収まるよう詰める/t の芯は版の幅の芯)。
+    /// 石の幅が版の下面の幅を越えるなら長さを縮める(狙い long は柔らかい ── shrunk に刷る)。⛔ 足の芯・ピボットで平面を決めない。
+    /// ④ **版の下面の範囲の内の石の最も高い頂点 = 版の下面**(硬い: 接する・隙 0)。⑤ 足の当たりが陸なら地表から浮かない・水中なら池床
     /// −<paramref name="seatToBed"/> まで届く(硬い)。届かなければ天端を動かさず丈を増して据え直す(石の長さの狙いは柔らかい ── longGot に刷る)。</para>
-    /// 版の下面が石の位置の地表以下なら石は全身が埋まるので据えない(rep.buried ── 指図「地表が高ければ埋めて可」)。測れなければ null。</summary>
+    /// ⛔ 2026-10-04 EDO-0533 普請検査 第1回: 石を足の芯で端から inFromEnd の点へ置き、**石の全体の最も高い頂点**を版の下面に合わせていた ──
+    /// 石の頂点が版の外(端の先)にあり、版の下の石の面は 0.15/0.36m 下がって隙が開いた(重なる升 1)。
+    /// 版の下面が石の位置の地表以下なら石は全身が埋まるので据えない(rep.buried ── 指図「地表が高ければ埋めて可」)。測れなければ null。
+    /// 当たる先: 石橋の橋台石(土井 Hashi_Ishi)。以後、版の下に据えて版を受ける石・束石の全て(土橋の橋台・縁の下の束石の受け)。</summary>
     public static GameObject NiwaAbutStone(Transform parent, string name, string path, GameObject deck, Vector2 aXZ, Vector2 bXZ, bool atA,
                                            float inFromEnd, float longM, float waterY, float seatToBed, out NiwaAbutRep rep)
     {
-        rep = new NiwaAbutRep { deckUnder = float.NaN, stoneTop = float.NaN, gapGround = float.NaN, longGot = float.NaN, footFloat = float.NaN };
+        rep = new NiwaAbutRep { deckUnder = float.NaN, stoneTop = float.NaN, gapGround = float.NaN, longGot = float.NaN, footFloat = float.NaN, pokeOut = float.NaN };
         if (deck == null || string.IsNullOrEmpty(path)) { rep.why = "版か部材が無い"; return null; }
         var ab = bXZ - aXZ; if (ab.sqrMagnitude < 1e-8f) { rep.why = "橋軸が引けない"; return null; }
         var dir = ab.normalized; var perp = new Vector2(-dir.y, dir.x);
-        var pts = new List<Vector3>();
-        foreach (var mf in deck.GetComponentsInChildren<MeshFilter>())
-        {
-            if (mf.sharedMesh == null) continue;
-            var l2w = mf.transform.localToWorldMatrix;
-            foreach (var v in mf.sharedMesh.vertices) pts.Add(l2w.MultiplyPoint3x4(v));
-        }
+        var pts = MeshPointsW(deck);
         if (pts.Count == 0) { rep.why = "版の実メッシュが無い"; return null; }
-        float s0 = float.MaxValue, s1 = float.MinValue, t0 = float.MaxValue, t1 = float.MinValue;
-        foreach (var w in pts) { var q = new Vector2(w.x, w.z) - aXZ; float s = Vector2.Dot(q, dir), t = Vector2.Dot(q, perp); s0 = Mathf.Min(s0, s); s1 = Mathf.Max(s1, s); t0 = Mathf.Min(t0, t); t1 = Mathf.Max(t1, t); }
-        float sPos = atA ? s0 + inFromEnd : s1 - inFromEnd, tc = 0.5f * (t0 + t1);
+        Func<Vector3, float> S = w => Vector2.Dot(new Vector2(w.x, w.z) - aXZ, dir);
+        Func<Vector3, float> T = w => Vector2.Dot(new Vector2(w.x, w.z) - aXZ, perp);
+        float s0 = float.MaxValue, s1 = float.MinValue;
+        foreach (var w in pts) { float s = S(w); s0 = Mathf.Min(s0, s); s1 = Mathf.Max(s1, s); }
+        float sPos = atA ? s0 + inFromEnd : s1 - inFromEnd, sMid = 0.5f * (s0 + s1);
         float under = float.MaxValue;
-        foreach (var w in pts) { float s = Vector2.Dot(new Vector2(w.x, w.z) - aXZ, dir); if (Mathf.Abs(s - sPos) <= 0.20f) under = Mathf.Min(under, w.y); }
+        foreach (var w in pts) if (Mathf.Abs(S(w) - sPos) <= 0.20f) under = Mathf.Min(under, w.y);
         if (under == float.MaxValue) { rep.why = "版の端の帯に頂点が無い"; return null; }
         rep.deckUnder = under;
+        // ② 版の下面の平面の範囲(この端の側の半分 ── 反りのある版でも端の下面だけを採る)
+        float us0 = float.MaxValue, us1 = float.MinValue, ut0 = float.MaxValue, ut1 = float.MinValue;
+        foreach (var w in pts)
+        {
+            if (w.y > under + 0.02f) continue;
+            float s = S(w); if (atA ? s > sMid : s < sMid) continue;
+            float t = T(w);
+            us0 = Mathf.Min(us0, s); us1 = Mathf.Max(us1, s); ut0 = Mathf.Min(ut0, t); ut1 = Mathf.Max(ut1, t);
+        }
+        if (us0 > us1 || ut0 > ut1) { rep.why = "版の下面の範囲が測れない"; return null; }
+        float tc = 0.5f * (ut0 + ut1);
         var pos = aXZ + dir * sPos + perp * tc;
         float g0 = Ground(pos.x, pos.y);
         rep.gapGround = under - g0;
@@ -1838,13 +1969,48 @@ public static partial class EdoBuild
         float sc = NiwaScaleForLong(path, longM);
         if (float.IsNaN(sc)) { rep.why = "部材の実寸が測れない"; return null; }
         GameObject go = null;
-        for (int it = 0; it < 4; it++)
+        // 石の平面を版の下面の範囲の内へ寄せ、範囲の内の最も高い頂点を版の下面へ。返り値 = 範囲に収まったか
+        Func<GameObject, bool> fit = g =>
+        {
+            var sp = MeshPointsW(g);
+            float a0 = float.MaxValue, a1 = float.MinValue, b0 = float.MaxValue, b1 = float.MinValue;
+            foreach (var w in sp) { float s = S(w), t = T(w); a0 = Mathf.Min(a0, s); a1 = Mathf.Max(a1, s); b0 = Mathf.Min(b0, t); b1 = Mathf.Max(b1, t); }
+            float hd = 0.5f * (a1 - a0), hw = 0.5f * (b1 - b0);
+            float cs = (us1 - us0) >= 2f * hd ? Mathf.Clamp(sPos, us0 + hd, us1 - hd) : 0.5f * (us0 + us1);
+            float ct = tc;
+            var sh = dir * (cs - 0.5f * (a0 + a1)) + perp * (ct - 0.5f * (b0 + b1));
+            g.transform.position += new Vector3(sh.x, 0f, sh.y);
+            bool inside = (us1 - us0) >= 2f * hd - 1e-4f && (ut1 - ut0) >= 2f * hw - 1e-4f;
+            float topIn = float.MinValue;
+            foreach (var w0 in sp)
+            {
+                var w = w0 + new Vector3(sh.x, 0f, sh.y);
+                float s = S(w), t = T(w);
+                if (s >= us0 - 1e-4f && s <= us1 + 1e-4f && t >= ut0 - 1e-4f && t <= ut1 + 1e-4f) topIn = Mathf.Max(topIn, w.y);
+            }
+            if (topIn == float.MinValue) return false;
+            g.transform.position += new Vector3(0f, under - topIn, 0f);       // 硬い: 版の下面の範囲の内の天端 = 版の下面
+            return inside;
+        };
+        for (int it = 0; it < 6; it++)
         {
             if (go != null) UnityEngine.Object.DestroyImmediate(go);
             go = Place(path, new Vector3(pos.x, g0, pos.y), yaw, Vector3.one * sc, parent, name);
             if (go == null) { rep.why = "置けない"; return null; }
-            if (!NiwaFootOn(go, pos)) { UnityEngine.Object.DestroyImmediate(go); rep.why = "足が測れない"; return null; }
-            NiwaTopTo(go, under);                                              // 硬い: 天端 = 版の下面
+            // 石の幅(t)が版の下面の幅を越えるなら長さを縮める(柔らかい)── 丈を増した後は縮めない(足の硬い条件が先)
+            if (!rep.grew)
+            {
+                float pn, px; ProjExtent(go, perp, float.MinValue, float.MaxValue, null, out pn, out px);
+                float uw = ut1 - ut0;
+                if (px - pn > uw + 1e-4f && px - pn > 1e-4f)
+                {
+                    sc *= uw / (px - pn) * 0.999f; rep.shrunk = true;          // 等方の縮尺なので幅は一度で収まる
+                    UnityEngine.Object.DestroyImmediate(go);
+                    go = Place(path, new Vector3(pos.x, g0, pos.y), yaw, Vector3.one * sc, parent, name);
+                    if (go == null) { rep.why = "置けない"; return null; }
+                }
+            }
+            rep.inside = fit(go);
             var rt = RootToBed(go, Ground, 0.05f);
             if (float.IsNaN(rt.hi)) { UnityEngine.Object.DestroyImmediate(go); rep.why = "当たりが測れない"; return null; }
             rep.footFloat = rt.hi;
@@ -1856,11 +2022,34 @@ public static partial class EdoBuild
             if (sc2 <= sc * 1.0001f) break;
             sc = sc2; rep.grew = true;
         }
+        if (go == null) { rep.why = "置けない"; return null; }
         if (rep.footFloat > need + 0.005f) { UnityEngine.Object.DestroyImmediate(go); rep.why = "丈を増しても足が届かない(浮き " + rep.footFloat.ToString("F2") + "m)"; return null; }
-        float l2, h2; NiwaSpanY(go, out l2, out h2); rep.stoneTop = h2;
-        float mn, mx, pn, px; ProjExtent(go, dir, float.MinValue, float.MaxValue, null, out mn, out mx); ProjExtent(go, perp, float.MinValue, float.MaxValue, null, out pn, out px);
-        rep.longGot = Mathf.Max(mx - mn, px - pn);
+        // 測り直し: 範囲の内の天端・範囲の外の出
+        float topIn2 = float.MinValue, poke = float.MinValue;
+        foreach (var w in MeshPointsW(go))
+        {
+            float s = S(w), t = T(w);
+            bool inR = s >= us0 - 1e-4f && s <= us1 + 1e-4f && t >= ut0 - 1e-4f && t <= ut1 + 1e-4f;
+            if (inR) topIn2 = Mathf.Max(topIn2, w.y); else poke = Mathf.Max(poke, w.y - under);
+        }
+        rep.stoneTop = topIn2 == float.MinValue ? float.NaN : topIn2;
+        rep.pokeOut = poke == float.MinValue ? float.NaN : poke;
+        float mn, mx, pn2, px2; ProjExtent(go, dir, float.MinValue, float.MaxValue, null, out mn, out mx); ProjExtent(go, perp, float.MinValue, float.MaxValue, null, out pn2, out px2);
+        rep.longGot = Mathf.Max(mx - mn, px2 - pn2);
         return go;
+    }
+
+    /// <summary>駒の実メッシュの全頂点(世界)。</summary>
+    static List<Vector3> MeshPointsW(GameObject go)
+    {
+        var pts = new List<Vector3>();
+        foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            var l2w = mf.transform.localToWorldMatrix;
+            foreach (var v in mf.sharedMesh.vertices) pts.Add(l2w.MultiplyPoint3x4(v));
+        }
+        return pts;
     }
 
     /// <summary>延段の並べの記録。made = 据えた駒・gapEnds = 走りの両端に残った長さ(片側・m ── 駒は伸縮しないので柔らかい)・

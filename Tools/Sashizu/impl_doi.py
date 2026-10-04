@@ -242,7 +242,21 @@ class _Site(object):
             self.ramps.append((r.name, list(r.pts), 0.5 * ken, "katte"))
         self.kaidans = [(k.name, [M.W(*q) for q in k.poly]) for k in M.kaidans if k.poly]
         # ---- 棟・長屋・蔵
-        self.munes = [(m.name, [M.W(*q) for q in m.poly]) for m in M.munes]
+        # ⭐ 御殿の足形 = 欄の矩形(入側の外の柱筋)+ 四周の**濡縁**(EdoDoiBuilder.PlaceGotenA → EdoGotenKit.Mune(nureen=true・入側四周)の
+        #   縁板と縁束・束石が地面に立つ)。濡縁の出は在庫の実寸(目録 docs/asset-index.tsv の Goten_Nureen_1ken の奥行 sz)から採る。
+        #   ⛔ 2026-10-04 EDO-0533 普請検査 第1回: 欄の矩形だけで退け、南の崖_低木0028 の幹が棟 Yakusho の濡縁の下(足形の内 0.465m)に入った
+        #   (矩形の隅から 0.64m ── 低木の離れ 0.6m は満たしたが、建った足形は四周に 0.5間 広い)。
+        import impl_sanno as IS
+        nr = IS.asset_index().get("Goten_Nureen_1ken")
+        self.nureen = float(nr["sz"]) if nr else 0.0
+        if not nr:
+            notes.append("⛔ 濡縁の部材 Goten_Nureen_1ken が目録に無い ── 御殿は欄の矩形だけで退けた(濡縁の下に木が入りうる)")
+
+        def _grow(P, e):
+            us = [q[0] for q in P]; vs = [q[1] for q in P]
+            e9 = e / ken
+            return [(min(us) - e9, min(vs) - e9), (max(us) + e9, min(vs) - e9), (max(us) + e9, max(vs) + e9), (min(us) - e9, max(vs) + e9)]
+        self.munes = [(m.name, [M.W(*q) for q in _grow(m.poly, self.nureen)]) for m in M.munes]
         self.R = L.do_rin_rects(d)
         self.doRin = float(((pl.get("clearance") or {}).get("keidai") or {}).get("doRinKen") or 0.0)
         self.links = [(l.name, [M.W(*q) for q in l.poly]) for l in M.links]
@@ -259,7 +273,8 @@ class _Site(object):
             self.nagaya.append((r["name"], P))
             if r["edge"] in (14, 15): self.kita.append((r["name"], P))
         notes.append("⚠ 供待・惣後架・平家長屋・家中長屋・稲荷社は clearance.nagaya(軒の出 %.2fm + 1.0m・低木 0.6m)で退けた"
-                     "(clearance に名の無い附属屋)/廊下(links)も同じ値・棟(munes)の低木は 0.6m(欄に無い)" % NAGAYA_EAVE_M)
+                     "(clearance に名の無い附属屋)/廊下(links)も同じ値・棟(munes)の低木は 0.6m(欄に無い)── 棟の足形は欄の矩形に"
+                     "四周の濡縁の出 %.2fm(在庫 Goten_Nureen_1ken の実寸)を足した形" % (NAGAYA_EAVE_M, self.nureen))
         self.cl_tall = NAGAYA_EAVE_M + 1.0
         self.cl_low = 0.6
         self.cl_kura_tall = 2.0 * ken

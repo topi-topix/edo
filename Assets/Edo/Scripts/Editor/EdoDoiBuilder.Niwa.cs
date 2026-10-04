@@ -702,7 +702,7 @@ public static partial class EdoDoiBuilder
     /// <summary>石の据えの勘定(柔らかい狙いの不足・硬い条件で沈めた数)。邸ビルダーの刷りにだけ使う。</summary>
     class IshiTally
     {
-        public int n, wetSunk, shortN, neireOver, sunkUnder; public float worstShort, worstWet, minExpose = float.NaN;
+        public int n, wetSunk, shortN, neireOver, sunkUnder, topBuried, topLifted; public float worstShort, worstWet, minExpose = float.NaN, worstTop = float.NaN;
         public void Add(EdoBuild.NiwaIshiRep r)
         {
             n++;
@@ -710,6 +710,8 @@ public static partial class EdoDoiBuilder
             if (!float.IsNaN(r.topShort) && r.topShort > 0.005f) { shortN++; worstShort = Mathf.Max(worstShort, r.topShort); }
             if (r.neireOver) neireOver++;
             if (!float.IsNaN(r.expose)) { if (r.expose <= 0f) sunkUnder++; minExpose = float.IsNaN(minExpose) ? r.expose : Mathf.Min(minExpose, r.expose); }
+            if (r.topLift > 0.001f) topLifted++;
+            if (!float.IsNaN(r.topAbove)) { if (r.topAbove <= 0f) topBuried++; worstTop = float.IsNaN(worstTop) ? r.topAbove : Mathf.Min(worstTop, r.topAbove); }
         }
         public string Line()
         {
@@ -720,6 +722,8 @@ public static partial class EdoDoiBuilder
             if (neireOver > 0) sb.Append(" / ⚠ 坂の根入れが " + EdoBuild.NiwaSet.STONE_NEIRE_MAX.ToString("F2") + "m を越えた " + neireOver);
             if (sunkUnder > 0) sb.Append(" / ⚠ 見え高 ≤ 0(水没・埋没)" + sunkUnder);
             if (!float.IsNaN(minExpose)) sb.Append(" / 見え高の最小 " + minExpose.ToString("F2") + "m");
+            if (topLifted > 0) sb.Append(" / 天端の埋まりを硬い条件の余地の内で持ち上げた " + topLifted);
+            if (topBuried > 0) sb.Append(" / ✗ 天端まで埋まる(天端 ≤ 天端の下の地表)" + topBuried + "(最深 " + worstTop.ToString("F2") + "m ── 硬い条件の余地が無い。石の丈か汀の地形の欄を指図方へ)");
             return sb.ToString();
         }
     }
@@ -758,21 +762,37 @@ public static partial class EdoDoiBuilder
         for (int k = 0, i = a; k <= m; k++, i = (i + 1) % m) { res.Add(E[i]); if (i == b) break; }
         return res;
     }
-    /// <summary>中島の汀(`nakajima.pts`・1 始まり・巡回)を frm→to へ(指図 gogan[].walk = "nakajima")。
-    /// ⚠ 中島の汀は掘り残しの輪郭で、PondEdge ではない。</summary>
-    static List<Vector2> NakaWalk(int frm, int to)
+    /// <summary>中島の汀(`nakajima.pts`・1 始まり・巡回)を frm→to へ辿り、**見えている島の汀**(描かれた地表が水面を切る線)へ寄せた折れ線(グリッド)。
+    /// ⭐ 2026-10-04 EDO-0533 普請検査 第1回: 設計の輪郭(掘り残しの多角形)の外へ inset で寄せた護岸の石が、格子 2m で丸く小さく出た島の
+    /// 水中の斜面に載り、水中の足の硬い条件で天端が水面の下まで沈んだ(Gogan_Naka_N 19 石・最深 −0.41)。⇒ 線は EdoBuild.NiwaIsleShore で測る。
+    /// <paramref name="note"/> = 寄せの実測(最大のずれ・切る所が無く輪郭のままの点)。</summary>
+    static List<Vector2> NakaWalk(int frm, int to, out string note)
     {
+        note = null;
         var P = NiwaModel.Nakajima; if (P == null || P.Length < 2) return null;
         int m = P.Length; var res = new List<Vector2>();
         for (int k = 0, i = frm - 1; k <= m; k++, i = (i + 1) % m) { res.Add(P[(i % m + m) % m]); if (i == to - 1) break; }
-        return res;
+        var lw = new List<Vector2>(); foreach (var q in res) lw.Add(WuV(q));
+        int fb; float worst;
+        var sh = EdoBuild.NiwaIsleShore(lw, WuV(NakaCenter()), NiwaModel.waterY, 2.0f, 0.10f, null, out fb, out worst);
+        if (sh.Count < 2) { note = "島の見えている汀が測れず設計の輪郭で辿った"; return res; }
+        var g = new List<Vector2>(); foreach (var w in sh) g.Add(Grid.L(w));
+        note = "見えている島の汀へ寄せた(輪郭から最大 " + worst.ToString("+0.00;-0.00") + "m" + (fb > 0 ? "・水面を切る所が無く輪郭のまま " + fb + " 点" : "") + ")";
+        return g;
+    }
+    /// <summary>中島の輪郭の頂点の重心(グリッド)── 島の外向きを決めるのに使う。</summary>
+    static Vector2 NakaCenter()
+    {
+        var P = NiwaModel.Nakajima; var c = Vector2.zero; foreach (var q in P) c += q; return c / Mathf.Max(1, P.Length);
     }
     /// <summary>折れ線の点 p・接線 dir での**水の側**の単位法線(グリッド)。池の汀なら水面の内、中島なら島の外。</summary>
     static Vector2 WaterSide(Vector2 p, Vector2 dir, bool naka)
     {
         var nrm = new Vector2(dir.y, -dir.x);
+        // 中島: 線は見えている島の汀(輪郭の内にも外にも出る)なので輪郭の内外で決めない ── 島の芯から離れる向きが水の側
+        if (naka) return Vector2.Dot(nrm, p - NakaCenter()) >= 0f ? nrm : -nrm;
         Vector2 q = p + nrm * 0.05f;
-        bool wet = naka ? !EdoGeom.PIP(NiwaModel.Nakajima, q) : InWater(q.x, q.y);
+        bool wet = InWater(q.x, q.y);
         return wet ? nrm : -nrm;
     }
     /// <summary>`skip` / `skipUV` の抜き所(グリッドの点・半幅 m)。</summary>
@@ -806,7 +826,9 @@ public static partial class EdoDoiBuilder
                       "yakuMin", "yakuMax", "yakuEvery", "capMin", "capMax", "jag", "pitchRatio", "inset", "skip", "skipUV",
                       "tamaMix", "tamaAsset", "nomikuchi", "araiso", "cert", "why");
             bool naka = Has(gg, "walk") && Sk(gg, "walk") == "nakajima";
-            var line = naka ? NakaWalk((int)F(gg["frm"]), (int)F(gg["to"])) : EdgeWalk((int)F(gg["frm"]), (int)F(gg["to"]));
+            string nakaNote = null;
+            var line = naka ? NakaWalk((int)F(gg["frm"]), (int)F(gg["to"]), out nakaNote) : EdgeWalk((int)F(gg["frm"]), (int)F(gg["to"]));
+            if (nakaNote != null) sb.Append("護岸『" + nm + "』: " + nakaNote + " / ");
             if (line == null || line.Count < 2) { Wait("護岸『" + nm + "』: 辿る汀が引けない(walk=" + (naka ? "nakajima" : "汀") + ")"); continue; }
             int[] pick = Has(gg, "ishiPick") ? ParseIshiPick(Sk(gg, "ishiPick")) : null;
             if (pick == null) { Wait("護岸『" + nm + "』: `ishiPick` が無いか読めない — ⛔ 既定の駒へ倒さない。指図方へ"); continue; }
@@ -1435,7 +1457,10 @@ public static partial class EdoDoiBuilder
                             stones.Add(sgo);
                             hashiRep += "\n    橋台石(" + nm + " " + end + "): 版の下面 " + ar.deckUnder.ToString("F3") + " = 石の天端 " + ar.stoneTop.ToString("F3")
                                       + "・地表から版の下面まで " + ar.gapGround.ToString("F2") + "m・" + (ar.wet ? "水中" : "陸") + "・足の当たり " + ar.footFloat.ToString("+0.00;-0.00")
-                                      + "m・長さ " + ar.longGot.ToString("F2") + "m(狙い " + F(src["long"]).ToString("F2") + (ar.grew ? " ⚠ 足が届かず丈を増した ── 柔らかい" : "") + ")";
+                                      + "m・長さ " + ar.longGot.ToString("F2") + "m(狙い " + F(src["long"]).ToString("F2") + (ar.grew ? " ⚠ 足が届かず丈を増した ── 柔らかい" : "")
+                                      + (ar.shrunk ? " ⚠ 版の幅に収めるため縮めた ── 柔らかい" : "") + ")"
+                                      + (ar.inside ? "・平面は版の下面の範囲の内" : "・⚠ 平面が版の下面の範囲に収まらない(天端は範囲の内で接した)")
+                                      + (!float.IsNaN(ar.pokeOut) && ar.pokeOut > 0.005f ? "・⚠ 範囲の外で版の下面より " + ar.pokeOut.ToString("F2") + "m 上に出る" : "");
                         }
                         if (!ok) { foreach (var sgo in stones) UnityEngine.Object.DestroyImmediate(sgo); UnityEngine.Object.DestroyImmediate(go); }
                         else { hashi++; abutN += stones.Count; }
@@ -1655,6 +1680,9 @@ public static partial class EdoDoiBuilder
         var sgrp = Group("Niwa/Shitakusa"); Clear(sgrp);
         var rnd = new System.Random(20261008);
         var fld = new EdoBuild.NiwaField(Poly);
+        // ⭐ 据わる床は描かれた地表(縁の皮を含む ── 皮は Stage4b が起こした後)。地形の格子で据えると皮の升で根元が浮く(Kari_Oku_4 +0.016・2026-10-04)
+        var drawnG = EdoBuild.Drawn();
+        fld.BedAt = (x, z) => { float d = drawnG.At(x, z); return float.IsNaN(d) ? EdoBuild.Ground(x, z) : d; };
         var gs = Garden("G_Sensui"); var go2 = Garden("G_Okuniwa");
         int trees = 0, shrubs = 0, kari = 0, shida = 0, mizu = 0, leanDeep = 0;
         var softMoved = new List<string>();   // 柔らかい狙い(atSoft)から寄せた木(⚠ で刷る)
@@ -1692,7 +1720,7 @@ public static partial class EdoDoiBuilder
                     if (Has(sk, "lean"))
                     {
                         var ln = O(sk["lean"]); float deep;
-                        EdoBuild.NiwaLeanTree(go, WDir(uv, UV(ln["to"])), F(ln["deg"]), out deep);
+                        EdoBuild.NiwaLeanTree(go, WDir(uv, UV(ln["to"])), F(ln["deg"]), out deep, fld.BedAt);
                         if (deep > EdoBuild.NiwaSet.TREE_BURY_MAX) leanDeep++;
                     }
                 }
@@ -1934,6 +1962,7 @@ public static partial class EdoDoiBuilder
         return "植栽: 高中木 " + trees + " / 刈込玉 " + shrubs + " / 刈込 " + kari + " 株 / シダ " + shida + " / 水際の草 " + mizu
              + (leanDeep > 0 ? " / ⚠ 傾けて根入れが " + EdoBuild.NiwaSet.TREE_BURY_MAX.ToString("F1") + "m を越えた木 " + leanDeep : "")
              + " / 据えなかった: 区画の線 " + fld.DropEdge + "・急斜面 " + fld.DropSteep + "・根入れ超 " + fld.DropNeire + "・測れない " + fld.Refused
+             + (fld.RootSunk > 0 ? " / 根元の帯の浮きを沈め切った " + fld.RootSunk + "(最大 " + fld.MaxRootSunk.ToString("F3") + "m・硬い 浮き 0)" : "")
              + (softMoved.Count > 0 ? "\n    ⚠ 狙い(atSoft)から寄せた: " + string.Join("・", softMoved.ToArray()) : "")
              + skRep.ToString() + ikeRep;
     }

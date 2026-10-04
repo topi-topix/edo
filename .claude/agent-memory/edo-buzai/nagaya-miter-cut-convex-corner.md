@@ -1,0 +1,12 @@
+---
+name: nagaya-miter-cut-convex-corner
+description: 表長屋を 90° 前後の出隅で留めるなら剪断(--miter)でなく延ばして二等分の面で切る(--miter-cut)。出隅は背ほど短い。長さは区画の頂点でなく外隅 Q から(2026-10-04 EDO-0533 土井 辺12/13)
+metadata:
+  type: project
+---
+- `--miter` の剪断は芯から端へ一次で寝かせるので 94.6° では端が 4m 寄り背と裏屋根が 2 倍に伸びる ⇒ `build_nagaya_omote.py --miter-cut θL θR`(留める端を延ばして組み、外隅 Q から内隅への面で切る・切り口は塞がない)。一度「背ほど長い」向きで切って L が交差した ── **出隅は背ほど短い**(ux ≤ L/2 + uz·tan(θ/2))。
+- 延ばしは「Q の内の窓の縁から離す」だけでは足りない: Q の**外**の窓の格子は z>0 に出ていて切り面が外へ寄るので隅に黒い筋が残る ⇒ 外の窓も縁から 0.15 離す。
+- len は Q から反対の妻まで。Q は区画の頂点から c·tan(θ/2)(c = 基壇の控え + 犬走り)入る。土井は c=1.30 で 1.409。並べ焼き(scratchpad の verify_L)で L・屋根の隅棟・マゼンタの穴を見る。
+
+**Why:** 長屋の隅が基壇の天端の無い所で浮き、留めの部材が無いので PullAlongInside で引いて隅に口が開いていた。
+**How to apply:** 別の出隅の表長屋も同じ道(座と断面が同じ二本だけ合う)。入隅には使わない。関連 [[double-kado-and-nagaya-miter]] [[nagaya-body-length-and-goten-root-offset]]

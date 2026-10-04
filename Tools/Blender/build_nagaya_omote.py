@@ -655,8 +655,9 @@ def solve(Lm, cap_w, bay, ncap):
 def build(Lm, ends="both", name=None, floors=1, gate=None,
           ridge=None, doorh=None, bansho=0, kabuki=0.0, kuguri=None,
           bansho_out=None, gate_drop=0.0, body=False, miter=None, bansho_ux=-1,
-          gate_post=0.0, join_sill=False):
-    """body=True(`--body`)は **Lm = 躯体の長さ(両端の妻壁の外面どうし)**。破風(片側 0.322m)は
+          gate_post=0.0, join_sill=False, miter_cut=None):
+    """miter_cut=(θL, θR)(`--miter-cut`)は**大きく外へ折れる角を二等分の面で切って留める**版(cut_miter_* の注)。
+    body=True(`--body`)は **Lm = 躯体の長さ(両端の妻壁の外面どうし)**。破風(片側 0.322m)は
     躯体の外へ出る。中の窓割りは 1.5間 で通し、端数は両端の間で受ける(solve_body)。門口・潜り戸の
     中心は**躯体の端**から測る(⇒ 口の芯は従来どおりローカル +X で Lm/2 − gc)。
     False(既定)は従来どおり Lm = 破風まで含む全幅で、出力は変わらない。"""
@@ -701,6 +702,18 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
           % (W, W * ES, bay, bay * ES, cap_w, cap_w * ES))
     print("[nagaya] 妻の出(破風の外端 − 土台の小口)= %.4f (%.3fm) / 片側。"
           "呼び寸法 L は**破風まで含む全幅**" % (tsuma_out, tsuma_out * ES))
+
+    # --- `--miter-cut`: 留める端を ext だけ延ばして組み、後で二等分の面で切る(延ばす量は外隅を窓から離す)
+    Lnom = Lm; eL = eR = 0.0
+    if miter_cut is not None:
+        if not body:
+            raise SystemExit("[nagaya] --miter-cut は --body だけ")
+        eL, eR = cut_miter_ext(Lnom, miter_cut, dict(bay=bay, cap_w=cap_w, rwin=rwin, lwin=lwin,
+                                                       r_n2=r_n2, l_n2=l_n2, to_l=to_l, to_r=to_r,
+                                                       hw=win_hw))
+        Lm = Lnom + eL + eR
+        print("[nagaya] --miter-cut %.3f° / %.3f°: 躯体 %.3fm を −X へ %.3f・+X へ %.3f 延ばして組み、二等分の面で切る"
+              % (miter_cut[0], miter_cut[1], Lnom, eL, eR))
 
     ncap = {"both": 2, "left": 1, "right": 1, "none": 0}[ends]
     if body:
@@ -903,6 +916,13 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
         print("[nagaya] --miter 区画の角の留め: −X 端 %.3f° / +X 端 %.3f°(片側 = 折れの半分・軸 = 壁の外面の %.2fm 外)"
               % (miter[0], miter[1], MITER_LINE))
 
+    if miter_cut is not None:
+        cut_miter_apply(o, Lnom, eL, eR, miter_cut)
+        me = o.data
+        Lm = Lnom
+        if gate is not None or kuguri is not None or bansho:
+            raise SystemExit("[nagaya] --miter-cut は門口・番所と併せない(口の位置が延ばした分ずれる)")
+
     ys = [v.co.y for v in me.vertices]
     xs = [v.co.x for v in me.vertices]; zs = [v.co.z for v in me.vertices]
     L_real = max(xs) - min(xs)
@@ -924,7 +944,8 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
                   + ("" if floors < 2 else "_%df" % floors)
                   + ("" if ends == "both" else "_" + ends)
                   + ("_kutai" if body else "")
-                  + (msuf(miter) if mit is not None else ""))
+                  + (msuf(miter) if mit is not None else "")
+                  + (msuf(miter_cut, "mc") if miter_cut is not None else ""))
     o.name = nm; o.data.name = nm
     path = os.path.join(OUT, nm + ".fbx")
     if body:
@@ -939,6 +960,11 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
             # 留めた端は背の側ほど外へ出る ⇒ 足元は剪断した四角・脇の面(帯の断面の最も外)は背の角
             foot = [(mit(x, z), z) for x, z in foot]
             jxL, jxR = mit(-h2, zf(dd_y0)), mit(h2, zf(dd_y0))
+        if miter_cut is not None:
+            # 切って留めた端: 足元は二等分の面で切った四角(出隅なので背ほど内へ)・脇の面 jamb は外隅 Q(x = ±L/2・壁の外面)
+            cx = cut_miter_x(h2, miter_cut)
+            # 留める端の土台は延ばした帯のまま切り面まで通る ⇒ その端の角は切り面の上
+            foot = [((cx(math.copysign(h2 + 1.0, x), z) if miter_cut[0 if x < 0 else 1] > 0 else x), z) for x, z in foot]
         spec = dict(prefab="Assets/Edo/Models/Nagaya/" + nm + ".fbx",
                     source="blender:build_nagaya_omote.py(%g --body%s%s%s%s%s)"
                            % (Lm, " --floors %d" % floors if floors > 1 else "",
@@ -952,7 +978,8 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
                               + (" --gate-post %g" % gate_post if (gate and gate_post) else "")
                               + (" --join-sill" if join_sill else "")
                               + (" --bansho-out %g" % bansho_out if (bansho and bansho_out) else ""),
-                              " --miter %g %g" % tuple(miter) if mit is not None else ""),
+                              (" --miter %g %g" % tuple(miter) if mit is not None else "")
+                              + (" --miter-cut %g %g" % tuple(miter_cut) if miter_cut is not None else "")),
                     unitScale=1.0, yBottom=0.0, foot=[dict(x=x, y=z) for x, z in foot],
                     front=0.0, back=zf(dd_y0),
                     jambL=dict(x=jxL, z0=zf(dd_y0), z1=0.0, y0=0.35, y1=1.80),
@@ -1000,9 +1027,101 @@ def miter_fn(h2, thL, thR):
     return f
 
 
-def msuf(miter):
-    """留めの接尾辞。折れの角(全角)を 0.1° の整数で(−X 端 x +X 端)。例 `_m0x89`。"""
-    return "_m%dx%d" % (int(round(miter[0] * 10)), int(round(miter[1] * 10)))
+def msuf(miter, tag="m"):
+    """留めの接尾辞。折れの角(全角)を 0.1° の整数で(−X 端 x +X 端)。例 `_m0x89`・切る留めは `_mc0x946`。"""
+    return "_%s%dx%d" % (tag, int(round(miter[0] * 10)), int(round(miter[1] * 10)))
+
+
+# ---------------------------------------------------------------- 切る留め(`--miter-cut`・EDO-0533 2026-10-04)
+#  `--miter` の剪断は折れが 10° 前後までの物: 端の妻壁を芯から端へ一次で寝かせるので、94.6° の角では端が 4m
+#  寄り、裏の屋根と背の壁が 2 倍に伸びる(土井 辺12/13 の出隅)。⇒ 大きな**出隅**は**留める端を延ばして組み、
+#  二等分の面で切る**(額縁の留めと同じ・外隅 Q から内隅へ:背ほど短い。表の軒は Q より 0.626·tan(θ/2) 外へ出て
+#  相手の軒と隅棟で出会い、内に谷ができる)。窓・瓦・海鼠は一切伸びない。相手の棟も同じ断面を同じ面で切るので、
+#  切り口(塞がない)は相手の切り口と頂点まで重なる ── 二階の表長屋どうし・座が同じ時だけ。
+#  留めの軸 = **壁の外面の隅**(局所 z = 0・x = ±L/2)。表長屋は両辺とも同じ控え(基壇の控え + 犬走り)で据えるので、
+#  両棟の壁の外面の線の交点 Q がそのまま軸になる(⛔ --miter の「区画の線 = 外面の 0.30 外」とは軸が違う)。
+#  延ばす量は表の軒の先(z = +0.626)が切れる所 + 0.8 以上(妻の破風・妻壁の引きを切り口へ残さない)で、
+#  外隅 Q を窓の縁から最も離す値を 3m の幅で探す。⛔ 入隅(内へ折れる角)には使わない ── 切る向きが逆。
+CUT_MARGIN = 0.8
+
+
+def cut_miter_x(h2, th):
+    """Unity 局所 (x, z) の x を、切る留めの面(x = ±(L/2 + z·tan(θ/2))・出隅)の内へ詰める。足元の札の四隅に使う。"""
+    tL = math.tan(math.radians(th[0]) * 0.5); tR = math.tan(math.radians(th[1]) * 0.5)
+    def f(ux, uz):
+        if ux > 0 and th[1] > 0:
+            return min(ux, h2 + uz * tR)
+        if ux < 0 and th[0] > 0:
+            return max(ux, -h2 - uz * tL)
+        return ux
+    return f
+
+
+def cut_miter_ext(Lnom, th, m):
+    """(延ばす量 −X, +X)[m]。外隅 Q(壁の外面の隅)と窓の縁との離れが最大になる延ばしを選ぶ。"""
+    back = 0.70                                   # 表の軒の出(Unity +z・二階の表長屋の実測 0.626 に余裕)
+    t = [math.tan(math.radians(a) * 0.5) for a in th]
+    emin = [back * t[i] + CUT_MARGIN if th[i] > 0 else 0.0 for i in range(2)]
+    eps = m["bay"] - KEN_BAY / ES
+
+    def wins(Lb):
+        k, dlt = solve_body(Lb / ES + m["to_l"] + m["to_r"], m["cap_w"], KEN_BAY / ES)
+        bw = m["bay"] - eps
+        xR = m["rwin"] + m["bay"] / 2.0 - dlt; xL = m["lwin"] - m["bay"] / 2.0 + dlt
+        xb0 = m["r_n2"] - xR; xb1 = m["l_n2"] + k * bw - xL
+        cs = [m["rwin"] - xR] + [(j + 0.5) * bw for j in range(k)] + [m["lwin"] + k * bw - xL]
+        mid = (xb0 + xb1) * 0.5
+        return [(c - mid) * ES for c in cs]
+
+    best = None
+    steps = [i * 0.01 for i in range(301)]
+    for dL in (steps if th[0] > 0 else [0.0]):
+        for dR in (steps if th[1] > 0 else [0.0]):
+            eL, eR = emin[0] + dL, emin[1] + dR
+            Lb = Lnom + eL + eR
+            try:
+                cs = wins(Lb)
+            except SystemExit:
+                continue
+            qs = []
+            if th[1] > 0: qs.append((1.0, Lb / 2.0 - eR))
+            if th[0] > 0: qs.append((-1.0, -Lb / 2.0 + eL))
+            hw = m["hw"] * ES; sc = 1.0                 # 1.0m 離れれば足りる(それ以上は延ばしの短い方を採る)
+            for sgn, q in qs:
+                for c in cs:
+                    u, v = sgn * (q - c), sgn * (c - q)     # u = Q が窓の芯より外へ出た量
+                    if u >= 0: sc = min(sc, u - hw)         # 内に残る窓: 縁から Q まで
+                    else: sc = min(sc, v - hw - 0.15)           # Q より外の窓: 格子の出(z > 0)は切り面が Q より外へ
+                                                                 # 寄るので残り、隅に黒い筋が立つ ⇒ 縁から 0.15 離す
+            if best is None or sc > best[0] + 1e-6:
+                best = (sc, eL, eR)
+        if th[0] > 0 and th[1] > 0 and dL > 0.6:
+            break                                  # 両端とも留めるときは探す幅を縮める(組み合わせの爆発)
+    print("[nagaya] --miter-cut 外隅と窓の縁の離れ %.3fm(延ばし −X %.3f / +X %.3f)" % best)
+    return best[1], best[2]
+
+
+def cut_miter_apply(o, Lnom, eL, eR, th):
+    """延ばして組んだ躯体(Unity 局所の芯 = 延ばした全長の芯)を呼び寸法の芯へ戻し、留める端を二等分の面で切る。
+    出隅: +X 端は ux ≤ h2 + uz·tR / −X 端は ux ≥ −h2 − uz·tL を残す(uz < 0 が背 ⇒ 背ほど短い)。
+    Blender 座標(bx = −ux・by = −uz)で: +X 端は bx − by·tR + h2 ≥ 0 / −X 端は h2 − by·tL − bx ≥ 0。"""
+    me = o.data; h2 = Lnom * 0.5
+    sh = (eL - eR) * 0.5                          # Unity x の芯のずれ ⇒ Blender x は +sh
+    for v in me.vertices:
+        v.co.x += sh
+    me.update()
+    bm = bmesh.new(); bm.from_mesh(me)
+    for i, sgn in ((1, 1.0), (0, -1.0)):
+        if th[i] <= 0:
+            continue
+        t = math.tan(math.radians(th[i]) * 0.5)
+        geom = bm.verts[:] + bm.edges[:] + bm.faces[:]
+        bmesh.ops.bisect_plane(bm, geom=geom, dist=1e-5,
+                               plane_co=Vector((-sgn * h2, 0, 0)), plane_no=Vector((sgn, -t, 0)).normalized(),
+                               clear_inner=True, clear_outer=False)
+        bmesh.ops.delete(bm, geom=[e for e in bm.edges if not e.link_faces], context='EDGES')
+        bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
+    bm.to_mesh(me); bm.free(); me.update()
 
 
 def wall_face_y(o):
@@ -1144,6 +1263,10 @@ def main():
     if "--miter" in argv:
         i = argv.index("--miter")
         miter = (float(argv[i + 1]), float(argv[i + 2]))
+    mcut = None
+    if "--miter-cut" in argv:
+        i = argv.index("--miter-cut")
+        mcut = (float(argv[i + 1]), float(argv[i + 2]))
     skip = set()
     for f in ("--ends", "--name", "--floors", "--ridge", "--doorh", "--bansho",
               "--kabuki", "--bansho-out", "--gate-drop", "--bansho-ux", "--gate-post"):
@@ -1155,6 +1278,8 @@ def main():
             skip.update((i, i + 1, i + 2, i + 3))
     if "--miter" in argv:
         i = argv.index("--miter"); skip.update((i, i + 1, i + 2))
+    if "--miter-cut" in argv:
+        i = argv.index("--miter-cut"); skip.update((i, i + 1, i + 2))
     lens = [float(a) for i, a in enumerate(argv)
             if i not in skip and not a.startswith("--")]
     if not lens:
@@ -1165,12 +1290,13 @@ def main():
                                 ridge=ridge, doorh=doorh, bansho=bansho,
                                 kabuki=kabuki, kuguri=kuguri, bansho_out=bout,
                                 gate_drop=gdrop, body=body, miter=miter,
-                                bansho_ux=bux, gate_post=gpost, join_sill=('--join-sill' in argv))
+                                bansho_ux=bux, gate_post=gpost, join_sill=('--join-sill' in argv),
+                                miter_cut=mcut)
         if do_render:
             shots(o, fmt(Lm) + ("" if gate is None else "_mon%s" % fmt(gate[0]))
                   + ("" if floors < 2 else "_%df" % floors)
                   + ("" if ends == "both" else "_" + ends) + ("_kutai" if body else "")
-                  + (msuf(miter) if miter else ""),
+                  + (msuf(miter) if miter else "") + (msuf(mcut, "mc") if mcut else ""),
                   gate=gate, bansho=bansho, kuguri=kuguri, body=body, bansho_ux=bux)
 
 

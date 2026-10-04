@@ -2109,6 +2109,23 @@ public static class EdoAssets
             return p.Substring(0, p.Length - 4) + "_m" + UnityEngine.Mathf.RoundToInt(thL * 10f) + "x" + UnityEngine.Mathf.RoundToInt(thR * 10f) + ".fbx";
         }
 
+        /// <summary>**大きく外へ折れる出隅を、二等分の面で切って留めた表長屋**(躯体 = 呼び寸法・二階)。<see cref="NagayaOmote2FKutaiMiter"/>
+        /// (剪断・折れ 10° 前後まで)では 94.6° の角で端が 4m 寄って背と裏の屋根が 2 倍に伸びる ⇒ 留める端を延ばして組み、
+        /// 外隅 Q(壁の外面の隅)から内隅へ向かう二等分の面で切った版(窓・瓦・海鼠は伸びない・切り口は塞がない ── 相手の棟の切り口と
+        /// 頂点まで重なる)。屋根は外に隅棟・内に谷で連続し、表の軒は Q より 0.626·tan(θ/2) 外へ出て相手の軒と出会う。
+        /// <para><paramref name="len"/> = **Q から反対の端(妻壁の外面)までの壁の外面の長さ**(⛔ run の s の長さではない ── 区画の頂点と Q は
+        /// 控え c = 基壇の控え + 犬走り の分ずれる: Q は頂点から各辺の走りで c·tan(θ/2) 入る)。thL / thR = −X 端 / +X 端の折れ(全角・度・0 = 妻)。
+        /// 綴り `_mc&lt;thL×10&gt;x&lt;thR×10&gt;`。ピボット = 呼び寸法の芯(Q から len/2)・土台の底・壁の外面 / 見え面 +Z。札 jamb(留めた端)= ±len/2 = Q。</para>
+        /// **4.04・mc0x946** と **11.49・mc946x0**: 土井 辺13 の E13_N01(+X 端 = s0 = 頂点 13)と辺12 の E12_N03(−X 端 = s1 = 頂点 13)。
+        /// 折れ 94.616°・控え c = 1.30(基壇の控え 1.00 実測相当 + 犬走り 0.30)で Q は頂点から 1.409 ⇒ 5.45 − 1.41 / 12.90 − 1.41(EDO-0533 2026-10-04)。
+        /// 同じ座(15.2)・同じ二階の断面どうしでだけ合う。実寸 W 5.01 × H 7.18 × D 4.35 / W 12.46 × H 7.18 × D 4.35(W は軒込み)。
+        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- 4.04 --body --floors 2 --miter-cut 0 94.616 --render</summary>
+        public static string NagayaOmote2FKutaiMiterCut(float len, float thL, float thR)
+        {
+            string p = NagayaOmote2FKutai(len);
+            return p.Substring(0, p.Length - 4) + "_mc" + UnityEngine.Mathf.RoundToInt(thL * 10f) + "x" + UnityEngine.Mathf.RoundToInt(thR * 10f) + ".fbx";
+        }
+
         /// <summary><see cref="NagayaOmoteMonKutai"/> の端の妻壁を区画の線の折れ(全角 thL = −X 端・thR = +X 端・度)の二等分の面へ寝かせた版
         /// (<see cref="NagayaOmote2FKutaiMiter"/> の門長屋版)。据えは素の _kutai と同じ。綴りは 0.1° の整数 `_m101x0`。札 = PartSpecs。
         /// **20.07・mon4.07・2f・m101x0**: 岡部 N18(裏門の門長屋・−X 端が頂点 18 の折れ 10.06°)。
@@ -2539,7 +2556,11 @@ public static class EdoAssets
         /// **40 / 43 / 37 × 4.00(出隅)** — 岡部の段の土留め TW_Kado_Shumen の折れ(2026-10-03・EDO-0502)。角は算出物 terraceWalls の線から
         /// 小数のまま焼き(40.219 / 42.504 / 36.693)、名は丸めた度(EdoBuild.PlaceRunCorners が測った角を丸めて引く)。実寸 3.69×4.00×5.08(40)。
         /// ⚠ 43° と 37° の折れは 0.64m しか離れず、素の腕 2.0 では片方の腕がもう一方の折れを越える(短い腕の組は未焼)。
-        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 40.219 --h 4 --render</summary>
+        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 40.219 --h 4 --render
+        /// **95 × 4.00(出隅)** — 土井 外周の基壇 辺12/13 の出隅(区画 doi の頂点 13・折れ 94.616°・天端 15.2 一本 = E12_N03 × E13_N01・
+        /// 2026-10-04 EDO-0533)。角は parcels.json の多角形から小数のまま焼き、名は丸めた度。両脇は素の Castle Wall(見付 ≤1.01)なので丈 4.00。
+        /// 実寸 4.59(局所 X −2.19〜2.40)× 4.00 × 4.60(Z −2.60〜2.00)・外面の張り出し 2.60。腕は素の 2.00(区間 5.45 / 12.90 に収まる)。
+        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 94.616 --h 4 --render</summary>
         public static string IshigakiKado(float deg, float h)
         {
             return "Assets/Edo/Models/Kado/Ishigaki_Kado_"

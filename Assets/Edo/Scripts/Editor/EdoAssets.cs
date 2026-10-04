@@ -2119,7 +2119,11 @@ public static class EdoAssets
         /// **4.04・mc0x946** と **11.49・mc946x0**: 土井 辺13 の E13_N01(+X 端 = s0 = 頂点 13)と辺12 の E12_N03(−X 端 = s1 = 頂点 13)。
         /// 折れ 94.616°・控え c = 1.30(基壇の控え 1.00 実測相当 + 犬走り 0.30)で Q は頂点から 1.409 ⇒ 5.45 − 1.41 / 12.90 − 1.41(EDO-0533 2026-10-04)。
         /// 同じ座(15.2)・同じ二階の断面どうしでだけ合う。実寸 W 5.01 × H 7.18 × D 4.35 / W 12.46 × H 7.18 × D 4.35(W は軒込み)。
-        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- 4.04 --body --floors 2 --miter-cut 0 94.616 --render</summary>
+        /// **4.05・mc0x946**(EDO-0533 2026-10-05): E13_N01 の要る長さが 4.042 で 4.04 の札(4.040)に 2mm 足りず退けられた ⇒ 1cm 長い版。
+        /// 札の躯体 jambR.x − jambL.x = 4.050(実メッシュの壁の外面と一致・妻の端の海鼠だけ 0.004 外へ出るのは 4.04 と同じ)。
+        /// EdoBuild.PickMiterCut が切り上げの名で拾い、芯に据えるので留めの面は Q から 0.004 外へずれるだけ(4.04 は残す)。
+        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- 4.04 --body --floors 2 --miter-cut 0 94.616 --render
+        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- 4.05 --body --floors 2 --miter-cut 0 94.616 --render</summary>
         public static string NagayaOmote2FKutaiMiterCut(float len, float thL, float thR)
         {
             string p = NagayaOmote2FKutai(len);

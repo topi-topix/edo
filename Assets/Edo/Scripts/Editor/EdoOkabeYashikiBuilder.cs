@@ -2348,6 +2348,9 @@ public static class EdoOkabeYashikiBuilder
         sb.AppendLine("  古い皮を外して塞いだ升 " + filled + " / 部材 " + rep.parts + "(土留め " + (band.Count - igN) + "・外周の石垣 " + igN + "・石段 " + stairN + ")/ 面 " + faces.Count + " / 守った地形の木 " + plant.Count);
         sb.AppendLine("  " + rep);
         sb.Append(EdoBuild.SkinGapTable(parts, faces, tol));
+        // ⭐ 皮を起こし直した後に、練塀・隅を**描かれた皮の上**で据え直す(EdoBuild.SinkGroupToBed)。Stage2 の時点の床は
+        //    皮を外した 2m 格子で、皮の細かい面より 0.06〜0.40m 高い所があり、N_Hei_35_3 が 0.40m 浮いた(2026-10-04 第12巡)。
+        sb.AppendLine("  皮の後に " + SeatHeiOnBed(Group("Kakoi")));
         return sb.ToString();
     }
 

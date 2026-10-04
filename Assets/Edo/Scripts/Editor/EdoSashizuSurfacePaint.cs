@@ -54,6 +54,12 @@ public static class EdoSashizuSurfacePaint
     [MenuItem("Edo/地表/岡部筑前守上屋敷の地表を検める")]
     public static void VerifyOkabeMenu() { Debug.Log(Verify(EdoOkabeYashikiBuilder.SashizuRel)); }
 
+    [MenuItem("Edo/地表/土井大隅守上屋敷の地表を塗る(指図の surface)")]
+    public static void PaintDoiMenu() { Debug.Log(Paint(EdoDoiBuilder.SashizuRel)); }
+
+    [MenuItem("Edo/地表/土井大隅守上屋敷の地表を検める")]
+    public static void VerifyDoiMenu() { Debug.Log(Verify(EdoDoiBuilder.SashizuRel)); }
+
     /// <summary>芯 c(世界)を幅 2·hw の帯にする(線分ごとの四角+折れの八角で継ぐ)。</summary>
     static void Band(List<Vector2[]> res, Vector2[] c, float hw)
     {

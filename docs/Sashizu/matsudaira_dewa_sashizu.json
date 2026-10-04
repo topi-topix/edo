@@ -7241,7 +7241,7 @@
     "role": "中木",
     "species": "モチノキ・カシ・シイ",
     "cert": "B",
-    "n": 5,
+    "n": 3,
     "clr": 1.6,
     "spacing": 4.5,
     "tilt": [
@@ -7255,8 +7255,9 @@
     ],
     "groups": [
      {
-      "n": 3,
+      "n": 2,
       "where": "建仁寺垣の前",
+      "fit": "箱 2.6×2.0m の対角 3.28m ── 芯々 4.5×packRatio 0.7 = 3.15m 以上で入るのは2本(検図 第2巡 2026-10-04 の算定・EDO-0554)",
       "box": [
        -63.6,
        31.5,
@@ -7265,8 +7266,9 @@
       ]
      },
      {
-      "n": 2,
-      "where": "腰掛の両脇(背は垣から 2.0m に入らない)",
+      "n": 1,
+      "where": "腰掛の脇(背は垣から 2.0m に入らない)",
+      "fit": "箱 2.8×1.4m の対角 3.13m < 芯々 4.5×packRatio 0.7 = 3.15m、かつ R_OkuRoji(u≈−62.5)が箱を割る ── 入るのは1本(検図 第1巡 2026-10-04 の算定・EDO-0554)",
       "box": [
        -64.0,
        44.1,
@@ -7279,13 +7281,13 @@
      {
       "api": "Own.Jouryoku(\"Mid\")",
       "prefab": "Tree_Jouryoku_Mid",
-      "n": 2,
+      "n": 1,
       "scale": 1.0
      },
      {
       "api": "Own.Jouryoku(\"Mid\", 2)",
       "prefab": "Tree_Jouryoku_Mid_02",
-      "n": 2,
+      "n": 1,
       "scale": 1.0
      },
      {
@@ -7298,11 +7300,11 @@
     "src": "庭方の設計 2026-10-03(EDO-0554 第二稿)",
     "reduced": {
      "from": 6,
-     "to": 5,
-     "dropped": 1,
-     "where": "腰掛の背 3本 → 2本",
-     "why": "垣・塀から幹 2.0m・四つ目垣から 2.0m・R_OkuRoji の退避を残すと v≤45.5 の箱に芯々 4.5×packRatio で2本しか入らない",
-     "src": "普請奉行の決め 2026-10-04(5巡目の残りへの決め・EDO-0554)"
+     "to": 3,
+     "dropped": 3,
+     "where": "腰掛の背 3本 → 1本・建仁寺垣の前 3本 → 2本",
+     "why": "垣・塀から幹 2.0m・四つ目垣から 2.0m・R_OkuRoji の退避を残すと v≤45.5 の箱(2.8×1.4m・対角 3.13m)には芯々 4.5×packRatio 0.7 = 3.15m で1本しか入らない。建仁寺垣の前の箱(2.6×2.0m・対角 3.28m)も同じ芯々 3.15m で2本まで",
+     "src": "普請奉行の決め 2026-10-04(5巡目の残りへの決め)/1本は検図 第1巡 2026-10-04 の算定(EDO-0554)"
     }
    },
    {
@@ -12550,12 +12552,12 @@
   "niwashi": {
    "at": "2026-10-04",
    "verdict": "pass",
-   "hash": "c0b8ce90a7586f2f",
-   "note": "5巡目 可 中1低1: G_Nakanokuchi の地表(砂利か三和土・植栽なし)/矩形が台所の郭の土留めと長屋の基壇に掛かる",
+   "hash": "80b54f02e53104e0",
+   "note": "6巡目 注意つき 中2低2: 南の垣際の箱が池の汀に載る→u−33.2〜−30/腰掛の両脇の箱に腰掛と園路→中木1本を西前・残り低木/南西の箱を園路が割る/中ノ口の庭の西の縁の納め",
    "chapters": {
-    "gardens": "1c0d533e91e0",
+    "gardens": "a28f5f3ab280",
     "tenkei": "536caf9e0826",
-    "routes": "1d199ccca5a8",
+    "routes": "634709acc43f",
     "sensui": "58341b579090",
     "mizu": "5404777d54b3",
     "tsukiyama": "8cb1db480c84",
@@ -12600,14 +12602,18 @@
     {
      "at": "2026-10-04T10:10:11+09:00",
      "verdict": "pass"
+    },
+    {
+     "at": "2026-10-04T10:29:26+09:00",
+     "verdict": "pass"
     }
    ]
   },
   "kenzu": {
    "at": "2026-10-04",
    "verdict": "fail",
-   "hash": "5f51a07f2258e253",
-   "note": "5巡目(施主A)3巡で止まる 中3低1: 御臺所門の口の両脇(v0〜1.71)の返し石垣の型と開口高の基準が未決/広敷の口へ外(27.1)から上がる戸口・沓脱・踏段が無い/垣から2.0mに合わない植栽15本/奥の囲いに庭木戸2つが残り文言と食い違う",
+   "hash": "44d5bb20a45fa881",
+   "note": "6巡目(施主A)3巡で止まる 高1中2: 御臺所門の内の7段に奥行1.49m しかない(要2.70)/中ノ口の庭の面の高さと台所の郭との境の受けが無い(地形25.5〜26.9・北へ20%)/主庭の回遊路が垣際の2箱を横切る",
    "chapters": {
     "const": "312f7254702e",
     "ishigaki": "b5bed1646006",
@@ -12618,24 +12624,24 @@
     "terraces": "a41963c94fa1",
     "terraceWalls": "01091ad83b33",
     "slopeBands": "59ba14991948",
-    "runs": "09b4c928026b",
+    "runs": "e247db0826cb",
     "fences": "d851f8275101",
     "gate": "61857a2fd677",
-    "komon": "d34ed77b4282",
+    "komon": "b5f296ebeeca",
     "yagura": "4f53cda18c2b",
-    "munes": "56dd078090b3",
-    "links": "fefcef0e6092",
+    "munes": "fe76a656cfad",
+    "links": "df8759e93b7b",
     "roka": "286ea1b4a329",
     "valleys": "193dcdb4a59c",
-    "gardens": "1c0d533e91e0",
+    "gardens": "a28f5f3ab280",
     "service": "f6414e43837d",
     "wells": "44af80a8260f",
     "kaidans": "8f24d07c9ab5",
     "sections": "85fcc4788946",
     "bom": "74f139484401",
-    "routes": "1d199ccca5a8",
-    "nakajikiri": "be03e5935527",
-    "planting": "e44586089c80",
+    "routes": "634709acc43f",
+    "nakajikiri": "e47f3072d064",
+    "planting": "30dfc55a8433",
     "tenkei": "536caf9e0826",
     "hairyo": "1d11849c9692",
     "kenzan": "a8c4e1460af7",
@@ -12644,7 +12650,7 @@
     "fuchi": "4f53cda18c2b",
     "chains": "257c507c2d2a",
     "kado": "e828df19f3fe",
-    "joints": "994a1bdf97ab",
+    "joints": "97dbd1e4f6d5",
     "perimeterClosure": "3f08d731064c",
     "plantRule": "16a7df1bc5c4",
     "slopeArea": "2070edd4d29d",
@@ -12670,7 +12676,7 @@
     "tsukiyamaSoil": "bbfae69adeac",
     "drains": "af380b003477",
     "py": "d1ecf9d33c4755ec",
-    "md": "10ba6569f02b813e"
+    "md": "a6b8b113ebe3d971"
    },
    "rounds": [
     {
@@ -12716,14 +12722,18 @@
     {
      "at": "2026-10-04T10:10:11+09:00",
      "verdict": "fail"
+    },
+    {
+     "at": "2026-10-04T10:29:25+09:00",
+     "verdict": "fail"
     }
    ]
   },
   "kosho": {
    "at": "2026-10-04",
    "verdict": "pass",
-   "hash": "5f51a07f2258e253",
-   "note": "5巡目 advisory 中1低2: 根岸家文書の読み『式台は御門の東で東面』に対し表玄関は表門の西 ── 断りか原図で確認/図の年次未確定の断り/稲荷の典拠の本文",
+   "hash": "44d5bb20a45fa881",
+   "note": "6巡目 advisory 中1低3: 稲荷の典拠[西川1959]に稲荷の記述なし→類型B・宿題を戻す/台帳の根岸家文書の読みにも東西の断り/広敷の口の外の戸は板戸+雨戸/御庭口 NJ_Oku_Kido の用途は主君に絞る",
    "chapters": {
     "const": "312f7254702e",
     "ishigaki": "b5bed1646006",
@@ -12734,24 +12744,24 @@
     "terraces": "a41963c94fa1",
     "terraceWalls": "01091ad83b33",
     "slopeBands": "59ba14991948",
-    "runs": "09b4c928026b",
+    "runs": "e247db0826cb",
     "fences": "d851f8275101",
     "gate": "61857a2fd677",
-    "komon": "d34ed77b4282",
+    "komon": "b5f296ebeeca",
     "yagura": "4f53cda18c2b",
-    "munes": "56dd078090b3",
-    "links": "fefcef0e6092",
+    "munes": "fe76a656cfad",
+    "links": "df8759e93b7b",
     "roka": "286ea1b4a329",
     "valleys": "193dcdb4a59c",
-    "gardens": "1c0d533e91e0",
+    "gardens": "a28f5f3ab280",
     "service": "f6414e43837d",
     "wells": "44af80a8260f",
     "kaidans": "8f24d07c9ab5",
     "sections": "85fcc4788946",
     "bom": "74f139484401",
-    "routes": "1d199ccca5a8",
-    "nakajikiri": "be03e5935527",
-    "planting": "e44586089c80",
+    "routes": "634709acc43f",
+    "nakajikiri": "e47f3072d064",
+    "planting": "30dfc55a8433",
     "tenkei": "536caf9e0826",
     "hairyo": "1d11849c9692",
     "kenzan": "a8c4e1460af7",
@@ -12760,7 +12770,7 @@
     "fuchi": "4f53cda18c2b",
     "chains": "257c507c2d2a",
     "kado": "e828df19f3fe",
-    "joints": "994a1bdf97ab",
+    "joints": "97dbd1e4f6d5",
     "perimeterClosure": "3f08d731064c",
     "plantRule": "16a7df1bc5c4",
     "slopeArea": "2070edd4d29d",
@@ -12786,7 +12796,7 @@
     "tsukiyamaSoil": "bbfae69adeac",
     "drains": "af380b003477",
     "py": "d1ecf9d33c4755ec",
-    "md": "10ba6569f02b813e"
+    "md": "a6b8b113ebe3d971"
    },
    "rounds": [
     {
@@ -12832,16 +12842,20 @@
     {
      "at": "2026-10-04T10:10:11+09:00",
      "verdict": "pass"
+    },
+    {
+     "at": "2026-10-04T10:29:25+09:00",
+     "verdict": "pass"
     }
    ]
   },
   "hayashi": {
    "at": "2026-10-04",
-   "verdict": "fail",
-   "hash": "8e2b595f1870034e",
-   "note": "5巡目 3巡で止まる 高1: 垣際の低木2箱と腰掛の背の中木1箱 計15本が垣・塀から0.4〜1.9m(2.0m で置き場なし・箱を v≤45.5 へ推奨)。中3: 撒いた点が9/22の古いもの(撒き直して測り直す)/囲いの内2.0mと枝下4.0mは検査に届かず未検査。低2: 林床の塗りの欄なし・名指しの木と祠の退避は未検査",
+   "verdict": "pass",
+   "hash": "a853a3dcac9d48f5",
+   "note": "6巡目 advisory 中2低2: 2.0m を垣の芯から測っている→半厚込みで箱の上端 v≈45.4/腰掛の両脇の箱に2本入らない/林床の塗りの欄なし/名指しの木と祠の退避は未検査",
    "chapters": {
-    "planting": "e44586089c80",
+    "planting": "30dfc55a8433",
     "plantRule": "16a7df1bc5c4",
     "slopeArea": "2070edd4d29d",
     "slopePlanting": "cabd7ebef213",
@@ -12860,6 +12874,10 @@
     {
      "at": "2026-10-04T10:10:12+09:00",
      "verdict": "fail"
+    },
+    {
+     "at": "2026-10-04T10:29:26+09:00",
+     "verdict": "pass"
     }
    ]
   },
@@ -14985,7 +15003,7 @@
  ],
  "_reviews": "**検図関門。**この指図を誰が検めたか。⛔ 呼んだ側(普請奉行)が結果を書き戻す — 検分役は read-only で自分では書けない。`hash` はその検分が見た範囲の指紋で、指図を書き換えるとずれ、検分は自動で『検め直しが要る』になる。見張りは `python3 Tools/Sashizu/review_gate.py`。⛔ 関門が赤の指図を実装しない(途中見せは止めない・CLAUDE.md 規則22)。",
  "_rounds_ack": {
-  "at": "2026-10-04T09:51:21+09:00",
-  "quote": "施主 2026-10-04『Ａ』(5巡目の検分を直した所だけ回す)"
+  "at": "2026-10-04T10:20:28+09:00",
+  "quote": "施主 2026-10-04『A』(6巡目の検分を直した所だけ回す)"
  }
 }

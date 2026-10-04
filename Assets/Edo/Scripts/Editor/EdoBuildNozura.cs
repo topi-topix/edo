@@ -190,6 +190,30 @@ public static partial class EdoBuild
             if (path == null || !System.IO.File.Exists(System.IO.Path.Combine(System.IO.Directory.GetParent(Application.dataPath).FullName, path)))
             { log.AppendLine("    ⛔ " + name + " 隅 " + i + ": 隅の駒が焼いていない(見付 " + hk + ")— 据えない"); continue; }
             var kg = Place(path, new Vector3(P[i].x, crest - hk, P[i].y), yaw, Vector3.one, parent, name + "_kado" + i);
+            // ⭐ 隅の駒の天端は**二本の腕の中ほど**で測る(2026-10-04・EDO-0502 第16巡)── crestOf は外接箱の芯を通る筋で測るので、L 字の駒では
+            //   芯の筋が隅の内の法の石を拾い、天端を 0.4〜0.6 低く読んで駒を持ち上げた(岡部 TW_Higashi_Hokuto の隅 2 つ: 腕の天端 16.70/16.89・直線の 16.31)。
+            //   腕ごとに直線の駒と同じ測り(走りに直交する ±0.25 の筋・上位 40% の中央値)で読み、高い方を天端とする(石の頭を run の天端より上へ出さない)。
+            //   当たる先: 野面の土留めの出隅の駒すべて(岡部 TW_Higashi_Hokuto・山王 前庭の縁の出隅 *_kado*)。
+            Vector2 armA = -dir[i - 1], armB = dir[i];
+            Func<GameObject, float> crestKado = g =>
+            {
+                float best = float.NaN;
+                foreach (var arm in new[] { armA, armB })
+                {
+                    var cells = new Dictionary<long, float>();
+                    Vector3 cc = new Vector3(P[i].x + arm.x * 1.0f, 0f, P[i].y + arm.y * 1.0f);
+                    foreach (var v in Body(g.transform, 999999))
+                    {
+                        if (Mathf.Abs((v.x - cc.x) * arm.x + (v.z - cc.z) * arm.y) > 0.25f) continue;
+                        long key = ((long)Mathf.FloorToInt(v.x / 0.2f) << 32) ^ (uint)Mathf.FloorToInt(v.z / 0.2f);
+                        float y; if (!cells.TryGetValue(key, out y) || v.y > y) cells[key] = v.y;
+                    }
+                    var ys = new List<float>(cells.Values); if (ys.Count == 0) continue; ys.Sort();
+                    int k0 = (int)(ys.Count * 0.6f); var top = ys.GetRange(k0, ys.Count - k0); float c = top[top.Count / 2];
+                    if (float.IsNaN(best) || c > best) best = c;
+                }
+                return float.IsNaN(best) ? crestOf(g) : best;
+            };
             // 稜線を二本の天端の線の交点へ: 天端の帯の前の縁を各々の見え面の向きで測って寄せる
             //   ⭐ 寄せて測るを収まるまで(EdoBuild.Converge・EDO-0454)── 決め打ちの2巡を置き換えた。
             //   稜線と天端はどちらも**狙い**(柔らかい・許容0の欠陥ではない)⇒ 未達は ⚠ で刷って据える(従前どおり退けない)。
@@ -210,12 +234,12 @@ public static partial class EdoBuild
                         () => { var e = edges(); var d = new Vector3(f1c.x * e.x + f2c.x * e.y, 0f, f1c.y * e.x + f2c.y * e.y);
                                 kgc.transform.position -= d; return d.magnitude; }),
                     Tori.Custom(kg.name + " 天端", kg, false, -0.002f, 0.002f,
-                        () => { float c = crestOf(kgc); return float.IsNaN(c) ? float.NaN : c - crestC; },
-                        () => { float c = crestOf(kgc); if (float.IsNaN(c)) return float.NaN; kgc.transform.position += Vector3.up * (crestC - c); return Mathf.Abs(crestC - c); }),
+                        () => { float c = crestKado(kgc); return float.IsNaN(c) ? float.NaN : c - crestC; },
+                        () => { float c = crestKado(kgc); if (float.IsNaN(c)) return float.NaN; kgc.transform.position += Vector3.up * (crestC - c); return Mathf.Abs(crestC - c); }),
                 });
                 if (os.Reason.Length > 0) log.AppendLine("    ⚠ " + name + " 隅 " + i + ": " + os.Summary());
             }
-            { float c2 = crestOf(kg); if (!float.IsNaN(c2)) worstCrest = Mathf.Max(worstCrest, Mathf.Abs(c2 - crest)); }
+            { float c2 = crestKado(kg); if (!float.IsNaN(c2)) worstCrest = Mathf.Max(worstCrest, Mathf.Abs(c2 - crest)); }
             // ⭐ 隅の腕の中へ石段の袖が入るか(硬い・許容0 のめり込み ── 2026-09-26・EDO-0437 第7巡)。城の石垣の出隅と同じ器(KadoArmNeeds・
             //   8 方向の光線)で、腕ごとに要る長さを測る。野面の隅は腕を詰めた組を焼いていない ⇒ 呑むなら ⚠ に要る腕の長さと駒の型を刷る(部材方へ)。
             //   当たる先: 野面の土留めの出隅で石段の袖が腕へ入る所(山王 前庭の北東 TW_Zentei_N_kado2 × 参道の階の東の袖)。
@@ -555,7 +579,8 @@ public static partial class EdoBuild
         //   並べ直す(光線の当たりは線の前後 3 本だけ ── 石の出っ張りが測りの外で相手へ入った・男坂の袖 −0.02〜−0.03・2026-09-26)。
         fixedSpans.Sort((a, b) => a[0].CompareTo(b[0]));
         int idx0 = idx; int res0 = res.Count; float worstJoint = 0f; int nPieces = 0;
-        const int FILL_PASSES = 4;   // 伸縮が変わると端の石の出っ張りも変わる ⇒ 一度で収まらない(W × SW の入隅 −0.045 が残った・2026-09-26)
+        const int FILL_PASSES = 4;
+        const float CONCAVE_TOUCH_BAND = 0.30f;   // 入隅の可動側の鉛直な小口が相手に触れる所を測る天端の帯(下は相手の法の中へ埋める)   // 伸縮が変わると端の石の出っ張りも変わる ⇒ 一度で収まらない(W × SW の入隅 −0.045 が残った・2026-09-26)
         for (int fillPass = 0; fillPass < FILL_PASSES; fillPass++)
         {
         idx = idx0; worstJoint = 0f; nPieces = 0; var endPiece = new GameObject[2];
@@ -657,6 +682,17 @@ public static partial class EdoBuild
             Func<GameObject, List<Vector3>> vis = go =>
             { var l = new List<Vector3>(); foreach (var v in Body(go.transform, 999999)) { float gy = faceG(v.x, v.z); if (float.IsNaN(gy) || v.y > gy + 0.02f) l.Add(v); } return l; };
             var pg = vis(g);
+            // ⭐ 入隅の可動側の鉛直な小口(法切りの駒が焼けていない所)は**天端の帯で触れる所まで**寄せ、下は相手の法の中へ埋める
+            //   (2026-10-04・EDO-0502 第16巡・施主 2026-09-27「据えは埋めて隠すが基本・部材どうしのめり込みは数えない」)。
+            //   見える頂点の全部で測ると、相手の法の足(下ほど前へ出る)で止まり、天端で 0.3×見付 の楔の口が開いて背の土が縦の三角に見えた
+            //   (岡部 TW_Higashi_Hokuto_3_0 × 2_0 の入隅)。可動側の端は通す側の面の裏(= 相手の駒の中)にあるので、入った下の石は見えない。
+            //   当たる先: 野面の土留めの入隅の可動側の端で法切りの駒を使わない所すべて(岡部 TW_Higashi_Hokuto 3_0・6_0、山王 前庭の入隅)。
+            bool concEnd = side == 0 ? w.startConcave : w.endConcave;
+            if (concEnd && pg.Count > 0)
+            {
+                float tp = float.MinValue; foreach (var v in pg) tp = Mathf.Max(tp, v.y);
+                pg = pg.FindAll(v => v.y >= tp - CONCAVE_TOUCH_BAND);
+            }
             float cmin = float.NaN; int cn = 0; Vector3 cat = Vector3.zero;
             foreach (var p in to) if (p != null && p != g)
             { Vector3 a1; int c1; float cc = ContactPts(pg, vis(p), new Vector3(dOut.x, 0f, dOut.y), out a1, out c1);
@@ -668,6 +704,10 @@ public static partial class EdoBuild
                 //   測った量ちょうどでは同じ筋の石が次の巡も相手へ入る(入隅 W × SW が −0.056 → −0.081 → −0.081 と収まらなかった・2026-09-26)
                 float back = cmin * (1f + 0.5f * fillPass) - 0.005f;
                 redo = true; if (side == 0) sStart -= back; else sStop += back; }
+            else if (concEnd && fillPass < FILL_PASSES - 1 && cmin > 0.005f)
+            {   // 入隅の可動側: 天端の帯が相手に触れていない(口)⇒ 測った量だけ相手へ延ばして並べ直す(触れている箇所で寄せる)
+                log.AppendLine("      ── 天端の帯に口 " + cmin.ToString("F3") + "m ⇒ 相手へ延ばして並べ直す");
+                redo = true; if (side == 0) sStart -= cmin; else sStop += cmin; }
             else if (cmin < -0.005f)
             {   // ⛔ 硬い制約(許容0 のめり込み): 戻しきっても入る端の駒は建てない。鉛直な小口が相手の法の足へ入る楔
                 //   (入隅の可動側が通す側の法と見切り石に挟まれた所 ── 前庭の W の南の区間・2026-09-26)は、縮めても低い石ほど深く入る。
@@ -925,7 +965,10 @@ public static partial class EdoBuild
                 //   一つの端に三本が集まる所(松江松平 中ノ口の庭の隅 u−13.5・u−4 ── 天端 26.7 の二本と 26.2 の一本・EDO-0554)で、
                 //   後から見た相手が先の相手を上書きして「見立てが両側で割れた」になり、出隅が継がれず 1.04m の口が開いた。
                 //   ⇒ 天端が揃う相手を先に採り、既に継いだ端は上書きしない。当たる先: 野面の網で三本以上が一点に集まる所すべて。
-                bool sameCrest = segs[k].crestAt == null || segs[j].crestAt == null
+                //   ⚠ 二本だけが会う端(一直線の段違いの継ぎ目 ── 岡部 TW_Kado_Sode の 0.5 刻みの段)は従前どおり継ぐ(段の境の駒・積み下ろし)。
+                //   ここまで割ると段違いが入隅の突き付けに化け、段の境の駒も積み下ろしも消えた(2026-10-04・EDO-0502 第16巡)。
+                int meet = 0; for (int q = 0; q < n; q++) for (int g = 0; g < 2; g++) if (q != k && Vector2.Distance(endPt(segs[k], e), endPt(segs[q], g)) <= TOL) meet++;
+                bool sameCrest = meet < 2 || segs[k].crestAt == null || segs[j].crestAt == null
                     || Mathf.Abs(segs[k].crestAt(e == 0 ? 0f : segs[k].Len) - segs[j].crestAt(f == 0 ? 0f : segs[j].Len)) < 0.10f;
                 if (ok && sameCrest && link[k, e, 0] < 0) { link[k, e, 0] = j; link[k, e, 1] = f; }
                 else if (!(ok && sameCrest) && concave[k, e, 0] < 0) { concave[k, e, 0] = j; concave[k, e, 1] = f; }

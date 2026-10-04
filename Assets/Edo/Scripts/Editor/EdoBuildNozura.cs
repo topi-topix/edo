@@ -921,8 +921,14 @@ public static partial class EdoBuild
                 float turn = Vector2.Angle(din, dout);
                 Vector2 fk = faceNear(segs[k], e);
                 bool ok = turn < 60f || (fk != Vector2.zero && Vector2.Dot(dout, fk) < -0.3f);
-                if (ok) { link[k, e, 0] = j; link[k, e, 1] = f; }
-                else { concave[k, e, 0] = j; concave[k, e, 1] = f; }
+                // ⭐ 天端の違う区間は継がない(T 字・段違いの取り合い ── 低い天端の区間が高い区間の面へ突き付く)。
+                //   一つの端に三本が集まる所(松江松平 中ノ口の庭の隅 u−13.5・u−4 ── 天端 26.7 の二本と 26.2 の一本・EDO-0554)で、
+                //   後から見た相手が先の相手を上書きして「見立てが両側で割れた」になり、出隅が継がれず 1.04m の口が開いた。
+                //   ⇒ 天端が揃う相手を先に採り、既に継いだ端は上書きしない。当たる先: 野面の網で三本以上が一点に集まる所すべて。
+                bool sameCrest = segs[k].crestAt == null || segs[j].crestAt == null
+                    || Mathf.Abs(segs[k].crestAt(e == 0 ? 0f : segs[k].Len) - segs[j].crestAt(f == 0 ? 0f : segs[j].Len)) < 0.10f;
+                if (ok && sameCrest && link[k, e, 0] < 0) { link[k, e, 0] = j; link[k, e, 1] = f; }
+                else if (!(ok && sameCrest) && concave[k, e, 0] < 0) { concave[k, e, 0] = j; concave[k, e, 1] = f; }
             }
         // 継ぐのは両側から見て一直線か出隅のときだけ(片側の見え面の測りが揺れても鎖が入隅を跨がない)
         for (int k = 0; k < n; k++) for (int e = 0; e < 2; e++)

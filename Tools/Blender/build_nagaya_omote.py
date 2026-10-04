@@ -1174,4 +1174,5 @@ def main():
                   gate=gate, bansho=bansho, kuguri=kuguri, body=body, bansho_ux=bux)
 
 
-main()
+if __name__ == "__main__":     # ⚠ build_nagaya_kado が出格子(add_degoshi)を借りるので import で走らせない
+    main()

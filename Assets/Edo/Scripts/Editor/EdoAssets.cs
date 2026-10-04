@@ -2058,6 +2058,8 @@ public static class EdoAssets
         /// 実寸(Unity): W 16.362(X) × H 8.500(Y) × D 4.352(Z)。ピボット = **走りの中心 /
         /// 敷居(=土台の底) / 壁の外面**。見え面 = +Z で軒が +Z へ 0.626 出て躯体は −Z へ 3.726 入る。
         /// 敷居レベルに置くので、街路 12.25 の表門なら `position.y = 12.25`。</summary>
+        /// **36.64・mon33.02・2f**: 松江松平 N_Nagaya_W の御臺所門(敷居 = 土台の底 −2.4・開口 h3.4)。NagayaOmote(53.16f) は既存の関数で足りる。
+        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- 36.64 --gate 33.02 3.0 3.4 --gate-drop 2.4 --floors 2 --render
         public static string NagayaOmoteMon(float len, float gateFromLeft, bool nikai)
         {
             return "Assets/Edo/Models/Nagaya/Nagaya_Omote_" + Len2(len)
@@ -2644,6 +2646,13 @@ public static class EdoAssets
             string d = dd % 10 == 0 ? (dd / 10).ToString() : (dd / 10) + "p" + (dd % 10);
             return "Assets/Edo/Models/Kado/Nagaya_Kado_" + d + "_A" + UnityEngine.Mathf.RoundToInt(armNegZ * 100f)
                  + "x" + UnityEngine.Mathf.RoundToInt(armPosX * 100f) + (string.IsNullOrEmpty(tsuma) ? "" : "_T" + tsuma) + ".fbx";
+        }
+        /// <summary>隅長屋 <see cref="NagayaKado"/>(妻なし)の外隅に**物見**(L 字の出格子・出 0.40)を付けた版(松江松平 P23・EDO-0554)。据え・札は NagayaKado と同じ。
+        ///   blender --background --python Tools/Blender/build_nagaya_kado.py -- --deg 106 --arms 5.18,5.56 --monomi --render</summary>
+        public static string NagayaKadoMonomi(float deg, float armNegZ, float armPosX)
+        {
+            string p = NagayaKado(deg, armNegZ, armPosX, "");
+            return p.Substring(0, p.Length - 4) + "_Monomi.fbx";
         }
 
         /// <summary>**両端とも妻で閉じた一棟の長屋**(真っ直ぐ・折らない)。在庫は l(片妻)/ r(片妻)/ c(妻なし)しか無く、
@@ -3291,6 +3300,17 @@ public static class EdoAssets
         /// 生成: blender --background --python Tools/Blender/build_hori_saku.py -- post</summary>
         public const string HoriSakuPost = "Assets/Edo/Models/Hei/HoriSakuPost.fbx";
 
+        /// <summary>**控柱つきの木柵 1間**(松江松平 谷の境 F_Tani_*/F_Okabe_*・EDO-0554)。板柵は HoriSaku と同じ意匠・h1.40・根入れ 0.12(底 y=−0.12・SeatBottom で据えない)。
+        /// 杭 = 局所 −X 端・控柱 = −Z(屋敷側・足は −0.84)・見え面 +Z = 水側。ピボット = スパンの中心・地盤。1.818 ちょうどで突き付け、+X 端に <see cref="SakuHikaePost"/>。札 PartSpecs(fence)。
+        ///   blender --background --python Tools/Blender/build_saku_hikae.py -- --render</summary>
+        public const string SakuHikae = "Assets/Edo/Models/Hei/Saku_Hikae.fbx";
+        /// <summary>水越しの1間(下の横板2枚と下の貫なし・地盤+0.63 まで素通し・控柱なし)。据えは <see cref="SakuHikae"/> と同じ。
+        ///   blender --background --python Tools/Blender/build_saku_hikae.py -- --render</summary>
+        public const string SakuHikaeMizukoshi = "Assets/Edo/Models/Hei/Saku_Hikae_Mizukoshi.fbx";
+        /// <summary>控柱つきの木柵の run の +X 端の杭。ピボット = 杭の +X 面・地盤(杭は x∈[−0.11,0])。
+        ///   blender --background --python Tools/Blender/build_saku_hikae.py -- --render</summary>
+        public const string SakuHikaePost = "Assets/Edo/Models/Hei/Saku_HikaePost.fbx";
+
         /// <summary>**竪格子の柵 1間**(EDO-0503・町屋の表店の列の端に残った空き 1〜3m を閉じる仕切り)。
         /// 町木戸 <see cref="MachiKido(float)"/> の**袖と同じ意匠**(柱 5寸角の掘立・地覆・袖の笠木・竪子 芯々 0.152・横子2段)を
         /// 1スパンの駒にした物。袖の部品は `build_machikido.sode_*` を共用(意匠を直すなら両方焼き直す)。
@@ -3748,6 +3768,15 @@ public static class EdoAssets
         /// ⛔ **全体を伸縮させて溝の石を引き伸ばさない。**
         /// 生成: blender --background --python Tools/Blender/build_doi_buzai.py -- otoshimizo --render</summary>
         public const string DoiOtoshimizo = FuzokuyaDir + "Doi_Otoshimizo_1m.fbx";
+
+        /// <summary>**石樋**(松江松平 溝 MZ17 が土留めを抜ける所・EDO-0554)。実寸 0.40(X)×0.25(Y)×1.00(Z)。
+        /// ピボット = 樋の芯・溝底・土留めの面。+Z = 下流。
+        ///   blender --background --python Tools/Blender/build_matsudaira_dewa_mizo.py -- --render</summary>
+        public const string MatsudairaIshidoi = FuzokuyaDir + "Matsudaira_Ishidoi.fbx";
+        /// <summary>**石蓋つきの溝 1m**(松江松平 溝 MZ16 の段の頭の前ほか・EDO-0554)。実寸 1.0(X)×0.22(Y)×0.70(Z)。
+        /// 断面と 1m ピッチは <see cref="DoiOtoshimizo"/> と同じ(⛔ 伸縮しない・端数は端の1本を切って吸う)。蓋の天端 = 地盤 + 0.02。
+        ///   blender --background --python Tools/Blender/build_matsudaira_dewa_mizo.py -- --render</summary>
+        public const string MatsudairaIshibuta1m = FuzokuyaDir + "Matsudaira_Ishibuta_1m.fbx";
 
         /// <summary>**乱杭1本**(汀を留める細い杭。`gardens[].rangui`)。
         /// ⭕ 在庫の**細丸太**(NatureManufacture `wood_log_06/08/09`・径 0.062〜0.069)を

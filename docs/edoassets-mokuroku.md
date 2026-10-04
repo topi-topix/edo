@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 384(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 390(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -31,7 +31,7 @@
 | `Eg.DobeiCenter` | string | `s_hei_center.obj` — 塀 | BuildRun, Doi(RemapKido), OkabeYashiki(BindDonorMaterials), PartSpec(Bake) |
 | `Eg.DobeiCorner` | string | `s_hei_corner.obj` | — |
 | `Eg.Itabei5` | string | `itabei5.obj` | SannoSha(BuiltSegs・RemapSannoShinzo・Stage4_Kakoi), MatsudairaDewa(ItabeiRun・PlaceItabeiSpan), OkabeYashiki(AssetByKey) |
-| `Eg.Hogaki5` | string | `hogaki5.obj` | MatsudairaDewa(FenceWidth・Stage2_Perimeter), OkabeYashiki(AssetByKey) |
+| `Eg.Hogaki5` | string | `hogaki5.obj` | MatsudairaDewa(FenceWidth・Stage2Fences), OkabeYashiki(AssetByKey) |
 | `Eg.TakeGaki` | string | `bamboo garden fence B.prefab` — 竹垣(0.9高 x 1.05長)。水際・庭園帯の囲いに。 | MatsudairaDewa(Stage6_Zosaku), MatsudairaDewaBuilder.Niwa(Stage6d_Tenkei), OkabeYashiki(AssetByKey) |
 | `Eg.ToroYukimi` | string | `t_yukimi.obj` — 雪見灯籠(六角の広い笠 + 宝珠 + 火袋 + 竿を持たない三脚)。 | DoiBuilder.Niwa(ResolveNiwaApi), OkabeYashiki(PlaceNiwaItem) |
 | `Eg.TexToroYukimi` | string | `t_yukimi.jpg` | — |
@@ -88,7 +88,7 @@
 | `Goten.EnKeta(floor)` | 関数 | 御殿の床下の足元(EDO-0502 2026-10-03)。 | GotenKit(Mune), OkabeYashiki(PlaceMunes) |
 | `Goten.EnTsuka(floor)` | 関数 | — | GotenKit(Mune) |
 | `Goten.Soseki(floor)` | 関数 | — | GotenKit(Mune) |
-| `Goten.KaidanRoka(run, drop)` | 関数 | 階段廊下 — 木の段になった渡廊下。幅は他の廊下と同じ一間。 | DoiBuilder.Mune(PlaceLinksA), GotenKit(Roka) |
+| `Goten.KaidanRoka(run, drop)` | 関数 | 階段廊下 — 木の段になった渡廊下。幅は他の廊下と同じ一間。 | DoiBuilder.Mune(PlaceLinksA), GotenKit(Roka), MatsudairaDewa(Stage4_Goten) |
 | `Goten.Fusuma` | string | 建具・座敷飾り(キットに無いので Blender で新造 — build_goten_fittings.py) | GotenKit(Mune・Partition), OkabeYashiki(PlaceLinks) |
 | `Goten.Ranma` | string | — | GotenKit(Mune・Partition) |
 | `Goten.Amado` | string | — | — |
@@ -273,17 +273,17 @@
 | `Own.TsuruKizuta(i=…)` | 関数 | キヅタ(常緑のつる)。テイカカズラより ⭐ 葉が大きく・帯が広く(約240°)・ 密で、幹を覆う「蔓のマント」になる。 | OkabeYashiki(PlantByKey) |
 | `Own.IshigakiSaka(run, drop)` | 関数 | 石段の法面を留める「坂の土留め」。天端が勾配どおりに一直線で斜めに下がる 一枚物(段々に下がるモジュールでは実物の石段の袖にならない)。 | — |
 | `Own.Fuchiishi(runKen, w=…)` | 関数 | 切石の縁石(白洲・平場の縁。指図 `fuchi[]`)。 | MatsudairaDewa(Stage6_Zosaku) |
-| `Own.NagayaOmote(len)` | 関数 | 長さ可変の表長屋。在庫の `knagaya01c/l/r` を窓割り(bay=2.6874m)で切って 並べ、両端に妻(破風・鬼・妻壁)を継いだ一体物。 | OkabeYashiki(AssetByKey・PlaceOmoteNagaya), Doi(Stage2_Perimeter), MatsudairaDewa(Stage2_Perimeter), NagayaOmote |
-| `Own.NagayaOmote2F(len)` | 関数 | 二階建ての表長屋(案A・ユーザー裁定 2026-08-29)。 | OkabeYashiki(AssetByKey・PlaceOmoteNagaya), Doi(Stage2_Perimeter), MatsudairaDewa(Stage2_Perimeter) |
-| `Own.NagayaOmoteMon(len, gateFromLeft, nikai)` | 関数 | 長屋門(ユーザー裁定 2026-08-30)— 表長屋の躯体を門の上まで通し、 その足元に門口を抜いた版。 | OkabeYashiki(AssetByKey・GateInNagaya・PlaceOmoteNagaya), DoiBuilder.Mon(Stage3_Mon), MatsudairaDewa(Stage2_Perimeter) |
+| `Own.NagayaOmote(len)` | 関数 | 長さ可変の表長屋。在庫の `knagaya01c/l/r` を窓割り(bay=2.6874m)で切って 並べ、両端に妻(破風・鬼・妻壁)を継いだ一体物。 | MatsudairaDewa(BuildNagayaOne・Stage2_Perimeter), OkabeYashiki(AssetByKey・PlaceOmoteNagaya), Doi(Stage2_Perimeter), NagayaOmote |
+| `Own.NagayaOmote2F(len)` | 関数 | 二階建ての表長屋(案A・ユーザー裁定 2026-08-29)。 | OkabeYashiki(AssetByKey・PlaceOmoteNagaya), Doi(Stage2_Perimeter), MatsudairaDewa(BuildNagayaOne) |
+| `Own.NagayaOmoteMon(len, gateFromLeft, nikai)` | 関数 | 長屋門(ユーザー裁定 2026-08-30)— 表長屋の躯体を門の上まで通し、 その足元に門口を抜いた版。 | OkabeYashiki(AssetByKey・GateInNagaya・PlaceOmoteNagaya), DoiBuilder.Mon(Stage3_Mon), MatsudairaDewa(BuildNagayaOne) |
 | `Own.NagayaOmote2FKutai(len)` | 関数 | 躯体の長さ = 呼び寸法の表長屋(二階)(EDO-0502 2026-10-03)。 | BuildTsugime(BodySpanAlong) |
 | `Own.KutaiOf(path)` | 関数 | 表長屋・門長屋のパスを、躯体 = 呼び寸法の版(`_kutai`)へ読み替える(在れば)。 | OkabeYashiki(GateInNagaya・PlaceOmoteNagaya), Doi(Stage2_Perimeter), DoiBuilder.Mon(Stage3_Mon) |
 | `Own.NagayaOmoteMonKutai(len, gateFromLeft, nikai)` | 関数 | 躯体の長さ = 呼び寸法の門長屋(NagayaOmote2FKutai の口抜き版)。 | — |
 | `Own.NagayaOmote2FKutaiMiter(len, thL, thR)` | 関数 | 外へ折れる区画の角で留めた表長屋(躯体 = 呼び寸法・二階)。 | OkabeYashiki(Stage2_Perimeter) |
 | `Own.NagayaOmoteMonKutaiMiter(len, gateFromLeft, nikai, thL, thR)` | 関数 | NagayaOmoteMonKutai の端の妻壁を区画の線の折れ(全角 thL = −X 端・thR = +X 端・度)の二等分の面へ寝かせた版 (NagayaOmote2FKutaiMiter の門長屋版)。 | — |
-| `Own.NagayaOmote(len, tsuma)` | 関数 | tsuma=false は両端を突き付けにした版(`--ends none`)。 | OkabeYashiki(AssetByKey・PlaceOmoteNagaya), Doi(Stage2_Perimeter), MatsudairaDewa(Stage2_Perimeter), NagayaOmote |
-| `Own.ObiNagaya(wKen, dKen)` | 関数 | 崖下の詰人長屋(岡部邸 `service` の N1/N2、`roofs.ObiNagaya`)。 | OkabeYashiki(AssetByKey・ReportNishiRest), TypologyBuilder.Jisha(JishaOmoya) |
-| `Own.ObiNagaya(wKen)` | 関数 | 梁間は家臣長屋の規約どおり 2.5間(`const.nagayaD` = 4.545m)固定。 | OkabeYashiki(AssetByKey・ReportNishiRest), TypologyBuilder.Jisha(JishaOmoya) |
+| `Own.NagayaOmote(len, tsuma)` | 関数 | tsuma=false は両端を突き付けにした版(`--ends none`)。 | MatsudairaDewa(BuildNagayaOne・Stage2_Perimeter), OkabeYashiki(AssetByKey・PlaceOmoteNagaya), Doi(Stage2_Perimeter), NagayaOmote |
+| `Own.ObiNagaya(wKen, dKen)` | 関数 | 崖下の詰人長屋(岡部邸 `service` の N1/N2、`roofs.ObiNagaya`)。 | MatsudairaDewa(PlaceUchiNagaya・Stage5_Mon), OkabeYashiki(AssetByKey・ReportNishiRest), TypologyBuilder.Jisha(JishaOmoya) |
+| `Own.ObiNagaya(wKen)` | 関数 | 梁間は家臣長屋の規約どおり 2.5間(`const.nagayaD` = 4.545m)固定。 | MatsudairaDewa(PlaceUchiNagaya・Stage5_Mon), OkabeYashiki(AssetByKey・ReportNishiRest), TypologyBuilder.Jisha(JishaOmoya) |
 | `Own.ObiMonooki` | string | 崖下の物置(岡部邸 `service.M1`)。 | OkabeYashiki(AssetByKey), TypologyBuilder.Jisha(JishaOmoya) |
 | `Own.ObiKawaya` | string | 崖下のかわや(岡部邸 `service.K_Obi`)。 | OkabeYashiki(AssetByKey) |
 | `Own.UraNagaya(wKen)` | 関数 | 裏長屋(裏店)— 割長屋。町屋24町の路地に並ぶ九尺二間の棟(類型共用)。 | BuildMachiya(MachiyaRun・UraNagayaRun), TypologyBuilder.Machiya(Machiya・UraNagaya) |
@@ -316,6 +316,7 @@
 | `Own.IshigakiChoku(h)` | 関数 | 丈違いの城の石垣の直線の駒(`JC.CastleWall` 1 枚・走り 2.00 を丈 h m へ下へ継いだ物)。 | BuildDanIshigaki(CastleWallOfExpose) |
 | `Own.DobeiKiri(deg, faceLonger, cutAtMinusX=…)` | 関数 | 端を隣の辺の線で斜めに切った練塀の駒(`DobeiRun` の組 = `s_hei_center` 表裏2枚を実寸で 1 枚分・走り 2.990)。 | OkabeYashiki(KiriEnd・MiterOf) |
 | `Own.NagayaKado(deg, armNegZ, armPosX, tsuma)` | 関数 | 出隅の隅長屋(L 字の長屋の角・EDO-0500 2026-10-01 観理院 北東の施主指摘 ── 妻を突っ込む納めは屋根が重なり窓が途中で切れた)。 | BuildRun(NagayaKadoPlace) |
+| `Own.NagayaKadoMonomi(deg, armNegZ, armPosX)` | 関数 | 隅長屋 NagayaKado(妻なし)の外隅に物見(L 字の出格子・出 0.40)を付けた版(松江松平 P23・EDO-0554)。 | BuildRun(NagayaKadoPlace・NagayaMeasure) |
 | `Own.NagayaTsuma2(len)` | 関数 | 両端とも妻で閉じた一棟の長屋(真っ直ぐ・折らない)。 | BuildRun(OutsideParcel・SwapTsuma2) |
 | `Own.NagayaKado90(armNegZ, armPosX)` | 関数 | NagayaKado の 90°・妻なし(`Nagaya_Kado_90_A&lt;negZ&gt;x&lt;posX&gt;`)。 | BuildRun(KadoAt) |
 | `Own.IshigakiKiri(deg, atPlusZ, faceLonger)` | 関数 | 片端を斜めの鉛直面で切った城の石垣の駒(`JC.CastleWall` を走りに 2 枚つないだ 4.00m・丈 4.00・EDO-0430)。 | — |
@@ -388,6 +389,9 @@
 | `Own.HoriKido` | string | `HoriKido.fbx` — 汀の柵の潜り(`nishi.saku.kuguri`・辺5 の s=55.7)。 | OkabeYashiki(AssetByKey) |
 | `Own.HoriSaku` | string | `HoriSaku.fbx` — 汀の木柵 1スパン(`fences[0]` F_Hori・辺5 の全長 s0〜80.589)。 | BuildRun(FenceRun), OkabeYashiki(PlaceFences) |
 | `Own.HoriSakuPost` | string | `HoriSakuPost.fbx` — 汀の木柵の端の杭。⛔ 足さないと run の最後の板が宙で終わる。 | OkabeYashiki(PlaceFences) |
+| `Own.SakuHikae` | string | `Saku_Hikae.fbx` — 控柱つきの木柵 1間(松江松平 谷の境 F_Tani_*/F_Okabe_*・EDO-0554)。 | MatsudairaDewa(Stage2Fences) |
+| `Own.SakuHikaeMizukoshi` | string | `Saku_Hikae_Mizukoshi.fbx` — 水越しの1間(下の横板2枚と下の貫なし・地盤+0.63 まで素通し・控柱なし)。 | MatsudairaDewa(Stage2Fences) |
+| `Own.SakuHikaePost` | string | `Saku_HikaePost.fbx` — 控柱つきの木柵の run の +X 端の杭。 | MatsudairaDewa(Stage2Fences) |
 | `Own.TategoshiSaku(h=…)` | 関数 | 竪格子の柵 1間(EDO-0503・町屋の表店の列の端に残った空き 1〜3m を閉じる仕切り)。 | BuildRun(FenceRun) |
 | `Own.TategoshiSakuPost(h=…)` | 関数 | 竪格子の柵の端柱(TategoshiSaku の run の +X 端を受ける柱1本・笠木つき)。 | — |
 | `Own.ItabeiIta` | string | `Itabei_Ita_1.410.fbx` — 板塀の板(柱なし)1間。在庫の板塀 Eg.Itabei5(柱と板が一体の 5間の駒)を 柱と板に分けた組の板の方(2026-09-26・EDO-0437 山王 前庭の南の板塀 `Ita_ZSE`)。 | SannoSha(Stage4_Kakoi) |
@@ -421,6 +425,8 @@
 | `Own.DoiMizushiriShiki` | string | 水尻の石の閾(余水吐)。汀 #14(西端)、天端は `mizu.mizushiri.shiki.sill` (水面 +0.05)。 | DoiBuilder.Niwa(Niwa_C_Mizushiri) |
 | `Own.DoiMizushiriHakiguchi` | string | 水尻の石組の吐き口(埋樋の終点)。実寸 0.950(X) × 0.740(Y) × 0.820(Z)。 | DoiBuilder.Niwa(Niwa_C_Mizushiri) |
 | `Own.DoiOtoshimizo` | string | 水尻の石敷きの落とし溝 — 1m モジュール。 | DoiBuilder.Niwa(Niwa_C_Mizushiri) |
+| `Own.MatsudairaIshidoi` | string | 石樋(松江松平 溝 MZ17 が土留めを抜ける所・EDO-0554)。 | — |
+| `Own.MatsudairaIshibuta1m` | string | 石蓋つきの溝 1m(松江松平 溝 MZ16 の段の頭の前ほか・EDO-0554)。 | — |
 | `Own.Rangui(dia)` | 関数 | 乱杭1本(汀を留める細い杭。`gardens[].rangui`)。 | DoiBuilder.Niwa(Niwa_B_Gogan), OkabeYashiki(PlaceNiwaItem) |
 | `Own.Toro` | string | 雪見灯籠。⚠ 実体は在庫の Eg.ToroYukimi(edogoyomi)で、 これはそこへの転送(⛔ パスの literal を二重に書かないため)。 | DoiBuilder.Niwa(ResolveNiwaApi), TypologyBuilder.Niwa(NiwaToro) |
 | `Own.LayerGrass` | string | `L_grass.terrainlayer` — 地表層(TerrainLayer)。「実寸」= 繰り返しの一枚の大きさ `m_TileSize`[m]。 | IshigakiFit |

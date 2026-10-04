@@ -7,6 +7,8 @@
         # 内角 90.9°(+X の腕は固定・−Z の腕が回る)・−Z の腕の先を妻(knagaya01r の妻の端)で閉じる → Nagaya_Kado_90p9_A1005x919_TZ
         # 名前: 内角は 0.1° 単位(90 → `90`・90.9 → `90p9`)・腕は cm・妻は `_TZ` / `_TX` / `_TZX`(EdoAssets.Own.NagayaKado と同じ綴り)
         # 妻の腕の長さは**妻壁の外面**(namako2 の表)まで。土台の端は 0.030 内・破風と鬼は 0.322 外へ出る。
+    blender --background --python Tools/Blender/build_nagaya_kado.py -- --deg 106 --arms 5.18,5.56 --monomi --render
+        # 外隅に物見(L 字に回り込む出格子・番所の出格子 add_degoshi を借りる)→ Nagaya_Kado_106_A518x556_Monomi(松江松平 J_P23・EDO-0554)
     blender --background --python Tools/Blender/build_nagaya_kado.py -- --straight 8.07 --render
         # 折らない真っ直ぐの一棟を**両端とも妻**で閉じる(−X 端 = knagaya01r の妻・+X 端 = knagaya01l の妻)→ Models/Nagaya/Nagaya_Tsuma2_L807
         # 長さ = 妻壁の外面どうし。ピボット = 長さの中央・外面(海鼠の浮き彫りの表)・土台の底。表 = Unity +Z(在庫 01c と同じ向き)。隅棟なし。
@@ -67,6 +69,7 @@ from mathutils import Vector, Matrix
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import vklib as V
+import build_nagaya_omote as NO     # 物見(--monomi)は表長屋の番所の出格子を借りる
 
 ES   = 1.818
 SRC  = os.path.join(V.REPO, "Assets/edogoyomi/es_knagaya")
@@ -455,14 +458,19 @@ def part_name(deg, aB, aA, tsu):
                                         int(math.floor(aA * 100 + 0.5)), "_T" + t if t else "")
 
 
-def build(aB, aA, deg=90.0, tsu=(), render=False):
-    """aB = −Z の腕 / aA = +X の腕[m] / deg = 出隅の内角 / tsu = 妻で閉じる腕(−1 = −Z・+1 = +X)。"""
+def build(aB, aA, deg=90.0, tsu=(), render=False, monomi=False):
+    """aB = −Z の腕 / aA = +X の腕[m] / deg = 出隅の内角 / tsu = 妻で閉じる腕(−1 = −Z・+1 = +X)。
+    monomi = 外隅に物見(出窓)を付ける(`--monomi`・名に `_Monomi`)。"""
     V.reset()
     g = read_module()
     gl = read_module("knagaya01l")
     gr = read_module("knagaya01r")
     V.dedup_materials()
     s = measure(g)
+    if monomi:
+        # 出格子の帯(下段の窓)と壁の地の面は素から採る(join が素を食う前に)
+        _hw, s.mz0, s.mz1, _zt = NO.win_extent(g["koshi"])
+        s.y_wall_out = span(g["n_wall"], 1)[1]
     measure_tsuma(s, gl, gr)
     seal_gable(gl, gr, s)
     mune_src = dup(g["n_mune"], "mune_tpl")
@@ -490,6 +498,8 @@ def build(aB, aA, deg=90.0, tsu=(), render=False):
     lmod = V.join(list(gl.values()), "lmod")
     rmod = V.join(list(gr.values()), "rmod")
     strip, info = build_strip(s, src, mod, aA, aB, plans, tsu, lmod, rmod)
+    if monomi:
+        add_monomi(strip, s)          # ⭐ 折る前の真っ直ぐな帯に付ける ⇒ 折りの留めで出格子も L 字に留まる
     for side, nm in ((+1, "+X"), (-1, "−Z")):
         it = info[side]
         print("[nagaya_kado] %s の腕 %.3fm%s: 窓 %d / 中の無地 %.3fm(ε %+.4fm)/ 先の無地 %.3fm(素 %.3f)"
@@ -520,7 +530,7 @@ def build(aB, aA, deg=90.0, tsu=(), render=False):
     F = Matrix.Scale(ES, 4) @ Matrix(((-1, 0, 0, 0), (0, -1, 0, 0), (0, 0, 1, 0), (0, 0, 0, 1)))
     for ob in [o] + nbs:
         ob.data.transform(F); ob.data.update()
-    nm = part_name(deg, aB, aA, tsu)
+    nm = part_name(deg, aB, aA, tsu) + ("_Monomi" if monomi else "")
     o.name = nm; o.data.name = nm
     me = o.data
     xs = [v.co.x for v in me.vertices]; ys = [v.co.y for v in me.vertices]; zs = [v.co.z for v in me.vertices]
@@ -532,6 +542,8 @@ def build(aB, aA, deg=90.0, tsu=(), render=False):
           % (dB[0], dB[1], math.degrees(math.acos(dB[0]))))
     path = os.path.join(OUT, nm + ".fbx")
     spec = make_spec(s, aA, aB, deg, tsu, o, path)
+    if monomi:
+        monomi_spec(spec, s)
     V.export_fbx([o], path, kind="building", spec=spec)
     print("[nagaya_kado] wrote %s" % path)
     if render:
@@ -541,7 +553,69 @@ def build(aB, aA, deg=90.0, tsu=(), render=False):
         for ob in nbs:
             ob.hide_render = False
         narabe(o, nm, aA, aB, deg, tsu)
+        if monomi:
+            shots_monomi(o, nm, deg)
     return o, path, s, info
+
+
+# ---------------------------------------------------------------- 物見(`--monomi`・松江松平 J_P23・EDO-0554)
+MONOMI_OUT = 0.40     # 出格子の出[m](壁の地の面から)【U・部材方の決め】── 番所の出格子 0.30 より一回り出す(隅から街路を見通す)
+
+
+def _monomi_band(s):
+    """(外隅からの半幅, 下端 z, 頭 z, 壁の地の面 y, 隅の pier の両端)── 帯の座標(外隅 = 原点・土台の底 = 0・表 = +y)。"""
+    hw = max(s.win[2][1] - s.p, s.p - s.win[1][0])                # 外隅の両脇の窓(各腕の 1 つ目)の外端まで
+    return (hw, s.mz0 - s.z_bot, s.mz1 - s.z_bot, s.y_wall_out - s.y_f,
+            (s.win[1][1] - s.p, s.win[2][0] - s.p))
+
+
+def add_monomi(strip, s):
+    """**長屋の隅の物見**(施主裁定 2026-10-03「隅櫓は長屋の隅の物見に落としてください」)。
+    外隅の稜(pier の芯 = 帯の原点)を中に、両腕の 1 つ目の窓(下段)までを一つの出格子で覆う。
+    意匠は表長屋の番所の出格子(`build_nagaya_omote.add_degoshi`)をそのまま借りる ── 膳板・袖板・竪格子・楣・板の小庇。
+    ⭐ 真っ直ぐな帯に付けてから折るので、折りの留め(二等分の面)で出格子・膳板・小庇も L 字に留まり、
+      外隅を回り込む物見になる(素の軒が留まるのと同じ理屈。左右対称に置くので留め面の両側の断面が一致する)。
+    格子の奥に見える隅の pier(白壁)は、扉と同じ板(DOOR_UV)で内に一枚張って塞ぐ ── 物見の内の板戸。"""
+    hw, z0, z1, yw, (p0, p1) = _monomi_band(s)
+    NO.add_degoshi(strip, [0.0], yw, z0, z1, hw, out=MONOMI_OUT)
+    box, done = NO._boxer(strip, z0, z1)
+    box(p0, p1, yw, yw + 0.02 / ES, z0, z1)
+    done()
+    print("[nagaya_kado] 物見: 外隅から両腕へ各 %.3fm(枠込み %.3fm)× 丈 %.3fm(土台の底から %.3f〜%.3f)/ 出 %.2fm"
+          % (hw * ES, hw * ES + NO.BANSHO_FRAME, (z1 - z0) * ES, z0 * ES, z1 * ES, MONOMI_OUT))
+
+
+def monomi_spec(spec, s):
+    """札の正面(+X の腕の見え面 +Z の最も外)を物見の出まで広げる。作図の変数から:
+    丈の帯の断面(底 +0.30・0.25 刻み・1.80 まで)が膳板(頭 z0・丈 0.10・出 +0.02)/ 格子(z0..z1)に掛かれば、その出。"""
+    hw, z0, z1, yw, _ = _monomi_band(s)
+    y_wall = yw * ES                                     # 壁の地の面(Unity 局所 z。外面より内 = 負)
+    fr = spec["front"]
+    h = 0.30
+    while h <= 1.80 + 1e-6:
+        if z0 * ES - 0.10 <= h <= z0 * ES:
+            fr = max(fr, y_wall + MONOMI_OUT + 0.02)
+        elif z0 * ES < h <= z1 * ES:
+            fr = max(fr, y_wall + MONOMI_OUT)
+        h += 0.25
+    spec["front"] = fr
+    spec["source"] = spec["source"].rstrip(")") + " --monomi)"
+
+
+def shots_monomi(o, nm, deg):
+    """物見の寄り: 外隅の二等分の向きの正面・斜め上・下から(格子の留め・小庇の留め・膳板の裏)。"""
+    hook()
+    phi = math.radians(180.0 - deg)
+    # Blender の最終座標で外隅の二等分の外向き: +X の腕の外 (0,−1) と −Z の腕の外 (sinφ, −cosφ) の和
+    bx, by = math.sin(phi), -1.0 - math.cos(phi)
+    n = math.hypot(bx, by); bx, by = bx / n, by / n
+    V.studio((bx * 6.0, by * 6.0, 2.0), (0.0, 0.0, 2.0), ortho_scale=5.5, res=(1500, 1100))
+    V.render(os.path.join(SHOT, "%s_monomi.png" % nm))
+    V.studio((bx * 4.0 - by * 2.5, by * 4.0 + bx * 2.5, 3.6), (0.0, 0.0, 2.0), res=(1500, 1100))
+    V.render(os.path.join(SHOT, "%s_monomi_3d.png" % nm))
+    V.studio((bx * 3.0 + by * 1.5, by * 3.0 - bx * 1.5, 0.6), (0.0, 0.0, 2.2), res=(1500, 1100))
+    bg((1.0, 0.0, 1.0, 1.0))
+    V.render(os.path.join(SHOT, "%s_monomi_shita_magenta.png" % nm))
 
 
 def _hull(pts):
@@ -991,7 +1065,7 @@ def main():
     if "--tsuma" in argv:
         t = argv[argv.index("--tsuma") + 1]
         tsu = {"negZ": (-1,), "posX": (+1,), "both": (-1, +1)}[t]
-    build(arms[0], arms[1], deg=deg, tsu=tsu, render="--render" in argv)
+    build(arms[0], arms[1], deg=deg, tsu=tsu, render="--render" in argv, monomi="--monomi" in argv)
 
 
 main()

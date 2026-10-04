@@ -149,6 +149,7 @@ public static partial class EdoBuild
     {
         public Vector2 key, face; public float psi = float.NaN, armX = -1f, armZ = -1f, baseY, deg = 90f;
         public bool tsumaX, tsumaZ;                                     // 腕の先が在庫の棟に継がない(門・塀の折れへ当たる)⇒ 妻で閉じる
+        public bool monomi;                                             // 外隅に物見を付けた版(EdoAssets.Own.NagayaKadoMonomi・妻なしだけ)── 松江松平 P23(EDO-0554)
         public GameObject nbrX, nbrZ;                                   // 腕の先に継ぐ在庫の棟(+X の腕・−Z の腕)
     }
     /// <summary>隅長屋の腕の下限[m](部材方の実測 4.79 ── 2 つ目の窓の先までは詰めない)。</summary>
@@ -175,7 +176,8 @@ public static partial class EdoBuild
             Func<string, string> bakeCmd = t => string.Format("blender --background --python Tools/Blender/build_nagaya_kado.py -- --deg {0:F1} --arms {1:F2},{2:F2}{3} --render",
                 k.deg, aZ, aX, t.Length > 0 ? " --tsuma " + (t == "ZX" ? "both" : t == "Z" ? "negZ" : "posX") : "");
             string tsuma = tsumaOf(k.tsumaZ, k.tsumaX);
-            string path = EdoAssets.Own.NagayaKado(k.deg, aZ, aX, tsuma);
+            string path = k.monomi && tsuma.Length == 0 ? EdoAssets.Own.NagayaKadoMonomi(k.deg, aZ, aX) : EdoAssets.Own.NagayaKado(k.deg, aZ, aX, tsuma);
+            if (k.monomi) bakeCmd = t => string.Format("blender --background --python Tools/Blender/build_nagaya_kado.py -- --deg {0:F1} --arms {1:F2},{2:F2} --monomi --render", k.deg, aZ, aX);
             if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
             {
                 notes.Add(string.Format("隅({0:F1},{1:F1}) ⛔ 隅長屋が焼いてない: {2}", k.key.x, k.key.y, bakeCmd(tsuma)));

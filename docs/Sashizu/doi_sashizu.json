@@ -9769,7 +9769,21 @@
      "rule": "枝下(目録 edashita × scaleY)が 4.0m 未満の層は、肩 = max(kaidanShoulderKen / kattemichiShoulderKen の値, その木の樹冠の半径)を道・坂の辺から取る(芯から w/2 または 0.5間 を足した値と同じ基準)。表の値は最小",
      "hard": true,
      "why": "edaShitaOverRampM(4.0m・硬)を屋敷の中の道の全部へ広げたので、辺から 0.4〜0.7m の中木・低木の樹冠が道の上へ低く張り出して必ず当たる(林方の検分 2026-10-03)"
-    }
+    },
+    "kakoiLineExceptEdges": [
+     16,
+     17,
+     18,
+     19,
+     20,
+     21,
+     22,
+     23,
+     24,
+     25,
+     26
+    ],
+    "kakoiLineExceptEdgesWhy": "松江松平との谷の境(W16〜W26・松平持ち build:false)は沢を開けたまま両岸の林を切れ目なく ── 区画の線から 2m の退避を掛けない(EDO-0554 施主裁定の共有 2026-10-03)"
    }
   },
   "plantRule": {

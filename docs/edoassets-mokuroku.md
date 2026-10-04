@@ -80,11 +80,11 @@
 | `Goten.Column` | string | — | GotenKit(Mune・Roka) |
 | `Goten.Beam` | string | — | GotenKit(Roka) |
 | `Goten.Tatami` | string | — | GotenKit(Mune) |
-| `Goten.FloorBoard` | string | — | GotenKit(Mune・Roka) |
-| `Goten.RokaEnita` | string | 渡廊下の縁板 一間角(厚 1寸 0.0303)。 | GotenKit(MeanYNear・Mune・Roka) |
+| `Goten.FloorBoard` | string | — | GotenKit(Mune・Roka), BuildNiwa(IsEngawaPiece) |
+| `Goten.RokaEnita` | string | 渡廊下の縁板 一間角(厚 1寸 0.0303)。 | GotenKit(MeanYNear・Mune・Roka), BuildNiwa(IsEngawaPiece) |
 | `Goten.Ceiling` | string | — | GotenKit(Mune) |
-| `Goten.Nureen` | string | — | GotenKit(Mune) |
-| `Goten.NureenCorner` | string | — | GotenKit(Mune) |
+| `Goten.Nureen` | string | — | BuildNiwa(DistPointTri2・IsEngawaPiece), GotenKit(Mune) |
+| `Goten.NureenCorner` | string | — | BuildNiwa(IsEngawaPiece), GotenKit(Mune) |
 | `Goten.Koran` | string | — | GotenKit(Roka) |
 | `Goten.EnKeta(floor)` | 関数 | 御殿の床下の足元(EDO-0502 2026-10-03)。 | GotenKit(Mune), OkabeYashiki(PlaceMunes) |
 | `Goten.EnTsuka(floor)` | 関数 | — | GotenKit(Mune) |
@@ -167,12 +167,12 @@
 | `JG.Rock03` | string | `JG_Rock_A_03.prefab` | — |
 | `JG.TobiIshi01` | string | `JG_TobiIshi_A_01.prefab` | SannoSha |
 | `JG.TobiIshi02` | string | `JG_TobiIshi_A_02.prefab` | — |
-| `JG.Pine(size, i)` | 関数 | 黒松。生 5.6m ×1.65。Big/Mid/Small × 01..03 | MatsudairaDewa(ResolveApi・Stage7_Niwa), OkabeYashiki(PlantByKey), TypologyBuilder.Niwa(DeShare) |
-| `JG.Bamboo(size, i)` | 関数 | 竹。Big/Mid/Small × 01・02(`Green` のみ引く — `Dry` は枯れ姿で当プロジェクトでは使わない)。 | OkabeYashiki(PlantByKey) |
+| `JG.Pine(size, i)` | 関数 | 黒松。生 5.6m ×1.65。Big/Mid/Small × 01..03 | MatsudairaDewa(ResolveApi・Stage7_Niwa), BuildShokusai(PlantPathByKey), TypologyBuilder.Niwa(DeShare) |
+| `JG.Bamboo(size, i)` | 関数 | 竹。Big/Mid/Small × 01・02(`Green` のみ引く — `Dry` は枯れ姿で当プロジェクトでは使わない)。 | BuildShokusai(PlantPathByKey) |
 | `JG.SakuraSummer(size, i)` | 関数 | 桜。⚠ Summer のみ使う(季節は春ではない)。 | MatsudairaDewa(ResolveApi) |
-| `JG.Boxwood(i)` | 関数 | 柘植の刈込。Spring/Fall × 01..03、Single/ もある | MatsudairaDewa(ResolveApi・Stage7_Niwa), DoiBuilder.Niwa(ResolveNiwaApi), OkabeYashiki(PlantByKey), TypologyBuilder.Niwa(MomijiPalFor) |
+| `JG.Boxwood(i)` | 関数 | 柘植の刈込。Spring/Fall × 01..03、Single/ もある | MatsudairaDewa(ResolveApi・Stage7_Niwa), BuildShokusai(PlantPathByKey), DoiBuilder.Niwa(ResolveNiwaApi), TypologyBuilder.Niwa(MomijiPalFor) |
 | `JG.BoxwoodSingle(i)` | 関数 | 柘植の一株(Single)。01..03・実寸 約1.0×0.8〜1.1×0.9m・120〜140ポリ。 | BuildRun(IkegakiRow), DoiBuilder.Niwa(ResolveNiwaApi) |
-| `JG.Fern(i)` | 関数 | 羊歯の下草。Spring/Fall × 01..02 | DoiBuilder.Niwa(Niwa_H_Shokusai・ResolveNiwaApi), MatsudairaDewa(ResolveApi・Stage7_Niwa), OkabeYashiki(PlantByKey), TypologyBuilder.Niwa(MomijiPalFor) |
+| `JG.Fern(i)` | 関数 | 羊歯の下草。Spring/Fall × 01..02 | DoiBuilder.Niwa(Niwa_H_Shokusai・ResolveNiwaApi), MatsudairaDewa(ResolveApi・Stage7_Niwa), BuildShokusai(PlantPathByKey), TypologyBuilder.Niwa(MomijiPalFor) |
 | `JG.Rock(i)` | 関数 | 庭石。01..03 | MatsudairaDewa(ResolveApi・Stage7_Niwa), MatsudairaDewaBuilder.Niwa(Stage6c_Ishigumi・Stage6d_Tenkei) |
 | `JG.Azalea(i)` | 関数 | 躑躅・皐月。⚠ A 02 は存在しない — 01 / 03 / 04 の3種 | MatsudairaDewa(ResolveApi・Stage7_Niwa), BuildRun(OutsidePlot), DoiBuilder.Niwa(ResolveNiwaApi) |
 
@@ -180,10 +180,10 @@
 
 | 名 | 種 | 中身・注釈の一文目 | 使っている所 |
 |---|---|---|---|
-| `NM.MapleBush(i)` | 関数 | カエデの灌木(下草・林床の中層)。i = 1..4。 | MatsudairaDewa(ResolveApi), OkabeYashiki(PlantByKey) |
-| `NM.GreyWillow(i)` | 関数 | ヤナギの灌木(水際・法面の下層)。i = 1..4。 | MatsudairaDewa(ResolveApi), OkabeYashiki(PlantByKey) |
-| `NM.GrassMeadow(family, variant, i)` | 関数 | 草地(メドウ)の草叢。岡部邸のススキ(見透しの窓・法尻)に使う。 | DoiBuilder.Niwa(Niwa_H_Shokusai), OkabeYashiki(PlantByKey) |
-| `NM.GrassMeadowIndices(family, variant)` | 関数 | 系統・変種ごとに実在する個体の番号(2026-09-04 に `ls` で確認)。 | DoiBuilder.Niwa(Niwa_H_Shokusai), OkabeYashiki(PlantByKey) |
+| `NM.MapleBush(i)` | 関数 | カエデの灌木(下草・林床の中層)。i = 1..4。 | BuildShokusai(PlantPathByKey), MatsudairaDewa(ResolveApi) |
+| `NM.GreyWillow(i)` | 関数 | ヤナギの灌木(水際・法面の下層)。i = 1..4。 | BuildShokusai(PlantPathByKey), MatsudairaDewa(ResolveApi) |
+| `NM.GrassMeadow(family, variant, i)` | 関数 | 草地(メドウ)の草叢。岡部邸のススキ(見透しの窓・法尻)に使う。 | BuildShokusai(PlantPathByKey), DoiBuilder.Niwa(Niwa_H_Shokusai) |
+| `NM.GrassMeadowIndices(family, variant)` | 関数 | 系統・変種ごとに実在する個体の番号(2026-09-04 に `ls` で確認)。 | BuildShokusai(PlantPathByKey), DoiBuilder.Niwa(Niwa_H_Shokusai) |
 | `NM.CliffPiece(i)` | 関数 | 実肌の岩棚(野面石 1 段の土留め)。松江松平邸 `slopeDoryu`(法尻の土留め)に使う。 | — |
 
 ## Own
@@ -195,10 +195,10 @@
 | `Own.DanishiStep` | string | `P_DanishiStep2m.prefab` | OkabeYashiki(AssetByKey・PlaceKaidanAB・PlaceKaidans), Doi(PlaceFumiishi・PlaceKaidans), MatsudairaDewa(Stage6_Zosaku), SannoSha ほか1 |
 | `Own.MichibataIshi` | string | `P_MichibataIshi2m.prefab` | SannoSha |
 | `Own.Broadleaf` | string | ⛔ 使用禁止(Obsolete)。`BroadleafTree.prefab` — 常緑の広葉樹(モッコク・モチノキ・カシ・シイの見立て)。 | — |
-| `Own.Jouryoku(size, i=…)` | 関数 | 常緑広葉樹(モッコク・モチノキ・シラカシ・スダジイの見立て)。 | DoiBuilder.Niwa(PlantPath・ResolveNiwaApi), TypologyBuilder.Niwa(DeShare), MatsudairaDewa(ResolveApi), OkabeYashiki(PlantByKey) ほか1 |
+| `Own.Jouryoku(size, i=…)` | 関数 | 常緑広葉樹(モッコク・モチノキ・シラカシ・スダジイの見立て)。 | DoiBuilder.Niwa(PlantPath・ResolveNiwaApi), TypologyBuilder.Niwa(DeShare), BuildShokusai(PlantPathByKey), MatsudairaDewa(ResolveApi) ほか1 |
 | `Own.Jokuroku(size)` | 関数 | ⛔ 使用禁止(Obsolete)。⛔ 綴りの誤り(常緑の訓みは Jouryoku)。 | — |
-| `Own.Teiboku(size, i=…)` | 関数 | 常緑の照葉低木(サカキ・アオキ・ヤブツバキの見立て)。 | BuildRun(EdgeFacesSlope), OkabeYashiki(PlantByKey), SannoSha(TreePath), TypologyBuilder.Niwa(MomijiPalFor) |
-| `Own.Matsu(size, i=…)` | 関数 | クロマツ(社叢)。山王社の社叢の高木。⭐ 林の松 — 在庫の `JG.Pine` は独立して枝を張った庭の松で樹形が別。 | OkabeYashiki(PlantByKey), SannoSha(TreePath), TypologyBuilder.Niwa |
+| `Own.Teiboku(size, i=…)` | 関数 | 常緑の照葉低木(サカキ・アオキ・ヤブツバキの見立て)。 | BuildRun(EdgeFacesSlope), BuildShokusai(PlantPathByKey), SannoSha(TreePath), TypologyBuilder.Niwa(MomijiPalFor) |
+| `Own.Matsu(size, i=…)` | 関数 | クロマツ(社叢)。山王社の社叢の高木。⭐ 林の松 — 在庫の `JG.Pine` は独立して枝を張った庭の松で樹形が別。 | BuildShokusai(PlantPathByKey), SannoSha(TreePath), TypologyBuilder.Niwa |
 | `Own.SannoRomon(duKen, dvKen, pX, mX, pZ, mZ)` | 関数 | 山王社の楼門(隨身門)・坂下の門(仁王門)兼用。 | — |
 | `Own.SannoRomon(duKen, dvKen, passMm, widthMm, pX, mX, pZ, mZ)` | 関数 | 山王社の楼門(隨身門)— 明治16年実測図の寸法(ユーザー裁定C 2026-09-14)。 | — |
 | `Own.SannoSakashitamon(duKen, dvKen, passMm, widthMm, pX, mX, pZ, mZ)` | 関数 | 山王社の坂下の門(仁王門)— 明治16年実測図 第2稿の読み(2026-09-14)。 | — |
@@ -264,14 +264,14 @@
 | `Own.SannoIdoIshiki(sideMm, slopeDen)` | 関数 | 山王社の前庭の井戸の板石敷一式 — 板石(東へ水勾配)・敷砂・割栗・井戸の縁石 4 石・礎石 4 石・ 浸透枡(伏せ枡・板蓋)(指図 bom 行26・行27)。 | SannoSha(Stage8_Ido), TypologyBuilder.Niwa(NiwaIdo) |
 | `Own.SannoChumon(duKen, dvKen, pX, mX, pZ, mZ)` | 関数 | 山王社の中門(瑞垣門)。一間平唐門・四脚(本柱2+控柱4)・銅瓦葺【S [国宝建造物目録1941]】。 | — |
 | `Own.SannoChumon(duKen, dvKen, passMm, widthMm, pX, mX, pZ, mZ)` | 関数 | 山王社の中門(瑞垣門)— 明治16年寸法(ユーザー裁定C 2026-09-14)。 | — |
-| `Own.Momiji(size, i=…)` | 関数 | イロハモミジ。⭐ 株立ち3〜5幹・枝が水平に張る(幅が高さを上回る)。 | DoiBuilder.Niwa(PlantPath・ResolveNiwaApi), MatsudairaDewa(ResolveApi), OkabeYashiki(PlantByKey), TypologyBuilder.Niwa(MomijiPalFor) |
-| `Own.Ume(size, i=…)` | 関数 | — | DoiBuilder.Niwa(ResolveNiwaApi), MatsudairaDewa(ResolveApi), OkabeYashiki(PlantByKey), TypologyBuilder.Niwa(NiwaUra) |
-| `Own.Enoki(size, i=…)` | 関数 | エノキ(一里塚の木)。⭐ 低い位置で数本の大枝に分かれ、枝が斜め上へ 開いて扇形〜半球形の広い樹冠。 | OkabeYashiki(PlantByKey), SannoSha(TreePath), TypologyBuilder.Niwa |
-| `Own.Mukunoki(size, i=…)` | 関数 | ムクノキ。エノキに似るが ⭐ 幹がより通直で高く、樹冠は縦長 (幅 &lt; 高さ)。 | OkabeYashiki(PlantByKey), SannoSha(TreePath), TypologyBuilder.Niwa |
-| `Own.Keyaki(size, i=…)` | 関数 | ケヤキ。⭐ 箒形 — 短い直幹から大枝が扇状に立ち上がり、上へ広がる 逆三角の樹冠。 | OkabeYashiki(PlantByKey), SannoSha(TreePath), TypologyBuilder.Niwa |
-| `Own.TsuruFuji(i=…)` | 関数 | フジ(ノダフジ)が高木の幹に絡む姿。2〜3本の蔓が幹を巻いて登り、 羽状複葉の葉が外へ張り出す。 | OkabeYashiki(PlantByKey) |
-| `Own.TsuruTeika(i=…)` | 関数 | テイカカズラ(常緑のつる)。幹に貼り付いて登る細い帯。 | OkabeYashiki(PlantByKey) |
-| `Own.TsuruKizuta(i=…)` | 関数 | キヅタ(常緑のつる)。テイカカズラより ⭐ 葉が大きく・帯が広く(約240°)・ 密で、幹を覆う「蔓のマント」になる。 | OkabeYashiki(PlantByKey) |
+| `Own.Momiji(size, i=…)` | 関数 | イロハモミジ。⭐ 株立ち3〜5幹・枝が水平に張る(幅が高さを上回る)。 | DoiBuilder.Niwa(PlantPath・ResolveNiwaApi), BuildShokusai(PlantPathByKey), MatsudairaDewa(ResolveApi), TypologyBuilder.Niwa(MomijiPalFor) |
+| `Own.Ume(size, i=…)` | 関数 | — | BuildShokusai(PlantPathByKey), DoiBuilder.Niwa(ResolveNiwaApi), MatsudairaDewa(ResolveApi), TypologyBuilder.Niwa(NiwaUra) |
+| `Own.Enoki(size, i=…)` | 関数 | エノキ(一里塚の木)。⭐ 低い位置で数本の大枝に分かれ、枝が斜め上へ 開いて扇形〜半球形の広い樹冠。 | BuildShokusai(PlantPathByKey), SannoSha(TreePath), TypologyBuilder.Niwa |
+| `Own.Mukunoki(size, i=…)` | 関数 | ムクノキ。エノキに似るが ⭐ 幹がより通直で高く、樹冠は縦長 (幅 &lt; 高さ)。 | BuildShokusai(PlantPathByKey), SannoSha(TreePath), TypologyBuilder.Niwa |
+| `Own.Keyaki(size, i=…)` | 関数 | ケヤキ。⭐ 箒形 — 短い直幹から大枝が扇状に立ち上がり、上へ広がる 逆三角の樹冠。 | BuildShokusai(PlantPathByKey), SannoSha(TreePath), TypologyBuilder.Niwa |
+| `Own.TsuruFuji(i=…)` | 関数 | フジ(ノダフジ)が高木の幹に絡む姿。2〜3本の蔓が幹を巻いて登り、 羽状複葉の葉が外へ張り出す。 | BuildShokusai(PlantPathByKey) |
+| `Own.TsuruTeika(i=…)` | 関数 | テイカカズラ(常緑のつる)。幹に貼り付いて登る細い帯。 | BuildShokusai(PlantPathByKey) |
+| `Own.TsuruKizuta(i=…)` | 関数 | キヅタ(常緑のつる)。テイカカズラより ⭐ 葉が大きく・帯が広く(約240°)・ 密で、幹を覆う「蔓のマント」になる。 | BuildShokusai(PlantPathByKey) |
 | `Own.IshigakiSaka(run, drop)` | 関数 | 石段の法面を留める「坂の土留め」。天端が勾配どおりに一直線で斜めに下がる 一枚物(段々に下がるモジュールでは実物の石段の袖にならない)。 | — |
 | `Own.Fuchiishi(runKen, w=…)` | 関数 | 切石の縁石(白洲・平場の縁。指図 `fuchi[]`)。 | MatsudairaDewa(Stage6_Zosaku) |
 | `Own.NagayaOmote(len)` | 関数 | 長さ可変の表長屋。在庫の `knagaya01c/l/r` を窓割り(bay=2.6874m)で切って 並べ、両端に妻(破風・鬼・妻壁)を継いだ一体物。 | MatsudairaDewa(BuildNagayaOne・Stage2_Perimeter), OkabeYashiki(AssetByKey・PlaceOmoteNagaya), Doi(Stage2_Perimeter), NagayaOmote |

@@ -1691,9 +1691,17 @@ def kakoi_lines(d, poly, runs, tamagaki, road_edges=None):
     out = []
     av = (((d.get("planting") or {}).get("bandDef") or {}).get("avoid") or {})
     P = [tuple(q[:2]) for q in (poly or [])]
+    # `avoid.kakoiLineExceptEdges`(辺の番号の列)を宣言した邸だけ、その区画の辺には `m` を当てない
+    #   (土井 2026-10-04: 松江松平との谷の境は沢を開けたままで、両岸の林を切らない ── EDO-0554 の施主裁定の申し送り)。
+    #   宣言の無い邸は一字も変わらない。退けるのは辺の実体(半厚 0)だけ ── `facing` = False と同じ扱い
+    ex = set(int(i) for i in (av.get("kakoiLineExceptEdges") or []) if isinstance(i, (int, float)))
     for i in range(len(P)):
-        out.append({"name": "区画の辺%d" % i, "kind": "区画の辺", "segs": [(P[i], P[(i + 1) % len(P)])],
-                    "half": 0.0, "halfFrom": "取れない(区画の線 — 0 で扱う)"})
+        row = {"name": "区画の辺%d" % i, "kind": "区画の辺", "segs": [(P[i], P[(i + 1) % len(P)])],
+               "half": 0.0, "halfFrom": "取れない(区画の線 — 0 で扱う)"}
+        if i in ex:
+            row["facing"] = False
+            row["halfFrom"] += "・avoid.kakoiLineExceptEdges で離れを当てない"
+        out.append(row)
     for r in runs or []:
         sg = [(tuple(a[:2]), tuple(b[:2])) for a, b in (r.get("segs") or [])]
         if not sg: continue
@@ -1917,9 +1925,13 @@ def do_rin_rects(d):
     if "munes" in of:
         for m in d.get("munes") or []:
             if m.get("yaku") == "接続" or m.get("u0") is None: continue
+            # 矩形は `u0,v0,du,dv`(山王)か `u0,v0,u1,v1`(土井)── どちらも柱芯の矩形。どちらも無ければ測れない(飛ばす)
+            u1 = m["u0"] + m["du"] if m.get("du") is not None else m.get("u1")
+            v1 = m["v0"] + m["dv"] if m.get("dv") is not None else m.get("v1")
+            if u1 is None or v1 is None: continue
             k = kidan(m["name"], m)
             e = (k or 0.0) / ken
-            out.append((m["name"], (m["u0"] - e, m["v0"] - e, m["u0"] + m["du"] + e, m["v0"] + m["dv"] + e), k))
+            out.append((m["name"], (m["u0"] - e, m["v0"] - e, u1 + e, v1 + e), k))
     io = d.get("ido")
     if "ido" in of and io and io.get("uv"):
         u, v = io["uv"]

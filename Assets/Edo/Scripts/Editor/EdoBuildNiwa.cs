@@ -1254,19 +1254,8 @@ public static partial class EdoBuild
         floatWorst = float.NaN;
         float lo, hi;
         if (!NiwaSpanY(go, out lo, out hi)) return float.NaN;
-        float gMax = float.MinValue;
-        foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
-        {
-            if (mf.sharedMesh == null) continue;
-            var l2w = mf.transform.localToWorldMatrix;
-            foreach (var v in mf.sharedMesh.vertices)
-            {
-                var w = l2w.MultiplyPoint3x4(v);
-                if (w.y < hi - 0.02f) continue;
-                gMax = Mathf.Max(gMax, Ground(w.x, w.z));
-            }
-        }
-        if (gMax == float.MinValue) return float.NaN;
+        float gMax = NiwaGroundUnderTop(go);
+        if (float.IsNaN(gMax)) return float.NaN;
         float dy = gMax + above - hi;
         go.transform.position += new Vector3(0f, dy, 0f);
         floatWorst = RootToBed(go, Ground, 0.05f).hi;
@@ -1433,5 +1422,703 @@ public static partial class EdoBuild
         float refY = hasWater ? Mathf.Max(g0, waterY) : g0;
         rep.expose = hi - refY;
         return go;
+    }
+
+    // ─────────── 指図の庭 ── 縁・段・生垣・腰掛の据え(EDO-0533 第7巡) ───────────
+    //
+    // 当たる先(この小節の全関数): EdoDoiBuilder.Niwa 6d(沓脱 Shoin/Naga・縁先手水鉢・腰掛)・6e(丸太段)・6h(奥庭の生垣)。
+    // 以後、御殿(EdoGotenKit が組む棟)の縁へ据える庭の物(沓脱・手水鉢・踏石)・園路の土留め段・塀の内に沿う生垣の全て。
+
+    /// <summary>Village Kit の倍率(vklib.S = 2.0m/間 → 江戸間 1.818m/間)。CLAUDE.md の寸法表と同じ値。</summary>
+    public const float VK_S = 0.909f;
+
+    /// <summary><see cref="EngawaTopNear"/> の返り。y = 縁板の天端[m](NaN = 届く所に縁が無い)・dist = 点から天端の面までの平面距離[m]
+    /// (0 = 点が縁板の真下)・on = 天端の面の最寄りの点(XZ)・piece = 当たった縁の駒・mune = その駒を持つ棟(建物の群の直下の子)の名。</summary>
+    public struct EngawaHit { public float y, dist; public Vector2 on; public GameObject piece; public string mune; }
+
+    static bool IsEngawaPiece(GameObject go)
+    {
+        string p = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(go);
+        if (string.IsNullOrEmpty(p)) return false;
+        return p == EdoAssets.Goten.Nureen || p == EdoAssets.Goten.NureenCorner
+            || p == EdoAssets.Goten.RokaEnita || p == EdoAssets.Goten.FloorBoard;
+    }
+
+    static Vector2 NiwaClosestOnSeg(Vector2 p, Vector2 a, Vector2 b)
+    {
+        var ab = b - a; float l2 = ab.sqrMagnitude;
+        if (l2 < 1e-12f) return a;
+        return a + ab * Mathf.Clamp01(Vector2.Dot(p - a, ab) / l2);
+    }
+
+    static float DistPointTri2(Vector2 p, Vector2 a, Vector2 b, Vector2 c)
+    {
+        float d1 = (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x);
+        float d2 = (c.x - b.x) * (p.y - b.y) - (c.y - b.y) * (p.x - b.x);
+        float d3 = (a.x - c.x) * (p.y - c.y) - (a.y - c.y) * (p.x - c.x);
+        bool neg = d1 < 0 || d2 < 0 || d3 < 0, pos = d1 > 0 || d2 > 0 || d3 > 0;
+        if (!(neg && pos)) return 0f;
+        return Mathf.Min((NiwaClosestOnSeg(p, a, b) - p).magnitude, Mathf.Min((NiwaClosestOnSeg(p, b, c) - p).magnitude, (NiwaClosestOnSeg(p, c, a) - p).magnitude));
+    }
+
+    /// <summary>**縁板の天端を測る**(沓脱石の天端 = 縁板の天端 −0.40 など、縁に取り合う庭の物の高さの相手)。
+    /// <paramref name="buildings"/> の下の御殿の縁の駒(<see cref="EdoAssets.Goten.Nureen"/>・NureenCorner・RokaEnita・FloorBoard ──
+    /// プレハブの資産の名で見分ける)の実メッシュから、**上向きの面**(世界の法線 y &gt; 0.95)を拾い、駒ごとに**面積の最も大きい高さ**を
+    /// 縁板の天端とする(高欄の笠木・束石の天端など上向きの小面を拾わない)。点 <paramref name="at"/> に平面で最も近い天端の面の
+    /// 高さを返す(<paramref name="reach"/>[m] より遠ければ y = NaN)。<paramref name="mune"/> を渡せばその棟の縁だけを見る。
+    /// ⛔ 駒の基準点・<c>EdoGotenKit.NUREEN_DROP</c> の床高の式から推さない(棟の面は造成で動き、縁の足は伸ばされる)。
+    /// 測るだけで何も動かさない。**硬い・柔らかいの別は呼び手**(沓脱の「縁板の天端 −0.40」は狙い、届く縁が無いのは据えない理由)。</summary>
+    public static EngawaHit EngawaTopNear(Vector2 at, Transform buildings, float reach, string mune = null)
+    {
+        var res = new EngawaHit { y = float.NaN, dist = float.PositiveInfinity };
+        if (buildings == null) return res;
+        foreach (var mf in buildings.GetComponentsInChildren<MeshFilter>())
+        {
+            var mesh = mf.sharedMesh;
+            if (mesh == null || !mf.gameObject.activeInHierarchy) continue;
+            if (!IsEngawaPiece(mf.gameObject)) continue;
+            var root = PrefabUtility.GetNearestPrefabInstanceRoot(mf.gameObject);
+            string muneName = null;
+            for (var t = mf.transform; t != null; t = t.parent) if (t.parent == buildings) { muneName = t.name; break; }
+            if (mune != null && muneName != mune) continue;
+            var v = mesh.vertices; var tri = mesh.triangles; var l2w = mf.transform.localToWorldMatrix;
+            var w = new Vector3[v.Length];
+            for (int i = 0; i < v.Length; i++) w[i] = l2w.MultiplyPoint3x4(v[i]);
+            // 上向きの面を 5mm の高さの升に束ね、面積の最も大きい升 = 縁板の天端
+            var area = new Dictionary<int, float>();
+            for (int k = 0; k + 2 < tri.Length; k += 3)
+            {
+                Vector3 a = w[tri[k]], b = w[tri[k + 1]], c = w[tri[k + 2]];
+                var nrm = Vector3.Cross(b - a, c - a); float m2 = nrm.magnitude;
+                if (m2 < 1e-9f || nrm.y / m2 <= 0.95f) continue;
+                int key = Mathf.RoundToInt((a.y + b.y + c.y) / 3f / 0.005f);
+                float s; area.TryGetValue(key, out s); area[key] = s + m2 * 0.5f;
+            }
+            if (area.Count == 0) continue;
+            int best = 0; float bestA = -1f;
+            foreach (var kv in area) if (kv.Value > bestA) { bestA = kv.Value; best = kv.Key; }
+            float topY = best * 0.005f;
+            for (int k = 0; k + 2 < tri.Length; k += 3)
+            {
+                Vector3 a = w[tri[k]], b = w[tri[k + 1]], c = w[tri[k + 2]];
+                var nrm = Vector3.Cross(b - a, c - a); float m2 = nrm.magnitude;
+                if (m2 < 1e-9f || nrm.y / m2 <= 0.95f) continue;
+                if (Mathf.Abs((a.y + b.y + c.y) / 3f - topY) > 0.006f) continue;
+                Vector2 A2 = new Vector2(a.x, a.z), B2 = new Vector2(b.x, b.z), C2 = new Vector2(c.x, c.z);
+                float d = DistPointTri2(at, A2, B2, C2);
+                if (d >= res.dist) continue;
+                res.dist = d; res.y = (a.y + b.y + c.y) / 3f; res.piece = root != null ? root : mf.gameObject; res.mune = muneName;
+                // 最寄りの点(三角形の内なら at そのもの・外なら最寄りの辺の上)
+                if (d == 0f) res.on = at;
+                else
+                {
+                    Vector2 q = NiwaClosestOnSeg(at, A2, B2), q2 = NiwaClosestOnSeg(at, B2, C2), q3 = NiwaClosestOnSeg(at, C2, A2);
+                    res.on = q; if ((q2 - at).sqrMagnitude < (res.on - at).sqrMagnitude) res.on = q2; if ((q3 - at).sqrMagnitude < (res.on - at).sqrMagnitude) res.on = q3;
+                }
+            }
+        }
+        if (res.dist > reach) { res.y = float.NaN; res.piece = null; res.mune = null; }
+        return res;
+    }
+
+    /// <summary>天端の面(最高点から 0.02m 以内の頂点)の真下の地表の**最も高い所**[m](<see cref="NiwaTopAboveGround"/> と同じ測り)。
+    /// 「地盤 +0.25 以上」のような天端の下限を当てるのに使う。測れなければ NaN。</summary>
+    public static float NiwaGroundUnderTop(GameObject go)
+    {
+        float lo, hi;
+        if (!NiwaSpanY(go, out lo, out hi)) return float.NaN;
+        float gMax = float.MinValue;
+        foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            var l2w = mf.transform.localToWorldMatrix;
+            foreach (var v in mf.sharedMesh.vertices)
+            {
+                var w = l2w.MultiplyPoint3x4(v);
+                if (w.y < hi - 0.02f) continue;
+                gMax = Mathf.Max(gMax, Ground(w.x, w.z));
+            }
+        }
+        return gMax == float.MinValue ? float.NaN : gMax;
+    }
+
+    /// <summary>腰掛一つの据えの記録。seat = 座面(実メッシュの天端)− 足の芯の地表[m]・floatWorst = 据えた後の脚の当たりの最大の浮き
+    /// (&gt; 0.01 = ✗)・bury = 最も深い脚の埋まり[m](負)・lenAlong = 据えた長手の実長[m]。</summary>
+    public struct NiwaKoshikakeRep { public float seat, floatWorst, bury, lenAlong; }
+
+    /// <summary>**腰掛(床几)を据える**。実メッシュの平面の長い方を <paramref name="longDirXZ"/> に沿わせ(<see cref="NiwaLongAlongYaw"/>)、
+    /// 脚の**足の芯**を (x,z) へ(<see cref="NiwaFootOn"/>)、脚の当たりを地面へ据える(**硬い**: 最も浮いた脚が地表に触れ、他の脚は埋める ──
+    /// <see cref="SinkToBed"/>)。座面の高さは部材の丈そのもの(倍率 <paramref name="scale"/> の後)で、斜面では脚の埋まりの分だけ下がる ──
+    /// 狙いは持たない(**柔らかい**: 座面の高さは刷るだけ)。測れなければ取り除いて null。
+    /// <paramref name="faceToXZ"/> が数なら、長手に直交する二つの向きのうち local +Z が的を向く方を採る(床几に表裏があれば)。</summary>
+    public static GameObject NiwaKoshikake(Transform parent, string name, string path, Vector2 xz, Vector2 longDirXZ, float scale,
+                                           Vector2 faceToXZ, out NiwaKoshikakeRep rep)
+    {
+        rep = new NiwaKoshikakeRep { seat = float.NaN, floatWorst = float.NaN, bury = float.NaN, lenAlong = float.NaN };
+        if (string.IsNullOrEmpty(path) || longDirXZ.sqrMagnitude < 1e-8f) return null;
+        float yaw = NiwaLongAlongYaw(path, longDirXZ);
+        if (!float.IsNaN(faceToXZ.x))
+        {
+            float r = yaw * Mathf.Deg2Rad; var z = new Vector2(Mathf.Sin(r), Mathf.Cos(r));
+            if (Vector2.Dot(z, faceToXZ - xz) < 0f) yaw += 180f;
+        }
+        var go = Place(path, new Vector3(xz.x, Ground(xz.x, xz.y), xz.y), yaw, Vector3.one * scale, parent, name);
+        if (go == null) return null;
+        if (!NiwaFootOn(go, xz)) { UnityEngine.Object.DestroyImmediate(go); return null; }
+        var rt = SinkToBed(go, Ground, 0.05f);
+        if (float.IsNaN(rt.hi)) { UnityEngine.Object.DestroyImmediate(go); return null; }
+        float lo, hi; NiwaSpanY(go, out lo, out hi);
+        float mn, mx; var d = longDirXZ.normalized; ProjExtent(go, d, float.MinValue, float.MaxValue, null, out mn, out mx);
+        rep.seat = hi - Ground(xz.x, xz.y); rep.floatWorst = rt.hi; rep.bury = rt.lo; rep.lenAlong = mx - mn;
+        return go;
+    }
+
+    /// <summary>丸太段の割り付けの記録(区間ごと)。</summary>
+    public struct NiwaDanSec { public float s0, s1, drop, rise, tread, slope; public int n, made, sunk; public float worstSink, exposeMin, exposeMax; public string why; }
+
+    /// <summary>**園路の勾配から丸太の土留め段を割り付けて据える**(指図 `dan`「主路の勾配が 1:6 を超える区間にだけ・蹴上 0.12〜0.15・踏面 ≥0.60」)。
+    /// <para>① 路の折れ線 <paramref name="pathXZ"/> を 0.25m 刻みに地表(<see cref="Ground"/> ── 描かれた地形)を測り、1.0m の窓の勾配が
+    /// <paramref name="slopeMax"/> を超える所を区間に束ねる(0.6m 未満の切れ目は繋ぐ)。② 区間の落差 H を段数 n で割り、蹴上 H/n が
+    /// [<paramref name="riseLo"/>, <paramref name="riseHi"/>] に入る n を採る(入らなければ据えない ── 落差が蹴上に足りない区間は ⚠ で刷る)。
+    /// ③ 段の丸太は踏面の幅 L/n の中ほどの線(区間の上端から (k−½)·L/n)へ、**天端 = 上の段の踏面**(上端の地表 − (k−1)·蹴上)で据える。
+    /// 丸太の芯は実メッシュの**天端の稜(最高点から 0.03m 以内の頂点)の外形の中央**で路の線と段の線へ合わせ、local +Z(杭の側)を下手へ向ける。
+    /// ⛔ ピボット(丸太の芯の平面)で位置を決めない。</para>
+    /// <para>**硬い**: 丸太の当たりが地表から浮かない(浮けば沈め、沈めた段を数えて最大を刷る)・<paramref name="forbid"/> が真の所(水の中)に据えない。
+    /// **柔らかい**: 蹴上・踏面 ≥ <paramref name="treadMin"/>(足りなければ ⚠ で刷る)・丸太の見え(天端 − 下手の地表)。
+    /// ⚠ 踏面の土は地形のまま(段ごとの均しは造成の工程 ── ここは地形を触らない)。</para>
+    /// 返り値 = 据えた駒。<paramref name="secs"/> = 区間ごとの記録(区間の s は路の道のり[m])。</summary>
+    public static List<GameObject> NiwaMarutaDan(Transform parent, string prefix, string path, IList<Vector2> pathXZ,
+                                                 float slopeMax, float riseLo, float riseHi, float treadMin,
+                                                 Func<Vector2, bool> forbid, out List<NiwaDanSec> secs)
+    {
+        var made = new List<GameObject>(); secs = new List<NiwaDanSec>();
+        if (pathXZ == null || pathXZ.Count < 2 || string.IsNullOrEmpty(path)) return made;
+        var segL = new List<float>(); float total = 0f;
+        for (int i = 0; i + 1 < pathXZ.Count; i++) { float l = Vector2.Distance(pathXZ[i], pathXZ[i + 1]); segL.Add(l); total += l; }
+        Func<float, Vector2> at = s => ChainAt(pathXZ, segL, Mathf.Clamp(s, 0f, total));
+        Func<float, Vector2> dirAt = s =>
+        {
+            for (int i = 0; i < segL.Count; i++) { if (s <= segL[i] || i == segL.Count - 1) return (pathXZ[i + 1] - pathXZ[i]).normalized; s -= segL[i]; }
+            return (pathXZ[pathXZ.Count - 1] - pathXZ[pathXZ.Count - 2]).normalized;
+        };
+        Func<float, float> g = s => { var p = at(s); return Ground(p.x, p.y); };
+        const float STEP = 0.25f, WIN = 0.5f;
+        int ns = Mathf.Max(1, Mathf.FloorToInt(total / STEP));
+        var steep = new bool[ns + 1];
+        for (int i = 0; i <= ns; i++)
+        {
+            float s = i * STEP;
+            float a = Mathf.Max(0f, s - WIN), b = Mathf.Min(total, s + WIN);
+            steep[i] = b - a > 0.2f && Mathf.Abs(g(b) - g(a)) / (b - a) > slopeMax;
+        }
+        // 区間に束ねる(0.6m 未満の切れ目は繋ぐ)
+        var raw = new List<Vector2>();
+        for (int i = 0; i <= ns; i++)
+        {
+            if (!steep[i]) continue;
+            int j = i; while (j + 1 <= ns && steep[j + 1]) j++;
+            raw.Add(new Vector2(i * STEP, Mathf.Min(total, j * STEP))); i = j;
+        }
+        var spans = new List<Vector2>();
+        foreach (var r in raw)
+        {
+            if (spans.Count > 0 && r.x - spans[spans.Count - 1].y < 0.6f) spans[spans.Count - 1] = new Vector2(spans[spans.Count - 1].x, r.y);
+            else spans.Add(r);
+        }
+        float crownTol = 0.03f;
+        int idx = 0;
+        foreach (var sp in spans)
+        {
+            var sec = new NiwaDanSec { s0 = sp.x, s1 = sp.y, exposeMin = float.NaN, exposeMax = float.NaN };
+            float L = sp.y - sp.x, gA = g(sp.x), gB = g(sp.y);
+            sec.drop = Mathf.Abs(gA - gB); sec.slope = L > 1e-3f ? sec.drop / L : 0f;
+            int n = Mathf.CeilToInt(sec.drop / riseHi - 1e-4f);
+            if (n >= 1 && sec.drop / n < riseLo) n = 0;
+            if (n < 1) { sec.why = "落差 " + sec.drop.ToString("F2") + "m が蹴上 " + riseLo.ToString("F2") + "〜" + riseHi.ToString("F2") + " に割れない ── 据えない"; secs.Add(sec); continue; }
+            sec.n = n; sec.rise = sec.drop / n; sec.tread = L / n;
+            bool upAtS0 = gA >= gB;
+            float sTop = upAtS0 ? sp.x : sp.y, sgn = upAtS0 ? 1f : -1f, gTop = Mathf.Max(gA, gB);
+            for (int k = 1; k <= n; k++)
+            {
+                float s = sTop + sgn * (k - 0.5f) * sec.tread;
+                var p = at(s); var down = dirAt(s) * sgn;   // 下手の向き(路の向き × 上手の側)
+                if (forbid != null && forbid(p)) { sec.why = (sec.why == null ? "" : sec.why + "・") + "段" + k + " は禁じた所(水の中)── 据えない"; continue; }
+                float topY = gTop - (k - 1) * sec.rise;
+                var go = Place(path, new Vector3(p.x, topY, p.y), Mathf.Atan2(down.x, down.y) * Mathf.Rad2Deg, Vector3.one, parent, prefix + "_" + (idx++));
+                if (go == null) continue;
+                // 丸太の芯 = 天端の稜の外形の中央(下手の向き・横の向きそれぞれ)
+                float lo, hi; NiwaSpanY(go, out lo, out hi);
+                var perp = new Vector2(-down.y, down.x);
+                float d0 = float.MaxValue, d1 = float.MinValue, t0 = float.MaxValue, t1 = float.MinValue;
+                foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
+                {
+                    if (mf.sharedMesh == null) continue;
+                    var l2w = mf.transform.localToWorldMatrix;
+                    foreach (var v in mf.sharedMesh.vertices)
+                    {
+                        var w = l2w.MultiplyPoint3x4(v); if (w.y < hi - crownTol) continue;
+                        var q = new Vector2(w.x, w.z) - p;
+                        float dd = Vector2.Dot(q, down), tt = Vector2.Dot(q, perp);
+                        d0 = Mathf.Min(d0, dd); d1 = Mathf.Max(d1, dd); t0 = Mathf.Min(t0, tt); t1 = Mathf.Max(t1, tt);
+                    }
+                }
+                if (d0 > d1) { UnityEngine.Object.DestroyImmediate(go); continue; }
+                var sh = down * (-(d0 + d1) * 0.5f) + perp * (-(t0 + t1) * 0.5f);
+                go.transform.position += new Vector3(sh.x, 0f, sh.y);
+                NiwaTopTo(go, topY);
+                // 硬い: 浮き 0(浮けば沈める ── 蹴上の狙いは柔らかい)
+                var rt = RootToBed(go, Ground, 0.05f);
+                if (!float.IsNaN(rt.hi) && rt.hi > 0.005f)
+                {
+                    go.transform.position -= new Vector3(0f, rt.hi, 0f);
+                    sec.sunk++; sec.worstSink = Mathf.Max(sec.worstSink, rt.hi);
+                }
+                // 見え = 天端 − 下手の地表(丸太の下手の外形の 0.05m 先)
+                NiwaSpanY(go, out lo, out hi);
+                float mn, mx; ProjExtent(go, down, hi - 0.2f, float.MaxValue, null, out mn, out mx);
+                var c3 = go.transform.position; float c = c3.x * down.x + c3.z * down.y;
+                var pd = new Vector2(c3.x, c3.z) + down * (mx - c + 0.05f);
+                float ex = hi - Ground(pd.x, pd.y);
+                sec.exposeMin = float.IsNaN(sec.exposeMin) ? ex : Mathf.Min(sec.exposeMin, ex);
+                sec.exposeMax = float.IsNaN(sec.exposeMax) ? ex : Mathf.Max(sec.exposeMax, ex);
+                made.Add(go); sec.made++;
+            }
+            if (sec.tread < treadMin) sec.why = (sec.why == null ? "" : sec.why + "・") + "⚠ 踏面 " + sec.tread.ToString("F2") + "m < " + treadMin.ToString("F2") + "(柔らかい ── 路が急すぎる)";
+            secs.Add(sec);
+        }
+        return made;
+    }
+
+    /// <summary>生垣を塀から引いた記録。faceMin/faceMax = 塀の内面の、案内線からの出[m](内へ正・測った駒の範囲)・noFace = 内面が測れず
+    /// 植えなかった駒の座の数・sx = 走りの倍率・floatWorst/buryWorst = 据えた後の当たりの最大の浮き/最も深い埋まり・
+    /// wallGap = 生垣の葉の外形と塀の内面の隙の最小[m](負 = 葉が塀に入る)・h = 生垣の実の丈。</summary>
+    public struct NiwaHedgeRep { public int made, noFace; public float faceMin, faceMax, sx, floatWorst, buryWorst, wallGap, h, pitchMin, pitchMax; public string why; }
+
+    /// <summary>**塀の内面から離れを取って生垣の芯を引き、生垣の駒を並べる**(指図 `ikegaki.line`「奥の塀の内面から 0.5間を芯に」)。
+    /// <para>① 塀の駒 <paramref name="wall"/>(布石を除いた塀の本体)のうち、案内線 a→b と**平行な駒だけ**(駒の頂点の外形が線に沿って
+    /// 長い)の実メッシュを、各駒の丈の 0.3〜0.6 の帯(笠木と腰を外す)で拾い、0.5m ごとの座で**内(<paramref name="inward"/> の側)へ
+    /// 最も出た頂点** = 塀の内面を測る。② 芯 = 内面 + <paramref name="offset"/>。③ 走りを駒の実長(葉の外形)で n 駒に割り(倍率は
+    /// 0.85〜1.15 に収める)、両端は端の駒(葉で閉じた小口 = local +X)を外へ向け、各駒の**葉の外形**の走りの端を前の駒に触れさせ、
+    /// 奥行の外形の中央を芯へ合わせる。④ 地面へ据える(**硬い**: 浮き 0 ── <see cref="SinkToBed"/>、他の当たりは埋める)。</para>
+    /// <para>**硬い**: 内面が測れない座には植えない(塀の無い所・口)・浮き 0。**柔らかい**: 丈(部材の丈のまま・刷るだけ)・
+    /// 葉と塀の隙(刷るだけ ── 部材どうしのめり込みは数えない)。⛔ 塀の基準点・指図の線の座標で芯を決めない。</para></summary>
+    public static List<GameObject> NiwaHedgeFromWall(Transform parent, string prefix, IList<GameObject> wall, Vector2 aXZ, Vector2 bXZ,
+                                                     Vector2 inward, float offset, string bodyPath, string endPath, out NiwaHedgeRep rep)
+    {
+        var made = new List<GameObject>();
+        rep = new NiwaHedgeRep { faceMin = float.NaN, faceMax = float.NaN, floatWorst = float.NaN, buryWorst = float.NaN, wallGap = float.NaN, h = float.NaN };
+        var ab = bXZ - aXZ; float len = ab.magnitude;
+        if (len < 0.5f || wall == null || wall.Count == 0) { rep.why = "案内線が短いか塀の駒が無い"; return made; }
+        var dir = ab / len; var nrm = new Vector2(-dir.y, dir.x); if (Vector2.Dot(nrm, inward) < 0f) nrm = -nrm;
+        // ① 塀の内面(平行な駒だけ・丈の 0.3〜0.6 の帯)
+        var sv = new List<Vector2>();   // (s, t)
+        foreach (var go in wall)
+        {
+            if (go == null || !go.activeInHierarchy) continue;
+            var pts = new List<Vector3>(); float y0 = float.MaxValue, y1 = float.MinValue;
+            foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
+            {
+                if (mf.sharedMesh == null) continue;
+                var rr = mf.GetComponent<Renderer>(); if (rr == null || !rr.enabled) continue;
+                var l2w = mf.transform.localToWorldMatrix;
+                foreach (var v in mf.sharedMesh.vertices) { var w = l2w.MultiplyPoint3x4(v); pts.Add(w); y0 = Mathf.Min(y0, w.y); y1 = Mathf.Max(y1, w.y); }
+            }
+            if (pts.Count == 0) continue;
+            float s0 = float.MaxValue, s1 = float.MinValue, t0 = float.MaxValue, t1 = float.MinValue;
+            foreach (var w in pts) { var q = new Vector2(w.x, w.z) - aXZ; float s = Vector2.Dot(q, dir), t = Vector2.Dot(q, nrm); s0 = Mathf.Min(s0, s); s1 = Mathf.Max(s1, s); t0 = Mathf.Min(t0, t); t1 = Mathf.Max(t1, t); }
+            if (s1 - s0 <= t1 - t0) continue;                       // 線と平行でない駒(折れの先の区の駒)
+            if (s1 < -0.5f || s0 > len + 0.5f || t0 > 3f || t1 < -3f) continue;   // 案内線の脇に無い
+            float bLo = y0 + 0.3f * (y1 - y0), bHi = y0 + 0.6f * (y1 - y0);
+            foreach (var w in pts)
+            {
+                if (w.y < bLo || w.y > bHi) continue;
+                var q = new Vector2(w.x, w.z) - aXZ; sv.Add(new Vector2(Vector2.Dot(q, dir), Vector2.Dot(q, nrm)));
+            }
+        }
+        Func<float, float> faceAt = s =>
+        {
+            float best = float.NaN;
+            foreach (var q in sv) if (Mathf.Abs(q.x - s) <= 0.5f && (float.IsNaN(best) || q.y > best)) best = q.y;
+            return best;
+        };
+        // ③ 割り付け(葉の外形の実長)
+        float bw = RunMeasure(bodyPath).W, ew = RunMeasure(endPath).W;
+        int n = Mathf.Max(1, Mathf.RoundToInt(len / bw));
+        float sx = len / (n * bw);
+        if (sx < 0.85f && n > 1) { n--; sx = len / (n * bw); }
+        if (sx > 1.15f) { n++; sx = len / (n * bw); }
+        rep.sx = sx;
+        float cursor = 0f;
+        for (int i = 0; i < n; i++)
+        {
+            bool first = i == 0, last = i == n - 1; bool isEnd = first || last;
+            string path = isEnd ? endPath : bodyPath;
+            float pieceW = (isEnd ? ew : bw) * sx;
+            float sMid = cursor + pieceW * 0.5f;
+            float f = faceAt(sMid);
+            if (float.IsNaN(f)) { rep.noFace++; cursor += pieceW; continue; }
+            rep.faceMin = float.IsNaN(rep.faceMin) ? f : Mathf.Min(rep.faceMin, f);
+            rep.faceMax = float.IsNaN(rep.faceMax) ? f : Mathf.Max(rep.faceMax, f);
+            float core = f + offset;
+            // 端の駒は葉で閉じた小口(local +X)を外へ: 頭の駒は −dir、尻の駒は +dir。中の駒と n=1 は +dir
+            var xDir = (first && n > 1) ? -dir : dir;
+            float yaw = YawLocalAxisTo(true, xDir);
+            var c0 = aXZ + dir * sMid + nrm * core;
+            var go = Place(path, new Vector3(c0.x, Ground(c0.x, c0.y), c0.y), yaw, new Vector3(sx, 1f, 1f), parent, prefix + "_" + i);
+            if (go == null) { cursor += pieceW; continue; }
+            // 葉の外形で走りの端を cursor へ・奥行の中央を芯へ
+            float mn, mx, pn, px;
+            ProjExtent(go, dir, float.MinValue, float.MaxValue, null, out mn, out mx);
+            ProjExtent(go, nrm, float.MinValue, float.MaxValue, null, out pn, out px);
+            float baseS = Vector2.Dot(aXZ, dir), baseT = Vector2.Dot(aXZ, nrm);
+            float ds = (baseS + cursor) - mn, dt = (baseT + core) - (pn + px) * 0.5f;
+            var shv = dir * ds + nrm * dt;
+            go.transform.position += new Vector3(shv.x, 0f, shv.y);
+            cursor += mx - mn;
+            var rt = SinkToBed(go, Ground, 0.05f);
+            if (float.IsNaN(rt.hi)) { UnityEngine.Object.DestroyImmediate(go); rep.noFace++; continue; }
+            rep.floatWorst = float.IsNaN(rep.floatWorst) ? rt.hi : Mathf.Max(rep.floatWorst, rt.hi);
+            rep.buryWorst = float.IsNaN(rep.buryWorst) ? rt.lo : Mathf.Min(rep.buryWorst, rt.lo);
+            // 葉と塀の内面の隙(塀の側の葉の外形 − 内面)
+            float gap = (pn + dt - baseT) - f;
+            rep.wallGap = float.IsNaN(rep.wallGap) ? gap : Mathf.Min(rep.wallGap, gap);
+            float lo, hi; if (NiwaSpanY(go, out lo, out hi)) rep.h = float.IsNaN(rep.h) ? hi - lo : Mathf.Max(rep.h, hi - lo);
+            made.Add(go); rep.made++;
+        }
+        if (sv.Count == 0) rep.why = "案内線の脇に線と平行な塀の駒が無い(塀が未建か名が違う)";
+        return made;
+    }
+
+    // ─────────── 指図の庭 ── 橋台石・延段・寄せて植える木・株を並べる生垣・据え土の外形(EDO-0533 第6巡 庭方の欄の埋め) ───────────
+    //
+    // 当たる先(この小節の全関数): EdoDoiBuilder.Niwa 6b(呑口の据え土の外形)・6e(石橋の橋台石・奥庭の延段)・6h(松の atSoft・奥庭の生垣)。
+    // 以後、指図が座標で石・木・延段を持つ庭の全て(石橋の掛かる庭・塀の内に株立ちを並べる刈込垣・狙いの点の柔らかい植栽)。
+
+    /// <summary>橋台石一つの据えの記録。deckUnder = 測った版の下面[m]・stoneTop = 据えた石の天端・gapGround = 版の下面 − 石の位置の地表
+    /// (≤ 0 = 版が地表に載る ── 石は全身が埋まるので据えない = buried)・longGot = 据えた石の平面の長い方の実長(狙い long ── 柔らかい)・
+    /// footFloat = 下端の当たりの最大の浮き(陸 ≤ 0・水中 ≤ −seatToBed が硬い)・wet = 足元が水中・grew = 足が届かず丈を増した。</summary>
+    public struct NiwaAbutRep { public float deckUnder, stoneTop, gapGround, longGot, footFloat; public bool wet, buried, grew; public string why; }
+
+    /// <summary>**石橋の版の端に見える橋台石を据える**(指図 `hashi[].abutStone`)。
+    /// <para>① 版 <paramref name="deck"/> の実メッシュを橋軸 a→b に射影して版の端(<paramref name="atA"/> なら a 側の端)を測り、端から
+    /// <paramref name="inFromEnd"/> m 内の帯(±0.20m)の頂点の最も低い所 = **版の下面**を測る(⛔ topY − T の算術で代えない)。
+    /// ② 石の平面の長い方を <paramref name="longM"/> に縮尺し、**広い面を橋軸に直交**(広い面の法線 = 橋軸 ── <see cref="NiwaBroadFaceYaw"/>)、
+    /// 足の芯をその位置(橋の幅の芯)へ。③ **天端 = 版の下面**(硬い: 接する)。④ 足の当たりが陸なら地表から浮かない・水中なら池床
+    /// −<paramref name="seatToBed"/> まで届く(硬い)。届かなければ天端を動かさず丈を増して据え直す(石の長さの狙いは柔らかい ── longGot に刷る)。</para>
+    /// 版の下面が石の位置の地表以下なら石は全身が埋まるので据えない(rep.buried ── 指図「地表が高ければ埋めて可」)。測れなければ null。</summary>
+    public static GameObject NiwaAbutStone(Transform parent, string name, string path, GameObject deck, Vector2 aXZ, Vector2 bXZ, bool atA,
+                                           float inFromEnd, float longM, float waterY, float seatToBed, out NiwaAbutRep rep)
+    {
+        rep = new NiwaAbutRep { deckUnder = float.NaN, stoneTop = float.NaN, gapGround = float.NaN, longGot = float.NaN, footFloat = float.NaN };
+        if (deck == null || string.IsNullOrEmpty(path)) { rep.why = "版か部材が無い"; return null; }
+        var ab = bXZ - aXZ; if (ab.sqrMagnitude < 1e-8f) { rep.why = "橋軸が引けない"; return null; }
+        var dir = ab.normalized; var perp = new Vector2(-dir.y, dir.x);
+        var pts = new List<Vector3>();
+        foreach (var mf in deck.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            var l2w = mf.transform.localToWorldMatrix;
+            foreach (var v in mf.sharedMesh.vertices) pts.Add(l2w.MultiplyPoint3x4(v));
+        }
+        if (pts.Count == 0) { rep.why = "版の実メッシュが無い"; return null; }
+        float s0 = float.MaxValue, s1 = float.MinValue, t0 = float.MaxValue, t1 = float.MinValue;
+        foreach (var w in pts) { var q = new Vector2(w.x, w.z) - aXZ; float s = Vector2.Dot(q, dir), t = Vector2.Dot(q, perp); s0 = Mathf.Min(s0, s); s1 = Mathf.Max(s1, s); t0 = Mathf.Min(t0, t); t1 = Mathf.Max(t1, t); }
+        float sPos = atA ? s0 + inFromEnd : s1 - inFromEnd, tc = 0.5f * (t0 + t1);
+        float under = float.MaxValue;
+        foreach (var w in pts) { float s = Vector2.Dot(new Vector2(w.x, w.z) - aXZ, dir); if (Mathf.Abs(s - sPos) <= 0.20f) under = Mathf.Min(under, w.y); }
+        if (under == float.MaxValue) { rep.why = "版の端の帯に頂点が無い"; return null; }
+        rep.deckUnder = under;
+        var pos = aXZ + dir * sPos + perp * tc;
+        float g0 = Ground(pos.x, pos.y);
+        rep.gapGround = under - g0;
+        if (rep.gapGround <= 0f) { rep.buried = true; rep.why = "版の下面が地表以下(" + rep.gapGround.ToString("+0.00;-0.00") + "m)── 石は全身が埋まる"; return null; }
+        rep.wet = !float.IsNaN(waterY) && g0 < waterY;
+        float need = rep.wet ? -seatToBed : 0f;
+        float yaw = NiwaBroadFaceYaw(path, pos, pos + dir);
+        float sc = NiwaScaleForLong(path, longM);
+        if (float.IsNaN(sc)) { rep.why = "部材の実寸が測れない"; return null; }
+        GameObject go = null;
+        for (int it = 0; it < 4; it++)
+        {
+            if (go != null) UnityEngine.Object.DestroyImmediate(go);
+            go = Place(path, new Vector3(pos.x, g0, pos.y), yaw, Vector3.one * sc, parent, name);
+            if (go == null) { rep.why = "置けない"; return null; }
+            if (!NiwaFootOn(go, pos)) { UnityEngine.Object.DestroyImmediate(go); rep.why = "足が測れない"; return null; }
+            NiwaTopTo(go, under);                                              // 硬い: 天端 = 版の下面
+            var rt = RootToBed(go, Ground, 0.05f);
+            if (float.IsNaN(rt.hi)) { UnityEngine.Object.DestroyImmediate(go); rep.why = "当たりが測れない"; return null; }
+            rep.footFloat = rt.hi;
+            if (rt.hi <= need + 0.005f) break;
+            // 硬い: 足が届かない ── 天端は動かさず丈を増す(長さの狙いは柔らかい)
+            float lo, hi; NiwaSpanY(go, out lo, out hi);
+            float H = (hi - lo) + (rt.hi - need) + 0.02f;
+            float sc2 = sc * H / Mathf.Max(1e-4f, hi - lo);
+            if (sc2 <= sc * 1.0001f) break;
+            sc = sc2; rep.grew = true;
+        }
+        if (rep.footFloat > need + 0.005f) { UnityEngine.Object.DestroyImmediate(go); rep.why = "丈を増しても足が届かない(浮き " + rep.footFloat.ToString("F2") + "m)"; return null; }
+        float l2, h2; NiwaSpanY(go, out l2, out h2); rep.stoneTop = h2;
+        float mn, mx, pn, px; ProjExtent(go, dir, float.MinValue, float.MaxValue, null, out mn, out mx); ProjExtent(go, perp, float.MinValue, float.MaxValue, null, out pn, out px);
+        rep.longGot = Mathf.Max(mx - mn, px - pn);
+        return go;
+    }
+
+    /// <summary>延段の並べの記録。made = 据えた駒・gapEnds = 走りの両端に残った長さ(片側・m ── 駒は伸縮しないので柔らかい)・
+    /// aboveMin/aboveMax = 天端 − 地表(天端の面の下の最も高い所)の実測・sunk = 浮きを消すため沈めた駒(最大 worstSink ── 天端の狙いから下がる)。</summary>
+    public struct NiwaNobedanRep { public int made, sunk; public float gapEnds, aboveMin, aboveMax, worstSink, moduleLen; public string why; }
+
+    /// <summary>**延段を a→b に並べ、地表に沿わせて据える**(指図 `nobedan` の topAbove・follow「地表に沿う(段を付けない)」)。
+    /// <para>① 駒の長手(実メッシュの平面の長い方)の実長 L で走りを n = round(走り/L) 枚に割り、余りは両端に等しく残す(⛔ 駒を伸縮しない)。
+    /// ② 各駒の両端の座で、幅の 3 点の地表の最も高い所 + above を天端の狙いにし、駒を長手の向きに**勾配なりに傾けて**(段を付けない ──
+    /// 隣の駒と端の天端が揃う)、実メッシュの外形の中央を座の芯へ・天端の高い端をその狙いへ合わせる。above は走りで一つ(⛔ 駒ごとに振ると段が付く)。
+    /// ③ **硬い**: 浮き 0(当たりが地表から浮けば沈める ── 天端の狙いは柔らかい・沈めた駒を数えて刷る)。</para></summary>
+    public static List<GameObject> NiwaNobedan(Transform parent, string prefix, string path, Vector2 aXZ, Vector2 bXZ,
+                                               float aboveLo, float aboveHi, System.Random rnd, out NiwaNobedanRep rep)
+    {
+        var made = new List<GameObject>();
+        rep = new NiwaNobedanRep { aboveMin = float.NaN, aboveMax = float.NaN, gapEnds = float.NaN, moduleLen = float.NaN };
+        var ab = bXZ - aXZ; float len = ab.magnitude;
+        if (len < 0.1f || string.IsNullOrEmpty(path)) { rep.why = "走りが短いか部材が無い"; return made; }
+        var dir = ab / len; var perp = new Vector2(-dir.y, dir.x);
+        var sz = PartSize(path); float L = Mathf.Max(sz.x, sz.z), W = Mathf.Min(sz.x, sz.z);
+        if (L < 0.05f) { rep.why = "部材の実寸が測れない"; return made; }
+        rep.moduleLen = L;
+        int n = Mathf.Max(1, Mathf.RoundToInt(len / L));
+        rep.gapEnds = (len - n * L) * 0.5f;
+        float above = aboveLo + (float)rnd.NextDouble() * (aboveHi - aboveLo);
+        Func<float, float> gAt = s =>
+        {
+            float m = float.MinValue;
+            for (int k = -1; k <= 1; k++) { var q = aXZ + dir * s + perp * (k * 0.5f * W); m = Mathf.Max(m, Ground(q.x, q.y)); }
+            return m;
+        };
+        float yawL = NiwaLongAlongYaw(path, dir);
+        for (int i = 0; i < n; i++)
+        {
+            float sa = rep.gapEnds + i * L, sb = sa + L, sm = 0.5f * (sa + sb);
+            float yA = gAt(sa) + above, yB = gAt(sb) + above;
+            var c = aXZ + dir * sm;
+            var go = Place(path, new Vector3(c.x, 0.5f * (yA + yB), c.y), yawL, Vector3.one, parent, prefix + "_" + i);
+            if (go == null) continue;
+            // 勾配なりに傾ける(頭を上手へ)── 長手の水平の向き dir のまま、上り yB−yA
+            float deg = Mathf.Atan2(yB - yA, L) * Mathf.Rad2Deg;
+            if (Mathf.Abs(deg) > 1e-3f)
+            {
+                var axis = new Vector3(perp.x, 0f, perp.y);
+                var q = Quaternion.AngleAxis(-deg, axis);
+                // 上り(yB>yA)で b の側が上がる向き: dir を軸 perp まわりに回すと dir×perp の符号で決まる ── 検めて逆なら反す
+                var d3 = q * new Vector3(dir.x, 0f, dir.y);
+                if ((d3.y > 0f) != (yB > yA)) q = Quaternion.AngleAxis(deg, axis);
+                go.transform.rotation = q * go.transform.rotation;
+            }
+            // 外形の中央を座の芯へ(⛔ ピボットで合わせない)
+            float mn, mx, pn, px;
+            ProjExtent(go, dir, float.MinValue, float.MaxValue, null, out mn, out mx);
+            ProjExtent(go, perp, float.MinValue, float.MaxValue, null, out pn, out px);
+            float ds = Vector2.Dot(c, dir) - 0.5f * (mn + mx), dt = Vector2.Dot(c, perp) - 0.5f * (pn + px);
+            var shv = dir * ds + perp * dt;
+            go.transform.position += new Vector3(shv.x, 0f, shv.y);
+            NiwaTopTo(go, Mathf.Max(yA, yB));
+            var rt = RootToBed(go, Ground, 0.05f);
+            if (!float.IsNaN(rt.hi) && rt.hi > 0.005f)
+            {
+                go.transform.position -= new Vector3(0f, rt.hi, 0f);
+                rep.sunk++; rep.worstSink = Mathf.Max(rep.worstSink, rt.hi);
+            }
+            float lo, hi; NiwaSpanY(go, out lo, out hi);
+            float gU = NiwaGroundUnderTop(go);
+            if (!float.IsNaN(gU))
+            {
+                float a2 = hi - gU;
+                rep.aboveMin = float.IsNaN(rep.aboveMin) ? a2 : Mathf.Min(rep.aboveMin, a2);
+                rep.aboveMax = float.IsNaN(rep.aboveMax) ? a2 : Mathf.Max(rep.aboveMax, a2);
+            }
+            made.Add(go); rep.made++;
+        }
+        return made;
+    }
+
+    /// <summary>**狙いの点 <paramref name="aim"/> に植え、据わらなければ半径 <paramref name="radius"/>[m] の内で硬い条件(<see cref="NiwaField.Put"/> が
+    /// 退ける物 ── 区画の線・坂の根入れ・軒・帯)を満たす最も近い所へ寄せて植える**(指図 `shokusai[].atSoft`)。狙いは**柔らかい**:
+    /// 置き場は <see cref="PlaceBest"/>(docs/oki-kata.md §4a)で、狙いから近い順に試し最初に据わった所で止める。
+    /// <paramref name="moved"/> = 据えた幹の芯と狙いの距離[m](⚠ で刷る)。どこも据わらなければ null(⛔ 建てない)。
+    /// ⚠ 寄せる途中で退けた試しは <paramref name="f"/> の落とした数へ数えない(据わったら一つも・据わらなければ狙いで退けた理由だけ残す)。</summary>
+    public static GameObject NiwaPutNear(NiwaField f, Transform parent, string path, Vector2 aim, float radius, float yaw, float scale, float sink,
+                                         string name, string layer, NiwaSet o, out float moved)
+    {
+        moved = float.NaN;
+        int pEave = f.DropEave, pEdge = f.DropEdge, pSteep = f.DropSteep, pNeire = f.DropNeire, pRef = f.Refused, pBand = f.DropBand;
+        var go0 = f.Put(parent, path, aim, yaw, scale, sink, name, layer, o);
+        if (go0 != null) { Vector2 c0; moved = NiwaTrunk(go0, out c0) ? Vector2.Distance(c0, aim) : 0f; return go0; }
+        int dEave = f.DropEave, dEdge = f.DropEdge, dSteep = f.DropSteep, dNeire = f.DropNeire, dRef = f.Refused, dBand = f.DropBand;
+        var spots = new List<Vector2>();
+        const float RING = 0.2f, ARC = 0.25f;
+        for (float r = RING; r <= radius + 1e-4f; r += RING)
+        {
+            int k = Mathf.Max(8, Mathf.CeilToInt(2f * Mathf.PI * r / ARC));
+            for (int j = 0; j < k; j++) { float a = (j + 0.5f * ((int)(r / RING) % 2)) * 2f * Mathf.PI / k; spots.Add(aim + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r); }
+        }
+        var tally = new SeiyakuTally();
+        var go = PlaceBest(spots, spots.Count, p => f.Put(parent, path, p, yaw, scale, sink, name, layer, o), new List<Hard>(), new List<Soft>(), tally);
+        // 落とした数: 据わったなら試しを全部数えない・どこも据わらなければ狙いで退けた理由だけ残す
+        if (go != null) { f.DropEave = pEave; f.DropEdge = pEdge; f.DropSteep = pSteep; f.DropNeire = pNeire; f.Refused = pRef; f.DropBand = pBand; }
+        else { f.DropEave = dEave; f.DropEdge = dEdge; f.DropSteep = dSteep; f.DropNeire = dNeire; f.Refused = dRef; f.DropBand = dBand; }
+        if (go == null) return null;
+        Vector2 c; moved = NiwaTrunk(go, out c) ? Vector2.Distance(c, aim) : float.NaN;
+        return go;
+    }
+
+    /// <summary>株を並べる生垣の一株(<see cref="NiwaHedgeRow"/> へ渡す)。scale = 等方の倍率・yawOff = 走りの向きからの yaw[°]・
+    /// row = 芯からの前後の振り[m](内へ正)・pitchRatio = 芯々 = 株の実幅 × これ・darken = 色を暗く寄せる(<see cref="TintFoliage"/>)。</summary>
+    public struct NiwaHedgeKoma { public string path; public float scale, yawOff, row, pitchRatio; public bool darken; }
+
+    /// <summary>塀の駒の内面を測る(<see cref="NiwaHedgeFromWall"/> と <see cref="NiwaHedgeRow"/> の共通)。返り値 f(s) = 座 s の内面の、案内線からの出[m](内へ正・測れなければ NaN)。</summary>
+    static Func<float, float> HedgeWallFace(IList<GameObject> wall, Vector2 aXZ, Vector2 dir, Vector2 nrm, float len, out int samples)
+    {
+        var sv = new List<Vector2>();
+        foreach (var go in wall)
+        {
+            if (go == null || !go.activeInHierarchy) continue;
+            var pts = new List<Vector3>(); float y0 = float.MaxValue, y1 = float.MinValue;
+            foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
+            {
+                if (mf.sharedMesh == null) continue;
+                var rr = mf.GetComponent<Renderer>(); if (rr == null || !rr.enabled) continue;
+                var l2w = mf.transform.localToWorldMatrix;
+                foreach (var v in mf.sharedMesh.vertices) { var w = l2w.MultiplyPoint3x4(v); pts.Add(w); y0 = Mathf.Min(y0, w.y); y1 = Mathf.Max(y1, w.y); }
+            }
+            if (pts.Count == 0) continue;
+            float s0 = float.MaxValue, s1 = float.MinValue, t0 = float.MaxValue, t1 = float.MinValue;
+            foreach (var w in pts) { var q = new Vector2(w.x, w.z) - aXZ; float s = Vector2.Dot(q, dir), t = Vector2.Dot(q, nrm); s0 = Mathf.Min(s0, s); s1 = Mathf.Max(s1, s); t0 = Mathf.Min(t0, t); t1 = Mathf.Max(t1, t); }
+            if (s1 - s0 <= t1 - t0) continue;
+            if (s1 < -0.5f || s0 > len + 0.5f || t0 > 3f || t1 < -3f) continue;
+            float bLo = y0 + 0.3f * (y1 - y0), bHi = y0 + 0.6f * (y1 - y0);
+            foreach (var w in pts)
+            {
+                if (w.y < bLo || w.y > bHi) continue;
+                var q = new Vector2(w.x, w.z) - aXZ; sv.Add(new Vector2(Vector2.Dot(q, dir), Vector2.Dot(q, nrm)));
+            }
+        }
+        samples = sv.Count;
+        return s =>
+        {
+            float best = float.NaN;
+            foreach (var q in sv) if (Mathf.Abs(q.x - s) <= 0.5f && (float.IsNaN(best) || q.y > best)) best = q.y;
+            return best;
+        };
+    }
+
+    /// <summary>**塀の内面から離れを取って芯を引き、株立ちの駒を一列に並べる生垣**(指図 `ikegaki` の asset・endAsset・scale・pitchRatio・
+    /// yawJitter・rowJitter ── 株の列は呼び手が <paramref name="koma"/>(i, 端か)で渡す)。
+    /// <para>① 塀の内面を <see cref="HedgeWallFace"/> で測り、芯 = 内面 + <paramref name="offset"/>(+ 株ごとの row)。② 両端の株を先に置き、
+    /// **葉の外形の端**を走りの端(0・len)へ突き付ける。③ 中の株を頭の端の株から順に、芯々 = ½(前の株の実幅 + この株の実幅)× pitchRatio で
+    /// 置き(⛔ 等間隔にしない)、尻の端の株との間が半ピッチより詰まる株は置かない。最後に残った隙を中の間へ比例で配る(穴を残さない)。
+    /// 平面は葉の外形の中央で合わせる(⛔ ピボットで合わせない)。④ 地面へ据える(**硬い**: 浮き 0 ── <see cref="SinkToBed"/>)。</para>
+    /// <para>**硬い**: 内面が測れない座には植えない・浮き 0。**柔らかい**: 丈(倍率の従属・刷るだけ)・葉と塀の隙(刷るだけ)・芯々(刷るだけ)。</para></summary>
+    public static List<GameObject> NiwaHedgeRow(Transform parent, string prefix, IList<GameObject> wall, Vector2 aXZ, Vector2 bXZ,
+                                                Vector2 inward, float offset, Func<int, bool, NiwaHedgeKoma> koma, out NiwaHedgeRep repOut)
+    {
+        var made = new List<GameObject>();
+        var rep = new NiwaHedgeRep { faceMin = float.NaN, faceMax = float.NaN, sx = 1f, floatWorst = float.NaN, buryWorst = float.NaN, wallGap = float.NaN, h = float.NaN, pitchMin = float.NaN, pitchMax = float.NaN };
+        var ab = bXZ - aXZ; float len = ab.magnitude;
+        if (len < 0.5f || wall == null || wall.Count == 0 || koma == null) { rep.why = "案内線が短いか塀の駒が無い"; { repOut = rep; return made; } }
+        var dir = ab / len; var nrm = new Vector2(-dir.y, dir.x); if (Vector2.Dot(nrm, inward) < 0f) nrm = -nrm;
+        int samples; var faceAt = HedgeWallFace(wall, aXZ, dir, nrm, len, out samples);
+        if (samples == 0) { rep.why = "案内線の脇に線と平行な塀の駒が無い(塀が未建か名が違う)"; { repOut = rep; return made; } }
+        float baseS = Vector2.Dot(aXZ, dir), baseT = Vector2.Dot(aXZ, nrm);
+        float yaw0 = YawLocalAxisTo(true, dir);
+        // 一株を座 s(芯)へ。⛔ 内面が測れなければ置かない。返り値 = 駒・w = 葉の外形の走りの実幅
+        Func<NiwaHedgeKoma, float, int, KeyValuePair<GameObject, float>> put = (k, s, i) =>
+        {
+            float f = faceAt(Mathf.Clamp(s, 0f, len));
+            if (float.IsNaN(f)) { rep.noFace++; return new KeyValuePair<GameObject, float>(null, 0f); }
+            rep.faceMin = float.IsNaN(rep.faceMin) ? f : Mathf.Min(rep.faceMin, f);
+            rep.faceMax = float.IsNaN(rep.faceMax) ? f : Mathf.Max(rep.faceMax, f);
+            float core = f + offset + k.row;
+            var c0 = aXZ + dir * s + nrm * core;
+            var go = Place(k.path, new Vector3(c0.x, Ground(c0.x, c0.y), c0.y), yaw0 + k.yawOff, Vector3.one * k.scale, parent, prefix + "_" + i);
+            if (go == null) return new KeyValuePair<GameObject, float>(null, 0f);
+            float mn, mx, pn, px;
+            ProjExtent(go, dir, float.MinValue, float.MaxValue, null, out mn, out mx);
+            ProjExtent(go, nrm, float.MinValue, float.MaxValue, null, out pn, out px);
+            float ds = (baseS + s) - 0.5f * (mn + mx), dt = (baseT + core) - 0.5f * (pn + px);
+            go.transform.position += new Vector3(dir.x * ds + nrm.x * dt, 0f, dir.y * ds + nrm.y * dt);
+            if (k.darken) TintFoliage(go, IKE_TINT_FRONT);
+            float gap = (pn + dt - baseT) - f;
+            rep.wallGap = float.IsNaN(rep.wallGap) ? gap : Mathf.Min(rep.wallGap, gap);
+            return new KeyValuePair<GameObject, float>(go, mx - mn);
+        };
+        Action<GameObject, float> slide = (go, d) => go.transform.position += new Vector3(dir.x * d, 0f, dir.y * d);
+        // ② 両端の株(葉の外形の端を 0 と len へ)
+        var kA = koma(0, true); var pA = put(kA, 0f, 0);
+        float cA = float.NaN, wA = 0f;
+        if (pA.Key != null) { wA = pA.Value; slide(pA.Key, wA * 0.5f); cA = wA * 0.5f; }
+        var kB = koma(9999, true); var pB = put(kB, len, 9999);
+        float cB = float.NaN, wB = 0f;
+        if (pB.Key != null) { wB = pB.Value; slide(pB.Key, -wB * 0.5f); cB = len - wB * 0.5f; pB.Key.name = prefix + "_End"; }
+        if (float.IsNaN(cA)) { cA = 0f; wA = 0f; }
+        if (float.IsNaN(cB)) { cB = len; wB = 0f; }
+        // ③ 中の株
+        var mids = new List<GameObject>(); var cs = new List<float>(); var ws = new List<float>();
+        float cPrev = cA, wPrev = wA;
+        for (int i = 1; i < 2000; i++)
+        {
+            var k = koma(i, false);
+            var pk = put(k, cPrev + 0.5f, i);
+            if (pk.Key == null) { cPrev += 0.5f; if (cPrev > cB) break; continue; }
+            float w = pk.Value, pitch = 0.5f * ((wPrev > 0f ? wPrev : w) + w) * k.pitchRatio, c = cPrev + pitch;
+            if (c > cB - 0.5f * (0.5f * (w + (wB > 0f ? wB : w)) * k.pitchRatio)) { UnityEngine.Object.DestroyImmediate(pk.Key); break; }
+            slide(pk.Key, c - (cPrev + 0.5f));
+            mids.Add(pk.Key); cs.Add(c); ws.Add(w);
+            rep.pitchMin = float.IsNaN(rep.pitchMin) ? pitch : Mathf.Min(rep.pitchMin, pitch);
+            rep.pitchMax = float.IsNaN(rep.pitchMax) ? pitch : Mathf.Max(rep.pitchMax, pitch);
+            cPrev = c; wPrev = w;
+        }
+        // 残った隙(尻の端の株までの間 − 狙いの芯々)を中の間へ比例で配る
+        if (mids.Count > 0)
+        {
+            var kLast = koma(mids.Count + 1, false);
+            float want = 0.5f * (ws[ws.Count - 1] + (wB > 0f ? wB : ws[ws.Count - 1])) * kLast.pitchRatio;
+            float resid = (cB - cs[cs.Count - 1]) - want;
+            for (int j = 0; j < mids.Count; j++) slide(mids[j], resid * (j + 1) / (mids.Count + 1));
+        }
+        var all = new List<GameObject>();
+        if (pA.Key != null) all.Add(pA.Key);
+        all.AddRange(mids);
+        if (pB.Key != null) all.Add(pB.Key);
+        // ④ 据え(硬い: 浮き 0)
+        foreach (var go in all)
+        {
+            var rt = SinkToBed(go, Ground, 0.05f);
+            if (float.IsNaN(rt.hi)) { UnityEngine.Object.DestroyImmediate(go); rep.noFace++; continue; }
+            rep.floatWorst = float.IsNaN(rep.floatWorst) ? rt.hi : Mathf.Max(rep.floatWorst, rt.hi);
+            rep.buryWorst = float.IsNaN(rep.buryWorst) ? rt.lo : Mathf.Min(rep.buryWorst, rt.lo);
+            float lo, hi; if (NiwaSpanY(go, out lo, out hi)) rep.h = float.IsNaN(rep.h) ? hi - lo : Mathf.Max(rep.h, hi - lo);
+            made.Add(go); rep.made++;
+        }
+        { repOut = rep; return made; }
+    }
+
+    /// <summary>駒の**平面の外形**を、駒の向き(local X・Z の水平の向き)の矩形で測る(全頂点の射影の範囲)。c = 矩形の芯(XZ)・ax/az = 向き・
+    /// hx/hz = 半幅[m]。⛔ ピボット・bounds の中心で代えない。当たる先: 呑口の据え土の外形(6b)。</summary>
+    public static bool NiwaPlanBox(GameObject go, out Vector2 c, out Vector2 ax, out Vector2 az, out float hx, out float hz)
+    {
+        var r = go.transform.rotation;
+        var x3 = r * Vector3.right; var z3 = r * Vector3.forward;
+        ax = new Vector2(x3.x, x3.z); az = new Vector2(z3.x, z3.z);
+        if (ax.sqrMagnitude < 1e-6f) ax = Vector2.right; if (az.sqrMagnitude < 1e-6f) az = Vector2.up;
+        ax.Normalize(); az.Normalize();
+        float a0, a1, b0, b1;
+        ProjExtent(go, ax, float.MinValue, float.MaxValue, null, out a0, out a1);
+        ProjExtent(go, az, float.MinValue, float.MaxValue, null, out b0, out b1);
+        c = Vector2.zero; hx = hz = 0f;
+        if (a0 > a1 || b0 > b1) return false;
+        hx = 0.5f * (a1 - a0); hz = 0.5f * (b1 - b0);
+        // 芯 = ax·c = (a0+a1)/2, az·c = (b0+b1)/2 を解く
+        float det = ax.x * az.y - ax.y * az.x;
+        if (Mathf.Abs(det) < 1e-6f) return false;
+        float pa = 0.5f * (a0 + a1), pb = 0.5f * (b0 + b1);
+        c = new Vector2((pa * az.y - ax.y * pb) / det, (ax.x * pb - pa * az.x) / det);
+        return true;
     }
 }

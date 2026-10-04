@@ -4161,98 +4161,8 @@ public static class EdoOkabeYashikiBuilder
     /// ⛔ **どの在庫の木がどの樹種を代表するかは在庫方の判断**で、ここで決めない
     ///   — 部材の doc も「指図の parts で個体を混ぜること」と求めている。</summary>
     static string PlantByKey(string key) { return PlantByKey(key, key); }
-    static string PlantByKey(string key, string seedName)
-    {
-        if (string.IsNullOrEmpty(key)) return null;
-        // ⛔ **括弧を先に落とす。**つるは `Own.TsuruFuji(1)` の形で来るので、素朴に '.' で割ると
-        //   名が「TsuruFuji(1)」になって辞書に当たらない(2026-09-04 に S3 が例外で落ちた型と同じ)。
-        //   括弧の中は**個体**として使う。
-        string head0 = key; int paren = -1;
-        int lp0 = key.IndexOf('(');
-        if (lp0 >= 0)
-        {
-            int rp0 = key.LastIndexOf(')');
-            head0 = key.Substring(0, lp0);
-            int.TryParse(key.Substring(lp0 + 1, Mathf.Max(0, (rp0 < 0 ? key.Length : rp0) - lp0 - 1)).Trim(), out paren);
-        }
-        var t = head0.Split('.');
-        if (t.Length < 2) return null;
-        string fam = t[0], nm = t[1];
-        string size = t.Length > 2 ? t[2] : "Mid";
-        // ⚠ 寸法は `Small/Mid` のように**選択肢**で来ることがある(指図が『混ぜる』と言う所)。
-        //   ⛔ そのままパスに入れると `Tree_Bamboo_Small/Mid_Green_01` になって落ちる
-        //   (2026-09-04 に S5 が asset not found で止まった)。⭕ **名前から決まる**ものを選ぶ。
-        if (size.IndexOf('/') >= 0)
-        {
-            var alt = size.Split('/');
-            size = alt[StableHash(seedName + "sz") % alt.Length];
-        }
-        // ⚠ 個体は `1` か `1-3`(範囲)で来る。⛔ **1本の層を1個体で埋めない**(部材の doc)ので、
-        //   範囲なら **名前から決まる**個体を選ぶ(乱数ではないので何度流しても同じ)。
-        //   ⭕ 個体を指図で決めたいときは範囲でなく単一の番号を書けばそちらが勝つ。
-        int idx = 1;
-        if (t.Length > 3)
-        {
-            string it = t[3];
-            int dash = it.IndexOf('-');
-            if (dash > 0)
-            {
-                int lo2, hi2;
-                if (int.TryParse(it.Substring(0, dash), out lo2) &&
-                    int.TryParse(it.Substring(dash + 1), out hi2) && hi2 >= lo2)
-                    idx = lo2 + (StableHash(seedName) % (hi2 - lo2 + 1));
-            }
-            else int.TryParse(it, out idx);
-        }
-        if (paren > 0) idx = paren;          // 括弧の個体が最優先
-        if (idx < 1) idx = 1;
-        if (fam == "NM")
-        {
-            if (nm == "MapleBush")  return EdoAssets.NM.MapleBush(idx);
-            if (nm == "GreyWillow") return EdoAssets.NM.GreyWillow(idx);
-            // 草地の草叢(ススキ)。名は `GrassMeadow01`、寸法の欄が**変種**("detailed"/"cross")。
-            if (nm.StartsWith("GrassMeadow"))
-            {
-                string fam2 = nm.Substring("GrassMeadow".Length);
-                string variant = (size == "Mid") ? "" : size;     // 既定の "Mid" は無印扱い
-                var ixs = EdoAssets.NM.GrassMeadowIndices(fam2, variant);
-                if (ixs.Length == 0) return null;                 // その変種は焼かれていない
-                // ⚠ 算出物が個体を指定していないので、**名前から決まる**個体を実在する番号の中から選ぶ
-                //   (⛔ 乱数ではない)。⭕ 指図が範囲や単一の番号を書けばそちらが勝つ。
-                //   ⛔ 連番と決めつけない — 実在する番号は EdoAssets が持つ(02 の無印は 1 が無い)。
-                int pick = (paren > 0 || (t.Length > 3)) && idx >= 1 && System.Array.IndexOf(ixs, idx) >= 0
-                         ? idx : ixs[StableHash(seedName + "g") % ixs.Length];
-                return EdoAssets.NM.GrassMeadow(fam2, variant, pick);
-            }
-            return null;
-        }
-        if (fam == "JG")
-        {
-            if (nm == "Pine")    return EdoAssets.JG.Pine(size, idx);
-            if (nm == "Bamboo")  return EdoAssets.JG.Bamboo(size, idx);   // ヤダケの代用(丈で縮める)
-            if (nm == "Boxwood") return EdoAssets.JG.Boxwood(idx);
-            if (nm == "Fern")    return EdoAssets.JG.Fern(idx);
-        }
-        else if (fam == "Own")
-        {
-            if (nm == "Jouryoku") return EdoAssets.Own.Jouryoku(size, idx);
-            // 林の松(社叢の松と同じ部材 Mid 10.5m / Big 12.5m)と常緑の照葉低木(H12〜H24)── 岡部の林方の設計(EDO-0502)
-            if (nm == "Matsu")   return EdoAssets.Own.Matsu(size, idx);
-            if (nm == "Teiboku") return EdoAssets.Own.Teiboku(size, idx);
-            // ⚠ **同じ "Mid" でも樹種で樹高が違う**(エノキ13.5 / ムクノキ12 / ケヤキ14.5)。
-            //    ⛔ 寸法の呼びを樹種を跨いで揃えない — 指図の h で倍率を掛けるので姿が崩れる
-            if (nm == "Enoki")    return EdoAssets.Own.Enoki(size, idx);
-            if (nm == "Mukunoki") return EdoAssets.Own.Mukunoki(size, idx);
-            if (nm == "Keyaki")   return EdoAssets.Own.Keyaki(size, idx);
-            // つる3種。⚠ 寸法の呼びを持たず**個体だけ**(`Own.TsuruFuji.1-3` の形で来る)
-            if (nm == "TsuruFuji")   return EdoAssets.Own.TsuruFuji(idx);
-            if (nm == "TsuruTeika")  return EdoAssets.Own.TsuruTeika(idx);
-            if (nm == "TsuruKizuta") return EdoAssets.Own.TsuruKizuta(idx);
-            if (nm == "Momiji")   return EdoAssets.Own.Momiji(size, idx);
-            if (nm == "Ume")      return EdoAssets.Own.Ume(size, idx);
-        }
-        return null;
-    }
+    /// ⭐ 中身は共通の一本 <see cref="EdoBuild.PlantPathByKey"/>(EDO-0533 で移した・土井 Stage8 と共有)。
+    static string PlantByKey(string key, string seedName) { return EdoBuild.PlantPathByKey(key, seedName); }
 
     /// <summary>据えた現物の**ローカル軸での幅(+X)と奥行(+Z)**[m]。
     /// ⛔⛔ **world の AABB から出さない。**回した箱の AABB を走り方向へ射影すると
@@ -4271,57 +4181,14 @@ public static class EdoOkabeYashikiBuilder
     /// <summary>据えた木の**幹径**[m]。根元の少し上(`y0`〜`y1` m)の帯で、幹の芯からの
     /// 半径の **90 分位**を取って 2 倍する。⚠ 最大だと低い枝や葉のカードを拾う。
     /// ⛔ 既定値で埋めない — つるを絡めてよい木かどうかがこの値で決まる。</summary>
-    static float TrunkDiameter(GameObject host, float y0, float y1)
-    {
-        var b = EdoBuild.RB(host);
-        float baseY = b.min.y;
-        Vector2 axis = new Vector2(host.transform.position.x, host.transform.position.z);
-        var rs = new List<float>();
-        foreach (var mf in host.GetComponentsInChildren<MeshFilter>())
-        {
-            if (mf.sharedMesh == null) continue;
-            var m = mf.transform.localToWorldMatrix;
-            var vs = mf.sharedMesh.vertices;
-            for (int i = 0; i < vs.Length; i++)
-            {
-                var w = m.MultiplyPoint3x4(vs[i]);
-                float dy = w.y - baseY;
-                if (dy < y0 || dy > y1) continue;
-                float r = (new Vector2(w.x, w.z) - axis).magnitude;
-                if (r < 0.01f) continue;          // 軸上の退化点(枝の付け根・板ポリの芯)は数えない
-                rs.Add(r);
-            }
-        }
-        if (rs.Count == 0) return 0f;
-        rs.Sort();
-        // ⚠ **分布は二峰**(幹の低い塊と、葉・低い枝の高い塊)。2026-09-04 の実測(クロマツ 13.7m):
-        //   p20 0.372 / p30 0.414(← 幹)/ p50 0.721 / p90 1.755(← 葉)。
-        //   ⛔ 高い分位を取ると葉を拾い、幹径が 3.5m と出て**つるが一本も絡まない**。
-        //   ⭕ **非ゼロの 25 分位**を取る(幹の塊の中)。実測値は据えるたびに一覧へ出して検められる。
-        return 2f * rs[Mathf.Clamp(Mathf.RoundToInt(rs.Count * 0.25f) - 1, 0, rs.Count - 1)];
-    }
+    static float TrunkDiameter(GameObject host, float y0, float y1) { return EdoBuild.PlantTrunkDiameter(host, y0, y1); }
 
     /// <summary>名前から決まる安定した非負の整数。⛔ 乱数ではない — 何度流しても同じ物が出る。
     /// (`string.GetHashCode` は .NET の版で変わるので使わない)</summary>
-    static int StableHash(string s2)
-    {
-        int h = 17;
-        if (s2 != null) for (int i = 0; i < s2.Length; i++) h = unchecked(h * 31 + s2[i]);
-        return h < 0 ? -h : h;
-    }
+    static int StableHash(string s2) { return EdoBuild.PlantHash(s2); }
 
-    /// <summary>部材の**素の丈**[m]。丈を指図の値へ合わせる倍率を出すのに使う。一度測って覚える。</summary>
-    static Dictionary<string, float> _plantH = new Dictionary<string, float>();
-    static float NaturalHeight(string path, Transform parent)
-    {
-        float h;
-        if (_plantH.TryGetValue(path, out h)) return h;
-        var probe = EdoBuild.Place(path, new Vector3(0, -9999f, 0), 0f, Vector3.one, parent, "__probe");
-        h = probe == null ? 0f : EdoBuild.RB(probe).size.y;
-        if (probe != null) UnityEngine.Object.DestroyImmediate(probe);
-        _plantH[path] = h;
-        return h;
-    }
+    /// <summary>部材の**素の丈**[m]。⭐ 中身は共通の一本 <see cref="EdoBuild.PlantNaturalHeight"/>(EDO-0533 で移した)。</summary>
+    static float NaturalHeight(string path, Transform parent) { return EdoBuild.PlantNaturalHeight(path, parent); }
 
     [MenuItem("Edo/岡部筑前守上屋敷/5 西の斜面(林・松・帯・汀)")]
     public static void Stage5Menu() { Debug.Log("[Okabe] " + Stage5_Nishi()); }
@@ -4397,28 +4264,23 @@ public static class EdoOkabeYashikiBuilder
             if (path == null || AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
             { missing.Add(key + (path == null ? "" : " → " + path)); noPart++; continue; }
             Vector2 c = f.W(F(q["u"]), F(q["v"]));
-            float y = EdoBuild.Ground(c.x, c.y);              // 仮置き ── 据えは下の SeatPlantAt(幹の足の当たり)
-            var go = EdoBuild.Place(path, new Vector3(c.x, y, c.y), 0f, Vector3.one, grp,
-                                    Has(q, "name") ? S(q["name"]) : (S(q["zone"]) + "_" + made));
-            if (go == null) { missing.Add(key + " → " + path); noPart++; continue; }
-            // 丈を指図の値へ合わせる(⛔ 部材の素の丈で置かない — 指図の hMin/hMax が意味を失う)
-            float want = F(Get(q, "h")), nat = NaturalHeight(path, grp);
-            if (want > 0.1f && nat > 0.1f) go.transform.localScale = Vector3.one * (want / nat);
+            // ⭕ 置き方は EdoBuild.PlantAtPoint(仮置き → 丈を指図の値へ → 傾け → 幹の足を点へ寄せ足の当たりで描かれた地表へ据える)
+            //   ⛔ 部材の素の丈で置かない・外接の底で据えない(EDO-0533 で岡部の邸ビルダーから移した ── 姿は同じ)
             float tilt = F(Get(q, "tilt"));
+            Vector2 w2 = Vector2.up;
             if (Mathf.Abs(tilt) > 0.01f)
             {
                 var d2 = A(Get(q, "tiltDir"));
                 Vector2 dir = (d2 != null && d2.Count == 2) ? new Vector2(F(d2[0]), F(d2[1])) : Vector2.up;
-                Vector2 w2 = (f.W(dir.x, dir.y) - f.W(0f, 0f)).normalized;
-                go.transform.rotation = Quaternion.AngleAxis(tilt, new Vector3(w2.y, 0f, -w2.x));
+                w2 = (f.W(dir.x, dir.y) - f.W(0f, 0f)).normalized;
             }
-            // ⭕ 幹の足を点へ寄せ、足の当たりで描かれた地表へ据える(EdoBuild.SeatPlantAt)。⛔ 外接の底で据えない
-            float bu, fl;
-            // 沈め = 層の型の宣言(EdoBuild.NiwaSet の SinkLo ── 低木 0.03・中木/高木 0.15)。⛔ 0 で据えない ── 根元の当たりが地表に
-            //   ちょうど載るだけで、格子ごとの最下点で測ると +0.025〜0.036 浮いた(第14巡 土手の林 2 本)
             string lay = S(Get(q, "layer")) ?? "";
-            float sinkL = lay == "低木" ? EdoBuild.NiwaSet.Shrub.SinkLo : lay == "中木" ? EdoBuild.NiwaSet.Chuboku.SinkLo : EdoBuild.NiwaSet.Tree.SinkLo;
-            if (!EdoBuild.SeatPlantAt(go, c, sinkL, out bu, out fl, 1.0f, 0.7f, drawnG))
+            bool seated; float bu, fl;
+            var go = EdoBuild.PlantAtPoint(path, c, F(Get(q, "h")), tilt, w2, lay, grp,
+                                           Has(q, "name") ? S(q["name"]) : (S(q["zone"]) + "_" + made), drawnG,
+                                           out seated, out bu, out fl, 1.0f, 0.7f);
+            if (go == null) { missing.Add(key + " → " + path); noPart++; continue; }
+            if (!seated)
             { seatBad++; if (seatBadLog.Count < 8) seatBadLog.Add(go.name + " 埋没 " + bu.ToString("F2") + " 浮き " + fl.ToString("F2")); }
             if (Has(q, "name")) placed[S(q["name"])] = go;
             made++;

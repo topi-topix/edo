@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 25 本・メニュー 87・関数 771(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 26 本・メニュー 88・関数 783(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -18,8 +18,9 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoDoiBuilder.Hifu.cs](#edodoibuilderhifucs) | 土井 S4b 縁の皮(案A・EDO-0533)── 2m 格子の地形では描けない土留めの天端の奥・石段の踏面・面の縁の升に穴を開け、 | 1 | 2 |
 | [EdoDoiBuilder.Mon.cs](#edodoibuildermoncs) | ══════════════════════════════════════════════════════════════════════ | 1 | 16 |
 | [EdoDoiBuilder.Mune.cs](#edodoibuildermunecs) | ══════════════════════════════════════════════════════════════════════ | 1 | 9 |
-| [EdoDoiBuilder.Niwa.cs](#edodoibuilderniwacs) | 土井大隅守上屋敷 — 奥庭(Stage6)。 | 3 | 61 |
+| [EdoDoiBuilder.Niwa.cs](#edodoibuilderniwacs) | 土井大隅守上屋敷 — 奥庭(Stage6)。 | 3 | 71 |
 | [EdoDoiBuilder.Saku.cs](#edodoibuildersakucs) | 土井 S6 柵・垣(案A・EDO-0533)── 指図 fences[] を読み、EdoBuild.GakiRun で敷く。 | 1 | 3 |
+| [EdoDoiBuilder.Shokusai.cs](#edodoibuildershokusaics) | 土井 S8 植栽(案A・EDO-0533)── 林方の設計(指図 planting)を生成器が撒いた点 `doi_impl.json` の planting.points を据える。 | 1 | 2 |
 | [EdoDoiBuilder.cs](#edodoibuildercs) | 土井大隅守上屋敷(三河刈谷藩2万3千石・譜代・雁間)ビルダー。 | 15 | 88 |
 | [EdoMatsudairaDewaBuilder.Niwa.cs](#edomatsudairadewabuilderniwacs) | 松平出羽守上屋敷 — 庭の工程(池・築山・水の系・石組・点景・滝見口)。 | 9 | 30 |
 | [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 16 | 116 |
@@ -137,6 +138,13 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `SegHit(a, b, c, d)` | `bool` |  | — |
 | `PondOverlapsCell(wx, wz, half)` | `bool` |  | セル(世界の軸平行な正方形)が汀多角形と少しでも重なるか(coverage &gt; 0)。 |
 | `EditNiwaHeights(fn, label)` | `string` |  | ハイトマップの窓を開いて fn(u, v, 現況) で書き、閉じる。 |
+| `ShoreRule()` | `ShoreRuleV` |  | — |
+| `SuhamaWaterLine(run, fromWater)` | `List<Vector2>` |  | 州浜(`suhama[name=run]`)の見えている汀の折れ線(グリッド)と、水の側の帯の幅 fromWater[m]。 |
+| `SuhamaZone(line, q, dVisM, fromWater)` | `bool` |  | 点 q(汀の内)が州浜の帯の内か: 最寄りの見えている汀が州浜の区間で、そこから fromWater m 以内。 |
+| `BridgeAxesW()` | `List<Vector2[]>` |  | 橋(`hashi[]`)の軸 a→b(世界)。 |
+| `RolePointsW(word)` | `List<Vector2>` |  | `migiwa.roles` が語 word を書いた汀の点(世界)。 |
+| `NearAny(segs, w, r)` | `bool` |  | — |
+| `NearPts(pts, w, r)` | `bool` |  | — |
 | `PondEdge()` | `Vector2[]` |  | 水面メッシュの縁(グリッド座標)。 ⚠⚠ `WaterBaker.RebuildSurface` は輪郭に Chaikin ×2(`WaterGeom.SmoothTagged(…, 2)`)を 掛けてから三角形にするの… |
 | `InWater(u, v)` | `bool` |  | 水面メッシュの縁の内側か(⛔ `NiwaM.InPond` は設計の汀で、こちらは見える汀)。 |
 | `PondQA()` | `string` | 公 | — |
@@ -154,9 +162,12 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `SkipPts(o)` | `List<Vector3>` |  | `skip` / `skipUV` の抜き所(グリッドの点・半幅 m)。 |
 | `InSkip(sk, p)` | `bool` |  | — |
 | `Niwa_B_Gogan()` | `string` | 公 | — |
+| `NomikuchiSueTsuchi(grp, nomi, st, nm, pUV, tgUV, rnd, tl, wy, bs)` | `string` |  | 呑口の据え土(指図 `nomikuchi.sueTsuchi`)。 |
+| `_niwaCellForSue()` | `float` |  | heightmap のセルの一辺[m](地形が無ければ 2.0)。 |
 | `Niwa_C_Mizushiri()` | `string` | 公 | — |
 | `Niwa_D_Tenkei()` | `string` | 公 | — |
-| `Kutsunugi(grp, kg, nm)` | `bool` |  | 沓脱石一つ(数の topY・水切りの向き mizukiri.to)。 |
+| `EngawaAim(txt, at, what, drop, groundMin, mune, hit)` | `bool` |  | 欄の文「<棟>の縁板の天端 −0.40(測る)・地盤 +0.25 以上」を読み、点 at に最も近い縁板の天端を EdoBuild.EngawaTopNear で測る。 |
+| `Kutsunugi(grp, kg, nm, notes)` | `bool` |  | 沓脱石一つ(数の topY・水切りの向き mizukiri.to)。 |
 | `Niwa_E_Enro()` | `string` |  | — |
 | `Niwa_F_Yashiro()` | `string` |  | — |
 | `Niwa_G_Kaki()` | `string` |  | — |
@@ -196,6 +207,18 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 |---|---|---|---|
 | `Stage6_Saku()` | `string` | 公 | — |
 | `SakuPart(fc, h, span, post)` | `string` |  | 柵の欄 part/kind → 部材(EdoAssets の名指し)。 |
+
+## EdoDoiBuilder.Shokusai.cs
+
+土井 S8 植栽(案A・EDO-0533)── 林方の設計(指図 planting)を生成器が撒いた点 `doi_impl.json` の planting.points を据える。
+
+| メニュー | 関数 | 呼ぶ関数(Stage) |
+|---|---|---|
+| `8 植栽(算出物の点を据える)` | `Stage8ShokusaiMenu` | `Stage8_Shokusai` |
+
+| 関数 | 返す | 公開 | 何をするか(注釈の一文目) |
+|---|---|---|---|
+| `Stage8_Shokusai()` | `string` | 公 | — |
 
 ## EdoDoiBuilder.cs
 
@@ -575,11 +598,11 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `PolyAt(pts, t)` | `Vector2` |  | 折れ線 `pts`(世界座標)の走り比 t(0〜1)の点。 |
 | `SeatByBury(go, g, groundY)` | `void` |  | 石を「丈の `buryRatio` だけ埋めて」据える。 |
 | `PlantByKey(key)` | `string` |  | 植栽の部材のキーを解く。キーは指図(算出物)が持ち、ここは辞書を引くだけ。 |
-| `PlantByKey(key, seedName)` | `string` |  | — |
+| `PlantByKey(key, seedName)` | `string` |  | ⭐ 中身は共通の一本 EdoBuild.PlantPathByKey(EDO-0533 で移した・土井 Stage8 と共有)。 |
 | `ObbWD(go, wLocal, dLocal)` | `void` |  | 据えた現物のローカル軸での幅(+X)と奥行(+Z)[m]。 |
 | `TrunkDiameter(host, y0, y1)` | `float` |  | 据えた木の幹径[m]。根元の少し上(`y0`〜`y1` m)の帯で、幹の芯からの 半径の 90 分位を取って 2 倍する。 |
 | `StableHash(s2)` | `int` |  | 名前から決まる安定した非負の整数。⛔ 乱数ではない — 何度流しても同じ物が出る。 |
-| `NaturalHeight(path, parent)` | `float` |  | — |
+| `NaturalHeight(path, parent)` | `float` |  | 部材の素の丈[m]。⭐ 中身は共通の一本 EdoBuild.PlantNaturalHeight(EDO-0533 で移した)。 |
 | `Stage5_Nishi()` | `string` | 公 | — |
 | `PlantFromImpl(wait)` | `string` |  | 生成器が撒いた散布点を据えるだけ。 期待する欄は impl.planting[](素の配列。 |
 | `PlaceTesuri(wait)` | `string` |  | 勝手の道が法肩の竹垣の外(池側)を通る区間の落下止め (2026-09-03 ユーザー裁定1=A)。 |

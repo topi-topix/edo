@@ -10,6 +10,7 @@
 - [30秒を超える execute_code は6回走る](akasaka-open-resent-six-times.md) — 赤坂・作業場を開く・重い計測。menu の赤坂へ戻すも6回開く・計測は割ってファイルへ
 - [execute_code の replay は履歴の番号](execute-code-replay-index-is-history.md) — index=0 で前の Stage が再び走った。⛔replay せず送り直す
 - [SkinGapTable の計測は6回走り、その間に claim が移ると空振る](skin-gap-table-reruns-and-lost-scene.md) — 78秒×6。頭で GN の有無を返させる
+- [タイムアウト後は read_console で待つ・池の斑は水を消して切り分け](wait-on-timeout-with-cheap-mcp.md) — sleep は門番が止める。軽い MCP は main thread が空くまで返らない
 - [長い Stage は印のファイルで再送を止める・狙いだけの Converge は2巡](long-run-guard-and-soft-only-converge.md) — delayCall は発火せず。active scene を先に聞く
 - [隅部材の remap の menu は Kado 89 本を再 import して何巡も回る](remap-menu-reimports-all-kado.md) — 新しい FBX が少なければ1本ずつ remap
 
@@ -59,6 +60,7 @@
 
 - [土井の附属屋は Body に軒が残る・座は格子で起伏](doi-service-eaves-in-body-and-za-not-flat.md) — 離れは帯 0.15〜1.8 の Face で。布石で座が +0.36 上がる
 - [帯割り屋根は床へ据える](banded-roof-sits-at-floor.md) — FBX が軒高を焼き込み済み。寄せ直すと 0.71m 浮く。⚠ 渡廊下と当たる
+- [皮を庭の後に流すと池を埋める・印は巡ごとに名を替える](skin-after-garden-fills-pond.md) — CutEdgeSkin faceKeepOut に庭の矩形
 - [園路の敷きはメッシュ。スプラット不可](gravel-band-mesh-not-splat.md) — alphamap 4.0 m/px。巻きは上から見て時計回り
 
 - [透塀の段の境は両側 c で口 0.18m](sukibei-step-ends-both-c.md) — 一直線の継ぎ目は端 n(ContinuesStraight・1818_nn)。検査は腰の断面で

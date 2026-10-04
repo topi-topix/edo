@@ -357,4 +357,43 @@ public static partial class EdoBuild
         if (n > 0) { td.SetHeightsDelayLOD(x0, z0, H); td.SyncHeightmap(); }
         return n;
     }
+    /// <summary>**棟の背の下端の浮きを、背に沿う内の帯を盛って塞ぐ**(埋めて隠す・docs/oki-kata.md §4・2026-10-04 EDO-0533 土井の表長屋 E13_N11 の背が +0.062 浮いた)。
+    /// 線 <paramref name="a"/>–<paramref name="b"/> = 棟の背の面の足元(世界 xz)、<paramref name="inward"/> = 区画の内へ向く水平の単位。
+    /// 背の面から内へ <paramref name="band"/>[m] までと、背の面の外(棟の下)の一升の節点を <paramref name="y"/>(背の下端 + 根入れ)まで盛り、
+    /// 帯の外は盛土 1:<paramref name="bf"/> で今の地盤へ摺り付ける。⭐ 2m 格子は節点の間を一次で描く ⇒ 背の線の両側の節点を上げないと線の上が描かれない
+    /// ── 棟の下の節点は躯体が隠す。硬い: 盛るだけ(切らない)・区画の外の節点は触らない。冪等。体積は節点の升の面積 × 盛りの和。
+    /// 当たる先: 基壇の天端に土台を据えた棟の背が、基壇より低い内の地表に面する所(土井の表長屋・門長屋・表門、外周に長屋を回す各邸の表長屋)。
+    /// ⟶ 返す: 書いた節点の数(盛りの最大と体積は out)</summary>
+    public static int FillAlongBack(Vector2[] parcel, Vector2 a, Vector2 b, Vector2 inward, float y, float band, float bf, out float fillMax, out float vol)
+    {
+        fillMax = 0f; vol = 0f;
+        var t = T(); var td = t.terrainData;
+        int hres = td.heightmapResolution; Vector3 tp = t.transform.position, ts = td.size;
+        float cell = ts.x / (hres - 1);
+        float reach = band + cell + 6f * bf + cell;
+        float mnx = Mathf.Min(a.x, b.x) - reach, mxx = Mathf.Max(a.x, b.x) + reach, mnz = Mathf.Min(a.y, b.y) - reach, mxz = Mathf.Max(a.y, b.y) + reach;
+        int x0 = Mathf.Clamp(Mathf.FloorToInt((mnx - tp.x) / cell), 0, hres - 1), z0 = Mathf.Clamp(Mathf.FloorToInt((mnz - tp.z) / cell), 0, hres - 1);
+        int x1 = Mathf.Clamp(Mathf.CeilToInt((mxx - tp.x) / cell), 0, hres - 1), z1 = Mathf.Clamp(Mathf.CeilToInt((mxz - tp.z) / cell), 0, hres - 1);
+        int w = x1 - x0 + 1, h = z1 - z0 + 1;
+        var H = td.GetHeights(x0, z0, w, h);
+        Vector2 ab = b - a; float L = ab.magnitude; if (L < 1e-3f) return 0; Vector2 al = ab / L;
+        int n = 0;
+        for (int iz = 0; iz < h; iz++)
+            for (int ix = 0; ix < w; ix++)
+            {
+                var p = new Vector2(tp.x + (x0 + ix) * cell, tp.z + (z0 + iz) * cell);
+                if (!EdoGeom.PIP(parcel, p)) continue;                       // ⛔ 区画の外は触らない
+                float s = Vector2.Dot(p - a, al), dn = Vector2.Dot(p - a, inward);
+                float ds = s < 0f ? -s : (s > L ? s - L : 0f);              // 線の端の外へ出た量
+                if (dn < -cell || ds > cell + 6f * bf) continue;            // 棟の下は一升まで
+                float over = Mathf.Max(0f, dn - band) + Mathf.Max(0f, ds - cell);   // 帯の外へ出た量 ⇒ 1:bf で下ろす
+                float tgt = y - over / bf;
+                float cur = H[iz, ix] * ts.y + tp.y;
+                if (tgt <= cur + 1e-4f) continue;                           // 盛るだけ
+                fillMax = Mathf.Max(fillMax, tgt - cur); vol += (tgt - cur) * cell * cell;
+                H[iz, ix] = (tgt - tp.y) / ts.y; n++;
+            }
+        if (n > 0) { td.SetHeightsDelayLOD(x0, z0, H); td.SyncHeightmap(); }
+        return n;
+    }
 }

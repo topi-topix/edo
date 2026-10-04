@@ -100,17 +100,29 @@ public static partial class EdoDoiBuilder
         if (EdoPartSpec.Get(gpath) == null) { sb.AppendLine("  ⚠ 表門の部材 " + System.IO.Path.GetFileName(gpath) + ": " + ghow); warn++; }
         var gate = EdoBuild.Place(gpath, new Vector3(EdgePt(ge, gs).x, F(O(D["gate"])["plinth"] is Dictionary<string, object> ? O(O(D["gate"])["plinth"])["coping"] : 0f), EdgePt(ge, gs).y), YawFace(o), Vector3.one, mon, "Omotemon");
         if (gate == null || gsp == null || gsp.passage == null) return sb.Append("  ✗ 表門が据えられない(部材・通り口)").ToString();
-        // 横: 口の芯を指図の s へ(硬い ── 門は固定側)
-        { var pc = PassageOn(gsp, gate.transform, ge); gate.transform.position += new Vector3(d.x, 0f, d.y) * (gs - (pc.x + pc.y) * 0.5f); }
-        var gPass = PassageOn(gsp, gate.transform, ge);
-        bool gHasK = HasKuguri(gsp); var gKug = gHasK ? PassageOn(gsp.passageKuguri, gate.transform, ge) : Vector2.zero;
+        // 扉口(局所)= 札の口。⭐ 札の口が潜戸まで一つ(地覆を敷居まで通した版・EDO-0533)なら、潜戸の反対の端から欄の扉の幅(leaf.w)
+        bool gHasK = HasKuguri(gsp);
+        var gDoorL = new EdoPartSpec.Span { x0 = gsp.passage.x0, x1 = gsp.passage.x1, sillY = gsp.passage.sillY };
+        bool gJoined = gHasK && gsp.passageKuguri.x0 >= gsp.passage.x0 - 0.01f && gsp.passageKuguri.x1 <= gsp.passage.x1 + 0.01f;
+        if (gJoined)
+        {
+            float lw = Has(O(g["plan"]), "leaf") ? F(O(O(g["plan"])["leaf"])["w"]) : float.NaN;
+            if (float.IsNaN(lw)) return sb.Append("  ✗ 表門: 口が潜戸まで一つの札なのに欄の扉の幅(gate.plan.leaf.w)が無い ── 扉口が決まらない").ToString();
+            bool kHi = (gsp.passageKuguri.x0 + gsp.passageKuguri.x1) * 0.5f > (gsp.passage.x0 + gsp.passage.x1) * 0.5f;
+            if (kHi) gDoorL.x1 = gsp.passage.x0 + lw; else gDoorL.x0 = gsp.passage.x1 - lw;
+        }
+        // 横: 扉口の芯を指図の s へ(硬い ── 門は固定側)
+        { var pc = PassageOn(gDoorL, gate.transform, ge); gate.transform.position += new Vector3(d.x, 0f, d.y) * (gs - (pc.x + pc.y) * 0.5f); }
+        var gDoor = PassageOn(gDoorL, gate.transform, ge);
+        var gPass = PassageOn(gsp, gate.transform, ge);   // 基壇を空ける口(札の口 ── 一つの版は扉口〜潜戸)
+        var gKug = gHasK ? PassageOn(gsp.passageKuguri, gate.transform, ge) : Vector2.zero;
         // 下の基壇(boundaryPlinth.rows の opening.gate)── 扉口(札の通り口)だけ空ける
         Dictionary<string, object> grow = null;
         foreach (var ro in A(O(D["boundaryPlinth"])["rows"])) { var r = O(ro); if (Has(r, "opening") && Has(O(r["opening"]), "gate")) grow = r; }
         if (grow == null) return sb.Append("  ✗ 表門の下の基壇の欄(boundaryPlinth.rows の opening.gate)が無い").ToString();
         for (int i = ig.childCount - 1; i >= 0; i--) if (ig.GetChild(i).name.StartsWith("IG_Omotemon")) UnityEngine.Object.DestroyImmediate(ig.GetChild(i).gameObject);
         var gsec = new EdoBuild.CastleSec { name = "IG_Omotemon", edge = ge, s0 = F(grow["s0"]), s1 = F(grow["s1"]), crest = F(grow["coping"]) };
-        gsec.gaps.Add(gPass); if (gHasK) gsec.gaps.Add(gKug);   // 潜戸も敷居まで下がる ⇒ 基壇を空ける
+        gsec.gaps.Add(gPass); if (gHasK && !gJoined) gsec.gaps.Add(gKug);   // 潜戸も敷居まで下がる ⇒ 基壇を空ける
         var cr = EdoBuild.PlaceCastleRun(new List<EdoBuild.CastleSec> { gsec }, P, EdoBuild.Ground, ig, log);
         List<GameObject> gpcs; cr.bySec.TryGetValue("IG_Omotemon", out gpcs); if (gpcs != null) gpcs.RemoveAll(x => x == null);
         if (gpcs == null || gpcs.Count == 0 || !cr.inset.ContainsKey(ge)) return sb.Append("  ✗ 表門の下の基壇が据わらない").ToString();
@@ -129,13 +141,13 @@ public static partial class EdoDoiBuilder
           gate.transform.position -= new Vector3(o.x, 0f, o.y) * Vector2.Dot(new Vector2(fw.x, fw.z) - org, o); }
         // 高さ: 土台の底(扉口を除く外面の帯の最下点)を基壇の天端へ
         float gCrest = EdoBuild.CastleCrestExposure(gpcs, o, EdoBuild.Ground).y;
-        var gSkips = new List<Vector2> { new Vector2(gPass.x - 0.05f, gPass.y + 0.05f) }; if (gHasK) gSkips.Add(new Vector2(gKug.x - 0.05f, gKug.y + 0.05f));
+        var gSkips = new List<Vector2> { new Vector2(gPass.x - 0.05f, gPass.y + 0.05f) }; if (gHasK && !gJoined) gSkips.Add(new Vector2(gKug.x - 0.05f, gKug.y + 0.05f));
         float gBed = EdoBuild.SeatBedOnCrest(gate, gCrest, org, o, d, gSkips);
-        tally(!float.IsNaN(gBed), true, "表門(" + System.IO.Path.GetFileName(gpath) + "): 口の芯 s=" + ((gPass.x + gPass.y) * 0.5f).ToString("F3") + "(欄 " + gs.ToString("F2") + ")・扉口 " + gPass.x.ToString("F3") + "〜" + gPass.y.ToString("F3")
+        tally(!float.IsNaN(gBed), true, "表門(" + System.IO.Path.GetFileName(gpath) + "): 扉口の芯 s=" + ((gDoor.x + gDoor.y) * 0.5f).ToString("F3") + "(欄 " + gs.ToString("F2") + ")・扉口 " + gDoor.x.ToString("F3") + "〜" + gDoor.y.ToString("F3") + (gJoined ? "・基壇の口(扉口〜潜戸で一つ) " + gPass.x.ToString("F3") + "〜" + gPass.y.ToString("F3") : "")
               + "・土台の底 = 天端 " + gCrest.ToString("F3") + "(据える前の差 " + gBed.ToString("+0.000;-0.000") + ")");
         // 扉口の高さ(扉の下端)と敷居・道・門の内の面
         {
-            float doorLo = DoorBottom(gate, a0, d, gPass); var pts = EdoBuild.Body(gate.transform, 999999);
+            float doorLo = DoorBottom(gate, a0, d, gDoor); var pts = EdoBuild.Body(gate.transform, 999999);
             var qOut = EdgePt(ge, gs) + o * 0.3f; float road = EdoBuild.Ground(qOut.x, qOut.y);
             float back = float.MaxValue; foreach (var v in pts) back = Mathf.Min(back, Vector2.Dot(new Vector2(v.x, v.z) - org, o));
             var qIn = EdgePt(ge, gs) - o * (inset + inu - back + 0.3f); float inner = EdoBuild.Ground(qIn.x, qIn.y);
@@ -151,7 +163,7 @@ public static partial class EdoDoiBuilder
             else { sb.AppendLine("  ⚠ 表門の札に潜戸の口(passageKuguri)が無い ── 基壇は扉口だけ空けた"); warn++; }
         }
         // 基壇の口の縁 ↔ 扉口の脇(硬い ±0.01)
-        foreach (var op in gHasK ? new[] { new KeyValuePair<string, Vector2>("扉口", gPass), new KeyValuePair<string, Vector2>("潜戸", gKug) } : new[] { new KeyValuePair<string, Vector2>("扉口", gPass) })
+        foreach (var op in gJoined ? new[] { new KeyValuePair<string, Vector2>("扉口〜潜戸", gPass) } : gHasK ? new[] { new KeyValuePair<string, Vector2>("扉口", gPass), new KeyValuePair<string, Vector2>("潜戸", gKug) } : new[] { new KeyValuePair<string, Vector2>("扉口", gPass) })
         {
             var ed = PlinthOpeningEdges(gpcs, a0, d, op.Value); float lo = ed.x, hi = ed.y; var pv = op.Value;
             bool h = Mathf.Abs(lo - pv.x) <= 0.01f && Mathf.Abs(hi - pv.y) <= 0.01f;

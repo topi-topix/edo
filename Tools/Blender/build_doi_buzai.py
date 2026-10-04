@@ -3,6 +3,7 @@
     blender --background --python Tools/Blender/build_doi_buzai.py -- umaya kura ido chozu mizushiri
     blender --background --python Tools/Blender/build_doi_buzai.py -- ido --render
     blender --background --python Tools/Blender/build_doi_buzai.py -- kachu --render   # 家中長屋 8/9/10間
+    blender --background --python Tools/Blender/build_doi_buzai.py -- service --render # 案A の附属屋10点+札(EDO-0533)
     BUZAI_OUT=/path/staging blender --background --python Tools/Blender/build_doi_buzai.py --
 
 【方針】**ゼロから起こさない。**既に在る生成器の型を土井の寸法で呼び直すだけにする —
@@ -48,6 +49,8 @@ import build_matsudaira_dewa_fuzokuya as F      # Mesh / palette / dozo / ido
 import build_okabe_fuzokuya as OF               # umaya(板壁・桟瓦)
 import build_okabe_niwa as ON                   # 沓脱石(在庫の実岩を切る型)
 import build_obi_nagaya as OB                   # 平屋・桟瓦・下見板腰の長屋(家中長屋の型)
+import vkmesh as VM
+N = OB                                          # 稲荷の新造で palette / WOOD などを借りる
 
 KEN = 1.818
 OUT = V.out_dir(os.path.join(V.REPO, "Assets", "Edo", "Models", "Fuzokuya"))
@@ -55,6 +58,7 @@ OUT_NAGAYA = V.out_dir(os.path.join(V.REPO, "Assets", "Edo", "Models", "Nagaya")
 SHOT = os.path.join(V.REPO, "Screenshots")
 
 KURA_EAVE = 4.84        # 指図 const.kuraEave(地盤から軒の下端 m)
+KACHU_FRONT, KACHU_BACK = 0.03, 0.03   # 札: 帯の正面・背面 = 下見板の外面(壁の線から 0.03)
 KACHU_EAVE = 2.80       # 指図 const.kachuEave(地盤から軒桁 m)【⚠ 全体が確度U】
 
 
@@ -316,6 +320,8 @@ def kachu(wKen):
     """
     w = int(round(wKen))
     name = "Doi_Kachu_%dx2.5ken" % w
+    hw, hd = w * KEN / 2.0, 2.5 * KEN / 2.0
+    _design(name, hw + 0.13, -hd - 0.13, hd + 0.13, hd + KACHU_FRONT, -hd - KACHU_BACK)   # 札(11〜14間)
     return OB.build(w, 2.5, name, eaveH=KACHU_EAVE, ridge_show=0.36,
                     plan=OB.sumai_plan(w, 2.5)), name
 
@@ -342,6 +348,224 @@ def _kachu_check(o, name):
     return de, ts
 
 
+# ================================================================ 附属屋(EDO-0533 案A の service)
+# ⭐ 寸法の正典は `service[].ken` = [u方向の間, v方向の間]。⛔ ここに足形を書き写さない — 呼び名だけ。
+#   どれも**既存の生成器を寸法だけ変えて呼ぶ薄い駆動器**(このファイルの方針)。稲荷だけ新造。
+#   札(PartSpecs・kind=building)は `DESIGN[name]` の作図の値から書く(`_spec`)。
+DESIGN = {}
+OI = 0.42      # 置屋根の懐[m](山王の御蔵 `build_sanno_do.kura` と同値【U】)— 指図 bom「土蔵・置屋根」
+
+
+def _fmt(k):
+    return ("%g" % round(k, 3))
+
+
+def _design(name, fx, fz0, fz1, front, back):
+    """作図の値: 足元(地盤から 0.05 の断面 = 基壇の外形)と帯 0.30〜1.80 の正面・背面(Unity 局所)。"""
+    DESIGN[name] = {"fx": fx, "fz0": fz0, "fz1": fz1, "front": front, "back": back}
+
+
+def umaya_k(uKen, vKen, bo):
+    """**厩 11×5間**(`service.Umaya` ken=[11,5])。ローカル **+X = 桁行(11間 = u)**・**+Z = 吹き放ち(馬房の口)**。
+    型は既存の `Doi_Umaya_5.5x7ken` と同じ(板壁・桟瓦・軒 2.35 / 半高壁 1.00 / 軒の出 0.55 ── 棟を表長屋 5.509 より低く)。
+    馬房 = `bo` 房(1房 1間)。ピボット = 足形の中心・地盤。"""
+    name = "Doi_Umaya_%sx%sken" % (_fmt(uKen), _fmt(vKen))
+    o, _ = OF.umaya(uKen=uKen, vKen=vKen, name=name, eaveH=2.35, frontH=1.00, noki=0.55, bo=bo)
+    hw, hd = vKen * KEN / 2.0, uKen * KEN / 2.0
+    # 足元 = 基壇(±0.13)/ 帯の正面・背面 = 玉石の礎石(柱の芯から 0.26・0.20〜0.38)
+    _design(name, hw + 0.13, -hd - 0.13, hd + 0.13, hd + 0.26, -hd - 0.26)
+    return o, name
+
+
+def kura(hariKen, ketaKen, okiyane=0.0):
+    """**土蔵 梁間 hariKen × 桁行 ketaKen**(松平の `dozo` = 切石の腰 + 白漆喰大壁 + 観音扉)。
+    ローカル **+X = 桁行**・観音扉は **−X の妻**。軒(壁の天端)= `const.kuraEave` 4.84。
+    `okiyane` > 0 で置屋根(瓦が懐のぶん持ち上がる・棟も上がる)。"""
+    name = "Doi_Kura_%sx%sken" % (_fmt(hariKen), _fmt(ketaKen))
+    # ⚠ 水切りを扉の前に通さない(`mizukiri_tooshi=False`)── 通すと観音扉を白い帯が横切る(2026-10-04 妻の立面で実見)。
+    #   既存の 3×8 / 3×3 は従来どおり(`kura38`/`kura33` は F.dozo を直に呼ぶ)
+    o = F.dozo(uk=hariKen, vk=ketaKen, name=name, eave=KURA_EAVE, okiyane=okiyane,
+               mizukiri_tooshi=(okiyane <= 0.0))
+    hw, hd = ketaKen * KEN / 2.0, hariKen * KEN / 2.0
+    _design(name, hw + 0.22, -hd - 0.22, hd + 0.22, hd + 0.22, -hd - 0.22)
+    return o, name
+
+
+def tomomachi_k(uKen, vKen):
+    """**供待 4×2.85間**(`service.Tomomachi` ken=[4,2.85])。岡部の `tomomachi` の型を **桁行 4間(u)× 梁間 2.85間**で。
+    ローカル **+X = 桁行(u)**・**+Z = 腰高の吹き放ちと縁**。桁は瓦の谷から覗かせない(keta_out=0)。"""
+    name = "Doi_Tomomachi_%sx%sken" % (_fmt(uKen), _fmt(vKen))
+    o, _ = OF.tomomachi(uKen=vKen, vKen=int(round(uKen)), name=name, keta_out=0.0)
+    hw, hd = uKen * KEN / 2.0, vKen * KEN / 2.0
+    # ⚠ 縁の床板(0.62〜0.72・+Z へ 0.42)は帯の刻み 0.55/0.80 の間に落ちて帯に入らない ⇒ 正面も礎石
+    _design(name, hw + 0.13, -hd - 0.13, hd + 0.13, hd + 0.26, -hd - 0.26)
+    return o, name
+
+
+def itakura(uKen, vKen, name, **kw):
+    """**板倉・板葺の小屋**(岡部の `nandokoya` = 薪蔵 `Okabe_Makigura` の型)。ローカル **+X = u**・**+Z = 板戸の面**。"""
+    o, _ = OF.nandokoya(uKen=uKen, vKen=vKen, name=name, **kw)
+    hw, hd = uKen * KEN / 2.0, vKen * KEN / 2.0
+    _design(name, hw + 0.13, -hd - 0.13, hd + 0.13, hd + 0.26, -hd - 0.26)
+    return o, name
+
+
+def kagogura(uKen=3.5, vKen=3.0):
+    """**御駕籠蔵 3.5×3間**(`service.Kagogura`)。薪蔵と同じ板倉(軒 2.45・板葺4寸)に、
+    駕籠を出し入れする**両開きの大戸 1.60 × 2.05**。"""
+    return itakura(uKen, vKen, "Doi_Kagogura_%sx%sken" % (_fmt(uKen), _fmt(vKen)),
+                   eaveH=2.45, noki=0.55, end=0.30, ratio=0.40, base=0.20, post=0.14,
+                   nx=int(round(uKen)) + (1 if uKen % 1 else 0), nz=int(round(vKen)),
+                   dw=1.60, doorH=2.05, leaves=2, pitch=0.19)
+
+
+def sogoka(uKen=2.0, vKen=1.8):
+    """**惣後架 2×1.8間**(`service.Sogoka`・家中の共同の厠)。納戸小屋の型(板葺・切妻・四周板壁)を広げ、
+    **+Z に片開きの板戸 2枚**(2口)。⚠ 内部の仕切り・便槽は入れていない(見えない)【U】。"""
+    return itakura(uKen, vKen, "Doi_Sogoka_%sx%sken" % (_fmt(uKen), _fmt(vKen)),
+                   eaveH=2.10, noki=0.45, end=0.25, ratio=0.40, base=0.16, post=0.12,
+                   nx=2, nz=2, dw=1.50, doorH=1.75, leaves=2, pitch=0.17)
+
+
+def inari(ken=1.5, name="Doi_Inari15"):
+    """**稲荷社 1.5間角**(`service.Inari`)── **土井の物として新造**(⛔ 他邸の手組みを転用しない)。
+    岡部の `inari15`(縁・高欄・木階つきの一間社流造)と作りを分け、**見世棚造**にした:
+    二段の切石の基壇の上に**脚つきの棚**を据え、その上に縁も階も無い小祠を載せる(屋敷神の小祠に多い形【U】)。
+    屋根は**流造・板葺の二重**(前へ長く流す)+ **向拝柱 2本** + **箱棟**、扉は**狐格子**(格子の裏に紙)。
+    ⛔ 鳥居・玉垣は入れない(庭の範囲)。ローカル **+Z = 正面**。ピボット = 足形の中心・地盤。"""
+    P = N.palette()
+    WD, ST, SJ = N.WOOD, N.STONE, N.SHOJI
+    S = ken * KEN
+    h = S / 2.0
+    wuv = lambda a, b, c, d: VM.sub(P['wuv'], a, b, c, d)
+    m = VM.Mesh()
+    # 基壇: 二段の切石(下段は足形いっぱい、上段は 0.22 引く)
+    m.box(-h, h, 0.0, 0.20, -h, h, VM.sub(P['suv'], 0.0, 0.0, 1.0, 0.45), ST)
+    m.box(-h + 0.22, h - 0.22, 0.20, 0.38, -h + 0.22, h - 0.22, VM.sub(P['suv'], 0.1, 0.5, 0.9, 0.95), ST)
+    # 見世棚: 脚 4本 + 棚板(前へ 0.20 張り出す)
+    sw, sd, sy = 1.20, 1.00, 0.95
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            m.box(sx * sw / 2 - 0.05, sx * sw / 2 + 0.05, 0.38, sy - 0.07,
+                  sz * sd / 2 - 0.05, sz * sd / 2 + 0.05, wuv(0.12, 0.05, 0.40, 0.95), WD)
+    m.box(-sw / 2 - 0.08, sw / 2 + 0.08, sy - 0.07, sy, -sd / 2 - 0.06, sd / 2 + 0.20,
+          wuv(0.05, 0.10, 0.95, 0.55), WD)
+    m.box(-sw / 2, sw / 2, 0.52, 0.58, -sd / 2, sd / 2, wuv(0.20, 0.15, 0.95, 0.45), WD)   # 貫
+    # 小祠の身舎(土台 + 板壁 3面 + 正面の狐格子)
+    bw, bd, bh = 0.92, 0.72, 0.88
+    y0 = sy
+    m.box(-bw / 2 - 0.03, bw / 2 + 0.03, y0, y0 + 0.06, -bd / 2 - 0.03, bd / 2 + 0.03,
+          wuv(0.30, 0.55, 0.85, 0.80), WD)                                                 # 土台
+    for (x0, x1, z0, z1) in ((-bw / 2, bw / 2, -bd / 2, -bd / 2 + 0.05),
+                             (-bw / 2, -bw / 2 + 0.05, -bd / 2, bd / 2),
+                             (bw / 2 - 0.05, bw / 2, -bd / 2, bd / 2)):
+        m.box(x0, x1, y0 + 0.06, y0 + bh, z0, z1, wuv(0.15, 0.10, 0.55, 0.90), WD)
+    for sx in (-1, 1):                                                                     # 正面の柱
+        m.box(sx * bw / 2 - 0.05, sx * bw / 2 + 0.01 * sx, y0 + 0.06, y0 + bh,
+              bd / 2 - 0.06, bd / 2, wuv(0.12, 0.05, 0.40, 0.95), WD)
+    fz = bd / 2 - 0.03
+    m.box(-bw / 2 + 0.05, bw / 2 - 0.05, y0 + 0.06, y0 + bh - 0.06, fz - 0.01, fz, P['juv'], SJ)  # 格子の裏の紙
+    for i in range(1, 8):                                                                  # 狐格子(竪)
+        x = -bw / 2 + 0.05 + (bw - 0.10) * i / 8.0
+        m.box(x - 0.012, x + 0.012, y0 + 0.06, y0 + bh - 0.06, fz, fz + 0.025, wuv(0.60, 0.10, 0.70, 0.90), WD)
+    for j in range(1, 6):                                                                  # 狐格子(横)
+        y = y0 + 0.06 + (bh - 0.12) * j / 6.0
+        m.box(-bw / 2 + 0.05, bw / 2 - 0.05, y - 0.012, y + 0.012, fz, fz + 0.025, wuv(0.60, 0.10, 0.90, 0.20), WD)
+    m.box(-0.012, 0.012, y0 + 0.06, y0 + bh - 0.06, fz + 0.025, fz + 0.04, wuv(0.60, 0.10, 0.70, 0.90), WD)  # 召合せ
+    m.box(-bw / 2 - 0.04, bw / 2 + 0.04, y0 + bh - 0.08, y0 + bh, -bd / 2 - 0.04, bd / 2 + 0.04,
+          wuv(0.20, 0.50, 0.95, 0.80), WD)                                                 # 桁・頭貫
+    # 向拝柱 2本(棚板の前の縁に立つ)
+    kz = sd / 2 + 0.14
+    yk = y0 + bh * 0.70
+    for sx in (-1, 1):
+        m.box(sx * 0.50 - 0.035, sx * 0.50 + 0.035, sy, yk, kz - 0.035, kz + 0.035,
+              wuv(0.12, 0.05, 0.40, 0.95), WD)
+    m.box(-0.58, 0.58, yk - 0.06, yk, kz - 0.04, kz + 0.04, wuv(0.20, 0.50, 0.95, 0.80), WD)  # 向拝の虹梁
+    # 流造の屋根: 板葺の二重(上の板・下の板)。⛔ 一枚面にしない — 裏も張る
+    ry, zr = y0 + bh + 0.44, -0.06
+    zb, zf = -bd / 2 - 0.30, kz + 0.26
+    yb = y0 + bh + 0.04
+    yf = yk + 0.02 - (zf - kz) * 0.38
+    xh = bw / 2 + 0.30
+    for k, dv in enumerate((0.0, -0.06, -0.10)):
+        back = [(-xh, ry + dv, zr), (xh, ry + dv, zr), (xh, yb + dv, zb), (-xh, yb + dv, zb)]
+        front = [(xh, ry + dv, zr), (-xh, ry + dv, zr), (-xh, yf + dv, zf), (xh, yf + dv, zf)]
+        if k == 2:
+            back, front = back[::-1], front[::-1]
+        m.quad(back, wuv(0.10, 0.10 + 0.25 * (k % 2), 0.90, 0.40 + 0.25 * (k % 2)), WD)
+        m.quad(front, wuv(0.10, 0.50, 0.90, 0.90), WD)
+    for sx in (-xh, xh):                                                                   # 屋根の木口(破風)
+        for (za, ya) in ((zb, yb), (zf, yf)):
+            m.quad([(sx, ry + 0.0, zr), (sx, ya, za), (sx, ya - 0.10, za), (sx, ry - 0.10, zr)],
+                   wuv(0.60, 0.02, 0.78, 0.98), WD)
+            m.quad([(sx, ry - 0.10, zr), (sx, ya - 0.10, za), (sx, ya, za), (sx, ry + 0.0, zr)],
+                   wuv(0.60, 0.02, 0.78, 0.98), WD)
+    # 妻の塞ぎ: 身舎の天端から**屋根の裏(最下の板)まで**を五角形で塞ぐ(前後の流れの勾配が違うので三角では隙が残る ──
+    #   2026-10-04 妻の立面で空が抜けた)。背面の壁も裏板まで立ち上げる。⛔ 片面にしない(両巻きで張る)
+    yu = lambda z: (ry - 0.10) + ((z - zr) / (zf - zr)) * (yf - ry) if z >= zr else \
+        (ry - 0.10) + ((zr - z) / (zr - zb)) * (yb - ry)
+    yt0 = y0 + bh - 0.01
+    for sx in (-bw / 2, bw / 2):
+        for zz0, zz1 in ((-bd / 2, zr), (zr, bd / 2)):
+            q = [(sx, yt0, zz0), (sx, yt0, zz1), (sx, yu(zz1), zz1), (sx, yu(zz0), zz0)]
+            m.quad(q, wuv(0.15, 0.10, 0.55, 0.40), WD)
+            m.quad(q[::-1], wuv(0.15, 0.10, 0.55, 0.40), WD)
+    q = [(-bw / 2, yt0, -bd / 2), (bw / 2, yt0, -bd / 2), (bw / 2, yu(-bd / 2), -bd / 2), (-bw / 2, yu(-bd / 2), -bd / 2)]
+    m.quad(q, wuv(0.15, 0.10, 0.55, 0.40), WD)
+    m.quad(q[::-1], wuv(0.15, 0.10, 0.55, 0.40), WD)
+    # 箱棟(板で組んだ箱)+ 両端の鰭
+    m.box(-xh - 0.02, xh + 0.02, ry - 0.02, ry + 0.13, zr - 0.09, zr + 0.09, wuv(0.60, 0.60, 0.90, 0.80), WD)
+    m.box(-xh - 0.05, xh + 0.05, ry + 0.13, ry + 0.16, zr - 0.11, zr + 0.11, wuv(0.60, 0.20, 0.90, 0.30), WD)
+    o = m.to_object(name + "_body", [P['wood'], P['wall'], P['stone'], P['shoji']])
+    o.name = name; o.data.name = name
+    V.set_origin(o, (0.0, 0.0, 0.0))
+    # 足元 = 下段の切石(0.05 の断面)。帯 0.30〜1.80 の正面 = 流造の屋根の前の軒(zf)、背面 = 上段の切石
+    _design(name, h, -h, h, h - 0.22, -(h - 0.22))
+    return o, name
+
+
+def _spec(o, name, key, cmd):
+    """札(kind=building)。足元・正面・背面は `DESIGN` の作図の値、外接(eave)と丈は刷るだけ。
+    書いた後に **EdoPartSpec.Verify と同じ手続き**(足元 0.05 の断面 / 帯 0.30〜1.80 を 0.25 刻み)で
+    メッシュを切って突き合わせ、0.02 を超えたら刷る。"""
+    import numpy as np
+    d = DESIGN[name]
+    me = o.data
+    co = np.array([(-v.co.x, v.co.z, -v.co.y) for v in me.vertices])   # Unity (x,y,z)
+    yb, yt = co[:, 1].min(), co[:, 1].max()
+    H = yt - yb
+
+    def cut(y):
+        out = []
+        for e in me.edges:
+            a, b = co[e.vertices[0]], co[e.vertices[1]]
+            if (a[1] - y) * (b[1] - y) <= 0 and abs(a[1] - b[1]) > 1e-9:
+                t = (y - a[1]) / (b[1] - a[1])
+                out.append(a + (b - a) * t)
+        return out
+    ft = cut(yb + 0.05)
+    band = []
+    for y in np.arange(0.30, min(1.80, H * 0.95) + 1e-4, 0.25):
+        band += cut(yb + y)
+    mf, mb = max(p[2] for p in band), min(p[2] for p in band)
+    mfx = max(abs(p[0]) for p in ft)
+    mfz0, mfz1 = min(p[2] for p in ft), max(p[2] for p in ft)
+    diffs = {"正面": mf - d["front"], "背面": mb - d["back"], "足元x": mfx - d["fx"],
+             "足元z0": mfz0 - d["fz0"], "足元z1": mfz1 - d["fz1"]}
+    bad = {k: v for k, v in diffs.items() if abs(v) > 0.02}
+    print("[spec] %s 設計と実測の差 %s %s" % (name, " ".join("%s %+.3f" % kv for kv in diffs.items()),
+                                          "⭕" if not bad else "⛔ 0.02 を超える: %s" % list(bad)))
+    fx = d["fx"]
+    return {"source": "blender:build_doi_buzai.py(%s)" % cmd, "unitScale": 1.0, "yBottom": 0.0,
+            "foot": [{"x": -fx, "y": d["fz0"]}, {"x": fx, "y": d["fz0"]},
+                     {"x": fx, "y": d["fz1"]}, {"x": -fx, "y": d["fz1"]}],
+            "front": d["front"], "back": d["back"],
+            "eave": {"x0": float(co[:, 0].min()), "x1": float(co[:, 0].max()),
+                     "z0": float(co[:, 2].min()), "z1": float(co[:, 2].max()),
+                     "y0": 0.0, "y1": float(yt)},
+            "height": float(H)}
+
+
 PARTS = {
     "umaya":      lambda: umaya(),
     "kura38":     kura38,
@@ -356,16 +580,32 @@ PARTS = {
     "kachu8":     lambda: kachu(8),
     "kachu9":     lambda: kachu(9),
     "kachu10":    lambda: kachu(10),
+    # ── EDO-0533 案A の service(2026-10-04)。札(kind=building)を書く ──
+    "umaya5x11":  lambda: umaya_k(5, 11, bo=11),
+    "kura4x4.5":  lambda: kura(4, 4.5, okiyane=OI),
+    "tomomachi":  lambda: tomomachi_k(4, 2.85),
+    "kagogura":   lambda: kagogura(3.5, 3.0),
+    "sogoka":     lambda: sogoka(2.0, 1.8),
+    "inari":      lambda: inari(1.5),
+    "kachu11":    lambda: kachu(11),
+    "kachu12":    lambda: kachu(12),
+    "kachu13":    lambda: kachu(13),
+    "kachu14":    lambda: kachu(14),
 }
+SPEC_KEYS = {"umaya5x11", "kura4x4.5", "tomomachi", "kagogura", "sogoka", "inari",
+             "kachu11", "kachu12", "kachu13", "kachu14"}
 # 部材ごとの書き出し先。⛔ 既定(`OUT` = Fuzokuya)に長屋を混ぜない
-OUTDIR = {"kachu8": OUT_NAGAYA, "kachu9": OUT_NAGAYA, "kachu10": OUT_NAGAYA}
+OUTDIR = {k: OUT_NAGAYA for k in ("kachu8", "kachu9", "kachu10", "kachu11", "kachu12", "kachu13", "kachu14")}
 GROUPS = {"kura": ["kura38", "kura33"],
           "mizushiri": ["shiki", "hakiguchi", "otoshimizo"],
           # ⭐ **桁行ごとに焼く**(モジュール式にしない)。指図 `service.Kachu_*` の桁行は
           #   10 / 8 / 9 / 8 / 8間 の**3種**しかなく、モジュールにすると継ぎ目と端部材
           #   (小口が透ける)を新たに抱える。表長屋も 2026-09-04 の裁定=案A で
           #   **run ごとに一体**にしてある — 同じ判断に揃えた。
-          "kachu": ["kachu8", "kachu9", "kachu10"]}
+          "kachu": ["kachu8", "kachu9", "kachu10"],
+          # EDO-0533 案A(2026-10-04): 厩 11×5・土蔵 4×4.5・供待 4×2.85・御駕籠蔵・惣後架・稲荷・家中 11〜14
+          "service": ["umaya5x11", "kura4x4.5", "tomomachi", "kagogura", "sogoka", "inari",
+                      "kachu11", "kachu12", "kachu13", "kachu14"]}
 
 
 def _kutsunugi_check(o, mn, mx):
@@ -468,7 +708,12 @@ def main():
         if key.startswith("kachu"):
             _kachu_check(o, name)
         if "--render" in argv:
-            if key.startswith("kachu"):
+            if key in SPEC_KEYS and not key.startswith("kachu"):
+                # 建物は 開口の斜め・開口の立面・背面の斜め・妻の立面 の4枚(`build_okabe_fuzokuya.shots`)
+                OF.shots(o, "doi_" + key, (mn, mx))
+                for ob in [x for x in bpy.data.objects if x.type != 'MESH' or x.name.startswith("Plane")]:
+                    bpy.data.objects.remove(ob, do_unlink=True)
+            elif key.startswith("kachu"):
                 # 長屋は立面・妻・背面・窓口・棟の7枚(`build_obi_nagaya.shots`)で見る。
                 # ⛔ 附属屋用の3枚では**背面と窓口が写らない**
                 OB.shots(o, key, prefix="doi")
@@ -476,7 +721,18 @@ def main():
                 # 沓脱石は地表(天端 −0.32)を敷いて**見付高**ごと撮る
                 shots(o, key, (mn, mx), ground=(-0.32 if key == "kutsunugi" else None))
         odir = OUTDIR.get(key, OUT)
-        V.export_fbx([o], os.path.join(odir, name + ".fbx"))
+        if key in SPEC_KEYS:
+            # 札(EDO-0491)。⚠ 置き場が他の窓の claim 中なら BUZAI_SPEC_OUT で scratchpad へ振る
+            if os.environ.get("BUZAI_SPEC_OUT"):
+                V.SPEC_DIR = os.environ["BUZAI_SPEC_OUT"]
+            path = os.path.join(odir, name + ".fbx")
+            sp = _spec(o, name, key, key)
+            sp["prefab"] = os.path.relpath(os.path.join(
+                V.REPO, "Assets", "Edo", "Models", "Nagaya" if key.startswith("kachu") else "Fuzokuya",
+                name + ".fbx"), V.REPO).replace(os.sep, "/")
+            V.export_fbx([o], path, kind="building", spec=sp)
+        else:
+            V.export_fbx([o], os.path.join(odir, name + ".fbx"))
         print("[doi] 書き出し " + os.path.join(odir, name + ".fbx"))
 
 

@@ -1,0 +1,57 @@
+{
+    "prefab": "Assets/Edo/Models/Fuzokuya/Doi_Tomomachi_4x2.85ken.fbx",
+    "kind": "building",
+    "source": "blender:build_doi_buzai.py(tomomachi)",
+    "unitScale": 1.0,
+    "yBottom": 0.0,
+    "foot": [
+        {
+            "x": -3.766,
+            "y": -2.72065
+        },
+        {
+            "x": 3.766,
+            "y": -2.72065
+        },
+        {
+            "x": 3.766,
+            "y": 2.72065
+        },
+        {
+            "x": -3.766,
+            "y": 2.72065
+        }
+    ],
+    "front": 2.85065,
+    "back": -2.85065,
+    "jambL": {
+        "x": 0.0,
+        "z0": 0.0,
+        "z1": 0.0,
+        "y0": 0.0,
+        "y1": 0.0
+    },
+    "jambR": {
+        "x": 0.0,
+        "z0": 0.0,
+        "z1": 0.0,
+        "y0": 0.0,
+        "y1": 0.0
+    },
+    "passage": {
+        "x0": 0.0,
+        "x1": 0.0
+    },
+    "eave": {
+        "x0": -4.026,
+        "x1": 4.026,
+        "z0": -3.53648,
+        "z1": 3.53648,
+        "y0": 0.0,
+        "y1": 4.43362
+    },
+    "faceOut": 0.0,
+    "faceIn": 0.0,
+    "copingOverhang": 0.0,
+    "height": 4.43362
+}

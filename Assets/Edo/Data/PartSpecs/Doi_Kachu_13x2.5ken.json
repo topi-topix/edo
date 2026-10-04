@@ -1,0 +1,57 @@
+{
+    "prefab": "Assets/Edo/Models/Nagaya/Doi_Kachu_13x2.5ken.fbx",
+    "kind": "building",
+    "source": "blender:build_doi_buzai.py(kachu13)",
+    "unitScale": 1.0,
+    "yBottom": 0.0,
+    "foot": [
+        {
+            "x": -11.947,
+            "y": -2.4025
+        },
+        {
+            "x": 11.947,
+            "y": -2.4025
+        },
+        {
+            "x": 11.947,
+            "y": 2.4025
+        },
+        {
+            "x": -11.947,
+            "y": 2.4025
+        }
+    ],
+    "front": 2.3025,
+    "back": -2.3025,
+    "jambL": {
+        "x": 0.0,
+        "z0": 0.0,
+        "z1": 0.0,
+        "y0": 0.0,
+        "y1": 0.0
+    },
+    "jambR": {
+        "x": 0.0,
+        "z0": 0.0,
+        "z1": 0.0,
+        "y0": 0.0,
+        "y1": 0.0
+    },
+    "passage": {
+        "x0": 0.0,
+        "x1": 0.0
+    },
+    "eave": {
+        "x0": -12.187,
+        "x1": 12.187,
+        "z0": -3.26833,
+        "z1": 3.26833,
+        "y0": 0.0,
+        "y1": 4.40006
+    },
+    "faceOut": 0.0,
+    "faceIn": 0.0,
+    "copingOverhang": 0.0,
+    "height": 4.40006
+}

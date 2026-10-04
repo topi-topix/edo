@@ -1,0 +1,57 @@
+{
+    "prefab": "Assets/Edo/Models/Fuzokuya/Doi_Inari15.fbx",
+    "kind": "building",
+    "source": "blender:build_doi_buzai.py(inari)",
+    "unitScale": 1.0,
+    "yBottom": 0.0,
+    "foot": [
+        {
+            "x": -1.3635,
+            "y": -1.3635
+        },
+        {
+            "x": 1.3635,
+            "y": -1.3635
+        },
+        {
+            "x": 1.3635,
+            "y": 1.3635
+        },
+        {
+            "x": -1.3635,
+            "y": 1.3635
+        }
+    ],
+    "front": 1.1435,
+    "back": -1.1435,
+    "jambL": {
+        "x": 0.0,
+        "z0": 0.0,
+        "z1": 0.0,
+        "y0": 0.0,
+        "y1": 0.0
+    },
+    "jambR": {
+        "x": 0.0,
+        "z0": 0.0,
+        "z1": 0.0,
+        "y0": 0.0,
+        "y1": 0.0
+    },
+    "passage": {
+        "x0": 0.0,
+        "x1": 0.0
+    },
+    "eave": {
+        "x0": -1.3635,
+        "x1": 1.3635,
+        "z0": -1.3635,
+        "z1": 1.3635,
+        "y0": 0.0,
+        "y1": 2.43
+    },
+    "faceOut": 0.0,
+    "faceIn": 0.0,
+    "copingOverhang": 0.0,
+    "height": 2.43
+}

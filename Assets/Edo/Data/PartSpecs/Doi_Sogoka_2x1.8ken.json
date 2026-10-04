@@ -1,0 +1,57 @@
+{
+    "prefab": "Assets/Edo/Models/Fuzokuya/Doi_Sogoka_2x1.8ken.fbx",
+    "kind": "building",
+    "source": "blender:build_doi_buzai.py(sogoka)",
+    "unitScale": 1.0,
+    "yBottom": 0.0,
+    "foot": [
+        {
+            "x": -1.948,
+            "y": -1.7662
+        },
+        {
+            "x": 1.948,
+            "y": -1.7662
+        },
+        {
+            "x": 1.948,
+            "y": 1.7662
+        },
+        {
+            "x": -1.948,
+            "y": 1.7662
+        }
+    ],
+    "front": 1.8962,
+    "back": -1.8962,
+    "jambL": {
+        "x": 0.0,
+        "z0": 0.0,
+        "z1": 0.0,
+        "y0": 0.0,
+        "y1": 0.0
+    },
+    "jambR": {
+        "x": 0.0,
+        "z0": 0.0,
+        "z1": 0.0,
+        "y0": 0.0,
+        "y1": 0.0
+    },
+    "passage": {
+        "x0": 0.0,
+        "x1": 0.0
+    },
+    "eave": {
+        "x0": -2.078,
+        "x1": 2.078,
+        "z0": -2.0862,
+        "z1": 2.0862,
+        "y0": 0.0,
+        "y1": 3.07448
+    },
+    "faceOut": 0.0,
+    "faceIn": 0.0,
+    "copingOverhang": 0.0,
+    "height": 3.07448
+}

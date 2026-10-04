@@ -3591,6 +3591,25 @@ public static class EdoAssets
         /// 生成: blender --background --python Tools/Blender/build_doi_buzai.py -- umaya --render</summary>
         public const string DoiUmaya = FuzokuyaDir + "Doi_Umaya_5.5x7ken.fbx";
 
+        // ── 土井邸 案A の附属屋(EDO-0533・2026-10-04)。札 = Assets/Edo/Data/PartSpecs/<名>.json(kind=building)。
+        //   ピボット = 足形の中心・地盤。ローカル +X = 長手(u)。開口の面は各行に書く。材はキット(wood / wall C / Foundation_A_01 / wall A / roof / roof ornaments)。
+        /// <summary>**厩** 11×5間(`service.Umaya`)。実寸 20.778 × 5.170 × 10.382。+X = 桁行 11間(u)・**+Z = 吹き放ち**・馬房 11(1房1間)。軒 2.35・棟 4.83(瓦面)。
+        /// 生成: blender --background --python Tools/Blender/build_doi_buzai.py -- umaya5x11 --render</summary>
+        public const string DoiUmaya5x11 = FuzokuyaDir + "Doi_Umaya_5x11ken.fbx";
+        /// <summary>**供待** 4×2.85間(`service.Tomomachi`)。実寸 8.052 × 4.434 × 7.073。+X = 桁行 4間(u)・**+Z = 腰高の吹き放ちと縁**(縁は +Z へ 0.42 出る)。
+        /// 生成: blender --background --python Tools/Blender/build_doi_buzai.py -- tomomachi --render</summary>
+        public const string DoiTomomachi = FuzokuyaDir + "Doi_Tomomachi_4x2.85ken.fbx";
+        /// <summary>**御駕籠蔵(板倉・板葺)** 3.5×3間(`service.Kagogura`)。実寸 6.963 × 3.901 × 6.554。+X = 3.5間(u)・**+Z = 両開きの大戸 1.60**。
+        /// 生成: blender --background --python Tools/Blender/build_doi_buzai.py -- kagogura --render</summary>
+        public const string DoiKagogura = FuzokuyaDir + "Doi_Kagogura_3.5x3ken.fbx";
+        /// <summary>**惣後架(板葺・切妻・四周板壁)** 2×1.8間(`service.Sogoka`)。実寸 4.156 × 3.074 × 4.172。+X = 2間(u)・**+Z = 板戸**。
+        /// 生成: blender --background --python Tools/Blender/build_doi_buzai.py -- sogoka --render</summary>
+        public const string DoiSogoka = FuzokuyaDir + "Doi_Sogoka_2x1.8ken.fbx";
+        /// <summary>**稲荷社(見世棚造の小祠・流造の板葺・向拝柱)** 1.5間角(`service.Inari`)。土井の新造(⛔ 岡部の <see cref="Inari15"/> と別物)。
+        /// 実寸 2.727 × 2.430 × 2.727。**+Z = 正面**。鳥居・玉垣は入れていない。
+        /// 生成: blender --background --python Tools/Blender/build_doi_buzai.py -- inari --render</summary>
+        public const string DoiInari = FuzokuyaDir + "Doi_Inari15.fbx";
+
         /// <summary>**家中長屋**(邸内の長屋・土井邸 `service.Kachu_N1/N2/N3/S1/Y` の5棟)。
         /// **平家・桟瓦・下見板の腰・真壁漆喰・片面だけ開口**。桁行 <paramref name="ketaKen"/>間 × 梁間 2.5間。
         ///
@@ -3623,6 +3642,8 @@ public static class EdoAssets
         /// 軒桁を下げないこと(格は軒高で読む: 厩 2.35 &lt; 家中 2.80 &lt; 御殿 3.40)。</para>
         ///
         /// 材 = `wood` / `wall C` / `Foundation_A_01` / `wall A` / `roof` / `roof ornaments`(すべてキット由来)。
+        /// <para>**11 / 12 / 13 / 14間**(EDO-0533 案A の平家長屋・家中長屋 K1〜K3)も焼いた。実寸 20.738 / 22.556 / 24.374 / 26.192 × 4.400 × 6.537。札あり(kind=building)。
+        /// 生成: blender --background --python Tools/Blender/build_doi_buzai.py -- kachu11 kachu12 kachu13 kachu14 --render</para>
         /// 生成: blender --background --python Tools/Blender/build_doi_buzai.py -- kachu --render</summary>
         public static string DoiKachu(int ketaKen)
         {
@@ -3643,10 +3664,14 @@ public static class EdoAssets
         /// ⛔ 部材方の対応表の文言(3×8 を「Kura1/Kura2」)で据えない。
         /// ⚠ `const.kuraWallTop`(妻壁の頂 6.02)は旧部材由来のまま【確度 ?】(`_pending.kurabuzai`)。
         /// 見切りの合否は地盤〜棟で立つのでそこは動かない。</para>
+        /// <para>⭐ **4×4.5間 = 9.219(X) × 7.783(Y) × 8.889(Z)**(EDO-0533 案A の `Kura1`/`Kura2`・2棟とも同じ物)。**置屋根**(懐 0.42)・軒 4.84・
+        /// +X = 桁行 4.5間・観音扉 −X の妻・水切りは扉の前で切る。札あり(kind=building)。⚠ 引数は float(端数の間を名に "4.5" で入れる)。
+        /// 生成: blender --background --python Tools/Blender/build_doi_buzai.py -- kura4x4.5 --render</para>
         /// 生成: blender --background --python Tools/Blender/build_doi_buzai.py -- kura --render</summary>
-        public static string DoiKura(int hariKen, int ketaKen)
+        public static string DoiKura(float hariKen, float ketaKen)
         {
-            return FuzokuyaDir + "Doi_Kura_" + hariKen + "x" + ketaKen + "ken.fbx";
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            return FuzokuyaDir + "Doi_Kura_" + hariKen.ToString("0.##", inv) + "x" + ketaKen.ToString("0.##", inv) + "ken.fbx";
         }
 
         /// <summary>**井戸**(土井邸 `wells` の5口とも同じ部材)。石の角井戸枠 + 木の桁2本 + 梁 + 釣瓶。

@@ -1,0 +1,57 @@
+{
+    "prefab": "Assets/Edo/Models/Fuzokuya/Doi_Kura_4x4.5ken.fbx",
+    "kind": "building",
+    "source": "blender:build_doi_buzai.py(kura4x4.5)",
+    "unitScale": 1.0,
+    "yBottom": 0.0,
+    "foot": [
+        {
+            "x": -4.3105,
+            "y": -3.856
+        },
+        {
+            "x": 4.3105,
+            "y": -3.856
+        },
+        {
+            "x": 4.3105,
+            "y": 3.856
+        },
+        {
+            "x": -4.3105,
+            "y": 3.856
+        }
+    ],
+    "front": 3.856,
+    "back": -3.856,
+    "jambL": {
+        "x": 0.0,
+        "z0": 0.0,
+        "z1": 0.0,
+        "y0": 0.0,
+        "y1": 0.0
+    },
+    "jambR": {
+        "x": 0.0,
+        "z0": 0.0,
+        "z1": 0.0,
+        "y0": 0.0,
+        "y1": 0.0
+    },
+    "passage": {
+        "x0": 0.0,
+        "x1": 0.0
+    },
+    "eave": {
+        "x0": -4.6095,
+        "x1": 4.6095,
+        "z0": -4.44447,
+        "z1": 4.44447,
+        "y0": 0.0,
+        "y1": 7.78305
+    },
+    "faceOut": 0.0,
+    "faceIn": 0.0,
+    "copingOverhang": 0.0,
+    "height": 7.78305
+}

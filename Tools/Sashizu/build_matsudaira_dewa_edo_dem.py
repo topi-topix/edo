@@ -15,6 +15,9 @@ CLAUDE.md 規則13 / `docs/Sashizu/README.md` 決めごと5 /
 ⭐ **復元の手順は `matsudaira_dewa_edo_recon.json`(仕様・確度U/B)が持つ。**
 本生成器はその仕様を正本に対して実行するだけで、**値を持たない**。
 仕様が無ければ 2026-08-26 版と同じく**素の正本の写し**を書く(復元 0 セル)。
+⭐ **2026-10-04(EDO-0554)**: 指図の `edoReconRedo.areas` を id で読み、区域ごとの作り方(`make`)を足した ──
+崖の南(帯を南へ延ばす)・谷の出口の床(沢の芯の帯を据えて調和補間)・辺20(edgeClip の確かめ)・
+Fukugen(掘り込みを調和補間で埋める)・区画の南(回転間グリッドを区画の uv 外接まで広げる)。値は指図が持つ。
 
 ⛔ **`matsudaira_dewa_terrain.json`(手書き・2026-08-25 ユーザー裁定待ち)には触れない。**
 本生成器は **別名**で回転格子版を書く(下表)。指図の生成器の読み替えは別途。
@@ -188,6 +191,39 @@ def edge_steps(seed, hw, poly):
             "over1": sum(1 for v in vs if v > 1.0), "cells": cells}
 
 
+def _seg_d(x, z, a, b):
+    """点と線分の距離と、線分の上の位置 t(0..1)。"""
+    ddx, ddz = b[0] - a[0], b[1] - a[1]
+    L2 = ddx * ddx + ddz * ddz or 1e-9
+    t = max(0.0, min(1.0, ((x - a[0]) * ddx + (z - a[1]) * ddz) / L2))
+    return math.hypot(x - (a[0] + ddx * t), z - (a[1] + ddz * t)), t
+
+
+def laplace_fill(h, cells, nx, nz, tol=1e-4, it_max=20000):
+    """**調和補間**(最も仮定の少ない面)。`cells` の中を、外の隣のセルを境にして埋める。
+    ⛔ 境の値は動かさない。返すのは反復回数。"""
+    cells = list(cells)
+    for _ in range(it_max):
+        dmax = 0.0
+        for ix, iz in cells:
+            acc = [h[q][p] for p, q in ((ix + 1, iz), (ix - 1, iz), (ix, iz + 1), (ix, iz - 1))
+                   if 0 <= p < nx and 0 <= q < nz and h[q][p] is not None]
+            if not acc:
+                continue
+            y = sum(acc) / len(acc)
+            dmax = max(dmax, abs(y - h[iz][ix]))
+            h[iz][ix] = y
+        if dmax < tol:
+            return _ + 1
+    return it_max
+
+
+def redo_areas(sz):
+    """指図の `edoReconRedo.areas`(施主裁定 2026-10-03・EDO-0554)を id で引く。⛔ 値はここに持たない。"""
+    rr = sz.get("edoReconRedo") or {}
+    return dict((a["id"], a.get("make") or {}) for a in rr.get("areas", []) if a.get("id"))
+
+
 def reconstruct(seed, sz, spec):
     """**近代造成を戻して江戸期の地盤を起こす。** 仕様の手順を正本(seed)に対して実行する。
     返すのは (h, ログ, 触ったセル)。⛔ 松平区画の中だけを触る。
@@ -233,8 +269,24 @@ def reconstruct(seed, sz, spec):
     #   ⭕ 適用域 = 両折れ線に挟まれた帯 × 折れ線の Z 範囲(± `spanFeather`)。法肩の直近 `crestFeather` は正本へ摺り付け。
     sl = spec["slope"]
     sa = sz["slopeArea"]
-    cr = sorted([(sp["xz"][0], sp["xz"][1]) for sp in sl["crestSpots"]], key=lambda q: q[1])
-    tw = sorted([(sp["xz"][0], sp["xz"][1], float(sp["y"])) for sp in sl["toeSpots"]], key=lambda q: q[1])
+    cr = [(sp["xz"][0], sp["xz"][1]) for sp in sl["crestSpots"]]
+    tw = [(sp["xz"][0], sp["xz"][1], float(sp["y"])) for sp in sl["toeSpots"]]
+    AR = redo_areas(sz)
+    gr = RGrid(sz)
+    if "cliffS" in AR:
+        # ⭐ 崖の南(edoReconRedo.areas cliffS)── 1883 の帯を南へ延ばす。法肩は指図の uv、法尻は区画線 辺16 の両端。
+        #   法尻の高さは仕様の仮定(toeSpots の南端の y)をそのまま使う(⛔ 新しい値を持たない)。
+        cs = AR["cliffS"]
+        ty0 = sorted(tw, key=lambda q: q[1])[0][2]
+        add_c = [gr.W(u, v) for u, v in cs["crestUV"]]
+        e = int(cs["toeEdge"])
+        add_t = [(poly[e][0], poly[e][1], ty0), (poly[(e + 1) % len(poly)][0], poly[(e + 1) % len(poly)][1], ty0)]
+        cr += add_c
+        tw += add_t
+        log.append("・ 崖の南(cliffS): 法肩 %d 点(%s)・法尻 %d 点(辺%d の両端・y %.1f)を帯へ足した"
+                   % (len(add_c), " / ".join("(%.1f,%.1f)" % q for q in add_c), len(add_t), e, ty0))
+    cr = sorted(cr, key=lambda q: q[1])
+    tw = sorted(tw, key=lambda q: q[1])
     crest_w = cr
     toe_w = [(x, z) for x, z, _ in tw]
     z_lo = min(q[1] for q in cr + toe_w); z_hi = max(q[1] for q in cr + toe_w)
@@ -352,14 +404,111 @@ def reconstruct(seed, sz, spec):
             if abs(b4 - h[iz][ix]) > 0.005:
                 n5 += 1
     log.append("④ 区画線から %.1fm はまるごと正本・そこから %.1fm で復元へ摺り付け(%d セル)" % (ec, ec, n5))
-    return h, log, changed | soft
+    touched = changed | soft
+
+    # ⑥ 辺20(edgeClip を外さない)の確かめ
+    if "edge20" in AR:
+        e20 = int(AR["edge20"]["edgeClip"])
+        if e20 in set(sa["toeEdges"]):
+            raise SystemExit("⛔ 辺%d が slopeArea.toeEdges に入っている — edgeClip が外れ、逆段の 2m が正本でなくなる" % e20)
+        log.append("・ 辺%d は toeEdges の外 — 区画線から %.1fm は正本のまま(逆段を残す)" % (e20, ec))
+
+    # ⑦ Fukugen(近代の箱形の掘り込み)を周りに馴染ませる ── 調和補間
+    if "fukugen" in AR:
+        fk = AR["fukugen"]
+        u0, v0, u1, v1 = fk["box"]
+        pad = float(fk["pad"])
+        lo = float(fk["pitBelow"])                  # 周りの下限(edoReconRedo.areas fukugen)
+        pit = set()
+        for (ix, iz), (x, z) in inside.items():
+            u, v = gr.L(x, z)
+            if u0 - pad <= u <= u1 + pad and v0 - pad <= v <= v1 + pad and h[iz][ix] is not None and h[iz][ix] < lo:
+                pit.add((ix, iz))
+        b4 = dict((q, h[q[1]][q[0]]) for q in pit)
+        nit = laplace_fill(h, pit, nx, nz)
+        rim = sorted(h[q[1]][q[0]] for q in pit)
+        dz = max(h[q[1]][q[0]] - b4[q] for q in pit) if pit else 0.0
+        log.append("⑦ Fukugen の掘り込み %d セル(%.0f㎡)を調和補間で埋めた(反復 %d)── 埋めた面 %.2f〜%.2f・最大 +%.2fm"
+                   % (len(pit), len(pit) * st * st, nit, rim[0], rim[-1], dz))
+        touched |= pit
+
+    # ⑧ 谷の出口の床 ── 鼻の裾から沢へ下がる床(区画線から keep は正本)
+    if "valleyExit" in AR:
+        valley = AR["valleyExit"]
+        mz = next(n for n in sz["mizu"]["nodes"] if n.get("id") == "MZ14")
+        ax = float(mz["axisOffsetM"])
+        dep = max(mz["depth"])
+        prof = [pp for pp in mz["profile"] if pp["from"] == "P13" and pp["to"] == "P15"][0]
+        bed0, bed1 = prof["bed"]
+        segs = [(poly[13], poly[14]), (poly[14], poly[15])]
+        L13 = math.hypot(poly[14][0] - poly[13][0], poly[14][1] - poly[13][1])
+        L14 = math.hypot(poly[15][0] - poly[14][0], poly[15][1] - poly[14][1])
+        def _near(x, z):
+            d0, t0 = _seg_d(x, z, *segs[0])
+            d1, t1 = _seg_d(x, z, *segs[1])
+            if d0 <= d1:
+                return d0, t0 * L13 / (L13 + L14)
+            return d1, (L13 + t1 * L14) / (L13 + L14)
+        tol = float(spec["flatDetect"]["tol"])
+        flat_lo, flat_hi = valley["flat"][0] - tol, valley["flat"][1] + tol   # いま平坦の幅(edoReconRedo.areas valleyExit)
+        # 種: 区画線から keep〜keep+2セル の平坦
+        reg, stack = set(), []
+        for (ix, iz), (x, z) in inside.items():
+            y = h[iz][ix]
+            if y is None or not (flat_lo <= y <= flat_hi):
+                continue
+            dd, _t = _near(x, z)
+            if ec <= dd < ec + 2 * st:
+                stack.append((ix, iz)); reg.add((ix, iz))
+        while stack:
+            a, b = stack.pop()
+            for da, db in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                q = (a + da, b + db)
+                if q in reg or q not in inside:
+                    continue
+                y = h[q[1]][q[0]]
+                if y is None or not (flat_lo <= y <= flat_hi):
+                    continue
+                if _near(*inside[q])[0] < ec:
+                    continue
+                reg.add(q); stack.append(q)
+        b4 = dict((q, h[q[1]][q[0]]) for q in reg)
+        fixed = 0
+        free = set()
+        for q in reg:
+            dd, tt = _near(*inside[q])
+            if dd < ax + st / 2.0:                    # 沢の芯の帯(芯 ± 半セル・keep の内は除いてある)
+                h[q[1]][q[0]] = bed0 + (bed1 - bed0) * tt + dep
+                fixed += 1
+            else:
+                free.add(q)
+        nit = laplace_fill(h, free, nx, nz)
+        dv = [h[q[1]][q[0]] - b4[q] for q in reg]
+        log.append("⑧ 谷の出口の床 %d セル(%.0f㎡)── 沢の芯の帯 %d セルに bed+%.1f(%.2f→%.2f)を据え、残り %d セルを調和補間(反復 %d)。"
+                   "変化 %+.2f〜%+.2fm"
+                   % (len(reg), len(reg) * st * st, fixed, dep, bed0 + dep, bed1 + dep, len(free), nit,
+                      min(dv) if dv else 0, max(dv) if dv else 0))
+        touched |= reg
+    return h, log, touched
 
 
 
 def _rot(sz, src, world_like, poly):
-    """世界格子 → 回転間グリッド(諸元は `src`)。区画の外は null。"""
+    """世界格子 → 回転間グリッド(諸元は `src`)。区画の外は null。
+    ⭐ 範囲は `src` と区画の uv 外接の**和**(edoReconRedo.areas south ── 2026-10-01 の新しい区画は v111 まで出て、
+    `src` の v≤92 では区画の南が読めなかった)。"""
     gr = RGrid(sz)
     out = dict((k, src[k]) for k in ("grid", "u0", "v0", "step", "nu", "nv"))
+    uv = [gr.L(x, z) for x, z in poly]
+    st = float(out["step"])
+    u_hi = max(out["u0"] + st * (out["nu"] - 1), max(q[0] for q in uv))
+    v_hi = max(out["v0"] + st * (out["nv"] - 1), max(q[1] for q in uv))
+    u_lo = min(out["u0"], min(q[0] for q in uv))
+    v_lo = min(out["v0"], min(q[1] for q in uv))
+    out["u0"] = int(math.floor(u_lo)); out["v0"] = int(math.floor(v_lo))
+    out["nu"] = int(math.ceil((u_hi - out["u0"]) / st)) + 1
+    out["nv"] = int(math.ceil((v_hi - out["v0"]) / st)) + 1
+    src = out
     hh = []
     for iv in range(src["nv"]):
         row = []

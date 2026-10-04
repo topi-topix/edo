@@ -2325,10 +2325,53 @@ public static class EdoOkabeYashikiBuilder
         {
             var heights = new[] { 0.30f, 0.60f, 0.90f, 1.20f, 1.50f, 1.80f, 2.10f, 2.40f, 4.80f };
             castle.RemoveAll(g => g == null);
+            var poolN = new List<GameObject>(castle);
+            // 台の北の端の返しの石垣(指図 grading.omoteNagayaDai.northEnd / terraceWalls[].start が northEnd を名指す欄)── 読んで渡すだけ。
+            //   線 = 名指された土留めの始まりの節点から、台の道の側の石垣(northEnd.at の run = 台の runs[0] の基壇の駒)の天端の前の面まで、
+            //   その石垣の走りに直交して(= N40_2 の北の妻の線)。天端 = 台の上の長屋の座(N40_2 の据わった高さ)。土留めの始まりとは同じ網で継ぐ(出隅か入隅かは見え面から解く ── 岡部の実地は郭の側から見て入隅)
+            //   (EdoBuild.PlaceNozuraNet の隅の駒)。道の側の石垣の端は「近くの駒の実面へ」── その石垣の駒だけを相手に渡す。(EDO-0502 第17巡)
+            {
+                var gr = O(Get(D, "grading")); var dai = gr == null ? null : O(Get(gr, "omoteNagayaDai")); var ne = dai == null ? null : O(Get(dai, "northEnd"));
+                var druns = dai == null ? null : A(Get(dai, "runs"));
+                string twName = null;
+                foreach (var o in A(Get(D, "terraceWalls")) ?? new List<object>()) { var tw = O(o); string st = tw == null ? null : S(Get(tw, "start")); if (st != null && st.Contains("northEnd")) twName = S(Get(tw, "name")); }
+                var seg0 = twName == null ? null : nozSegs.Find(q => q.name == twName + "_0_0");
+                var rootN = GameObject.Find(GN); var igN = rootN == null ? null : rootN.transform.Find("Ishigaki");
+                string run0 = druns != null && druns.Count > 0 ? S(druns[0]) : null;
+                var seatT = rootN == null || run0 == null ? null : rootN.transform.Find("Kakoi/" + run0);
+                if (ne != null && seg0 != null && igN != null && seatT != null)
+                {
+                    var road = new List<GameObject>(); foreach (Transform c in igN) if (c.gameObject.activeInHierarchy && c.name.StartsWith("IG_" + run0 + "_")) road.Add(c.gameObject);
+                    // 道の側の石垣の走り(駒の芯の両端)と、始まりの節点からその面への向き
+                    Vector2 cA = Vector2.zero, cB = Vector2.zero; float best = -1f;
+                    foreach (var g1 in road) foreach (var g2 in road)
+                    { var b1 = EdoBuild.RB(g1).center; var b2 = EdoBuild.RB(g2).center; float dd = (new Vector2(b1.x - b2.x, b1.z - b2.z)).sqrMagnitude; if (dd > best) { best = dd; cA = new Vector2(b1.x, b1.z); cB = new Vector2(b2.x, b2.z); } }
+                    Vector2 t = (cB - cA).normalized, nrm = new Vector2(-t.y, t.x); Vector2 P0 = seg0.a;
+                    if (Vector2.Dot(cA - P0, nrm) < 0f) nrm = -nrm;
+                    float seat = seatT.position.y;
+                    //   道の側の石垣は殻(背の面が無い)⇒ 光線でなく、天端の帯(座 − 0.4 より上)の頂点のうち返しの線の脇 1m に入る物の最も手前
+                    float hit = float.NaN;
+                    foreach (var g in road) foreach (var v in EdoBuild.Body(g.transform, 999999))
+                    {
+                        if (v.y < seat - 0.4f) continue; Vector2 r = new Vector2(v.x, v.z) - P0;
+                        if (Mathf.Abs(Vector2.Dot(r, t)) > 1.0f) continue; float u = Vector2.Dot(r, nrm);
+                        if (u > 0f && u < 8f && (float.IsNaN(hit) || u < hit)) hit = u;
+                    }
+                    if (float.IsNaN(hit)) sb.AppendLine("  返しの石垣(" + run0 + " の北の端): ⚠ 道の側の石垣の面を測れず ── 建てない");
+                    else
+                    {
+                        Vector2 Pa = P0 + nrm * hit;
+                        nozSegs.Add(new EdoBuild.NozuraSeg { name = twName + "_Kaeshi_0", a = Pa, b = P0, crestAt = sl => seat });
+                        foreach (var g in road) { var rb = EdoBuild.RB(g); if (Vector2.Distance(new Vector2(rb.center.x, rb.center.z), Pa) < 4f) poolN.Add(g); }
+                        sb.AppendLine("  返しの石垣(" + run0 + " の北の端 → " + twName + " の始まり): 長さ " + hit.ToString("F2") + "m・天端 " + seat.ToString("F2") + "(" + run0 + " の座)・野面で " + twName + " の始まりと継ぐ(隅の向きは見え面から PlaceNozuraNet が解く)");
+                    }
+                }
+                else if (ne != null) sb.AppendLine("  返しの石垣: ⚠ 引けず ── 建てない(土留め " + (twName ?? "-") + "・区間 " + (seg0 != null) + "・台の run " + (run0 ?? "-") + "・基壇 " + (igN != null) + "・座 " + (seatT != null) + ")");
+            }
             var got = EdoBuild.PlaceNozuraNet(nozSegs, SkinGround, SkinGround, 1.2f, grp,
                 (h, g, i) => EdoAssets.Own.SannoNozura(h, g, i), (h, i) => EdoAssets.Own.SannoNozuraKado(h, i),
                 (up, i) => EdoAssets.Own.SannoNozuraDan(up, i), (up, i) => EdoAssets.Own.SannoNozuraKiri(up, i),
-                null, heights, castle, log, null, EdoAssets.Own.SannoNozuraNoriEnd);   // 入隅の可動側の端は小口を相手の法で切った駒(型は EdoBuild・EDO-0502 第16巡)
+                null, heights, poolN, log, null, EdoAssets.Own.SannoNozuraNoriEnd);   // 入隅の可動側の端は小口を相手の法で切った駒(型は EdoBuild・EDO-0502 第16巡)
             var per = new Dictionary<string, int>();
             foreach (var kv in got) { string k = kv.Key.name; foreach (var w in wallOf.Keys) if (k.StartsWith(w + "_")) { int c0; per.TryGetValue(w, out c0); per[w] = c0 + 1; } }
             foreach (var kv in per) sb.AppendLine("  " + kv.Key + "(" + S(Get(wallOf[kv.Key], "kind")) + "・" + S(Get(wallOf[kv.Key], "mode")) + "): 野面の乱積み " + kv.Value + " 駒");

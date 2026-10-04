@@ -180,6 +180,8 @@ Transform:
   - {fileID: 8999946599335006173}
   - {fileID: 3540733027291143434}
   - {fileID: 3552376395026961081}
+  - {fileID: 6500078222333305770}
+  - {fileID: 1584028901760801580}
   - {fileID: 6013898682512257963}
   - {fileID: 3938783116913871905}
   - {fileID: 7765261600407923044}
@@ -1601,6 +1603,72 @@ PrefabInstance:
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: bde0d19252e634dfb9bd833c13ba6e0f, type: 3}
   m_PrefabInstance: {fileID: 1301158109123211252}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &1328879209738337479
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 7138443155646269561}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 11bf8262ebd36488b8a6661fd02695ad, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 0.7005481
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 11bf8262ebd36488b8a6661fd02695ad, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -407.70306
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 11bf8262ebd36488b8a6661fd02695ad, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.489913
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 11bf8262ebd36488b8a6661fd02695ad, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1072.5396
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 11bf8262ebd36488b8a6661fd02695ad, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.92616475
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 11bf8262ebd36488b8a6661fd02695ad, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 11bf8262ebd36488b8a6661fd02695ad, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.37711918
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 11bf8262ebd36488b8a6661fd02695ad, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 11bf8262ebd36488b8a6661fd02695ad, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 11bf8262ebd36488b8a6661fd02695ad, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 11bf8262ebd36488b8a6661fd02695ad, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 11bf8262ebd36488b8a6661fd02695ad, type: 3}
+      propertyPath: m_Name
+      value: TW_Higashi_Hokuto_Kaeshi_0_104f
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 11bf8262ebd36488b8a6661fd02695ad, type: 3}
+--- !u!4 &1584028901760801580 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 11bf8262ebd36488b8a6661fd02695ad, type: 3}
+  m_PrefabInstance: {fileID: 1328879209738337479}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &1365987544463671053
 PrefabInstance:
@@ -7083,6 +7151,72 @@ PrefabInstance:
 Transform:
   m_CorrespondingSourceObject: {fileID: 448168, guid: d481c04554325644fbd3ca3d83a32f4b, type: 3}
   m_PrefabInstance: {fileID: 6687109264100725130}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &6754928614674826305
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 7138443155646269561}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: d45d57619a2124dac9d84b823a5649d4, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 0.7005481
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: d45d57619a2124dac9d84b823a5649d4, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -406.7818
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: d45d57619a2124dac9d84b823a5649d4, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.488597
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: d45d57619a2124dac9d84b823a5649d4, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1073.4192
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: d45d57619a2124dac9d84b823a5649d4, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.9261679
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: d45d57619a2124dac9d84b823a5649d4, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: d45d57619a2124dac9d84b823a5649d4, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.37711143
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: d45d57619a2124dac9d84b823a5649d4, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: d45d57619a2124dac9d84b823a5649d4, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: d45d57619a2124dac9d84b823a5649d4, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: d45d57619a2124dac9d84b823a5649d4, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: d45d57619a2124dac9d84b823a5649d4, type: 3}
+      propertyPath: m_Name
+      value: TW_Higashi_Hokuto_Kaeshi_0_103f
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: d45d57619a2124dac9d84b823a5649d4, type: 3}
+--- !u!4 &6500078222333305770 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: d45d57619a2124dac9d84b823a5649d4, type: 3}
+  m_PrefabInstance: {fileID: 6754928614674826305}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &6862612504795576893
 PrefabInstance:

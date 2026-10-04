@@ -398,7 +398,7 @@ public static partial class EdoDoiBuilder
                 if (byMon) sb.AppendLine("  奥の塀 " + r.name + ": 口 " + S(g["name"]) + " を門の脇の面で空けた(幅 " + (hw * 2f).ToString("F3") + "m・札の jamb から)");
                 else { sb.AppendLine("  ⚠ 奥の塀 " + r.name + ": 口 " + S(g["name"]) + "(幅 " + F(g["w"]).ToString("F2") + ")を空けた ── 門は S3"); warn++; }
             }
-            string dn; var plan = EdoBuild.DanPlan(pts, out dn, gaps);
+            string dn; var plan = EdoBuild.DanPlan(pts, out dn, gaps, DanStepQOf(r.name));
             float org = 0f; int nm = 0;
             for (int i = 0; i + 1 < pts.Count; i++)
             {

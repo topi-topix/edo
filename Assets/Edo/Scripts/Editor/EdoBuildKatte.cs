@@ -164,6 +164,55 @@ public static partial class EdoBuild
         return made;
     }
 
+    /// <summary>**踏面の高さが決まっている石段を、造成後の斜面へ据える**(2026-10-04・EDO-0533 土井 K_Kura1)。
+    /// <paramref name="tops"/> = 段ごとの踏面の天端(下から・指図の y0 + 蹴上 × 段)。<paramref name="b"/>(下の面)→ <paramref name="a"/>(上の面)の線の上で、
+    /// **地表がその段の天端を横切る所**へ段の踏面の**坂上の端**を当て(地表を 0.05m 刻みで引く・天端の 0.05m 下で横切りとみなす ── 2m 格子の造成は上の面の縁で 0.02〜0.04 下がる)、前の段から <paramref name="fumi"/> 未満なら fumi へ送る ──
+    /// 踏面の下は全部地表より上・段鼻の前は蹴上の見え(地表は段の胴 = 蹴上の面が受ける)。⛔ 踏面の中ほどを交点へ当てると踏面の背に地表が 0.31m 被った(同日)。
+    /// 天端は踏面の材 <paramref name="mat"/> の上面の帯(<see cref="FlushGap"/> と同じ測り)を tops[i] へ、下端の浮きは根入れで消す(硬い ±0.01)。
+    /// ⛔ <see cref="SlopeSteps"/>(段を肩から裾へ等間隔・天端を地表へ)で据えると、2m 格子の造成の均した坂で段の差が 0.45/0.17/0.21/0.24 に割れた
+    /// (欄の蹴上 0.275)── 蹴上は欄が決め、踏面の位置を地表で測る。段石の +Z = 坂下。返り値の註に段ごとの天端・段の間・踏面の背に被る地表の最悪を刷る。
+    /// 当たる先: 指図が段数・蹴上・天端を名乗る土の斜面の石段(土井 kaidans・今後の各邸の邸内の石段で袖の無い物)。</summary>
+    public static List<GameObject> SlopeStepsAt(Func<int, string> pathOf, Transform parent, Vector2 a, Vector2 b, IList<float> tops, float fumi,
+                                                string mat, out string note)
+    {
+        var made = new List<GameObject>();
+        float L = Vector2.Distance(a, b);
+        if (L < 0.5f || tops.Count == 0) { note = "⚠ 段: 線が短いか段が無い"; return made; }
+        var up = (a - b) / L;                                    // 坂上へ
+        float yaw = Mathf.Atan2(-up.x, -up.y) * Mathf.Rad2Deg;   // +Z = 坂下
+        float sPrev = float.NegativeInfinity; float worstFl = 0f, worstCover = 0f; var log = new List<string>(); int lost = 0;
+        for (int i = 0; i < tops.Count; i++)
+        {
+            float s = float.NaN;
+            for (float x = 0f; x <= L; x += 0.05f) { var q = b + up * x; if (Ground(q.x, q.y) >= tops[i] - 0.05f) { s = x; break; } }
+            if (float.IsNaN(s)) { lost++; continue; }
+            if (s < sPrev + fumi) s = sPrev + fumi;
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(pathOf(i));
+            if (prefab == null) { note = "⛔ 段石の駒が無い: " + pathOf(i); return made; }
+            var p = b + up * s;
+            var go = (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent);
+            go.name = "Danishi_" + i.ToString("00");
+            go.transform.SetPositionAndRotation(new Vector3(p.x, tops[i], p.y), Quaternion.Euler(0f, yaw, 0f));
+            // 踏面の坂上の端を地表の交点へ(実メッシュの踏面の帯 ── ピボットで合わせない)
+            var vs = Body(go.transform, 999999);
+            float yTop = float.MinValue; foreach (var v in vs) yTop = Mathf.Max(yTop, v.y);
+            float f0 = float.MaxValue, f1 = float.MinValue;
+            foreach (var v in vs) if (v.y >= yTop - 0.02f) { float t = Vector2.Dot(new Vector2(v.x, v.z) - p, up); f0 = Mathf.Min(f0, t); f1 = Mathf.Max(f1, t); }
+            go.transform.position += new Vector3(up.x, 0f, up.y) * -f1 + new Vector3(0f, tops[i] - yTop, 0f);
+            var rt = RootToBed(go, Ground, 0.05f);
+            if (!float.IsNaN(rt.hi) && rt.hi > 0.01f) { go.transform.position -= new Vector3(0f, rt.hi, 0f); worstFl = Mathf.Max(worstFl, rt.hi); }
+            // 踏面に被る地表(天端の帯の頂点の真上)
+            foreach (var v in Body(go.transform, 999999)) if (v.y >= tops[i] - 0.02f) worstCover = Mathf.Max(worstCover, Ground(v.x, v.z) - v.y);
+            log.Add(tops[i].ToString("F3") + "@" + s.ToString("F2"));
+            made.Add(go); sPrev = s;
+        }
+        var gaps = new List<string>(); for (int i = 1; i < log.Count; i++) gaps.Add((float.Parse(log[i].Split('@')[1]) - float.Parse(log[i - 1].Split('@')[1])).ToString("F2"));
+        note = string.Format("段石 {0}/{1} 段・天端@道のり {2}・段の間 {3}m(踏面の狙い ≥ {4:F2})・下端の浮きを根入れで消した最大 {5:F3}m・踏面に被る地表 最悪 {6:F3}m{7}",
+                             made.Count, tops.Count, string.Join(" ", log.ToArray()), string.Join("/", gaps.ToArray()), fumi, worstFl, Mathf.Max(0f, worstCover),
+                             lost > 0 ? string.Format("・⚠ 地表がその高さに届かず置かなかった {0}", lost) : "");
+        return made;
+    }
+
     /// <summary>棟の壁体(屋根を外した実メッシュ)の頂点の重心(XZ)。⛔ ピボットではない。</summary>
     public static Vector2 BodyCentreXZ(Transform t)
     {

@@ -1250,6 +1250,25 @@ public static partial class EdoBuild
     /// <summary>段塀の一区間(鎖の道のり a〜b・塀の座 W = 塀の下端の高さ)。</summary>
     public struct DanSec { public float a, b, W; }
 
+    /// <summary>段の刻みの床: <paramref name="stepQ"/> &gt; 0 = **段の高さを stepQ の倍数に揃える**(指図の `seatFrom`「段は 0.3 の倍数」・柔らかい = 外れる段は罰 50 で退け、
+    /// それでも残れば註に ⚠)。同時に**布石の見え(座 − 区間の地面の最低)の狙い**を <see cref="DanStepFloor"/>(stepQ の倍数で半端な段の線以上の最小)に置く
+    /// ── 見えがそれを超える区間は罰で割る(段を一つ立てれば布石の見えはそれ以下になる長さ)。⛔ 0.05 刻みの座のまま 0.90/1.00 の段を出した
+    /// (土井の辺11/12 の段塀・2026-10-04 EDO-0533)・108m の奥の塀を一区間にして布石が 1.12m 見えた(同)。
+    /// 当たる先: 段を「stepQ の倍数」と名乗る指図の段塀(土井の辺11/12・奥の塀)。stepQ = 0(既定)は従来どおり(類型の全区画)。</summary>
+    public static float DanStepFloor(float stepQ)
+    {
+        if (stepQ <= 0f) return float.PositiveInfinity;
+        return Mathf.Ceil((DAN_STEP_MIN - DAN_FLOAT_TOL) / stepQ - 1e-3f) * stepQ;
+    }
+    public static List<DanSec> DanPlan(IList<Vector2> chain, out string note, IList<Vector2> gates, float stepQ)
+    {
+        return DanPlan(chain, out note, gates, stepQ, DanStepFloor(stepQ));
+    }
+    /// <summary>段の高さの刻み stepQ と布石の見えの狙い showMax を名指す版(柔らかい・註は <see cref="DanStepFloor"/>)。</summary>
+    public static List<DanSec> DanPlan(IList<Vector2> chain, out string note, IList<Vector2> gates, float stepQ, float showMax)
+    {
+        return DanPlanCore(chain, out note, gates, stepQ, showMax);
+    }
     /// <summary>折れ線(区画の辺の鎖)に段塀の区切りと座を引く。道のりは折れ線の頭から。
     /// 動的計画(状態 = 区切りの節 × 座の候補)で「区間の数 + 段の二乗 + 半端な段・大きすぎる段・角の段・標準から外れた座の罰」
     /// を最小にする。硬い条件は冒頭の註(布石が届く・埋めが DAN_BURY_MAX 以内)。
@@ -1260,6 +1279,10 @@ public static partial class EdoBuild
     /// ⛔ 同日の一つ目の直し「段を門の柱で切る」は退けた ── 門の左右で塀の高さが変わる作りは実例が無い(施主「見たことがない」)。
     /// 当たる先: 類型の練塀で門を持つ全区画。</para></summary>
     public static List<DanSec> DanPlan(IList<Vector2> chain, out string note, IList<Vector2> gates = null)
+    {
+        return DanPlanCore(chain, out note, gates, 0f, float.PositiveInfinity);
+    }
+    static List<DanSec> DanPlanCore(IList<Vector2> chain, out string note, IList<Vector2> gates, float stepQ, float showMax)
     {
         var segL = new List<float>(); float L = 0f;
         for (int i = 0; i + 1 < chain.Count; i++) { float l = Vector2.Distance(chain[i], chain[i + 1]); segL.Add(l); L += l; }
@@ -1367,6 +1390,7 @@ public static partial class EdoBuild
                 foreach (var W in cands)
                 {
                     float pen0 = 1f + 0.5f * Mathf.Abs(W - wStd) + (wMin > wMax ? 2f : 0f);
+                    if (W - lo > showMax + 1e-3f) pen0 += 200f * (W - lo - showMax);   // 布石の見えの狙い(stepQ を名乗る版だけ)
                     if (i == 0)
                     {
                         float c0 = pen0;
@@ -1379,6 +1403,7 @@ public static partial class EdoBuild
                         float d = Mathf.Abs(W - stW[i][kk]), pen = d * d;
                         if (d > 0.005f)
                         {
+                            if (stepQ > 0f && Mathf.Abs(d / stepQ - Mathf.Round(d / stepQ)) * stepQ > 0.005f) pen += 50f;   // 段は stepQ の倍数(柔らかい)
                             if (d < DAN_STEP_MIN - DAN_FLOAT_TOL) pen += 5f;
                             if (d > DAN_STEP_MAX) pen += 10f * (d - DAN_STEP_MAX) + 2f;
                             if (nearCorner[i]) pen += 30f;
@@ -1430,6 +1455,19 @@ public static partial class EdoBuild
                              forced > 0 ? string.Format("・⚠ 布石と根入れで受けきれない急な区間 {0}(埋めを深くした)", forced) : "",
                              nFlat > 0 ? string.Format("・⚠ 平場に面する段 {0}(狙い)", nFlat) : "",
                              gs.Count > 0 ? string.Format("・門 {0} を水平な区間の中に置いた(左右 {1:F2}m・硬い)", gs.Count, DAN_GATE_SODE) : "");
+        if (stepQ > 0f)
+        {
+            int offQ = 0; float showW = 0f;
+            for (int k = 0; k + 1 < outp.Count; k++) { float d = Mathf.Abs(outp[k + 1].W - outp[k].W); if (Mathf.Abs(d / stepQ - Mathf.Round(d / stepQ)) * stepQ > 0.005f) offQ++; }
+            for (int k = 0; k < outp.Count; k++)
+            {
+                float lo = float.MaxValue;
+                for (int m = 0; m < ns; m++) if (ss[m] >= outp[k].a - 1e-4f && ss[m] <= outp[k].b + 1e-4f && !inGate(ss[m])) lo = Mathf.Min(lo, gsLo[m]);
+                if (lo < float.MaxValue) showW = Mathf.Max(showW, outp[k].W - lo);
+            }
+            note += string.Format("・段の刻み {0:F2} の倍数{1}・布石の見え 最大 {2:F2}m(狙い ≤ {3:F2}){4}", stepQ, offQ > 0 ? string.Format("でない段 ⚠ {0}", offQ) : " ✔",
+                                  showW, showMax, showW > showMax + 1e-3f ? " ⚠" : "");
+        }
         return outp;
     }
 

@@ -1537,7 +1537,8 @@ public static partial class EdoDoiBuilder
             for (int i = 0; i + 1 < ch.Count; i++) pts.Add(meet(ch[i].edge, c, ch[i + 1].edge, c));
             pts.Add(EdgePt(rN.edge, sB) - OutNormal(rN.edge) * c);
             List<EdoBuild.DanSec> plan; string dn;
-            if (float.IsNaN(r0.seat)) plan = EdoBuild.DanPlan(pts, out dn);
+            float stepQ = 0f; foreach (var x in ch) stepQ = Mathf.Max(stepQ, DanStepQOf(x.name));
+            if (float.IsNaN(r0.seat)) plan = EdoBuild.DanPlan(pts, out dn, null, stepQ);
             else
             {
                 // 天端に載る練塀(基壇の天端一本): 座 = 足の下の基壇の天端(実測)
@@ -1550,7 +1551,7 @@ public static partial class EdoDoiBuilder
             }
             // 段の高さが 0.3 の倍数か(柔らかい)
             var steps = new List<string>(); bool q3 = true;
-            for (int i = 1; i < plan.Count; i++) { float st = Mathf.Abs(plan[i].W - plan[i - 1].W); steps.Add(st.ToString("F2")); if (Mathf.Abs(st / 0.3f - Mathf.Round(st / 0.3f)) > 0.02f) q3 = false; }
+            float q3s = stepQ > 0f ? stepQ : 0.3f; for (int i = 1; i < plan.Count; i++) { float st = Mathf.Abs(plan[i].W - plan[i - 1].W); steps.Add(st.ToString("F2")); if (Mathf.Abs(st / q3s - Mathf.Round(st / q3s)) > 0.02f) q3 = false; }
             float org = 0f; var made = new List<GameObject>();
             for (int i = 0; i + 1 < pts.Count; i++)
             {

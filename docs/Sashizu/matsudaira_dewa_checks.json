@@ -1,8 +1,8 @@
 {
  "_": "図の機械検査の結果。生成器が毎回書き、kansei_gate.py --init が読んで赤なら止める(EDO-0291)。⛔ 手で書かない — 図を焼き直せば入れ替わる。",
  "estate": "matsudaira_dewa",
- "at": "2026-10-04T12:08:07+09:00",
- "sashizu_sha": "5a02f5deb8bfdb6f",
+ "at": "2026-10-04T12:15:10+09:00",
+ "sashizu_sha": "cf30f9a645576874",
  "ng": 5,
  "na": 6,
  "rows": [

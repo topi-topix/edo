@@ -1,11 +1,11 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 cd3f6b2b8739 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 07c9700fa3fe -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
 
-- 公開関数 324 本(注釈なし 26)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
+- 公開関数 325 本(注釈なし 26)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
 - 同じ道具が刷る目録: 邸ビルダーのメニュー → Stage と中の関数 `docs/builder-mokuroku.md` / 部材の名 `docs/edoassets-mokuroku.md`。
 - 札: **硬** = 注釈に「硬い/許容0」・**柔** = 「柔らかい/狙い」がある(判定ではなく注釈の語)。相手の札(地面・駒どうし・天端・床・断面・面・隅・区域)も注釈の語を拾っただけ。
 - 呼んでいる所 = 定義のファイルの外で `EdoBuild.<名>(` と書いている C# ファイル(`Edo` と `Builder/Rebuild` を落とした名)と、その中の呼んでいる関数(Stage)。同じ名の多重定義はまとめて数える。`EdoBuild` の中どうしの呼び出しは載せない。
@@ -17,7 +17,7 @@
 | ファイル | 何の道具か(ファイル冒頭の注釈) | 当たる先 | 関数 |
 |---|---|---|---|
 | [EdoBuild.cs](#edobuildcs) | 配置・資産系の共有基盤 (Phase 2c, 2026-08-26) | — | 47 |
-| [EdoBuildDanIshigaki.cs](#edobuilddanishigakics) | EdoBuild — 段の土留め(石垣・野面)を天端の折れ線へ据える(2026-10-03・EDO-0502 岡部 terraceWalls)。 | — | 8 |
+| [EdoBuildDanIshigaki.cs](#edobuilddanishigakics) | EdoBuild — 段の土留め(石垣・野面)を天端の折れ線へ据える(2026-10-03・EDO-0502 岡部 terraceWalls)。 | — | 9 |
 | [EdoBuildGamae.cs](#edobuildgamaecs) | ══════════════════════════════════════════════════════════════════════ | — | 17 |
 | [EdoBuildGoten.cs](#edobuildgotencs) | 御殿複合(表向・中奥・奥向の3核)を組む — EdoBuild の一部(規則21「置く・測る・突き付ける・据えるは | — | 3 |
 | [EdoBuildHifu.cs](#edobuildhifucs) | 縁の皮 — 地形に穴を開け、穴の縁から部材の面までを皮のメッシュで描く (EdoBuild の partial・2026-09-24・EDO-0430) | 切通しの石段(山王の女坂・男坂・参道の階)・天端を地盤に揃えた土留め(山王・土井・岡部の郭)・ 造成した面の縁(全邸の段の縁)。 | 12 |
@@ -129,6 +129,12 @@ EdoBuild — 段の土留め(石垣・野面)を天端の折れ線へ据える(2
 | `EdoBuild.ArcPoint(nodes, s, dir)` | `Vector2` |  | 折れ線の道のり s の点(世界 xz)と、その区間の向き。 | OkabeYashiki(ProfSNodes・Stage2b_Dan) |
 | `EdoBuild.GapFromPieces(nodes, gap, pieces, band, note)` | `Vector2` | 硬 面 | 土留めの口の端を、口を通る石段の実面で決める(EDO-0502 第8巡)。 | OkabeYashiki(Stage2b_Dan) |
 | `EdoBuild.GapReturnLine(p, axis, inward, crest, groundAt, maxLen, len)` | `List<Vector2>` | 硬 天端・床・面 | 口の端の返し(EDO-0502 第8巡・スキル unity-modular-stonewall の小口の作法)。 ⟶ 返す: 天端の前の縁の折れ線(2 点) | OkabeYashiki(Stage2b_Dan) |
+
+### 段違いの継ぎ目の下の積み下ろし(EDO-0502 第11巡)
+
+| 関数 | 返す | 札 | 何をするか(注釈の一文目) | 呼んでいる所 |
+|---|---|---|---|---|
+| `EdoBuild.StackDownAtNozuraSteps(placed, groundAt, parent, maxN, log, worstBefore, worstAfter)` | `int` | 硬 地面・天端・面 | 段違いの継ぎ目の下を同じ積みの駒で地表まで積み下ろす(2026-10-04 EDO-0502 第11巡・指図 terraceWalls[].dropJoint)。 ⟶ 返す: 積んだ駒の数 | OkabeYashiki(Stage2b_Dan) |
 
 ## EdoBuildGamae.cs
 

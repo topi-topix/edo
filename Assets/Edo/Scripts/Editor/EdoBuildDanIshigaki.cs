@@ -413,4 +413,115 @@ public static partial class EdoBuild
         len += 0.25f;
         return new List<Vector2> { p, p + axis * len };
     }
+
+    // ============================================================ 段違いの継ぎ目の下の積み下ろし(EDO-0502 第11巡)
+    /// <summary>**段違いの継ぎ目の下を同じ積みの駒で地表まで積み下ろす**(2026-10-04 EDO-0502 第11巡・指図 terraceWalls[].dropJoint)。
+    /// 野面の段の境の駒(<see cref="PlaceNozuraRun"/> が段の境に据える勾配の駒・名 <c>*_dan</c>)は丈が一つ(H1.50)しか焼いていないので、
+    /// 地盤が走りに沿って下がる袖では継ぎ目の下が抜けて土が見えた(岡部 TW_Kado_Sode_2_0_dan の底 18.32・地表 16.54 ── 抜け 1.423m)。
+    /// 硬い(許容0): 継ぎ目の駒の下の抜け 0 ── 駒の外形(足の帯の頂点)と見え面の前 0.3m・走りの両端の先 0.3m の地表
+    /// (<paramref name="groundAt"/> = 描かれた地表)の最も低い所へ、駒の底(実メッシュの最下)が届くまで積む。
+    /// 積む駒 = **上の駒と同じ駒**(同じ FBX・同じ向きと伸縮 ── 勾配の駒は底も勾配なので、平らな駒を積むと楔の口が開く: 第11巡の初手で 0.35m)。
+    /// 届くまで重ね、一番下は地表の下へ埋まる分だけ根入れ(埋めて隠す)。触れる所: 走りを 7 つの筋に割り、
+    /// 筋ごとの**上の駒の底 − 積む駒の頭**の最大だけ積む駒を上げる(どの筋にも口を残さない・重なりは埋めて隠す)・
+    /// **天端の帯の前の縁 = 上の駒の足の帯の前の縁**(見え面が法なりに続く)・走りの射影の中点どうし(⛔ ピボットで決めない)。
+    /// 対象 = 段の境の駒と、それに触れる(外接を 0.3m 広げて重なる)同じ土留めの駒。抜けが無い駒は触らない。
+    /// 当たる先: 野面の乱積みの段違いの土留め(岡部 TW_Kado_Sode・山王の野面の段の境・類型の縁の野面 ── 山王と類型は呼んでいない)。
+    /// ⟶ 返す: 積んだ駒の数。<paramref name="worstBefore"/>/<paramref name="worstAfter"/> = 継ぎ目の駒の抜けの最悪(積む前・後)。</summary>
+    public static int StackDownAtNozuraSteps(IList<KeyValuePair<GameObject, Vector2>> placed, Func<float, float, float> groundAt,
+        Transform parent, int maxN, System.Text.StringBuilder log,
+        out float worstBefore, out float worstAfter)
+    {
+        worstBefore = float.NegativeInfinity; worstAfter = float.NegativeInfinity;
+        if (placed == null || placed.Count == 0) return 0;
+        const float BAND = 0.15f, OUT = 0.3f;
+        // 抜け = 駒の底 − 足元の描かれた地表の最低(外形の格子と前・両端の先)
+        Func<GameObject, Vector2, float> gapOf = (g, fN) =>
+        {
+            var vs = Body(g.transform, 999999); if (vs.Count == 0) return float.NaN;
+            float bot = float.MaxValue; foreach (var v in vs) bot = Mathf.Min(bot, v.y);
+            Vector2 X = new Vector2(fN.y, -fN.x);
+            float x0 = float.MaxValue, x1 = float.MinValue, z0 = float.MaxValue, z1 = float.MinValue;
+            foreach (var v in vs) if (v.y <= bot + BAND)
+            { var q = new Vector2(v.x, v.z); float a = Vector2.Dot(q, X), b = Vector2.Dot(q, fN); x0 = Mathf.Min(x0, a); x1 = Mathf.Max(x1, a); z0 = Mathf.Min(z0, b); z1 = Mathf.Max(z1, b); }
+            if (x0 == float.MaxValue) return float.NaN;
+            x0 -= OUT; x1 += OUT; z1 += OUT;
+            float gmin = float.NaN;
+            for (int i = 0; i <= 6; i++) for (int j = 0; j <= 4; j++)
+            {
+                float a = Mathf.Lerp(x0, x1, i / 6f), b = Mathf.Lerp(z0, z1, j / 4f);
+                Vector2 p = X * a + fN * b; float gy = groundAt(p.x, p.y);
+                if (!float.IsNaN(gy) && (float.IsNaN(gmin) || gy < gmin)) gmin = gy;
+            }
+            return float.IsNaN(gmin) ? float.NaN : bot - gmin;
+        };
+        Func<GameObject, float> crestBand = g =>
+        {
+            var cells = new Dictionary<long, float>();
+            foreach (var v in Body(g.transform, 999999))
+            { long key = ((long)Mathf.FloorToInt(v.x / 0.2f) << 32) ^ (uint)Mathf.FloorToInt(v.z / 0.2f);
+              float y; if (!cells.TryGetValue(key, out y) || v.y > y) cells[key] = v.y; }
+            var ys = new List<float>(cells.Values); ys.Sort(); if (ys.Count == 0) return float.NaN;
+            int k0 = (int)(ys.Count * 0.6f); var top = ys.GetRange(k0, ys.Count - k0); return top[top.Count / 2];
+        };
+        // 対象: 段の境の駒と、それに触れる駒
+        var targets = new List<KeyValuePair<GameObject, Vector2>>();
+        foreach (var kv in placed)
+        {
+            if (kv.Key == null || !kv.Key.name.EndsWith("_dan")) continue;
+            if (!targets.Exists(t => t.Key == kv.Key)) targets.Add(kv);
+            var db = RB(kv.Key); db.Expand(new Vector3(0.3f, 0f, 0.3f));
+            string run = System.Text.RegularExpressions.Regex.Match(kv.Key.name, @"^(.*?)_\d").Groups[1].Value;   // 同じ土留め(名の頭)
+            foreach (var o in placed)
+            {
+                if (o.Key == null || o.Key == kv.Key || targets.Exists(t => t.Key == o.Key) || !o.Key.name.StartsWith(run + "_")) continue;
+                var ob = RB(o.Key);
+                if (ob.min.x <= db.max.x && ob.max.x >= db.min.x && ob.min.z <= db.max.z && ob.max.z >= db.min.z) targets.Add(o);
+            }
+        }
+        int n = 0;
+        foreach (var kv in targets)
+        {
+            var top = kv.Key; Vector2 fN = kv.Value; if (fN == Vector2.zero) continue;
+            Vector2 X = new Vector2(fN.y, -fN.x);
+            float gap = gapOf(top, fN);
+            if (float.IsNaN(gap)) continue;
+            worstBefore = Mathf.Max(worstBefore, gap);
+            var cur = top; int k = 0;
+            while (gap > 0.005f && k < maxN)
+            {
+                var srcObj = UnityEditor.PrefabUtility.GetCorrespondingObjectFromOriginalSource(top);
+                string path = srcObj != null ? UnityEditor.AssetDatabase.GetAssetPath(srcObj) : null;
+                if (string.IsNullOrEmpty(path)) { log.AppendLine("    ⛔ " + top.name + ": 駒の資産が引けない ── 抜け " + gap.ToString("F3") + "m のまま"); break; }
+                var cb = RB(cur);
+                var go = Place(path, new Vector3(cur.transform.position.x, cur.transform.position.y - cb.size.y, cur.transform.position.z), cur.transform.eulerAngles.y,
+                               cur.transform.localScale, parent, top.name + "_tsumi" + k);
+                if (go == null) break;
+                var uvs = Body(cur.transform, 999999); var gvs = Body(go.transform, 999999);
+                float ubot = float.MaxValue; foreach (var v in uvs) ubot = Mathf.Min(ubot, v.y);
+                float gtop = float.MinValue; foreach (var v in gvs) gtop = Mathf.Max(gtop, v.y);
+                // 前の縁(上の駒の足の帯 / 積む駒の頭の帯)と走りの射影の中点
+                float uf = float.MinValue, gf = float.MinValue, ua0 = float.MaxValue, ua1 = float.MinValue, ga0 = float.MaxValue, ga1 = float.MinValue;
+                foreach (var v in uvs) { var q = new Vector2(v.x, v.z); if (v.y <= ubot + BAND) uf = Mathf.Max(uf, Vector2.Dot(q, fN)); float a = Vector2.Dot(q, X); ua0 = Mathf.Min(ua0, a); ua1 = Mathf.Max(ua1, a); }
+                foreach (var v in gvs) { var q = new Vector2(v.x, v.z); if (v.y >= gtop - BAND) gf = Mathf.Max(gf, Vector2.Dot(q, fN)); float a = Vector2.Dot(q, X); ga0 = Mathf.Min(ga0, a); ga1 = Mathf.Max(ga1, a); }
+                Vector2 sh = fN * (uf - gf) + X * (0.5f * (ua0 + ua1) - 0.5f * (ga0 + ga1));
+                go.transform.position += new Vector3(sh.x, 0f, sh.y);
+                // 高さ: 筋ごとに 上の駒の底 − 積む駒の頭 の最大だけ上げる(どの筋にも口を残さない)
+                gvs = Body(go.transform, 999999);
+                const int NB = 7; var ulo = new float[NB]; var ghi = new float[NB];
+                for (int b = 0; b < NB; b++) { ulo[b] = float.MaxValue; ghi[b] = float.MinValue; }
+                Func<Vector3, int> bin = v => Mathf.Clamp((int)((Vector2.Dot(new Vector2(v.x, v.z), X) - ua0) / Mathf.Max(1e-4f, ua1 - ua0) * NB), 0, NB - 1);
+                foreach (var v in uvs) { int b = bin(v); ulo[b] = Mathf.Min(ulo[b], v.y); }
+                foreach (var v in gvs) { int b = bin(v); ghi[b] = Mathf.Max(ghi[b], v.y); }
+                float lift = float.NegativeInfinity;
+                for (int b = 0; b < NB; b++) if (ulo[b] < float.MaxValue && ghi[b] > float.MinValue) lift = Mathf.Max(lift, ulo[b] - ghi[b]);
+                if (!float.IsNegativeInfinity(lift)) go.transform.position += Vector3.up * lift;
+                n++; k++; cur = go;
+                gap = gapOf(cur, fN);
+                log.AppendLine("    積み下ろし " + top.name + " ← " + System.IO.Path.GetFileNameWithoutExtension(path) + "(頭を上の駒の底へ +" + (float.IsNegativeInfinity(lift) ? 0f : lift).ToString("0.000") + "・底 " + RB(go).min.y.ToString("F2") + "・抜け " + (float.IsNaN(gap) ? "-" : gap.ToString("+0.000;-0.000")) + "m)");
+            }
+            if (!float.IsNaN(gap)) worstAfter = Mathf.Max(worstAfter, gap);
+            if (gap > 0.005f) log.AppendLine("    ⛔ " + top.name + ": " + maxN + " 段積んでも抜け " + gap.ToString("F3") + "m");
+        }
+        return n;
+    }
 }

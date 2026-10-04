@@ -117,6 +117,7 @@
 - [相手の無い端の口は区画の線の楔](free-run-end-at-oblique-parcel-corner.md) — 岡部 辺0/辺24。伸ばすと区域侵犯・斜めの小口の部材
 - [壁の口から張り出す石段は浮く・yAt が地盤と違う](stair-out-of-wall-and-yat-mismatch.md) — StackDownToGround・LevelPad で中央値へ
 - [段の土留めの3つの罠](dan-ishigaki-r3-traps.md) — BedTopAt は 8m まで・指図の文言の上書きで正規表現が 0・語だけの直しでも指紋で止まる
+- [野面の段の境の駒は H1.50 だけ・継ぎ目の下が抜ける](nozura-dan-piece-fixed-height.md) — 直線は H4.8 まで選ぶ。StackDownAtNozuraSteps で積み下ろす
 
 ## 測り方・関門
 

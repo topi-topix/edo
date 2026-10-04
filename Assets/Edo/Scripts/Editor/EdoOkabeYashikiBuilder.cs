@@ -2132,6 +2132,14 @@ public static class EdoOkabeYashikiBuilder
             foreach (var kv in got) { string k = kv.Key.name; foreach (var w in wallOf.Keys) if (k.StartsWith(w + "_")) { int c0; per.TryGetValue(w, out c0); per[w] = c0 + 1; } }
             foreach (var kv in per) sb.AppendLine("  " + kv.Key + "(" + S(Get(wallOf[kv.Key], "kind")) + "・" + S(Get(wallOf[kv.Key], "mode")) + "): 野面の乱積み " + kv.Value + " 駒");
             sb.AppendLine("  野面 計 " + got.Count + " 駒(区間 " + nozSegs.Count + ")");
+            // 段違いの継ぎ目の下を同じ積みの駒で地表まで積み下ろす(指図 TW_Kado_Sode.dropJoint・型として段の境の駒すべてへ ── EdoBuild.StackDownAtNozuraSteps)
+            {
+                float wb, wa;
+                int nt = EdoBuild.StackDownAtNozuraSteps(got, SkinGround, grp, 4, log, out wb, out wa);
+                var withField = new List<string>(); foreach (var o in A(Get(D, "terraceWalls")) ?? new List<object>()) { var tw = O(o); if (tw != null && Get(tw, "dropJoint") != null) withField.Add(S(Get(tw, "name"))); }
+                sb.AppendLine("  段違いの継ぎ目の積み下ろし: " + nt + " 駒・継ぎ目の駒の抜け 最悪 " + (float.IsNegativeInfinity(wb) ? "-" : wb.ToString("+0.000;-0.000")) + " → "
+                            + (float.IsNegativeInfinity(wa) ? "-" : wa.ToString("+0.000;-0.000")) + "m(欄 dropJoint: " + string.Join("・", withField.ToArray()) + ")" + (wa > 0.005f ? " ⛔" : ""));
+            }
         }
         // 硬い・区域: 駒の実メッシュが区画の外へ出ないか(壁体)
         {

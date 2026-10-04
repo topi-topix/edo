@@ -108,6 +108,7 @@
 
 - [袖の背に沿う返しの隅は法で袖へ入る](kado-arm-along-sode-back-batter.md) — 見える所は面一でも W0.31/E0.47 入る。解くのは返しの腕を一辺切った Kado90(部材)
 
+- [城の石垣の口が二つ近いと間に 2m の駒が芯で据わる](castle-run-narrow-pier-between-gaps.md) — 土井の扉口と潜戸の間 0.459m。部材か指図へ差し戻す
 - [光付けは2次元で上げる・remap 済みでも材 null](scribe-2d-and-stale-fbx-material.md) — 列の窓の最大は法肩で浮き目地で食い込む。桃色は ForceUpdate で再 import(長屋12本も 10-03)
 
 - [長屋は全幅で並べると躯体が開く・御殿は縁の下に当たり無し・棟門は札で・描かれた法尻](nagaya-body-vs-gable-and-rendered-toe.md) — FitBodyToSpan/PlaceGamae/toeRender

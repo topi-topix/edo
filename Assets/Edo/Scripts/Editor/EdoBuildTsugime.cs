@@ -68,13 +68,22 @@ public static partial class EdoBuild
     /// 当たる先: 基壇の天端に載る口つきの長屋(土井 通用門 E13_N09・表門)。口の無い長屋は skipLo &gt; skipHi で同じ。</summary>
     public static float SeatBedOnCrest(GameObject go, float crest, Vector2 frontLine, Vector2 outward, Vector2 along, float skipLo, float skipHi)
     {
+        return SeatBedOnCrest(go, crest, frontLine, outward, along, new List<Vector2> { new Vector2(skipLo, skipHi) });
+    }
+
+    /// <summary><see cref="SeatBedOnCrest(GameObject,float,Vector2,Vector2,Vector2,float,float)"/> の、除く区間が幾つもある版
+    /// (長屋門の扉口と潜戸 ── どちらも敷居が土台の底より下がる)。当たる先: 土井の表門(EDO-0533)・潜戸を切り下げた長屋門の全部。</summary>
+    public static float SeatBedOnCrest(GameObject go, float crest, Vector2 frontLine, Vector2 outward, Vector2 along, List<Vector2> skips)
+    {
         outward = outward.normalized; along = along.normalized;
         float bed = float.MaxValue;
         foreach (var v in Body(go.transform, 999999))
         {
             var q = new Vector2(v.x, v.z) - frontLine;
             float t = Vector2.Dot(q, outward); if (t > 0.01f || t < -0.3f) continue;
-            float s = Vector2.Dot(q, along); if (s >= skipLo && s <= skipHi) continue;
+            float s = Vector2.Dot(q, along); bool skip = false;
+            foreach (var k in skips) if (s >= k.x && s <= k.y) { skip = true; break; }
+            if (skip) continue;
             bed = Mathf.Min(bed, v.y);
         }
         if (bed == float.MaxValue) return float.NaN;

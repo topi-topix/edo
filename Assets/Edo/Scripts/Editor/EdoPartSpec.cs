@@ -18,7 +18,7 @@ using UnityEngine;
 public static class EdoPartSpec
 {
     [Serializable] public class Jamb { public float x, z0, z1, y0, y1; }
-    [Serializable] public class Span { public float x0, x1; }
+    [Serializable] public class Span { public float x0, x1, sillY; }   // sillY = 敷居の土台の底からの差(局所・切り下げた扉口は負)
     [Serializable] public class Box { public float x0, x1, z0, z1, y0, y1; }
 
     /// <summary>札。`kind` = gate / bansho / fence。欄の意味は種別ごと(使わない欄は 0 / null)。</summary>
@@ -35,6 +35,7 @@ public static class EdoPartSpec
         public float front, back;      // 壁体(袖の帯)の正面 +Z・背面 −Z
         public Jamb jambL, jambR;      // 袖が突き付く脇の面(L = −X 側・R = +X 側)。帯の中で**いちばん内へ引っ込む段**
         public Span passage;           // 通り口(門だけ)。参道・庭・本堂の軸はこの芯を読む
+        public Span passageKuguri;     // 潜戸の口(長屋門の脇・無ければ null か x1<=x0)。基壇の口・扉の下端はこれも見る
         public Box eave;               // 軒込みの外形(刷るだけ・判定に使わない ── 裁定A)
         public List<string> contact = new List<string>();   // 地面に着ける部材(メッシュ名)。空 = 下端から ROOT_TOUCH の全部。
                                                             // 扉(下に隙があって正)・根入れの飾りを外すときだけ書く(EDO-0491 在庫の冠木門)

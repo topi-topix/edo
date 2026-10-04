@@ -42,11 +42,30 @@ public static partial class EdoDoiBuilder
     }
 
     /// <summary>口の走りの区間(辺 e の始点からの s)── 札の passage の両端を世界へ。</summary>
-    static Vector2 PassageOn(EdoPartSpec.Spec sp, Transform t, int e)
+    static Vector2 PassageOn(EdoPartSpec.Spec sp, Transform t, int e) { return PassageOn(sp.passage, t, e); }
+    static Vector2 PassageOn(EdoPartSpec.Span pa, Transform t, int e)
     {
         Vector2 a0 = EdgePt(e, 0f), d = EdgeDir(e);
-        float p0 = Vector2.Dot(EdoPartSpec.W(t, sp.passage.x0, 0f) - a0, d), p1 = Vector2.Dot(EdoPartSpec.W(t, sp.passage.x1, 0f) - a0, d);
+        float p0 = Vector2.Dot(EdoPartSpec.W(t, pa.x0, 0f) - a0, d), p1 = Vector2.Dot(EdoPartSpec.W(t, pa.x1, 0f) - a0, d);
         return new Vector2(Mathf.Min(p0, p1), Mathf.Max(p0, p1));
+    }
+    /// <summary>札の潜戸の口(passageKuguri)が在るか(JsonUtility は欄が無くても空の Span を作る ── 幅で見る)。</summary>
+    static bool HasKuguri(EdoPartSpec.Spec sp) { return sp != null && sp.passageKuguri != null && sp.passageKuguri.x1 - sp.passageKuguri.x0 > 0.05f; }
+
+    /// <summary>基壇の口の縁 = 口(走りの区間)の芯の左で最も奥の駒の端・右で最も手前の駒の端(実メッシュ)。</summary>
+    static Vector2 PlinthOpeningEdges(List<GameObject> pcs, Vector2 a0, Vector2 d, Vector2 open)
+    {
+        float lo = float.MinValue, hi = float.MaxValue, pc = (open.x + open.y) * 0.5f;
+        foreach (var p in pcs) { var sp = EdoBuild.BodySpanAlong(p, a0, d, 0f, 99f); if (float.IsNaN(sp.x)) continue; if ((sp.x + sp.y) * 0.5f < pc) lo = Mathf.Max(lo, sp.y); else hi = Mathf.Min(hi, sp.x); }
+        return new Vector2(lo, hi);
+    }
+
+    /// <summary>口(走りの区間)の中の実メッシュの最下点 = 扉の下端(敷居)。</summary>
+    static float DoorBottom(GameObject go, Vector2 a0, Vector2 d, Vector2 open)
+    {
+        float lo = float.MaxValue;
+        foreach (var v in EdoBuild.Body(go.transform, 999999)) { float s = Vector2.Dot(new Vector2(v.x, v.z) - a0, d); if (s > open.x + 0.1f && s < open.y - 0.1f) lo = Mathf.Min(lo, v.y); }
+        return lo;
     }
 
     /// <summary>足元の外面(札の foot の +Z の最大・局所)── 基壇の天端の前の縁 + 犬走りの線に当てる面。
@@ -84,13 +103,14 @@ public static partial class EdoDoiBuilder
         // 横: 口の芯を指図の s へ(硬い ── 門は固定側)
         { var pc = PassageOn(gsp, gate.transform, ge); gate.transform.position += new Vector3(d.x, 0f, d.y) * (gs - (pc.x + pc.y) * 0.5f); }
         var gPass = PassageOn(gsp, gate.transform, ge);
+        bool gHasK = HasKuguri(gsp); var gKug = gHasK ? PassageOn(gsp.passageKuguri, gate.transform, ge) : Vector2.zero;
         // 下の基壇(boundaryPlinth.rows の opening.gate)── 扉口(札の通り口)だけ空ける
         Dictionary<string, object> grow = null;
         foreach (var ro in A(O(D["boundaryPlinth"])["rows"])) { var r = O(ro); if (Has(r, "opening") && Has(O(r["opening"]), "gate")) grow = r; }
         if (grow == null) return sb.Append("  ✗ 表門の下の基壇の欄(boundaryPlinth.rows の opening.gate)が無い").ToString();
         for (int i = ig.childCount - 1; i >= 0; i--) if (ig.GetChild(i).name.StartsWith("IG_Omotemon")) UnityEngine.Object.DestroyImmediate(ig.GetChild(i).gameObject);
         var gsec = new EdoBuild.CastleSec { name = "IG_Omotemon", edge = ge, s0 = F(grow["s0"]), s1 = F(grow["s1"]), crest = F(grow["coping"]) };
-        gsec.gaps.Add(gPass);
+        gsec.gaps.Add(gPass); if (gHasK) gsec.gaps.Add(gKug);   // 潜戸も敷居まで下がる ⇒ 基壇を空ける
         var cr = EdoBuild.PlaceCastleRun(new List<EdoBuild.CastleSec> { gsec }, P, EdoBuild.Ground, ig, log);
         List<GameObject> gpcs; cr.bySec.TryGetValue("IG_Omotemon", out gpcs); if (gpcs != null) gpcs.RemoveAll(x => x == null);
         if (gpcs == null || gpcs.Count == 0 || !cr.inset.ContainsKey(ge)) return sb.Append("  ✗ 表門の下の基壇が据わらない").ToString();
@@ -109,13 +129,13 @@ public static partial class EdoDoiBuilder
           gate.transform.position -= new Vector3(o.x, 0f, o.y) * Vector2.Dot(new Vector2(fw.x, fw.z) - org, o); }
         // 高さ: 土台の底(扉口を除く外面の帯の最下点)を基壇の天端へ
         float gCrest = EdoBuild.CastleCrestExposure(gpcs, o, EdoBuild.Ground).y;
-        float gBed = EdoBuild.SeatBedOnCrest(gate, gCrest, org, o, d, gPass.x - 0.05f, gPass.y + 0.05f);
+        var gSkips = new List<Vector2> { new Vector2(gPass.x - 0.05f, gPass.y + 0.05f) }; if (gHasK) gSkips.Add(new Vector2(gKug.x - 0.05f, gKug.y + 0.05f));
+        float gBed = EdoBuild.SeatBedOnCrest(gate, gCrest, org, o, d, gSkips);
         tally(!float.IsNaN(gBed), true, "表門(" + System.IO.Path.GetFileName(gpath) + "): 口の芯 s=" + ((gPass.x + gPass.y) * 0.5f).ToString("F3") + "(欄 " + gs.ToString("F2") + ")・扉口 " + gPass.x.ToString("F3") + "〜" + gPass.y.ToString("F3")
               + "・土台の底 = 天端 " + gCrest.ToString("F3") + "(据える前の差 " + gBed.ToString("+0.000;-0.000") + ")");
         // 扉口の高さ(扉の下端)と敷居・道・門の内の面
         {
-            float doorLo = float.MaxValue; var pts = EdoBuild.Body(gate.transform, 999999);
-            foreach (var v in pts) { float s = Vector2.Dot(new Vector2(v.x, v.z) - a0, d); if (s > gPass.x + 0.1f && s < gPass.y - 0.1f) doorLo = Mathf.Min(doorLo, v.y); }
+            float doorLo = DoorBottom(gate, a0, d, gPass); var pts = EdoBuild.Body(gate.transform, 999999);
             var qOut = EdgePt(ge, gs) + o * 0.3f; float road = EdoBuild.Ground(qOut.x, qOut.y);
             float back = float.MaxValue; foreach (var v in pts) back = Mathf.Min(back, Vector2.Dot(new Vector2(v.x, v.z) - org, o));
             var qIn = EdgePt(ge, gs) - o * (inset + inu - back + 0.3f); float inner = EdoBuild.Ground(qIn.x, qIn.y);
@@ -123,13 +143,19 @@ public static partial class EdoDoiBuilder
             tally(true, Mathf.Abs(doorLo - gSill) <= 0.01f, "表門の扉口: 扉の下端 " + doorLo.ToString("F3") + "・欄の敷居 " + gSill.ToString("F2") + "(差 " + (doorLo - gSill).ToString("+0.000;-0.000")
                   + ")・扉の前の道 " + road.ToString("F3") + "(敷居との差 " + (gSill - road).ToString("+0.000;-0.000") + ")・門の背の 0.3m 内の地表 " + inner.ToString("F3")
                   + "(門の内の面 22.4)" + (Mathf.Abs(doorLo - gSill) > 0.01f ? " ── 部材の扉口は土台の底のまま(切り下げ " + dropNeed.ToString("F2") + "m の版が要る ── 部材方)" : ""));
+            if (gHasK)
+            {
+                float kLo = DoorBottom(gate, a0, d, gKug);
+                tally(true, Mathf.Abs(kLo - gSill) <= 0.01f, "表門の潜戸: 口 " + gKug.x.ToString("F3") + "〜" + gKug.y.ToString("F3") + "・下端 " + kLo.ToString("F3") + "・欄の敷居 " + gSill.ToString("F2") + "(差 " + (kLo - gSill).ToString("+0.000;-0.000") + ")");
+            }
+            else { sb.AppendLine("  ⚠ 表門の札に潜戸の口(passageKuguri)が無い ── 基壇は扉口だけ空けた"); warn++; }
         }
         // 基壇の口の縁 ↔ 扉口の脇(硬い ±0.01)
+        foreach (var op in gHasK ? new[] { new KeyValuePair<string, Vector2>("扉口", gPass), new KeyValuePair<string, Vector2>("潜戸", gKug) } : new[] { new KeyValuePair<string, Vector2>("扉口", gPass) })
         {
-            float lo = float.MinValue, hi = float.MaxValue; float pc = (gPass.x + gPass.y) * 0.5f;
-            foreach (var p in gpcs) { var sp = EdoBuild.BodySpanAlong(p, a0, d, 0f, 99f); if (float.IsNaN(sp.x)) continue; if ((sp.x + sp.y) * 0.5f < pc) lo = Mathf.Max(lo, sp.y); else hi = Mathf.Min(hi, sp.x); }
-            bool h = Mathf.Abs(lo - gPass.x) <= 0.01f && Mathf.Abs(hi - gPass.y) <= 0.01f;
-            tally(h, true, "表門の基壇の口: 縁 " + lo.ToString("F3") + "〜" + hi.ToString("F3") + " ↔ 扉口 " + gPass.x.ToString("F3") + "〜" + gPass.y.ToString("F3") + "(差 " + (lo - gPass.x).ToString("+0.000;-0.000") + " / " + (hi - gPass.y).ToString("+0.000;-0.000") + ")");
+            var ed = PlinthOpeningEdges(gpcs, a0, d, op.Value); float lo = ed.x, hi = ed.y; var pv = op.Value;
+            bool h = Mathf.Abs(lo - pv.x) <= 0.01f && Mathf.Abs(hi - pv.y) <= 0.01f;
+            tally(h, true, "表門の基壇の口(" + op.Key + "): 縁 " + lo.ToString("F3") + "〜" + hi.ToString("F3") + " ↔ " + op.Key + " " + pv.x.ToString("F3") + "〜" + pv.y.ToString("F3") + "(差 " + (lo - pv.x).ToString("+0.000;-0.000") + " / " + (hi - pv.y).ToString("+0.000;-0.000") + ")");
         }
         var gSpan = SpanOn(gate, ge);
         // 南の妻面 ↔ E13_N11 の北の妻面(硬い 隙 0・可動は長屋 ── 長屋は S2 で南の棟へ突き付け済み。動かすと N10|N11 が開く ⇒ 測って刷る)

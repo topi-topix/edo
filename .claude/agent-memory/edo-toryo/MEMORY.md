@@ -117,6 +117,7 @@
 
 - [長屋は全幅で並べると躯体が開く・御殿は縁の下に当たり無し・棟門は札で・描かれた法尻](nagaya-body-vs-gable-and-rendered-toe.md) — FitBodyToSpan/PlaceGamae/toeRender
 - [石垣の足元の盛りは2m格子の描き・造成では消えない](wall-toe-mound-is-grid-not-grading.md) — 足〜背 2.15m < 格子。縁の皮が要る
+- [袖の背の小段は下手の端で盛りの上限と衝突](sode-back-bench-cap-conflict.md) — 0.5刻み+下がり0.5で要る盛り≈1.0>0.6。格子を割っても 0.42
 - [皮を足す邸は土留めを皮の地表で据える](wall-seat-on-skin-ground-not-grid.md) — 格子の盛りに載せたまま削ると 0.5m 浮く。岡部 3b は約5分
 - [見付を天端の縁の 0.3m 前で測ると法の駒の下を読む](expose-measured-under-batter.md) — 丈不足で浮き、皮が歯形へ盛り土の歯。足元の出の前で測る
 - [端を切った練塀の駒は片方の端にしか合わない](dobei-kiri-hand-and-radian.md) — 849_L は SE_Hei の始めで手が逆。Atan2 はラジアン

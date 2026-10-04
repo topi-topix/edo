@@ -205,6 +205,9 @@ public static partial class EdoDoiBuilder
     {
         public string name; public int edge; public float s0, s1, seat;
         public bool nagaya, ishigaki; public float s, expose; public int tiers;
+        // ⭐ 案A の欄(EDO-0533): 二階・建てるか(build:false = 隣が持つ)・待ち(after)・区画の内の折れ線(pts・主郭の格子の間)
+        public bool nikai, build = true; public string after, kind, opening;
+        public List<Vector2> pts;
     }
     static Run[] _runs;
     public static Run[] Runs
@@ -217,10 +220,17 @@ public static partial class EdoDoiBuilder
                 foreach (var o in A(D["runs"]))
                 {
                     var r = O(o);
+                    List<Vector2> pts = null;
+                    if (Has(r, "pts")) { pts = new List<Vector2>(); foreach (var q in A(r["pts"])) { var qq = A(q); pts.Add(new Vector2(F(qq[0]), F(qq[1]))); } }
                     list.Add(new Run
                     {
-                        name = S(r["name"]), edge = (int)F(r["edge"]),
-                        s0 = F(r["s0"]), s1 = F(r["s1"]), seat = F(r["seat"]),
+                        name = S(r["name"]), edge = Has(r, "edge") ? (int)F(r["edge"]) : -1,
+                        s0 = Has(r, "s0") ? F(r["s0"]) : 0f, s1 = Has(r, "s1") ? F(r["s1"]) : 0f,
+                        seat = Has(r, "seat") ? F(r["seat"]) : float.NaN,   // 無い = 地形なり
+                        nikai = Has(r, "nikai") && (bool)r["nikai"],
+                        build = !(Has(r, "build") && r["build"] is bool && !(bool)r["build"]),
+                        after = Has(r, "after") ? S(r["after"]) : null,
+                        kind = S(r["kind"]), opening = Has(r, "opening") ? S(r["opening"]) : null, pts = pts,
                         nagaya = S(r["kind"]) == "Nagaya",
                         ishigaki = Has(r, "base") && S(r["base"]) == "Ishigaki",
                         s = Has(r, "s") ? F(r["s"]) : 0f,
@@ -1332,164 +1342,322 @@ public static partial class EdoDoiBuilder
 
     [MenuItem(MENU + "2 外周(表長屋・練塀・門)")]
     public static void Stage2Menu() { Debug.Log("[Doi] " + Stage2_Perimeter()); }
+    /// <summary>**S2 外周(案A・EDO-0533)**: 外周の基壇(城の石垣・<see cref="EdoBuild.PlaceCastleRun"/>)→ 表長屋(二階・躯体 = 呼び寸法の版を札で)
+    /// → 練塀(段塀・<see cref="EdoBuild.DanPlan"/> / <see cref="EdoBuild.NeribeiStepRun"/>)→ 奥の塀(区画の内の段塀)。
+    /// ⛔ 置き方はここに書かない(規則21)── 指図の区間・天端・口・取り合いを読み、EdoBuild へ渡して実メッシュで測った値を刷るだけ。
+    /// 建てない: 隣の持ち(build:false)・待ち(after)・表門と通用門と通用門の入る棟と表門の下の基壇(S3 で門と一緒に)。
+    /// 硬い(許容0 = ✗): 区域侵犯・天端 = 欄の coping・天端 ≥ 道の最高・露出 ≤ boundaryPlinthMax・継ぎ目の隙。柔らかい(⚠): 露出 0.3〜1.2・段塀の段が 0.3 の倍数。</summary>
     public static string Stage2_Perimeter()
     {
-        if (KyuanStop) return AnANotYet("2 外周");
         { var gate0 = EdoSashizuExport.ReviewGate("doi"); if (gate0 != null) return gate0; }
-        _wait.Clear();
-        var sb = new System.Text.StringBuilder();
+        _wait.Clear(); _runs = null;
+        var sb = new System.Text.StringBuilder("S2 外周(案A):\n");
+        var log = new System.Text.StringBuilder();
+        var P = Poly; int nP = P.Length;
+        var ig = Group("Ishigaki"); Clear(ig);
         var kak = Group("Kakoi"); Clear(kak);
-        var mon = Group("Mon"); Clear(mon);
-        // 2026-08-12 の仮置き(EdoSannoKitaBuilder.Stage2_Doi)の残骸。**手組みではなく生成物**なので撤去する。
-        {
-            var old = Group("").Find("Omotemon");
-            if (old != null) { UnityEngine.Object.DestroyImmediate(old.gameObject); sb.AppendLine("旧 Omotemon 群(2026-08-12 仮置き)を撤去"); }
-        }
+        var oku = Group("OkuHei"); Clear(oku);
+        int ok = 0, warn = 0, bad = 0;
+        Func<int, Vector2> Dir = e => (EdgePt(e, 1f) - EdgePt(e, 0f)).normalized;
+        var komonIn = new Dictionary<string, Dictionary<string, object>>();
+        foreach (var o in A(D["komon"])) { var k = O(o); if (Has(k, "inRun")) komonIn[S(k["inRun"])] = k; }
 
-        EdoBuild.NaturalMode = false;      // 天端は run の seat で通す
-
-        // ── 練塀(表裏2枚組・段が違うので run ごと)
-        int hei = 0;
-        foreach (var r in Runs)
+        // ── 1 外周の基壇(boundaryPlinth.rows)
+        var bp = O(D["boundaryPlinth"]);
+        var secs = new List<EdoBuild.CastleSec>(); var rows = new List<Dictionary<string, object>>();
+        foreach (var o in A(bp["rows"]))
         {
-            if (r.nagaya) continue;
-            Vector2 outw = OutNormal(r.edge);
-            int seg = 0;
-            foreach (var s in SplitByOpenings(r.edge, r.s0, r.s1))
+            var r = O(o); string run = S(r["run"]);
+            var op = Has(r, "opening") ? O(r["opening"]) : null;
+            if (op != null && Has(op, "gate")) { sb.AppendLine("  基壇 " + run + ": 表門の下は門と一緒に S3 で据える(扉口の縁は門の実メッシュから)"); continue; }
+            var sec = new EdoBuild.CastleSec { name = "IG_" + run, edge = (int)F(r["edge"]), s0 = F(r["s0"]), s1 = F(r["s1"]), crest = F(r["coping"]) };
+            if (op != null && Has(op, "komon"))
             {
-                Vector2 a = EdgePt(r.edge, s.x), b = EdgePt(r.edge, s.y);
-                if ((b - a).magnitude < 1.2f) continue;
-                // 犬走り: 石垣の法肩(=区画線)から内へ 0.30m 控える
-                a -= outw * Inubashiri; b -= outw * Inubashiri;
-                EdoBuild.DobeiRun(kak, a, b, outw, r.name + (seg > 0 ? "_s" + seg : ""),
-                                                false, r.seat, Vector2.zero, -1);
-                hei++; seg++;
-            }
-        }
-
-        // ── 表長屋。⭐ **run 長ちょうどに焼いた一体の部材**(2026-09-04 裁定=案A / 2026-09-06 焼成)。
-        //   ⛔ 定尺の駒(`es_knagaya`)を並べない — 端数が必ず残り、継ぎ目が重なるか門へ食い込む。
-        //   ピボット = 走りの中心 / 土台の底 / **壁の外面**、見え面 = +Z(街路側)。
-        int nag = 0;
-        foreach (var r in Runs)
-        {
-            if (!r.nagaya) continue;
-            float L = r.s1 - r.s0;
-            // 通用門は独立した部材ではなく、この run の躯体に門口を抜いて焼いてある(指図 `komon._asset`)
-            Dictionary<string, object> km = null;
-            foreach (var o in A(D["komon"]))
-            { var k = O(o); if (Has(k, "inRun") && S(k["inRun"]) == r.name) { km = k; break; } }
-            string path = km != null
-                ? EdoAssets.Own.NagayaOmoteMon(L, F(km["s"]) - r.s0, false)
-                : EdoAssets.Own.NagayaOmote(L);
-            if (!Exists(path))
-            {
-                Wait("表長屋 " + r.name + "(run 長 " + L.ToString("F2") + "m"
-                   + (km != null ? " / 門口の芯 run s0 から " + (F(km["s"]) - r.s0).ToString("F2") + "m" : "")
-                   + ")の部材が無い: " + path
-                   + " → blender --background --python Tools/Blender/build_nagaya_omote.py -- "
-                   + L.ToString("0.##"));
-                continue;
-            }
-            Vector2 outw = OutNormal(r.edge);
-            // 犬走り: 石垣の法肩(=区画線)から内へ控える。⭕ ピボットが**壁の外面**なので
-            //   そのぶんを足し引きしない(⛔ `es_knagaya` のように芯を戻す必要は無い)
-            Vector2 mid = EdgePt(r.edge, (r.s0 + r.s1) * 0.5f) - outw * Inubashiri;
-            // ⭐ **2026-09-06 に `komon[Tsuyo_Mon].sill` を 21.52 → 21.90 =(run の `seat`)へ改めた。**
-            //   ⇒ 通用門込みの本も**ピボットより下へ出る頂点は 0**(`--gate-drop` なしで焼き直し)。
-            //   ⛔ **従前の「0.38 の沈み代」の補正は入れない** — 敷居と座が同じ値なので `seat` をそのまま渡す。
-            //   ⚠ 街路(区画線の外 21.29)との 0.61m の段差は**門外の踏石**が吸収する(部材は未造)。
-            var go = EdoBuild.Place(path, new Vector3(mid.x, r.seat, mid.y), YawFace(outw),
-                                    Vector3.one, kak, r.name);
-            if (go == null) continue;
-            nag++;
-            ReportFit(sb, go, r.edge, r.s0, r.s1, "長屋 " + r.name);
-        }
-        sb.AppendLine("練塀 " + hei + " 区間 / 表長屋 " + nag + " run(run 長ちょうどの一体部材)");
-
-        // ── 表門(長屋門・片番所 格子付・片潜門)。⭐ 2026-09-06 に焼けた `Doi_Nagayamon`
-        {
-            var g = O(D["gate"]);
-            int ge = (int)F(g["edge"]); float gs = F(g["s"]), sill = F(g["sill"]);
-            var plan = O(g["plan"]);
-            string path = EdoAssets.Own.DoiNagayamon;
-            if (!Exists(path))
-                Wait("表門の部材が無い: " + path);
-            else
-            {
-                Vector2 outw = OutNormal(ge);
-                // ⛔ 在庫の `es_nagayamon` は流用不可(番所と格子が門の中央を跨ぐ左右対称の1メッシュ)。
-                // ⭕ 扉(両開きの板戸)は躯体に作り付け — ⛔ 別部材の扉を上から重ねない(指図 `leaf._`)。
-                // 門口は部材の走りの中心(`--gate 5.91` = len/2)なので、ピボットを開口の芯 s へ置く。
-                Vector2 p = EdgePt(ge, gs) - outw * Inubashiri;
-                var go = EdoBuild.Place(path, new Vector3(p.x, sill, p.y), YawFace(outw),
-                                        Vector3.one, mon, "Omotemon");
-                if (go != null)
+                Dictionary<string, object> k = null;
+                foreach (var ko in A(D["komon"])) if (S(O(ko)["name"]) == S(op["komon"])) k = O(ko);
+                if (k != null)
                 {
-                    var bx = Box(path);
-                    ReportFit(sb, go, ge, gs - (bx.max.x - bx.min.x) / 2f, gs + (bx.max.x - bx.min.x) / 2f, "表門");
-                    float ridge = bx.max.y;
-                    if (Mathf.Abs(ridge - F(plan["monH"])) > 0.02f)
-                        sb.AppendLine("   ⚠ 表門の棟高: 部材 " + ridge.ToString("F3")
-                                    + " / 指図 `gate.plan.monH` " + F(plan["monH"]).ToString("F3")
-                                    + " — `gate.plan.assembly` の宣言(棟高は隣接の表長屋の実測に合わせる)"
-                                    + "に従えば部材が正。⛔ 実装では決めない(`_pending.monh` → 普請奉行の裁定)");
+                    float ks = F(k["s"]), kw = F(k["w"]); sec.gaps.Add(new Vector2(ks - kw / 2f, ks + kw / 2f));
+                    sb.AppendLine("  ⚠ 基壇 " + run + ": 通用門の口 s=" + (ks - kw / 2f).ToString("F2") + "〜" + (ks + kw / 2f).ToString("F2")
+                                + " を空けた(指図の口の芯と幅 ── 縁は S3 で門の実メッシュへ取り直す)"); warn++;
                 }
             }
+            secs.Add(sec); rows.Add(r);
+        }
+        var cr = EdoBuild.PlaceCastleRun(secs, P, EdoBuild.Ground, ig, log);
+        var kcs = new List<GameObject>();
+        int kn = EdoBuild.PlaceRunCorners(cr.ends, cr.segs, EdoAssets.Own.IshigakiKado, EdoBuild.Ground, ig, 0.02f, log, kcs);
+        sb.AppendLine("  基壇(城の石垣): " + cr.pieces.Count + " 駒・出隅の駒 " + kn + (cr.buried > 0 ? "・全体が埋まり退けた " + cr.buried : "")
+                    + "・底の浮き 最悪 " + (float.IsNegativeInfinity(cr.worstFloat) ? "-" : cr.worstFloat.ToString("+0.000;-0.000")) + "m"
+                    + "・区画の外 最悪 " + cr.worstOutside.ToString("F3") + "m");
+        foreach (var kv in cr.inset) sb.AppendLine("    辺" + kv.Key + ": 天端の前の縁 = 区画の線から内へ " + kv.Value.ToString("F3") + "m(足が線に着く控え・実測)");
+        foreach (var r in rows)
+        {
+            string run = S(r["run"]); int e = (int)F(r["edge"]);
+            List<GameObject> pcs;
+            if (!cr.bySec.TryGetValue("IG_" + run, out pcs) || pcs.Count == 0) { sb.AppendLine("  ✗ 基壇 " + run + ": 駒が無い"); bad++; continue; }
+            pcs.RemoveAll(g => g == null);
+            var m = EdoBuild.CastleCrestExposure(pcs, OutNormal(e), EdoBuild.Ground);
+            float cop = F(r["coping"]), road = float.MinValue;
+            for (float s = F(r["s0"]); s <= F(r["s1"]) + 1e-3f; s += 0.5f) { var q = EdgePt(e, s) + OutNormal(e) * 0.3f; road = Mathf.Max(road, EdoBuild.Ground(q.x, q.y)); }
+            var ex = A(r["exposure"]);
+            bool crestOk = Mathf.Abs(m.x - cop) <= 0.001f && Mathf.Abs(m.y - cop) <= 0.001f;
+            bool hard = crestOk && m.y >= road - 1e-3f && !(m.w > C("boundaryPlinthMax") + 1e-3f);
+            bool soft = m.z >= 0.3f - 1e-3f && m.w <= 1.2f + 1e-3f;
+            string mk = !hard ? "✗" : (soft ? "⭕" : "⚠");
+            if (!hard) bad++; else if (soft) ok++; else warn++;
+            sb.AppendLine("  " + mk + " 基壇 " + run + ": " + pcs.Count + " 駒・天端 " + m.x.ToString("F3") + "〜" + m.y.ToString("F3") + "(欄 " + cop.ToString("F1")
+                        + ")・道の最高 " + road.ToString("F2") + "・見付 " + m.z.ToString("F2") + "〜" + m.w.ToString("F2") + "(欄 " + F(ex[0]).ToString("F2") + "〜"
+                        + F(ex[1]).ToString("F2") + "・狙い 0.3〜1.2・上限 " + C("boundaryPlinthMax").ToString("F1") + ")");
         }
 
-        // ── 小門。裏木戸だけが独立した部材(通用門は表長屋の run に含まれる)
-        foreach (var o in A(D["komon"]))
+        // ── 2 表長屋(二階・躯体 = 呼び寸法の版・札の外面を基壇の天端の前の縁から犬走りへ・躯体の端を run の s へ・底を基壇の天端へ)
+        float inu = C("inubashiri");
+        var nag = new Dictionary<string, GameObject>(); var nagRun = new List<Run>();
+        float worstBed = 0f; string worstBedN = null;
+        foreach (var r in Runs)
         {
-            var k = O(o);
-            string name = S(k["name"]);
-            if (Has(k, "inRun")) { sb.AppendLine("   小門 " + name + " は run " + S(k["inRun"]) + " の躯体に作り付け"); continue; }
-            string path = KomonAsset(k);
-            if (path == null || !Exists(path))
+            if (!r.nagaya || !r.build) continue;
+            if (r.after != null) { sb.AppendLine("  表長屋 " + r.name + ": 待ち(" + r.after + ")── 建てない"); continue; }
+            if (komonIn.ContainsKey(r.name)) { sb.AppendLine("  表長屋 " + r.name + ": 通用門が入る棟 ── 門と一緒に S3 で据える(s=" + r.s0.ToString("F2") + "〜" + r.s1.ToString("F2") + " を空けた)"); continue; }
+            if (!cr.inset.ContainsKey(r.edge)) { Wait("表長屋 " + r.name + ": 辺" + r.edge + " に基壇が無く外面の線が決まらない"); continue; }
+            float L = Mathf.Round((r.s1 - r.s0) * 100f) / 100f;
+            string path = EdoAssets.Own.KutaiOf(r.nikai ? EdoAssets.Own.NagayaOmote2F(L) : EdoAssets.Own.NagayaOmote(L));
+            var spec = EdoPartSpec.Get(path);
+            if (!Exists(path) || spec == null)
             {
-                Wait("小門 " + name + "(辺" + F(k["edge"]).ToString("0") + " s=" + F(k["s"]).ToString("F1")
-                   + " 開口 " + F(k["w"]).ToString("F2") + "m・敷居 " + F(k["sill"]).ToString("F2")
-                   + ")の部材が引けない: " + (Has(k, "asset") ? S(k["asset"]) : "(asset 無し)")
-                   + " → 指図方・部材方へ差し戻し");
+                Wait("表長屋 " + r.name + "(" + L.ToString("0.##") + "m" + (r.nikai ? "・二階" : "") + "): 部材か札が無い " + path
+                   + " → blender --background --python Tools/Blender/build_nagaya_omote.py -- " + L.ToString("0.##") + " --body" + (r.nikai ? " --floors 2" : ""));
                 continue;
             }
-            int ke = (int)F(k["edge"]); float ks = F(k["s"]), ksill = F(k["sill"]);
-            Vector2 outw = OutNormal(ke);
-            Vector2 p = EdgePt(ke, ks) - outw * Inubashiri;
-            // ⚠⚠ **厚み方向は芯対称ではない。**部材は練塀の組(`DobeiRun` の表裏2枚)と
-            //   同じ厚み(内へ 0.776 / 外へ 0.576)で焼いてあり、**外側の1枚の bbox 中心が
-            //   run の線**に乗る(`build_kido.DOBEI_GAP` の註)。実測すると local +Z 側が
-            //   0.776 = **内**なので、**+Z を屋敷の内へ向ける**(= −Z が街路)。
-            //   ⛔ 壁の芯で合わせない・+Z を外へ向けると練塀と両面 0.20 ずつ食い違う(規則5)。
-            var go2 = EdoBuild.Place(path, new Vector3(p.x, ksill, p.y), YawFace(-outw),
-                                     Vector3.one, mon, name);
-            if (go2 == null) continue;
-            float lo2, hi2;
-            Vector3 nAx = new Vector3(outw.x, 0f, outw.y);
-            if (ProjMesh(go2, nAx, out lo2, out hi2))
+            Vector2 o = OutNormal(r.edge), d = Dir(r.edge);
+            Vector2 org = EdgePt(r.edge, 0f) - o * (cr.inset[r.edge] + inu);
+            Vector2 p = org + d * ((r.s0 + r.s1) * 0.5f);
+            var go = EdoBuild.Place(path, new Vector3(p.x, float.IsNaN(r.seat) ? EdoBuild.Ground(p.x, p.y) : r.seat, p.y), YawFace(o), Vector3.one, kak, r.name);
+            if (go == null) continue;
+            Vector3 fw = go.transform.TransformPoint(new Vector3(0f, 0f, spec.front));
+            go.transform.position -= new Vector3(o.x, 0f, o.y) * Vector2.Dot(new Vector2(fw.x, fw.z) - org, o);
+            EdoBuild.AbutBodyAlong(go, org, d, r.s0, true);
+            float crest;
+            if (!EdoBuild.SeatOnCrest(go, ig, 0f, out crest)) { Wait("表長屋 " + r.name + ": 足の下に基壇の天端が無い ── 欄の seat で据えたまま"); continue; }
+            // 当たり = 土台の底 × 基壇の天端(天端の前の縁から奥へ、土台の外面の帯 0.3m)
+            float bed = float.MaxValue;
+            foreach (var v in EdoBuild.Body(go.transform, 999999))
+            { float t = Vector2.Dot(new Vector2(v.x, v.z) - org, o); if (t <= 0.01f && t >= -0.3f) bed = Mathf.Min(bed, v.y); }
+            float bg = bed - crest;
+            if (Mathf.Abs(bg) > Mathf.Abs(worstBed)) { worstBed = bg; worstBedN = r.name; }
+            if (!float.IsNaN(r.seat) && Mathf.Abs(crest - r.seat) > 0.001f) { sb.AppendLine("  ✗ 表長屋 " + r.name + ": 据わった天端 " + crest.ToString("F3") + " ≠ 欄の seat " + r.seat.ToString("F2")); bad++; }
+            nag[r.name] = go; nagRun.Add(r);
+        }
+        // 区画の頂点の端の棟: 出隅の折れが 90° を超えると、線から内へ控えた棟の妻の腰が隣の辺の外へ出る ⇒ 走りに沿って引く(硬い・区域)
+        foreach (var r in nagRun)
+        {
+            bool lo = r.s0 <= EdoBuild.VTX_TOL, hi = r.s1 >= EdgeLen(r.edge) - EdoBuild.VTX_TOL; if (!lo && !hi) continue;
+            float before; float pl = EdoBuild.PullAlongInside(new List<GameObject> { nag[r.name] }, P, hi ? -Dir(r.edge) : Dir(r.edge), 0.6f, out before, 1.2f);
+            if (before > 0.001f) sb.AppendLine("  " + (float.IsNaN(pl) ? "✗" : "⚠") + " 表長屋 " + r.name + ": 頂点の端の妻の腰が " + before.ToString("F3") + "m 隣の辺の外 ⇒ 走りに沿って "
+                                            + (float.IsNaN(pl) ? "0.6m 引いても収まらない" : pl.ToString("F3") + "m 引いた(隣の棟と重なる・出隅の留めの部材が無い)"));
+        }
+        // 継ぎ目(札の躯体の端どうし・硬い隙 0)と区画の線(腰 1.2m・硬い)
+        float worstSeam = 0f; string worstSeamN = "-"; int seams = 0;
+        var byEdgeN = new SortedDictionary<int, List<Run>>();
+        foreach (var r in nagRun) { List<Run> l; if (!byEdgeN.TryGetValue(r.edge, out l)) byEdgeN[r.edge] = l = new List<Run>(); l.Add(r); }
+        foreach (var kv in byEdgeN)
+        {
+            var rs = kv.Value; rs.Sort((x, y) => x.s0.CompareTo(y.s0));
+            Vector2 o0 = EdgePt(kv.Key, 0f), ax = Dir(kv.Key);
+            for (int i = 1; i < rs.Count; i++)
             {
-                float line = Vector3.Dot(new Vector3(p.x, 0f, p.y), nAx);
-                sb.AppendLine("   小門 " + name + " 厚み: run の線から 外 " + (hi2 - line).ToString("F3")
-                            + " / 内 " + (line - lo2).ToString("F3")
-                            + "(練塀の組は 外 0.576 / 内 0.776)");
+                if (Mathf.Abs(rs[i - 1].s1 - rs[i].s0) > 0.01f) continue;
+                var p0 = EdoBuild.SpecBodySpanAlong(nag[rs[i - 1].name], o0, ax); var p1 = EdoBuild.SpecBodySpanAlong(nag[rs[i].name], o0, ax);
+                float gap = p1.x - p0.y; seams++;
+                if (gap > worstSeam || seams == 1) { worstSeam = Mathf.Max(worstSeam, gap); worstSeamN = rs[i - 1].name + "|" + rs[i].name; }
+                if (gap > 0.001f) { sb.AppendLine("  ✗ 長屋の継ぎ目 " + rs[i - 1].name + "|" + rs[i].name + ": 躯体の隙 " + gap.ToString("F4") + "m"); bad++; }
             }
-            // ⚠⚠ **置いた駒の材質スロットは、部材の submesh が増えても追随しない。**
-            //   2026-09-06 普請検査: `Ura_Kido` の slot[2](小壁+瓦)が **NULL でマゼンタ**だった。
-            //   FBX の側は正しく `s_heimap` に結ばれていて、**シーンの駒だけが古い override** を
-            //   抱えていた(submesh 2 が増える前に置かれた駒)。⇒ 置いた直後に素の部材から結び直す。
-            RebindMaterials(go2, path);
-            ReportFit(sb, go2, ke, ks - KomonSpan(k) / 2f, ks + KomonSpan(k) / 2f, "小門 " + name);
+            var gos = new List<GameObject>(); foreach (var r in rs) gos.Add(nag[r.name]);
+            float was; float dd = EdoBuild.InsetRunToPoly(gos, P, -OutNormal(kv.Key), 0f, out was, 0.005f, 0.001f, 1.2f);
+            if (was > 0.001f) { sb.AppendLine("  ✗ 表長屋 辺" + kv.Key + ": 腰が区画の外へ " + was.ToString("F3") + "m"); bad++; }
+        }
+        sb.AppendLine("  表長屋: " + nag.Count + " 棟(二階・躯体版)・継ぎ目 " + seams + "・躯体の隙 最大 " + worstSeam.ToString("F4") + "m @" + worstSeamN
+                    + "・土台の底 − 基壇の天端 最悪 " + worstBed.ToString("+0.000;-0.000") + "m @" + (worstBedN ?? "-"));
+
+        // ── 3 練塀(区画の辺の段塀)── 外面は表長屋の外面の線に揃える(突き付ける長屋の妻面と基壇の小口の両方に当てる ── 指図 joins)
+        float T; { var bpz = EdoBuild.BodyAt(EdoAssets.Own.Dobei2m, Vector3.zero, 0f, false); float zl = float.MaxValue, zh = float.MinValue; foreach (var q in bpz) { zl = Mathf.Min(zl, q.z); zh = Mathf.Max(zh, q.z); } T = zh - zl; }
+        // 辺 e の線(区画の線から内へ c)の上で、走り s を動かしたとき隣の辺 eo の内に居る s の限り(下限 or 上限)
+        Func<int, float, int, float[]> sLimit = (e, c, eo) =>
+        {
+            Vector2 oo = OutNormal(eo), a0 = EdgePt(eo, 0f);
+            Func<float, float> f = s => Vector2.Dot(EdgePt(e, s) - OutNormal(e) * c - a0, -oo);
+            float f0 = f(0f), k = f(1f) - f0;
+            if (Mathf.Abs(k) < 1e-5f) return new[] { float.NegativeInfinity, float.PositiveInfinity };
+            return k > 0f ? new[] { -f0 / k, float.PositiveInfinity } : new[] { float.NegativeInfinity, -f0 / k };
+        };
+        Func<int, float, int, float, Vector2> meet = (e1, c1, e2, c2) =>
+        {
+            Vector2 a1 = EdgePt(e1, 0f) - OutNormal(e1) * c1, d1 = Dir(e1), a2 = EdgePt(e2, 0f) - OutNormal(e2) * c2, d2 = Dir(e2);
+            float den = d1.x * d2.y - d1.y * d2.x; if (Mathf.Abs(den) < 1e-5f) return a1 + d1 * EdgeLen(e1);
+            Vector2 w = a2 - a1; return a1 + d1 * ((w.x * d2.y - w.y * d2.x) / den);
+        };
+        var hei = new List<Run>();
+        foreach (var r in Runs) if (r.kind == "Dobei" && r.edge >= 0 && r.build && r.after == null) hei.Add(r);
+        hei.Sort((x, y) => x.edge != y.edge ? x.edge.CompareTo(y.edge) : x.s0.CompareTo(y.s0));
+        var chains = new List<List<Run>>();
+        foreach (var r in hei)
+        {
+            var last = chains.Count > 0 ? chains[chains.Count - 1] : null;
+            var lr = last != null ? last[last.Count - 1] : null;
+            if (lr != null && lr.edge == (r.edge - 1 + nP) % nP && lr.s1 >= EdgeLen(lr.edge) - EdoBuild.VTX_TOL && r.s0 <= EdoBuild.VTX_TOL && float.IsNaN(lr.seat) == float.IsNaN(r.seat)) last.Add(r);
+            else chains.Add(new List<Run> { r });
+        }
+        int heiN = 0;
+        foreach (var ch in chains)
+        {
+            var r0 = ch[0]; var rN = ch[ch.Count - 1];
+            string cname = string.Join("+", ch.ConvertAll(x => x.name).ToArray());
+            // 外面の線: 鎖の末端が突き付く長屋(同じ辺・s が続く)か、天端に載る基壇の辺の表長屋の外面
+            GameObject joinNag = null; Run joinNagR = null;
+            foreach (var r in nagRun) if (r.edge == rN.edge && Mathf.Abs(r.s0 - rN.s1) < 0.01f) { joinNag = nag[r.name]; joinNagR = r; }
+            GameObject joinNagLo = null;
+            foreach (var r in nagRun) if (r.edge == r0.edge && Mathf.Abs(r.s1 - r0.s0) < 0.01f) joinNagLo = nag[r.name];
+            int refE = joinNag != null ? rN.edge : (cr.inset.ContainsKey(r0.edge) ? r0.edge : -1);
+            if (refE < 0 || !cr.inset.ContainsKey(refE)) { sb.AppendLine("  ★ 練塀 " + cname + ": 揃える外面の線(長屋・基壇)が無い ── 建てない"); bad++; continue; }
+            float c = cr.inset[refE] + inu + T * 0.5f;     // 芯の線
+            // 頭: 前の辺に当家の物が無い頂点の端は、小口の四隅が前の辺の内に入る所まで(隣の囲いへは突き付けない ── 指図に取り合いが無い)
+            float sA = r0.s0;
+            if (r0.s0 <= EdoBuild.VTX_TOL && !hei.Exists(x => x.edge == (r0.edge - 1 + nP) % nP))
+            {
+                int pe = (r0.edge - 1 + nP) % nP; float lo = float.NegativeInfinity;
+                foreach (float cc in new[] { c - T * 0.5f, c + T * 0.5f }) lo = Mathf.Max(lo, sLimit(r0.edge, cc, pe)[0]);
+                if (!float.IsInfinity(lo)) sA = lo;
+                sb.AppendLine("  ⚠ 練塀 " + cname + ": 頭(辺" + r0.edge + " の頂点・辺" + pe + " は隣の持ち)の小口を s=" + sA.ToString("F2") + " へ(区画の内に収まる所)── 隣の囲いとの取り合いは指図に無い"); warn++;
+            }
+            if (joinNagLo != null) sA = EdoBuild.SpecBodySpanAlong(joinNagLo, EdgePt(r0.edge, 0f), Dir(r0.edge)).y;
+            float sB = rN.s1;
+            if (joinNag != null) sB = EdoBuild.SpecBodySpanAlong(joinNag, EdgePt(rN.edge, 0f), Dir(rN.edge)).x;
+            else if (rN.s1 >= EdgeLen(rN.edge) - EdoBuild.VTX_TOL)
+            {
+                int ne = (rN.edge + 1) % nP; float hiS = float.PositiveInfinity;
+                foreach (float cc in new[] { c - T * 0.5f, c + T * 0.5f }) hiS = Mathf.Min(hiS, sLimit(rN.edge, cc, ne)[1]);
+                if (!float.IsInfinity(hiS)) sB = Mathf.Min(sB, hiS);
+                sb.AppendLine("  ⚠ 練塀 " + cname + ": 尻(辺" + rN.edge + "/" + ne + " の出隅)は相手(" + ne + " の練塀・待ち)が無い ── 小口を s=" + sB.ToString("F2") + " で止めた"); warn++;
+            }
+            var pts = new List<Vector2> { EdgePt(r0.edge, sA) - OutNormal(r0.edge) * c };
+            for (int i = 0; i + 1 < ch.Count; i++) pts.Add(meet(ch[i].edge, c, ch[i + 1].edge, c));
+            pts.Add(EdgePt(rN.edge, sB) - OutNormal(rN.edge) * c);
+            List<EdoBuild.DanSec> plan; string dn;
+            if (float.IsNaN(r0.seat)) plan = EdoBuild.DanPlan(pts, out dn);
+            else
+            {
+                // 天端に載る練塀(基壇の天端一本): 座 = 足の下の基壇の天端(実測)
+                float crest = float.NaN; var mid = (pts[0] + pts[pts.Count - 1]) * 0.5f; Vector2 o = OutNormal(r0.edge);
+                crest = EdoBuild.CrestY(ig, mid + o * (T * 0.5f), 0.1f);
+                float tot = 0f; for (int i = 0; i + 1 < pts.Count; i++) tot += Vector2.Distance(pts[i], pts[i + 1]);
+                plan = new List<EdoBuild.DanSec> { new EdoBuild.DanSec { a = 0f, b = tot, W = float.IsNaN(crest) ? r0.seat : crest } };
+                dn = "座 = 基壇の天端 " + plan[0].W.ToString("F3") + "(欄 " + r0.seat.ToString("F1") + ")";
+                if (float.IsNaN(crest)) { sb.AppendLine("  ✗ 練塀 " + cname + ": 足の下に基壇が無い ── 欄の座で据えた"); bad++; }
+            }
+            // 段の高さが 0.3 の倍数か(柔らかい)
+            var steps = new List<string>(); bool q3 = true;
+            for (int i = 1; i < plan.Count; i++) { float st = Mathf.Abs(plan[i].W - plan[i - 1].W); steps.Add(st.ToString("F2")); if (Mathf.Abs(st / 0.3f - Mathf.Round(st / 0.3f)) > 0.02f) q3 = false; }
+            float org = 0f; var made = new List<GameObject>();
+            for (int i = 0; i + 1 < pts.Count; i++)
+            {
+                float len = Vector2.Distance(pts[i], pts[i + 1]); int e = ch[Mathf.Min(i, ch.Count - 1)].edge;
+                var ds = plan.ConvertAll(x => new EdoBuild.DanSec { a = x.a - org, b = x.b - org, W = x.W });
+                string note;
+                made.AddRange(EdoBuild.NeribeiStepRun(kak, pts[i], pts[i + 1], OutNormal(e), ch[Mathf.Min(i, ch.Count - 1)].name + (i > 0 && ch.Count == 1 ? "_" + i : ""), ds, Vector2.zero, -1f, out note));
+                log.AppendLine("  練塀 " + cname + " 区" + i + ": " + note);
+                org += len;
+            }
+            heiN += made.Count;
+            // 頂点で止まる端の駒(笠の出・布石)が隣の辺の外へ出るなら、走りに沿って引く(硬い・区域)
+            foreach (bool isHi in new[] { false, true })
+            {
+                int e = isHi ? rN.edge : r0.edge; Vector2 dE = Dir(e);
+                if (isHi ? joinNag != null : joinNagLo != null) continue;
+                GameObject endP = null; float best = isHi ? float.MinValue : float.MaxValue;
+                foreach (var g in made) { if (g.name.EndsWith("_ishi")) continue; var cc = EdoBuild.RB(g).center; float sc = Vector2.Dot(new Vector2(cc.x, cc.z), dE); if (isHi ? sc > best : sc < best) { best = sc; endP = g; } }
+                if (endP == null) continue;
+                var grpE = new List<GameObject> { endP }; foreach (var g in made) if (g.name == endP.name + "_ishi") grpE.Add(g);
+                float before; float pl = EdoBuild.PullAlongInside(grpE, P, isHi ? -dE : dE, 0.6f, out before);
+                if (before > 0.001f) sb.AppendLine("  ⚠ 練塀 " + endP.name + ": 頂点の端の駒が " + before.ToString("F3") + "m 隣の辺の外(笠の出・布石)⇒ 走りに沿って " + (float.IsNaN(pl) ? "0.6m 引いても収まらない" : pl.ToString("F3") + "m 引いた"));
+            }
+            float was = 0f;
+            { var allPts = new List<GameObject>(made); float w0; EdoBuild.PullAlongInside(allPts, P, Vector2.zero, 0f, out w0); was = w0; }
+            string mk = was > 0.001f ? "✗" : (q3 || plan.Count < 2 ? "⭕" : "⚠");
+            if (was > 0.001f) bad++; else if (q3 || plan.Count < 2) ok++; else warn++;
+            sb.AppendLine("  " + mk + " 練塀 " + cname + ": " + made.Count + " 駒・区画の外 " + was.ToString("F3") + "m・" + dn + (steps.Count > 0 ? "・段 " + string.Join("/", steps.ToArray()) + (q3 ? "" : "(0.3 の倍数でない ── 狙い)") : ""));
+            // 取り合い: 尻 ↔ 長屋の妻面・基壇の小口(硬い隙 0)
+            if (joinNag != null && made.Count > 0)
+            {
+                GameObject lastP = null; float best = float.MinValue; Vector2 dN = Dir(rN.edge);
+                foreach (var g in made) { if (g.name.EndsWith("_ishi")) continue; var cc = EdoBuild.RB(g).center; float s = Vector2.Dot(new Vector2(cc.x, cc.z), dN); if (s > best) { best = s; lastP = g; } }
+                Vector3 at; int cnt;
+                float gN = EdoBuild.Contact(lastP, joinNag, new Vector3(dN.x, 0f, dN.y), out at, out cnt);
+                GameObject plin = null; float pb = float.MaxValue;
+                List<GameObject> ps; if (cr.bySec.TryGetValue("IG_" + joinNagR.name, out ps)) foreach (var g in ps) { if (g == null) continue; var cc = EdoBuild.RB(g).center; float s = Vector2.Dot(new Vector2(cc.x, cc.z), dN); if (s < pb) { pb = s; plin = g; } }
+                // 基壇の駒は頂点が疎(76 点)── 筋を 1.0m 角にして測る。基壇の小口に当たるのは塀の下の布石(塀の本体は天端より上)
+                float gP = float.NaN;
+                if (plin != null)
+                    foreach (var g in made)
+                    {
+                        if (g != lastP && g.name != lastP.name + "_ishi") continue;
+                        float c1 = EdoBuild.Contact(g, plin, new Vector3(dN.x, 0f, dN.y), out at, out cnt, 0.01f, 1.0f);
+                        if (!float.IsNaN(c1) && (float.IsNaN(gP) || c1 < gP)) gP = c1;
+                    }
+                bool jok = !float.IsNaN(gN) && gN <= 0.001f && (float.IsNaN(gP) || gP <= 0.001f);
+                if (jok) ok++; else bad++;
+                sb.AppendLine("  " + (jok ? "⭕" : "✗") + " 練塀の尻 ↔ " + joinNagR.name + " の妻面: 隙 " + gN.ToString("+0.000;-0.000") + "m・↔ 基壇の小口: " + (float.IsNaN(gP) ? "-" : gP.ToString("+0.000;-0.000") + "m"));
+            }
+            if (!float.IsNaN(r0.seat) && r0.s0 > 1e-3f) { sb.AppendLine("  ⚠ 練塀 " + cname + ": 頭 s=" + r0.s0.ToString("F2") + " は表門の北の妻面へ突き付く ── 門は S3(据えてから小口を取り直す)"); warn++; }
         }
 
-        // ── 門外の踏石(`komon[].fumiishi`)。⭐ 2026-09-06 に指図が持った(検図方 中-1)。
-        //   ⛔ **蹴上・踏面をここで決めない** — 蹴上は `(sill − 街路の地盤) ÷ n` の**従属値**、
-        //     踏面は `const.fumi`、幅は門口 `w`。指図 `fumiishi._` の宣言どおり。
-        sb.Append(PlaceFumiishi(mon));
+        // ── 4 奥の塀(区画の内の段塀・pts は主郭の格子 u,v 間)
+        foreach (var r in Runs)
+        {
+            if (r.pts == null || r.pts.Count < 2 || !r.build || r.after != null) continue;
+            var pts = r.pts.ConvertAll(q => Grid.W(q.x, q.y));
+            var segL = new List<float>(); for (int i = 0; i + 1 < pts.Count; i++) segL.Add(Vector2.Distance(pts[i], pts[i + 1]));
+            // 口(広敷門など gates[].inRun)── 鎖の道のりへ
+            var gaps = new List<Vector2>(); var gapAt = new List<KeyValuePair<int, Vector2>>(); var gapHalf = new List<float>();
+            foreach (var o in A(D["gates"]) ?? new List<object>())
+            {
+                var g = O(o); if (!Has(g, "inRun") || S(g["inRun"]) != r.name) continue;
+                var uv = A(g["uv"]); Vector2 gw = Grid.W(F(uv[0]), F(uv[1])); float hw = F(g["w"]) * 0.5f;
+                float acc = 0f, bestD = float.MaxValue, bestS = 0f; int bestI = 0;
+                for (int i = 0; i + 1 < pts.Count; i++)
+                {
+                    Vector2 dd = (pts[i + 1] - pts[i]).normalized; float t = Mathf.Clamp(Vector2.Dot(gw - pts[i], dd), 0f, segL[i]);
+                    float dist = Vector2.Distance(pts[i] + dd * t, gw); if (dist < bestD) { bestD = dist; bestS = acc + t; bestI = i; }
+                    acc += segL[i];
+                }
+                gaps.Add(new Vector2(bestS - hw, bestS + hw)); gapAt.Add(new KeyValuePair<int, Vector2>(bestI, gw)); gapHalf.Add(hw);
+                sb.AppendLine("  ⚠ 奥の塀 " + r.name + ": 口 " + S(g["name"]) + "(幅 " + F(g["w"]).ToString("F2") + ")を空けた ── 門は S3");
+                warn++;
+            }
+            string dn; var plan = EdoBuild.DanPlan(pts, out dn, gaps);
+            float org = 0f; int nm = 0;
+            for (int i = 0; i + 1 < pts.Count; i++)
+            {
+                Vector2 dd = (pts[i + 1] - pts[i]).normalized, nrm = new Vector2(-dd.y, dd.x);
+                var ds = plan.ConvertAll(x => new EdoBuild.DanSec { a = x.a - org, b = x.b - org, W = x.W });
+                Vector2 gc = Vector2.zero; float gh = -1f;
+                for (int gi = 0; gi < gapAt.Count; gi++) if (gapAt[gi].Key == i) { gc = gapAt[gi].Value; gh = gapHalf[gi]; }
+                string note;
+                nm += EdoBuild.NeribeiStepRun(oku, pts[i], pts[i + 1], nrm, r.name + "_" + i, ds, gc, gh, out note).Count;
+                log.AppendLine("  奥の塀 " + r.name + " 区" + i + ": " + note);
+                org += segL[i];
+            }
+            sb.AppendLine("  ⚠ 奥の塀 " + r.name + ": " + nm + " 駒・" + dn + " ── 端の突き付け(" + string.Join(" / ", r.name == "Oku_Hei" ? new[] { "廊下 L_HiromaOku の東の側面", "建仁寺垣の端柱" } : new[] { "廊下 L_HiromaOku の西の側面", "書院 Shoin の東の妻" })
+                        + ")と棟の壁の面との離れは相手が S4 で未建 ── 指図の線の端で止めた(未検査)");
+            warn++;
+        }
 
+        sb.AppendLine("  勘定: ⭕ " + ok + " / ⚠ " + warn + " / ✗ " + bad);
         sb.Append(WaitReport());
+        sb.AppendLine("── 明細 ──");
+        sb.Append(log.ToString());
         return sb.ToString();
     }
-
     /// <summary>置いた駒の材質を、素の部材のスロットから結び直す。
     /// ⚠ **FBX を焼き直して submesh が増えても、既にシーンに在る駒の `m_Materials` は伸びない**
     /// (古い長さのまま残るか、増えた分が null になる)。remap は**アセットにしか効かない**ので

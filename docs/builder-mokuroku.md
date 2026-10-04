@@ -101,7 +101,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `Edo/土井大隅守上屋敷/検査② 門口を石垣が塞いでいないか KomonIshigakiQA` | `KomonIshigakiQAMenu` | `KomonIshigakiQA`, `AnANotYet`, `O`, `F` |
 | `Edo/土井大隅守上屋敷/検査③ 石垣が区画外へ出ていないか ParcelOutQA` | `ParcelOutQAMenu` | `ParcelOutQA` |
 | `Edo/土井大隅守上屋敷/検査①②③ をまとめて走らせる` | `AllQAMenu` | `EdgeStepQA`, `KomonIshigakiQA`, `ParcelOutQA`, `C` |
-| `Edo/土井大隅守上屋敷/2 外周(表長屋・練塀・門)` | `Stage2Menu` | `Stage2_Perimeter`, `AnANotYet`, `Clear`, `Group` |
+| `Edo/土井大隅守上屋敷/2 外周(表長屋・練塀・門)` | `Stage2Menu` | `Stage2_Perimeter`, `Clear` |
 | `Edo/土井大隅守上屋敷/3 石垣(外周の基壇・境界の基壇・郭内の土留め・石段の側)` | `Stage3Menu` | `Stage3_Ishigaki`, `AnANotYet`, `Group`, `Clear` |
 | `Edo/土井大隅守上屋敷/4 御殿複合(棟・廊下)` | `Stage4Menu` | `Stage4_Goten`, `AnANotYet`, `Clear`, `Group` |
 | `Edo/土井大隅守上屋敷/5 郭内(附属屋・井戸・石段・斜路・竹垣)` | `Stage5Menu` | `Stage5_Zosaku`, `AnANotYet`, `Clear`, `PlaceService` |
@@ -162,7 +162,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `KomonSpan(k)` | `float` |  | 開口が run を切る実際の幅。⛔ 呼び寸法(`komon[].w`)で継がない — 木戸の走り方向の実寸は開口より方立柱2本ぶん広い(規則5・指図 `komon._asset`)。 |
 | `GateSpan()` | `float` |  | 表門が run を切る実際の幅(部材の実メッシュ)。 |
 | `SplitByOpenings(edge, s0, s1)` | `List<Vector2>` |  | 開口(表門・小門)で run の区間を割る。 |
-| `Stage2_Perimeter()` | `string` | 公 | — |
+| `Stage2_Perimeter()` | `string` | 公 | S2 外周(案A・EDO-0533): 外周の基壇(城の石垣・EdoBuild.PlaceCastleRun)→ 表長屋(二階・躯体 = 呼び寸法の版を札で) → 練塀(段塀・EdoBuild.DanPlan / Edo… |
 | `RebindMaterials(go, modelPath)` | `void` |  | 置いた駒の材質を、素の部材のスロットから結び直す。 |
 | `PlaceFumiishi(mon)` | `string` |  | 門外の踏石。指図 `komon[].fumiishi`(`n` 段・`side`)。 |
 | `Stage3_Ishigaki()` | `string` | 公 | — |

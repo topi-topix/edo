@@ -159,5 +159,6 @@
 - [総当たりの計測は Unity を1時間ふさぐ](brute-force-measure-hangs-unity.md) — kubomi.cs で TCS timed out 100回超。升の索引+印で打つ・着手前に log を見る
 - [落とした後の Stage9 は空の皮を焼く](unity-kill-leaves-holes-without-skin.md) — 穴は地形・皮はシーン。null の皮には最新の資産を差してから流す
 - [線の上の基壇・柵は区画外に出る](line-sitting-pieces-pivot-out.md) — float 0.25mm・端の控え・芯置き。材 null の一体駒は屋根を躯体と数える
+- [区画の辺に沿う城の石垣・長屋の4つの罠](castle-run-along-parcel-edge-traps.md) — s の丸めは VTX_TOL・90°超の出隅は PullAlongInside・駒の実長>送り・疎な駒は筋 1.0
 - [隅の腕は短辺を越えて区画外へ出る](kado-arm-overruns-short-edge.md) — 岡部 P2〜P4 が 0.7〜1.3m 外。閉じの検査は見ない・駒の頂点を PIP
 - [旧案の一括削除は分類器が止める](bulk-delete-denied-by-auto-mode.md) — 施主の指示でも役経由は不可。一覧まで出して施主の許可を仰ぐ

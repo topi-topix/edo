@@ -124,7 +124,7 @@
 
 | 名 | 種 | 中身・注釈の一文目 | 使っている所 |
 |---|---|---|---|
-| `JC.CastleWall` | string | `Castle Wall.prefab` | OkabeYashiki(Pivot・PlaceIshigaki・Stage2b_Dan), BuildDanIshigaki(CastleWallOfExpose), BuildIshidan, Doi(Stage3_Ishigaki) ほか4 |
+| `JC.CastleWall` | string | `Castle Wall.prefab` | OkabeYashiki(Pivot・PlaceIshigaki・Stage2b_Dan), MatsudairaDewa(DaidokoromonGamae・Stage3_Ishigaki), BuildDanIshigaki(CastleWallOfExpose), BuildIshidan ほか4 |
 | `JC.CastleWallCorner` | string | `Castle Wall Corner.prefab` | Yamato |
 | `JC.CastleWall4x12Mesh` | string | `Castle Wall 4x12.fbx` | IshigakiFit |
 | `JC.GateDoorCastleL` | string | `Gate Castle Door L.fbx` — 小門用(1.5×2.8)。対で開口 3.0m ちょうど。 | — |
@@ -241,12 +241,12 @@
 | `Own.DanKiriEnd(d, deg, nori)` | 関数 | SannoDanKiri の端: 平面で斜めに切る。 | BuildIshidan(CutStairEndsToBatter・MeasureStepEndOnBatter) |
 | `Own.NearestBaked(path, tol)` | 関数 | 綴りの数だけが違う焼いてある兄弟を引く(EDO-0430 2026-09-26)。 | BuildIshidan(CutStairEndsToBatter) |
 | `Own.IsSannoNozura(meshAssetPath)` | 関数 | メッシュの資産パスが山王の野面の乱積みの駒(1間・隅・切り・法切り・見切り ── `Sanno_Nozura_*`)か。 | SannoSha(AbutStairsToWalls) |
-| `Own.SannoNozura(h, grade, i)` | 関数 | 野面の乱積みの土留め — 1間の駒(山王社の前庭の縁。 | BuildNozura(PlaceNozuraRun), BuildRim(BridgeCorner), OkabeYashiki(PlaceCurb・Stage2b_Dan), DoiBuilder.Dan(Stage4a_Dodome) ほか2 |
-| `Own.SannoNozuraKiri(risesToPlusX, i)` | 関数 | 野面の乱積みの打ち切り — 根石一段が地中へ沈む駒(見付 0.2 未満で壁を終える所)。 | OkabeYashiki(PlaceCurb・Stage2b_Dan), DoiBuilder.Dan(Stage4a_Dodome), SannoSha(Nozura), TypologyBuilder.Rim(Rim) |
-| `Own.SannoNozuraKado(h, i)` | 関数 | 野面の乱積みの出隅 90° の隅の駒(2026-09-25・山王 本殿の西の土留め `TW_Nozura_ShadenW` の帯の北西・南西の隅。 | OkabeYashiki(PlaceCurb・Stage2b_Dan), DoiBuilder.Dan(Stage4a_Dodome), SannoSha(Nozura), TypologyBuilder.Rim(Rim) |
+| `Own.SannoNozura(h, grade, i)` | 関数 | 野面の乱積みの土留め — 1間の駒(山王社の前庭の縁。 | BuildNozura(PlaceNozuraRun), BuildRim(BridgeCorner), OkabeYashiki(PlaceCurb・Stage2b_Dan), DoiBuilder.Dan(Stage4a_Dodome) ほか3 |
+| `Own.SannoNozuraKiri(risesToPlusX, i)` | 関数 | 野面の乱積みの打ち切り — 根石一段が地中へ沈む駒(見付 0.2 未満で壁を終える所)。 | OkabeYashiki(PlaceCurb・Stage2b_Dan), DoiBuilder.Dan(Stage4a_Dodome), MatsudairaDewa(NozuraLines), SannoSha(Nozura) ほか1 |
+| `Own.SannoNozuraKado(h, i)` | 関数 | 野面の乱積みの出隅 90° の隅の駒(2026-09-25・山王 本殿の西の土留め `TW_Nozura_ShadenW` の帯の北西・南西の隅。 | OkabeYashiki(PlaceCurb・Stage2b_Dan), DoiBuilder.Dan(Stage4a_Dodome), MatsudairaDewa(NozuraLines), SannoSha(Nozura) ほか1 |
 | `Own.SannoNozuraKadoCut(h, i, axis, at)` | 関数 | SannoNozuraKado の片腕を袖の背の面で一度だけ切った版(EDO-0437 2026-09-27・参道の階の前庭の北の縁の口の出隅。 | SannoSha(Nozura) |
 | `Own.SannoNozuraKadoCut(h, i, axis, at, arm)` | 関数 | SannoNozuraKadoCut の切った側の腕を arm に詰めた版(EDO-0437 2026-09-27 r16)。 | SannoSha(Nozura) |
-| `Own.SannoNozuraDan(risesToPlusX, i)` | 関数 | 野面の乱積みの段の境の駒(2026-09-25・帯 `SukibeiSoto` 29.65 → `SukibeiSoto_Chu` 29.25 の差 0.40 を 1間で流す) = SannoNozura(1.50, ±… | OkabeYashiki(PlaceCurb・Stage2b_Dan), DoiBuilder.Dan(Stage4a_Dodome), SannoSha(Nozura), TypologyBuilder.Rim(Rim) |
+| `Own.SannoNozuraDan(risesToPlusX, i)` | 関数 | 野面の乱積みの段の境の駒(2026-09-25・帯 `SukibeiSoto` 29.65 → `SukibeiSoto_Chu` 29.25 の差 0.40 を 1間で流す) = SannoNozura(1.50, ±… | OkabeYashiki(PlaceCurb・Stage2b_Dan), DoiBuilder.Dan(Stage4a_Dodome), MatsudairaDewa(NozuraLines), SannoSha(Nozura) ほか1 |
 | `Own.SannoNozuraMikiri` | string | `Sanno_Nozura_Mikiri.fbx` — 見切りの大きな野面石(男坂の下で城の石垣と野面の乱積みを継ぐ1点)。 | — |
 | `Own.SannoNozuraMikiriH(h)` | 関数 | 丈を合わせた見切り石(2026-09-26 EDO-0437・男坂の口の両脇 TW_Zentei_W の端 2 か所)。 | SannoSha(Nozura) |
 | `Own.SannoNozuraKiriEnd(deg, atPlusX, faceLonger, h, i)` | 関数 | 片端を斜めの鉛直面で切った野面の乱積みの駒(2026-09-26 EDO-0437・前庭の南の土留め TW_Zentei_SW の東端 / SE の西端を女坂の袖の外面へ当てる)。 | BuildNozura, SannoSha(Nozura) |

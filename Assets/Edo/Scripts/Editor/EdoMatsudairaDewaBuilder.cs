@@ -105,6 +105,39 @@ public static partial class EdoMatsudairaDewaBuilder
             d["nakajikiri"] = outL;
         }
     }
+    /// <summary>棟の一覧を、**poly の棟は屋根の部分(roof.parts)ごとの矩形の棟へ割って**返す(EDO-0554・L 字の表御殿)。
+    /// 部分は親の欄(y・zone・faces・rooms)を受け継ぎ、名は「親_部分の添字」、`_parent` に親の名、入側の辺 `iri` は部分の
+    /// 屋根の irikawa が 1 以上の辺。⛔ parts を持たない poly の棟は外接矩形で建てず、空のまま返して呼び手が ⚠ を出す。</summary>
+    static List<object> MunesExpanded()
+    {
+        var outL = new List<object>();
+        foreach (var o in A(D["munes"]))
+        {
+            var m = O(o);
+            var rf = Has(m, "roof") ? O(m["roof"]) : null;
+            if (!Has(m, "poly") || rf == null || !Has(rf, "parts")) { outL.Add(o); continue; }
+            var parts = A(rf["parts"]);
+            for (int i = 0; i < parts.Count; i++)
+            {
+                var pt = O(parts[i]);
+                var c = new Dictionary<string, object>(m);
+                c.Remove("poly"); c["name"] = (string)m["name"] + "_" + i; c["_parent"] = m["name"];
+                foreach (var k in new[] { "u0", "v0", "u1", "v1" }) c[k] = pt[k];
+                c["roof"] = pt["roof"];
+                var iri = new List<object>();
+                var pr = O(pt["roof"]);
+                if (Has(pr, "irikawa"))
+                {
+                    var ik = O(pr["irikawa"]); var iu = A(ik["u"]); var iv = A(ik["v"]);
+                    if (F(iu[0]) > 0) iri.Add("u0"); if (F(iu[1]) > 0) iri.Add("u1");
+                    if (F(iv[0]) > 0) iri.Add("v0"); if (F(iv[1]) > 0) iri.Add("v1");
+                }
+                c["iri"] = iri;
+                outL.Add(c);
+            }
+        }
+        return outL;
+    }
     static Dictionary<string, object> O(object o) { return o as Dictionary<string, object>; }
     static List<object> A(object o) { return o as List<object>; }
     static float F(object o) { return o == null ? 0f : Convert.ToSingle(o); }
@@ -1963,7 +1996,7 @@ public static partial class EdoMatsudairaDewaBuilder
     static Dictionary<string, object> MuneAt(float u, float v)
     {
         const float eps = 1e-3f;
-        foreach (var o in A(D["munes"]))
+        foreach (var o in MunesExpanded())                 // poly の棟は部分の矩形で引く(L 字の欠けを含めない)
         {
             var m = O(o);
             float a = F(m["u0"]), b = F(m["u1"]), c = F(m["v0"]), d = F(m["v1"]);
@@ -2167,21 +2200,23 @@ public static partial class EdoMatsudairaDewaBuilder
         var f = Grid;
         float yawU = YawAlongU(), yawV = YawAlongV();
         var sb = new System.Text.StringBuilder();
-        if (PolyApprox.Count > 0) sb.AppendLine("⚠ 四角でない欄を外接矩形で読んだ(この Stage は矩形で据える ── 多角形の据え方は未実装): " + string.Join("・", PolyApprox.ToArray()));
         int nm = 0, nl = 0;
         _muneGo.Clear();
+        var munesX = MunesExpanded();
+        var muneHost = new Dictionary<string, Transform>();       // poly の棟の親(指図の名)── 部分の棟をその子にする
 
-        foreach (var o in A(D["munes"]))
+        foreach (var o in munesX)
         {
             var m = O(o);
             string name = (string)m["name"];
             int u0 = Mathf.RoundToInt(F(m["u0"])), v0 = Mathf.RoundToInt(F(m["v0"]));
             int u1 = Mathf.RoundToInt(F(m["u1"])), v1 = Mathf.RoundToInt(F(m["v1"]));
             int kw = u1 - u0, kd = v1 - v0;              // 外形(四方の入側一間を含む)の間数
-            if (kw < kd)
+            // 帯割りの屋根(roof を持つ棟)は大棟の向きを部材(bands・spanKen・alongV)が持つので、外形の縦横は問わない。
+            //   roof を持たない(平入り・入母屋の)棟だけ、桁行が u でないものを未対応として名乗る。
+            if (kw < kd && !Has(m, "roof"))
             {
-                // 大棟は桁行に架かる。u より v が長い棟が出たら、ここで yawV 側へ振る実装が要る
-                sb.AppendLine("⚠ " + name + ": 桁行が u 方向でない(" + kw + "x" + kd + ") — 未対応");
+                sb.AppendLine("⚠ " + name + ": 桁行が u 方向でない(" + kw + "x" + kd + ")平入りの棟 — 未対応");
                 continue;
             }
             if (kw < 3 || kd < 3)
@@ -2241,7 +2276,7 @@ public static partial class EdoMatsudairaDewaBuilder
                     //     隣どうしの軒が 1.80m 食い込み、寄りのレンダで「軒線が X 字に交差 /
                     //     軒先が宙に浮く」姿になっていた原因(`EdoAssets.Goten.RoofBanded` の
                     //     noki の注)。⛔ 0/1 を人が数えて書き写さない — 棟の外形の総当たり。
-                    int[] noki = RoofNoki(m, A(D["munes"]));
+                    int[] noki = RoofNoki(m, munesX);
                     irikawaEdges = irikawa; nokiEdges = noki;
                     string banded = EdoAssets.Goten.RoofBanded(bands, spanKen, alongV, irikawa, noki);
                     if (AssetDatabase.LoadAssetAtPath<GameObject>(banded) != null)
@@ -2366,6 +2401,18 @@ public static partial class EdoMatsudairaDewaBuilder
                                      roofEaveLocalY: roofEaveLocalY);
             Undo.RegisterCreatedObjectUndo(g, "mune");
             if (g != null) _muneGo[name] = g;
+            if (g != null && Has(m, "_parent"))
+            {
+                // poly の棟は部分(屋根の parts)ごとに据え、指図の名の親の下へまとめる(突き合わせは親の名で探す)
+                string pn = (string)m["_parent"]; Transform host;
+                if (!muneHost.TryGetValue(pn, out host))
+                {
+                    var ho = new GameObject(pn); ho.transform.SetParent(grp, false);
+                    Undo.RegisterCreatedObjectUndo(ho, "mune"); host = ho.transform; muneHost[pn] = host;
+                }
+                g.transform.SetParent(host, true);
+                _muneGo[pn] = host.gameObject;
+            }
             // ⭐ 帯割りは**据えた実メッシュで検算する**(規則5。⛔ 目分量で下げない)。
             //   軒先の下端の床上高さは指図の従属値 =
             //     min(辺) [ gotenEave − (入側[間]×ken + 軒の出) × 瓦勾配 ](軒を落とした辺は軒の出 0)。
@@ -2468,6 +2515,11 @@ public static partial class EdoMatsudairaDewaBuilder
             //   ⭕ 屋根も同じ線で折れる(区間ごとに自分の端の当たりから頭を解くので自然に折れ、
             //     勾配 `const.sashikakeKobai` は各区間で保たれる)。
             var dan = Has(l, "dan") ? O(l["dan"]) : null;
+            if (dan != null && !Has(dan, "u") && !Has(dan, "v"))
+            {
+                sb.AppendLine("⚠ " + name + ": dan.kind=" + (Has(dan, "kind") ? (string)dan["kind"] : "?") + "(段の線 u/v を持たない階段廊下)── この Stage は未対応で建てない(土井の階段廊下の据え方を寄せるのは次)");
+                continue;
+            }
             float cut = float.NaN;                        // 段の線(走り方向の格子座標)
             if (dan != null)
             {
@@ -2686,7 +2738,7 @@ public static partial class EdoMatsudairaDewaBuilder
             nl++;
         }
 
-        sb.Append("棟 " + nm + "/" + A(D["munes"]).Count + " 棟、廊下 " + nl + "/" + A(D["links"]).Count + " 本");
+        sb.Append("棟 " + nm + "/" + munesX.Count + " 棟(poly の棟は部分ごとに数える)、廊下 " + nl + "/" + A(D["links"]).Count + " 本");
         return sb.ToString();
     }
 
@@ -3157,8 +3209,129 @@ public static partial class EdoMatsudairaDewaBuilder
                         + "(⛔ 実装が勝手に別部材の扉を据えない)");
             }
         }
+        sb.AppendLine(DaidokoromonGamae());
         sb.Append("門 " + n + " 基");
         return sb.ToString();
+    }
+
+    /// <summary>**郭内の土留め**(terraceWalls)を野面の乱積みで積む。線 a→b・天端 coping(一直線)・見え面の足元は設計面(DesignY)。
+    /// 継ぎ目・出隅・打ち切りは <see cref="EdoBuild.PlaceNozuraNet"/> が実メッシュで解く。⚠ 落とし口(drainThrough)・石樋(pipe)・天端石は部材が無いので名乗るだけ。
+    /// 当たる先: 当邸の土留め8本。</summary>
+    static string TerraceWallsNozura()
+    {
+        var f = Grid;
+        var grp = Group("Fuzoku/TerraceWalls"); Clear(grp);
+        var segs = new List<EdoBuild.NozuraSeg>(); var notes = new List<string>();
+        foreach (var o in A(D["terraceWalls"]))
+        {
+            var w = O(o); var a = A(w["a"]); var b = A(w["b"]); float cop = F(w["coping"]);
+            segs.Add(new EdoBuild.NozuraSeg { name = (string)w["name"], a = f.W(F(a[0]), F(a[1])), b = f.W(F(b[0]), F(b[1])), crestAt = sl => cop });
+            foreach (var k in new[] { "drainThrough", "pipe", "coping_stone" }) if (Has(w, k)) notes.Add((string)w["name"] + "." + k);
+        }
+        var log = new System.Text.StringBuilder();
+        var got = NozuraLines(segs, (x, z) => DesignY(new Vector2(x, z)), grp, new List<GameObject>(), log);
+        var per = new Dictionary<string, int>();
+        foreach (var kv in got) { string n0 = kv.Key.name; foreach (var sg in segs) if (n0.StartsWith(sg.name)) { int c; per.TryGetValue(sg.name, out c); per[sg.name] = c + 1; } }
+        var pl = new List<string>(); foreach (var sg in segs) { int c; per.TryGetValue(sg.name, out c); pl.Add(sg.name + " " + c); }
+        return "郭内の土留め(野面): " + got.Count + " 駒(" + string.Join("・", pl.ToArray()) + ")"
+             + (notes.Count > 0 ? "\n⚠ 部材の無い添え物(落とし口・石樋・天端石)は積まない: " + string.Join("・", notes.ToArray()) : "")
+             + "\n" + log.ToString().TrimEnd();
+    }
+
+    /// <summary>野面の乱積みを指図の線(世界 xz)へ網で据える(置き方は <see cref="EdoBuild.PlaceNozuraNet"/>)。
+    /// 部材は在庫の山王の野面(在庫方 2026-10-04)。face = 見え面の足元を測る設計面。</summary>
+    static List<KeyValuePair<GameObject, Vector2>> NozuraLines(List<EdoBuild.NozuraSeg> segs, Func<float, float, float> face,
+        Transform grp, List<GameObject> pool, System.Text.StringBuilder log)
+    {
+        float back = 0f;
+        foreach (var v in EdoBuild.BodyAt(EdoAssets.Own.SannoNozura(0.6f, 0f, 0), Vector3.zero, 0f, true)) back = Mathf.Max(back, -v.z);
+        return EdoBuild.PlaceNozuraNet(segs, EdoBuild.Ground, face, back + 0.3f, grp,
+            (h, g, i) => EdoAssets.Own.SannoNozura(h, g, i), (h, i) => EdoAssets.Own.SannoNozuraKado(h, i),
+            (up, i) => EdoAssets.Own.SannoNozuraDan(up, i), (up, i) => EdoAssets.Own.SannoNozuraKiri(up, i),
+            null, new[] { 0.15f, 0.30f, 0.60f, 0.90f }, pool, log);
+    }
+
+    /// <summary>**御臺所門の構え**(komon[].kaeshi ・kaidans の門の内の石段)。通路の均し(敷居の高さ・外へ水勾配)・石段の下地・
+    /// 返し石垣(基壇と同じ城の石垣・天端 coping の一直線・外の小口は基壇の外面=区画の線・面は通路の縁)・石段の袖(野面・天端の一直線・
+    /// 内面は返しの内面と面一・北の端は返しの小口へ突き付け)。⛔ 指図の数を読むだけ ── 置き方は EdoBuild(規則21)。
+    /// 当たる先: 長屋に作り付けた門で敷居が基壇の天端より低い口(松江松平 御臺所門)。</summary>
+    static string DaidokoromonGamae()
+    {
+        var sb = new System.Text.StringBuilder();
+        Dictionary<string, object> km = null, kd = null;
+        foreach (var o in A(D["komon"])) { var q = O(o); if (Has(q, "kaeshi")) { km = q; break; } }
+        if (km == null) return "返し石垣を持つ小門なし";
+        string kmName = (string)km["name"];
+        foreach (var o in A(D["kaidans"])) { var q = O(o); if (((string)q["name"]).Contains(kmName)) { kd = q; break; } }
+        var f = Grid; float K = f.ken;
+        int e = (int)F(km["edge"]); float sC = F(km["s"]), wM = F(km["w"]);
+        var kae = O(km["kaeshi"]); var kv = A(kae["v"]);
+        float kv0 = F(kv[0]), kv1 = F(kv[1]), cop = F(kae["coping"]), sill = F(km["sill"]);
+        Vector2 gL = f.L(EdgePt(e, sC - wM * 0.5f)), gR = f.L(EdgePt(e, sC + wM * 0.5f));
+        float uL = Mathf.Min(gL.x, gR.x), uR = Mathf.Max(gL.x, gR.x);
+        // ① 通路と石段の下地を均す(枠の中だけ・縁は返し石垣と袖が受ける)
+        float sv0 = float.NaN, sv1 = float.NaN, sy0 = 0f, syTopUnder = 0f;
+        if (kd != null)
+        {
+            var a = A(kd["a"]); var b = A(kd["b"]);
+            sv0 = Mathf.Min(F(a[1]), F(b[1])); sv1 = Mathf.Max(F(a[1]), F(b[1]));
+            sy0 = F(kd["y0"]); syTopUnder = F(kd["y1"]) - F(kd["keri"]);
+        }
+        Func<float, float, float> passY = (u, v) =>
+        {
+            if (u < uL - 1e-3f || u > uR + 1e-3f) return float.NaN;
+            if (v >= kv0 - 1e-3f && v <= kv1 + 1e-3f) return sill + 0.01f * (v - kv0) * K;      // 外へ 1% の水勾配
+            if (!float.IsNaN(sv0) && v > kv1 && v <= sv1) return Mathf.Lerp(sy0, syTopUnder, (v - sv0) / Mathf.Max(1e-3f, sv1 - sv0));
+            return float.NaN;
+        };
+        Vector2 mn = new Vector2(float.MaxValue, float.MaxValue), mx = -mn;
+        foreach (var q in new[] { f.W(uL, kv0), f.W(uR, kv0), f.W(uL, float.IsNaN(sv1) ? kv1 : sv1), f.W(uR, float.IsNaN(sv1) ? kv1 : sv1) })
+        { mn = Vector2.Min(mn, q); mx = Vector2.Max(mx, q); }
+        sb.AppendLine("  " + kmName + " の通路と石段の下地: " + EditHeights(mn, mx, (wx, wz, cur) =>
+        { var g = f.L(new Vector2(wx, wz)); return passY(g.x, g.y); }, "均し(敷居 " + sill.ToString("F2") + "・外へ1%)"));
+        // ② 返し石垣(通路の両脇)
+        var grp = Group("Mon/" + kmName + "_Kaeshi"); Clear(grp);
+        Vector2 inV = new Vector2(f.vx, f.vz).normalized, uDir = new Vector2(f.ux, f.uz).normalized;
+        float runLen = (kv1 - kv0) * K;
+        var kaePieces = new List<GameObject>();
+        foreach (var side in new[] { -1, 1 })
+        {
+            float ju = side < 0 ? uL : uR;
+            Vector2 faceN = uDir * (-side);                    // 通路の芯へ向く
+            Vector2 p0 = f.W(ju, kv0);
+            float psi = Mathf.Atan2(-faceN.y, faceN.x) * Mathf.Rad2Deg;
+            // 駒の数: 基壇と同じ割り付け(駒の実長 IG_RUN・継ぎ目の重ね ≥ overlapMin)── 伸縮は駒数で割った端数だけ
+            float ov = F(Ig["overlapMin"]);
+            int nP = Mathf.Max(1, Mathf.CeilToInt((runLen - ov) / Mathf.Max(0.1f, IG_RUN - ov)));
+            float pl = (runLen + (nP - 1) * ov) / nP;
+            string ks = "";
+            for (int i = 0; i < nP; i++)
+            {
+                var go = EdoBuild.Place(EdoAssets.JC.CastleWall, new Vector3(p0.x, cop - IG_H, p0.y), psi, Vector3.one, grp, kmName + "_Kaeshi_" + (side < 0 ? "W" : "E") + "_" + i);
+                if (go == null) { sb.AppendLine("  ⚠ 返し石垣の駒が無い"); break; }
+                float k = EdoBuild.SnapPieceToLine(go, inV, Vector2.Dot(p0, inV) + i * (pl - ov), pl, faceN, Vector2.Dot(p0, faceN), cop);
+                kaePieces.Add(go); ks += (i > 0 ? "/" : "") + k.ToString("F3");
+            }
+            sb.AppendLine("  返し石垣 " + (side < 0 ? "W" : "E") + ": 長さ " + runLen.ToString("F2") + "m を " + nP + " 駒(重ね " + ov.ToString("F2") + "・伸縮 " + ks + ")・天端 " + cop.ToString("F2") + "・面 = 通路の縁 u" + ju.ToString("F2"));
+        }
+        // ③ 石段の袖(野面・両側)
+        if (kd != null && Has(kd, "sode"))
+        {
+            var sd = O(kd["sode"]); var sdv = A(sd["v"]);
+            float d0 = F(sdv[0]), d1 = F(sdv[1]), sCop = F(sd["coping"]);
+            var sgrp = Group("Mon/" + kmName + "_Sode"); Clear(sgrp);
+            var segs = new List<EdoBuild.NozuraSeg>();
+            foreach (var side in new[] { -1, 1 })
+            {
+                float ju = side < 0 ? uL : uR;
+                segs.Add(new EdoBuild.NozuraSeg { name = kmName + "_Sode_" + (side < 0 ? "W" : "E"), a = f.W(ju, d0), b = f.W(ju, d1), crestAt = sl => sCop });
+            }
+            var log = new System.Text.StringBuilder();
+            var got = NozuraLines(segs, (x, z) => { var g = f.L(new Vector2(x, z)); float y = passY(g.x, g.y); return float.IsNaN(y) ? DesignY(new Vector2(x, z)) : y; },
+                                  sgrp, kaePieces, log);
+            sb.AppendLine("  石段の袖(野面): " + got.Count + " 駒・天端 " + sCop.ToString("F2") + "\n" + log.ToString().TrimEnd());
+        }
+        return sb.ToString().TrimEnd();
     }
 
 
@@ -3369,6 +3542,8 @@ public static partial class EdoMatsudairaDewaBuilder
         {
             var k = O(o);
             string nm = (string)k["name"];
+            // 奥庭の Fukugen まわりは復元地盤の作り直し(edoReconRedo の hardOrder)が済むまで建てない(普請奉行 2026-10-04)
+            if (nm.Contains("Fukugen")) { sb.AppendLine("⚠ 石段 " + nm + ": 復元地盤の作り直し待ち(edoReconRedo)── 建てない"); continue; }
 
             // ---- 庭の段(`kind: "庭の段"`)は郭をつなぐ石段と持ち物が違う。
             //   ⛔ 蹴上・踏面・落差を**指図から読まない** — 両端が地形で固定されるので段数からの従属値
@@ -3472,8 +3647,18 @@ public static partial class EdoMatsudairaDewaBuilder
                 continue;
             }
 
+            if (!Has(k, "pos") && Has(k, "a") && Has(k, "b"))
+            {
+                // 門の内の石段(a = 足元・b = 頭)── 芯 = a と b の中点・向き = a→b(格子の軸)・走り = |b−a|(指図の欄を読み替えるだけ)
+                var ka = A(k["a"]); var kb = A(k["b"]);
+                float du = F(kb[0]) - F(ka[0]), dv = F(kb[1]) - F(ka[1]);
+                k = new Dictionary<string, object>(k);
+                k["pos"] = new List<object> { (double)((F(ka[0]) + F(kb[0])) * 0.5f), (double)((F(ka[1]) + F(kb[1])) * 0.5f) };
+                k["dir"] = Mathf.Abs(du) > Mathf.Abs(dv) ? (du > 0 ? "+u" : "-u") : (dv > 0 ? "+v" : "-v");
+                if (!Has(k, "run")) k["run"] = (double)(new Vector2(du, dv).magnitude * f.ken);
+            }
             if (!Has(k, "pos"))
-            { sb.AppendLine("⚠ 石段 " + nm + ": 指図に pos が無い(" + (Has(k, "kind") ? (string)k["kind"] : "") + ")── この石段の据え方は未実装(次の段で a→b の欄から据える)"); continue; }
+            { sb.AppendLine("⚠ 石段 " + nm + ": 指図に pos が無い(" + (Has(k, "kind") ? (string)k["kind"] : "") + ")"); continue; }
             var pos = A(k["pos"]);
             float pu = F(pos[0]), pv = F(pos[1]);
             string dir = Has(k, "dir") ? (string)k["dir"] : null;
@@ -3499,6 +3684,9 @@ public static partial class EdoMatsudairaDewaBuilder
                 sb.AppendLine("⚠ 石段 " + nm + ": 天端 " + topY.ToString("F2") +
                               " に対し、上がった先の設計面は " + atTop.ToString("F2") + "m");
             float rise = drop / steps, tread = run / steps;
+            // 指図が「踏面 × (段 − 1) = 走り」と書く石段(最上段の蹴上は上の溜りの縁が受ける)は、踏み石を段 − 1 枚・踏面を指図の値で置く
+            int nStones = steps;
+            if (Has(k, "fumi") && steps > 1 && Mathf.Abs(F(k["fumi"]) * (steps - 1) - run) < 0.05f) { nStones = steps - 1; tread = F(k["fumi"]); }
             // ⭐ **段の位置は地表から解く従属値。**指図の `pos` は落ち際の見当でしかなく、造成の擦り付けで
             //   落ち際は 2〜4.5m に広がるのに段の走りは 1〜1.5m しかない。⇒ 段数・落差・幅・向き(指図の意図)は
             //   動かさず、**走りに沿った位置だけ**を実地表へ合わせる(`EdoBuild.FitRunAlongAxis` の注記)。
@@ -3527,7 +3715,7 @@ public static partial class EdoMatsudairaDewaBuilder
             if (mod == null) { sb.AppendLine("⚠ 段石が無い: " + EdoAssets.Own.DanishiStep); continue; }
             int across = Mathf.Max(1, Mathf.RoundToInt(wid / 1.98f));
             Vector2 side = new Vector2(up.y, -up.x);         // 走りに直交
-            for (int i = 0; i < steps; i++)
+            for (int i = 0; i < nStones; i++)
             {
                 float s = -run * 0.5f + tread * (i + 0.5f);
                 float top = baseY + rise * (i + 1);
@@ -3716,10 +3904,21 @@ public static partial class EdoMatsudairaDewaBuilder
 
         // ---------------- 附属屋
         var svGrp = Group("Fuzoku/Service");
+        var svWait = new List<string>();
         foreach (var o in A(D["service"]))
         {
             var sv = O(o);
             string nm = (string)sv["name"];
+            if (Has(sv, "poly") && !Has(sv, "api"))
+            {
+                // 傾いた枠の棟(内長屋)── 枠は EdoBuild.QuadFrame で解く(⛔ 外接矩形にしない)。部材は指図に無い ⇒ 建てずに名乗る
+                var pg = PolyOrRect(sv); var pw = new Vector2[pg.Length];
+                for (int i = 0; i < pg.Length; i++) pw[i] = f.W(pg[i].x, pg[i].y);
+                Vector2 qc, qa; float ql, qd;
+                float skew = EdoBuild.QuadFrame(pw, out qc, out qa, out ql, out qd);
+                svWait.Add(nm + "(" + ql.ToString("F1") + "×" + qd.ToString("F1") + "m・軸 " + (Mathf.Atan2(qa.x, qa.y) * Mathf.Rad2Deg).ToString("F1") + "°" + (skew > 1f ? "・四角から " + skew.ToString("F1") + "° 外れ" : "") + ")");
+                continue;
+            }
             float u0 = F(sv["u0"]), v0 = F(sv["v0"]), u1 = F(sv["u1"]), v1 = F(sv["v1"]);
             float ku = u1 - u0, kv = v1 - v0;
             string path; float yaw;
@@ -3820,6 +4019,9 @@ public static partial class EdoMatsudairaDewaBuilder
             nYa++;
         }
 
+        if (svWait.Count > 0)
+            sb.AppendLine("⚠ 部材が指図に無い附属屋 " + svWait.Count + " 棟(service[].api が無い ── 家中長屋の部材を在庫方/部材方へ): " + string.Join("・", svWait.ToArray()));
+        sb.AppendLine(TerraceWallsNozura());
         sb.Append("中仕切 " + nHei + "枚 / 竹垣 " + nGaki + "枚 / 段石 " + nDan + "枚 / 井戸 " +
                   nIdo + "基 / 隅櫓 " + nYag + "基 / 附属屋 " + nYa + "棟 / 縁石 " + nFu + "本");
         return sb.ToString();
@@ -4795,7 +4997,7 @@ public static partial class EdoMatsudairaDewaBuilder
         foreach (var o in A(D["links"]))   { var l = O(o); block.Add(new Vector4(F(l["u0"]) - 1f, F(l["v0"]) - 1f, F(l["u1"]) + 1f, F(l["v1"]) + 1f)); }
         foreach (var o in A(D["service"])) { var s = O(o); block.Add(new Vector4(F(s["u0"]) - 1.5f, F(s["v0"]) - 1.5f, F(s["u1"]) + 1.5f, F(s["v1"]) + 1.5f)); }
         foreach (var o in A(D["wells"]))   { var w = O(o); block.Add(new Vector4(F(w["u"]) - 1.5f, F(w["v"]) - 1.5f, F(w["u"]) + 1.5f, F(w["v"]) + 1.5f)); }
-        foreach (var o in A(D["kaidans"])) { var k = O(o); var p = A(k["pos"]); block.Add(new Vector4(F(p[0]) - 2f, F(p[1]) - 2f, F(p[0]) + 2f, F(p[1]) + 2f)); }
+        foreach (var o in A(D["kaidans"])) { var k = O(o); if (!Has(k, "pos")) continue; var p = A(k["pos"]); block.Add(new Vector4(F(p[0]) - 2f, F(p[1]) - 2f, F(p[0]) + 2f, F(p[1]) + 2f)); }
         foreach (var o in A(D["nakajikiri"]))
         {
             var w = O(o); var a = A(w["a"]); var b = A(w["b"]);

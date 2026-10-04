@@ -15,4 +15,8 @@ metadata:
 3. **DanPlan の段の上限は柔らかい(1.00)**: 指図が「段差 ≤1.3 硬い・1間で超える所は半間で刻む」と言うと、1間の区間しか切れず 1.40 の段が出た。
    **How to apply:** `EdoBuild.DanPlan(chain, out note, gates, stepQ, minSec, stepHardMax)` を足した(minSec = 半間)。崖の上の練塀 212m で段 27・最大 1.00。
 
+4. **指図方が同じ時間に json を書き換える**(第2段 2026-10-04): Reload() の度に新しい json を読むので、Stage1 は Fukugen を段で均した後、Stage6 は Fukugen を外した json で座を測り、中仕切 NJ_Oku_S_W の座が 20.1(地形は 27.0)で 6.5m 食い違った。
+   **How to apply:** 流す前に `git status docs/Sashizu/<邸>_sashizu.json` を見る。並行で書かれているなら、その欄に触れる Stage は書き終えてから Stage1 から流し直す。
+5. **poly の棟は roof.parts の矩形へ割る**(`MunesExpanded`)・帯割り屋根の棟は外形の縦横を問わない(大棟の向きは部材が持つ)。傾いた四角の枠は `EdoBuild.QuadFrame`、線の端から決まった長さの石垣は `EdoBuild.SnapPieceToLine`(駒は基壇の割り付けで数を出し、伸縮は端数だけ ── 1駒を 1.55 倍に伸ばしかけた)。
+
 関連: [[pitfall-writeback-mcp-timeout]](段ごとに 25〜40 秒・続けて投げた execute_code も詰まる)

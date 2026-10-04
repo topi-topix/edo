@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 25 本・メニュー 87・関数 740(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 25 本・メニュー 87・関数 744(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -22,7 +22,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoDoiBuilder.Saku.cs](#edodoibuildersakucs) | 土井 S6 柵・垣(案A・EDO-0533)── 指図 fences[] を読み、EdoBuild.GakiRun で敷く。 | 1 | 3 |
 | [EdoDoiBuilder.cs](#edodoibuildercs) | 土井大隅守上屋敷(三河刈谷藩2万3千石・譜代・雁間)ビルダー。 | 15 | 88 |
 | [EdoMatsudairaDewaBuilder.Niwa.cs](#edomatsudairadewabuilderniwacs) | 松平出羽守上屋敷 — 庭の工程(池・築山・水の系・石組・点景・滝見口)。 | 9 | 30 |
-| [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 16 | 106 |
+| [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 16 | 110 |
 | [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 19 | 131 |
 | [EdoSannoShaBuilder.cs](#edosannoshabuildercs) | 山王権現社(日枝神社)本体+樹下家邸+山王門前町ビルダー (2026-08-11。観理院は 2026-09-26 に類型へ移し削除) | 1 | 31 |
 | [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 13 | 102 |
@@ -341,6 +341,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 |---|---|---|---|
 | `Reload()` | `void` | 公 | — |
 | `NormalizeShapes(d)` | `void` |  | 図から起こし直した指図(2026-10-04・EDO-0554)の新しい欄の形を、矩形で読む古い Stage が落ちないように読み替える。 |
+| `MunesExpanded()` | `List<object>` |  | 棟の一覧を、poly の棟は屋根の部分(roof.parts)ごとの矩形の棟へ割って返す(EDO-0554・L 字の表御殿)。 |
 | `O(o)` | `Dictionary<string, object>` |  | — |
 | `A(o)` | `List<object>` |  | — |
 | `F(o)` | `float` |  | — |
@@ -396,6 +397,9 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `RoofNoki(m, munes)` | `int[]` |  | 棟 m の四辺 {u0, u1, v0, v1} の軒を出すか(1 = 出す / 0 = 落とす)。 |
 | `Stage4_Goten()` | `string` | 公 | — |
 | `Stage5_Mon()` | `string` | 公 | — |
+| `TerraceWallsNozura()` | `string` |  | 郭内の土留め(terraceWalls)を野面の乱積みで積む。 |
+| `NozuraLines(segs, face, grp, pool, log)` | `List<KeyValuePair<GameObject, Vector2>>` |  | 野面の乱積みを指図の線(世界 xz)へ網で据える(置き方は EdoBuild.PlaceNozuraNet)。 |
+| `DaidokoromonGamae()` | `string` |  | 御臺所門の構え(komon[].kaeshi ・kaidans の門の内の石段)。 |
 | `HasOwnDoors(go)` | `bool` |  | 門が自前の扉を持っているか、置いた実物のメッシュ名で判定する (edogoyomi の冠木門は doorl / doorr。 |
 | `Leaves(grp, name, pathL, pathR, pairW, footOff, p, yaw, want, sill)` | `int` |  | 門扉(両開き)を開口の芯へ据える。L/R とも突き合わせ側にピボットがあるので、 同じ点に両方置けば閉じる。 |
 | `Stage6_Zosaku()` | `string` | 公 | — |

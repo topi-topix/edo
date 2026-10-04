@@ -74,6 +74,7 @@ public static partial class EdoBuild
         public int parts, cells, cellsParts, cellsFace, cellsBand, cellsFill, skipHole, skipTree, skipPlant, holesCut;
         /// <summary>穴を開けた後に穴の升に立つ植栽の点(<c>plantPoints</c>)の数。硬い条件・許容0。</summary>
         public int plantOnHole;
+        public int stairFaced;
         public int verts, tris, pinned, faced, clamped, under, floored, designed, sloped, filled, fillLostTree;
         public float fillMax; public Vector3 fillAt;
         public float maxLower, maxRaise; public Vector3 lowerAt, raiseAt;
@@ -97,7 +98,7 @@ public static partial class EdoBuild
                    "・既に穴で触らず " + skipHole + "・地形の木が立つので開けず " + skipTree + "・植栽の点が立つので開けず " + skipPlant + ")" +
                    (plantOnHole > 0 ? " ⛔ 穴の上の植栽の点 " + plantOnHole : "") +
                    " / 皮 頂点 " + verts + "・三角 " + tris + "(縁の点 " + pinned + " は地形のまま)" +
-                   " / 面の高さへ " + faced + " 点・面の外は設計の地盤へ " + designed + " 点(うち縁から法で受けた " + sloped + ")" +
+                   " / 面の高さへ " + faced + " 点(うち石段の外形の中と前 " + stairFaced + ")・面の外は設計の地盤へ " + designed + " 点(うち縁から法で受けた " + sloped + ")" +
                    " / 部材の天端の下へ " + clamped + " 点(うち真下 " + under + "・隣の底で止めた " + floored + ")" +
                    " / 裏込め(部材の底まで盛る)" + filled + " 点・最大 " + fillMax.ToString("F2") + "m @(" + fillAt.x.ToString("F1") + ", " + fillAt.z.ToString("F1") + ")" +
                    "・地形の木の升は穴を開けず被せた " + fillLostTree + " 升" +
@@ -181,6 +182,8 @@ public static partial class EdoBuild
     //   皮を下げる相手にしない(2026-09-24 実測: 全ての面で下げたら上の段の地盤が控えに沿って 3.4m 掘れた)。
     //   底(Bottom)は全ての面で引く。
     const float UP_NY = 0.7f;
+    /// <summary>下を向いた面(駒の底)と読む法線の y の下限(−)。法・見え面(y ≥ −0.3)は底でない(<see cref="TopIndex.FootBottom"/>)。</summary>
+    const float DOWN_NY = 0.3f;
     /// <summary>天端の帯の深さ・周りを見る半径[m](<see cref="TopIndex.banded"/>)。0.15 = 野面の天端の石の凹凸(±0.08)は入り、
     /// 天端の奥の控え(天端 − 0.3)は外れる ── 控えは上の面の土に入るのが正しい納め(0.3 では控えを天端と読み、背の帯に 0.25m の溝が残った)。</summary>
     public const float CREST_BAND = 0.15f, CREST_R = 0.6f;
@@ -189,6 +192,7 @@ public static partial class EdoBuild
         readonly List<Vector3[]> tris = new List<Vector3[]>();
         readonly List<int> owner = new List<int>();
         readonly List<bool> up = new List<bool>();
+        readonly List<bool> down = new List<bool>();   // 下を向いた面(駒の底)── FootBottom が法の面と見分ける
         readonly Dictionary<long, List<int>> hash = new Dictionary<long, List<int>>();
         const float B = 1f;
         public readonly List<Vector2[]> hulls = new List<Vector2[]>();
@@ -224,6 +228,7 @@ public static partial class EdoBuild
                 int id = tris.Count; tris.Add(t); owner.Add(k);
                 var nv = Vector3.Cross(t[1] - t[0], t[2] - t[0]); float mag = nv.magnitude;
                 up.Add(mag > 1e-9f && sgn * nv.y / mag > UP_NY);
+                down.Add(mag > 1e-9f && sgn * nv.y / mag < -DOWN_NY);
                 float x0 = Mathf.Min(t[0].x, Mathf.Min(t[1].x, t[2].x)), x1 = Mathf.Max(t[0].x, Mathf.Max(t[1].x, t[2].x));
                 float z0 = Mathf.Min(t[0].z, Mathf.Min(t[1].z, t[2].z)), z1 = Mathf.Max(t[0].z, Mathf.Max(t[1].z, t[2].z));
                 for (int i = Mathf.FloorToInt(x0 / B); i <= Mathf.FloorToInt(x1 / B); i++)
@@ -274,6 +279,26 @@ public static partial class EdoBuild
         }
         /// <summary>(x,z) の部材の最も低い面(= 底)。</summary>
         public float Bottom(float x, float z, out int who) { return Scan(x, z, false, out who); }
+        /// <summary>**皮を寄せる底**(x,z)── 最も低い面が下を向いた面(駒の底)ならその高さ。最も低い面が**法・見え面**(下を向かない ──
+        /// 殻の駒・隅の駒の傾いた面の途中)なら、それは底でなく面の途中 ── その駒の**見え面の足の線**(<see cref="WallBottom"/> を
+        /// 近く 0.2m と広く <paramref name="rWide"/> で取った低い方)を底とする。駒が無ければ NaN。
+        /// ⭐ 2026-10-04 EDO-0502 第10巡: 塞ぎ(sealFace)と床が隅の駒(TW_Kado_Shumen_kado2_3_0)の法の途中 16.71〜17.36 を底と読み、
+        /// 鉛直に近い小面の WallBottom(0.2) も石の目地の段 16.85〜16.93 を返して、面 16.50 の皮を見え面の足元 0.25m で +0.17〜0.28
+        /// 盛り上げた(近景の三角の歯)。当たる先: CutEdgeSkin を通る全邸(岡部 Stage3b・山王 Stage9)の塞ぎ・床。</summary>
+        public float FootBottom(float x, float z, float rWide, out int who) { bool dn; return FootBottom(x, z, rWide, out who, out dn); }
+        /// <summary><paramref name="isDown"/> = 最も低い面が下を向いた面(駒の本当の底)だったか。</summary>
+        public float FootBottom(float x, float z, float rWide, out int who, out bool isDown)
+        {
+            who = -1; isDown = false; float best = float.NaN, y; int bi = -1;
+            List<int> l; if (!hash.TryGetValue(K(Mathf.FloorToInt(x / B), Mathf.FloorToInt(z / B)), out l)) return best;
+            foreach (var id in l)
+                if (TriYAt(tris[id], x, z, out y) && (float.IsNaN(best) || y < best)) { best = y; bi = id; who = owner[id]; }
+            if (bi < 0) return best;
+            if (down[bi]) { isDown = true; return best; }
+            float w0 = WallBottom(x, z, 0.2f, who), w1 = WallBottom(x, z, rWide, who);
+            float foot = float.IsNaN(w0) ? w1 : (float.IsNaN(w1) ? w0 : Mathf.Min(w0, w1));
+            return float.IsNaN(foot) ? best : Mathf.Min(best, foot);
+        }
         /// <summary>(x,z) から平面で <paramref name="r"/> 以内を通る**鉛直な面**(石垣の見え面・小口)の、その位置での最も低い所。
         /// ⭐ 鉛直な面は平面に面積が無いので <see cref="Bottom"/> の縦の線に掛からない ── 殻の駒(底の面が無い)の見え面の脇では
         /// 底が天端に化けて「駒が浮く」と誤って数えた(2026-09-25 EDO-0430: 回廊の基壇・御供所の郭の石垣で 3,243 点)。無ければ NaN。
@@ -556,6 +581,7 @@ public static partial class EdoBuild
         // ---- 2b 点と部材・面の関係、面の外の設計の地盤(2026-09-25)
         // 点と部材の外形の関係: 2 = 外形の中 / 1 = 外形から NEAR 以内 / 0 = 離れている
         const float NEAR = 0.5f;
+        const float STAIR_APRON = 1.5f;   // 石段の前を面に揃える幅(面の縁と石段の足の間 ── 岡部 K_Dan1 で 0.75〜1.25m)
         Func<Vector2, float, int> NearAt = (q, nr) =>
         {
             int v = 0;
@@ -1027,6 +1053,71 @@ public static partial class EdoBuild
                                 if (!float.IsNaN(og) && og >= bl2 - BACK_FILL) { hgt = Mathf.Max(hgt, bl2); r.backSealed++; }
                             }
                         }
+                        // ⭐ 天端の帯で篩わない駒(石段・その積み)の外形の中で面の中の点は、駒の本当の底(下を向いた面)が面 + 許容の内なら
+                        //   面の高さで描く(2026-10-04 EDO-0502 第10巡)── 地形のまま(2m 格子の天端の側の高さ)を踏面の下へ納めるだけだと、
+                        //   外の点(面 16.50)との三角形が段の前の 0.25m に土の斜面を立て(石段 K_Dan1 の最下段の前 16.53〜16.85)、積みの底が浮いて見えた。
+                        //   ⛔ 上げない(下げるだけ)。⛔ 土留め(帯で篩う駒)の外形の中は触らない(背の土は上の面・法の下は Floor が決める)。
+                        //   当たる先: CutEdgeSkin に石段・段を渡す全邸(岡部 Stage3b の Kaidan・山王 Stage9 の段)。
+                        if (near == 2 && !faced)
+                        {
+                            float fyS = FaceY(p);
+                            if (!float.IsNaN(fyS) && hgt > fyS)
+                            {
+                                int wS; bool dn; float fb = idx.FootBottom(x, z, NEAR + 0.1f, out wS, out dn);
+                                if (wS >= 0 && !idx.banded[wS] && fb <= fyS + faceTol - 0.02f) { hgt = fyS; faced = true; r.stairFaced++; }
+                            }
+                            else if (float.IsNaN(fyS) && design != null)
+                            {
+                                // 面の外(石段が面と面の間の設計の地盤に立つ所)は駒の本当の底まで下げる(外形の中 ── 見えない)
+                                int wS; bool dn; float fb = idx.FootBottom(x, z, NEAR + 0.1f, out wS, out dn);
+                                if (wS >= 0 && !idx.banded[wS] && hgt > fb) { hgt = fb; r.stairFaced++; }
+                            }
+                        }
+                        //   (石段の積みの駒は底の面を持たない殻 ── 底は FootBottom が見え面の足の線で取る)
+                        // ⭐ 同じ駒(帯で篩わない駒)の外形の外 NEAR 以内で面の外の点は、底から盛土の法(1:batterFill)で受けた高さより
+                        //   上げない(2026-10-04 EDO-0502 第10巡)── 石段 K_Dan1 は門の内の面(16.50)の縁の 1m 外に立ち、その間の設計の地盤は
+                        //   上の面へ上る勾配(16.6〜16.9)── 段の積みの底 16.46 の前に土の斜面が被り、底の線が影の筋に見えた。⛔ 上げない(下げるだけ)。
+                        //   当たる先: CutEdgeSkin に石段・段を渡す全邸(岡部 Stage3b・山王 Stage9)の、面の外に立つ石段の前と脇。
+                        else if (near <= 1 && !faced && design != null && float.IsNaN(FaceY(p)))
+                        {
+                            // 面の縁から STAIR_APRON 以内で、近くの石段の足が面 ± 許容の内なら、その間は面の高さ(石段の前を面に揃える)
+                            float fyA = float.NaN, fbA = float.NaN;
+                            for (int a8 = 0; a8 < 8 && float.IsNaN(fyA); a8++)
+                            {
+                                float an = a8 * Mathf.PI / 4f;
+                                for (float rr = 0.25f; rr <= STAIR_APRON + 1e-3f; rr += 0.25f)
+                                { float fq = FaceY(p + new Vector2(Mathf.Cos(an), Mathf.Sin(an)) * rr); if (!float.IsNaN(fq)) { fyA = fq; break; } }
+                            }
+                            if (!float.IsNaN(fyA))
+                                for (int a8 = 0; a8 < 8; a8++)
+                                {
+                                    float an = a8 * Mathf.PI / 4f; var dv = new Vector2(Mathf.Cos(an), Mathf.Sin(an));
+                                    for (float rr = 0f; rr <= STAIR_APRON + 1e-3f; rr += 0.125f)
+                                    {
+                                        int wS; bool dn; float fb = idx.FootBottom(x + dv.x * rr, z + dv.y * rr, NEAR + 0.1f, out wS, out dn);
+                                        if (float.IsNaN(fb)) continue;
+                                        if (wS >= 0 && !idx.banded[wS] && Mathf.Abs(fb - fyA) <= faceTol - 0.02f && (float.IsNaN(fbA) || fb < fbA)) fbA = fb;
+                                        break;
+                                    }
+                                }
+                            if (!float.IsNaN(fbA) && hgt > Mathf.Max(fyA, fbA)) { hgt = Mathf.Max(fyA, fbA); faced = true; r.stairFaced++; }
+                        }
+                        if (near == 1 && !faced && design != null && float.IsNaN(FaceY(p)))
+                        {
+                            float kF = 1f / Mathf.Max(design.batterFill, 1e-3f), lim = float.NaN;
+                            for (int a8 = 0; a8 < 8; a8++)
+                            {
+                                float an = a8 * Mathf.PI / 4f; var dv = new Vector2(Mathf.Cos(an), Mathf.Sin(an));
+                                for (float rr = 0.125f; rr <= NEAR + 1e-3f; rr += 0.125f)
+                                {
+                                    int wS; bool dn; float fb = idx.FootBottom(x + dv.x * rr, z + dv.y * rr, NEAR + 0.1f, out wS, out dn);
+                                    if (float.IsNaN(fb)) continue;
+                                    if (wS >= 0 && !idx.banded[wS]) { float l2 = fb + rr * kF; if (float.IsNaN(lim) || l2 < lim) lim = l2; }
+                                    break;   // その向きの最初の駒で止める
+                                }
+                            }
+                            if (!float.IsNaN(lim) && hgt > lim) { hgt = lim; r.stairFaced++; }
+                        }
                         if (faced) r.faced++;
                         float hgt0 = hgt;
                         // 部材の天端の下へ納める(真下 = 天端 − under / 周り 8 点の天端の最小 − eps)
@@ -1120,7 +1211,7 @@ public static partial class EdoBuild
                                     for (int dj = -rr; dj <= rr; dj++)
                                     {
                                         int who; float qx = org.x + (gi + di * 0.5f) * step, qz = org.z + (gj + dj * 0.5f) * step;
-                                        float bq = idx.Bottom(qx, qz, out who); if (float.IsNaN(bq)) continue;
+                                        float bq = idx.FootBottom(qx, qz, NEAR + 0.1f, out who); if (float.IsNaN(bq)) continue;   // 法の途中は底でない(見え面の足の線)
                                         // 鉛直な面の下の縁はその点のごく近く(0.2m)で取る ── 0.6m では段ごとに底が上がる袖で下の段の縁を拾い、
                                         //   縁の底より 0.08m 低く塞いだ。近くに無ければ(殻の石垣の見え面から離れた点)広く取る。
                                         float wb = idx.WallBottom(qx, qz, 0.2f, who); if (float.IsNaN(wb)) wb = idx.WallBottom(qx, qz, NEAR + 0.1f, who);
@@ -1145,7 +1236,7 @@ public static partial class EdoBuild
                                 for (int dj = -1; dj <= 1; dj++)
                                 {
                                     int who; float qx = org.x + (gi + di) * step, qz = org.z + (gj + dj) * step;
-                                    float bq = idx.Bottom(qx, qz, out who); if (float.IsNaN(bq)) continue;
+                                    float bq = idx.FootBottom(qx, qz, NEAR + 0.1f, out who); if (float.IsNaN(bq)) continue;   // 法の途中は底でない(見え面の足の線)
                                     // 殻の駒(底の面が無い石垣)は鉛直な見え面の下の縁が底 ── 天端を底と取り違えて地盤を戻さない
                                     //   鉛直な面の下の縁はごく近く(0.2m)で取り、無ければ広く(sealFace と同じ ── 0.6m では隣の段の縁を拾い床が 0.02 足りない)
                                     float wb = idx.WallBottom(qx, qz, 0.2f, who); if (float.IsNaN(wb)) wb = idx.WallBottom(qx, qz, NEAR + 0.1f, who);

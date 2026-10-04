@@ -2240,8 +2240,21 @@ public static class EdoOkabeYashikiBuilder
         var parts = new List<GameObject>(); var band = new List<GameObject>();
         var danB = new List<Bounds>();
         foreach (Transform c in Group("Dan")) if (c.gameObject.activeInHierarchy) { parts.Add(c.gameObject); band.Add(c.gameObject); danB.Add(EdoBuild.RB(c.gameObject)); }
-        int stairN = 0;
+        int stairN = 0, igN = 0;
         var root = GameObject.Find(GN); var kai = root == null ? null : root.transform.Find("Fuzoku/Kaidan");
+        // ⭐ 外周の石垣(Ishigaki)の駒のうち段の土留めの駒に接する物(外接 1m 内)も部材として渡す(2026-10-04 EDO-0502 第10巡):
+        //   皮は渡された駒しか知らない ── 段の土留め 辺24 の穴の升が外周の基壇の石垣 IG_S_Hei_21 の見え面に掛かり、皮が設計の地盤
+        //   (法で 7.6 → 11)を石垣の見え面の上に描いて、2m おきの土の三角(最大 +2.33m)を立てた。天端の帯で篩う(見え面の前へ皮を出さない)。
+        //   当たる先: 段の土留めと外周の石垣が取り合う所(岡部の西の辺24・南の辺)。
+        var ig = root == null ? null : root.transform.Find("Ishigaki");
+        if (ig != null)
+            foreach (Transform c in ig)
+            {
+                if (!c.gameObject.activeInHierarchy) continue;
+                var b = EdoBuild.RB(c.gameObject); if (b.size == Vector3.zero) continue; b.Expand(1f); bool near = false;
+                foreach (var db in danB) if (db.Intersects(b)) { near = true; break; }
+                if (near) { parts.Add(c.gameObject); band.Add(c.gameObject); igN++; }
+            }
         if (kai != null)
             foreach (var r in kai.GetComponentsInChildren<MeshRenderer>())
             {
@@ -2286,7 +2299,7 @@ public static class EdoOkabeYashikiBuilder
         var rep = EdoBuild.CutEdgeSkin("Okabe", grp, parts, faces, tol, design: design, backfill: 0f, sealFace: true,
                                        crestBandParts: band, plantPoints: plant);
         AssetDatabase.SaveAssetIfDirty(EdoBuild.T().terrainData);
-        sb.AppendLine("  古い皮を外して塞いだ升 " + filled + " / 部材 " + rep.parts + "(土留め " + band.Count + "・石段 " + stairN + ")/ 面 " + faces.Count + " / 守った地形の木 " + plant.Count);
+        sb.AppendLine("  古い皮を外して塞いだ升 " + filled + " / 部材 " + rep.parts + "(土留め " + (band.Count - igN) + "・外周の石垣 " + igN + "・石段 " + stairN + ")/ 面 " + faces.Count + " / 守った地形の木 " + plant.Count);
         sb.AppendLine("  " + rep);
         sb.Append(EdoBuild.SkinGapTable(parts, faces, tol));
         return sb.ToString();

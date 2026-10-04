@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 390(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 397(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -35,7 +35,7 @@
 | `Eg.TakeGaki` | string | `bamboo garden fence B.prefab` — 竹垣(0.9高 x 1.05長)。水際・庭園帯の囲いに。 | MatsudairaDewa(Stage6_Zosaku), MatsudairaDewaBuilder.Niwa(Stage6d_Tenkei), OkabeYashiki(AssetByKey) |
 | `Eg.ToroYukimi` | string | `t_yukimi.obj` — 雪見灯籠(六角の広い笠 + 宝珠 + 火袋 + 竿を持たない三脚)。 | DoiBuilder.Niwa(ResolveNiwaApi), OkabeYashiki(PlaceNiwaItem) |
 | `Eg.TexToroYukimi` | string | `t_yukimi.jpg` | — |
-| `Eg.ToroKasuga` | string | `t_kasuga.obj` — 春日灯籠(edogoyomi `t_kasuga`)── 寺社の境内の献灯(本堂の前・参道の左右に一対)にだけ当てる (庭方の境内の設計 2026-09-27・EDO-0477 P5)。 | TypologyBuilder.Keidai(NiwaKeidai) |
+| `Eg.ToroKasuga` | string | `t_kasuga.obj` — 春日灯籠(edogoyomi `t_kasuga`)── 寺社の境内の献灯(本堂の前・参道の左右に一対)にだけ当てる (庭方の境内の設計 2026-09-27・EDO-0477 P5)。 | DoiBuilder.Niwa(ResolveNiwaApi), TypologyBuilder.Keidai(NiwaKeidai) |
 | `Eg.TexToroKasuga` | string | `t_kasuga.jpg` | — |
 | `Eg.BareTex` | System.Collections.Generic.Dictionary<string, string> | 材の無い edogoyomi の駒 → 同じフォルダの画像(2026-09-28 EDO-0477 施主指摘「灯籠が真っ白」)。 | Build(Place) |
 | `Eg.NorenSpec` | string | `noren.json` — 表店の暖簾・看板の店ごとの染め分け(EDO-0503 施主「全部同じ暖簾」)。 | BuildMachiya(MachiKidoAcross・NorenVariants) |
@@ -67,6 +67,7 @@
 | `VK.ColumnA` | string | `column A .prefab` | — |
 | `VK.WallShopWoodX8` | string | `Wall Shop Wood x 8.prefab` | — |
 | `VK.WallShopPlasterX8` | string | `Wall Shop Plaster x 8.prefab` | — |
+| `VK.Bench` | string | `bench.prefab` — 床几(腰掛) — 生の実寸 2.00(X) × 0.41(Y) × 0.40(Z)・ピボット = 底の芯(在庫目録)。 | DoiBuilder.Niwa(Niwa_D_Tenkei) |
 
 ## Goten
 
@@ -169,11 +170,11 @@
 | `JG.Pine(size, i)` | 関数 | 黒松。生 5.6m ×1.65。Big/Mid/Small × 01..03 | MatsudairaDewa(ResolveApi・Stage7_Niwa), OkabeYashiki(PlantByKey), TypologyBuilder.Niwa(DeShare) |
 | `JG.Bamboo(size, i)` | 関数 | 竹。Big/Mid/Small × 01・02(`Green` のみ引く — `Dry` は枯れ姿で当プロジェクトでは使わない)。 | OkabeYashiki(PlantByKey) |
 | `JG.SakuraSummer(size, i)` | 関数 | 桜。⚠ Summer のみ使う(季節は春ではない)。 | MatsudairaDewa(ResolveApi) |
-| `JG.Boxwood(i)` | 関数 | 柘植の刈込。Spring/Fall × 01..03、Single/ もある | DoiBuilder.Niwa(Niwa_H_Shokusai・ResolveNiwaApi), MatsudairaDewa(ResolveApi・Stage7_Niwa), OkabeYashiki(PlantByKey), TypologyBuilder.Niwa(MomijiPalFor) |
-| `JG.BoxwoodSingle(i)` | 関数 | 柘植の一株(Single)。01..03・実寸 約1.0×0.8〜1.1×0.9m・120〜140ポリ。 | BuildRun(IkegakiRow) |
+| `JG.Boxwood(i)` | 関数 | 柘植の刈込。Spring/Fall × 01..03、Single/ もある | MatsudairaDewa(ResolveApi・Stage7_Niwa), DoiBuilder.Niwa(ResolveNiwaApi), OkabeYashiki(PlantByKey), TypologyBuilder.Niwa(MomijiPalFor) |
+| `JG.BoxwoodSingle(i)` | 関数 | 柘植の一株(Single)。01..03・実寸 約1.0×0.8〜1.1×0.9m・120〜140ポリ。 | BuildRun(IkegakiRow), DoiBuilder.Niwa(ResolveNiwaApi) |
 | `JG.Fern(i)` | 関数 | 羊歯の下草。Spring/Fall × 01..02 | DoiBuilder.Niwa(Niwa_H_Shokusai・ResolveNiwaApi), MatsudairaDewa(ResolveApi・Stage7_Niwa), OkabeYashiki(PlantByKey), TypologyBuilder.Niwa(MomijiPalFor) |
 | `JG.Rock(i)` | 関数 | 庭石。01..03 | MatsudairaDewa(ResolveApi・Stage7_Niwa), MatsudairaDewaBuilder.Niwa(Stage6c_Ishigumi・Stage6d_Tenkei) |
-| `JG.Azalea(i)` | 関数 | 躑躅・皐月。⚠ A 02 は存在しない — 01 / 03 / 04 の3種 | MatsudairaDewa(ResolveApi・Stage7_Niwa), BuildRun(OutsidePlot) |
+| `JG.Azalea(i)` | 関数 | 躑躅・皐月。⚠ A 02 は存在しない — 01 / 03 / 04 の3種 | MatsudairaDewa(ResolveApi・Stage7_Niwa), BuildRun(OutsidePlot), DoiBuilder.Niwa(ResolveNiwaApi) |
 
 ## NM
 
@@ -181,8 +182,8 @@
 |---|---|---|---|
 | `NM.MapleBush(i)` | 関数 | カエデの灌木(下草・林床の中層)。i = 1..4。 | MatsudairaDewa(ResolveApi), OkabeYashiki(PlantByKey) |
 | `NM.GreyWillow(i)` | 関数 | ヤナギの灌木(水際・法面の下層)。i = 1..4。 | MatsudairaDewa(ResolveApi), OkabeYashiki(PlantByKey) |
-| `NM.GrassMeadow(family, variant, i)` | 関数 | 草地(メドウ)の草叢。岡部邸のススキ(見透しの窓・法尻)に使う。 | OkabeYashiki(PlantByKey) |
-| `NM.GrassMeadowIndices(family, variant)` | 関数 | 系統・変種ごとに実在する個体の番号(2026-09-04 に `ls` で確認)。 | OkabeYashiki(PlantByKey) |
+| `NM.GrassMeadow(family, variant, i)` | 関数 | 草地(メドウ)の草叢。岡部邸のススキ(見透しの窓・法尻)に使う。 | DoiBuilder.Niwa(Niwa_H_Shokusai), OkabeYashiki(PlantByKey) |
+| `NM.GrassMeadowIndices(family, variant)` | 関数 | 系統・変種ごとに実在する個体の番号(2026-09-04 に `ls` で確認)。 | DoiBuilder.Niwa(Niwa_H_Shokusai), OkabeYashiki(PlantByKey) |
 | `NM.CliffPiece(i)` | 関数 | 実肌の岩棚(野面石 1 段の土留め)。松江松平邸 `slopeDoryu`(法尻の土留め)に使う。 | — |
 
 ## Own
@@ -194,7 +195,7 @@
 | `Own.DanishiStep` | string | `P_DanishiStep2m.prefab` | OkabeYashiki(AssetByKey・PlaceKaidanAB・PlaceKaidans), Doi(PlaceFumiishi・PlaceKaidans), MatsudairaDewa(Stage6_Zosaku), SannoSha ほか1 |
 | `Own.MichibataIshi` | string | `P_MichibataIshi2m.prefab` | SannoSha |
 | `Own.Broadleaf` | string | ⛔ 使用禁止(Obsolete)。`BroadleafTree.prefab` — 常緑の広葉樹(モッコク・モチノキ・カシ・シイの見立て)。 | — |
-| `Own.Jouryoku(size, i=…)` | 関数 | 常緑広葉樹(モッコク・モチノキ・シラカシ・スダジイの見立て)。 | TypologyBuilder.Niwa(DeShare), DoiBuilder.Niwa(ResolveNiwaApi), MatsudairaDewa(ResolveApi), OkabeYashiki(PlantByKey) ほか1 |
+| `Own.Jouryoku(size, i=…)` | 関数 | 常緑広葉樹(モッコク・モチノキ・シラカシ・スダジイの見立て)。 | DoiBuilder.Niwa(PlantPath・ResolveNiwaApi), TypologyBuilder.Niwa(DeShare), MatsudairaDewa(ResolveApi), OkabeYashiki(PlantByKey) ほか1 |
 | `Own.Jokuroku(size)` | 関数 | ⛔ 使用禁止(Obsolete)。⛔ 綴りの誤り(常緑の訓みは Jouryoku)。 | — |
 | `Own.Teiboku(size, i=…)` | 関数 | 常緑の照葉低木(サカキ・アオキ・ヤブツバキの見立て)。 | BuildRun(EdgeFacesSlope), OkabeYashiki(PlantByKey), SannoSha(TreePath), TypologyBuilder.Niwa(MomijiPalFor) |
 | `Own.Matsu(size, i=…)` | 関数 | クロマツ(社叢)。山王社の社叢の高木。⭐ 林の松 — 在庫の `JG.Pine` は独立して枝を張った庭の松で樹形が別。 | OkabeYashiki(PlantByKey), SannoSha(TreePath), TypologyBuilder.Niwa |
@@ -263,7 +264,7 @@
 | `Own.SannoIdoIshiki(sideMm, slopeDen)` | 関数 | 山王社の前庭の井戸の板石敷一式 — 板石(東へ水勾配)・敷砂・割栗・井戸の縁石 4 石・礎石 4 石・ 浸透枡(伏せ枡・板蓋)(指図 bom 行26・行27)。 | SannoSha(Stage8_Ido), TypologyBuilder.Niwa(NiwaIdo) |
 | `Own.SannoChumon(duKen, dvKen, pX, mX, pZ, mZ)` | 関数 | 山王社の中門(瑞垣門)。一間平唐門・四脚(本柱2+控柱4)・銅瓦葺【S [国宝建造物目録1941]】。 | — |
 | `Own.SannoChumon(duKen, dvKen, passMm, widthMm, pX, mX, pZ, mZ)` | 関数 | 山王社の中門(瑞垣門)— 明治16年寸法(ユーザー裁定C 2026-09-14)。 | — |
-| `Own.Momiji(size, i=…)` | 関数 | イロハモミジ。⭐ 株立ち3〜5幹・枝が水平に張る(幅が高さを上回る)。 | DoiBuilder.Niwa(ResolveNiwaApi), MatsudairaDewa(ResolveApi), OkabeYashiki(PlantByKey), TypologyBuilder.Niwa(MomijiPalFor) |
+| `Own.Momiji(size, i=…)` | 関数 | イロハモミジ。⭐ 株立ち3〜5幹・枝が水平に張る(幅が高さを上回る)。 | DoiBuilder.Niwa(PlantPath・ResolveNiwaApi), MatsudairaDewa(ResolveApi), OkabeYashiki(PlantByKey), TypologyBuilder.Niwa(MomijiPalFor) |
 | `Own.Ume(size, i=…)` | 関数 | — | DoiBuilder.Niwa(ResolveNiwaApi), MatsudairaDewa(ResolveApi), OkabeYashiki(PlantByKey), TypologyBuilder.Niwa(NiwaUra) |
 | `Own.Enoki(size, i=…)` | 関数 | エノキ(一里塚の木)。⭐ 低い位置で数本の大枝に分かれ、枝が斜め上へ 開いて扇形〜半球形の広い樹冠。 | OkabeYashiki(PlantByKey), SannoSha(TreePath), TypologyBuilder.Niwa |
 | `Own.Mukunoki(size, i=…)` | 関数 | ムクノキ。エノキに似るが ⭐ 幹がより通直で高く、樹冠は縦長 (幅 &lt; 高さ)。 | OkabeYashiki(PlantByKey), SannoSha(TreePath), TypologyBuilder.Niwa |
@@ -341,8 +342,8 @@
 | `Own.Dobei2mEnd` | string | `Dobei2m_End.fbx` — Dobei2m の妻を塞いだ端部(x=0 側の小口に袖瓦を葺いて閉じた駒。 | BuildRun(NeribeiRun・NeribeiStepRun), BuildGamae(FenceEndPiece), PartSpec(Bake) |
 | `Own.MatsudairaBansho(w)` | 関数 | 松江松平邸の表門の番所 — 向唐破風・出格子・切石畳出の基壇。 | MatsudairaDewa(Stage5_Mon) |
 | `Own.MatsudairaBanshoBodyBand` | float[] | ⭐⭐ 番所の「躯体」を測るための帯 — ピボット(= 走りの芯・基壇の下端)からの 局所 y[m]。 | MatsudairaDewa(Stage5_Mon) |
-| `Own.NeishiLong` | float[] | 板塀の根石(玉石) — 松江松平邸の中仕切の板塀 8 run(延長 444.2m・約 800 石)。 | MatsudairaDewa(NeishiPlace) |
-| `Own.Neishi(lng)` | 関数 | — | MatsudairaDewa(NeishiPlace) |
+| `Own.NeishiLong` | float[] | 板塀の根石(玉石) — 松江松平邸の中仕切の板塀 8 run(延長 444.2m・約 800 石)。 | DoiBuilder.Niwa(Niwa_B_Gogan), MatsudairaDewa(NeishiPlace) |
+| `Own.Neishi(lng)` | 関数 | — | DoiBuilder.Niwa(Niwa_B_Gogan), MatsudairaDewa(NeishiPlace) |
 
 ## Own.Matsudaira
 
@@ -398,14 +399,14 @@
 | `Own.ItabeiHashira` | string | `Itabei_Hashira_N0.30.fbx` — 板塀の柱1本(ItabeiIta と組・2026-09-26・EDO-0437)。 | — |
 | `Own.ItabeiJifuku` | string | `Itabei_Jifuku_1.410_Hk0.60.fbx` — 板塀の地覆(板の下の横木)1間・光付けの代つき(2026-09-27・EDO-0437 施主裁定 案A「板を石の天端・地面まで下ろす」)。 | BuildRun(PostBoardRun), SannoSha(Stage4_Kakoi) |
 | `Own.ItabeiHashiraHk` | string | `Itabei_Hashira_Hk0.60.fbx` — 板塀の柱1本・光付けの代つき(ItabeiJifuku と組・2026-09-27・EDO-0437 案A)。 | BuildRun(PostBoardRun), SannoSha(Stage4_Kakoi) |
-| `Own.Ishigumi(i)` | 関数 | 庭石1個(景石・石組護岸の石・岩島・中島の汀石・荒磯の立石を全部これで置く)。 | DoiBuilder.Niwa(Niwa_B_Gogan・Niwa_D_Tenkei・ResolveNiwaApi), OkabeYashiki(PlaceNiwaItem), TypologyBuilder.Niwa(MomijiPalFor) |
-| `Own.Tobiishi(i)` | 関数 | 飛石・沢飛石1枚(天端が平ら)。⭕ 同じ photoscanned rock の頭を水平に 落として天端を作り、縁は自然石のまま残してある(⛔ 切石に見せない)。 | DoiBuilder.Niwa(Niwa_D_Tenkei・ResolveNiwaApi), OkabeYashiki(PlaceNiwaItem), TypologyBuilder.Niwa(MomijiPalFor) |
-| `Own.Kutsunugi` | string | 沓脱石(根府川石)。天端を平らに落とした自然石。 | OkabeYashiki(PlaceNiwaItem) |
+| `Own.Ishigumi(i)` | 関数 | 庭石1個(景石・石組護岸の石・岩島・中島の汀石・荒磯の立石を全部これで置く)。 | DoiBuilder.Niwa(Niwa_B_Gogan・ResolveNiwaApi), OkabeYashiki(PlaceNiwaItem), TypologyBuilder.Niwa(MomijiPalFor) |
+| `Own.Tobiishi(i)` | 関数 | 飛石・沢飛石1枚(天端が平ら)。⭕ 同じ photoscanned rock の頭を水平に 落として天端を作り、縁は自然石のまま残してある(⛔ 切石に見せない)。 | DoiBuilder.Niwa(Niwa_D_Tenkei・ResolveNiwaApi・ResolveTobi), OkabeYashiki(PlaceNiwaItem), TypologyBuilder.Niwa(MomijiPalFor) |
+| `Own.Kutsunugi` | string | 沓脱石(根府川石)。天端を平らに落とした自然石。 | DoiBuilder.Niwa(ResolveNiwaApi), OkabeYashiki(PlaceNiwaItem) |
 | `Own.Tateishi(size, variant)` | 関数 | 立石(縦長の庭石)3種。松江松平上屋敷の庭(`tenkei[].stones[]` の 主石・副石・鏡石、`sensui.iwaya` の鏡石ほか)向け。 | DoiBuilder.Niwa(ResolveNiwaApi), MatsudairaDewa(ResolveApi) |
 | `Own.Hiraishi(kind)` | 関数 | 大型の平石2種(天井石・伏石)。松江松平上屋敷の庭向け。 | MatsudairaDewa(ResolveApi) |
 | `Own.Ishibashi()` | 関数 | 切石橋(切石の一枚物の橋)。松江松平上屋敷の庭向け。 | MatsudairaDewa(ResolveApi) |
 | `Own.HatakeUne` | string | 菜園の畝(うね)1本・1間(樹下邸の菜園・EDO-0532)。 | TypologyBuilder.Katte(Katte) |
-| `Own.Ikegaki(end)` | 関数 | 刈込の生垣モジュール(ツゲ・マサキの見立て・1 間 × 1.90m × 0.80m、葉カード・材 M_FJG_Plant_Boxwood_01_Spring・LOD1)。 | MatsudairaDewaBuilder.Niwa(Stage6d_Tenkei) |
+| `Own.Ikegaki(end)` | 関数 | 刈込の生垣モジュール(ツゲ・マサキの見立て・1 間 × 1.90m × 0.80m、葉カード・材 M_FJG_Plant_Boxwood_01_Spring・LOD1)。 | DoiBuilder.Niwa(ResolveNiwaApi), MatsudairaDewaBuilder.Niwa(Stage6d_Tenkei) |
 | `Own.YotsumeGaki(h)` | 関数 | 四つ目垣 1スパン(1間)。親柱1 + 立子5 + 胴縁(h1.2 で4段 / h0.9 で3段)+ 棕櫚縄の結び。 | OkabeYashiki(PlaceDanKaki・PlaceNiwaItem・PlaceTakegaki), DoiBuilder.Niwa(Niwa_G_Kaki・ResolveNiwaApi), Doi(PlaceTakegaki), DoiBuilder.Saku(SakuPart) |
 | `Own.YotsumeGakiPost(h)` | 関数 | 四つ目垣の run の +X 端に足す親柱1本。 | OkabeYashiki(PlaceDanKaki・PlaceNiwaItem・PlaceTakegaki), DoiBuilder.Niwa(Niwa_G_Kaki・ResolveNiwaApi), Doi(PlaceTakegaki), DoiBuilder.Saku(SakuPart) |
 | `Own.KenninjiGaki(h)` | 関数 | 建仁寺垣 1スパン(1間)。親柱1 + 胴縁3(裏)+ 割竹の立子35枚を隙間なく + 押縁3段 + 玉縁 + 結び12。 | DoiBuilder.Niwa(Niwa_G_Kaki・ResolveNiwaApi), OkabeYashiki(PlaceDanKaki・PlaceNiwaItem), BuildRun(FenceRun), DoiBuilder.Saku(SakuPart) |
@@ -422,9 +423,15 @@
 | `Own.DoiIdo` | string | 井戸(土井邸 `wells` の5口とも同じ部材)。 | Doi(PlaceWells), DoiBuilder.Mune(PlaceWellsA) |
 | `Own.DoiChozu` | string | 手水石(水盤) — 稲荷の社前・参道の西(`yashiro.chozu`)。 | DoiBuilder.Niwa(Niwa_F_Yashiro), TypologyBuilder.Keidai(NiwaKeidai) |
 | `Own.DoiKutsunugi` | string | 沓脱石 — 奥棟の南入側の前の一枚石(`gardens.G_Okuniwa.kutsunugi.Kutsunugi_Oku`)。 | DoiBuilder.Niwa(ResolveNiwaApi) |
-| `Own.DoiMizushiriShiki` | string | 水尻の石の閾(余水吐)。汀 #14(西端)、天端は `mizu.mizushiri.shiki.sill` (水面 +0.05)。 | DoiBuilder.Niwa(Niwa_C_Mizushiri) |
-| `Own.DoiMizushiriHakiguchi` | string | 水尻の石組の吐き口(埋樋の終点)。実寸 0.950(X) × 0.740(Y) × 0.820(Z)。 | DoiBuilder.Niwa(Niwa_C_Mizushiri) |
-| `Own.DoiOtoshimizo` | string | 水尻の石敷きの落とし溝 — 1m モジュール。 | DoiBuilder.Niwa(Niwa_C_Mizushiri) |
+| `Own.DoiIshibashi` | string | 切石の一枚橋(`hashi[Hashi_Ishi]`・反りなし)。 | DoiBuilder.Niwa(ResolveTobi) |
+| `Own.DoiDobashi` | string | 土橋(`hashi[Hashi_Do]`)。 | — |
+| `Own.DoiMarutaDan` | string | 丸太の土留め段 1段(`gardens[G_Sensui].dan`)。 | DoiBuilder.Niwa(Niwa_E_Enro) |
+| `Own.DoiNobedan` | string | 延段の1間モジュール(切石と玉石の寄せ・幅 0.60)。 | DoiBuilder.Niwa(Niwa_E_Enro) |
+| `Own.DoiNobedanAB` | string | 延段の一本物(`nobedan.a→b` の長さ 3.18 ちょうど)。 | — |
+| `Own.DoiEnsakiChozubachi` | string | 縁先手水鉢(`gardens[G_Okuniwa].chozu`)。 | DoiBuilder.Niwa(Niwa_D_Tenkei) |
+| `Own.DoiMizushiriShiki` | string | 水尻の石の閾(余水吐)。汀 #14(西端)、天端は `mizu.mizushiri.shiki.sill` (水面 +0.05)。 | DoiBuilder.Niwa(ResolveNiwaApi) |
+| `Own.DoiMizushiriHakiguchi` | string | 水尻の石組の吐き口(埋樋の終点)。実寸 0.950(X) × 0.740(Y) × 0.820(Z)。 | DoiBuilder.Niwa(ResolveNiwaApi) |
+| `Own.DoiOtoshimizo` | string | 水尻の石敷きの落とし溝 — 1m モジュール。 | — |
 | `Own.MatsudairaIshidoi` | string | 石樋(松江松平 溝 MZ17 が土留めを抜ける所・EDO-0554)。 | — |
 | `Own.MatsudairaIshibuta1m` | string | 石蓋つきの溝 1m(松江松平 溝 MZ16 の段の頭の前ほか・EDO-0554)。 | — |
 | `Own.Rangui(dia)` | 関数 | 乱杭1本(汀を留める細い杭。`gardens[].rangui`)。 | DoiBuilder.Niwa(Niwa_B_Gogan), OkabeYashiki(PlaceNiwaItem) |

@@ -123,6 +123,11 @@ public static class EdoAssets
         public const string ColumnA          = "Assets/Japanese Village Kit/Prefabs/Walls and floors/column A .prefab"; // 末尾の空白はベンダー由来
         public const string WallShopWoodX8    = "Assets/Japanese Village Kit/Prefabs/Shopping Streets/Wall Shop Wood x 8.prefab";
         public const string WallShopPlasterX8 = "Assets/Japanese Village Kit/Prefabs/Shopping Streets/Wall Shop Plaster x 8.prefab";
+
+        /// <summary>**床几(腰掛)** — 生の実寸 2.00(X) × 0.41(Y) × 0.40(Z)・ピボット = 底の芯(在庫目録)。
+        /// Village Kit は 2.0m/間 なので **localScale = 0.909**(vklib.S)で 1.82m。土井邸の腰掛(`tenkei[Koshikake]`)。
+        /// 材はプレハブが持つので remap 不要。</summary>
+        public const string Bench = "Assets/Japanese Village Kit/Prefabs/Shopping Streets/bench.prefab";
     }
 
     /// <summary>御殿の部材(Blender で Village Kit から江戸間に起こしたもの)
@@ -3750,6 +3755,53 @@ public static class EdoAssets
         /// 材 = `M_photoscanned_rocks_01`(⛔ 新規マテリアルを作らない。remap が要る)。
         /// 生成: blender --background --python Tools/Blender/build_doi_buzai.py -- kutsunugi --render</summary>
         public const string DoiKutsunugi = FuzokuyaDir + "Doi_Kutsunugi.fbx";
+
+        // ---- 土井邸の庭の部材(EDO-0533・庭方の設計 2026-10-04・gardens[G_Sensui]/[G_Okuniwa])。
+        //      材は石 = M_photoscanned_rocks_01(Ishigumi/DoiKutsunugi と一系統・⛔ M_FJG_Rock_001 ではない)/
+        //      木 = M_Wood_fence / 土・芝 = M_FJG_Terrain_Ground_Soil_01・_Grass_01。
+        //      remap は `Edo/岡部筑前守上屋敷/新造部材のマテリアルをremap`(Models/Niwa と3つの借り先を全部見る)。
+
+        /// <summary>**切石の一枚橋**(`hashi[Hashi_Ishi]`・反りなし)。実寸 **3.400(X) × 0.240(Y) × 0.750(Z)**。
+        /// 平面の長い軸 = **ローカル X = 橋の長手**(a→b へ向ける)。径間 2.79 に対し両端 0.30 ずつ橋台石へ掛かる。
+        /// ピボット = **版の平面の芯・天端**(石は Y −0.24..0)⇒ <c>position.y = topY</c>(26.4)を直に。
+        /// ⛔ <see cref="Ishibashi"/>(2.2m・M_FJG_Rock_001)とは石の系が別。
+        /// 生成: blender --background --python Tools/Blender/build_doi_niwa.py -- ishibashi --render</summary>
+        public const string DoiIshibashi = NiwaDir + "Doi_Ishibashi_3.40x0.75.fbx";
+
+        /// <summary>**土橋**(`hashi[Hashi_Do]`)。丸太桁 φ0.18×3 の上に土 0.15・縁と側面を芝で包む。
+        /// 実寸 **3.400(X) × 1.116(Y: −0.936..+0.180) × 1.260(Z)**(Z の 1.26 は岸の台木の丸太の出・土は幅 1.20)。
+        /// ローカル X = 長手(a→b)。桁は反り 0.15 なりに撓めてあり、中央の天端は +0.15(+むくり 0.03)。
+        /// ピボット = **平面の芯・橋の端の土の天端** ⇒ <c>position.y = endTopY</c>(26.38)。
+        /// 両端の岸(芯から ±1.44)に台木 φ0.12 と土留めの杭 φ0.08 × 5本が −0.94 まで垂れる(岸の法に埋まる前提)。
+        /// 生成: blender --background --python Tools/Blender/build_doi_niwa.py -- dobashi --render</summary>
+        public const string DoiDobashi = NiwaDir + "Doi_Dobashi_3.40x1.20.fbx";
+
+        /// <summary>**丸太の土留め段 1段**(`gardens[G_Sensui].dan`)。丸太 φ0.13 × 0.90(X)+下手に留め杭 φ0.06 × 2本。
+        /// 実寸 **0.900(X) × 0.465(Y: −0.465..0) × 0.192(Z)**。下手(下り側)= **ローカル +Z**(杭の側)。
+        /// ピボット = **丸太の芯の平面・丸太の天端** = 上段の踏面 ⇒ <c>position.y = 上段の踏面</c>。
+        /// 蹴上 0.12〜0.15 と踏面 ≥0.60 は駒の間隔で割る(駒に踏面の土は含まない)。
+        /// 生成: blender --background --python Tools/Blender/build_doi_niwa.py -- dan --render</summary>
+        public const string DoiMarutaDan = NiwaDir + "Doi_MarutaDan_0.90.fbx";
+
+        /// <summary>**延段の1間モジュール**(切石と玉石の寄せ・幅 0.60)。実寸 **1.814(X) × 0.104(Y: −0.104..0) × 0.596(Z)**。
+        /// 両端は幅いっぱいの切石で始め・止めてある(継いで並べても端の石どうしが目地 0.015 で並ぶ)。
+        /// ローカル X = 長手。ピボット = **平面の芯・切石の天端** ⇒ <c>position.y = 地盤 + 0.03</c> 程度。
+        /// 目地と玉石の間の床(土)の天端は −0.035(地盤より下へ入る)。⛔ X を伸縮して長さを合わせない。
+        /// 生成: blender --background --python Tools/Blender/build_doi_niwa.py -- nobedan --L 1.818 --render</summary>
+        public const string DoiNobedan = NiwaDir + "Doi_Nobedan_W0.60_L1.82.fbx";
+
+        /// <summary>**延段の一本物**(`nobedan.a→b` の長さ 3.18 ちょうど)。中身の作りは <see cref="DoiNobedan"/> と同じ。
+        /// 実寸 **3.172(X) × 0.104(Y) × 0.596(Z)**・ピボットも同じ。1間モジュールを2枚並べると 0.46 はみ出すので、
+        /// a→b に一枚で据えるならこちら。
+        /// 生成: blender --background --python Tools/Blender/build_doi_niwa.py -- nobedan --render</summary>
+        public const string DoiNobedanAB = NiwaDir + "Doi_Nobedan_W0.60_L3.18.fbx";
+
+        /// <summary>**縁先手水鉢**(`gardens[G_Okuniwa].chozu`)。自然石の鉢 0.55 × 0.49 × h0.35(水穴 φ0.27・深さ 0.16)を
+        /// 台石 0.85 × 0.60 × 0.32 に載せた一体物。実寸 **0.850(X) × 0.650(Y: −0.650..0) × 0.600(Z)**。
+        /// ピボット = **鉢の平面の芯・鉢の縁の天端** ⇒ <c>position.y = rimY</c>(長局の縁板の天端 −0.10)。
+        /// 地盤が縁 −0.5 前後なら台石の見えが 0.15、残りは根入れ。役石(清浄石・水揚石)は含まない(yaku 欄)。
+        /// 生成: blender --background --python Tools/Blender/build_doi_niwa.py -- chozubachi --render</summary>
+        public const string DoiEnsakiChozubachi = NiwaDir + "Doi_Chozubachi_Ensaki.fbx";
 
         /// <summary>**水尻の石の閾(余水吐)**。汀 #14(西端)、天端は `mizu.mizushiri.shiki.sill`
         /// (水面 +0.05)。実寸 **1.200(X) × 0.490(Y) × 0.890(Z)**。数量1。

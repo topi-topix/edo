@@ -1459,7 +1459,7 @@
    },
    "a": [
     -13.5,
-    2.5
+    4.0
    ],
    "b": [
     -13.5,
@@ -1476,11 +1476,12 @@
    "ends": [
     {
      "end": "北の端",
-     "rule": "北の縁の法面の法肩で止め、袖は地山へ 1 ピッチ納めて天端 26.7 をそこで切る",
-     "conflict": "⚠ 同じ巡の決めで郭の北の縁は囲いの足元まで延びて法面が無くなった ── 止める面を普請方へ差し戻し"
+     "rule": "石積みは v4.0(高い側の地山 ≈ 26.4)で止め、袖は地山へ 1 ピッチ納めて天端 26.7 をそこで切る。v1.71〜4.0 は石積みを置かず、切りの法 1:1.0(const.batterCut・落差 0.1〜0.7m)で長屋 N_Nagaya_W の基壇の足元へ摺り付ける",
+     "cert": "U(普請方)",
+     "src": "普請方 検分第1巡 2026-10-04 の設計を写す(EDO-0554)"
     }
    ],
-   "src": "普請方 検分第2巡 2026-10-03(EDO-0554)"
+   "src": "普請方 検分第2巡 2026-10-03(EDO-0554) / 北端 = 普請方 検分第1巡 2026-10-04 の設計を写す(EDO-0554)"
   },
   {
    "name": "TW_UchiW_Dan",
@@ -5018,7 +5019,7 @@
     34.6
    ],
    "steps": 16,
-   "keri": 0.141,
+   "keri": 0.1425,
    "w": 0.75,
    "finish": "自然石の乱れ段",
    "src": "庭方の設計 2026-10-03 / 段割は普請方 検分第1巡 2026-10-04 の指摘を写す",
@@ -5026,7 +5027,7 @@
    "y0": 26.82,
    "y1": 29.1,
    "drop": 2.28,
-   "rel": "a = 遠見の山の裾の地盤(26.84)、b = 頂の床几の平場(M_Toomi.y 29.1)",
+   "rel": "a = 遠見の山の裾の地盤(26.82)、b = 頂の床几の平場(M_Toomi.y 29.1)",
    "cert": "P(y0 = 地盤の実測・y1 = M_Toomi の頂)/U(段割)"
   },
   {
@@ -5035,18 +5036,18 @@
    "label": "露地・遠見の道の起点の段(沓脱石+踏石)",
    "atWall": null,
    "a": [
-    -60.5,
+    -61.3,
     40.5
    ],
    "b": [
-    -61.3,
+    -60.5,
     40.5
    ],
    "pos": [
     -60.9,
     40.5
    ],
-   "dir": "-u",
+   "dir": "+u",
    "steps": 2,
    "keri": 0.23,
    "drop": 0.46,
@@ -5054,9 +5055,9 @@
    "y1": 27.25,
    "w": 0.75,
    "finish": "沓脱石+踏石",
-   "rel": "中奥の面の縁 u−60.5(27.25)から縁の外の地盤 26.79 へ。R_Roji・R_Toomi の共通の起点",
+   "rel": "a = 縁の外の地盤 u−61.3(y0 26.79)、b = 中奥の面の縁 u−60.5(y1 27.25)── 沓脱石は b の側に据わる。R_Roji・R_Toomi の共通の起点",
    "cert": "U(庭方の設計値・実測でない)",
-   "src": "庭方の設計 2026-10-03(EDO-0554 検分第3巡)"
+   "src": "庭方の設計 2026-10-03(EDO-0554 検分第3巡) / a・b を y0・y1 に揃えた = 普請方 検分第1巡 2026-10-04 の設計を写す(EDO-0554)"
   },
   {
    "name": "K_Daidokoromon",
@@ -5093,7 +5094,7 @@
       3.0
      ],
      "y": 25.7,
-     "note": "段上の溜り"
+     "note": "段上の溜り。北の縁を溝 MZ16 が通る(溜りの1間は石蓋)── 大台所の北の軒の雨落ちはこの溝に落ちる"
     }
    ],
    "sode": {
@@ -5104,7 +5105,9 @@
     "sides": "両側",
     "masonry": "野面石",
     "mitsuke": "≤ 0.85",
-    "coping": 25.7
+    "coping": 25.7,
+    "southEnd": "溝 MZ16 の北の縁で止める(溝の幅だけ v2.34 より手前)── 袖と溝を重ねない",
+    "src": "普請方 検分第1巡 2026-10-04 の設計を写す(EDO-0554)"
    },
    "hard": true,
    "cert": "型=P/位置=U",
@@ -5251,6 +5254,17 @@
    "to": 76.0,
    "eaveAbove": 3.4,
    "ridgeAbove": 5.8
+  },
+  {
+   "name": "断面O 南北(御臺所門の軸 u=-24.6)",
+   "axis": "u",
+   "at": -24.6,
+   "vExag": 3.0,
+   "from": -4.0,
+   "to": 20.0,
+   "eaveAbove": 3.4,
+   "ridgeAbove": 5.8,
+   "src": "検図 検分第1巡 2026-10-04 の指摘(門の切り下げと石段を通す断面が無い)"
   }
  ],
  "bom": [
@@ -8966,7 +8980,7 @@
      {
       "api": "Own.Jouryoku(\"Mid\")",
       "prefab": "Tree_Jouryoku_Mid",
-      "n": 1,
+      "n": 3,
       "scale": 1.0
      }
     ],
@@ -11352,12 +11366,22 @@
     "mune": "nokiE",
     "link": "nokiE",
     "service": "nokiE",
-    "route": "routeHalf"
+    "route": "routeHalf",
+    "kaki": 2.0,
+    "nakajikiri": 2.0
    },
    "下草": {
     "mune": "nokiE",
     "link": "nokiE",
     "service": "nokiE"
+   },
+   "高木": {
+    "kaki": 2.0,
+    "nakajikiri": 2.0
+   },
+   "中木": {
+    "kaki": 2.0,
+    "nakajikiri": 2.0
    }
   },
   "clrExempt": [
@@ -11483,8 +11507,8 @@
    "src": "林方の設計 2026-10-04(EDO-0554)"
   },
   "clrExemptNote": {
-   "nakajikiri": "clearance が勝つ",
-   "kaki": "clearance が勝つ"
+   "nakajikiri": "高木・中木・低木は keepoutByRole の 2.0(= clearance.kakoiInsideM)を読む。keepout の 0.8 は下草だけ",
+   "kaki": "同上"
   }
  },
  "slopeArea": {
@@ -12458,19 +12482,19 @@
   "niwashi": {
    "at": "2026-10-04",
    "verdict": "pass",
-   "hash": "f065e8190ed15fc5",
-   "note": "4巡目 指摘付きで可: 中1=沓脱の段 K_Roji_Kutsunugi の y0/y1 が逆・低2=澪筋#8が中島の裾に掛かる・K_Toomi に高さが無い。庭の設計は数値どおり写った・土の釣り合い掘420/盛371",
+   "hash": "c0b8ce90a7586f2f",
+   "note": "5巡目 可 中1低1: G_Nakanokuchi の地表(砂利か三和土・植栽なし)/矩形が台所の郭の土留めと長屋の基壇に掛かる",
    "chapters": {
-    "gardens": "17d36fbfb6be",
-    "tenkei": "e50796ec05a4",
-    "routes": "38608cbcedd3",
-    "sensui": "2a838ade12c8",
-    "mizu": "18b85fcdbb59",
-    "tsukiyama": "229332e0c69d",
+    "gardens": "1c0d533e91e0",
+    "tenkei": "536caf9e0826",
+    "routes": "1d199ccca5a8",
+    "sensui": "58341b579090",
+    "mizu": "5404777d54b3",
+    "tsukiyama": "8cb1db480c84",
     "gardenSections": "0de6f34548f5",
     "viewpoints": "2398487a0b71",
     "nakajikiriRule": "d45adfdd2d91",
-    "py": "e9f89ca2796a28b0"
+    "py": "d1ecf9d33c4755ec"
    },
    "rounds": [
     {
@@ -12504,43 +12528,47 @@
     {
      "at": "2026-10-04T07:56:07+09:00",
      "verdict": "pass"
+    },
+    {
+     "at": "2026-10-04T10:10:11+09:00",
+     "verdict": "pass"
     }
    ]
   },
   "kenzu": {
    "at": "2026-10-04",
    "verdict": "fail",
-   "hash": "8cc46484d63a7c63",
-   "note": "4巡目(施主A)3巡で止まる: 高1=広敷の口の外の木戸から R05 が広敷の口より先に奥の囲いへ入る(番所なしの第三の口)・中1=御膳所口の渡廊下が奥の板塀 v47.5 を越える所の戸が無い。他は解消(奥の5間・蔵門の坂・滝見の段の長さ・露地の起点)",
+   "hash": "5f51a07f2258e253",
+   "note": "5巡目(施主A)3巡で止まる 中3低1: 御臺所門の口の両脇(v0〜1.71)の返し石垣の型と開口高の基準が未決/広敷の口へ外(27.1)から上がる戸口・沓脱・踏段が無い/垣から2.0mに合わない植栽15本/奥の囲いに庭木戸2つが残り文言と食い違う",
    "chapters": {
     "const": "312f7254702e",
     "ishigaki": "b5bed1646006",
     "polygon": "4480c0cada36",
     "edgeProfiles": "9a96f3e8e6d1",
     "grid": "5841fa85521e",
-    "planes": "679c36217269",
-    "terraces": "bf65fe609d43",
-    "terraceWalls": "1385511eed2f",
+    "planes": "79bfdcab303a",
+    "terraces": "a41963c94fa1",
+    "terraceWalls": "01091ad83b33",
     "slopeBands": "59ba14991948",
-    "runs": "c5ec2f9f369b",
+    "runs": "09b4c928026b",
     "fences": "d851f8275101",
     "gate": "61857a2fd677",
-    "komon": "b6757361ea62",
+    "komon": "d34ed77b4282",
     "yagura": "4f53cda18c2b",
-    "munes": "d1c14618731d",
-    "links": "efd1bbaef2c4",
+    "munes": "56dd078090b3",
+    "links": "fefcef0e6092",
     "roka": "286ea1b4a329",
     "valleys": "193dcdb4a59c",
-    "gardens": "17d36fbfb6be",
+    "gardens": "1c0d533e91e0",
     "service": "f6414e43837d",
-    "wells": "4af9b0a910d6",
-    "kaidans": "2d6657ae6ee8",
-    "sections": "4ef694240b1d",
+    "wells": "44af80a8260f",
+    "kaidans": "8f24d07c9ab5",
+    "sections": "85fcc4788946",
     "bom": "74f139484401",
-    "routes": "38608cbcedd3",
-    "nakajikiri": "51c845fdb472",
-    "planting": "0968ee896a57",
-    "tenkei": "e50796ec05a4",
+    "routes": "1d199ccca5a8",
+    "nakajikiri": "be03e5935527",
+    "planting": "e44586089c80",
+    "tenkei": "536caf9e0826",
     "hairyo": "1d11849c9692",
     "kenzan": "a8c4e1460af7",
     "program": "f860616a2677",
@@ -12548,15 +12576,15 @@
     "fuchi": "4f53cda18c2b",
     "chains": "257c507c2d2a",
     "kado": "e828df19f3fe",
-    "joints": "d576fc25a733",
+    "joints": "994a1bdf97ab",
     "perimeterClosure": "3f08d731064c",
-    "plantRule": "509f145e8399",
+    "plantRule": "16a7df1bc5c4",
     "slopeArea": "2070edd4d29d",
     "slopePlanting": "cabd7ebef213",
     "viewpoints": "2398487a0b71",
-    "tsukiyama": "229332e0c69d",
-    "sensui": "2a838ade12c8",
-    "mizu": "18b85fcdbb59",
+    "tsukiyama": "8cb1db480c84",
+    "sensui": "58341b579090",
+    "mizu": "5404777d54b3",
     "nakajikiriRule": "d45adfdd2d91",
     "gardenSections": "0de6f34548f5",
     "viewpointRule": "53a48d85719b",
@@ -12572,9 +12600,9 @@
     "edoReconRedo": "3edfe32cf306",
     "kenpeiAim": "84502799fb89",
     "tsukiyamaSoil": "bbfae69adeac",
-    "drains": "ae0254623ae6",
-    "py": "e9f89ca2796a28b0",
-    "md": "9ce42276c42b5533"
+    "drains": "af380b003477",
+    "py": "d1ecf9d33c4755ec",
+    "md": "10ba6569f02b813e"
    },
    "rounds": [
     {
@@ -12616,43 +12644,47 @@
     {
      "at": "2026-10-04T07:56:07+09:00",
      "verdict": "fail"
+    },
+    {
+     "at": "2026-10-04T10:10:11+09:00",
+     "verdict": "fail"
     }
    ]
   },
   "kosho": {
    "at": "2026-10-04",
    "verdict": "pass",
-   "hash": "8cc46484d63a7c63",
-   "note": "4巡目: 根岸家文書II5-8 は赤坂上屋敷の図(市コラム45が明記・同定A・方位A)と直した。台所と御臺所門が北西寄りの件は施主の裁定待ちとして明記。低1(典拠台帳の追記)",
+   "hash": "5f51a07f2258e253",
+   "note": "5巡目 advisory 中1低2: 根岸家文書の読み『式台は御門の東で東面』に対し表玄関は表門の西 ── 断りか原図で確認/図の年次未確定の断り/稲荷の典拠の本文",
    "chapters": {
     "const": "312f7254702e",
     "ishigaki": "b5bed1646006",
     "polygon": "4480c0cada36",
     "edgeProfiles": "9a96f3e8e6d1",
     "grid": "5841fa85521e",
-    "planes": "679c36217269",
-    "terraces": "bf65fe609d43",
-    "terraceWalls": "1385511eed2f",
+    "planes": "79bfdcab303a",
+    "terraces": "a41963c94fa1",
+    "terraceWalls": "01091ad83b33",
     "slopeBands": "59ba14991948",
-    "runs": "c5ec2f9f369b",
+    "runs": "09b4c928026b",
     "fences": "d851f8275101",
     "gate": "61857a2fd677",
-    "komon": "b6757361ea62",
+    "komon": "d34ed77b4282",
     "yagura": "4f53cda18c2b",
-    "munes": "d1c14618731d",
-    "links": "efd1bbaef2c4",
+    "munes": "56dd078090b3",
+    "links": "fefcef0e6092",
     "roka": "286ea1b4a329",
     "valleys": "193dcdb4a59c",
-    "gardens": "17d36fbfb6be",
+    "gardens": "1c0d533e91e0",
     "service": "f6414e43837d",
-    "wells": "4af9b0a910d6",
-    "kaidans": "2d6657ae6ee8",
-    "sections": "4ef694240b1d",
+    "wells": "44af80a8260f",
+    "kaidans": "8f24d07c9ab5",
+    "sections": "85fcc4788946",
     "bom": "74f139484401",
-    "routes": "38608cbcedd3",
-    "nakajikiri": "51c845fdb472",
-    "planting": "0968ee896a57",
-    "tenkei": "e50796ec05a4",
+    "routes": "1d199ccca5a8",
+    "nakajikiri": "be03e5935527",
+    "planting": "e44586089c80",
+    "tenkei": "536caf9e0826",
     "hairyo": "1d11849c9692",
     "kenzan": "a8c4e1460af7",
     "program": "f860616a2677",
@@ -12660,15 +12692,15 @@
     "fuchi": "4f53cda18c2b",
     "chains": "257c507c2d2a",
     "kado": "e828df19f3fe",
-    "joints": "d576fc25a733",
+    "joints": "994a1bdf97ab",
     "perimeterClosure": "3f08d731064c",
-    "plantRule": "509f145e8399",
+    "plantRule": "16a7df1bc5c4",
     "slopeArea": "2070edd4d29d",
     "slopePlanting": "cabd7ebef213",
     "viewpoints": "2398487a0b71",
-    "tsukiyama": "229332e0c69d",
-    "sensui": "2a838ade12c8",
-    "mizu": "18b85fcdbb59",
+    "tsukiyama": "8cb1db480c84",
+    "sensui": "58341b579090",
+    "mizu": "5404777d54b3",
     "nakajikiriRule": "d45adfdd2d91",
     "gardenSections": "0de6f34548f5",
     "viewpointRule": "53a48d85719b",
@@ -12684,9 +12716,9 @@
     "edoReconRedo": "3edfe32cf306",
     "kenpeiAim": "84502799fb89",
     "tsukiyamaSoil": "bbfae69adeac",
-    "drains": "ae0254623ae6",
-    "py": "e9f89ca2796a28b0",
-    "md": "9ce42276c42b5533"
+    "drains": "af380b003477",
+    "py": "d1ecf9d33c4755ec",
+    "md": "10ba6569f02b813e"
    },
    "rounds": [
     {
@@ -12728,21 +12760,25 @@
     {
      "at": "2026-10-04T07:56:07+09:00",
      "verdict": "pass"
+    },
+    {
+     "at": "2026-10-04T10:10:11+09:00",
+     "verdict": "pass"
     }
    ]
   },
   "hayashi": {
    "at": "2026-10-04",
-   "verdict": "pass",
-   "hash": "261a25ac3c68d7e8",
-   "note": "4巡目 助言: 中2=植栽の欄に道際2.0m・囲いの内2.0m・枝下4.0mの宣言が無い(未検査)・垣の前の中木の塊が建仁寺垣から0.9〜1.7m。低1=庭の外の林床の塗りの欄が無い。K023〜K026 継続",
+   "verdict": "fail",
+   "hash": "8e2b595f1870034e",
+   "note": "5巡目 3巡で止まる 高1: 垣際の低木2箱と腰掛の背の中木1箱 計15本が垣・塀から0.4〜1.9m(2.0m で置き場なし・箱を v≤45.5 へ推奨)。中3: 撒いた点が9/22の古いもの(撒き直して測り直す)/囲いの内2.0mと枝下4.0mは検査に届かず未検査。低2: 林床の塗りの欄なし・名指しの木と祠の退避は未検査",
    "chapters": {
-    "planting": "0968ee896a57",
-    "plantRule": "509f145e8399",
+    "planting": "e44586089c80",
+    "plantRule": "16a7df1bc5c4",
     "slopeArea": "2070edd4d29d",
     "slopePlanting": "cabd7ebef213",
     "slopeBands": "59ba14991948",
-    "py": "e9f89ca2796a28b0"
+    "py": "d1ecf9d33c4755ec"
    },
    "rounds": [
     {
@@ -12752,27 +12788,31 @@
     {
      "at": "2026-10-04T07:56:16+09:00",
      "verdict": "pass"
+    },
+    {
+     "at": "2026-10-04T10:10:12+09:00",
+     "verdict": "fail"
     }
    ]
   },
   "fushin": {
    "at": "2026-10-04",
    "verdict": "pass",
-   "hash": "5c2de4e00b5efb1e",
-   "note": "4巡目 指摘付きで可: 蔵門の内の坂の切土0.27〜0.30>0.25 は巡の中で直し、残り中1低2",
+   "hash": "22f50214e76976d6",
+   "note": "5巡目 advisory(2巡目で中2低1・3巡目は呼ばれず)",
    "chapters": {
-    "terraces": "bf65fe609d43",
-    "planes": "679c36217269",
+    "terraces": "a41963c94fa1",
+    "planes": "79bfdcab303a",
     "edgeProfiles": "9a96f3e8e6d1",
-    "sections": "4ef694240b1d",
-    "terraceWalls": "1385511eed2f",
+    "sections": "85fcc4788946",
+    "terraceWalls": "01091ad83b33",
     "ishigaki": "b5bed1646006",
     "fuchi": "4f53cda18c2b",
-    "kaidans": "2d6657ae6ee8",
+    "kaidans": "8f24d07c9ab5",
     "ramps": "86843974b00a",
-    "drains": "ae0254623ae6",
+    "drains": "af380b003477",
     "valleys": "193dcdb4a59c",
-    "py": "e9f89ca2796a28b0"
+    "py": "d1ecf9d33c4755ec"
    },
    "rounds": [
     {
@@ -12781,6 +12821,10 @@
     },
     {
      "at": "2026-10-04T07:56:16+09:00",
+     "verdict": "pass"
+    },
+    {
+     "at": "2026-10-04T10:10:12+09:00",
      "verdict": "pass"
     }
    ]
@@ -13984,21 +14028,24 @@
    {
     "id": "MZ16",
     "label": "大台所の下水",
-    "along": "段上の溜りの北 v2.35 の溝(溜りの1間は石蓋)→ 西へ → u−27.4 で北へ折れ練塀 N_Hei_W3 の下を石組みの下水で潜る → 街路",
+    "along": "溝の頭 = 台所の郭の北東隅 u−13.5・v2.3(北へ下る地山の水をここで受ける)→ 長屋 N_Nagaya_W の基壇の内の足元に沿って西へ → 石段 K_Daidokoromon の頭(段上の溜りの北 v2.35・溜りの1間は石蓋)→ 西へ → u−27.4 で北へ折れ練塀 N_Hei_W3 の下を石組みの下水で潜る → 街路",
     "kind": "溝+石組みの下水",
     "cert": "U(普請方)",
     "hard": [
      "長屋 N_Nagaya_W の下をくぐらない",
      "溝は郭の内側で受ける(TW_Daidokoro_E の石積みの足元を通さない)"
     ],
-    "src": "普請方 検分第2巡 2026-10-03(EDO-0554) / 付け替え = 普請方の設計 2026-10-04(EDO-0554)",
+    "src": "普請方 検分第2巡 2026-10-03(EDO-0554) / 付け替え = 普請方の設計 2026-10-04(EDO-0554) / 頭を北東隅へ延ばす = 普請方 検分第1巡 2026-10-04 の設計を写す(EDO-0554)",
     "inv": {
+     "head": 25.55,
      "floor": 25.4,
+     "floorAt": "石段 K_Daidokoromon の頭",
      "street": 24.0,
      "cert": "U"
     },
     "incl": [
-     "勝手の井戸 Ido_Katte の洗い場の溝 ── 東へ u−27.4 で合流"
+     "勝手の井戸 Ido_Katte の洗い場の溝 ── 東へ u−27.4 で合流",
+     "大台所の北の軒の雨落ち ── 郭の北の帯(u−23.8〜−13.5)と段上の溜りの北の溝で受ける"
     ]
    }
   ],
@@ -14825,9 +14872,9 @@
    "from": "表郭(表向・前庭)と台所の郭",
    "to": "北の街路(辺21 s≈74)",
    "fall": "北へ",
-   "via": "台所の郭の北の溝 mizu.MZ16 に合わせる",
+   "via": "台所の郭の北の溝 mizu.MZ16 に合わせる(表郭の水の入口 = MZ16 の頭・郭の北東隅 u−13.5・v2.3)",
    "cert": "U(普請方)",
-   "src": "普請方 検分第2巡 2026-10-03(EDO-0554)"
+   "src": "普請方 検分第2巡 2026-10-03(EDO-0554) / 入口 = 普請方 検分第1巡 2026-10-04 の設計を写す(EDO-0554)"
   },
   {
    "name": "D_Higashi",
@@ -14870,7 +14917,7 @@
  ],
  "_reviews": "**検図関門。**この指図を誰が検めたか。⛔ 呼んだ側(普請奉行)が結果を書き戻す — 検分役は read-only で自分では書けない。`hash` はその検分が見た範囲の指紋で、指図を書き換えるとずれ、検分は自動で『検め直しが要る』になる。見張りは `python3 Tools/Sashizu/review_gate.py`。⛔ 関門が赤の指図を実装しない(途中見せは止めない・CLAUDE.md 規則22)。",
  "_rounds_ack": {
-  "at": "2026-10-04T07:41:45+09:00",
-  "quote": "施主 2026-10-04『Ａ』(4巡目の検分を直した所だけ回す)"
+  "at": "2026-10-04T09:51:21+09:00",
+  "quote": "施主 2026-10-04『Ａ』(5巡目の検分を直した所だけ回す)"
  }
 }

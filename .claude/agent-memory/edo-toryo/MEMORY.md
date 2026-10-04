@@ -82,6 +82,7 @@
 - [透塀の t の端は食い込み 0 で中門へ](sukibei-t-end-bite-zero.md) — ClipRunEndsToGates の halfT は bite。0.30 入れて全駒 1725 で倒れた
 - [自作の木の FBX は地形の木として無効](own-tree-fbx-invalid-as-terrain-tree.md) — 根に MR も LODGroup も無く1本も描かれない。TreePrototype.Validate で先に検める
 - [穴と皮の罠](terrain-holes-and-skin-traps.md) — 穴の升の地形の木は消える・地形のシェーダの材質は黒・艶で白く光る。木の升は開けない
+- [棟の背の城の石垣の3つの罠](back-plinth-slot-cut-and-oblique-aabb.md) — 天端の奥行1.4で長屋の下に0.89の溝(埋めの列)・2m格子は犬走りの切りを描けない・斜めの辺の外接箱は偽のめり込み
 - [Castle Wall の見え面は局所 −X](castlewall-face-is-local-minus-x.md) — 山王の土留め 162/233 駒が法の面を高い側へ。FaceSide/WallFaceRise で測る
 - [裏込めの皮は退役・原因は殻の石垣の底の測り違い](backfill-skin-needs-three-limits.md) — 鉛直な見え面で底が天端に化け偽の隙4510。WallBottom で15
 - [石垣の隅は区間の端ごとに・T 字の継ぎ目・二段築の下段](run-corners-seams-and-tiers.md) — PlaceRunCorners/PlaceTierBelow。控えは外向きの駒で・基壇の向きは低い地盤で測り直す

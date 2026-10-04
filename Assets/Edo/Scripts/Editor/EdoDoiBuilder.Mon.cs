@@ -361,11 +361,89 @@ public static partial class EdoDoiBuilder
             }
         }
 
+        // ════ ④ 背の基壇(boundaryPlinth.back ── 基壇を棟の背まで通し、背の面も城の石垣で立てる)
+        BuildBackPlinth(ig, kak, mon, tally, sb, log);
+
         sb.AppendLine("  勘定: ⭕ " + ok + " / ⚠ " + warn + " / ✗ " + bad);
         sb.Append(WaitReport());
         sb.AppendLine("── 明細 ──");
         sb.Append(log.ToString());
         return sb.ToString();
+    }
+
+    /// <summary>**背の基壇(boundaryPlinth.back・EDO-0533)**。基壇の欄(rows)の棟(表長屋・通用門の門長屋・表門)の背に、天端 = 欄の coping の
+    /// 城の石垣を <see cref="EdoBuild.PlaceCastleBack"/> で据える(見え面 = 区画の内・天端の前の縁 = 札の背の面から犬走り const.inubashiri)。
+    /// 先に丙(背の前の地盤が座より高い所)を <see cref="EdoBuild.CutAlongBack"/> で座 − 0.05 まで切る(区画の内だけ・切 1:1.0)。
+    /// 型(乙/甲/甲⚠/丙)は欄の名指しでなく据わった駒の見付の実測で刷る。乙の切石の縁石は在庫に無く城の石垣の天端の段で代えた(⚠)。
+    /// 硬い(✗): 天端 = coping・背の下端 − 天端 = 0(浮き)・見付 ≤ boundaryPlinthMax・外の基壇との間の隙 0・区画外。柔らかい(⚠): 見付 ≤ 1.2。
+    /// 建てない(次の巡): 戸口の石段・背の雨落ち溝。⛔ 置き方はここに書かない(規則21)。</summary>
+    static void BuildBackPlinth(Transform ig, Transform kak, Transform mon, Action<bool, bool, string> tally, System.Text.StringBuilder sb, System.Text.StringBuilder log)
+    {
+        var bp = O(D["boundaryPlinth"]);
+        if (!Has(bp, "back")) { sb.AppendLine("  背の基壇: 欄(boundaryPlinth.back)が無い ── 建てない"); return; }
+        for (int i = ig.childCount - 1; i >= 0; i--) if (ig.GetChild(i).name.StartsWith("IGB_")) UnityEngine.Object.DestroyImmediate(ig.GetChild(i).gameObject);
+        float inu = C("inubashiri"), hardMax = C("boundaryPlinthMax");
+        var P = Poly;
+        var rows = new List<Dictionary<string, object>>(); foreach (var ro in A(bp["rows"])) rows.Add(O(ro));
+        rows.Sort((x, y) => F(x["edge"]) != F(y["edge"]) ? F(x["edge"]).CompareTo(F(y["edge"])) : F(x["s0"]).CompareTo(F(y["s0"])));
+        var secs = new List<EdoBuild.BackSec>();
+        for (int i = 0; i < rows.Count; i++)
+        {
+            var r = rows[i]; string run = S(r["run"]); int e = (int)F(r["edge"]);
+            bool isGate = Has(r, "opening") && Has(O(r["opening"]), "gate");
+            Transform t = isGate ? mon.Find("Omotemon") : (kak.Find(run) ?? mon.Find(run));
+            if (t == null) { sb.AppendLine("  背の基壇 " + run + ": 棟が無い(練塀・未建)── 建てない"); continue; }
+            var sp = EdoBuild.SpecOf(t.gameObject);
+            if (sp == null) { sb.AppendLine("  背の基壇 " + run + ": 札の無い駒(" + t.name + ")── 棟でない・建てない"); continue; }
+            var sec = new EdoBuild.BackSec { name = isGate ? "Omotemon" : run, body = t.gameObject, crest = F(r["coping"]), origin = EdgePt(e, 0f), along = EdgeDir(e), inward = -OutNormal(e) };
+            if (sp.passage != null && sp.passage.x1 - sp.passage.x0 > 0.05f) sec.gaps.Add(PassageOn(sp, t, e));
+            if (HasKuguri(sp)) { var kg = PassageOn(sp.passageKuguri, t, e); bool inside = sec.gaps.Exists(g => g.x <= kg.x + 0.01f && kg.y <= g.y + 0.01f); if (!inside) sec.gaps.Add(kg); }
+            if (i + 1 < rows.Count && F(r["s1"]) >= EdgeLen(e) - EdoBuild.VTX_TOL && (int)F(rows[i + 1]["edge"]) == (e + 1) % P.Length && F(rows[i + 1]["s0"]) <= EdoBuild.VTX_TOL) sec.joinNext = true;
+            secs.Add(sec);
+        }
+        // 丙: 背の前の地盤が座より高い所を座 − 0.05 まで切る(犬走りの幅・切 1:1.0)
+        float cutAll = 0f, volAll = 0f; int nodes = 0; var cutBy = new List<string>();
+        foreach (var s in secs)
+        {
+            var sp = EdoBuild.SpecOf(s.body); var span = EdoBuild.SpecBodySpanAlong(s.body, s.origin, s.along);
+            var bw = s.body.transform.TransformPoint(new Vector3(0f, 0f, sp.back)); float tBack = Vector2.Dot(new Vector2(bw.x, bw.z) - s.origin, s.inward);
+            Vector2 a = s.origin + s.along * span.x + s.inward * tBack, b = s.origin + s.along * span.y + s.inward * tBack;
+            float cm, vol; int n = EdoBuild.CutAlongBack(P, a, b, s.inward, s.crest - 0.05f, inu, 1.0f, out cm, out vol);
+            if (n > 0) { cutBy.Add(s.name + " 切り最大 " + cm.ToString("F2") + "m・" + vol.ToString("F1") + "m³(" + n + " 節点)"); cutAll = Mathf.Max(cutAll, cm); volAll += vol; nodes += n; }
+        }
+        if (nodes > 0) { var td = Terrain.activeTerrain.terrainData; EditorUtility.SetDirty(td); AssetDatabase.SaveAssetIfDirty(td); }
+        sb.AppendLine("  背の基壇 丙(切り): " + (nodes == 0 ? "切る所なし" : string.Join(" / ", cutBy.ToArray()) + " ── 計 " + volAll.ToString("F1") + "m³・最大 " + cutAll.ToString("F2") + "m(区画の内だけ・切 1:1.0)"));
+        // 据える
+        var outer = new List<GameObject>(); foreach (Transform c in ig) if (!c.name.StartsWith("IGB_")) outer.Add(c.gameObject);
+        var res = EdoBuild.PlaceCastleBack(secs, inu, outer, EdoBuild.Ground, ig, log);
+        sb.AppendLine("  背の基壇: " + res.pieces.Count + " 駒(見え面と埋め)" + (res.buried > 0 ? "・全体が地表の下で据えない " + res.buried : ""));
+        foreach (var s in secs)
+        {
+            List<GameObject> fp; res.face.TryGetValue(s.name, out fp); if (fp != null) fp.RemoveAll(g => g == null);
+            Vector2 ln; if (!res.line.TryGetValue(s.name, out ln)) { tally(false, false, "背の基壇 " + s.name + ": 据わらない(札)"); continue; }
+            var all = new List<GameObject>(); if (fp != null) all.AddRange(fp); List<GameObject> fl; if (res.fill.TryGetValue(s.name, out fl)) all.AddRange(fl.FindAll(g => g != null));
+            var stonesAll = new List<GameObject>(); foreach (Transform c in ig) stonesAll.Add(c.gameObject);
+            var bodies = secs.ConvertAll(x => x.body);
+            int bare; float gap = EdoBuild.BackBedGap(s.body, stonesAll, s.origin, s.along, s.inward, ln.x, s.gaps, out bare, 0.3f, bodies);
+            float slot; res.slot.TryGetValue(s.name, out slot);
+            if (fp == null || fp.Count == 0)
+            {
+                // 背の前の地盤が天端より高い(丙)── 駒は地表の下で据わらない。背の下端と地表の差で刷る
+                var sp = EdoBuild.SpecOf(s.body); var span = EdoBuild.SpecBodySpanAlong(s.body, s.origin, s.along); float worst = float.MinValue;
+                for (float sv = span.x + 0.2f; sv <= span.y - 0.2f; sv += 0.5f) { var q = s.origin + s.along * sv + s.inward * (ln.x + 0.15f); worst = Mathf.Max(worst, s.crest - EdoBuild.Ground(q.x, q.y)); }
+                tally(worst <= 0.05f + 1e-3f, true, "背の基壇 " + s.name + "(丙): 見え面の駒なし ── 背の 0.15m 前の地表は天端より最大 " + worst.ToString("+0.00;-0.00") + "m 下");
+                continue;
+            }
+            var m = EdoBuild.CastleCrestExposure(fp, s.inward, EdoBuild.Ground);
+            string kind = m.z < 0.049f ? "丙" : (m.w <= 0.45f + 1e-3f ? "乙" : (m.w <= 1.2f + 1e-3f ? "甲" : "甲⚠"));
+            bool hard = Mathf.Abs(m.x - s.crest) <= 0.001f && Mathf.Abs(m.y - s.crest) <= 0.001f && !(m.w > hardMax + 1e-3f) && !(m.z < 0f) && !float.IsNaN(gap) && gap <= 0.001f && bare == 0 && !(slot > 0.01f);
+            bool soft = !(m.w > 1.2f + 1e-3f) && kind != "乙";
+            float was; EdoBuild.PullAlongInside(all, P, Vector2.zero, 0f, out was);
+            hard &= was <= 0.001f;
+            tally(hard, soft, "背の基壇 " + s.name + "(" + kind + (kind == "乙" ? " ── 切石の縁石が在庫に無く城の石垣の天端の段で代えた" : "") + "): 見え面 " + fp.Count + " 駒・埋め " + (fl != null ? fl.Count : 0) + " 駒・天端 " + m.x.ToString("F3") + "〜" + m.y.ToString("F3")
+                  + "(欄 " + s.crest.ToString("F1") + ")・見付 " + m.z.ToString("F2") + "〜" + m.w.ToString("F2") + "(狙い ≤1.2・上限 " + hardMax.ToString("F1") + ")・背の下端 − 下の石の天端 最悪 " + (float.IsNaN(gap) ? "測れず" : gap.ToString("+0.000;-0.000"))
+                  + "m(下に石の無い筋 " + bare + ")・外の基壇との隙 " + (float.IsNaN(slot) ? "-" : slot.ToString("F3")) + "m・区画の外 " + was.ToString("F3") + "m");
+        }
     }
 
     /// <summary>**奥の塀**(区画の内の段塀・runs[].pts)を建てる。口(gates[].inRun)は <paramref name="gapOverride"/>(門の名 → 口の芯 x,z と半幅)が

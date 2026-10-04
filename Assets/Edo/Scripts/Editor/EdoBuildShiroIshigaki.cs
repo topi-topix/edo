@@ -338,4 +338,248 @@ public static partial class EdoBuild
         if (tMin == float.MaxValue) return v;
         return new Vector4(tMin, tMax, eMin == float.MaxValue ? float.NaN : eMin, eMax == float.MinValue ? float.NaN : eMax);
     }
+
+    /// <summary><see cref="PlaceCastleBack"/> の一区間 = 基壇に載る一棟(長屋・門)の背。</summary>
+    public class BackSec
+    {
+        public string name; public GameObject body; public float crest;
+        /// <summary>走りの座標: 辺の始点 origin・走り along・区画の内向き inward(世界 xz・単位)。</summary>
+        public Vector2 origin, along, inward;
+        /// <summary>口(along の s の [s0, s1])── 棟の通り口。背の基壇もここで切る。</summary>
+        public List<Vector2> gaps = new List<Vector2>();
+        /// <summary>高い側の端を次の区間の線との交点まで延ばす(区画の出隅の内 = 背の面の入隅)。</summary>
+        public bool joinNext;
+    }
+
+    /// <summary><see cref="PlaceCastleBack"/> の答え。</summary>
+    public class CastleBack
+    {
+        public List<GameObject> pieces = new List<GameObject>();
+        /// <summary>区間の名 → 見え面の駒(背の面)。</summary>
+        public Dictionary<string, List<GameObject>> face = new Dictionary<string, List<GameObject>>();
+        /// <summary>区間の名 → 外の基壇との間を埋めた駒(長屋の下・見えない)。</summary>
+        public Dictionary<string, List<GameObject>> fill = new Dictionary<string, List<GameObject>>();
+        /// <summary>区間の名 → (背の面の t, 天端の前の縁の t)(origin から inward への距離・実測の札の背の面から)。</summary>
+        public Dictionary<string, Vector2> line = new Dictionary<string, Vector2>();
+        /// <summary>区間の名 → 外の基壇の背 と 背の基壇の背 の間の残りの隙[m](天端の高さで・0 = 一つの台)。</summary>
+        public Dictionary<string, float> slot = new Dictionary<string, float>();
+        public int buried;
+    }
+
+    /// <summary>**基壇を棟の背まで通し、背の面も城の石垣で立てる**(2026-10-04・EDO-0533 土井 boundaryPlinth.back)。
+    /// <para>手順(置き方の4手): ① 固定側 = 据わった棟。背の面は棟の札の back(局所 −Z の壁体の背)を世界へ写して測る ── ⛔ 外接箱・ピボットで決めない。
+    /// ② 天端の前の縁の線 = 背の面から内へ <paramref name="inu"/>(犬走り)。走りの端 = 棟の札の躯体の端(<see cref="SpecBodySpanAlong"/>)、
+    /// joinNext の端は次の区間の線との交点(入隅)。天端が同じで線が続く棟は一本に束ねる(天端一直線・段は棟の継ぎ目でだけ)。
+    /// ③ <see cref="PlaceCrestWall"/> で見え面を内へ(lowForce)据える ── 天端 = 区間の crest(実測の最上点)。口は棟の通り口で切り、
+    /// 口の脇に駒一枚(2.00)に満たない切れ端が残るなら口の縁から一枚を据えて反対の端を隣の区間の裏へ延ばす(隣の天端が同じか高いときだけ)。
+    /// ④ 外の基壇の駒の背(<paramref name="outer"/>・局所 +X の鉛直な背)と背の駒の背の間に天端の高さで隙が残れば、背の駒の背の面を
+    /// 天端の前の縁にした列を足して埋める(長屋の下 ── 妻の小口と口の脇で地表が見えない一つの台にする)。</para>
+    /// <para>硬い(許容0): 天端 = crest・全体が地表の下の駒は置かない(PlaceCrestWall)・札の無い棟は据えない(★)。
+    /// 柔らかい: 見付の狙いは呼び手が刷る(<see cref="CastleCrestExposure"/>)。</para>
+    /// 当たる先: 外周の基壇に載る表長屋・門の背が内の地表より高い所(土井 boundaryPlinth.back。岡部の表長屋・家臣長屋の背は未適用)。
+    /// ⟶ 返す: <see cref="CastleBack"/>(駒・区間ごとの見え面と埋めの駒・線・隙)</summary>
+    public static CastleBack PlaceCastleBack(IList<BackSec> secs, float inu, IList<GameObject> outer, Func<float, float, float> groundAt, Transform parent,
+                                             System.Text.StringBuilder log, string prefix = "IGB_")
+    {
+        var res = new CastleBack();
+        if (secs == null || secs.Count == 0) return res;
+        var wls = new List<BackWall>();
+        foreach (var s in secs)
+        {
+            var sp = SpecOf(s.body);
+            if (sp == null) { log?.AppendLine("  ★ 背の基壇 " + s.name + ": 棟の札が無い ── 背の面が測れず据えない"); continue; }
+            var bw = s.body.transform.TransformPoint(new Vector3(0f, 0f, sp.back));
+            float tBack = Vector2.Dot(new Vector2(bw.x, bw.z) - s.origin, s.inward);
+            var span = SpecBodySpanAlong(s.body, s.origin, s.along);
+            if (float.IsNaN(span.x)) { log?.AppendLine("  ★ 背の基壇 " + s.name + ": 札に躯体の端(jamb)が無い ── 据えない"); continue; }
+            res.line[s.name] = new Vector2(tBack, tBack + inu);
+            var last = wls.Count > 0 ? wls[wls.Count - 1] : null;
+            if (last != null && Vector2.Dot(last.along, s.along) > 0.9999f && (last.origin - s.origin).sqrMagnitude < 1e-4f
+                && Mathf.Abs(last.t - (tBack + inu)) < 0.005f && Mathf.Abs(last.crest - s.crest) < 1e-3f && Mathf.Abs(last.s1 - span.x) < 0.05f)
+            { last.s1 = span.y; last.gaps.AddRange(s.gaps); last.members.Add(s); last.joinNext = s.joinNext; continue; }
+            wls.Add(new BackWall { origin = s.origin, along = s.along, inward = s.inward, t = tBack + inu, crest = s.crest, s0 = span.x, s1 = span.y,
+                                   gaps = new List<Vector2>(s.gaps), members = new List<BackSec> { s }, joinNext = s.joinNext });
+        }
+        // 入隅: 天端の前の縁の線どうしの交点へ
+        for (int i = 0; i + 1 < wls.Count; i++)
+        {
+            var A = wls[i]; var B = wls[i + 1]; if (!A.joinNext) continue;
+            Vector2 pA = A.origin + A.inward * A.t, pB = B.origin + B.inward * B.t;
+            float den = A.along.x * B.along.y - A.along.y * B.along.x; if (Mathf.Abs(den) < 1e-4f) continue;
+            Vector2 w = pB - pA; float tA = (w.x * B.along.y - w.y * B.along.x) / den;
+            Vector2 X = pA + A.along * tA;
+            float sB = Vector2.Dot(X - B.origin, B.along);
+            // 交点を越えて相手の天端の奥行(駒の天端 1.4 + 犬走り)まで延ばす ── 越えた分は相手の棟の下に入って隠れ、相手の犬走りの帯を天端で塞ぐ。
+            //   ⛔ 棟の端まで延ばさない(端の駒の法の足が隣の辺の線を越える)。
+            float over = inu + 1.4f;
+            float a1 = Mathf.Min(A.s1, tA + over), b0 = Mathf.Max(B.s0, sB - over);
+            log?.AppendLine("  背の基壇 " + A.members[A.members.Count - 1].name + "|" + B.members[0].name + ": 入隅 ── 天端の前の縁の線の交点(s " + tA.ToString("F2") + " / " + sB.ToString("F2") + ")から相手の天端の奥行 "
+                            + over.ToString("F2") + "m まで延ばした(高い側の端 s " + A.s1.ToString("F2") + "→" + a1.ToString("F2") + " / 低い側の端 s " + B.s0.ToString("F2") + "→" + b0.ToString("F2") + ")");
+            A.s1 = a1; B.s0 = b0;
+        }
+        // 口で割り、切れ端は口の縁から一枚 ── 反対の端を隣(線が続き天端が同じか高い)の裏へ
+        var subs = new List<BackWall>();
+        for (int i = 0; i < wls.Count; i++)
+        {
+            var w = wls[i];
+            var cuts = new List<Vector2> { new Vector2(w.s0, w.s1) };
+            foreach (var g in w.gaps)
+            {
+                var nx = new List<Vector2>();
+                foreach (var q in cuts) { if (g.y <= q.x || g.x >= q.y) { nx.Add(q); continue; } if (g.x > q.x) nx.Add(new Vector2(q.x, g.x)); if (g.y < q.y) nx.Add(new Vector2(g.y, q.y)); }
+                cuts = nx;
+            }
+            for (int k = 0; k < cuts.Count; k++)
+            {
+                float a0 = cuts[k].x, a1 = cuts[k].y;
+                if (a1 - a0 < 0.3f) continue;
+                if (a1 - a0 < 2.0f && w.gaps.Count > 0)
+                {
+                    bool gapLo = w.gaps.Exists(g => Mathf.Abs(g.y - a0) < 1e-3f), gapHi = w.gaps.Exists(g => Mathf.Abs(g.x - a1) < 1e-3f);
+                    BackWall nbHi = i + 1 < wls.Count && Mathf.Abs(wls[i + 1].s0 - w.s1) < 0.05f && Mathf.Abs(wls[i + 1].t - w.t) < 0.005f ? wls[i + 1] : null;
+                    BackWall nbLo = i > 0 && Mathf.Abs(wls[i - 1].s1 - w.s0) < 0.05f && Mathf.Abs(wls[i - 1].t - w.t) < 0.005f ? wls[i - 1] : null;
+                    float L0 = a1 - a0;
+                    if (gapLo && !gapHi && Mathf.Abs(a1 - w.s1) < 1e-3f && nbHi != null && nbHi.crest >= w.crest - 1e-3f) a1 = a0 + 2.0f;
+                    else if (gapHi && !gapLo && Mathf.Abs(a0 - w.s0) < 1e-3f && nbLo != null && nbLo.crest >= w.crest - 1e-3f) a0 = a1 - 2.0f;
+                    if (a1 - a0 > L0 + 1e-3f) log?.AppendLine("  背の基壇 " + w.members[0].name + ": 口の脇の切れ端 " + L0.ToString("F2") + "m ⇒ 口の縁から一枚・反対の端を隣の高い区間の裏へ延ばした");
+                    else log?.AppendLine("  ⚠ 背の基壇 " + w.members[0].name + ": 口の脇の切れ端 " + L0.ToString("F2") + "m ── 隣が低く裏へ延ばせない(駒一枚 2.00 が両側へはみ出す)");
+                }
+                subs.Add(new BackWall { origin = w.origin, along = w.along, inward = w.inward, t = w.t, crest = w.crest, s0 = a0, s1 = a1, members = w.members, gaps = new List<Vector2>(), key = "_k" + k });
+            }
+        }
+        foreach (var w in subs)
+        {
+            string nm0 = w.members[0].name;
+            Func<float, string, List<GameObject>> row = (t, tag) =>
+            {
+                Vector2 a = w.origin + w.along * w.s0 + w.inward * t, b = w.origin + w.along * w.s1 + w.inward * t;
+                var inw = w.inward;
+                var cw = new CrestWall { name = prefix + tag + nm0 + w.key, nodes = new List<Vector2> { a, b }, nodeTops = new List<float> { w.crest, w.crest }, gaps = new List<Vector2>(),
+                                         pathOfH = CastleWallOfExpose, runAlongX = false, runLen = 2.0f, pitchMax = 1.8f, lowHint = (p, q) => inw, lowForce = true };
+                float wf; int bs;
+                var got = PlaceCrestWall(cw, groundAt, parent, null, null, log ?? new System.Text.StringBuilder(), out wf, out bs);
+                res.buried += bs; res.pieces.AddRange(got);
+                return got;
+            };
+            var faceP = row(w.t, "");
+            // 区間の名へ振り分け(駒の芯の s)
+            Action<List<GameObject>, Dictionary<string, List<GameObject>>> assign = (gos, dict) =>
+            {
+                foreach (var m in w.members) if (!dict.ContainsKey(m.name)) dict[m.name] = new List<GameObject>();
+                foreach (var go in gos)
+                {
+                    var c = RB(go).center; float sc = Vector2.Dot(new Vector2(c.x, c.z) - w.origin, w.along);
+                    var pick = w.members[0]; float best = float.MaxValue;
+                    foreach (var m in w.members)
+                    {
+                        var sp = SpecBodySpanAlong(m.body, w.origin, w.along);
+                        float d = sc < sp.x ? sp.x - sc : (sc > sp.y ? sc - sp.y : 0f); if (d < best) { best = d; pick = m; }
+                    }
+                    dict[pick.name].Add(go);
+                }
+            };
+            assign(faceP, res.face);
+            // ④ 外の基壇の背との隙を埋める
+            Func<List<GameObject>, float> backOf = gos => { float mn = float.MaxValue; foreach (var go in gos) foreach (var v in Body(go.transform, 999999)) mn = Mathf.Min(mn, Vector2.Dot(new Vector2(v.x, v.z) - w.origin, w.inward)); return mn; };
+            float tOuter = float.MinValue;
+            if (outer != null)
+                foreach (var go in outer)
+                {
+                    if (go == null) continue;
+                    var r = go.transform.right; if (Vector2.Dot(new Vector2(r.x, r.z).normalized, w.inward) < 0.99f) continue;   // 外の駒(見え面 = 局所 −X が外)
+                    foreach (var v in Body(go.transform, 999999))
+                    {
+                        float sv = Vector2.Dot(new Vector2(v.x, v.z) - w.origin, w.along); if (sv < w.s0 - 0.01f || sv > w.s1 + 0.01f) continue;
+                        float tv = Vector2.Dot(new Vector2(v.x, v.z) - w.origin, w.inward); if (tv > w.t) continue;
+                        tOuter = Mathf.Max(tOuter, tv);
+                    }
+                }
+            float tb = faceP.Count > 0 ? backOf(faceP) : w.t;
+            var fillAll = new List<GameObject>();
+            for (int k = 0; k < 3 && tOuter > float.MinValue && tb - tOuter > 0.01f; k++)
+            {
+                var f = row(tb, "F" + k + "_");
+                if (f.Count == 0) break;
+                fillAll.AddRange(f); tb = Mathf.Min(tb, backOf(f));
+            }
+            assign(fillAll, res.fill);
+            float slot = tOuter > float.MinValue ? Mathf.Max(0f, tb - tOuter) : float.NaN;
+            foreach (var m in w.members) res.slot[m.name] = res.slot.ContainsKey(m.name) && !float.IsNaN(res.slot[m.name]) ? Mathf.Max(res.slot[m.name], slot) : slot;
+            log?.AppendLine("  背の基壇 " + nm0 + w.key + ": s " + w.s0.ToString("F2") + "〜" + w.s1.ToString("F2") + "・天端 " + w.crest.ToString("F2") + "・見え面 " + faceP.Count + " 駒・埋め " + fillAll.Count + " 駒・外の基壇の背との隙 "
+                            + (float.IsNaN(slot) ? "外の駒なし" : slot.ToString("F3")) + "m");
+        }
+        return res;
+    }
+
+    class BackWall
+    {
+        public Vector2 origin, along, inward; public float t, crest, s0, s1; public bool joinNext; public string key = "";
+        public List<Vector2> gaps = new List<Vector2>(); public List<BackSec> members = new List<BackSec>();
+    }
+
+    /// <summary>据えた棟の**背の下端 − 下の石垣の天端**[m](浮き = 正・めり込み = 負)。背の面から棟の内へ <paramref name="band"/> の帯の躯体を
+    /// 走りの 0.25m 刻みの筋に割り、筋ごとの最下点と、その点を含む石垣の駒(<paramref name="stones"/> ── 背の基壇・埋め・外の基壇・隣の辺の基壇の全て)
+    /// の天端(実測の最上点)の差を取る。口 <paramref name="skipS"/> の中は除く。返す: 絶対値の最悪(符号付き)。<paramref name="bare"/> = 下に石の無い筋の数。
+    /// 当たる先: <see cref="PlaceCastleBack"/> の検め(土井の表長屋・門)。</summary>
+    public static float BackBedGap(GameObject body, IList<GameObject> stones, Vector2 origin, Vector2 along, Vector2 inward, float tBack, IList<Vector2> skipS, out int bare, float band = 0.3f,
+                                   IList<GameObject> others = null)
+    {
+        // 他の棟の躯体の中(札の jamb × back〜front)に入る頂点は見えない ── 出隅の内で棟どうしが重なる所(土井 辺12/13)
+        Func<Vector3, bool> hidden = v =>
+        {
+            if (others == null) return false;
+            foreach (var o in others)
+            {
+                if (o == null || o == body) continue; var sp = SpecOf(o); if (sp == null || sp.jambL == null || sp.jambR == null) continue;
+                var l = o.transform.InverseTransformPoint(v);
+                if (l.x > Mathf.Min(sp.jambL.x, sp.jambR.x) + 0.01f && l.x < Mathf.Max(sp.jambL.x, sp.jambR.x) - 0.01f && l.z > sp.back + 0.01f && l.z < sp.front - 0.01f) return true;
+            }
+            return false;
+        };
+        bare = 0;
+        if (body == null || stones == null || stones.Count == 0) return float.NaN;
+        var bins = new Dictionary<int, Vector3>();
+        var vs = Body(body.transform, 999999);
+        Func<float, bool> inGap = sv => { if (skipS != null) foreach (var g in skipS) if (sv > g.x - 0.05f && sv < g.y + 0.05f) return true; return false; };
+        float lo = float.MaxValue;
+        foreach (var v in vs)
+        {
+            var q0 = new Vector2(v.x, v.z); float t = Vector2.Dot(q0 - origin, inward);
+            if (t <= tBack + 0.01f && t >= tBack - band && !inGap(Vector2.Dot(q0 - origin, along))) lo = Mathf.Min(lo, v.y);
+        }
+        foreach (var v in vs)
+        {
+            if (v.y > lo + 0.3f) continue;   // 土台の帯だけ(二階の壁・軒の頂点を筋の最下点に拾わない)
+            var q = new Vector2(v.x, v.z); float t = Vector2.Dot(q - origin, inward); if (t > tBack + 0.01f || t < tBack - band) continue;
+            float s = Vector2.Dot(q - origin, along); bool skip = false;
+            if (skipS != null) foreach (var g in skipS) if (s > g.x - 0.05f && s < g.y + 0.05f) skip = true;
+            if (skip) continue;
+            int k = Mathf.FloorToInt(s / 0.25f); Vector3 cur;
+            if (!bins.TryGetValue(k, out cur) || v.y < cur.y) bins[k] = v;
+        }
+        if (bins.Count == 0) return float.NaN;
+        // 駒の箱は走りの座標(s, t)で取る ── 世界の外接箱は斜めの辺で走りの端より膨らみ、継ぎ目の頂点が高い隣の天端を拾って偽のめり込みになる
+        var boxes = new List<Vector4>(); var tops = new List<float>();
+        foreach (var go in stones)
+        {
+            if (go == null) continue; float s0 = float.MaxValue, s1 = float.MinValue, t0 = float.MaxValue, t1 = float.MinValue, top = float.MinValue;
+            foreach (var v in Body(go.transform, 999999)) { var q = new Vector2(v.x, v.z) - origin; float sv = Vector2.Dot(q, along), tv = Vector2.Dot(q, inward); s0 = Mathf.Min(s0, sv); s1 = Mathf.Max(s1, sv); t0 = Mathf.Min(t0, tv); t1 = Mathf.Max(t1, tv); top = Mathf.Max(top, v.y); }
+            if (top == float.MinValue) continue; boxes.Add(new Vector4(s0, s1, t0, t1)); tops.Add(top);
+        }
+        float worst = float.NaN;
+        foreach (var kv in bins)
+        {
+            var at = new Vector2(kv.Value.x, kv.Value.z) - origin; float sa = Vector2.Dot(at, along), ta = Vector2.Dot(at, inward), crest = float.MinValue;
+            for (int i = 0; i < boxes.Count; i++) { var b = boxes[i]; if (sa < b.x + 0.01f || sa > b.y - 0.01f || ta < b.z - 0.01f || ta > b.w + 0.01f) continue; crest = Mathf.Max(crest, tops[i]); }
+            if (crest == float.MinValue)   // 継ぎ目の上の頂点: 端で接する駒のうち低い方(自分の区間の駒)
+            {
+                float lowTop = float.MaxValue;
+                for (int i = 0; i < boxes.Count; i++) { var b = boxes[i]; if (sa < b.x - 0.01f || sa > b.y + 0.01f || ta < b.z - 0.01f || ta > b.w + 0.01f) continue; lowTop = Mathf.Min(lowTop, tops[i]); }
+                if (lowTop != float.MaxValue) crest = lowTop;
+            }
+            if (crest == float.MinValue) { if (!hidden(kv.Value)) bare++; continue; }
+            float g = kv.Value.y - crest; if (float.IsNaN(worst) || Mathf.Abs(g) > Mathf.Abs(worst)) worst = g;
+        }
+        return worst;
+    }
 }

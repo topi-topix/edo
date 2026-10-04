@@ -396,4 +396,76 @@ public static partial class EdoBuild
         if (n > 0) { td.SetHeightsDelayLOD(x0, z0, H); td.SyncHeightmap(); }
         return n;
     }
+
+    /// <summary>**棟の背の前の地盤が座より高い所を、犬走りの幅だけ切り下げ地山へ切土で摺り付ける**(<see cref="FillAlongBack"/> の切りの対・
+    /// 2026-10-04 EDO-0533 土井 boundaryPlinth.back の丙)。線 <paramref name="a"/>–<paramref name="b"/> = 棟の背の面の足元、<paramref name="inward"/> = 区画の内向き。
+    /// 背の面から内へ <paramref name="band"/>[m] までと棟の下の一升の節点を <paramref name="y"/> まで下げ、帯の外は切土 1:<paramref name="bc"/> で今の地盤へ上げる。
+    /// 硬い: 切るだけ(盛らない)・区画の外の節点は触らない。冪等。⟶ 返す: 書いた節点の数(切りの最大と体積は out)。
+    /// 当たる先: 基壇の天端に土台を据えた棟の背の内の地盤が座より高い所(土井の表長屋 E13_N05 の北端・表門の北の隅)。</summary>
+    public static int CutAlongBack(Vector2[] parcel, Vector2 a, Vector2 b, Vector2 inward, float y, float band, float bc, out float cutMax, out float vol)
+    {
+        cutMax = 0f; vol = 0f;
+        var t = T(); var td = t.terrainData;
+        int hres = td.heightmapResolution; Vector3 tp = t.transform.position, ts = td.size;
+        float cell = ts.x / (hres - 1);
+        float reach = band + cell + 6f * bc + cell;
+        float mnx = Mathf.Min(a.x, b.x) - reach, mxx = Mathf.Max(a.x, b.x) + reach, mnz = Mathf.Min(a.y, b.y) - reach, mxz = Mathf.Max(a.y, b.y) + reach;
+        int x0 = Mathf.Clamp(Mathf.FloorToInt((mnx - tp.x) / cell), 0, hres - 1), z0 = Mathf.Clamp(Mathf.FloorToInt((mnz - tp.z) / cell), 0, hres - 1);
+        int x1 = Mathf.Clamp(Mathf.CeilToInt((mxx - tp.x) / cell), 0, hres - 1), z1 = Mathf.Clamp(Mathf.CeilToInt((mxz - tp.z) / cell), 0, hres - 1);
+        int w = x1 - x0 + 1, h = z1 - z0 + 1;
+        var H = td.GetHeights(x0, z0, w, h);
+        Vector2 ab = b - a; float L = ab.magnitude; if (L < 1e-3f) return 0; Vector2 al = ab / L;
+        int n = 0;
+        for (int iz = 0; iz < h; iz++)
+            for (int ix = 0; ix < w; ix++)
+            {
+                var p = new Vector2(tp.x + (x0 + ix) * cell, tp.z + (z0 + iz) * cell);
+                if (!EdoGeom.PIP(parcel, p)) continue;                       // ⛔ 区画の外は触らない
+                float s = Vector2.Dot(p - a, al), dn = Vector2.Dot(p - a, inward);
+                if (dn < -cell || s < -0.01f || s > L + 0.01f) continue;    // 棟の下は一升まで・⛔ 線の端の外(隣の棟の背)は切らない
+                float over = Mathf.Max(0f, dn - band);
+                float tgt = y + over / bc;
+                float cur = H[iz, ix] * ts.y + tp.y;
+                if (tgt >= cur - 1e-4f) continue;                           // 切るだけ
+                cutMax = Mathf.Max(cutMax, cur - tgt); vol += (cur - tgt) * cell * cell;
+                H[iz, ix] = (tgt - tp.y) / ts.y; n++;
+            }
+        // ② 描かれた地表で検める ── 2m 格子は帯(0.3m)を描けず、切った節点と切らない奥の節点の間を一次で描いて帯の上に地山が残る。
+        //   帯の中の点(背の面から内へ 0〜band+0.6・走りの 0.25m 刻み)で描かれた地表 > y の所は、その升の四隅の節点を超えた分だけ下げる
+        //   (三角形の補間は四隅の凸結合 ⇒ 四隅を下げればその点は y 以下)。切りの勾配は升一つの幅に緩む(1:bc より緩い)。
+        var cutBefore = new Dictionary<int, float>();
+        for (int it = 0; it < 8; it++)
+        {
+            bool any = false;
+            for (float s = 0f; s <= L + 1e-3f; s += 0.25f)
+                for (float dn = 0f; dn <= band + 0.6f + 1e-3f; dn += 0.15f)
+                {
+                    var q = a + al * s + inward * dn;
+                    if (!EdoGeom.PIP(parcel, q)) continue;
+                    float fx = (q.x - tp.x) / cell, fz = (q.y - tp.z) / cell;
+                    int cx = Mathf.FloorToInt(fx) - x0, cz = Mathf.FloorToInt(fz) - z0;
+                    if (cx < 0 || cz < 0 || cx + 1 >= w || cz + 1 >= h) continue;
+                    float h00 = H[cz, cx], h10 = H[cz, cx + 1], h01 = H[cz + 1, cx], h11 = H[cz + 1, cx + 1];
+                    // ⚠ 地形は三角形で描く ⇒ 双一次で検めると嘘が出る。四隅の最大で上から押さえる(保守側)
+                    float gy = Mathf.Max(h00, Mathf.Max(h10, Mathf.Max(h01, h11))) * ts.y + tp.y;
+                    if (gy <= y + 1e-3f) continue;
+                    foreach (var c in new[] { new Vector2Int(cx, cz), new Vector2Int(cx + 1, cz), new Vector2Int(cx, cz + 1), new Vector2Int(cx + 1, cz + 1) })
+                    {
+                        var np = new Vector2(tp.x + (x0 + c.x) * cell, tp.z + (z0 + c.y) * cell);
+                        if (!EdoGeom.PIP(parcel, np)) continue;
+                        float cur = H[c.y, c.x] * ts.y + tp.y; if (cur <= y + 1e-4f) continue;
+                        int key = c.y * w + c.x; if (!cutBefore.ContainsKey(key)) cutBefore[key] = cur;
+                        H[c.y, c.x] = (y - tp.y) / ts.y; any = true;
+                    }
+                }
+            if (!any) break;
+        }
+        foreach (var kv in cutBefore)
+        {
+            int cx = kv.Key % w, cz = kv.Key / w; float now = H[cz, cx] * ts.y + tp.y;
+            cutMax = Mathf.Max(cutMax, kv.Value - now); vol += (kv.Value - now) * cell * cell; n++;
+        }
+        if (n > 0) { td.SetHeightsDelayLOD(x0, z0, H); td.SyncHeightmap(); }
+        return n;
+    }
 }

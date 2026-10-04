@@ -88,6 +88,9 @@ public static partial class EdoDoiBuilder
                   {
                       var wp = pool[0].transform.TransformPoint(new Vector3(0f, 0f, gsp.back)); backP = new Vector2(wp.x, wp.z);
                       var fw = pool[0].transform.forward; backN = -new Vector2(fw.x, fw.z).normalized;   // 背の面の外向き = 門の内へ
+                      // 背の基壇(boundaryPlinth.back)が門の背に建っていれば、突き付ける面はその天端の前の縁(札の背の面 + 犬走り)
+                      bool igb = false; { var igT = Group("Ishigaki"); foreach (Transform c in igT) if (c.name.StartsWith("IGB_Omotemon")) igb = true; }
+                      if (igb) backP += backN * C("inubashiri");
                       Vector2 d0 = (b - a).normalized; float den = Vector2.Dot(d0, backN);
                       if (Mathf.Abs(den) > 0.2f) { float t = Vector2.Dot(backP - a, backN) / den; a = a + d0 * t; abutA = pool[0];
                           sb.AppendLine("  " + nm + ": a 端 = " + pool[0].name + " の札の背の面(線の a から " + t.ToString("+0.00;-0.00") + "m)── 門の口の下は通り抜けで実面が無いので札で切った"); }

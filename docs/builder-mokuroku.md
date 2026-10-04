@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 22 本・メニュー 84・関数 712(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 22 本・メニュー 84・関数 713(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -15,7 +15,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | ファイル | 何の道具か(ファイル冒頭の注釈) | メニュー | 関数 |
 |---|---|---|---|
 | [EdoDoiBuilder.Dan.cs](#edodoibuilderdancs) | ══════════════════════════════════════════════════════════════════════ | 1 | 6 |
-| [EdoDoiBuilder.Mon.cs](#edodoibuildermoncs) | ══════════════════════════════════════════════════════════════════════ | 1 | 14 |
+| [EdoDoiBuilder.Mon.cs](#edodoibuildermoncs) | ══════════════════════════════════════════════════════════════════════ | 1 | 15 |
 | [EdoDoiBuilder.Niwa.cs](#edodoibuilderniwacs) | 土井大隅守上屋敷 — 奥庭(Stage6)。 | 3 | 40 |
 | [EdoDoiBuilder.cs](#edodoibuildercs) | 土井大隅守上屋敷(三河刈谷藩2万3千石・譜代・雁間)ビルダー。 | 15 | 88 |
 | [EdoMatsudairaDewaBuilder.Niwa.cs](#edomatsudairadewabuilderniwacs) | 松平出羽守上屋敷 — 庭の工程(池・築山・水の系・石組・点景・滝見口)。 | 9 | 30 |
@@ -74,6 +74,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `DoorBottom(go, a0, d, open)` | `float` |  | 口(走りの区間)の中の実メッシュの最下点 = 扉の下端(敷居)。 |
 | `FootFront(sp)` | `float` |  | 足元の外面(札の foot の +Z の最大・局所)── 基壇の天端の前の縁 + 犬走りの線に当てる面。 |
 | `Stage3_Mon()` | `string` | 公 | S3 門(案A・EDO-0533)。① 表門(gate)の下の基壇(城の石垣・天端 = 欄の coping・扉口だけ空ける)→ 表門を外面の線・口の芯 s へ・ 土台の底を天端へ → 角の練塀 E13_Hei_Kado… |
+| `BuildBackPlinth(ig, kak, mon, tally, sb, log)` | `void` |  | 背の基壇(boundaryPlinth.back・EDO-0533)。 |
 | `BuildOkuHei(oku, sb, log, gapOverride)` | `int` |  | 奥の塀(区画の内の段塀・runs[].pts)を建てる。 ⟶ 返す: ⚠ の数 |
 | `SpecOf(go)` | `EdoPartSpec.Spec` |  | — |
 

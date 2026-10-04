@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 22 本・メニュー 84・関数 713(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 22 本・メニュー 84・関数 716(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -20,7 +20,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoDoiBuilder.cs](#edodoibuildercs) | 土井大隅守上屋敷(三河刈谷藩2万3千石・譜代・雁間)ビルダー。 | 15 | 88 |
 | [EdoMatsudairaDewaBuilder.Niwa.cs](#edomatsudairadewabuilderniwacs) | 松平出羽守上屋敷 — 庭の工程(池・築山・水の系・石組・点景・滝見口)。 | 9 | 30 |
 | [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 16 | 100 |
-| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 19 | 125 |
+| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 19 | 128 |
 | [EdoSannoShaBuilder.cs](#edosannoshabuildercs) | 山王権現社(日枝神社)本体+樹下家邸+山王門前町ビルダー (2026-08-11。観理院は 2026-09-26 に類型へ移し削除) | 1 | 31 |
 | [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 13 | 102 |
 | [EdoSanyashikiRebuild.cs](#edosanyashikirebuildcs) | 三屋敷(太田・加納・鍋島=松平肥前守)の区画を下書きv3へ更新 (2026-08-08) | 0 | 6 |
@@ -385,7 +385,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `Edo/岡部筑前守上屋敷/指図を読み直す` | `Reload` | — |
 | `Edo/岡部筑前守上屋敷/0 ハイトマップを退避` | `Stage0Menu` | `Stage0_Backup`, `Window` |
 | `Edo/岡部筑前守上屋敷/1 造成(指図の面へ)` | `Stage1Menu` | `Stage1_Grade`, `ReviewGate`, `Stage0_Backup`, `Window` |
-| `Edo/岡部筑前守上屋敷/造成を検査 GradeQA` | `GradeQAMenu` | `GradeQA`, `ImplTol`, `Window` |
+| `Edo/岡部筑前守上屋敷/造成を検査 GradeQA` | `GradeQAMenu` | `GradeQA` |
 | `Edo/岡部筑前守上屋敷/2 外周(練塀・基壇・木柵・隅)` | `Stage2Menu` | `Stage2_Perimeter`, `ReviewGate`, `Group`, `Clear` |
 | `Edo/岡部筑前守上屋敷/2b 段の土留め(terraceWalls・天端の垣)` | `Stage2bMenu` | `Stage2b_Dan`, `ReviewGate`, `Stale`, `A` |
 | `Edo/岡部筑前守上屋敷/3 主郭(棟・廊下・附属屋・井戸・結界・石段)` | `Stage3Menu` | `Stage3_Shukaku`, `ReviewGate`, `PlaceMunes`, `PlaceLinks` |
@@ -426,9 +426,12 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `Window(x0, z0, w, h)` | `void` |  | 造成とその検査が使う窓。区画の外接矩形 + 余白。 |
 | `Stage1_Grade()` | `string` | 公 | — |
 | `ProfSNodes(r, f, note)` | `KeyValuePair<Vector2[], float[]>` |  | 坂の縦断 `profS`([s, y] の並び・同じ s に二つの高さ = 石段)と芯 `pts` から、均す芯の節点(世界 xz)と高さを起こす(EDO-0502 第8巡)。 |
+| `RampAxis(r, pts, ys, width, note)` | `bool` |  | 指図の坂 r の芯(世界 xz)・芯の高さ・路盤の幅を読む(GradeRamps と造成QA が同じ読みを使う)。 |
 | `GradeRamps()` | `string` |  | 折れ線の坂の路盤(案1・EDO-0502)。 |
 | `PlaceCurb(nm, line, pts, ys, curbH)` | `string` |  | 坂の路肩の野面石の縁(toeFix)を、路肩の線へ野面の乱積みで据える。 |
 | `GradeQA()` | `string` | 公 | 敷地内の全セルで ／地形 − 設計面／ を測る。 |
+| `ServicePads()` | `List<PadAx>` |  | 勾配の面(指図 service[].yFrom)の上に据わった附属屋の棟の下の均しの範囲(足あと = EdoBuild.BodyFootWorld・高さ = 据わった躯体の底・ 面 = TerracePolyAt)。 |
+| `GradeQA(badAt)` | `string` | 公 | badAt が null でなければ超過の節点(x, z, 地形−設計面)を入れて返す(測りの内訳)。 |
 | `Stage2_Perimeter()` | `string` | 公 | — |
 | `MiterOf(kutaiPath, r, sSign, warn)` | `string` |  | 区画の角で留めた表長屋の版(EDO-0502 2026-10-03)を引く。 |
 | `KiriEnd(r, atStart, sEnd)` | `KeyValuePair<string, Vector3>` |  | 練塀の端を隣の辺の線で斜めに切った駒の据え場所(EDO-0502 2026-10-03・部材の約束は EdoAssets.Own.DobeiKiri)。 |

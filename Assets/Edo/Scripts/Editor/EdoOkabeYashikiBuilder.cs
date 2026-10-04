@@ -543,6 +543,33 @@ public static class EdoOkabeYashikiBuilder
         return new KeyValuePair<Vector2[], float[]>(pts, ys);
     }
 
+    /// <summary>指図の坂 <paramref name="r"/> の芯(世界 xz)・芯の高さ・路盤の幅を読む(GradeRamps と造成QA が同じ読みを使う)。
+    /// 芯が無ければ false・note null。均さない理由があれば false・note に理由。profS から起こしたら true・note に経緯。</summary>
+    static bool RampAxis(Dictionary<string, object> r, out Vector2[] pts, out float[] ys, out float width, out string note)
+    {
+        pts = null; ys = null; width = 0f; note = null;
+        var f = Grid;
+        var pl = A(Get(r, "pts")); var py = A(Get(r, "profY"));
+        if (pl == null) return false;
+        if (py == null || py.Count != pl.Count)
+        {
+            var ps = A(Get(r, "profS"));
+            if (ps == null || ps.Count < 2) { note = "折れ線の芯はあるが profY も profS も無い ── ここでは均さない"; return false; }
+            // 案1 の縦断 profS(道のり s・高さ)から芯の節点を起こす(EDO-0502 第8巡 ── 算出物 graded に表の坂の路盤が入っておらず、
+            //   石段の奥に高さ 2.25m の土の壁が立っていた)。同じ s に二つの高さ = 石段:石段の平面(kaidans[].a→b)の両端の s に分けて置く。
+            string ps0; var cp = ProfSNodes(r, f, out ps0); if (cp.Key == null) { note = ps0 + " ── 均さない"; return false; }
+            pts = cp.Key; ys = cp.Value;
+            note = "profS から芯の節点 " + pts.Length + " を起こした(" + ps0 + ")";
+        }
+        else
+        {
+            pts = new Vector2[pl.Count]; ys = new float[pl.Count];
+            for (int i = 0; i < pl.Count; i++) { var q = A(pl[i]); pts[i] = f.W(F(q[0]), F(q[1])); ys[i] = F(py[i]); }
+        }
+        width = Has(r, "w") ? F(r["w"]) : F(r["wKen"]) * C("ken");
+        return true;
+    }
+
     /// <summary>**折れ線の坂の路盤**(案1・EDO-0502)。`ramps[]` のうち `pts` と `profY` を持つ坂
     /// (R_UraZaka・R_GakeZaka)は造成の算出物(impl.graded)に入っていない(sashizu_lib.ramp_y が別勘定にしている)ので、
     /// 造成の直後にここで均す。置き方は `EdoBuild.GradeSaka`。
@@ -559,28 +586,11 @@ public static class EdoOkabeYashikiBuilder
         {
             var r = O(o); if (r == null) continue;
             string nm = S(r["name"]);
-            var pl = A(Get(r, "pts")); var py = A(Get(r, "profY"));
-            if (pl == null) continue;
-            Vector2[] pts; float[] ys; bool[] pin;
-            if (py == null || py.Count != pl.Count)
-            {
-                var ps = A(Get(r, "profS"));
-                if (ps == null || ps.Count < 2)
-                { sb.AppendLine("坂 " + nm + ": 折れ線の芯はあるが profY も profS も無い ── ここでは均さない"); continue; }
-                // 案1 の縦断 profS(道のり s・高さ)から芯の節点を起こす(EDO-0502 第8巡 ── 算出物 graded に表の坂の路盤が入っておらず、
-                //   石段の奥に高さ 2.25m の土の壁が立っていた)。同じ s に二つの高さ = 石段:石段の平面(kaidans[].a→b)の両端の s に分けて置く。
-                string ps0; var cp = ProfSNodes(r, f, out ps0); if (cp.Key == null) { sb.AppendLine("坂 " + nm + ": " + ps0 + " ── 均さない"); continue; }
-                pts = cp.Key; ys = cp.Value; pin = new bool[pts.Length];
-                sb.AppendLine("坂 " + nm + ": profS から芯の節点 " + pts.Length + " を起こした(" + ps0 + ")");
-            }
-            else
-            {
-                pts = new Vector2[pl.Count]; ys = new float[pl.Count]; pin = new bool[pl.Count];
-                for (int i = 0; i < pl.Count; i++)
-                { var q = A(pl[i]); pts[i] = f.W(F(q[0]), F(q[1])); ys[i] = F(py[i]); }
-            }
+            Vector2[] pts; float[] ys; float width; string an;
+            if (!RampAxis(r, out pts, out ys, out width, out an)) { if (an != null) sb.AppendLine("坂 " + nm + ": " + an); continue; }
+            if (an != null) sb.AppendLine("坂 " + nm + ": " + an);
+            var pin = new bool[pts.Length];
             pin[0] = true; pin[pts.Length - 1] = true;          // 門の内面・平場の角は動かさない
-            float width = Has(r, "w") ? F(r["w"]) : F(r["wKen"]) * ken;
             bool hasToe = Has(r, "toeRule");
             // 硬い: 1.5m(指図 toeRule)。法尻は法の面と今の地盤の交わりを線で測る(EdoBuild.GradeSaka の toeLine)。節点の距離は参考に刷る
             float toe = hasToe ? 1.5f : 0f;
@@ -686,7 +696,33 @@ public static class EdoOkabeYashikiBuilder
     /// ⚠ **ハイトマップの格子の上でのみ測る。** `SampleHeight` を任意の座標で呼ぶと双一次補間が
     ///   入り、石垣の線や法面のような急な段で 0.1m のズレが 2m の差に化ける
     ///   (実測: 格子から 0.12m ずらして測っただけで 228 セルが「超過」に見えた)。</summary>
-    public static string GradeQA()
+    public static string GradeQA() { return GradeQA(null); }
+
+    class RampAx { public Vector2[] pts; public float[] ys; public float half; }
+    class PadAx { public Vector2[] parcel, foot; public float y; }
+
+    /// <summary>勾配の面(指図 service[].yFrom)の上に据わった附属屋の**棟の下の均し**の範囲(足あと = EdoBuild.BodyFootWorld・高さ = 据わった躯体の底・
+    /// 面 = TerracePolyAt)。Stage3(PlaceService)の LevelPad と同じ足あと・同じ面で造成QA が均しの跡を測る。</summary>
+    static List<PadAx> ServicePads()
+    {
+        var res = new List<PadAx>();
+        var root = GameObject.Find(GN); var grp = root == null ? null : root.transform.Find("Fuzoku/Service");
+        if (grp == null) return res;
+        foreach (var o in A(Get(D, "service")) ?? new List<object>())
+        {
+            var s2 = O(o); if (s2 == null || !Has(s2, "yFrom")) continue;
+            var bt = grp.Find(S(s2["name"])); if (bt == null) continue;
+            float du = F(s2["u1"]) - F(s2["u0"]), dv = F(s2["v1"]) - F(s2["v0"]);
+            string path = AssetByKey(Has(s2, "asset") ? S(s2["asset"]) : null, Mathf.Max(du, dv), Mathf.Min(du, dv));
+            var foot = EdoBuild.BodyFootWorld(bt.gameObject, path); if (foot == null) continue;
+            var cq = (foot[0] + foot[2]) * 0.5f;
+            res.Add(new PadAx { parcel = TerracePolyAt(cq), foot = foot, y = EdoBuild.RB(bt.gameObject).min.y });
+        }
+        return res;
+    }
+
+    /// <summary><paramref name="badAt"/> が null でなければ超過の節点(x, z, 地形−設計面)を入れて返す(測りの内訳)。</summary>
+    public static string GradeQA(List<Vector3> badAt)
     {
         float TOL = ImplTol("gradeTol", 0.30f);
         var t = Terrain.activeTerrain; var td = t.terrainData;
@@ -706,7 +742,16 @@ public static class EdoOkabeYashikiBuilder
             if (cx < 0 || cz < 0 || cz >= HO.GetLength(0) || cx >= HO.GetLength(1)) return true;
             return HO[cz, cx];
         };
-        int skin = 0;
+        int skin = 0, padN = 0, rampN = 0; float padMx = 0f, rampMx = 0f;
+        float bfA = C("batterFill"), bcA = C("batterCut");
+        var pads = ServicePads();
+        var ramps = new List<RampAx>();
+        foreach (var o in A(Get(D, "ramps")) ?? new List<object>())
+        {
+            var r = O(o); if (r == null) continue;
+            Vector2[] rpt; float[] rys; float rw; string rn;
+            if (RampAxis(r, out rpt, out rys, out rw, out rn)) ramps.Add(new RampAx { pts = rpt, ys = rys, half = rw * 0.5f });
+        }
         for (int z = 0; z < h; z++)
             for (int x = 0; x < w; x++)
             {
@@ -732,12 +777,34 @@ public static class EdoOkabeYashikiBuilder
                     }
                     if (hi - lo > TOL) { edge++; edgeMx = Mathf.Max(edgeMx, d); continue; }
                 }
-                if (d > TOL) bad++;
+                // ⭐ 造成の後の均し(指図どおりの別の工事)の跡: 棟の下の均し(指図 service.yAt・EdoBuild.LevelPad)と坂の路盤(指図 ramps・EdoBuild.GradeSaka)。
+                //   設計面(算出物 graded)はそれを知らないので、同じ式(LevelPadAt / SakaCenterAt+BatterTo)で設計面から寄せた高さと地形が合えば
+                //   超過に数えず別に刷る(⛔ 黙って捨てない・規則19)。合わなければ超過のまま
+                if (d > TOL)
+                {
+                    float gy = H[z, x] * ts.y + tp.y;
+                    float ePad = y; foreach (var pd in pads) ePad = EdoBuild.LevelPadAt(pd.parcel, pd.foot, pd.y, bfA, bcA, cell, p, ePad);
+                    if (Mathf.Abs(ePad - y) > 1e-3f && Mathf.Abs(gy - ePad) <= TOL) { padN++; padMx = Mathf.Max(padMx, d); continue; }
+                    bool inRamp = false;
+                    foreach (var rp in ramps)
+                    {
+                        float bd, bs, yr; if (!EdoBuild.SakaCenterAt(rp.pts, rp.ys, p, out bd, out bs, out yr)) continue;
+                        float hh = Mathf.Max(0f, bd - rp.half); if (hh > 4f * Mathf.Max(bfA, bcA) + 2f * cell) continue;   // GradeSakaOnce の窓
+                        float eR = EdoBuild.BatterTo(yr, hh, bfA, bcA, y);
+                        // 路盤は芯の寄せ(⚠ 柔らかい・上限 toeFix)と描かれた法尻の締めで設計面から外れ得る ── 地形が設計面と坂の寄せの間(± TOL)なら坂の跡
+                        if (Mathf.Abs(eR - y) > 1e-3f && gy >= Mathf.Min(y, eR) - TOL && gy <= Mathf.Max(y, eR) + TOL) { inRamp = true; break; }
+                    }
+                    if (inRamp) { rampN++; rampMx = Mathf.Max(rampMx, d); continue; }
+                }
+                if (d > TOL) { bad++; if (badAt != null) badAt.Add(new Vector3(p.x, p.y, (H[z, x] * ts.y + tp.y) - y)); }
                 if (d > mx) { mx = d; worst = p; }
             }
         return string.Format("造成QA 敷地内 {0} セル / 許容 {1:F2}m ｜ 超過 {2} ({3:F1}%) 最大 {4:F2}m @({5:F0},{6:F0}){7} {8}",
             all, TOL, bad, bad * 100f / Mathf.Max(1, all), mx, worst.x, worst.y,
-            (hole > 0 ? " ｜ 算出物の穴 " + hole : "") + (skin > 0 ? " ｜ 皮が描く升の内(数えない) " + skin + " 節点" : "") + (edge > 0 ? string.Format(" ｜ 段の縁(石垣・土留めが描く・超過に数えない) {0} セル 最大 {1:F2}m", edge, edgeMx) : ""),
+            (hole > 0 ? " ｜ 算出物の穴 " + hole : "")
+            + (padN > 0 ? string.Format(" ｜ 棟の下の均し(指図 service.yAt・LevelPad {0} 棟・超過に数えない) {1} セル 最大 {2:F2}m", pads.Count, padN, padMx) : "")
+            + (rampN > 0 ? string.Format(" ｜ 坂の路盤と法(指図 ramps・GradeSaka・超過に数えない) {0} セル 最大 {1:F2}m", rampN, rampMx) : "")
+            + (skin > 0 ? " ｜ 皮が描く升の内(数えない) " + skin + " 節点" : "") + (edge > 0 ? string.Format(" ｜ 段の縁(石垣・土留めが描く・超過に数えない) {0} セル 最大 {1:F2}m", edge, edgeMx) : ""),
             bad > 0 ? "✗" : "✔");
     }
 
@@ -3014,17 +3081,11 @@ public static class EdoOkabeYashikiBuilder
                 made++;
                 // 硬い・埋没/浮き 0: 勾配の面(yFrom)の上の棟は、足元を測って食い違えば棟の下を yAt で均す(EdoBuild.LevelPad)
                 var bgo = grp.Find(nm).gameObject;
-                Vector2 fbc; float fbw, fbd;
-                if (Has(s2, "yFrom") && EdoBuild.BodyFootprintLocal(path, out fbc, out fbw, out fbd))
+                var foot = Has(s2, "yFrom") ? EdoBuild.BodyFootWorld(bgo, path) : null;   // ⭐ 造成QA(ServicePads)と同じ足あと
+                if (foot != null)
                 {
-                    var tr = bgo.transform; var foot = new Vector2[4];
-                    float[] sx = { -0.5f, 0.5f, 0.5f, -0.5f }, sz = { -0.5f, -0.5f, 0.5f, 0.5f };
                     float lo = float.MaxValue, hi = float.MinValue;
-                    for (int k = 0; k < 4; k++)
-                    {
-                        var wp = tr.TransformPoint(new Vector3(fbc.x + sx[k] * fbw, 0f, fbc.y + sz[k] * fbd)); foot[k] = new Vector2(wp.x, wp.z);
-                        float g = EdoBuild.Ground(wp.x, wp.z); lo = Mathf.Min(lo, g); hi = Mathf.Max(hi, g);
-                    }
+                    foreach (var q in foot) { float g = EdoBuild.Ground(q.x, q.y); lo = Mathf.Min(lo, g); hi = Mathf.Max(hi, g); }
                     float bot = EdoBuild.RB(bgo).min.y;
                     if (hi - bot > PAD_TOL || bot - lo > PAD_TOL)   // 硬い(埋没・浮き 0): 測りの誤差 PAD_TOL だけ見逃す(旧 0.15 で厩の −0.14 が素通りした・第6巡)
                     {

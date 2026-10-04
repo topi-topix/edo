@@ -169,25 +169,9 @@ public static partial class EdoBuild
             {
                 var p = new Vector2(tp.x + (x0 + ix) * cell, tp.z + (z0 + iz) * cell);
                 if (!EdoGeom.PIP(parcel, p)) continue;                    // ⛔ 区画の外は触らない
-                // 芯の最寄りの点
-                float bd = float.MaxValue, bs = 0f; bool beyond = false;
-                for (int k = 0; k + 1 < pts.Length; k++)
-                {
-                    Vector2 a = pts[k], b = pts[k + 1], ab = b - a; float L2 = ab.sqrMagnitude; if (L2 < 1e-9f) continue;
-                    float tr = Vector2.Dot(p - a, ab) / L2;
-                    float tc = Mathf.Clamp01(tr);
-                    float dd = (a + ab * tc - p).magnitude;
-                    if (dd < bd)
-                    {
-                        bd = dd; bs = st[k] + Mathf.Sqrt(L2) * tc;
-                        beyond = (k == 0 && tr < 0f) || (k == pts.Length - 2 && tr > 1f);
-                    }
-                }
-                if (beyond) continue;                                     // 坂の両端より先は触らない
-                // 芯の高さ(道のりで一次)
-                float yr = ys[ys.Length - 1];
-                for (int k = 0; k + 1 < pts.Length; k++)
-                    if (bs <= st[k + 1] + 1e-5f) { float u = (bs - st[k]) / Mathf.Max(1e-5f, st[k + 1] - st[k]); yr = Mathf.Lerp(ys[k], ys[k + 1], u); break; }
+                // 芯の最寄りの点と芯の高さ(道のりで一次)── 造成QA と同じ関数(SakaCenterAt)
+                float bd, bs, yr;
+                if (!SakaCenterAt(pts, ys, p, out bd, out bs, out yr)) continue;   // 坂の両端より先は触らない
                 float hh = Mathf.Max(0f, bd - half);
                 float lo = yr - hh / bf, hi = yr + hh / bc;
                 float cur = H[iz, ix] * ts.y + tp.y;
@@ -317,6 +301,65 @@ public static partial class EdoBuild
         return res;
     }
 
+    /// <summary>**法で寄せる一節点の式**: 面の高さ <paramref name="y"/> の縁から水平に <paramref name="hh"/>[m] 離れた節点の地盤 <paramref name="cur"/> を、
+    /// 盛土 1:<paramref name="bf"/>・切土 1:<paramref name="bc"/> の法の間へ挟んだ高さ(LevelPad・GradeSakaOnce・各邸の造成QA が同じ式を使う ── ⛔ 式を二重に持たない)。</summary>
+    public static float BatterTo(float y, float hh, float bf, float bc, float cur)
+    { return Mathf.Min(Mathf.Max(cur, y - hh / bf), y + hh / bc); }
+
+    /// <summary>**棟の下の均し(LevelPad)が節点 <paramref name="p"/> に与える高さ**。触らない節点(区画の外・窓の外)は <paramref name="cur"/> を返す。
+    /// LevelPad はこの関数で書き、造成QA はこの関数で「設計面からの差が均しの跡か」を測る(2026-10-04 EDO-0502 第13巡)。測るだけ。</summary>
+    public static float LevelPadAt(Vector2[] parcel, Vector2[] foot, float y, float bf, float bc, float cell, Vector2 p, float cur)
+    {
+        if (foot == null || foot.Length < 3) return cur;
+        if (parcel != null && !EdoGeom.PIP(parcel, p)) return cur;   // ⛔ 区画の外は触らない
+        float reach = cell + 6f * Mathf.Max(bf, bc) + cell;
+        float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
+        foreach (var q in foot) { mnx = Mathf.Min(mnx, q.x); mxx = Mathf.Max(mxx, q.x); mnz = Mathf.Min(mnz, q.y); mxz = Mathf.Max(mxz, q.y); }
+        // LevelPad の窓(足あとの外接 ± reach を一升に丸めた範囲)の外は触らない
+        if (p.x < mnx - reach - cell || p.x > mxx + reach + cell || p.y < mnz - reach - cell || p.y > mxz + reach + cell) return cur;
+        float d = EdoGeom.PIP(foot, p) ? 0f : DistPolyLine(foot, p);
+        return d <= cell ? y : BatterTo(y, d - cell, bf, bc, cur);
+    }
+
+    /// <summary>**据わった棟の躯体の足あと**(世界 xz の四隅)。躯体の断面(BodyFootprintLocal)を駒の今の姿勢で世界へ写す。
+    /// 棟の下の均し(LevelPad)の足あとと、造成QA が均しの跡を測る足あとは**同じこの関数**で取る。測れなければ null。</summary>
+    public static Vector2[] BodyFootWorld(GameObject go, string prefabPath)
+    {
+        Vector2 c; float w, d;
+        if (go == null || string.IsNullOrEmpty(prefabPath) || !BodyFootprintLocal(prefabPath, out c, out w, out d)) return null;
+        var tr = go.transform; var foot = new Vector2[4];
+        float[] sx = { -0.5f, 0.5f, 0.5f, -0.5f }, sz = { -0.5f, -0.5f, 0.5f, 0.5f };
+        for (int k = 0; k < 4; k++) { var wp = tr.TransformPoint(new Vector3(c.x + sx[k] * w, 0f, c.y + sz[k] * d)); foot[k] = new Vector2(wp.x, wp.z); }
+        return foot;
+    }
+
+    /// <summary>**坂の芯の最寄り**: 節点 <paramref name="p"/> から芯 <paramref name="pts"/> への水平距離 <paramref name="bd"/>・道のり <paramref name="bs"/>・
+    /// その点の路面の高さ <paramref name="yr"/>(<paramref name="ys"/> を道のりで一次)。坂の両端より先なら false(触らない)。
+    /// GradeSakaOnce と造成QA が同じ関数で坂の範囲を測る(⛔ 式を二重に持たない)。</summary>
+    public static bool SakaCenterAt(Vector2[] pts, float[] ys, Vector2 p, out float bd, out float bs, out float yr)
+    {
+        bd = float.MaxValue; bs = 0f; yr = ys[ys.Length - 1]; bool beyond = false;
+        float acc = 0f;
+        var st = new float[pts.Length];
+        for (int i = 1; i < pts.Length; i++) st[i] = st[i - 1] + (pts[i] - pts[i - 1]).magnitude;
+        for (int k = 0; k + 1 < pts.Length; k++)
+        {
+            Vector2 a = pts[k], b = pts[k + 1], ab = b - a; float L2 = ab.sqrMagnitude; if (L2 < 1e-9f) continue;
+            float tr = Vector2.Dot(p - a, ab) / L2;
+            float tc = Mathf.Clamp01(tr);
+            float dd = (a + ab * tc - p).magnitude;
+            if (dd < bd)
+            {
+                bd = dd; bs = st[k] + Mathf.Sqrt(L2) * tc;
+                beyond = (k == 0 && tr < 0f) || (k == pts.Length - 2 && tr > 1f);
+            }
+        }
+        acc = bs;
+        for (int k = 0; k + 1 < pts.Length; k++)
+            if (acc <= st[k + 1] + 1e-5f) { float u = (acc - st[k]) / Mathf.Max(1e-5f, st[k + 1] - st[k]); yr = Mathf.Lerp(ys[k], ys[k + 1], u); break; }
+        return !beyond;
+    }
+
     /// <summary>**棟の下の均し**(2026-10-03 EDO-0502 第4巡・岡部の厩と蔵1 が勾配の面の上手へ 0.78m 埋まった)。
     /// 指図の `yAt`(棟の芯での面の高さ)で足あと <paramref name="foot"/>(呼び手が据えた駒の躯体から測る・世界 xz)の下を平らにし、
     /// その外は盛土 1:<paramref name="bf"/>・切土 1:<paramref name="bc"/> の法で今の地盤へ擦り付ける。
@@ -345,11 +388,8 @@ public static partial class EdoBuild
             for (int ix = 0; ix < w; ix++)
             {
                 var p = new Vector2(tp.x + (x0 + ix) * cell, tp.z + (z0 + iz) * cell);
-                if (!EdoGeom.PIP(parcel, p)) continue;                  // ⛔ 区画の外は触らない
-                float d = EdoGeom.PIP(foot, p) ? 0f : DistPolyLine(foot, p);
-                float cur = H[iz, ix] * ts.y + tp.y, nw;
-                if (d <= cell) nw = y;
-                else { float hh = d - cell; nw = Mathf.Min(Mathf.Max(cur, y - hh / bf), y + hh / bc); }
+                float cur = H[iz, ix] * ts.y + tp.y;
+                float nw = LevelPadAt(parcel, foot, y, bf, bc, cell, p, cur);   // ⭐ 一節点の式は LevelPadAt だけ(造成QA も同じ式で均しの跡を数える)
                 if (Mathf.Abs(nw - cur) < 1e-4f) continue;
                 if (nw > cur) fillMax = Mathf.Max(fillMax, nw - cur); else cutMax = Mathf.Max(cutMax, cur - nw);
                 H[iz, ix] = (nw - tp.y) / ts.y; n++;

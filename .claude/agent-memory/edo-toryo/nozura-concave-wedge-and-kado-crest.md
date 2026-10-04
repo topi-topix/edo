@@ -1,0 +1,19 @@
+---
+name: nozura-concave-wedge-and-kado-crest
+description: 野面の入隅の縦の土の楔は鉛直な小口を見える頂点の全部で止めたせい(天端の帯で触れて下は埋める)・L字の隅の駒は crestOf が芯の筋で天端を低く読み 0.4〜0.6 持ち上がる・他窓の「天端の違う区間を継がない」が段違いの袖を壊した
+metadata:
+  type: project
+---
+2026-10-04 EDO-0502 第16巡(岡部 TW_Higashi_Hokuto)。
+
+1. **入隅の縦の土の三角**: 可動側の鉛直な小口を「見える頂点すべて」の Contact で止めると、通す側の法の足(下ほど前)で止まり、天端で 0.3×見付の楔が開く。
+   ⇒ 入隅の可動側は天端の帯 0.30 で触れる所まで寄せ、下は相手の法の中へ埋める(施主 09-27「埋めて隠す」)。口があれば延ばして並べ直す(PlaceNozuraRun の CONCAVE_TOUCH_BAND)。
+   法切りの駒(SannoNozuraNoriEnd)は H0.6/H1.8 しか焼いていない ⇒ 岡部は「焼いていない」で鉛直のまま。
+2. **L 字の隅の駒の天端**: crestOf は外接箱の芯を通る ±0.25 の筋 ⇒ 隅の内の法の石を拾い、天端を低く読んで駒を持ち上げた(16.70/16.89 vs 16.31)。腕ごとに直線の駒と同じ測りで(crestKado)。
+3. **他窓が PlaceNozuraNet に入れた「天端の違う区間は継がない」**(松江松平 4a6567e2)で、岡部の袖の段違いが入隅の突き付けに化け、段の境の駒・積み下ろしが消えた。
+   三本以上が会う端だけに限った。⇒ 共有の型を流し直したら、まず前の巡の 2b のログと diff を取る(差の行で他窓の変更が出る)。
+4. 皮の「見え面の前へ皮を出さない」(3b)を帯で篩わない城の石垣へ広げても候補 0(TopRaw が NaN)で効かなかった ⇒ 門の内の TW_Kado_Shumen_0_0 の足元の土の三角は別の器が要る。
+5. カメラの ScreenPointToRay は Game ビューの画素で解く ⇒ レンダの画素から光線を引くときは ViewportPointToRay(px/W, 1−py/H)。
+
+**How to apply:** 野面の入隅・隅の天端・段違いの袖を言われたら、まず Stage2b のログで「入隅の可動側」「隅 n」「積み下ろし: n 駒」を前の巡と並べる。
+関連 [[oblique-contact-and-batter-wedge]] [[nozura-dan-piece-fixed-height]] [[skin-edge-across-nozura-face]] [[bury-first-scribe-when-visible]]

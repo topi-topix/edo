@@ -209,6 +209,12 @@ public static class EdoAssets
         {
             return RoofDir + "Goten_Roof_Irimoya_" + wKen + "x" + dKen + "ken.fbx";
         }
+        /// <summary>端数の間数(土井の長局 12×8.5 など)の入母屋。整数は上の int 版と同じ名になる。
+        /// blender --background --python Tools/Blender/build_goten_roof.py -- 21.816 15.453 Goten_Roof_Irimoya_12x8.5ken</summary>
+        public static string RoofIrimoya_(float wKen, float dKen)
+        {
+            return RoofDir + "Goten_Roof_Irimoya_" + KenTag(wKen) + "x" + KenTag(dKen) + "ken.fbx";
+        }
 
         /// <summary>棟の外形(身舎+入側)の間数で引く**寄棟**。<paramref name="wKen"/>=桁行。
         /// ⛔ **御殿の棟には使わない** — 入母屋より一段格が下で、**役所・附属の棟**に充てる

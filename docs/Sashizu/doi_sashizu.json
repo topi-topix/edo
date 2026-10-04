@@ -2124,12 +2124,11 @@
     5
    ],
    "rooms": [],
-   "roof": "Goten_Doi_Genkan",
+   "roof": "Goten.RoofIrimoya_(6,5)",
    "kw": 6,
    "kd": 5,
    "ridge": "u",
-   "iri": 1,
-   "roofCert": "**U** — 入母屋・長手に棟を通す(岡部の御殿5棟と同じ類型・EdoGotenKit)。部材は桁行×梁間で部材方が焼く【普請奉行 2026-10-04】"
+   "roofCert": "**U** — 入母屋・長手に棟(岡部の御殿5棟と同じ作り Goten_Roof_Irimoya_<kw>x<kd>ken・build_goten_roof.py)【普請奉行 2026-10-04】"
   },
   {
    "name": "Hiroma",
@@ -2146,12 +2145,11 @@
     10
    ],
    "rooms": [],
-   "roof": "Goten_Doi_Hiroma",
+   "roof": "Goten.RoofIrimoya_(14,10)",
    "kw": 14,
    "kd": 10,
    "ridge": "u",
-   "iri": 1,
-   "roofCert": "**U** — 入母屋・長手に棟を通す(岡部の御殿5棟と同じ類型・EdoGotenKit)。部材は桁行×梁間で部材方が焼く【普請奉行 2026-10-04】"
+   "roofCert": "**U** — 入母屋・長手に棟(岡部の御殿5棟と同じ作り Goten_Roof_Irimoya_<kw>x<kd>ken・build_goten_roof.py)【普請奉行 2026-10-04】"
   },
   {
    "name": "Shoin",
@@ -2168,12 +2166,11 @@
     8
    ],
    "rooms": [],
-   "roof": "Goten_Doi_Shoin",
+   "roof": "Goten.RoofIrimoya_(11,8)",
    "kw": 11,
    "kd": 8,
    "ridge": "u",
-   "iri": 1,
-   "roofCert": "**U** — 入母屋・長手に棟を通す(岡部の御殿5棟と同じ類型・EdoGotenKit)。部材は桁行×梁間で部材方が焼く【普請奉行 2026-10-04】"
+   "roofCert": "**U** — 入母屋・長手に棟(岡部の御殿5棟と同じ作り Goten_Roof_Irimoya_<kw>x<kd>ken・build_goten_roof.py)【普請奉行 2026-10-04】"
   },
   {
    "name": "Yakusho",
@@ -2190,12 +2187,11 @@
     8
    ],
    "rooms": [],
-   "roof": "Goten_Doi_Yakusho",
+   "roof": "Goten.RoofIrimoya_(8,6)",
    "kw": 8,
    "kd": 6,
    "ridge": "v",
-   "iri": 1,
-   "roofCert": "**U** — 入母屋・長手に棟を通す(岡部の御殿5棟と同じ類型・EdoGotenKit)。部材は桁行×梁間で部材方が焼く【普請奉行 2026-10-04】"
+   "roofCert": "**U** — 入母屋・長手に棟(岡部の御殿5棟と同じ作り Goten_Roof_Irimoya_<kw>x<kd>ken・build_goten_roof.py)【普請奉行 2026-10-04】"
   },
   {
    "name": "Daidokoro",
@@ -2212,12 +2208,11 @@
     9
    ],
    "rooms": [],
-   "roof": "Goten_Doi_Daidokoro",
+   "roof": "Goten.RoofIrimoya_(9,8)",
    "kw": 9,
    "kd": 8,
    "ridge": "v",
-   "iri": 1,
-   "roofCert": "**U** — 入母屋・長手に棟を通す(岡部の御殿5棟と同じ類型・EdoGotenKit)。部材は桁行×梁間で部材方が焼く【普請奉行 2026-10-04】"
+   "roofCert": "**U** — 入母屋・長手に棟(岡部の御殿5棟と同じ作り Goten_Roof_Irimoya_<kw>x<kd>ken・build_goten_roof.py)【普請奉行 2026-10-04】"
   },
   {
    "name": "Oku",
@@ -2234,12 +2229,11 @@
     9
    ],
    "rooms": [],
-   "roof": "Goten_Doi_Oku",
+   "roof": "Goten.RoofIrimoya_(11,9)",
    "kw": 11,
    "kd": 9,
    "ridge": "u",
-   "iri": 1,
-   "roofCert": "**U** — 入母屋・長手に棟を通す(岡部の御殿5棟と同じ類型・EdoGotenKit)。部材は桁行×梁間で部材方が焼く【普請奉行 2026-10-04】"
+   "roofCert": "**U** — 入母屋・長手に棟(岡部の御殿5棟と同じ作り Goten_Roof_Irimoya_<kw>x<kd>ken・build_goten_roof.py)【普請奉行 2026-10-04】"
   },
   {
    "name": "Nagatsubone",
@@ -2256,12 +2250,11 @@
     8.5
    ],
    "rooms": [],
-   "roof": "Goten_Doi_Nagatsubone",
+   "roof": "Goten.RoofIrimoya_(12,8.5)",
    "kw": 12,
    "kd": 8.5,
    "ridge": "u",
-   "iri": 1,
-   "roofCert": "**U** — 入母屋・長手に棟を通す(岡部の御殿5棟と同じ類型・EdoGotenKit)。部材は桁行×梁間で部材方が焼く【普請奉行 2026-10-04】"
+   "roofCert": "**U** — 入母屋・長手に棟(岡部の御殿5棟と同じ作り Goten_Roof_Irimoya_<kw>x<kd>ken・build_goten_roof.py)【普請奉行 2026-10-04】"
   }
  ],
  "links": [

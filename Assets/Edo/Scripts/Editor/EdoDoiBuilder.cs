@@ -1483,14 +1483,7 @@ public static partial class EdoDoiBuilder
         // ── 3 練塀(区画の辺の段塀)── 外面は表長屋の外面の線に揃える(突き付ける長屋の妻面と基壇の小口の両方に当てる ── 指図 joins)
         float T; { var bpz = EdoBuild.BodyAt(EdoAssets.Own.Dobei2m, Vector3.zero, 0f, false); float zl = float.MaxValue, zh = float.MinValue; foreach (var q in bpz) { zl = Mathf.Min(zl, q.z); zh = Mathf.Max(zh, q.z); } T = zh - zl; }
         // 辺 e の線(区画の線から内へ c)の上で、走り s を動かしたとき隣の辺 eo の内に居る s の限り(下限 or 上限)
-        Func<int, float, int, float[]> sLimit = (e, c, eo) =>
-        {
-            Vector2 oo = OutNormal(eo), a0 = EdgePt(eo, 0f);
-            Func<float, float> f = s => Vector2.Dot(EdgePt(e, s) - OutNormal(e) * c - a0, -oo);
-            float f0 = f(0f), k = f(1f) - f0;
-            if (Mathf.Abs(k) < 1e-5f) return new[] { float.NegativeInfinity, float.PositiveInfinity };
-            return k > 0f ? new[] { -f0 / k, float.PositiveInfinity } : new[] { float.NegativeInfinity, -f0 / k };
-        };
+        Func<int, float, int, float[]> sLimit = SLimit;
         Func<int, float, int, float, Vector2> meet = (e1, c1, e2, c2) =>
         {
             Vector2 a1 = EdgePt(e1, 0f) - OutNormal(e1) * c1, d1 = Dir(e1), a2 = EdgePt(e2, 0f) - OutNormal(e2) * c2, d2 = Dir(e2);
@@ -1611,46 +1604,8 @@ public static partial class EdoDoiBuilder
             if (!float.IsNaN(r0.seat) && r0.s0 > 1e-3f) { sb.AppendLine("  ⚠ 練塀 " + cname + ": 頭 s=" + r0.s0.ToString("F2") + " は表門の北の妻面へ突き付く ── 門は S3(据えてから小口を取り直す)"); warn++; }
         }
 
-        // ── 4 奥の塀(区画の内の段塀・pts は主郭の格子 u,v 間)
-        foreach (var r in Runs)
-        {
-            if (r.pts == null || r.pts.Count < 2 || !r.build || r.after != null) continue;
-            var pts = r.pts.ConvertAll(q => Grid.W(q.x, q.y));
-            var segL = new List<float>(); for (int i = 0; i + 1 < pts.Count; i++) segL.Add(Vector2.Distance(pts[i], pts[i + 1]));
-            // 口(広敷門など gates[].inRun)── 鎖の道のりへ
-            var gaps = new List<Vector2>(); var gapAt = new List<KeyValuePair<int, Vector2>>(); var gapHalf = new List<float>();
-            foreach (var o in A(D["gates"]) ?? new List<object>())
-            {
-                var g = O(o); if (!Has(g, "inRun") || S(g["inRun"]) != r.name) continue;
-                var uv = A(g["uv"]); Vector2 gw = Grid.W(F(uv[0]), F(uv[1])); float hw = F(g["w"]) * 0.5f;
-                float acc = 0f, bestD = float.MaxValue, bestS = 0f; int bestI = 0;
-                for (int i = 0; i + 1 < pts.Count; i++)
-                {
-                    Vector2 dd = (pts[i + 1] - pts[i]).normalized; float t = Mathf.Clamp(Vector2.Dot(gw - pts[i], dd), 0f, segL[i]);
-                    float dist = Vector2.Distance(pts[i] + dd * t, gw); if (dist < bestD) { bestD = dist; bestS = acc + t; bestI = i; }
-                    acc += segL[i];
-                }
-                gaps.Add(new Vector2(bestS - hw, bestS + hw)); gapAt.Add(new KeyValuePair<int, Vector2>(bestI, gw)); gapHalf.Add(hw);
-                sb.AppendLine("  ⚠ 奥の塀 " + r.name + ": 口 " + S(g["name"]) + "(幅 " + F(g["w"]).ToString("F2") + ")を空けた ── 門は S3");
-                warn++;
-            }
-            string dn; var plan = EdoBuild.DanPlan(pts, out dn, gaps);
-            float org = 0f; int nm = 0;
-            for (int i = 0; i + 1 < pts.Count; i++)
-            {
-                Vector2 dd = (pts[i + 1] - pts[i]).normalized, nrm = new Vector2(-dd.y, dd.x);
-                var ds = plan.ConvertAll(x => new EdoBuild.DanSec { a = x.a - org, b = x.b - org, W = x.W });
-                Vector2 gc = Vector2.zero; float gh = -1f;
-                for (int gi = 0; gi < gapAt.Count; gi++) if (gapAt[gi].Key == i) { gc = gapAt[gi].Value; gh = gapHalf[gi]; }
-                string note;
-                nm += EdoBuild.NeribeiStepRun(oku, pts[i], pts[i + 1], nrm, r.name + "_" + i, ds, gc, gh, out note).Count;
-                log.AppendLine("  奥の塀 " + r.name + " 区" + i + ": " + note);
-                org += segL[i];
-            }
-            sb.AppendLine("  ⚠ 奥の塀 " + r.name + ": " + nm + " 駒・" + dn + " ── 端の突き付け(" + string.Join(" / ", r.name == "Oku_Hei" ? new[] { "廊下 L_HiromaOku の東の側面", "建仁寺垣の端柱" } : new[] { "廊下 L_HiromaOku の西の側面", "書院 Shoin の東の妻" })
-                        + ")と棟の壁の面との離れは相手が S4 で未建 ── 指図の線の端で止めた(未検査)");
-            warn++;
-        }
+        // ── 4 奥の塀(区画の内の段塀・pts は主郭の格子 u,v 間)── 口は S3 で門の札の脇の面から取り直す(BuildOkuHei)
+        warn += BuildOkuHei(oku, sb, log, null);
 
         sb.AppendLine("  勘定: ⭕ " + ok + " / ⚠ " + warn + " / ✗ " + bad);
         sb.Append(WaitReport());

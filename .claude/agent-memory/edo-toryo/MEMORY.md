@@ -51,6 +51,7 @@
 - [LevelPad に区画を渡すと段の土留めを越えて下の面を盛る](levelpad-crosses-terrace-wall.md) — 棟の建つ面の poly を渡す。均した後は heightmap の差を見る
 - [造成は変わった段だけ流し直す](regrade-only-the-changed-block.md) — 全面だと築山と池が平らに戻り掘り直せない
 - [門長屋の口の芯はローカル +X で len/2−gc](nagaya-mon-gate-offset-axis.md) — 口の s から gc を出すのは据えた後の向き(sSign)で。奥の壁の抜けで測る
+- [土井の表門は旧い版・札の front は出格子を拾う](doi-omotemon-old-part-and-front-by-foot.md) — 躯体11.18/番所が右/切り下げ無し。外面は foot で寄せる・新FBXは1本ずつ remap
 - [番所はピボットが奥行の芯・部材は片手](bansho-pivot-and-protrude.md) — protrude は躯体の外面の越える量。対に振らないと袖塀へ 0.22 めり込む
 
 - [帯割り屋根は床へ据える](banded-roof-sits-at-floor.md) — FBX が軒高を焼き込み済み。寄せ直すと 0.71m 浮く。⚠ 渡廊下と当たる

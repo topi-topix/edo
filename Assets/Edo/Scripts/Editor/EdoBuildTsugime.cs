@@ -59,6 +59,29 @@ public static partial class EdoBuild
         return d;
     }
 
+    /// <summary>**長屋・門長屋の土台の底(当たり)を、足の下の基壇の天端 <paramref name="crest"/> へ据える**(高さだけ・硬い ±0.001)。
+    /// 当たり = 躯体の外面の帯(外面の線 <paramref name="frontLine"/> から奥へ 0.3m・<see cref="Body"/> の全頂点)の最下点。
+    /// 走り <paramref name="along"/> の区間 [<paramref name="skipLo"/>, <paramref name="skipHi"/>](<paramref name="frontLine"/> からの s)は除く ──
+    /// 扉と方立が敷居まで下がる門長屋の口(札の passage・<c>--gate-drop</c>)は天端の下へ出るのが正しい。
+    /// ⛔ 外接箱の底(<see cref="SeatBottom"/>)で据えない ── 口の扉の下端を天端に載せ、土台が 0.70m 浮いた。
+    /// 返り値 = 据える前の 当たり − 天端[m](NaN = 帯に頂点が無い)。
+    /// 当たる先: 基壇の天端に載る口つきの長屋(土井 通用門 E13_N09・表門)。口の無い長屋は skipLo &gt; skipHi で同じ。</summary>
+    public static float SeatBedOnCrest(GameObject go, float crest, Vector2 frontLine, Vector2 outward, Vector2 along, float skipLo, float skipHi)
+    {
+        outward = outward.normalized; along = along.normalized;
+        float bed = float.MaxValue;
+        foreach (var v in Body(go.transform, 999999))
+        {
+            var q = new Vector2(v.x, v.z) - frontLine;
+            float t = Vector2.Dot(q, outward); if (t > 0.01f || t < -0.3f) continue;
+            float s = Vector2.Dot(q, along); if (s >= skipLo && s <= skipHi) continue;
+            bed = Mathf.Min(bed, v.y);
+        }
+        if (bed == float.MaxValue) return float.NaN;
+        go.transform.position += new Vector3(0f, crest - bed, 0f);
+        return bed - crest;
+    }
+
     /// <summary>**地形なりの板柵を、板ごとに弦へ張る**(硬い・浮き 0 / 隙 0)。辺 a→b を描かれた地表の道のりで割り
     /// (<see cref="GroundPolyline"/>)、継ぎ目から継ぎ目へ <see cref="PlaceOnChordMeasured"/> で剪断して張る ── 柱は鉛直のまま、
     /// 板の下端が地表なりに下り、隣の板とは継ぎ目で同じ高さ(段違い 0・継ぎ目の口 0)。

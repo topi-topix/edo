@@ -1641,13 +1641,15 @@ class Checks(object):
     def planting_points(self):
         """撒いた木の点 (出所の名, [{uv, world, crownR, name, place}…])。無ければ (None, None)、読めなければ (名, 例外)。
 
-        ⭐ 出所は二通り: `<邸>_planting_out.json`(松江松平)と `<邸>_impl.json` の `planting.points`(山王)。
+        ⭐ 出所は二通り: `<邸>_impl.json` の `planting.points`(焼き手 `bake_impl.py <邸> --write`)と、それが無い邸だけ
+          旧 `<邸>_planting_out.json`(松江松平の 9/20 の散布)。⭐ impl を先に読む(2026-10-04 EDO-0554 ── 松江松平に焼き手
+          `impl_matsudaira_dewa.py` ができた。旧い散布を先に読むと、焼き直した点が検査に届かない)。
         ⚠ 2026-09-23 EDO-0401 まで impl の側を読んでおらず、山王の C17 は**ずっと未検査**だった(規則19)。
         """
         M = self.M
-        for fn, pick in ((M.est + "_planting_out.json", lambda P: P),
-                         (M.est + "_impl.json", lambda P: (P.get("planting") or {}).get("points")
-                          if isinstance(P, dict) and isinstance(P.get("planting"), dict) else None)):
+        for fn, pick in ((M.est + "_impl.json", lambda P: (P.get("planting") or {}).get("points")
+                          if isinstance(P, dict) and isinstance(P.get("planting"), dict) else None),
+                         (M.est + "_planting_out.json", lambda P: P)):
             fp = os.path.join(DOC, fn)
             if not os.path.exists(fp):
                 continue

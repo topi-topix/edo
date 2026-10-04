@@ -57,7 +57,7 @@ NEEDS_POLY = {"corners"}
 
 # ⭕ **全欄を焼く器を持つ邸**(邸 → Tools/Sashizu/ のモジュール名)。器は `bake()` で算出物の dict を返す。
 #   ⛔ 器の式を作り直さない ── 消えた生成器の写しで、当時の算出物を再現することを検めてある。
-ENGINES = {"sanno": "impl_sanno", "okabe": "impl_okabe", "doi": "impl_doi"}
+ENGINES = {"sanno": "impl_sanno", "okabe": "impl_okabe", "doi": "impl_doi", "matsudaira_dewa": "impl_matsudaira_dewa"}
 
 # 算出物のうち**欄ではない**もの(指紋・日付・版)。⛔ 器の返りのこれらを「焼き直すと変わる欄」に数えない。
 META = ("of", "src", "at", "generator", "baked")

@@ -144,3 +144,114 @@ public static partial class EdoBuild
         return made;
     }
 }
+
+public static partial class EdoBuild
+{
+    /// <summary>**受けの駒の上へ据える**(石垣の天端に載る塀・長屋)。<paramref name="go"/> の実メッシュの頂点のうち、真下に受けの駒
+    /// (<paramref name="beds"/> の局所の箱の中)がある物だけで「頂点 − 受けの天端」を取り、その最小が −<paramref name="embed"/>(根入れ)になる高さへ
+    /// 鉛直に動かす。受けの無い頂点(門の口の下へ垂れる扉・石垣の端の外へ出る端)は数えない ── ⛔ 底(bounds.min)で据えない。
+    /// 返り値 = 動かした量[m](受けに一つも載らなければ NaN・動かさない)。
+    /// 当たる先: 石垣の基壇に載る練塀(斜面の run は駒ごとに受けの段が違う)・長屋門(扉が敷居まで垂れる)── 松江松平の外周。</summary>
+    public static float SeatOnBeds(GameObject go, IList<Transform> beds, float embed, out int nOn)
+    { return SeatOnBeds(go, beds, embed, float.NegativeInfinity, out nOn); }
+    /// <summary><paramref name="minLocalY"/> より下(駒の局所 Y)の頂点は数えない ── 札が「土台の底 = 局所 0」と宣言し、その下へ垂れる物
+    /// (長屋門の扉は敷居まで垂れる)を持つ駒に使う。</summary>
+    public static float SeatOnBeds(GameObject go, IList<Transform> beds, float embed, float minLocalY, out int nOn)
+    {
+        nOn = 0;
+        if (go == null || beds == null || beds.Count == 0) return float.NaN;
+        var gb = RB(go);
+        var boxes = new List<KeyValuePair<Transform, Vector4>>(); var tops = new List<float>();
+        foreach (var bt in beds)
+        {
+            var rb = RB(bt.gameObject);
+            if (rb.max.x < gb.min.x - 0.5f || rb.min.x > gb.max.x + 0.5f || rb.max.z < gb.min.z - 0.5f || rb.min.z > gb.max.z + 0.5f) continue;
+            var inv = bt.worldToLocalMatrix; Vector3 lo = Vector3.one * 1e9f, hi = -Vector3.one * 1e9f; float top = float.MinValue;
+            foreach (var v in Body(bt, 600)) { var l = inv.MultiplyPoint3x4(v); lo = Vector3.Min(lo, l); hi = Vector3.Max(hi, l); top = Mathf.Max(top, v.y); }
+            boxes.Add(new KeyValuePair<Transform, Vector4>(bt, new Vector4(lo.x, lo.z, hi.x, hi.z))); tops.Add(top);
+        }
+        if (boxes.Count == 0) return float.NaN;
+        float best = float.MaxValue;
+        var g2l = go.transform.worldToLocalMatrix;
+        foreach (var v in Body(go.transform, 6000))
+        {
+            if (!float.IsNegativeInfinity(minLocalY) && g2l.MultiplyPoint3x4(v).y < minLocalY) continue;
+            float sup = float.MinValue;
+            for (int i = 0; i < boxes.Count; i++)
+            {
+                var l = boxes[i].Key.worldToLocalMatrix.MultiplyPoint3x4(v); var b = boxes[i].Value;
+                // 受けの箱の縁から 0.25m 内だけを受けと読む ── 門の口へ垂れる扉の頂点が石の端の上に掛かると、扉の下端を土台と取り違えて駒が浮く(御臺所門 1.9m)
+                if (l.x >= b.x + 0.25f && l.x <= b.z - 0.25f && l.z >= b.y + 0.25f && l.z <= b.w - 0.25f) sup = Mathf.Max(sup, tops[i]);
+            }
+            if (sup == float.MinValue) continue;
+            nOn++; best = Mathf.Min(best, v.y - sup);
+        }
+        if (nOn == 0) return float.NaN;
+        float dy = -embed - best;
+        go.transform.position += new Vector3(0f, dy, 0f);
+        return dy;
+    }
+}
+
+public static partial class EdoBuild
+{
+    /// <summary>**溝を折れ線に据える**(1m の駒を流れに沿って並べ、端数は区間の端の1本を切る ── ⛔ 全体を伸縮しない)。
+    /// 駒の局所 +X = 流れの向き。高さは駒の**天端を描かれた地表へ**揃える(溝は地面に彫り込む物 ── 触れている箇所 = 天端の縁と地表)。
+    /// <paramref name="cover"/>(点 → 石蓋にするか)が真の所は <paramref name="coverPath"/>、<paramref name="skip"/> が真の所(石組みで潜る区間)は据えない。
+    /// <paramref name="inv"/>(点ごとの溝底)は狙い ── 据えた駒の下端との差の最大を <paramref name="invDev"/> に返す(柔らかい)。
+    /// 当たる先: 指図が pts と inv を持つ溝(松江松平 MZ16/MZ17/MZ18・前庭の雨落ち)。</summary>
+    public static List<GameObject> MizoOnPolyline(Transform parent, IList<Vector2> pts, IList<float> inv, string path, string coverPath,
+        Func<Vector2, bool> cover, Func<Vector2, bool> skip, string prefix, out float invDev, out int nCover, out int nSkip)
+    {
+        var made = new List<GameObject>(); invDev = 0f; nCover = 0; nSkip = 0;
+        for (int i = 0; i + 1 < pts.Count; i++)
+        {
+            Vector2 a = pts[i], b = pts[i + 1]; float L = Vector2.Distance(a, b); if (L < 0.05f) continue;
+            Vector2 dir = (b - a) / L; float yaw = Mathf.Atan2(-dir.y, dir.x) * Mathf.Rad2Deg;
+            int full = Mathf.FloorToInt(L + 1e-4f); float rem = L - full; int k = full + (rem > 0.05f ? 1 : 0);
+            for (int q = 0; q < k; q++)
+            {
+                float wq = q < full ? 1f : rem;
+                Vector2 c = a + dir * (q + wq * 0.5f);
+                if (skip != null && skip(c)) { nSkip++; continue; }
+                bool cv = cover != null && coverPath != null && cover(c);
+                var go = Place(cv ? coverPath : path, new Vector3(c.x, Ground(c.x, c.y), c.y), yaw, Vector3.one, parent, prefix + "_" + i + "_" + q);
+                if (go == null) continue;
+                if (wq < 0.999f) go.transform.localScale = new Vector3(wq, 1f, 1f);
+                // 天端を地表へ(駒の実メッシュの最も高い所 = 天端の縁)
+                var rb = RB(go); float g = Ground(c.x, c.y);
+                go.transform.position += new Vector3(0f, g - rb.max.y + (cv ? 0.02f : 0f), 0f);
+                if (cv) nCover++;
+                if (inv != null && inv.Count == pts.Count)
+                {
+                    float want = Mathf.Lerp(inv[i], inv[i + 1], (q + wq * 0.5f) / L);
+                    invDev = Mathf.Max(invDev, Mathf.Abs(RB(go).min.y - want));
+                }
+                made.Add(go);
+            }
+        }
+        return made;
+    }
+}
+
+public static partial class EdoBuild
+{
+    /// <summary>**左右の手を選ぶ**: 駒を局所 X で鏡にした姿と元の姿のうち、足元(下端から <paramref name="band"/> m)の実メッシュが
+    /// 区画 <paramref name="parcel"/> の外へ出る量の小さい方を採る(硬い: 区域侵犯 0 に近い方)。返り値 = 採った姿の外へ出る量[m]・mirrored = 鏡にしたか。
+    /// 当たる先: 腕の長さが左右で違う隅の駒(隅長屋 NagayaKado / NagayaKadoMonomi)を、焼いた手と逆の隅へ据えるとき(松江松平 P23)。</summary>
+    public static float ChooseHandInside(GameObject go, Vector2[] parcel, float band, out bool mirrored)
+    {
+        mirrored = false;
+        Func<float> outAmt = () =>
+        {
+            var rb = RB(go); float w = 0f;
+            foreach (var v in Body(go.transform, 8000)) { if (v.y > rb.min.y + band) continue; var q = new Vector2(v.x, v.z); if (!EdoGeom.PIP(parcel, q)) w = Mathf.Max(w, EdoGeom.DistToPolyEdge(parcel, q)); }
+            return w;
+        };
+        float o0 = outAmt();
+        var s = go.transform.localScale; go.transform.localScale = new Vector3(-s.x, s.y, s.z);
+        float o1 = outAmt();
+        if (o1 < o0 - 1e-3f) { mirrored = true; return o1; }
+        go.transform.localScale = s; return o0;
+    }
+}

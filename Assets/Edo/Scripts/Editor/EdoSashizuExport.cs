@@ -68,7 +68,8 @@ public static class EdoSashizuExport
         { "matsudaira_dewa", new Yashiki { label = "MatsudairaDewa", doc = EdoMatsudairaDewaBuilder.SashizuRel,
                                       root = EdoMatsudairaDewaBuilder.Grp,
                                       parcel = EdoMatsudairaDewaBuilder.ParcelId,
-                                      niwaQA = EdoMatsudairaDewaBuilder.NiwaQA } },
+                                      niwaQA = EdoMatsudairaDewaBuilder.NiwaQA,
+                                      pivot = EdoMatsudairaDewaBuilder.Pivot } },
         // 土井のルート名は EdoSannoKitaBuilder.Stage2_Doi が建てた実物(2026-08-26 実機確認)。
         // ⭐ 2026-09-06 に EdoDoiBuilder(棟梁)を新造して gradeQA / pivot を結線した。
         //   ⚠ pivot を渡さないと既定の松平式(桁行が u の棟だけ)になり、当邸の**桁行が v の3棟**
@@ -295,6 +296,19 @@ public static class EdoSashizuExport
                     var gg = root.transform.Find(gname);
                     if (gg != null) for (int i = 0; i < gg.childCount; i++) have.Add(gg.GetChild(i).name);
                 }
+                // ⭐ 石垣そのものが run の駒(kind = Ishigaki・松江松平の腰石垣)は Ishigaki 群に `IG_<run>_<n>` の名で据わる。
+                //   ⛔ 教えないと「部材が実装に一つも無い」と嘘をつく(EDO-0554 第3段)。
+                {
+                    var ishiRuns = new HashSet<string>();
+                    foreach (var o in Get2(doc, "runs")) { var r = o as Dictionary<string, object>; if (r != null && Str(r, "kind") == "Ishigaki") ishiRuns.Add(Str(r, "name")); }
+                    var ig = root.transform.Find("Ishigaki");
+                    if (ig != null && ishiRuns.Count > 0)
+                        for (int i = 0; i < ig.childCount; i++)
+                        {
+                            string n0 = ig.GetChild(i).name; if (!n0.StartsWith("IG_")) continue; n0 = n0.Substring(3);
+                            foreach (var rn in ishiRuns) if (n0.StartsWith(rn + "_")) { have.Add(n0); break; }
+                        }
+                }
                 var names = new List<string>();
                 foreach (var o in Get2(doc, "runs")) names.Add(Str(o as Dictionary<string, object>, "name"));
                 // ⚠ 辺の端を隣の辺の線で切った練塀の駒は `Kiri_<run>` の名で据わる(岡部 EDO-0502・端の切りの駒)。
@@ -310,6 +324,12 @@ public static class EdoSashizuExport
                 {
                     var j = o as Dictionary<string, object>;
                     if (j != null && j.ContainsKey("kado")) names.Add("Kado_" + Str(j, "id"));
+                }
+                // 長屋どうしの隅の駒(runs[].kado ── 隅長屋)は `Kado_<run>_kado<n>` の名で据わる(松江松平 P23・EDO-0554)
+                foreach (var o in Get2(doc, "runs"))
+                {
+                    var r = o as Dictionary<string, object>;
+                    if (r != null && r.ContainsKey("kado") && r["kado"] != null) optional.Add("Kado_" + Str(r, "name"));
                 }
                 if (impl != null)
                     foreach (var o in Get2(impl, "corners"))
@@ -329,6 +349,8 @@ public static class EdoSashizuExport
                 {
                     var km = o as Dictionary<string, object>; if (km == null) continue;
                     if (km.ContainsKey("inRun") && km["inRun"] != null) continue;
+                    // 扉が長屋の躯体に作り付け(leaf.by「…作り付け」・build_nagaya_omote.py --gate)の小門は独立した部材にならない(松江松平 EDO-0554)
+                    { var lf = D(km, "leaf"); var by = lf == null ? null : Str(lf, "by"); if (by != null && by.Contains("作り付け")) { optional.Add(Str(km, "name")); continue; } }   // 返し石垣・袖(<門>_Kaeshi/_Sode)は門の附属
                     if (km.ContainsKey("asset") || km.ContainsKey("api")) names.Add(Str(km, "name"));
                     // 岡部(EDO-0502): `asset` を持たず `w` を持つ小門は既定の棟門で据わる。門長屋(`host`)の口は駒を持たない
                     else if (km.ContainsKey("w") && km["w"] != null && (!km.ContainsKey("host") || km["host"] == null)) names.Add(Str(km, "name"));
@@ -525,6 +547,15 @@ public static class EdoSashizuExport
                     //   ⇒ 期待値は `seat`(`gap`)と `buhin.zLocal`(背面までの出)からの**従属値**。
                     //   `seat` の無い附属屋はこれまでどおり矩形の芯。
                     float su = (F(s2, "u0") + F(s2, "u1")) * 0.5f, sv = (F(s2, "v0") + F(s2, "v1")) * 0.5f;
+                    // ⭐ poly で書いた附属屋(傾いた枠)は四隅の平均が芯(EdoBuild.QuadFrame と同じ)。`yose`(背を囲いの面へ寄せる)を持つ物は
+                    //   芯で比べない ── 据えた背の離れは別の検査(境界・取り合い)が測る(EDO-0554 第3段で 118〜160m の嘘のずれ)。
+                    if (s2.ContainsKey("poly") && s2["poly"] != null)
+                    {
+                        var pl = Get2(s2, "poly"); float cu = 0f, cv = 0f; int pn = 0;
+                        foreach (var q in pl) { var qa = q as List<object>; if (qa == null) continue; cu += System.Convert.ToSingle(qa[0], IC); cv += System.Convert.ToSingle(qa[1], IC); pn++; }
+                        if (pn > 0) { su = cu / pn; sv = cv / pn; }
+                    }
+                    if (D(s2, "yose") != null) { seen.Add(Str(s2, "name")); note(secOf("主郭", Str(s2, "name")), "附属屋 " + Str(s2, "name") + " は背を囲いの面へ寄せる(yose)── 芯では比べない"); continue; }
                     var seat = D(s2, "seat"); var buhin = D(s2, "buhin");
                     var zl = buhin == null ? null : A(buhin, "zLocal");
                     if (seat != null && zl != null && zl.Length == 2 && ken > 0f)

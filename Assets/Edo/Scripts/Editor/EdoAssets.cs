@@ -2074,7 +2074,10 @@ public static class EdoAssets
             return System.IO.File.Exists(k) ? k : path;
         }
         /// <summary>躯体の長さ = 呼び寸法の**門長屋**(<see cref="NagayaOmote2FKutai"/> の口抜き版)。口の芯は局所 +X で len/2 − gateFromLeft。
-        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- &lt;長さm&gt; --body --gate &lt;左端から&gt; &lt;口幅&gt; &lt;有効高&gt; --floors 2</summary>
+        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- &lt;長さm&gt; --body --gate &lt;左端から&gt; &lt;口幅&gt; &lt;有効高&gt; --floors 2
+        /// **5.46・mon3.52・2f**: 土井 E13_N09 の通用門(komon Tsuyomon・EDO-0533)。局所 +X 端 = run の s0 側(辺13 では局所 +X = −走り)。
+        /// 敷居は土台の底より 0.70 低い ⇒ 扉と方立が底より 0.70 下へ出る(据えは土台の底 = 座 19.7)。
+        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- 5.46 --body --gate 3.52 2.4 2.8 --gate-drop 0.70 --floors 2 --render</summary>
         public static string NagayaOmoteMonKutai(float len, float gateFromLeft, bool nikai)
         {
             return "Assets/Edo/Models/Nagaya/Nagaya_Omote_" + Len2(len)
@@ -3564,7 +3567,11 @@ public static class EdoAssets
         /// ⚠ **潜門と主扉の間の壁は 0.46m しかない** — 据えてから目で見て確かめること(図では読めない)。
         /// ⚠ **門戸部の間数そのものは確度 U**(`_pending.monsun` の史料待ち)。部材が焼けたことは
         /// 寸法の典拠にならない。</para>
-        /// 生成: blender --background --python Tools/Blender/build_nagaya_omote.py -- 11.82 --name Doi_Nagayamon --gate 5.91 3.636 3.30 --doorh 3.0 --kuguri 8.637 0.90 1.90 --bansho 1 --bansho-out 0.5 --kabuki 0.30 --render</summary>
+        /// 生成: blender --background --python Tools/Blender/build_nagaya_omote.py -- 11.82 --name Doi_Nagayamon --gate 5.91 3.636 3.30 --doorh 3.0 --kuguri 8.637 0.90 1.90 --bansho 1 --bansho-out 0.5 --kabuki 0.30 --render
+        /// <para>⭐ **躯体版 `Doi_Nagayamon_kutai.fbx`(EDO-0533 2026-10-04)** — <see cref="KutaiOf"/> が在れば読み替える。
+        /// 躯体 11.820(破風込み 12.464)× 棟 7.183(二階・E13_N11 に合わせる)× 奥行 3.726+軒 0.655。扉口と潜戸の敷居が土台の底より 0.80 低い・間の壁の下も石の地覆で敷居まで下ろし一つの口(札 passage −1.818〜3.177・passageKuguri は潜戸の扉)。
+        /// **片番所(出格子)と潜戸は局所 +X 端 = 街路から見て左**(旧版は −X 端で逆だった)。門柱 見付 0.24 を口の左右に立てる。
+        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- 11.82 --body --floors 2 --name Doi_Nagayamon_kutai --gate 5.91 3.636 3.30 --gate-drop 0.80 --doorh 3.0 --kuguri 3.183 0.90 1.90 --bansho 1 --bansho-ux +1 --bansho-out 0.5 --kabuki 0.30 --gate-post 0.24 --join-sill --render</para></summary>
         public const string DoiNagayamon = NagayaDir + "Doi_Nagayamon.fbx";
 
         /// <summary>**厩** 5.5×7間(土井邸 `munes.Umaya`)。実寸 **13.506(X) × 5.418(Y) × 11.291(Z)**。

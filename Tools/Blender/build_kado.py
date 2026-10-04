@@ -15,6 +15,10 @@
     blender --background --python Tools/Blender/build_kado.py -- --part dobei --deg 39 --arms 1.10,0.45 --render
         # 練塀の短い腕(EDO-0502)。順は (入りの腕 = 局所 −Z, 出の腕)。素の腕は 2.256(局所)。小口は塞がない。
         # 腕の長さは EdoBuild.KadoArms が区画から選ぶ(隣の隅の腕と重ねて隙を作らない)→ Dobei_Kado_39_A110x45
+    blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 42.509 --deg2 36.693 --mid 0.6364 --h 4 --arms -0.027,1.4195 --render
+        # 二重折れの隅(石垣だけ・EDO-0502)。天端の前の縁で mid しか離れない二つの出隅を一つの駒に(build_double)。
+        # 腕 = (C: 二つ目の折れの背の交点 Q から先の小口まで, B: 一つ目の折れの背の交点 P から先の小口まで)。C は負でもよい。
+        # → Ishigaki_Kado2_43_37_L064_H0400_A-3x142(岡部 TW_Kado_Shumen の P4/P5)。据え = P・yaw は中の区間を局所 −Z へ
 
 【なぜ要るか】在庫の出隅ブロック `Castle Wall Corner`(2.4m 角)が成立するのは折れ角 Δ≳60°。
   Δ が浅いと片面を合わせても apex が反対側の壁面から `2.4·cosΔ` はみ出す
@@ -241,9 +245,12 @@ def extend_down(o, h):
       背(x=0)と小口の縦の辺(x=1.4)は動かさない ⇒ 小口は x∈[0, 面] の平面のまま閉じる。
     ⛔ z を引き伸ばさない(石の目が縦に伸びる)。段は丸ごと 1m で足す ⇒ 丈は 4+k m。
     UV は最下段のものをそのまま使う(同じ段の石が繰り返す。直線材の段と同じ見え)。"""
-    k = int(round(h - 4.0))
+    # 端数の丈(4.5 など・EDO-0502 岡部 TW_Kado_Shumen の見付 4.42〜4.50)は 1m の段を切り上げて継ぎ、
+    #   足元を水平に切り落として丈を合わせる(⛔ 引き伸ばさない)。切り落とした足元は素と同じく開いたまま(底は地中)。
+    k = int(math.ceil(h - 4.0 - 1e-6))
     if k <= 0:
         return o
+    trim = (4.0 + k) - h
     me = o.data
     face = lambda v: abs(v.co.x + BATTER_ISHIGAKI * v.co.z - 2.4) < 1e-3 and v.co.x > 1e-3
     # 最下段だけを切り出す
@@ -277,9 +284,17 @@ def extend_down(o, h):
     o = V.join(parts, o.name)
     bm = bmesh.new(); bm.from_mesh(o.data)
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-4)
+    if trim > 1e-6:
+        bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], dist=1e-6,
+                               plane_co=Vector((0, 0, trim)), plane_no=Vector((0, 0, 1)),
+                               clear_outer=False, clear_inner=True)
+        bmesh.ops.delete(bm, geom=[e for e in bm.edges if not e.link_faces], context='EDGES')
+        bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
+        for v in bm.verts:
+            v.co.z -= trim
     bm.to_mesh(o.data); bm.free(); o.data.update()
     zs = [v.co.z for v in o.data.vertices]; xs = [v.co.x for v in o.data.vertices]
-    print("[kado] 丈を %d 段継ぎ足した: z[%.2f,%.2f] 面の足 x=%.3f" % (k, min(zs), max(zs), max(xs)))
+    print("[kado] 丈を %d 段継ぎ足した(足元を %.2f 切り落とした): z[%.2f,%.2f] 面の足 x=%.3f" % (k, trim, min(zs), max(zs), max(xs)))
     return o
 
 
@@ -391,7 +406,7 @@ def _dup(o, name):
     return c
 
 
-def shorten_arm(o, a, y_end, n=None):
+def shorten_arm(o, a, y_end, n=None, force=False):
     """入りの腕(+Y へ延びる)を y = a で切り、素の小口(y = y_end・法線 +Y の面)を切り口へ移して塞ぐ。
     ⛔ 頂点を寄せて縮めない(面の石の柄が走りに潰れる)。bisect は面の UV を補間するので柄は切れるだけ。
 
@@ -402,7 +417,7 @@ def shorten_arm(o, a, y_end, n=None):
          この腕が退いた所が開くので、それを塞ぐ面(もう一方の腕の体の外へ向く)。小口の柄を背の側で使う。"""
     if a >= y_end - 1e-6:
         return o
-    if n is None and a <= 0.05:
+    if n is None and a <= 0.05 and not force:
         raise SystemExit("[kado] ⛔ 腕 %.3f が短すぎる" % a)
     if n is not None and a <= -1.0:
         raise SystemExit("[kado] ⛔ 腕 %.3f は留めの三角を越える" % a)
@@ -596,6 +611,261 @@ def build(part, deg, arms=None):
     return o, path
 
 
+# ---------------------------------------------------------------- 二重折れの隅(石垣)
+def _xform(o, M):
+    """o のメッシュへ 4x4 の M を掛ける。鏡映(行列式 < 0)なら巻きを直す。"""
+    o.data.transform(M)
+    if M.to_3x3().determinant() < 0:
+        for p in o.data.polygons:
+            p.flip()
+    o.data.update()
+    return o
+
+
+def _mirror_m(n, c):
+    """点 c を通り法線 n(水平・単位)の鉛直面での鏡映。"""
+    nx, ny = n
+    R = Matrix(((1 - 2 * nx * nx, -2 * nx * ny, 0, 0),
+                (-2 * ny * nx, 1 - 2 * ny * ny, 0, 0),
+                (0, 0, 1, 0), (0, 0, 0, 1)))
+    T = Matrix.Translation(Vector((c[0], c[1], 0)))
+    return T @ R @ T.inverted()
+
+
+def _cut(o, co, no, keep_positive):
+    """点 co を通り法線 no の面で切り、片側を残す。切り口は塞がない(相手の留めの切り口と一致する)。"""
+    me = o.data
+    bm = bmesh.new(); bm.from_mesh(me)
+    bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], dist=1e-5,
+                           plane_co=Vector((co[0], co[1], 0)), plane_no=Vector((no[0], no[1], 0)),
+                           clear_outer=not keep_positive, clear_inner=keep_positive)
+    bmesh.ops.delete(bm, geom=[e for e in bm.edges if not e.link_faces], context='EDGES')
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-4)
+    bm.to_mesh(me); bm.free(); me.update()
+    return o
+
+
+def _strip(mod, y0, y1, cap, force=False):
+    """素の Castle Wall(背 x=0・面 +X・走り y∈[0,2])を y∈[y0, y1] を覆うまで継ぎ、y0 側は捨て切り、
+    cap なら y1 で切って素の +Y の小口を移して塞ぐ(shorten_arm と同じ ── 断面は走りに一定)。"""
+    pitch = PARTS["ishigaki"]["pitch"]
+    k0 = int(math.floor(y0 / pitch)); k1 = int(math.ceil(y1 / pitch)) + 1
+    outs = []
+    for k in range(k0, k1):
+        c = _dup(mod, "t%d" % k)
+        c.location.y += k * pitch
+        outs.append(c)
+    V.sel(outs); bpy.ops.object.transform_apply(location=True, rotation=False, scale=False)
+    s = V.join(outs, "strip")
+    bm = bmesh.new(); bm.from_mesh(s.data)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-4)
+    # 継ぎ目の小口(駒どうしの間の ±Y の面)は帯の中に残る ⇒ 留めで切ると中に開いた辺を作る。先の小口(y = k1·pitch)だけ残す
+    bm.normal_update()
+    inner = [f for f in bm.faces if abs(f.normal.y) > 0.99 and abs(f.calc_center_median().y - k1 * pitch) > 1e-4]
+    bmesh.ops.delete(bm, geom=inner, context='FACES')
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
+    bm.to_mesh(s.data); bm.free(); s.data.update()
+    _cut(s, (0, y0), (0, 1), keep_positive=True)
+    if cap:
+        s = shorten_arm(s, y1, k1 * pitch, None, force=force)
+    return s
+
+
+def build_double(deg1, deg2, mid, h, aC, aB):
+    """**二重折れの隅**(EDO-0502 2026-10-03・岡部 TW_Kado_Shumen の 42.504° と 36.693° が天端の前の縁で 0.636m しか離れない所)。
+    二つの留め継ぎの隅を一つの駒にする。素の隅 2 枚では片方の腕 2.0 がもう一方の折れを越え、間の区間の背が負の長さになる
+    (背の線どうしの折れ点が 0.373 m 逆に並ぶ)── ⇒ 三本の壁の帯を「背からの控え e が最も大きい壁がその点を持つ」で分ける
+    (中の区間 A は二つの留め面の楔・入りと出の壁 B/C は背の側で第三の留め面 e_B = e_C で直に継ぐ)。断面が走りに一定なので
+    どの留め面でも両側の切り口は一致する(継ぎ目は溶かす)。
+
+    局所(Blender・正規化): 原点 = **一つ目の折れ(deg1)の背の線の交点 P**・足元。中の区間 A は +Y へ(見え面 +X)。
+      一つ目の折れの出の腕 B = 向き (−sin Δ1, −cos Δ1)・長さ aB(P から腕の先の小口まで)。
+      二つ目の折れの背の交点 Q = (0, q)・q = mid − 1.4·(tan(Δ1/2) + tan(Δ2/2))(mid = 天端の前の縁での折れ点の間)。
+      二つ目の折れの出の腕 C = Q から向き (−sin Δ2, +cos Δ2)・長さ aC(Q から腕の先の小口まで)。
+    Unity では素の隅と同じ据え: position = P(一つ目の折れの両脇の背の線の交点)・y = 天端 − h / yaw = 中の区間 A を局所 −Z の
+    向きへ(局所 −X = A の見え面の外向き)。B は局所 (sin Δ1, cos Δ1) の向き(Unity XZ)、C は Q = 局所 (0, −q) から (−sin Δ2, …)。"""
+    V.reset()
+    mod, _ = load("ishigaki")
+    normalize(mod, "ishigaki", [])
+    if h is not None and h > 4.0 + 1e-6:
+        mod = extend_down(mod, h)
+    xmax = max(v.co.x for v in mod.data.vertices)          # 面の足(2.40)
+    thk_top = 1.4                                            # 天端の前の縁(背から)
+    h1 = math.radians(deg1) * 0.5; h2 = math.radians(deg2) * 0.5
+    q = mid - thk_top * (math.tan(h1) + math.tan(h2))
+    n1 = (math.sin(h1), math.cos(h1))                        # A の側 = p·n1 ≥ 0
+    n2 = (math.sin(h2), -math.cos(h2))                       # A の側 = (p − Q)·n2 ≥ 0
+    Q = (0.0, q)
+    fB = (math.cos(2 * h1), -math.sin(2 * h1))
+    fC = (math.cos(2 * h2), math.sin(2 * h2))
+    N3 = (fB[0] - fC[0], fB[1] - fC[1])                      # e_B − e_C = N3·p + fC·Q
+    L3 = math.hypot(*N3); N3u = (N3[0] / L3, N3[1] / L3)
+    off = (fC[0] * Q[0] + fC[1] * Q[1]) / L3
+    P3 = (-off * N3u[0], -off * N3u[1])                       # 面 e_B = e_C 上の一点
+    r = -q / (math.tan(h1) + math.tan(h2))                   # 三つの e が等しい控え(中の区間の楔の頂)
+    print("[kado2] Δ1=%.3f Δ2=%.3f mid(天端の前の縁)=%.3f ⇒ 背の間 q=%.3f・楔の頂 e=%.3f" % (deg1, deg2, mid, q, r))
+    span = 2.0 * (xmax * max(math.tan(h1), math.tan(h2)) + abs(q) + 1.0)
+
+    # A(中): 二つの留め面の楔
+    A = _strip(mod, -span, span, cap=False)
+    _cut(A, (0, 0), n1, True)
+    _cut(A, Q, n2, True)
+    # B(一つ目の折れの出): 正準の帯(+Y に aB で小口)を面1で鏡映
+    B = _strip(mod, -span, aB, cap=True)
+    _xform(B, _mirror_m(n1, (0, 0)))
+    _cut(B, (0, 0), n1, False)
+    _cut(B, P3, N3u, True)
+    # C(二つ目の折れの出): 正準の帯を y → −y(+Y の小口が −Y へ)して Q へ移し、面2で鏡映
+    C = _strip(mod, -span, aC, cap=True, force=True)
+    MC = _mirror_m(n2, Q) @ Matrix.Translation(Vector((0, q, 0))) @ Matrix.Scale(-1, 4, Vector((0, 1, 0)))
+    # ⭐ C の腕の先が背の側で第三の留め面(e_B = e_C)より手前に来る(腕が負・C の折れの三角の中で打ち切る)と、
+    #   B の留めの切り口のうち C が退いた所(背の帯)が開く ⇒ C の小口の背の帯を第三の留め面へ剪断して貼る
+    #   (shorten_arm の負の腕と同じ考え・小口の柄のまま)。正準の C の枠(背 x=0・走り +Y・Q が原点)で測る。
+    patch = None
+    MCi = MC.inverted()
+    pa = MCi @ Vector((P3[0], P3[1], 0)); pb = MCi @ Vector((P3[0] - N3u[1], P3[1] + N3u[0], 0))
+    if abs(pb.x - pa.x) > 1e-9:
+        slope = (pb.y - pa.y) / (pb.x - pa.x)
+        b3y = lambda x: pa.y + (x - pa.x) * slope          # 正準の C の枠での第三の留め面(背の側)
+        xb = pa.x + (aC - pa.y) / slope if abs(slope) > 1e-9 else -1.0
+        # 楔の頂(e = r)より背の側でだけ有効
+        if 1e-4 < xb < r - 1e-4:
+            bm = bmesh.new(); bm.from_mesh(C.data); bm.normal_update()
+            cap = [f for f in bm.faces if f.normal.y > 0.99 and abs(f.calc_center_median().y - aC) < 1e-4]
+            keep = set(cap)
+            bmesh.ops.delete(bm, geom=[f for f in bm.faces if f not in keep], context='FACES')
+            bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
+            bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], dist=1e-6,
+                                   plane_co=Vector((xb, aC, 0)), plane_no=Vector((1, 0, 0)),
+                                   clear_outer=True, clear_inner=False)
+            bmesh.ops.delete(bm, geom=[e for e in bm.edges if not e.link_faces], context='EDGES')
+            bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
+            for v in bm.verts:
+                v.co.y = b3y(v.co.x)
+            pm = bpy.data.meshes.new("patch")
+            bm.to_mesh(pm); bm.free()
+            for i, m in enumerate(C.data.materials):
+                pm.materials.append(m)
+            patch = bpy.data.objects.new("patch", pm); bpy.context.collection.objects.link(patch)
+            print("[kado2] C の腕 %.3f は背の側 x<%.3f で第三の留め面に届かない ⇒ 小口の背の帯を留め面へ貼った" % (aC, xb))
+    _xform(C, MC)
+    _cut(C, Q, n2, False)
+    _cut(C, P3, N3u, False)
+    if patch is not None:
+        _xform(patch, MC)
+        C = V.join([C, patch], "C")
+    bpy.data.objects.remove(mod, do_unlink=True)
+
+    name = "Ishigaki_Kado2_%02d_%02d_L%03d%s_A%dx%d" % (round(deg1), round(deg2), int(round(mid * 100)),
+                                                        "_H%04d" % int(round((h or 4.0) * 100)),
+                                                        int(round(aC * 100)), int(round(aB * 100)))
+    o = V.join([A, B, C], name)
+    bm = bmesh.new(); bm.from_mesh(o.data)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-4)
+    # 留め面の T 字(片方の切り口の辺の途中に、もう片方の切り口・貼った帯の角が乗る)を割って継ぐ
+    for _ in range(200):
+        done = False
+        bnd = [e for e in bm.edges if e.is_boundary]
+        bv = set(v for e in bnd for v in e.verts)
+        for e in bnd:
+            a0, a1 = e.verts[0].co, e.verts[1].co
+            d = a1 - a0; L2 = d.length_squared
+            if L2 < 1e-12:
+                continue
+            for v in bv:
+                if v in e.verts:
+                    continue
+                t = (v.co - a0).dot(d) / L2
+                if 1e-4 < t < 1 - 1e-4 and (a0 + d * t - v.co).length < 1e-4:
+                    ne, nv = bmesh.utils.edge_split(e, e.verts[0], t)
+                    nv.co = v.co.copy()
+                    done = True
+                    break
+            if done:
+                break
+        if not done:
+            break
+        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-4)
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
+    bm.to_mesh(o.data); bm.free(); o.data.update()
+    V.set_origin(o, (0, 0, 0))
+    me = o.data
+    xs = [v.co.x for v in me.vertices]; ys = [v.co.y for v in me.vertices]; zs = [v.co.z for v in me.vertices]
+    print("[kado2] %s 出来上がり x[%.3f,%.3f] y[%.3f,%.3f] z[%.3f,%.3f] 面=%d"
+          % (name, min(xs), max(xs), min(ys), max(ys), min(zs), max(zs), len(me.polygons)))
+    # 開いた辺(底のほか)を数える
+    bm = bmesh.new(); bm.from_mesh(me)
+    openE = [e for e in bm.edges if e.is_boundary and not all(v.co.z < 1e-4 for v in e.verts)]
+    print("[kado2] 開いた辺(底のほか) = %d" % len(openE))
+    for e in openE[:12]:
+        print("   ", tuple(round(c, 3) for c in e.verts[0].co), tuple(round(c, 3) for c in e.verts[1].co))
+    bm.free()
+    path = os.path.join(OUT, name + ".fbx")
+    V.export_fbx([o], path)
+    print("[kado2] wrote %s" % path)
+    return o, path
+
+
+def render_double(o, path):
+    """二重折れの隅の検め: 外(見え面の側)から斜めに・真上から。BUZAI_SHOTS が立っていればそこへ。"""
+    V.hook_textures()
+    shots = os.environ.get("BUZAI_SHOTS", os.path.join(ROOT, "Screenshots"))
+    stem = "kado2_" + os.path.splitext(os.path.basename(path))[0].replace("Ishigaki_Kado2_", "")
+    mn, mx = V.bbox([o]); c = (mn + mx) * 0.5
+    r = max((mx - mn).x, (mx - mn).y) * 1.3
+    V.studio((c.x + r * 1.1, c.y + r * 0.2, c.z + r * 0.9), (c.x, c.y, c.z - 0.5), res=(1400, 900))
+    V.render(os.path.join(shots, stem + "_out.png"))
+    sc = bpy.context.scene
+    sc.camera.location = (c.x, c.y, mx.z + 30); sc.camera.rotation_euler = (0, 0, 0)
+    sc.camera.data.type = 'ORTHO'; sc.camera.data.ortho_scale = max((mx - mn).x, (mx - mn).y) * 1.25
+    V.render(os.path.join(shots, stem + "_plan.png"))
+    sc.camera.data.type = 'PERSP'
+    sc.camera.location = (c.x - r * 1.2, c.y - r * 0.3, c.z + r * 1.2)
+    d = Vector((c.x, c.y, c.z)) - sc.camera.location
+    sc.camera.rotation_euler = d.to_track_quat('-Z', 'Y').to_euler()
+    V.render(os.path.join(shots, stem + "_back.png"))
+
+
+def build_straight(h):
+    """丈 h の城の石垣の直線の駒(`Ishigaki_Choku_H<cm4>`)。素の 1 枚を extend_down で下へ継ぐだけ(天端・面の通り・小口の柄は素のまま)。"""
+    V.reset()
+    o, _ = load("ishigaki")
+    normalize(o, "ishigaki", [])
+    o = extend_down(o, h)
+    name = "Ishigaki_Choku_H%04d" % int(round(h * 100))
+    o.name = name; o.data.name = name
+    V.set_origin(o, (0, 0, 0))
+    me = o.data
+    xs = [v.co.x for v in me.vertices]; ys = [v.co.y for v in me.vertices]; zs = [v.co.z for v in me.vertices]
+    print("[choku] %s x[%.3f,%.3f] y[%.3f,%.3f] z[%.3f,%.3f] 面=%d"
+          % (name, min(xs), max(xs), min(ys), max(ys), min(zs), max(zs), len(me.polygons)))
+    bm = bmesh.new(); bm.from_mesh(me)
+    openE = [e for e in bm.edges if e.is_boundary and not all(v.co.z < 1e-4 for v in e.verts)]
+    print("[choku] 開いた辺(底のほか) = %d" % len(openE))
+    bm.free()
+    path = os.path.join(OUT, name + ".fbx")
+    V.export_fbx([o], path)
+    print("[choku] wrote %s" % path)
+    return o, path
+
+
+def render_straight(o, path):
+    """直線の駒を 3 枚並べて(継ぎ目の通りを見る)見え面の側から・小口の側から。"""
+    V.hook_textures()
+    shots = os.environ.get("BUZAI_SHOTS", os.path.join(ROOT, "Screenshots"))
+    stem = os.path.splitext(os.path.basename(path))[0]
+    for k in (1, 2):
+        c = o.copy(); c.data = o.data; bpy.context.collection.objects.link(c); c.location.y += k * 2.0
+    V.studio((14.0, -6.0, 5.0), (1.2, 3.0, 2.0), res=(1400, 900))
+    V.render(os.path.join(shots, stem + "_face.png"))
+    sc = bpy.context.scene
+    sc.camera.location = (6.0, -9.0, 3.0)
+    d = Vector((1.2, 0.0, 2.2)) - sc.camera.location
+    sc.camera.rotation_euler = d.to_track_quat('-Z', 'Y').to_euler()
+    V.render(os.path.join(shots, stem + "_koguchi.png"))
+
+
 def hsuf():
     """丈の接尾辞。cm の 4 桁(`Sanno_Nozura_H0150` と同じ書き方)。⚠ int() でなく round()。"""
     return "" if H_OUT is None else "_H%04d" % int(round(H_OUT * 100))
@@ -611,6 +881,22 @@ def main():
     if "--arms" in argv:
         ARMS = tuple(float(t) for t in argv[argv.index("--arms") + 1].split(","))
         assert len(ARMS) == 2, "--arms aZ,aX"
+    if "--straight" in argv:
+        # 丈違いの**直線の駒**(EDO-0502): 素の Castle Wall 1 枚(走り 2.0)を --h の丈へ下へ継いだ物。
+        #   局所は `Castle Wall` と同じ(走り Z ∈ [−2, 0]・背 X = 0・見え面 −X・足元 Y = 0)⇒ 据えは y = 天端 − h だけ違う
+        o, path = build_straight(H_OUT if H_OUT is not None else 4.0)
+        if do_render:
+            render_straight(o, path)
+        return
+    if "--deg2" in argv:
+        # 二重折れの隅: --deg Δ1 --deg2 Δ2 --mid <天端の前の縁での折れ点の間 m> --arms aC,aB [--h 4]
+        d1 = float(argv[argv.index("--deg") + 1]); d2 = float(argv[argv.index("--deg2") + 1])
+        mid = float(argv[argv.index("--mid") + 1])
+        aC, aB = ARMS if ARMS is not None else (2.0, 2.0)
+        o, path = build_double(d1, d2, mid, H_OUT, aC, aB)
+        if do_render:
+            render_double(o, path)
+        return
     jobs = []
     if "--all" in argv:
         jobs = [("ishigaki", 31.3), ("dobei", 31.3), ("nagaya", -38.3)]
@@ -629,7 +915,7 @@ def main():
             V.studio((c.x + r, c.y - r, c.z + r * 0.9), (c.x, c.y, c.z), res=(1400, 900))
             # ⚠ 鏡像(M)は同じ |deg| なので、hand を名に入れないと非鏡像の検証画像を上書きする
             hand = "" if deg > 0 else "M"
-            V.render(os.path.join(ROOT, "Screenshots",
+            V.render(os.path.join(os.environ.get("BUZAI_SHOTS", os.path.join(ROOT, "Screenshots")),
                                   "kado_%s_%02d%s%s.png" % (part, round(abs(deg)), hand, hsuf() + asuf())))
 
 

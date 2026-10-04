@@ -45,7 +45,7 @@ BASE = 0.22          # 基壇【U】
 POST = 0.16          # 柱【U】
 
 
-def frame(m, P, W, D, eaveH, nx, nz, base=BASE, post=POST):
+def frame(m, P, W, D, eaveH, nx, nz, base=BASE, post=POST, keta_out=0.11):
     """礎石 + 通し柱 + 桁 + 妻梁。小屋の骨は共通なので関数にする
 
     ⚠ **`nx`/`nz` は柱の割付の本数なので必ず整数にする。**間数に端数がある棟
@@ -53,7 +53,12 @@ def frame(m, P, W, D, eaveH, nx, nz, base=BASE, post=POST):
     ⭕ 四捨五入して**1間に最も近い等間隔**へ丸める — 端数を半間の柱間として残すと、
       礎石も桁の割りもそこだけずれて小屋の骨が歪む。⚠ 丸めた結果、柱間は
       厳密な江戸間 1間 ではなくなる(5.5間 → 6等分 = 0.917間)。板壁の小屋なので
-      外からは読めないが、**柱間を測る検査に掛けるならこの丸めを申告すること**。"""
+      外からは読めないが、**柱間を測る検査に掛けるならこの丸めを申告すること**。
+
+    ⚠ `keta_out` = 桁が壁の線より**外へ出る**幅。既定 0.11 は従来どおり(⛔ 既存の駒は動かない)。
+      ⚠ 瓦の切妻を載せると、外へ出た桁の天端が**瓦の谷から木の楕円として覗く**
+      (軒先から一列、瓦の割付ごとに並ぶ。2026-10-03 EDO-0502 で供待・厩に実見)。
+      ⭕ 瓦屋根の棟では 0.0 を渡す(桁は壁の内へ 0.22 で受ける — 詰人長屋の桁と同じ納め)。"""
     nx, nz = max(1, int(round(nx))), max(1, int(round(nz)))
     hw, hd = W / 2.0, D / 2.0
     m.box(-hw - 0.13, hw + 0.13, 0.0, base, -hd - 0.13, hd + 0.13,
@@ -64,10 +69,15 @@ def frame(m, P, W, D, eaveH, nx, nz, base=BASE, post=POST):
         for z in (zs[0], zs[-1]):
             m.box(x - 0.26, x + 0.26, base - 0.02, base + 0.16, z - 0.26, z + 0.26,
                   VM.sub(P['suv'], 0, 0.5, 0.5, 1), STONE)         # 玉石の礎石
-            m.box(x - post / 2, x + post / 2, base + 0.14, eaveH, z - post / 2, z + post / 2,
+            # ⚠ 桁を内へ引いた(keta_out<0.11)ときは柱も桁の下端で止める — 柱頭が壁の線の外で瓦の谷から覗く
+            ptop = eaveH if keta_out >= 0.11 else eaveH - 0.26
+            m.box(x - post / 2, x + post / 2, base + 0.14, ptop, z - post / 2, z + post / 2,
                   VM.sub(P['wuv'], 0.10, 0.02, 0.42, 0.98), WOOD)  # 通し柱
     for z in (zs[0], zs[-1]):
-        m.box(-hw - 0.06, hw + 0.06, eaveH - 0.20, eaveH, z - 0.11, z + 0.11,
+        so = 1.0 if z > 0 else -1.0                 # 外の向き
+        z_in, z_out = z - so * (0.22 - keta_out), z + so * keta_out
+        kd = 0.0 if keta_out >= 0.11 else 0.06     # 内へ引いた桁は 6cm 下げる(瓦の谷が軒桁の線で 4〜5cm 沈む)
+        m.box(-hw - 0.06, hw + 0.06, eaveH - 0.20 - kd, eaveH - kd, min(z_in, z_out), max(z_in, z_out),
               VM.sub(P['wuv'], 0.20, 0.15, 0.95, 0.45), WOOD)      # 桁
     for x in (-hw, hw):
         m.box(x - 0.11, x + 0.11, eaveH - 0.20, eaveH, -hd, hd,
@@ -149,7 +159,7 @@ def umaya(uKen=4, vKen=9, name="Okabe_Umaya", eaveH=2.85, frontH=1.35, noki=0.85
 
 
 # ================================================================ 供待
-def tomomachi(uKen=3, vKen=5, name="Okabe_Tomomachi"):
+def tomomachi(uKen=3, vKen=5, name="Okabe_Tomomachi", keta_out=0.11):
     """供待 3×5間。長手 = v。**前面(+Z)は腰高の吹き放ちに縁**、背面と妻は板壁+漆喰。
     供の者が雨を凌いで待つ小屋。⚠ 姿は【U】。"""
     P = N.palette()
@@ -157,7 +167,7 @@ def tomomachi(uKen=3, vKen=5, name="Okabe_Tomomachi"):
     EAVE, NOKI, END = 2.70, 0.85, 0.32
     hw, hd = W / 2.0, D / 2.0
     m = VM.Mesh()
-    frame(m, P, W, D, EAVE, vKen, uKen)
+    frame(m, P, W, D, EAVE, vKen, uKen, keta_out=keta_out)
     apex = EAVE + hd * R.RATIO
     for sx, s in ((-hw, -1), (hw, 1)):
         N.shitami(m, P, -hd, hd, BASE, 1.05, sx, s, 'z')

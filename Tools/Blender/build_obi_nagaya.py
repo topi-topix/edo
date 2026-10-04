@@ -407,7 +407,7 @@ def gable_set(m, P, hw, hd, eaveH, roofZ, apex, noki, end=None, m_eave=None):
 
 def build(wKen, dKen, name, eaveH=2.70, ridge_show=0.36, plan=None,
           koshiH=KOSHI, noki=NOKI, base=None, end=None, plan_b=None,
-          uchinori=None, post_pitch=1.0, split=False):
+          uchinori=None, post_pitch=1.0, split=False, keta_drop=0.0):
     """plan = 開口面(+Z)の割付 [(x0, x1, 'door'|'window'), ...](走りの中心が 0)
 
     ⭐ 2026-09-21(EDO-0318 ④)に類型の**裏長屋**のため4つ引数を出した。
@@ -433,6 +433,10 @@ def build(wKen, dKen, name, eaveH=2.70, ridge_show=0.36, plan=None,
     W, D = wKen * KEN, dKen * KEN
     hw, hd = W / 2.0, D / 2.0
     roofZ = eaveH - noki * R.RATIO                # 屋根の軒先レベル(軒桁の線で壁天端に合う)
+    # ⭐ keta_drop(2026-10-03 EDO-0502): 長手の壁・柱・軒桁の天端だけを下げる(屋根と妻は動かさない)。
+    #   既定 0.0 は従来どおり。⚠ 0 のままだと軒桁の天端がちょうど瓦面の高さに来て、**瓦の谷から
+    #   木の筋が一列に覗く**(軒先から1.3m ほど上・割付ごと)。0.06 で消える(供待で同じ物を実見)。
+    eW = eaveH - keta_drop
     apex = roofZ + (hd + noki) * R.RATIO          # 瓦面の大棟
     plan = plan or []
     LAST['hd'] = hd
@@ -454,7 +458,7 @@ def build(wKen, dKen, name, eaveH=2.70, ridge_show=0.36, plan=None,
         """開口を一切あけない一面(従来の −Z の作り)。"""
         shitami(m, P, -hw, hw, BASE_, koshiH, zf, sg, 'x')
         mizukiri(m, P, -hw, hw, koshiH, zf, sg, 'x')
-        plaster(m, P, -hw, hw, koshiH, eaveH, zf, sg, 'x')
+        plaster(m, P, -hw, hw, koshiH, eW, zf, sg, 'x')
 
     def opened(pl, zf, sg):
         """割付 pl を持つ一面。⭐ 2026-09-21 に +Z 専用の処理から切り出した
@@ -474,11 +478,11 @@ def build(wKen, dKen, name, eaveH=2.70, ridge_show=0.36, plan=None,
             if k == 'wall':
                 shitami(m, P, a, b, BASE_, koshiH, zf, sg, 'x')
                 mizukiri(m, P, a, b, koshiH, zf, sg, 'x')
-                plaster(m, P, a, b, koshiH, eaveH, zf, sg, 'x')
+                plaster(m, P, a, b, koshiH, eW, zf, sg, 'x')
             elif k == 'window':
                 # 腰高窓 — 腰は下見板のまま、上に小壁
                 shitami(m, P, a, b, BASE_, koshiH, zf, sg, 'x')
-                plaster(m, P, a, b, UCHI_, eaveH, zf, sg, 'x')
+                plaster(m, P, a, b, UCHI_, eW, zf, sg, 'x')
                 m.box(a, b, koshiH, koshiH + 0.09, zf - sg * 0.02, zf + sg * 0.07,
                       VM.sub(P['wuv'], 0.45, 0.10, 0.90, 0.35), WOOD)       # 窓台
                 m.box(a, b, UCHI_ - 0.09, UCHI_, zf - sg * 0.02, zf + sg * 0.07,
@@ -494,7 +498,7 @@ def build(wKen, dKen, name, eaveH=2.70, ridge_show=0.36, plan=None,
                         VM.sub(P['wuv'], 0.60, 0.10, 0.95, 0.90), WOOD,
                         pitch=0.115, bar=0.026, yoko=2)
             else:                                     # door
-                plaster(m, P, a, b, UCHI_, eaveH, zf, sg, 'x')            # 戸の上の小壁
+                plaster(m, P, a, b, UCHI_, eW, zf, sg, 'x')            # 戸の上の小壁
                 m.box(a - 0.04, b + 0.04, BASE_, BASE_ + 0.08,
                       zf - sg * 0.06, zf + sg * 0.09,
                       VM.sub(P['wuv'], 0.30, 0.10, 0.80, 0.30), WOOD)     # 敷居
@@ -509,7 +513,7 @@ def build(wKen, dKen, name, eaveH=2.70, ridge_show=0.36, plan=None,
         opened(plan_b, -hd, -1)
     else:
         blind(-hd, -1)
-    posts(m, P, xs, koshiH, eaveH, -hd, -1, 'x')
+    posts(m, P, xs, koshiH, eW, -hd, -1, 'x')
     # ---- 両妻(±X)。開口を一切あけない
     for sx in (-hw, hw):
         s = 1 if sx > 0 else -1
@@ -522,9 +526,9 @@ def build(wKen, dKen, name, eaveH=2.70, ridge_show=0.36, plan=None,
     opened(plan, hd, 1)
 
     # ---- 柱(開口面)と軒桁・妻梁
-    posts(m, P, xs, koshiH, eaveH, hd, 1, 'x')
+    posts(m, P, xs, koshiH, eW, hd, 1, 'x')
     for s in (-1, 1):
-        m.box(-hw - 0.05, hw + 0.05, eaveH - 0.19, eaveH, s * hd - s * 0.17, s * hd,
+        m.box(-hw - 0.05, hw + 0.05, eW - 0.19, eW, s * hd - s * 0.17, s * hd,
               VM.sub(P['wuv'], 0.20, 0.15, 0.95, 0.45), WOOD)
     for s in (-1, 1):
         m.box(s * hw - s * 0.17, s * hw, eaveH - 0.19, eaveH, -hd, hd,
@@ -574,11 +578,11 @@ def sumai_plan(wKen, dKen):
     return plan
 
 
-def nagaya(wKen=7.5, dKen=2.5, name=None):
+def nagaya(wKen=7.5, dKen=2.5, name=None, keta_drop=0.0):
     """詰人長屋(N1/N2)。7.5間 × 2.5間・平屋・桟瓦・下見板腰・**水側は盲面**"""
     name = name or ("Obi_Nagaya_%sx%sken" % (fmt(wKen), fmt(dKen)))
     return build(wKen, dKen, name, eaveH=2.70, ridge_show=0.36,
-                 plan=sumai_plan(wKen, dKen)), name
+                 plan=sumai_plan(wKen, dKen), keta_drop=keta_drop), name
 
 
 def monooki(wKen=3.0, dKen=1.5, name=None):
@@ -653,7 +657,8 @@ def main():
     for key in want:
         V.reset()
         fn = PARTS[key]
-        o, name = fn(*(ken if ken else ()))
+        kd = float(argv[argv.index("--keta-drop") + 1]) if "--keta-drop" in argv else None
+        o, name = fn(*(ken if ken else ()), **({"keta_drop": kd} if kd is not None and key == "nagaya" else {}))
         mn, mx = V.bbox([o])
         print("[obi] %-24s Unity実寸 W(X)=%.3f  H(Y)=%.3f  D(Z)=%.3f   底=%.3f  面=%d"
               % (name, mx.x - mn.x, mx.z - mn.z, mx.y - mn.y, mn.z, len(o.data.polygons)))

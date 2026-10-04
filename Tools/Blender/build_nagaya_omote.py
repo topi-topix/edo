@@ -5,6 +5,17 @@
     blender --background --python Tools/Blender/build_nagaya_omote.py -- 20.0 --ends none
     blender --background --python Tools/Blender/build_nagaya_omote.py -- 12 16.35 28.5   # まとめて
     blender --background --python Tools/Blender/build_nagaya_omote.py -- 63.18 --gate 10.18 3.0 3.0  # 長屋門
+    blender --background --python Tools/Blender/build_nagaya_omote.py -- 14.674 --floors 2 --body   # 躯体の長さ = 呼び寸法
+    blender --background --python Tools/Blender/build_nagaya_omote.py -- 17.569 --body --floors 2 --miter 8.930 3.597
+        # 外へ折れる区画の角の留め(EDO-0502)。−X 端 / +X 端の折れ(全角)。妻壁を二等分の面へ寝かせる(miter_fn)→ _kutai_m89x36
+
+【`--body`(EDO-0502 2026-10-03)】呼び寸法を**躯体の長さ(両端の妻壁 namako2 の外面どうし)**にする版。
+  既定(従来)は呼び寸法 = 破風まで含む全幅なので、隣どうしを呼び寸法で並べると躯体の間に
+  破風の出 0.322m×2 = **0.644m の隙**が出た(岡部の外周で棟梁が実測)。`--body` では破風は躯体の外へ
+  0.322m ずつ出て、隣の破風と重なる(埋めて隠す)。中の窓割りは **1.5間(2.727m)固定**で通し、
+  端数は**両端の間(妻寄りの無地の壁)で受ける**(solve_body。端の無地の壁は 0.99〜2.22m、素は 1.536m)。
+  門口・潜り戸の中心は**躯体の端から**測る(⇒ 口の芯は従来どおりローカル +X で L/2 − gc)。
+  名前の末尾に `_kutai`、札(PartSpecs)を書く(jambL/R = ±L/2)。⛔ 既定の出力は変わらない。
 
 【なぜ要るか】在庫の長屋は **中部材 8.065m / 妻部材 7.910m の固定寸法**しかない。外周の run は
   「丸ごとの棟を並べる」形でしか埋められないので、端数が必ず門・隅との間に残る
@@ -78,7 +89,16 @@ import vklib as V
 ES   = 1.818                      # 江戸暦の共通スケール(EdoAssets.Eg.ES_NOTE)
 SRC  = os.path.join(V.REPO, "Assets/edogoyomi/es_knagaya")
 OUT  = V.out_dir(os.path.join(V.REPO, "Assets/Edo/Models/Nagaya"))
-SHOT = os.path.join(V.REPO, "Screenshots")
+SHOT = os.environ.get("BUZAI_SHOT") or os.path.join(V.REPO, "Screenshots")
+# 札の置き場。`Assets/Edo/Data/PartSpecs` が他の窓の claim 中なら scratchpad / staging へ振る
+if os.environ.get("BUZAI_SPEC_OUT"):
+    V.SPEC_DIR = os.environ["BUZAI_SPEC_OUT"]
+
+# ---- `--body`(躯体の長さ = 呼び寸法)の割付(EDO-0502 2026-10-03)
+KEN = 1.818                       # 江戸間 1間
+KEN_BAY = 1.5 * KEN               # 中の窓割り 1 つ = 1.5間 = 2.727m(素の 2.6874 を pier で +0.040m 広げる)
+DLT_MIN, DLT_MAX = -0.38, 0.37    # 端の間の詰め δ(obj)。幅 0.75 = 窓割り半分 ⇒ どの長さでも解がある。
+                                  # ⚠ −0.38 より広げると切り口が隣の窓の格子へ 0.02 まで寄る
 
 EPS_MAX = 0.50                    # pier を詰められる上限(obj)。0.845 → 0.345 (0.63m) まで
 EPS_MIN = -0.65                   # 広げられる上限。0.845 → 1.495 (2.72m) まで
@@ -210,7 +230,7 @@ DOOR_SETBACK = 0.25          # 扉の表を壁の外面から内へ引く量[m](
 DOOR_UV = (0.3125, 0.3125, 0.3750, 0.3750)
 
 
-def board_uv(o, z_lo, z_hi):
+def board_uv(o, z_lo, z_hi, xfilter=None):
     """腰の下見板の帯から UV 矩形を借りる。**新しい材質もテクスチャも作らない。**
     扉の板は長屋の下見板と同じ材なので、既にある面の UV をそのまま使う。"""
     me = o.data
@@ -221,6 +241,8 @@ def board_uv(o, z_lo, z_hi):
             continue
         zc = sum(me.vertices[i].co.z for i in p.vertices) / len(p.vertices)
         if not (z_lo <= zc <= z_hi):
+            continue
+        if xfilter is not None and not xfilter(sum(me.vertices[i].co.x for i in p.vertices) / len(p.vertices)):
             continue
         if p.area > ba:
             ba, best, bmi = p.area, p, p.material_index
@@ -555,6 +577,20 @@ def add_kabuki(o, x0, x1, z_head, h, y_front, out=0.07, over=0.25):
     return o
 
 
+def add_posts(o, x0, x1, z_bot, z_head, w, y_front, out=0.05):
+    """**門口の左右に門柱(見付 w)を見せる**(EDO-0533)。開口の幅は変えない — 柱は開口の**外**、
+    壁の外面に w だけ被さり、敷居(z_bot)から冠木の下端(z_head)まで立つ。
+    ⚠ 扉の中心が躯体の中心に固定され、口の縁が中の窓(1階の下段)の帯に 0.12〜0.14m 入るとき、
+      窓枠の欠片が方立の脇に黒い筋で残る(土井の表門で実見)。柱はその筋を表から隠す。
+    ⚠ 既存の門(`--gate-post` を渡さない)には付かないので出力は変わらない。"""
+    box, done = _boxer(o, z_head - 1.0, z_head)
+    for a, b in ((x0 - w / ES, x0), (x1, x1 + w / ES)):
+        box(a, b, y_front, y_front + out / ES, z_bot, z_head)
+    done()
+    print("[nagaya] 門柱を立てた: 見付 %.3fm × 丈 %.3fm / 壁面より %.3fm 前へ" % (w, (z_head - z_bot) * ES, out))
+    return o
+
+
 def win_extent(koshi):
     """(半幅, 下段の窓の下端, 出格子の頭, **窓の一番上**) を返す(obj 単位)。
 
@@ -577,6 +613,22 @@ def win_extent(koshi):
 
 
 # ---------------------------------------------------------------- 割付を解く
+def solve_body(Lo_full, cap_w, bw):
+    """`--body` の割付。中の窓割りは bw(= 1.5間)で固定し、**端数は両端の間(妻寄りの無地の壁)で受ける。**
+
+        Lo_full = 2·(cap_w − δ) + k·bw        (Lo_full は破風まで含む全幅・obj 単位)
+
+    δ は両端の妻の一切れを内側の切り口でそれぞれ詰める量。|δ| が最小になる k を選ぶ。"""
+    best = None
+    for k in range(0, 400):
+        d = (2.0 * cap_w + k * bw - Lo_full) / 2.0
+        if DLT_MIN <= d <= DLT_MAX and (best is None or abs(d) < abs(best[1])):
+            best = (k, d)
+    if best is None:
+        raise SystemExit("[nagaya] --body: 全幅 %.3fm は作れない(短すぎる)" % (Lo_full * ES))
+    return best
+
+
 def solve(Lm, cap_w, bay, ncap):
     """L[m] から (bay 本数 k, pier の詰め ε) を出す。ε は obj 単位。
 
@@ -602,7 +654,12 @@ def solve(Lm, cap_w, bay, ncap):
 # ---------------------------------------------------------------- 組む
 def build(Lm, ends="both", name=None, floors=1, gate=None,
           ridge=None, doorh=None, bansho=0, kabuki=0.0, kuguri=None,
-          bansho_out=None, gate_drop=0.0):
+          bansho_out=None, gate_drop=0.0, body=False, miter=None, bansho_ux=-1,
+          gate_post=0.0, join_sill=False):
+    """body=True(`--body`)は **Lm = 躯体の長さ(両端の妻壁の外面どうし)**。破風(片側 0.322m)は
+    躯体の外へ出る。中の窓割りは 1.5間 で通し、端数は両端の間で受ける(solve_body)。門口・潜り戸の
+    中心は**躯体の端**から測る(⇒ 口の芯は従来どおりローカル +X で Lm/2 − gc)。
+    False(既定)は従来どおり Lm = 破風まで含む全幅で、出力は変わらない。"""
     V.reset()
     gc, mc = read_groups("knagaya01c")
     gl, ml = read_groups("knagaya01l")
@@ -633,13 +690,31 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
     blank_h = z_roof_bot - z_win_top     # **窓の一番上** 〜 軒の下端 = 無地の白壁の帯
     # 妻の出 = 破風の外端が土台の小口より外へ出る量(棟梁が呼び寸法を組むのに要る)
     tsuma_out = l_gab - max(v.co.x for v in gl["n_dodai"].data.vertices)
+    # 躯体の端 = 妻壁(海鼠の浮き彫り namako2)の外面。破風の出はここから測る(棟梁の 0.322 = これ)
+    l_n2 = max(v.co.x for v in gl["namako2"].data.vertices)
+    r_n2 = min(v.co.x for v in gr["namako2"].data.vertices)
+    to_l, to_r = l_gab - l_n2, r_n2 - r_gab
+    l_dd = l_n2 - max(v.co.x for v in gl["n_dodai"].data.vertices)     # 土台の小口の引き(躯体の端から)
+    dd_y0 = min(v.co.y for v in gc["n_dodai"].data.vertices)           # 土台の奥(素の −Y)
+    dd_y1 = max(v.co.y for v in gc["n_dodai"].data.vertices)           # 土台の表
     print("[nagaya] 素の実測: 棟 %.5f (%.4fm) / bay %.5f (%.4fm) / 妻 %.5f (%.4fm)"
           % (W, W * ES, bay, bay * ES, cap_w, cap_w * ES))
     print("[nagaya] 妻の出(破風の外端 − 土台の小口)= %.4f (%.3fm) / 片側。"
           "呼び寸法 L は**破風まで含む全幅**" % (tsuma_out, tsuma_out * ES))
 
     ncap = {"both": 2, "left": 1, "right": 1, "none": 0}[ends]
-    k, eps = solve(Lm, cap_w, bay, ncap)
+    if body:
+        if ends != "both":
+            raise SystemExit("[nagaya] --body は両端妻(--ends both)だけ")
+        eps = bay - KEN_BAY / ES                     # 中の窓割りを 1.5間 に揃える pier の詰め(負 = 広げる)
+        k, dlt = solve_body(Lm / ES + to_l + to_r, cap_w, KEN_BAY / ES)
+        endp = 0.845 - eps / 2.0 - dlt               # 両端の間の無地の壁(obj)
+        print("[nagaya] --body 躯体 %.3fm(+破風 %.3f/%.3fm)→ 中の窓割り %d × 1.5間(%.3fm・無地の壁 %.3fm)"
+              " / 端の間の詰め δ=%+.4f → 端の無地の壁 %.3fm ×2(素 %.3fm)"
+              % (Lm, to_r * ES, to_l * ES, k, KEN_BAY, (0.845 - eps) * ES, dlt * ES, endp * ES, 0.845 * ES))
+    else:
+        k, eps = solve(Lm, cap_w, bay, ncap)
+        dlt = eps / 2.0
     bw = bay - eps
     pier = 0.845 - eps
     print("[nagaya] L=%.3fm → bay %d 本 / pier の詰め ε=%+.4f (%.3fm) → 無地の壁 %.3fm"
@@ -662,8 +737,10 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
     # --- 妻(左 = `r` の妻を −x 側に / 右 = `l` の妻を +x 側に)
     cap_r = V.join(mr, "capL")          # 妻が −x 側にある部材 → 走りの左端
     cap_l = V.join(ml, "capR")          # 妻が +x 側にある部材 → 走りの右端
-    xR = rwin + bay / 2.0 - eps / 2.0   # `r` の内側の切断面
-    xL = lwin - bay / 2.0 + eps / 2.0   # `l` の内側の切断面
+    xR = rwin + bay / 2.0 - dlt         # `r` の内側の切断面(従来は dlt = ε/2)
+    xL = lwin - bay / 2.0 + dlt         # `l` の内側の切断面
+    xb0 = r_n2 - xR                     # 躯体の端(obj・回す前)
+    xb1 = l_n2 + k * bw - xL
     if ends in ("both", "left"):
         bisect_keep(cap_r, xR, False)   # 妻側(x ≤ xR)を残す
         shift_x(cap_r, -xR)
@@ -725,7 +802,7 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
         #   obj の右端から測って抜かないと、門口が反対の端に出る(2026-08-30 に踏んだ)。
         gc_m, gw_m, gh_m = gate                    # 中心[m](出来上がりの左端から) / 幅[m] / 有効高[m]
         xs_all = [v.co.x for v in o.data.vertices]
-        cx = max(xs_all) - gc_m / ES
+        cx = (xb1 if body else max(xs_all)) - gc_m / ES     # body: **躯体の端**から
         # ⚠ 高さは**土台の底からの高さ**。obj 空間の z は 0 が底ではない
         #   (底は負)。絶対 z として渡すと切る面が高すぎて**屋根まで抜ける**
         #   (2026-08-30 に踏んだ — 門口が全高の切り欠きになった)
@@ -746,6 +823,8 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
                    DOOR_H if doorh is None else doorh)
         if kabuki:
             add_kabuki(o, gx0, gx1, gz_top, kabuki, y_wall_front)
+        if gate_post:
+            add_posts(o, gx0, gx1, z_bottom, gz_top, gate_post, y_wall_front)
 
     # --- 片潜門(長屋門の脇の潜り戸)。⚠ **門口を抜いた後**に抜く
     #   指図 `gate.plan` の「片潜門」— 番所と同じ側(向かって左)へ寄せ、夜は主扉を
@@ -753,18 +832,45 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
     if kuguri is not None:
         kc_m, kw_m, kh_m = kuguri
         xs_all = [v.co.x for v in o.data.vertices]
-        z_bottom = min(v.co.z for v in o.data.vertices)
-        kcx = max(xs_all) - kc_m / ES            # ⚠ 門口と同じく **obj では右端から**測る
+        # ⚠ 潜り戸は**土台の底**に立つ(敷居の切り下げは扉口だけ)。`min(z)` は `gate_drop` で
+        #   伸ばした主扉の足元を拾って drop だけ下がる(EDO-0533 で踏みかけた)⇒ 基準は z_base_ref
+        # ⭕ 敷居が土台の底より低い(gate_drop)なら潜戸も**敷居まで**下げる — 0.8 の段では人が通れない
+        #   (EDO-0533 普請奉行)。有効高 kh は敷居から。基壇は据える側が切り下げる
+        z_bottom = z_base_ref - gate_drop / ES
+        kcx = (xb1 if body else max(xs_all)) - kc_m / ES            # ⚠ 門口と同じく **obj では右端から**測る
         kx0, kx1 = kcx - (kw_m / ES) * 0.5, kcx + (kw_m / ES) * 0.5
         kz_top = z_bottom + kh_m / ES
         carve_gate(o, kx0, kx1, kz_top)
         hang_doors(o, kx0, kx1, z_bottom, kz_top, kh_m, n=1)
+        if join_sill and gate is not None and gate_drop:
+            # ⭕ 扉口と潜戸の間の壁(門柱の外を含む)の足元も**敷居まで**下ろし、下で一つの口にまとめる
+            #   (EDO-0533 案A: 間の基壇 0.459m に石垣の駒が入らない)。壁が宙に浮かないよう、
+            #   土台の帯の石の UV で**地覆**を敷居から土台の底まで全奥行に通す。
+            a, b = sorted(((gx0 if abs(gx0 - kcx) < abs(gx1 - kcx) else gx1),
+                           (kx1 if abs(kx1 - cx) < abs(kx0 - cx) else kx0)))
+            zb = z_base_ref
+            ys = [v.co.y for v in o.data.vertices
+                  if (abs(v.co.x - a) < 2e-3 or abs(v.co.x - b) < 2e-3) and zb - 1e-3 <= v.co.z <= kz_top]
+            # 石の帯(土台の底から 0〜0.31m)の中ほどの面から借りる。⚠ 帯の下端だけを見ると土台の木(黒)を掴む
+            #   ⚠ 扉・潜戸の板(敷居まで伸びる)を掴まないよう、両口の外の面だけから借りる
+            xa, xz = min(gx0, kx0) - 0.3 / ES, max(gx1, kx1) + 0.3 / ES
+            rect = board_uv(o, zb + 0.08 / ES, zb + 0.25 / ES,
+                            xfilter=lambda xc: not (xa < xc < xz))[0]
+            box, done = _boxer(o, zb + 0.08 / ES, zb + 0.25 / ES, rect=rect)
+            box(a, b, min(ys), max(ys), zb - gate_drop / ES, zb + 0.01 / ES)
+            done()
+            print("[nagaya] 扉口と潜戸の間の地覆: 幅 %.3fm × 丈 %.3fm × 奥行 %.3fm(敷居から土台の底まで)"
+                  % ((b - a) * ES, gate_drop + 0.01, (max(ys) - min(ys)) * ES))
 
     # --- 両端の出格子番所(長屋門)。窓は x = (j+0.5)·bw に並ぶ(j = −1 … k)
     if bansho:
         bwid = bay - eps
-        cen = [-bwid * 0.5, (k + 0.5) * bwid]
-        add_degoshi(o, cen[:bansho] if bansho < 2 else cen,
+        cen = ([-bay * 0.5 + dlt, k * bw + bay * 0.5 - dlt] if body
+               else [-bwid * 0.5, (k + 0.5) * bwid])
+        # 片番所の端: 既定は cen[0](obj −X → 回して Blender +X → **Unity 局所 −X** = 街路から見て右)。
+        # `--bansho-ux +1` で cen[1](**Unity 局所 +X** = 街路から見て左)。EDO-0533
+        sel = (cen[:1] if bansho_ux < 0 else cen[1:]) if bansho < 2 else cen
+        add_degoshi(o, sel,
                     y_wall_front, z_win0, z_win1, win_hw, out=bansho_out)
         me = o.data
 
@@ -778,11 +884,24 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
     xs = [v.co.x for v in me.vertices]
     zs = [v.co.z for v in me.vertices]
     px = (min(xs) + max(xs)) * 0.5
+    if body:
+        px = -(xb0 + xb1) * 0.5 * ES               # 躯体の中心(回した後の座標)
     pz = z_base_ref * ES                           # 土台の底(⛔ min(zs) ではない。上の注)
     py = wall_face_y(o)                            # 壁の外面(= 走りに平行な最も外の大面)
     for v in me.vertices:
         v.co.x -= px; v.co.y -= py; v.co.z -= pz
     me.update()
+
+    # --- 外へ折れる区画の角の留め(`--miter θL θR`・EDO-0502 2026-10-03)
+    mit = None
+    if miter is not None and body and (miter[0] > 0 or miter[1] > 0):
+        mit = miter_fn(Lm * 0.5, miter[0], miter[1])
+        for v in me.vertices:
+            ux, uz = -v.co.x, -v.co.y                  # Blender → Unity 局所(x = −bx・z = −by)
+            v.co.x = -mit(ux, uz)
+        me.update()
+        print("[nagaya] --miter 区画の角の留め: −X 端 %.3f° / +X 端 %.3f°(片側 = 折れの半分・軸 = 壁の外面の %.2fm 外)"
+              % (miter[0], miter[1], MITER_LINE))
 
     ys = [v.co.y for v in me.vertices]
     xs = [v.co.x for v in me.vertices]; zs = [v.co.z for v in me.vertices]
@@ -793,17 +912,97 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
         print("[nagaya] ⚠ ピボット(土台の底)より %.3fm 下へ出ている部分がある"
               "(門口の扉と方立を敷居まで伸ばしたぶん)。**据えるのは土台の底基準**"
               % (-min(zs)))
-    print("[nagaya] 目標 %.3fm との差 %+.4fm  面=%d" % (Lm, L_real - Lm, len(me.polygons)))
+    if body:
+        Lb = (xb1 - xb0) * ES
+        print("[nagaya] --body 躯体 %.4fm(目標 %.3f・差 %+.4f)/ 全幅(破風込み)%.4fm / 中心のずれ %+.4f"
+              % (Lb, Lm, Lb - Lm, L_real, (max(xs) + min(xs)) * 0.5))
+    else:
+        print("[nagaya] 目標 %.3fm との差 %+.4fm  面=%d" % (Lm, L_real - Lm, len(me.polygons)))
 
     nm = name or ("Nagaya_Omote_" + fmt(Lm)
                   + ("" if gate is None else "_mon%s" % fmt(gate[0]))
                   + ("" if floors < 2 else "_%df" % floors)
-                  + ("" if ends == "both" else "_" + ends))
+                  + ("" if ends == "both" else "_" + ends)
+                  + ("_kutai" if body else "")
+                  + (msuf(miter) if mit is not None else ""))
     o.name = nm; o.data.name = nm
     path = os.path.join(OUT, nm + ".fbx")
-    V.export_fbx([o], path)
+    if body:
+        # 札(EDO-0491)。値は作図の変数から: 躯体の端 = ±Lm/2(namako2 の外面)・土台は素の実測
+        h2 = Lm * 0.5
+        zf = lambda y_obj: y_obj * ES + py          # 素の y → Unity 局所 z(表 = +Z)
+        ys2 = [v.co.y for v in me.vertices]
+        foot = [(-h2 + l_dd * ES, zf(dd_y1)), (h2 - l_dd * ES, zf(dd_y1)),
+                (h2 - l_dd * ES, zf(dd_y0)), (-h2 + l_dd * ES, zf(dd_y0))]
+        jxL, jxR = -h2, h2
+        if mit is not None:
+            # 留めた端は背の側ほど外へ出る ⇒ 足元は剪断した四角・脇の面(帯の断面の最も外)は背の角
+            foot = [(mit(x, z), z) for x, z in foot]
+            jxL, jxR = mit(-h2, zf(dd_y0)), mit(h2, zf(dd_y0))
+        spec = dict(prefab="Assets/Edo/Models/Nagaya/" + nm + ".fbx",
+                    source="blender:build_nagaya_omote.py(%g --body%s%s%s%s%s)"
+                           % (Lm, " --floors %d" % floors if floors > 1 else "",
+                              " --gate %g %g %g" % gate if gate else "",
+                              " --gate-drop %g" % gate_drop if (gate and gate_drop) else "",
+                              (" --bansho %d" % bansho if bansho else "")
+                              + (" --bansho-ux +1" if (bansho == 1 and bansho_ux > 0) else "")
+                              + (" --kuguri %g %g %g" % kuguri if kuguri else "")
+                              + (" --doorh %g" % doorh if (gate and doorh) else "")
+                              + (" --kabuki %g" % kabuki if (gate and kabuki) else "")
+                              + (" --gate-post %g" % gate_post if (gate and gate_post) else "")
+                              + (" --join-sill" if join_sill else "")
+                              + (" --bansho-out %g" % bansho_out if (bansho and bansho_out) else ""),
+                              " --miter %g %g" % tuple(miter) if mit is not None else ""),
+                    unitScale=1.0, yBottom=0.0, foot=[dict(x=x, y=z) for x, z in foot],
+                    front=0.0, back=zf(dd_y0),
+                    jambL=dict(x=jxL, z0=zf(dd_y0), z1=0.0, y0=0.35, y1=1.80),
+                    jambR=dict(x=jxR, z0=zf(dd_y0), z1=0.0, y0=0.35, y1=1.80),
+                    eave=dict(x0=-max(xs), x1=-min(xs), z0=-max(ys2), z1=-min(ys2), y0=0.0, y1=max(zs)),
+                    faceOut=0.0, faceIn=zf(dd_y0), height=max(zs))
+        if gate is not None:
+            spec["passage"] = dict(x0=h2 - gate[0] - gate[1] * 0.5, x1=h2 - gate[0] + gate[1] * 0.5)
+            if gate_drop:
+                # 敷居が土台の底(yBottom=0・据えの基準)より低い量。扉と方立はここまで下へ出る(EDO-0533)
+                spec["passage"]["sillY"] = -gate_drop
+        if kuguri is not None:
+            # 潜戸の口(EDO-0533)。局所 x は門口と同じく +X 端から: 芯 = h2 − kc
+            if join_sill and gate_drop:
+                # 扉口と潜戸を下で一つの口に(EDO-0533 案A)。passage = 扉口の端 〜 潜戸の端
+                ks = (h2 - kuguri[0] - kuguri[1] * 0.5, h2 - kuguri[0] + kuguri[1] * 0.5)
+                spec["passage"]["x0"] = min(spec["passage"]["x0"], ks[0])
+                spec["passage"]["x1"] = max(spec["passage"]["x1"], ks[1])
+            spec["passageKuguri"] = dict(x0=h2 - kuguri[0] - kuguri[1] * 0.5,
+                                         x1=h2 - kuguri[0] + kuguri[1] * 0.5,
+                                         sillY=-gate_drop)
+        V.export_fbx([o], path, kind="building", spec=spec)
+    else:
+        V.export_fbx([o], path)
     print("[nagaya] wrote %s" % path)
     return o, path, L_real
+
+
+MITER_LINE = 0.30   # 留めの軸 = 壁の外面から外へ(Unity +Z)この距離 = 区画の線(据えは外面を犬走り 0.30 だけ内へ寄せる)
+
+
+def miter_fn(h2, thL, thR):
+    """**外へ折れる区画の角の留め**(EDO-0502)。Unity 局所 (x, z) → 留めた x。
+    区画の線が外へ θ 折れる角では、隣の長屋と妻壁が楔形に開く(奥行 4.35m で 2·4.35·tan(θ/2))。
+    ⇒ 端の妻壁を折れの二等分の面へ寝かせる: x' = x ± w(x)·(MITER_LINE − z)·tan(θ/2)。
+    w は芯で 0・躯体の端で 1(その外の破風・軒は 1)の一次 ── 縦横の直線は直線のまま(双一次)。
+    表の面(z≈0)はほぼ動かない(θ=10° で端 0.026m)ので、窓・海鼠は伸びない。背の壁と裏の屋根だけが
+    半分の長さにわたって最大 3% 伸びる。妻壁・破風は二等分の面に平行になり、隣の留めた妻壁と同じ面に来る。"""
+    tL = math.tan(math.radians(thL) * 0.5); tR = math.tan(math.radians(thR) * 0.5)
+    def f(ux, uz):
+        d = MITER_LINE - uz                       # 区画の線から内へ
+        if ux >= 0:
+            return ux + d * tR * min(ux / h2, 1.0)
+        return ux - d * tL * min(-ux / h2, 1.0)
+    return f
+
+
+def msuf(miter):
+    """留めの接尾辞。折れの角(全角)を 0.1° の整数で(−X 端 x +X 端)。例 `_m0x89`。"""
+    return "_m%dx%d" % (int(round(miter[0] * 10)), int(round(miter[1] * 10)))
 
 
 def wall_face_y(o):
@@ -845,21 +1044,21 @@ def hook():
         nt.links.new(img.outputs['Color'], b.inputs['Base Color'])
 
 
-def shots(o, tag, gate=None, bansho=0, kuguri=None):
+def shots(o, tag, gate=None, bansho=0, kuguri=None, body=False, bansho_ux=-1):
     hook()
     mn, mx = V.bbox([o])
     c = (mn + mx) * 0.5
     L = (mx - mn).x
     if gate is not None:
         # ⑤ 門口の寄り(表・裏)。**縁の小口が透けていないか**をここで見る
-        gx = mn.x + gate[0]
+        gx = mn.x + gate[0] + (0.322 if body else 0.0)     # body: 躯体の端から
         V.studio((gx, c.y - 10, mn.z + 2.4), (gx, c.y, mn.z + 2.4), ortho_scale=9.0, res=(1500, 1100))
         V.render(os.path.join(SHOT, "nagaya_%s_mon.png" % tag))
         V.studio((gx - 5.0, c.y - 7.0, mn.z + 2.0), (gx + 1.0, c.y + 2.0, mn.z + 1.8), res=(1500, 1100))
         V.render(os.path.join(SHOT, "nagaya_%s_mon3d.png" % tag))
     if kuguri is not None:
         # ⑤' 片潜門の寄り。**一枚戸になっているか**と、主扉との間の方立の残り幅を見る
-        kx = mn.x + kuguri[0]
+        kx = mn.x + kuguri[0] + (0.322 if body else 0.0)
         V.studio((kx, c.y - 10, mn.z + 1.9), (kx, c.y, mn.z + 1.9),
                  ortho_scale=5.0, res=(1300, 1200))
         V.render(os.path.join(SHOT, "nagaya_%s_kuguri.png" % tag))
@@ -888,11 +1087,13 @@ def shots(o, tag, gate=None, bansho=0, kuguri=None):
     V.render(os.path.join(SHOT, "nagaya_%s_ura.png" % tag))
     if bansho:
         # ⑥ 出格子番所の寄り。格子が透けているか・庇が浮いていないかを見る
-        # ⚠ **片番所(bansho=1)は「向かって左」= ローカル +X 端に付く**
+        # ⚠ 既定の片番所(bansho=1)は **Blender +X 端 = Unity 局所 −X = 街路から見て右**に付く
+        #   (下の旧注の「向かって左」は Blender の局所で言っていた誤り。EDO-0533 で踏んだ)
         #   (`add_degoshi` に渡す `cen[0]` は obj の −X 端で、書き出し前の 180° 回転で
         #    ローカル +X へ回る)。⛔ 常に mn.x を狙うと**何も写っていない灰色の壁**が出て
         #   「番所が焼けていない」と誤診する(2026-09-06)。
-        bx, sgn = ((mx.x - 1.2), -1.0) if bansho == 1 else ((mn.x + 1.2), +1.0)
+        # Unity 局所 −X = Blender +X(mx.x)/ `--bansho-ux +1` なら Blender −X(mn.x)
+        bx, sgn = ((mx.x - 1.2), -1.0) if (bansho == 1 and bansho_ux < 0) else ((mn.x + 1.2), +1.0)
         V.studio((bx, c.y - 6.0, mn.z + 2.6), (bx, c.y, mn.z + 2.2),
                  ortho_scale=4.2, res=(1300, 1200))
         V.render(os.path.join(SHOT, "nagaya_%s_bansho.png" % tag))
@@ -920,6 +1121,7 @@ def main():
     # --doorh <m>   板戸の丈(既定 DOOR_H=2.8)。楣まで通すなら門口の有効高と同じ値を渡す
     # --bansho <n>  両端に出格子番所を付ける(長屋門。0=付けない)
     # --gate-drop <m>  敷居が土台の底より低い量。開口の有効高と扉丈は**敷居から**測る
+    body   = "--body" in argv                       # 躯体の長さ = 呼び寸法(破風は外へ出す)
     gdrop  = float(argv[argv.index("--gate-drop") + 1]) if "--gate-drop" in argv else 0.0
     ridge  = float(argv[argv.index("--ridge") + 1])  if "--ridge"  in argv else None
     doorh  = float(argv[argv.index("--doorh") + 1])  if "--doorh"  in argv else None
@@ -933,15 +1135,26 @@ def main():
         i = argv.index("--kuguri")
         kuguri = (float(argv[i + 1]), float(argv[i + 2]), float(argv[i + 3]))
     bout = float(argv[argv.index("--bansho-out") + 1]) if "--bansho-out" in argv else None
+    # --bansho-ux <+1|-1>  片番所を Unity 局所の +X 端(街路から見て左)/ −X 端(右・既定)へ
+    # --gate-post <見付m>  門口の左右に門柱を見せる(0 = 出さない・既定)
+    gpost = float(argv[argv.index("--gate-post") + 1]) if "--gate-post" in argv else 0.0
+    bux = int(float(argv[argv.index("--bansho-ux") + 1])) if "--bansho-ux" in argv else -1
+    # --miter <θL> <θR>  外へ折れる区画の角の折れ(全角・度)。−X 端 / +X 端(0 = 直角のまま)。--body だけ
+    miter = None
+    if "--miter" in argv:
+        i = argv.index("--miter")
+        miter = (float(argv[i + 1]), float(argv[i + 2]))
     skip = set()
     for f in ("--ends", "--name", "--floors", "--ridge", "--doorh", "--bansho",
-              "--kabuki", "--bansho-out", "--gate-drop"):
+              "--kabuki", "--bansho-out", "--gate-drop", "--bansho-ux", "--gate-post"):
         if f in argv:
             skip.add(argv.index(f)); skip.add(argv.index(f) + 1)
     for f in ("--gate", "--kuguri"):
         if f in argv:
             i = argv.index(f)
             skip.update((i, i + 1, i + 2, i + 3))
+    if "--miter" in argv:
+        i = argv.index("--miter"); skip.update((i, i + 1, i + 2))
     lens = [float(a) for i, a in enumerate(argv)
             if i not in skip and not a.startswith("--")]
     if not lens:
@@ -951,12 +1164,14 @@ def main():
         o, path, L_real = build(Lm, ends=ends, name=name, floors=floors, gate=gate,
                                 ridge=ridge, doorh=doorh, bansho=bansho,
                                 kabuki=kabuki, kuguri=kuguri, bansho_out=bout,
-                                gate_drop=gdrop)
+                                gate_drop=gdrop, body=body, miter=miter,
+                                bansho_ux=bux, gate_post=gpost, join_sill=('--join-sill' in argv))
         if do_render:
             shots(o, fmt(Lm) + ("" if gate is None else "_mon%s" % fmt(gate[0]))
                   + ("" if floors < 2 else "_%df" % floors)
-                  + ("" if ends == "both" else "_" + ends),
-                  gate=gate, bansho=bansho, kuguri=kuguri)
+                  + ("" if ends == "both" else "_" + ends) + ("_kutai" if body else "")
+                  + (msuf(miter) if miter else ""),
+                  gate=gate, bansho=bansho, kuguri=kuguri, body=body, bansho_ux=bux)
 
 
 main()

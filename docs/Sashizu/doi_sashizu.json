@@ -2096,7 +2096,9 @@
    "sill": null,
    "sillFrom": "地形なり",
    "inRun": "Oku_Hei",
-   "cert": "B(存在・類例)/U(型・位置)"
+   "cert": "B(存在・類例)/U(型・位置)",
+   "asset": "EdoAssets.Own.Munamon(1.8, false)",
+   "assetFrom": "棟門の小型(在庫の型 Munamon を口幅 1.8 で焼き直す ── build_munamon.py --w 1.8)。奥向の通用の口の格として棟門を採る。在庫に腕木門・塀重門は無い・薬医門/冠木門は格・寸法が過大(在庫方 2026-10-04)【型U 普請奉行 2026-10-04】"
   }
  ],
  "yagura": [],

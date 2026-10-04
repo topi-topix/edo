@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 397(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 410(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -281,10 +281,11 @@
 | `Own.KutaiOf(path)` | 関数 | 表長屋・門長屋のパスを、躯体 = 呼び寸法の版(`_kutai`)へ読み替える(在れば)。 | OkabeYashiki(GateInNagaya・PlaceOmoteNagaya), Doi(Stage2_Perimeter), DoiBuilder.Mon(Stage3_Mon) |
 | `Own.NagayaOmoteMonKutai(len, gateFromLeft, nikai)` | 関数 | 躯体の長さ = 呼び寸法の門長屋(NagayaOmote2FKutai の口抜き版)。 | — |
 | `Own.NagayaOmote2FKutaiMiter(len, thL, thR)` | 関数 | 外へ折れる区画の角で留めた表長屋(躯体 = 呼び寸法・二階)。 | OkabeYashiki(Stage2_Perimeter) |
+| `Own.NagayaOmote2FKutaiMiterCut(len, thL, thR)` | 関数 | 大きく外へ折れる出隅を、二等分の面で切って留めた表長屋(躯体 = 呼び寸法・二階)。 | BuildTsugime(SpecBodyLen), Doi(Stage2_Perimeter) |
 | `Own.NagayaOmoteMonKutaiMiter(len, gateFromLeft, nikai, thL, thR)` | 関数 | NagayaOmoteMonKutai の端の妻壁を区画の線の折れ(全角 thL = −X 端・thR = +X 端・度)の二等分の面へ寝かせた版 (NagayaOmote2FKutaiMiter の門長屋版)。 | — |
 | `Own.NagayaOmote(len, tsuma)` | 関数 | tsuma=false は両端を突き付けにした版(`--ends none`)。 | MatsudairaDewa(BuildNagayaOne・Stage2_Perimeter), OkabeYashiki(AssetByKey・PlaceOmoteNagaya), Doi(Stage2_Perimeter), NagayaOmote |
-| `Own.ObiNagaya(wKen, dKen)` | 関数 | 崖下の詰人長屋(岡部邸 `service` の N1/N2、`roofs.ObiNagaya`)。 | MatsudairaDewa(PlaceUchiNagaya・Stage5_Mon), OkabeYashiki(AssetByKey・ReportNishiRest), TypologyBuilder.Jisha(JishaOmoya) |
-| `Own.ObiNagaya(wKen)` | 関数 | 梁間は家臣長屋の規約どおり 2.5間(`const.nagayaD` = 4.545m)固定。 | MatsudairaDewa(PlaceUchiNagaya・Stage5_Mon), OkabeYashiki(AssetByKey・ReportNishiRest), TypologyBuilder.Jisha(JishaOmoya) |
+| `Own.ObiNagaya(wKen, dKen)` | 関数 | 崖下の詰人長屋(岡部邸 `service` の N1/N2、`roofs.ObiNagaya`)。 | MatsudairaDewa(PlaceMizo・PlaceUchiNagaya), OkabeYashiki(AssetByKey・ReportNishiRest), TypologyBuilder.Jisha(JishaOmoya) |
+| `Own.ObiNagaya(wKen)` | 関数 | 梁間は家臣長屋の規約どおり 2.5間(`const.nagayaD` = 4.545m)固定。 | MatsudairaDewa(PlaceMizo・PlaceUchiNagaya), OkabeYashiki(AssetByKey・ReportNishiRest), TypologyBuilder.Jisha(JishaOmoya) |
 | `Own.ObiMonooki` | string | 崖下の物置(岡部邸 `service.M1`)。 | OkabeYashiki(AssetByKey), TypologyBuilder.Jisha(JishaOmoya) |
 | `Own.ObiKawaya` | string | 崖下のかわや(岡部邸 `service.K_Obi`)。 | OkabeYashiki(AssetByKey) |
 | `Own.UraNagaya(wKen)` | 関数 | 裏長屋(裏店)— 割長屋。町屋24町の路地に並ぶ九尺二間の棟(類型共用)。 | BuildMachiya(MachiyaRun・UraNagayaRun), TypologyBuilder.Machiya(Machiya・UraNagaya) |
@@ -431,9 +432,21 @@
 | `Own.DoiEnsakiChozubachi` | string | 縁先手水鉢(`gardens[G_Okuniwa].chozu`)。 | DoiBuilder.Niwa(Niwa_D_Tenkei) |
 | `Own.DoiMizushiriShiki` | string | 水尻の石の閾(余水吐)。汀 #14(西端)、天端は `mizu.mizushiri.shiki.sill` (水面 +0.05)。 | DoiBuilder.Niwa(ResolveNiwaApi) |
 | `Own.DoiMizushiriHakiguchi` | string | 水尻の石組の吐き口(埋樋の終点)。実寸 0.950(X) × 0.740(Y) × 0.820(Z)。 | DoiBuilder.Niwa(ResolveNiwaApi) |
-| `Own.DoiOtoshimizo` | string | 水尻の石敷きの落とし溝 — 1m モジュール。 | — |
-| `Own.MatsudairaIshidoi` | string | 石樋(松江松平 溝 MZ17 が土留めを抜ける所・EDO-0554)。 | — |
-| `Own.MatsudairaIshibuta1m` | string | 石蓋つきの溝 1m(松江松平 溝 MZ16 の段の頭の前ほか・EDO-0554)。 | — |
+| `Own.DoiOtoshimizo` | string | 水尻の石敷きの落とし溝 — 1m モジュール。 | MatsudairaDewa(PlaceMizo) |
+| `Own.MatsudairaIshidoi` | string | 石樋(松江松平 溝 MZ17 が土留めを抜ける所・EDO-0554)。 | MatsudairaDewa(PlaceMizo) |
+| `Own.MatsudairaIshibuta1m` | string | 石蓋つきの溝 1m(松江松平 溝 MZ16 の段の頭の前ほか・EDO-0554)。 | MatsudairaDewa(PlaceMizo) |
+| `Own.DoiMizo(kata, depth=…)` | 関数 | 排水の溝 1m 駒(型 A/B/C/D/E/F/K)。 | — |
+| `Own.DoiMasu(kata)` | 関数 | 石の桝(型 G1 / G2・切石4枚組・天端 +0.05)。 | — |
+| `Own.DoiDanOchi(rise)` | 関数 | 石組の段落ち 1段(型 H・内法 0.60・野面石積みの側 天端 = 段の底 +0.50・平石の段鼻と水叩き)。 | — |
+| `Own.DoiHariOtoshi(rise, nori=…)` | 関数 | 張り石の落とし 1段(型 I・法面を縦に・幅 0.60・平石 t0.12・両脇の縁石 w0.12 天端 +0.06)。 | — |
+| `Own.DoiMizutataki` | string | 法尻の玉石の水叩き 0.90 角・窪み 0.10(型 I の apron)。 | — |
+| `Own.DoiTamaUke` | string | 玉石の受け(型 J)2 × 3間(X 3.636 × Z 5.454)・窪み 0.30・玉石 0.15〜0.30・縁は野面石を半ば埋める。 | — |
+| `Own.DoiFutaishi(len, t)` | 関数 | 蓋石(型 L)。長さ len(X・溝の外幅 + 0.30)× 見込み 0.50(Z)× 厚 t。 | — |
+| `Own.DoiFutaishiFor(kata, t)` | 関数 | 型(A/D/E/F)と厚み(0.15 / 0.20)から DoiFutaishi を引く。 | — |
+| `Own.DoiAnkyoKuchi` | string | 石の暗渠の吐口(型 M・内法 0.30 角・口の下に切石の嘴を +Z へ 0.15)。 | — |
+| `Own.DoiAnkyoNomikuchi` | string | 石の暗渠の呑み口(型 M・嘴なし)。寸法とピボットは DoiAnkyoKuchi と同じ。 | — |
+| `Own.DoiMizunuki` | string | 塀の水抜き(型 N・内法 0.24 角の通し石・外へ嘴 0.10)。 | — |
+| `Own.DoiMizukiri(len)` | 関数 | 水切り石(型 O・坂の頭を斜め 60° に横切る)。 | — |
 | `Own.Rangui(dia)` | 関数 | 乱杭1本(汀を留める細い杭。`gardens[].rangui`)。 | DoiBuilder.Niwa(Niwa_B_Gogan), OkabeYashiki(PlaceNiwaItem) |
 | `Own.Toro` | string | 雪見灯籠。⚠ 実体は在庫の Eg.ToroYukimi(edogoyomi)で、 これはそこへの転送(⛔ パスの literal を二重に書かないため)。 | DoiBuilder.Niwa(ResolveNiwaApi), TypologyBuilder.Niwa(NiwaToro) |
 | `Own.LayerGrass` | string | `L_grass.terrainlayer` — 地表層(TerrainLayer)。「実寸」= 繰り返しの一枚の大きさ `m_TileSize`[m]。 | IshigakiFit |

@@ -3851,6 +3851,121 @@ public static class EdoAssets
         ///   blender --background --python Tools/Blender/build_matsudaira_dewa_mizo.py -- --render</summary>
         public const string MatsudairaIshibuta1m = FuzokuyaDir + "Matsudaira_Ishibuta_1m.fbx";
 
+        // ---- 土井邸 S9 排水の部材(EDO-0533・断面は doi_sashizu.json の drainKata 型 A〜O が正典)。
+        //      材 = M_photoscanned_rocks_01(泉水の石と一系統)/ M_FJG_Terrain_Ground_Soil_01・_Gravel_01 / M_Wood_fence。
+        //      remap は `Edo/岡部筑前守上屋敷/新造部材のマテリアルをremap`(Models/Fuzokuya と岩・丸太・FJG を見る)。
+        //      向き: X = 幅 / Y = 上 / **+Z = 下流**。溝の駒は 1.000m・ピボット = 駒の中心・溝の芯・**地盤の高さ**
+        //      (地盤に据えれば縁が topAbove だけ出る)。端数は端の1本を切る(DoiOtoshimizo と同じ・⛔ 伸縮しない)。
+        //      型 P(軒樋)は型が考証待ちで焼いていない。部材方の既定(json に無い値)は確度 U。
+        static readonly System.Globalization.CultureInfo DoiInv = System.Globalization.CultureInfo.InvariantCulture;
+        static float DoiSnap(float v, float lo, float hi, float step)
+        {
+            v = UnityEngine.Mathf.Clamp(v, lo, hi);
+            return lo + UnityEngine.Mathf.Round((v - lo) / step) * step;
+        }
+
+        /// <summary>**排水の溝 1m 駒**(型 A/B/C/D/E/F/K)。<paramref name="depth"/> = 地盤 − 底の天端(0 なら既定)。
+        /// 焼いた深さに丸める(最も近い版・範囲外は端の版): A 0.10〜0.30(0.05 刻み・既定 0.15)/ C 0.10・0.15(既定 0.10)/
+        /// D 0.20〜0.45(0.05 刻み・既定 0.30)/ E・F 0.30・0.45・0.60(既定 0.45)/ B・K は深さの版なし。
+        /// 実寸 W: A 0.54(縁石 0.12・天端 +0.02・底は玉砂利)/ B 0.95(帯 0.45 + 土の皮・玉石の天端 −0.03)/
+        /// C 0.90〜0.95(土の面だけ・肩に土の皮)/ D 1.04〜1.14(土の側 1:0.2 + 両肩の野面石 天端 +0.03)/
+        /// E 1.09〜1.18(**+X = 割石の空積み**・−X = 石垣の根固め・法尻の側の土の法と野面石1段)/
+        /// F 1.05(両側の空積み・内法 0.45)/ K 0.61(杉板の側・蓋板の天端 = 路面 0)。D(Z) はどれも 1.000。
+        /// E の向きを逆にするときは yaw 180°(上流と下流が入れ替わるので、溝の向きに意味がある所は X 鏡像で据える)。
+        ///   blender --background --python Tools/Blender/build_doi_haisui.py -- mizo --render</summary>
+        public static string DoiMizo(string kata, float depth = 0f)
+        {
+            string k = kata.ToUpperInvariant();
+            float d;
+            switch (k)
+            {
+                case "A": d = DoiSnap(depth > 0f ? depth : 0.15f, 0.10f, 0.30f, 0.05f); break;
+                case "C": d = DoiSnap(depth > 0f ? depth : 0.10f, 0.10f, 0.15f, 0.05f); break;
+                case "D": d = DoiSnap(depth > 0f ? depth : 0.30f, 0.20f, 0.45f, 0.05f); break;
+                case "E": case "F": d = DoiSnap(depth > 0f ? depth : 0.45f, 0.30f, 0.60f, 0.15f); break;
+                case "B": case "K": return FuzokuyaDir + "Doi_Mizo_" + k + ".fbx";
+                default: throw new System.ArgumentException("DoiMizo: 型は A/B/C/D/E/F/K(" + kata + ")");
+            }
+            return FuzokuyaDir + "Doi_Mizo_" + k + "_D" + d.ToString("0.00", DoiInv) + ".fbx";
+        }
+
+        /// <summary>**石の桝**(型 G1 / G2・切石4枚組・天端 +0.05)。ピボット = 桝の芯・地盤の高さ・+Z = 吐き口の側。
+        /// G1: 内法 0.45 角・外 0.75 角・底の天端 −0.75・+Z の壁に吐き口 0.30 角(奥は石樋の筒 0.40 + 塞ぎ石・Z +0.855 まで)。
+        ///     ⛔ 入口の切り欠きは無い(溝の付かない口から地形の下の空が抜けるため)── 溝の駒は桝の外の面へ突き付ける。
+        /// G2: 内法 0.90 角・外 1.20 角・底の天端 −1.80(指図 masuTop 26.65 − masuBottom 24.8)・石蓋2枚(0.9×0.5×0.15)は天端と面一。
+        ///     −Z の蓋に切り欠き 0.20 角・その下の壁を −0.25 まで欠く(D5 の溝が入る口 ── 溝を付けないと空が抜ける)。
+        ///   blender --background --python Tools/Blender/build_doi_haisui.py -- masu --render</summary>
+        public static string DoiMasu(string kata) { return FuzokuyaDir + "Doi_Masu_" + kata.ToUpperInvariant() + ".fbx"; }
+
+        /// <summary>**石組の段落ち 1段**(型 H・内法 0.60・野面石積みの側 天端 = 段の底 +0.50・平石の段鼻と水叩き)。
+        /// <paramref name="rise"/> 0.15〜0.45(0.05 刻みに丸める)。**ピボット = 段鼻の線の芯・段鼻の天端(上の底)**、
+        /// 駒は Z −0.12 … +0.38(0.50)・水叩きの天端 = −rise。rise = 0 は**平らな駒**(Z ±0.25・ピボット = 中心・底の天端)で、
+        /// 踏面の残り(段の間隔 − 0.50)を埋める(端は切る)。実寸 W 1.20 × H 0.65〜1.10。
+        ///   blender --background --python Tools/Blender/build_doi_haisui.py -- H --render</summary>
+        public static string DoiDanOchi(float rise)
+        {
+            float r = rise <= 0.01f ? 0f : DoiSnap(rise, 0.15f, 0.45f, 0.05f);
+            return FuzokuyaDir + "Doi_DanOchi_R" + r.ToString("0.00", DoiInv) + ".fbx";
+        }
+
+        /// <summary>**張り石の落とし 1段**(型 I・法面を縦に・幅 0.60・平石 t0.12・両脇の縁石 w0.12 天端 +0.06)。
+        /// <paramref name="rise"/> 0.10〜0.30(0.05 刻み)、<paramref name="nori"/> = 法の勾配 1.0(切)/ 1.5(盛)── 踏面 = nori × rise。
+        /// **ピボット = 段鼻の線の芯・上の平石の天端**。駒は Z −nose … nori×rise − nose(nose = min(0.15, 踏面/2))。
+        /// 次の駒のピボットを (Z + 踏面, Y − rise) に置けば段鼻が踏面の終わりに来る。実寸 W 0.84。
+        ///   blender --background --python Tools/Blender/build_doi_haisui.py -- I --render</summary>
+        public static string DoiHariOtoshi(float rise, float nori = 1.5f)
+        {
+            float r = DoiSnap(rise, 0.10f, 0.30f, 0.05f);
+            float n = nori < 1.25f ? 1.0f : 1.5f;
+            return FuzokuyaDir + "Doi_HariOtoshi_R" + r.ToString("0.00", DoiInv) + "_N" + n.ToString("0.0", DoiInv) + ".fbx";
+        }
+
+        /// <summary>**法尻の玉石の水叩き** 0.90 角・窪み 0.10(型 I の apron)。実寸 1.40 × 0.14 × 1.40(肩の土の皮込み)。
+        /// ピボット = 芯・地盤の高さ(玉石の天端 ≤ −0.01)。
+        ///   blender --background --python Tools/Blender/build_doi_haisui.py -- I --render</summary>
+        public const string DoiMizutataki = FuzokuyaDir + "Doi_Mizutataki_0.90.fbx";
+
+        /// <summary>**玉石の受け**(型 J)2 × 3間(X 3.636 × Z 5.454)・窪み 0.30・玉石 0.15〜0.30・縁は野面石を半ば埋める。
+        /// 溢れ口 = **+Z の辺の芯**(縁石を 0.10 下げた)。実寸 4.14 × 0.42 × 5.95(肩の土の皮込み)・三角形 2.6万。
+        /// ピボット = 芯・縁の地盤の高さ。
+        ///   blender --background --python Tools/Blender/build_doi_haisui.py -- J --render</summary>
+        public const string DoiTamaUke = FuzokuyaDir + "Doi_TamaUke_2x3ken.fbx";
+
+        /// <summary>**蓋石**(型 L)。長さ <paramref name="len"/>(X・溝の外幅 + 0.30)× 見込み 0.50(Z)× 厚 <paramref name="t"/>。
+        /// 焼いた版: len 0.84(A・D)/ 1.05(E)/ 1.35(F)× t 0.15 / 0.20。⇒ 型から引くなら <see cref="DoiFutaishiFor"/>。
+        /// **ピボット = 蓋の芯・天端**(Y = 路面を直に)。溝の縁石とは重なってよい(埋めて隠す)。
+        ///   blender --background --python Tools/Blender/build_doi_haisui.py -- L --render</summary>
+        public static string DoiFutaishi(float len, float t)
+        {
+            return FuzokuyaDir + "Doi_Futaishi_L" + len.ToString("0.00", DoiInv) + "_T" + t.ToString("0.00", DoiInv) + ".fbx";
+        }
+
+        /// <summary>型(A/D/E/F)と厚み(0.15 / 0.20)から <see cref="DoiFutaishi"/> を引く。</summary>
+        public static string DoiFutaishiFor(string kata, float t)
+        {
+            string k = kata.ToUpperInvariant();
+            float len = k == "E" ? 1.05f : k == "F" ? 1.35f : 0.84f;
+            return DoiFutaishi(len, t < 0.175f ? 0.15f : 0.20f);
+        }
+
+        /// <summary>**石の暗渠の吐口**(型 M・内法 0.30 角・口の下に切石の嘴を +Z へ 0.15)。面石 0.90 × 0.80・奥へ石樋の筒 0.60 + 塞ぎ石。
+        /// **ピボット = 口の底(管底)の芯・面石の見え面**。+Z = 口の外(下流)。実寸 0.90 × 0.80 × 1.08(Z −0.93..+0.15)。
+        ///   blender --background --python Tools/Blender/build_doi_haisui.py -- M --render</summary>
+        public const string DoiAnkyoKuchi = FuzokuyaDir + "Doi_Ankyo_Hakiguchi.fbx";
+        /// <summary>**石の暗渠の呑み口**(型 M・嘴なし)。寸法とピボットは <see cref="DoiAnkyoKuchi"/> と同じ。+Z = 口の外(上流の溝の側)。
+        ///   blender --background --python Tools/Blender/build_doi_haisui.py -- M --render</summary>
+        public const string DoiAnkyoNomikuchi = FuzokuyaDir + "Doi_Ankyo_Nomikuchi.fbx";
+
+        /// <summary>**塀の水抜き**(型 N・内法 0.24 角の通し石・外へ嘴 0.10)。実寸 0.54 × 0.52 × 1.00(控え 0.90 = 塀の厚みを抜く)。
+        /// **ピボット = 口の底の芯・塀の外の面**(石は −Z へ 0.90)。+Z = 塀の外。⇒ 口の底 ≥ 道 + 0.05 は Y で合わせる。
+        ///   blender --background --python Tools/Blender/build_doi_haisui.py -- N --render</summary>
+        public const string DoiMizunuki = FuzokuyaDir + "Doi_Mizunuki.fbx";
+
+        /// <summary>**水切り石**(型 O・坂の頭を斜め 60° に横切る)。長さ <paramref name="len"/> = 坂の幅 + 0.30(X)× 幅 0.20 × 丈 0.25
+        /// (天端 +0.05)。焼いた版: 2.12(R_Tsuyomon・R_Tomomachi の幅 1.818)。2本継ぎ。ピボット = 芯・路面の高さ。
+        ///   blender --background --python Tools/Blender/build_doi_haisui.py -- O --render</summary>
+        public static string DoiMizukiri(float len) { return FuzokuyaDir + "Doi_Mizukiri_L" + len.ToString("0.00", DoiInv) + ".fbx"; }
+
         /// <summary>**乱杭1本**(汀を留める細い杭。`gardens[].rangui`)。
         /// ⭕ 在庫の**細丸太**(NatureManufacture `wood_log_06/08/09`・径 0.062〜0.069)を
         /// **半径方向だけ**縮めて切り出した。⛔ 太丸太(`wood_log_01/02/04`・径 0.12)から

@@ -360,6 +360,98 @@ public static partial class EdoBuild
         return !beyond;
     }
 
+    /// <summary>土留めの**背の小段の裏込め**の一本(run 一つ)。a→b = 天端の前の線(世界 xz)・back = 背へ向く水平の単位・
+    /// top = run の天端・drop = 小段の天端からの下げ(天端 − drop)・w = 小段の幅・drain = 小段の水勾配(石垣から離れる向きへ下る)・
+    /// bf = 小段の先の盛土の法 1:bf・maxFill = 盛りの上限(硬い)・parcel = 触ってよい範囲(区画)。</summary>
+    public class BackBench { public string name; public Vector2 a, b, back; public float top, drop, w, drain, bf, maxFill; public Vector2[] parcel;
+        /// <summary>盛りの上限を測る元の地盤(造成の設計面)。null なら今の地盤 ── 流し直しで盛りが積もらないよう設計面を渡す。</summary>
+        public Func<Vector2, float> baseAt; }
+
+    /// <summary>**背の小段の裏込めが節点 p に与える高さ**(2026-10-04 EDO-0502 第13巡・岡部 TW_Kado_Sode.backfill)。
+    /// 前の線より前(門の内の側)は触らない。小段 = 前の線から背へ w まで、天端 − drop から石垣を離れる向きへ drain で下る面。
+    /// その先と run の両端の先は 1:bf の法で下ろし、今の地盤 cur より高い所だけ盛る(⛔ 切らない)。盛りは maxFill で頭打ち(硬い・超えた量は呼び手が測る)。
+    /// 盛る・GradeQA・皮の設計の地盤が**同じこの関数**を使う(式を二重に持たない)。当たる先: 背が法の土留め・袖石垣(岡部 TW_Kado_Sode)。</summary>
+    public static float BackBenchAt(BackBench k, Vector2 p, float cur)
+    {
+        if (k.parcel != null && !EdoGeom.PIP(k.parcel, p)) return cur;
+        Vector2 ab = k.b - k.a; float L = ab.magnitude; if (L < 1e-4f) return cur;
+        Vector2 t = ab / L;
+        float sAl = Vector2.Dot(p - k.a, t), dn = Vector2.Dot(p - k.a, k.back);
+        if (dn < 0f) return cur;                                       // 前(門の内)は触らない
+        float dEnd = sAl < 0f ? -sAl : (sAl > L ? sAl - L : 0f);
+        float benchY = k.top - k.drop - k.drain * Mathf.Min(dn, k.w);
+        float hh = Mathf.Sqrt(Mathf.Pow(Mathf.Max(0f, dn - k.w), 2f) + dEnd * dEnd);
+        float target = benchY - hh / k.bf;
+        if (target <= cur) return cur;
+        float b0 = k.baseAt != null ? k.baseAt(p) : cur; if (float.IsNaN(b0)) b0 = cur;
+        return Mathf.Max(cur, Mathf.Min(target, b0 + k.maxFill));
+    }
+
+    /// <summary>run の線 a→b を、**背の法の高さ**(<paramref name="backAt"/>(s) = 道のり s の背の地盤)で天端の割りへ分ける
+    /// (指図 TW_Kado_Sode.top: 天端 = run の上手の端の背の高さを <paramref name="step"/> 刻みで切り上げ・run の中で背が下がる量 ≤ <paramref name="maxDrop"/>・超えたら切る)。
+    /// 返す: (s0, s1, 天端) の並び(道のりの順)。<paramref name="minLen"/> 未満の切れ端は隣へ寄せる。測るだけ。</summary>
+    public static List<Vector3> RunsByBackSlope(float L, Func<float, float> backAt, float step, float maxDrop, float minLen, float ds = 0.25f)
+    {
+        var res = new List<Vector3>();
+        int n = Mathf.Max(1, Mathf.CeilToInt(L / ds)); var ss = new float[n + 1]; var hs = new float[n + 1];
+        for (int i = 0; i <= n; i++) { ss[i] = L * i / n; hs[i] = backAt(ss[i]); }
+        // 上手 = 背の高い端。上手から下手へ歩いて割る
+        bool fwd = !(hs[0] > hs[n]);   // 上手が s=L 側なら fwd(L から 0 へ歩く)
+        int i0 = fwd ? n : 0, di = fwd ? -1 : 1;
+        int cur = i0;
+        while (true)
+        {
+            float h0 = float.NaN; for (int i = cur; i >= 0 && i <= n; i += di) if (!float.IsNaN(hs[i])) { h0 = hs[i]; break; }
+            if (float.IsNaN(h0)) break;
+            float top = Mathf.Ceil(h0 / step - 1e-4f) * step;
+            int j = cur;
+            while (j + di >= 0 && j + di <= n && (float.IsNaN(hs[j + di]) || h0 - hs[j + di] <= maxDrop + 1e-4f)) j += di;
+            // 残りが短すぎるならこの run に含める
+            int end = (di < 0) ? 0 : n;
+            if (j != end && Mathf.Abs(ss[end] - ss[j]) < minLen) j = end;
+            float a = Mathf.Min(ss[cur], ss[j]), b = Mathf.Max(ss[cur], ss[j]);
+            res.Add(new Vector3(a, b, top));
+            if (j == end) break;
+            cur = j;
+        }
+        res.Sort((x, y) => x.x.CompareTo(y.x));
+        // 同じ天端の隣り合う run は一つに(段の境を作らない)
+        for (int i = res.Count - 1; i > 0; i--)
+            if (Mathf.Abs(res[i].z - res[i - 1].z) < 1e-4f) { res[i - 1] = new Vector3(res[i - 1].x, res[i].y, res[i].z); res.RemoveAt(i); }
+        return res;
+    }
+
+    /// <summary>背の小段の裏込めを地形へ書く(<see cref="BackBenchAt"/> を節点ごとに・run を順に重ねる)。硬い: 盛るだけ・区画の外は触らない・盛り ≤ maxFill。
+    /// ⟶ 返す: 書いた節点の数(盛りの最大は out)。</summary>
+    public static int BackBenchWrite(IList<BackBench> ks, out float fillMax)
+    {
+        fillMax = 0f; if (ks == null || ks.Count == 0) return 0;
+        var t = T(); var td = t.terrainData;
+        int hres = td.heightmapResolution; Vector3 tp = t.transform.position, ts = td.size;
+        float cell = ts.x / (hres - 1);
+        float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue, reach = 0f;
+        foreach (var k in ks)
+        {
+            reach = Mathf.Max(reach, k.w + k.bf * (k.maxFill + 1f) + 2f * cell);
+            foreach (var q in new[] { k.a, k.b }) { mnx = Mathf.Min(mnx, q.x); mxx = Mathf.Max(mxx, q.x); mnz = Mathf.Min(mnz, q.y); mxz = Mathf.Max(mxz, q.y); }
+        }
+        int x0 = Mathf.Clamp(Mathf.FloorToInt((mnx - reach - tp.x) / cell), 0, hres - 1), z0 = Mathf.Clamp(Mathf.FloorToInt((mnz - reach - tp.z) / cell), 0, hres - 1);
+        int x1 = Mathf.Clamp(Mathf.CeilToInt((mxx + reach - tp.x) / cell), 0, hres - 1), z1 = Mathf.Clamp(Mathf.CeilToInt((mxz + reach - tp.z) / cell), 0, hres - 1);
+        int w = x1 - x0 + 1, h = z1 - z0 + 1;
+        var H = td.GetHeights(x0, z0, w, h); int n = 0;
+        for (int iz = 0; iz < h; iz++)
+            for (int ix = 0; ix < w; ix++)
+            {
+                var p = new Vector2(tp.x + (x0 + ix) * cell, tp.z + (z0 + iz) * cell);
+                float cur = H[iz, ix] * ts.y + tp.y, nw = cur;
+                foreach (var k in ks) nw = Mathf.Max(nw, BackBenchAt(k, p, cur));
+                if (nw - cur < 1e-4f) continue;
+                fillMax = Mathf.Max(fillMax, nw - cur); H[iz, ix] = (nw - tp.y) / ts.y; n++;
+            }
+        if (n > 0) { td.SetHeightsDelayLOD(x0, z0, H); td.SyncHeightmap(); }
+        return n;
+    }
+
     /// <summary>**棟の下の均し**(2026-10-03 EDO-0502 第4巡・岡部の厩と蔵1 が勾配の面の上手へ 0.78m 埋まった)。
     /// 指図の `yAt`(棟の芯での面の高さ)で足あと <paramref name="foot"/>(呼び手が据えた駒の躯体から測る・世界 xz)の下を平らにし、
     /// その外は盛土 1:<paramref name="bf"/>・切土 1:<paramref name="bc"/> の法で今の地盤へ擦り付ける。

@@ -26,4 +26,5 @@ def bake():
     d = json.load(open(os.path.join(B.DOC, EST + "_sashizu.json"), encoding="utf-8"))
     p = os.path.join(B.DOC, EST + "_impl.json")
     im = json.load(open(p, encoding="utf-8")) if os.path.exists(p) else {}
-    return {"graded": IO.bake_graded(M, poly)}
+    # checks.gradeTol = 実装側 ── 造成した地形と設計面の許容差[m](岡部・山王と同じ 0.30)。縁の皮(Stage4b)が穴を開ける升の閾に読む
+    return {"graded": IO.bake_graded(M, poly), "checks": {"gradeTol": 0.30}}

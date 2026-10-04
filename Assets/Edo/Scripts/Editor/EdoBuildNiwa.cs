@@ -1092,4 +1092,346 @@ public static partial class EdoBuild
         }
         return pts;
     }
+
+    // ═══════════════════════ 指図の庭 ── 座標を持つ駒の据え(EDO-0533) ═══════════════════════
+    //
+    // 庭方が石・木を一つずつ (u,v) で設計した庭(土井邸の泉水・奥庭)の据え。類型の庭(NiwaField.Put の散らし)と違い、
+    // 位置・丈・見付の向きは指図が持つ。ここは「置く・測る・据える」だけ(規則21)── 欄を読むのは邸ビルダー。
+    // ⛔ 部材の基準点(ピボット・bounds の中心)で位置を決めない。平面は**足(下端の当たり)の重心**、高さは**実メッシュの
+    //    天端/下端**か**当たり(RootToBed)**で決める(docs/oki-kata.md §0・§0a)。
+    // 当たる先(この節の全関数): EdoDoiBuilder.Niwa 6b〜6h(泉水・奥庭)。以後、指図が石・木を座標で持つ庭の全て。
+
+    /// <summary>水中の石の底を池床より沈める量の帯[m](指図 top-level `gardenFields.seatToBed`「−0.10〜−0.15m」・庭方 2026-10-04)。
+    /// **硬い**: 水中の当たりが池床 −LO より上に残る据えは退けず、沈めて直す(浮かせない)。</summary>
+    public const float SEAT_TO_BED_LO = 0.10f, SEAT_TO_BED_HI = 0.15f;
+
+    /// <summary>実メッシュの丈を <paramref name="h"/>[m] にする等方スケール(⛔ 名前・呼び寸法から推さない)。部材が無ければ NaN。
+    /// 当たる先: 景石・荒磯・岩島・橋挟み石(全丈 H = hExpose/(1−buryRatio))・刈込・刈込玉・中木の丈 h。</summary>
+    public static float NiwaScaleForHeight(string path, float h)
+    {
+        var s = PartSize(path);
+        return s.y > 1e-4f ? h / s.y : float.NaN;
+    }
+
+    /// <summary>実メッシュの平面の長い方を <paramref name="L"/>[m] にする等方スケール。部材が無ければ NaN。
+    /// 当たる先: 護岸の地の石・役石(長軸 lenMin〜lenMax)・飛石(stones の長軸)。</summary>
+    public static float NiwaScaleForLong(string path, float L)
+    {
+        var s = PartSize(path);
+        float m = Mathf.Max(s.x, s.z);
+        return m > 1e-4f ? L / m : float.NaN;
+    }
+
+    // Unity の yaw ry で local +X → (cos ry, −sin ry)・local +Z → (sin ry, cos ry)。
+    static float YawLocalAxisTo(bool axisIsX, Vector2 d)
+    {
+        return axisIsX ? Mathf.Atan2(-d.y, d.x) * Mathf.Rad2Deg : Mathf.Atan2(d.x, d.y) * Mathf.Rad2Deg;
+    }
+
+    /// <summary>**見付(広い面)を的へ向ける yaw**。広い面の法線 = 実メッシュの平面で**薄い方の軸**(PartSize で測る)。
+    /// 石に表裏は無いので、法線の ± のうち的を向く側を採る。⛔ 部材の名前や指図の注記(「±X」)から軸を推さない。
+    /// 当たる先: 景石(faceTo)・荒磯の立石・岩島。</summary>
+    public static float NiwaBroadFaceYaw(string path, Vector2 fromXZ, Vector2 toXZ)
+    {
+        var s = PartSize(path);
+        var d = toXZ - fromXZ;
+        if (d.sqrMagnitude < 1e-8f) return 0f;
+        return YawLocalAxisTo(s.x < s.z, d.normalized);
+    }
+
+    /// <summary>実メッシュの平面の**長い方の軸**を <paramref name="dirXZ"/> に沿わせる yaw。
+    /// 当たる先: 水尻の閾(長手を汀の接線に)・沓脱石(長手を縁と平行)・橋(長手を袂から袂へ)・延段。</summary>
+    public static float NiwaLongAlongYaw(string path, Vector2 dirXZ)
+    {
+        var s = PartSize(path);
+        if (dirXZ.sqrMagnitude < 1e-8f) return 0f;
+        return YawLocalAxisTo(s.x >= s.z, dirXZ.normalized);
+    }
+
+    /// <summary>駒の実メッシュの全頂点の高さの範囲(世界)。⛔ Renderer.bounds は傾けた駒で膨らむので使わない。</summary>
+    public static bool NiwaSpanY(GameObject go, out float yLo, out float yHi)
+    {
+        yLo = float.MaxValue; yHi = float.MinValue;
+        foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            var l2w = mf.transform.localToWorldMatrix;
+            foreach (var v in mf.sharedMesh.vertices) { float y = l2w.MultiplyPoint3x4(v).y; if (y < yLo) yLo = y; if (y > yHi) yHi = y; }
+        }
+        return yLo <= yHi;
+    }
+
+    /// <summary>**足の芯** ── 下端から ROOT_TOUCH 以内の頂点の重心(XZ)と下端の高さ。⛔ ピボット・bounds の中心で代えない。</summary>
+    public static bool NiwaFootPoint(GameObject go, out Vector3 foot)
+    {
+        foot = go.transform.position;
+        var pts = new List<Vector3>(); float yb = float.MaxValue;
+        foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            var l2w = mf.transform.localToWorldMatrix;
+            foreach (var v in mf.sharedMesh.vertices) { var w = l2w.MultiplyPoint3x4(v); pts.Add(w); if (w.y < yb) yb = w.y; }
+        }
+        if (pts.Count == 0) return false;
+        var sum = Vector2.zero; int n = 0;
+        foreach (var w in pts) if (w.y <= yb + ROOT_TOUCH) { sum += new Vector2(w.x, w.z); n++; }
+        if (n == 0) return false;
+        sum /= n;
+        foot = new Vector3(sum.x, yb, sum.y);
+        return true;
+    }
+
+    /// <summary>**平面の位置を足の芯で合わせる**(指図の (u,v) = 石・灯籠の据え位置)。足が測れなければ false(動かさない・呼び手が数える)。</summary>
+    public static bool NiwaFootOn(GameObject go, Vector2 xz)
+    {
+        Vector3 f;
+        if (!NiwaFootPoint(go, out f)) return false;
+        go.transform.position += new Vector3(xz.x - f.x, 0f, xz.y - f.z);
+        return true;
+    }
+
+    /// <summary>**足の芯を軸に、頭を <paramref name="towardXZ"/> の向きへ <paramref name="deg"/>° 倒す**(荒磯の立石の tilt・
+    /// 木の lean・乱杭の傾き)。足の芯は動かない。⭐ 倒した後の据え直しは呼び手(当たりで測り直す)。</summary>
+    public static void NiwaTilt(GameObject go, Vector2 towardXZ, float deg)
+    {
+        if (Mathf.Abs(deg) < 1e-4f || towardXZ.sqrMagnitude < 1e-8f) return;
+        Vector3 f;
+        if (!NiwaFootPoint(go, out f)) f = go.transform.position;
+        var d = new Vector3(towardXZ.x, 0f, towardXZ.y).normalized;
+        float r = deg * Mathf.Deg2Rad;
+        var up2 = Vector3.up * Mathf.Cos(r) + d * Mathf.Sin(r);
+        var q = Quaternion.FromToRotation(Vector3.up, up2);
+        go.transform.position = f + q * (go.transform.position - f);
+        go.transform.rotation = q * go.transform.rotation;
+    }
+
+    /// <summary>実メッシュの天端を <paramref name="y"/> へ。返り値 = 動かした量[m]。
+    /// **柔らかい**狙いの高さ(護岸の天端 waterY+cap・乱杭の頭 waterY+topAbove・閾の sill・橋の topY)を当てるのに使う。</summary>
+    public static float NiwaTopTo(GameObject go, float y)
+    {
+        float lo, hi;
+        if (!NiwaSpanY(go, out lo, out hi)) return float.NaN;
+        float dy = y - hi;
+        go.transform.position += new Vector3(0f, dy, 0f);
+        return dy;
+    }
+
+    /// <summary>**硬い・池床へ沈める**(全ての当たり): 下端の当たり(<see cref="RootToBed"/>)のうち最も浅い所を
+    /// 池床(描かれた地表 = 6a で掘った池床)− <paramref name="sink"/> に据える。他の当たりはそれより深く入る(埋めて隠す)。
+    /// 返り値 = 動かした量[m]。当たりが測れなければ NaN。<paramref name="deepest"/> = 最も深い当たりの埋まり(負)。
+    /// 当たる先: 岩島の大石・肩石(全身が水中の石)。</summary>
+    public static float NiwaSeatToBed(GameObject go, float sink, out float deepest)
+    {
+        deepest = float.NaN;
+        var rt = RootToBed(go, Ground, 0.05f);
+        if (float.IsNaN(rt.hi)) return float.NaN;
+        float dy = -sink - rt.hi;
+        go.transform.position += new Vector3(0f, dy, 0f);
+        deepest = rt.lo + dy;
+        return dy;
+    }
+
+    /// <summary>**硬い・水中の足を池床より沈める**: 下端の当たりのうち**池床が水面より下の所だけ**を測り
+    /// (陸の上の当たりは跨ぎ ── 測らない)、そのどれかが池床 −<paramref name="sink"/> より上なら、全部がそこへ入るまで沈める。
+    /// ⛔ 上げはしない(陸の側の据えを崩さない)。返り値 = 沈めた量[m](≤0)。<paramref name="wetN"/> = 水中の当たりの標本数(0 = 陸だけの石)。
+    /// 当たる先: 護岸の石・玉石・荒磯・州浜の玉石・水落石(汀に半ば掛かる)・乱杭・閾・呑口・橋挟み石。</summary>
+    public static float NiwaSinkWetFeet(GameObject go, float waterY, float sink, out int wetN)
+    {
+        Func<float, float, float> wetBed = (x, z) => { float g = Ground(x, z); return g < waterY ? g : float.NaN; };
+        var rt = RootToBed(go, wetBed, 0.05f);
+        wetN = rt.atariN;
+        if (float.IsNaN(rt.hi) || rt.hi <= -sink) return 0f;
+        float dy = -(rt.hi + sink);
+        go.transform.position += new Vector3(0f, dy, 0f);
+        return dy;
+    }
+
+    /// <summary>**天端を地表 + <paramref name="above"/> に据える**(飛石・踏分石・沓脱石の「地盤 +0.03〜0.05」)。
+    /// 天端の面(最高点から 0.02m 以内の頂点)の真下の地表の**最も高い所**へ合わせる ── 天端のどこも地中に入れない(硬い)。
+    /// <paramref name="floatWorst"/> = 据えた後の下端の当たりの最大の浮き[m](&gt; 0.01 は浮き ── 硬い・呼び手が数えて刷る)。</summary>
+    public static float NiwaTopAboveGround(GameObject go, float above, out float floatWorst)
+    {
+        floatWorst = float.NaN;
+        float lo, hi;
+        if (!NiwaSpanY(go, out lo, out hi)) return float.NaN;
+        float gMax = float.MinValue;
+        foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            var l2w = mf.transform.localToWorldMatrix;
+            foreach (var v in mf.sharedMesh.vertices)
+            {
+                var w = l2w.MultiplyPoint3x4(v);
+                if (w.y < hi - 0.02f) continue;
+                gMax = Mathf.Max(gMax, Ground(w.x, w.z));
+            }
+        }
+        if (gMax == float.MinValue) return float.NaN;
+        float dy = gMax + above - hi;
+        go.transform.position += new Vector3(0f, dy, 0f);
+        floatWorst = RootToBed(go, Ground, 0.05f).hi;
+        return dy;
+    }
+
+    /// <summary>**橋を袂から袂へ架ける**。長手(実メッシュの平面の長い方)を a→b に沿わせ、**両端の端面を測って**
+    /// a・b の外へ等しく掛かるよう寄せ(掛かり = (実長 − 径間)/2)、両側面を測って芯を a–b の線に通す。
+    /// 高さは実メッシュの天端(<paramref name="topAtEnds"/> なら両端 0.10m の帯の天端 ── 反りのある土橋の endTopY)を <paramref name="topY"/> へ。
+    /// 返り値 = 掛かりの小さい方[m](負 = 径間に足りない ── **硬い**: 呼び手は退ける)。
+    /// <paramref name="endGap"/> = 掛かりの帯の下端 − 地表 の大きい方[m](&gt; 0 = 橋台の上で版が浮く ── 指図 `abut`「版の下面は橋台石の天端に接する(硬い)」)。
+    /// 当たる先: 泉水の石橋・土橋(hashi[])。</summary>
+    public static float NiwaSpanBridge(GameObject go, string path, Vector2 aXZ, Vector2 bXZ, float topY, bool topAtEnds, out float endGap)
+    {
+        endGap = float.NaN;
+        var ab = bXZ - aXZ; float span = ab.magnitude;
+        if (span < 1e-4f) return float.NaN;
+        var dir = ab / span; var perp = new Vector2(-dir.y, dir.x);
+        go.transform.rotation = Quaternion.Euler(0f, NiwaLongAlongYaw(path, dir), 0f);
+        var pts = new List<Vector3>();
+        foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            var l2w = mf.transform.localToWorldMatrix;
+            foreach (var v in mf.sharedMesh.vertices) pts.Add(l2w.MultiplyPoint3x4(v));
+        }
+        if (pts.Count == 0) return float.NaN;
+        float s0 = float.MaxValue, s1 = float.MinValue, t0 = float.MaxValue, t1 = float.MinValue;
+        foreach (var w in pts)
+        {
+            var q = new Vector2(w.x, w.z) - aXZ;
+            float s = Vector2.Dot(q, dir), t = Vector2.Dot(q, perp);
+            s0 = Mathf.Min(s0, s); s1 = Mathf.Max(s1, s); t0 = Mathf.Min(t0, t); t1 = Mathf.Max(t1, t);
+        }
+        float ds = (span - s1 - s0) * 0.5f, dt = -(t0 + t1) * 0.5f;
+        var shift = dir * ds + perp * dt;
+        go.transform.position += new Vector3(shift.x, 0f, shift.y);
+        float bear = (s1 - s0 - span) * 0.5f;
+        // 天端
+        float top = float.MinValue;
+        foreach (var w0 in pts)
+        {
+            var w = w0 + new Vector3(shift.x, 0f, shift.y);
+            float s = Vector2.Dot(new Vector2(w.x, w.z) - aXZ, dir);
+            if (topAtEnds && s > -bear + 0.10f && s < span + bear - 0.10f) continue;
+            top = Mathf.Max(top, w.y);
+        }
+        float dy = topY - top;
+        go.transform.position += new Vector3(0f, dy, 0f);
+        // 掛かりの帯の下端 − 地表(両端それぞれの最小を取り、その大きい方)
+        float gA = float.MaxValue, gB = float.MaxValue;
+        foreach (var w0 in pts)
+        {
+            var w = w0 + new Vector3(shift.x, dy, shift.y);
+            float s = Vector2.Dot(new Vector2(w.x, w.z) - aXZ, dir);
+            float d = w.y - Ground(w.x, w.z);
+            if (s <= 0f) gA = Mathf.Min(gA, d); else if (s >= span) gB = Mathf.Min(gB, d);
+        }
+        if (gA < float.MaxValue && gB < float.MaxValue) endGap = Mathf.Max(gA, gB);
+        return bear;
+    }
+
+    /// <summary>**多角形の内を株間で埋める点**(刈込の「多角形」── 指図 `karikomiCommon`: 株間 = 部材の実寸 × 0.8・株は奇数で止める)。
+    /// 株間の格子を ±25% 散らし(⛔ 格子のまま並べない)、内の点だけ残し、偶数なら最後の 1 点を落とす。
+    /// 当たる先: 泉水の刈込 Kari_1〜3・奥庭の大刈込 Kari_Oku。</summary>
+    public static List<Vector2> NiwaFillPoly(Vector2[] polyXZ, float pitch, System.Random rnd)
+    {
+        var res = new List<Vector2>();
+        if (polyXZ == null || polyXZ.Length < 3 || pitch <= 1e-3f) return res;
+        float x0 = float.MaxValue, x1 = float.MinValue, z0 = float.MaxValue, z1 = float.MinValue;
+        foreach (var p in polyXZ) { x0 = Mathf.Min(x0, p.x); x1 = Mathf.Max(x1, p.x); z0 = Mathf.Min(z0, p.y); z1 = Mathf.Max(z1, p.y); }
+        for (float x = x0 + pitch * 0.5f; x <= x1; x += pitch)
+            for (float z = z0 + pitch * 0.5f; z <= z1; z += pitch)
+            {
+                var q = new Vector2(x + ((float)rnd.NextDouble() - 0.5f) * pitch * 0.5f,
+                                    z + ((float)rnd.NextDouble() - 0.5f) * pitch * 0.5f);
+                if (EdoGeom.PIP(polyXZ, q)) res.Add(q);
+            }
+        if (res.Count == 0)
+        {
+            // 株間より細い多角形 ── 重心に 1 株(内にあれば)
+            var c = Vector2.zero; foreach (var p in polyXZ) c += p; c /= polyXZ.Length;
+            if (EdoGeom.PIP(polyXZ, c)) res.Add(c);
+        }
+        if (res.Count > 1 && res.Count % 2 == 0) res.RemoveAt(res.Count - 1);
+        return res;
+    }
+
+    /// <summary>**据えた木を傾ける**(指図 `lean: {deg, to}`)。足の芯を軸に頭を倒し(<see cref="NiwaTilt"/>)、倒して浮いた根張りの縁を
+    /// 当たり(<see cref="RootToBed"/>)で測って地面まで沈める(**硬い**: 浮き 0)。返り値 = 沈めた量[m]。
+    /// <paramref name="deepest"/> = 沈めた後の最も深い埋まり[m](&gt; NiwaSet.TREE_BURY_MAX なら呼び手が ⚠ で刷る)。</summary>
+    public static float NiwaLeanTree(GameObject go, Vector2 towardXZ, float deg, out float deepest)
+    {
+        deepest = 0f;
+        NiwaTilt(go, towardXZ, deg);
+        var rt = RootToBed(go, Ground, 0.05f);
+        if (float.IsNaN(rt.hi) || rt.hi <= 0.005f) { deepest = float.IsNaN(rt.lo) ? 0f : -rt.lo; return 0f; }
+        go.transform.position -= new Vector3(0f, rt.hi, 0f);
+        deepest = rt.hi - rt.lo;
+        return rt.hi;
+    }
+
+    /// <summary>指図の石一つの据えの記録(邸ビルダーが刷る)。</summary>
+    public struct NiwaIshiRep
+    {
+        /// <summary>据えた丈(実メッシュ)・見え高(天端 − max(地表, 水面))・狙いの天端からの不足(柔らかい・正 = 低い)・
+        /// 水中の足で沈めた量(≤0)・陸の根入れ(下手の浮きを沈めた量)。</summary>
+        public float H, expose, topShort, wetSink, neire;
+        /// <summary>水中の当たりの標本数・陸の根入れが NiwaSet.STONE_NEIRE_MAX を越えたか(越えても沈める ── 埋めて隠す・⚠ で刷る)。</summary>
+        public int wetN; public bool neireOver;
+    }
+
+    /// <summary>**指図の石を一つ据える**(景石・護岸の石・玉石・荒磯・岩島・州浜の玉石・橋挟み石・乱杭)。順は
+    /// 置く → 倒す(<paramref name="tiltDeg"/>)→ **足の芯**を (u,v) へ → 高さ → 水中の足を沈める。高さは次のどれか一つ:
+    /// <list type="bullet">
+    /// <item><paramref name="fromBed"/>: 全身が水中の石 ── 当たりの最も浅い所を池床 −<paramref name="bedSink"/>(<see cref="NiwaSeatToBed"/>・硬い)。</item>
+    /// <item><paramref name="aimTop"/> が数: 天端をそこへ(護岸の天端 waterY+cap・乱杭の頭 ── **柔らかい**。水中の足の硬い条件で沈めたら topShort に刷る)。</item>
+    /// <item>足の芯の下が水中: 天端 = 水面 + 丈 ×(1 − <paramref name="bury"/>)(hExpose は水上の丈 ── gardenFields.hExpose)。</item>
+    /// <item>陸: 丈 × <paramref name="bury"/> を地中へ(<see cref="SeatOnGround"/>)。</item>
+    /// </list>
+    /// fromBed 以外は続けて、下端の当たりの浮きを根入れで沈める(**硬い**・浮き 0 ── 坂の下手・陸に掛かった護岸の石)。
+    /// 最後に水面が数なら <see cref="NiwaSinkWetFeet"/>(硬い・池床 −<paramref name="bedSink"/>)。測れない駒は取り除いて null(黙って浮かせない)。</summary>
+    public static GameObject NiwaIshiSueru(Transform parent, string name, string path, Vector2 xz, float yaw, float scale,
+                                           float bury, float waterY, float bedSink, out NiwaIshiRep rep,
+                                           float aimTop = float.NaN, bool fromBed = false,
+                                           Vector2 tiltTo = default(Vector2), float tiltDeg = 0f)
+    {
+        rep = new NiwaIshiRep { H = float.NaN, expose = float.NaN, topShort = float.NaN, wetSink = 0f, neire = 0f };
+        if (string.IsNullOrEmpty(path) || float.IsNaN(scale) || scale <= 0f) return null;
+        var go = Place(path, new Vector3(xz.x, Ground(xz.x, xz.y), xz.y), yaw, Vector3.one * scale, parent, name);
+        if (go == null) return null;
+        if (tiltDeg != 0f) NiwaTilt(go, tiltTo, tiltDeg);
+        if (!NiwaFootOn(go, xz)) { UnityEngine.Object.DestroyImmediate(go); return null; }
+        float lo, hi;
+        if (!NiwaSpanY(go, out lo, out hi)) { UnityEngine.Object.DestroyImmediate(go); return null; }
+        rep.H = hi - lo;
+        bool hasWater = !float.IsNaN(waterY);
+        float g0 = Ground(xz.x, xz.y);
+        if (fromBed)
+        {
+            float deep;
+            if (float.IsNaN(NiwaSeatToBed(go, bedSink, out deep))) { UnityEngine.Object.DestroyImmediate(go); return null; }
+        }
+        else if (!float.IsNaN(aimTop)) NiwaTopTo(go, aimTop);
+        else if (hasWater && g0 < waterY) NiwaTopTo(go, waterY + rep.H * (1f - Mathf.Clamp01(bury)));
+        else
+        {
+            try { SeatOnGround(go, rep.H * Mathf.Clamp01(bury), 4000); }
+            catch (Exception) { UnityEngine.Object.DestroyImmediate(go); return null; }
+        }
+        if (!fromBed)
+        {
+            // 硬い・浮き 0: どの据え方でも、下端の当たりのどこかが地表(陸・池床)から浮いていれば沈める(坂の下手・陸に掛かった護岸の石・乱杭の足)
+            var rt = RootToBed(go, Ground, 0.05f);
+            if (!float.IsNaN(rt.hi) && rt.hi > 0.005f)
+            {
+                go.transform.position -= new Vector3(0f, rt.hi, 0f);
+                rep.neire = rt.hi; rep.neireOver = rt.hi > NiwaSet.STONE_NEIRE_MAX;
+            }
+        }
+        if (hasWater) { int wn; rep.wetSink = NiwaSinkWetFeet(go, waterY, bedSink, out wn); rep.wetN = wn; }
+        NiwaSpanY(go, out lo, out hi);
+        if (!float.IsNaN(aimTop)) rep.topShort = aimTop - hi;
+        float refY = hasWater ? Mathf.Max(g0, waterY) : g0;
+        rep.expose = hi - refY;
+        return go;
+    }
 }

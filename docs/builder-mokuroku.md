@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 25 本・メニュー 87・関数 750(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 25 本・メニュー 87・関数 771(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -18,7 +18,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoDoiBuilder.Hifu.cs](#edodoibuilderhifucs) | 土井 S4b 縁の皮(案A・EDO-0533)── 2m 格子の地形では描けない土留めの天端の奥・石段の踏面・面の縁の升に穴を開け、 | 1 | 2 |
 | [EdoDoiBuilder.Mon.cs](#edodoibuildermoncs) | ══════════════════════════════════════════════════════════════════════ | 1 | 16 |
 | [EdoDoiBuilder.Mune.cs](#edodoibuildermunecs) | ══════════════════════════════════════════════════════════════════════ | 1 | 9 |
-| [EdoDoiBuilder.Niwa.cs](#edodoibuilderniwacs) | 土井大隅守上屋敷 — 奥庭(Stage6)。 | 3 | 40 |
+| [EdoDoiBuilder.Niwa.cs](#edodoibuilderniwacs) | 土井大隅守上屋敷 — 奥庭(Stage6)。 | 3 | 61 |
 | [EdoDoiBuilder.Saku.cs](#edodoibuildersakucs) | 土井 S6 柵・垣(案A・EDO-0533)── 指図 fences[] を読み、EdoBuild.GakiRun で敷く。 | 1 | 3 |
 | [EdoDoiBuilder.cs](#edodoibuildercs) | 土井大隅守上屋敷(三河刈谷藩2万3千石・譜代・雁間)ビルダー。 | 15 | 88 |
 | [EdoMatsudairaDewaBuilder.Niwa.cs](#edomatsudairadewabuilderniwacs) | 松平出羽守上屋敷 — 庭の工程(池・築山・水の系・石組・点景・滝見口)。 | 9 | 30 |
@@ -125,6 +125,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 
 | 関数 | 返す | 公開 | 何をするか(注釈の一文目) |
 |---|---|---|---|
+| `Sk(d, k)` | `string` |  | 欄の文字列。無い欄は null(⛔ KeyNotFound で庭の段を丸ごと止めない ── 無い欄は呼び手が Wait へ申し送る)。 |
 | `Wu(u, v)` | `Vector2` |  | — |
 | `Sh(oneBased)` | `Vector2` |  | 汀線の点(指図の `roles` は 1 始まり)。 |
 | `SnapToWaterEdge(g)` | `Vector2` |  | 設計の汀の点を水面メッシュの縁(Chaikin×2)へ寄せる(最寄り点)。 |
@@ -141,16 +142,32 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `PondQA()` | `string` | 公 | — |
 | `Stage6_Niwa()` | `string` | 公 | — |
 | `Niwa_A_Dokou()` | `string` | 公 | — |
+| `Garden(name)` | `Dictionary<string, object>` |  | 指図の庭を名で引く(`gardens[].name`)。 |
+| `UV(o)` | `Vector2` |  | — |
+| `WuV(uv)` | `Vector2` |  | — |
+| `WDir(uvFrom, uvTo)` | `Vector2` |  | (u,v) の向き d を世界の向きへ(格子は回っている)。 |
+| `Rnd(r, a, b)` | `float` |  | — |
+| `Pair(o, k, a, b)` | `bool` |  | — |
+| `EdgeWalk(frm, to)` | `List<Vector2>` |  | 見えている汀(水面メッシュの縁 = PondEdge)を汀の番号 frm→to へ辿る折れ線(グリッド座標)。 |
+| `NakaWalk(frm, to)` | `List<Vector2>` |  | 中島の汀(`nakajima.pts`・1 始まり・巡回)を frm→to へ(指図 gogan[].walk = "nakajima")。 |
+| `WaterSide(p, dir, naka)` | `Vector2` |  | 折れ線の点 p・接線 dir での水の側の単位法線(グリッド)。 |
+| `SkipPts(o)` | `List<Vector3>` |  | `skip` / `skipUV` の抜き所(グリッドの点・半幅 m)。 |
+| `InSkip(sk, p)` | `bool` |  | — |
 | `Niwa_B_Gogan()` | `string` | 公 | — |
-| `Niwa_C_Mizushiri()` | `string` | 公 | 水尻。⭐ 2026-09-06 に部材が焼けた。 |
+| `Niwa_C_Mizushiri()` | `string` | 公 | — |
 | `Niwa_D_Tenkei()` | `string` | 公 | — |
+| `Kutsunugi(grp, kg, nm)` | `bool` |  | 沓脱石一つ(数の topY・水切りの向き mizukiri.to)。 |
 | `Niwa_E_Enro()` | `string` |  | — |
 | `Niwa_F_Yashiro()` | `string` |  | — |
 | `Niwa_G_Kaki()` | `string` |  | — |
 | `TerrY(x, z)` | `float` |  | 実地形の高さ(heightmap から。 |
+| `PlantSize(sk, api, i)` | `string` |  | 株の大きさ(Big/Mid/Small)── 欄 sizeEach[i] → size → 部材の呼び名の引数("Small" 等)の順に読む。 |
 | `Niwa_H_Shokusai()` | `string` | 公 | — |
+| `InGardenPoly(uv)` | `bool` |  | 庭の区画(泉水・奥庭の poly)のどれかの内か。 |
+| `PlantPath(sk, api, i)` | `string` |  | 植栽の行の i 本目の部材。`sizeEach` があれば丈の呼び名をそれで、`(1/2/3)` の個体は順に回す。 |
 | `ShitakusaRegions()` | `List<SkRegion>` |  | — |
-| `CrownR(sk)` | `float` |  | 樹冠の半径[間]。⛔ 呼び寸法を使わない — 据える部材の実メッシュの 平面の大きい方 ÷2 × `scale`(生成器が `docs/asset-index.tsv` から引くのと同じ値)。 |
+| `ClipHalf(P, axisU, sign, at)` | `List<Vector2>` |  | 多角形を半平面(axisU ? u : v)·sign ≥ at·sign で切る(Sutherland–Hodgman)。 |
+| `CrownR(sk)` | `float` |  | — |
 | `SkIn(r, u, v)` | `bool` |  | — |
 | `SkCells(r)` | `IEnumerable<Vector2>` |  | 面積を測る格子(0.1間)。⚠ 生成器 `_shitakusa_pts` と同じ数え方にする — 樹冠の円は円ごとに走査するので重なりを二重に数える(=面積は上限値)。 |
 | `ShoreOut(i)` | `Vector2` |  | 汀線の辺 i(0起算)の外向き法線(単位・(u,v))。 |
@@ -162,6 +179,10 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `ParseIshiPick(s)` | `int[]` |  | 護岸の地の石の駒の選び方(指図 `gogan[].ishiPick`。 |
 | `ArgNum(api, dflt)` | `float` |  | `Own.Kido(1.8)` の 1.8 を取り出す。 |
 | `ArgSize(api)` | `string` |  | `Own.Jouryoku("Big", i)` の "Big" を取り出す。 |
+| `ParenFloats(s)` | `List<float>` |  | 括弧の中の数の並び(引用符の中は数えない)。 |
+| `ParenInts(s)` | `List<int>` |  | — |
+| `ResolveTobi(api)` | `string` |  | 飛石・踏分石の駒(`Own.Tobiishi(n)`)。 |
+| `OptAsset(cls, member, args)` | `string` |  | まだ EdoAssets に無いかもしれない部材を名で引く(別の役が新造中の物 ── 石橋・土橋・丸太段・延段・縁先手水鉢・腰掛)。 |
 
 ## EdoDoiBuilder.Saku.cs
 

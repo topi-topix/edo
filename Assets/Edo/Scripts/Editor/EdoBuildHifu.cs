@@ -472,7 +472,7 @@ public static partial class EdoBuild
                                          SkinDesign design = null, float drawTol = 0.10f, float backfill = 0f, bool sealFace = false,
                                          IList<GameObject> digParts = null, float digUnder = 0.05f, float digBatter = 1f,
                                          IList<GameObject> crestBandParts = null, IList<Vector2> plantPoints = null,
-                                         IList<GameObject> floorParts = null)
+                                         IList<GameObject> floorParts = null, IList<Vector2[]> faceKeepOut = null)
     {
         var r = new SkinReport();
         var t = T(); var td = t.terrainData; var org = t.transform.position;
@@ -560,6 +560,10 @@ public static partial class EdoBuild
             }
             return cap;
         };
+        // ⭐ 面の縁の升から外す区域(faceKeepOut・2026-10-04 EDO-0533 土井): 庭の土工(池・築山)のように面の上で**意図して**
+        //   面の高さから外した地盤。外さないと「面から tol を超えて外れた升」と読んで皮を面の高さで張り、池を埋め築山を削る。
+        //   当たる先: 面の上に庭・池を掘る全邸(土井の泉水・松江松平・岡部の庭)。部材の升・裏込めの升は外さない。
+        Func<Vector2, bool> InKeepOut = q => { if (faceKeepOut == null) return false; foreach (var ko in faceKeepOut) if (ko != null && EdoGeom.PIP(ko, q)) return true; return false; };
         var faceCells = new HashSet<long>();
         if (faces != null)
             foreach (var f in faces)
@@ -572,9 +576,13 @@ public static partial class EdoBuild
                         float x0 = org.x + i * cs, z0 = org.z + j * cs; bool bad = false;
                         for (float x = x0 + 0.125f; x < x0 + cs && !bad; x += 0.25f)
                             for (float z = z0 + 0.125f; z < z0 + cs && !bad; z += 0.25f)
-                                if (EdoGeom.PIP(f.poly, new Vector2(x, z)) && Mathf.Abs(probe.At(x, z) - f.y) > faceTol) bad = true;
+                                if (EdoGeom.PIP(f.poly, new Vector2(x, z)) && !InKeepOut(new Vector2(x, z)) && Mathf.Abs(probe.At(x, z) - f.y) > faceTol) bad = true;
                         if (!bad) continue;
-                        for (int di = -1; di <= 1; di++) for (int dj = -1; dj <= 1; dj++) faceCells.Add(CK(i + di, j + dj));
+                        for (int di = -1; di <= 1; di++) for (int dj = -1; dj <= 1; dj++)
+                        {
+                            if (InKeepOut(new Vector2(org.x + (i + di + 0.5f) * cs, org.z + (j + dj + 0.5f) * cs))) continue;
+                            faceCells.Add(CK(i + di, j + dj));
+                        }
                     }
             }
 
@@ -706,6 +714,7 @@ public static partial class EdoBuild
                     {
                         long ck = CK(i, j); if (bandCells.Contains(ck)) continue;
                         float x0 = org.x + i * cs, z0 = org.z + j * cs; bool bad = false;
+                        if (InKeepOut(new Vector2(x0 + 0.5f * cs, z0 + 0.5f * cs))) continue;   // 庭の土工の区域は面の縁の帯にも数えない
                         for (float x = x0; x <= x0 + cs + 1e-4f && !bad; x += 0.5f)
                             for (float z = z0; z <= z0 + cs + 1e-4f && !bad; z += 0.5f)
                             {

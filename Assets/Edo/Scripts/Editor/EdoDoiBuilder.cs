@@ -853,6 +853,8 @@ public static partial class EdoDoiBuilder
         { var gate = EdoSashizuExport.ReviewGate("doi"); if (gate != null) return gate; }
         var sb = new System.Text.StringBuilder();
         sb.AppendLine(Stage0_Backup());
+        // ⭐ 縁の皮(4b)を先に外して穴を塞ぐ ── 皮は駒の今の位置に合わせて起こす物で、造成の後は古い(4a の後に 4b を流し直す)
+        { var rt = GameObject.Find(Grp); var es = rt == null ? null : rt.transform.Find("EdgeSkin"); if (es != null && es.childCount > 0) sb.AppendLine("縁の皮を外して塞いだ升 " + EdoBuild.ClearEdgeSkins(es) + "(4a の後に 4b で起こし直す)"); }
         var t = Terrain.activeTerrain; var td = t.terrainData;
         int hres = td.heightmapResolution; Vector3 tp = t.transform.position, ts = td.size;
         int x0, z0, w, h; Window(4f, out x0, out z0, out w, out h);

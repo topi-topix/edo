@@ -122,6 +122,29 @@ public static class EdoGotenKit
         return n == 0 ? float.NaN : worst;
     }
 
+    /// <summary>床下の足元(縁束・束石・礎石・縁桁)のうち、地面に届かない駒を**下へ伸ばして**根入れ <paramref name="root"/> まで届かせる
+    /// (合わせの余地 = 伸縮・docs/oki-kata.md §0a)。駒の頭(ピボット = 濡縁・床の高さ)は動かさず、局所 Y の縮尺だけを変える ──
+    /// 上の縁桁・床との取り合いは開かない。当たる先: 面の縁の法の上へ濡縁の隅が張り出す棟(土井の奥・岡部の御殿も同じ型)。
+    /// ⟶ 返す: 伸ばした駒の数(最も大きく伸ばした量[m] は out)。硬い: 伸ばした後の浮き ≤ 0.01m は呼び手が AshimotoGap で測る。</summary>
+    public static int AshimotoReach(GameObject mune, float root, out float maxStretch)
+    {
+        int n = 0; maxStretch = 0f;
+        foreach (Transform c in mune.transform)
+        {
+            string nm = c.name;
+            if (!(nm.StartsWith("Goten_EnKeta") || nm.StartsWith("Goten_EnTsuka") || nm.StartsWith("Goten_Soseki"))) continue;
+            Vector3 at; int cnt;
+            float gap = EdoBuild.Contact(c.gameObject, out at, out cnt);
+            if (float.IsNaN(gap) || gap <= 0f) continue;          // 届いている(根入れ済み)
+            float bottom = EdoBuild.RB(c.gameObject).min.y, top = c.position.y;
+            float h = top - bottom; if (h < 0.01f) continue;
+            float s = (h + gap + root) / h;
+            var ls = c.localScale; c.localScale = new Vector3(ls.x, ls.y * s, ls.z);
+            n++; maxStretch = Mathf.Max(maxStretch, gap + root);
+        }
+        return n;
+    }
+
     public static GameObject Mune(string name, Transform parent, Vector3 pos, float yaw,
                                   int nx, int nzZashiki, int iri = 1,
                                   float floor = 0.62f, string roofAsset = null,
@@ -130,7 +153,8 @@ public static class EdoGotenKit
                                   int jodanFromIx = -1, int iriX = 0, int moyaBay = 3,
                                   bool partition = true,
                                   bool roofAtFloor = false, float roofYaw = 0f,
-                                  float roofEaveLocalY = float.NaN, bool ashimoto = false)
+                                  float roofEaveLocalY = float.NaN, bool ashimoto = false,
+                                  float nzFrac = 0f)
     {
         if (moyaBay < 1) moyaBay = 1;
         // 妻側の建具を省く区画(床の間・違い棚・帳台構が入る所)。塞いだままだと飾りが壁の裏に隠れる
@@ -141,8 +165,15 @@ public static class EdoGotenKit
         };
         int nxZashiki = nx;
         nx = nxZashiki + 2 * iriX;
-        int nz = nzZashiki + 2 * iri;
-        float W = nx * K, D = nz * K;
+        // ⭐ 梁間の端数(nzFrac・0〜1間 ── 土井の長局 8.5間 など): 身舎の最後の一筋(奥の入側の手前・升 jf)を端数の幅で組む。
+        //   その升の床・天井・妻の建具・間仕切りは Z へ nzFrac 倍に縮め、奥の升は (1−nzFrac)K 手前へ寄る。nzFrac=0 は従来どおり。
+        bool hasFrac = nzFrac > 0.001f && nzFrac < 0.999f;
+        int nz = nzZashiki + (hasFrac ? 1 : 0) + 2 * iri;
+        int jf = hasFrac ? iri + nzZashiki : -1;
+        System.Func<int, float> Zj = j => j * K - ((hasFrac && j > jf) ? (1f - nzFrac) * K : 0f);
+        System.Func<int, float> Zc = j => (Zj(j) + Zj(j + 1)) * 0.5f;
+        System.Func<int, float> Sz = j => j == jf ? nzFrac : 1f;
+        float W = nx * K, D = Zj(nz);
         // 入側の升目(床は板敷き・畳を敷かない)
         System.Func<int, int, bool> isIrikawa = (i, j) =>
             j < iri || j >= nz - iri || i < iriX || i >= nx - iriX;
@@ -173,14 +204,14 @@ public static class EdoGotenKit
             {
                 bool isIri = isIrikawa(i, j);
                 Put(isIri ? EdoAssets.Goten.FloorBoard : EdoAssets.Goten.Tatami, g.transform,
-                    new Vector3(i * K + K / 2f, lv(i, isIri), j * K + K / 2f), 0f);
+                    new Vector3(i * K + K / 2f, lv(i, isIri), Zc(j)), 0f, new Vector3(1f, 1f, Sz(j)));
             }
 
         // 上段框 — 段の際に通す
         if (jodanFromIx > iriX && jodanFromIx < nx - iriX)
             for (int j = iri; j < nz - iri; j++)
                 Put(EdoAssets.Goten.JodanKamachi, g.transform,
-                    new Vector3(jodanFromIx * K, floor, j * K + K / 2f), 270f);
+                    new Vector3(jodanFromIx * K, floor, Zc(j)), 270f, new Vector3(Sz(j), 1f, 1f));
 
         // 建具 — 身舎と入側の境に障子。表(+Z)を入側へ向ける。
         // 隅の升目(入側どうしが交わる所)には建具を立てない — 廊下が角を回れなくなる
@@ -189,33 +220,33 @@ public static class EdoGotenKit
             {
                 float y = lv(i, false);
                 Put(EdoAssets.Goten.Shoji1ken, g.transform,
-                    new Vector3(i * K + K / 2f, y, iri * K), 180f);
+                    new Vector3(i * K + K / 2f, y, Zj(iri)), 180f);
                 Put(EdoAssets.Goten.Shoji1ken, g.transform,
-                    new Vector3(i * K + K / 2f, y, (nz - iri) * K), 0f);
+                    new Vector3(i * K + K / 2f, y, Zj(nz - iri)), 0f);
             }
 
         // 妻側 — 入側が回っていれば障子、回っていなければ白壁。
         // どちらも openBays* の区画だけは空けて座敷飾りに明け渡す
         for (int j = iri; j < nz - iri; j++)
         {
-            float c = j * K + K / 2f;
+            float c = Zc(j); var sx = new Vector3(Sz(j), 1f, 1f);
             if (!isOpen(openBaysWest, j))
             {
                 if (iriX > 0)
                     Put(EdoAssets.Goten.Shoji1ken, g.transform,
-                        new Vector3(iriX * K, lv(iriX, false), c), 270f);
+                        new Vector3(iriX * K, lv(iriX, false), c), 270f, sx);
                 else
                     Put(EdoAssets.Goten.WallPlaster, g.transform,
-                        new Vector3(0f, lv(0, false), c), 90f);
+                        new Vector3(0f, lv(0, false), c), 90f, sx);
             }
             if (!isOpen(openBaysEast, j))
             {
                 if (iriX > 0)
                     Put(EdoAssets.Goten.Shoji1ken, g.transform,
-                        new Vector3((nx - iriX) * K, lv(nx - iriX - 1, false), c), 90f);
+                        new Vector3((nx - iriX) * K, lv(nx - iriX - 1, false), c), 90f, sx);
                 else
                     Put(EdoAssets.Goten.WallPlaster, g.transform,
-                        new Vector3(W, lv(nx - 1, false), c), 270f);
+                        new Vector3(W, lv(nx - 1, false), c), 270f, sx);
             }
         }
 
@@ -231,16 +262,16 @@ public static class EdoGotenKit
             for (int ix = iriX + moyaBay; ix < nx - iriX; ix += moyaBay)
                 for (int j = iri; j < nz - iri; j++)
                 {
-                    var c = new Vector3(ix * K, lv(ix, false), j * K + K / 2f);
-                    Put(EdoAssets.Goten.Fusuma, g.transform, c, 90f);
+                    var c = new Vector3(ix * K, lv(ix, false), Zc(j)); var sx = new Vector3(Sz(j), 1f, 1f);
+                    Put(EdoAssets.Goten.Fusuma, g.transform, c, 90f, sx);
                     Put(EdoAssets.Goten.Ranma, g.transform,
-                        c + new Vector3(0f, EdoAssets.Goten.Uchinori, 0f), 90f);
+                        c + new Vector3(0f, EdoAssets.Goten.Uchinori, 0f), 90f, sx);
                 }
             // 梁間(Z)の柱通り = 桁行方向へ通る襖(表は ±Z)
             for (int jz = iri + moyaBay; jz < nz - iri; jz += moyaBay)
                 for (int i = iriX; i < nx - iriX; i++)
                 {
-                    var c = new Vector3(i * K + K / 2f, lv(i, false), jz * K);
+                    var c = new Vector3(i * K + K / 2f, lv(i, false), Zj(jz));
                     Put(EdoAssets.Goten.Fusuma, g.transform, c, 0f);
                     Put(EdoAssets.Goten.Ranma, g.transform,
                         c + new Vector3(0f, EdoAssets.Goten.Uchinori, 0f), 0f);
@@ -264,8 +295,8 @@ public static class EdoGotenKit
                              && ((j - iri) % moyaBay == 0 || j == nz - iri);
                 if (perim || iriLine || roomLine)
                 {
-                    Put(EdoAssets.Goten.Column, g.transform, new Vector3(i * K, floor, j * K), 0f);
-                    if (pSoseki != null) Put(pSoseki, g.transform, new Vector3(i * K, floor, j * K), 0f);
+                    Put(EdoAssets.Goten.Column, g.transform, new Vector3(i * K, floor, Zj(j)), 0f);
+                    if (pSoseki != null) Put(pSoseki, g.transform, new Vector3(i * K, floor, Zj(j)), 0f);
                 }
             }
 
@@ -273,7 +304,7 @@ public static class EdoGotenKit
             for (int i = 0; i < nx; i++)
                 for (int j = 0; j < nz; j++)
                     Put(EdoAssets.Goten.Ceiling, g.transform,
-                        new Vector3(i * K + K / 2f, floor + H, j * K + K / 2f), 0f);
+                        new Vector3(i * K + K / 2f, floor + H, Zc(j)), 0f, new Vector3(1f, 1f, Sz(j)));
 
         if (nureen && iri > 0)
             for (int i = 0; i < nx; i++)
@@ -292,12 +323,12 @@ public static class EdoGotenKit
             for (int j = 0; j < nz; j++)
             {
                 Put(EdoAssets.Goten.Nureen, g.transform,
-                    new Vector3(0f, floor - 0.28f, j * K + K / 2f), 90f);
+                    new Vector3(0f, floor - 0.28f, Zc(j)), 90f, new Vector3(Sz(j), 1f, 1f));
                 Put(EdoAssets.Goten.Nureen, g.transform,
-                    new Vector3(W, floor - 0.28f, j * K + K / 2f), 270f);
+                    new Vector3(W, floor - 0.28f, Zc(j)), 270f, new Vector3(Sz(j), 1f, 1f));
                 // 局所 +X の端: yaw 90 は世界 −Z(j = 0)、yaw 270 は世界 +Z(j = nz−1)
-                nureenFoot(new Vector3(0f, floor - 0.28f, j * K + K / 2f), 90f, j == 0);
-                nureenFoot(new Vector3(W, floor - 0.28f, j * K + K / 2f), 270f, j == nz - 1);
+                nureenFoot(new Vector3(0f, floor - 0.28f, Zc(j)), 90f, j == 0);
+                nureenFoot(new Vector3(W, floor - 0.28f, Zc(j)), 270f, j == nz - 1);
             }
             // 四隅の升目(0.891角)。ここを空けると床が抜け、外縁に回した高欄が隅で切れる。
             // ⚠ 部材の**体積はピボットの (-X,-Z) 側**にある(高欄が +X 面と -Z 面、という

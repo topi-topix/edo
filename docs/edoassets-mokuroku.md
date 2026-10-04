@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 376(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 382(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -88,7 +88,7 @@
 | `Goten.EnKeta(floor)` | 関数 | 御殿の床下の足元(EDO-0502 2026-10-03)。 | GotenKit(Mune), OkabeYashiki(PlaceMunes) |
 | `Goten.EnTsuka(floor)` | 関数 | — | GotenKit(Mune) |
 | `Goten.Soseki(floor)` | 関数 | — | GotenKit(Mune) |
-| `Goten.KaidanRoka(run, drop)` | 関数 | 階段廊下 — 木の段になった渡廊下。幅は他の廊下と同じ一間。 | — |
+| `Goten.KaidanRoka(run, drop)` | 関数 | 階段廊下 — 木の段になった渡廊下。幅は他の廊下と同じ一間。 | DoiBuilder.Mune(PlaceLinksA) |
 | `Goten.Fusuma` | string | 建具・座敷飾り(キットに無いので Blender で新造 — build_goten_fittings.py) | GotenKit(Mune・Partition), OkabeYashiki(PlaceLinks) |
 | `Goten.Ranma` | string | — | GotenKit(Mune・Partition) |
 | `Goten.Amado` | string | — | — |
@@ -99,11 +99,12 @@
 | `Goten.RoofDir` | string | `` — 入母屋屋根。棟の寸法ごとに Blender で生成する: blender --background --python Tools/Blender/build_goten_roof.py -- W D 名前 | — |
 | `Goten.RoofIrimoya` | string | — | GotenKit(BuildTestGankou・BuildTestMune) |
 | `Goten.RoofIrimoya5x5` | string | — | GotenKit(BuildTestGankou) |
-| `Goten.RoofIrimoya_(wKen, dKen)` | 関数 | 棟の外形(身舎+入側)の間数で引く入母屋。 | BuildJisha(Honden), BuildGoten(GotenComplex), MatsudairaDewa(Stage4_Goten), TypologyBuilder.Jisha(JHallBaked) |
+| `Goten.RoofIrimoya_(wKen, dKen)` | 関数 | 棟の外形(身舎+入側)の間数で引く入母屋。 | BuildJisha(Honden), BuildGoten(GotenComplex), DoiBuilder.Mune(PlaceGotenA), MatsudairaDewa(Stage4_Goten) ほか1 |
+| `Goten.RoofIrimoya_(wKen, dKen)` | 関数 | 端数の間数(土井の長局 12×8.5 など)の入母屋。 | BuildJisha(Honden), BuildGoten(GotenComplex), DoiBuilder.Mune(PlaceGotenA), MatsudairaDewa(Stage4_Goten) ほか1 |
 | `Goten.RoofYosemune_(wKen, dKen)` | 関数 | 棟の外形(身舎+入側)の間数で引く寄棟。 | — |
 | `Goten.RoofBanded(bands, spanKen, alongV=…, irikawa=…, noki=…)` | 関数 | 帯割りの入母屋。身舎を帯(2〜5間)に割り、帯ごとに入母屋を架けて 境を水平の谷にした屋根。 | MatsudairaDewa(Stage4_Goten・TriPierceY), Doi(Stage4_Goten), GotenKit(Put) |
 | `Goten.RoofKirizumaKen` | float[] | 渡廊下の切妻屋根。幅1間・長さRoofKirizumaKen間の定尺で作ってある (瓦の繰り返し 1.785/2.004m は江戸間と割り切れないので1間モジュールにはできない)。 | — |
-| `Goten.RoofKirizuma(nKen)` | 関数 | — | GotenKit(Mune・Roka), Doi(Stage4_Goten) |
+| `Goten.RoofKirizuma(nKen)` | 関数 | — | GotenKit(Mune・Roka), Doi(Stage4_Goten), DoiBuilder.Mune(PlaceLinksA) |
 | `Goten.KenTag(nKen)` | 関数 | 間数をファイル名の綴りへ。整数はそのまま、端数は小数第2位まで(末尾の0を落とす)。 | GotenKit(Roka), MatsudairaDewa(Stage4_Goten) |
 | `Goten.RoofHirairi(wKen, dKen, eaveAboveFloor, omit=…, notchSide=…, notchKen=…)` | 関数 | 平入り + 庇の屋根(身舎に切妻を架け、その外を庇一間が回る)。 | MatsudairaDewa(Stage4_Goten) |
 | `Goten.HirairiNotches(mune, rokaRects, side, ken)` | 関数 | 棟に取り付く渡廊下から、RoofHirairi へ渡す切り欠き (辺 side と中心の間数 ken)を解く。 | MatsudairaDewa(Stage4_Goten) |
@@ -405,9 +406,14 @@
 | `Own.KenninjiGakiPost(h)` | 関数 | 建仁寺垣の run の +X 端に足す親柱1本。 | DoiBuilder.Niwa(Niwa_G_Kaki・ResolveNiwaApi), OkabeYashiki(PlaceDanKaki・PlaceNiwaItem) |
 | `Own.DoiNagayamon` | string | 土井邸の表門 = 長屋門(片番所 格子付・片潜門)。 | Doi(GateSpan), DoiBuilder.Mon(Stage3_Mon) |
 | `Own.DoiUmaya` | string | 厩 5.5×7間(土井邸 `munes.Umaya`)。 | Doi(PlaceUmaya) |
-| `Own.DoiKachu(ketaKen)` | 関数 | 家中長屋(邸内の長屋・土井邸 `service.Kachu_N1/N2/N3/S1/Y` の5棟)。 | — |
-| `Own.DoiKura(hariKen, ketaKen)` | 関数 | 土蔵(土井邸 `service` の `Komegura` / `Kura1` / `Kura2`)。 | Doi(PlaceService) |
-| `Own.DoiIdo` | string | 井戸(土井邸 `wells` の5口とも同じ部材)。 | Doi(PlaceWells) |
+| `Own.DoiUmaya5x11` | string | 厩 11×5間(`service.Umaya`)。 | DoiBuilder.Mune(ServicePart) |
+| `Own.DoiTomomachi` | string | 供待 4×2.85間(`service.Tomomachi`)。 | DoiBuilder.Mune(ServicePart) |
+| `Own.DoiKagogura` | string | 御駕籠蔵(板倉・板葺) 3.5×3間(`service.Kagogura`)。 | DoiBuilder.Mune(ServicePart) |
+| `Own.DoiSogoka` | string | 惣後架(板葺・切妻・四周板壁) 2×1.8間(`service.Sogoka`)。 | DoiBuilder.Mune(ServicePart) |
+| `Own.DoiInari` | string | 稲荷社(見世棚造の小祠・流造の板葺・向拝柱) 1.5間角(`service.Inari`)。 | DoiBuilder.Mune(ServicePart) |
+| `Own.DoiKachu(ketaKen)` | 関数 | 家中長屋(邸内の長屋・土井邸 `service.Kachu_N1/N2/N3/S1/Y` の5棟)。 | DoiBuilder.Mune(ServicePart) |
+| `Own.DoiKura(hariKen, ketaKen)` | 関数 | 土蔵(土井邸 `service` の `Komegura` / `Kura1` / `Kura2`)。 | Doi(PlaceService), DoiBuilder.Mune(ServicePart) |
+| `Own.DoiIdo` | string | 井戸(土井邸 `wells` の5口とも同じ部材)。 | Doi(PlaceWells), DoiBuilder.Mune(PlaceWellsA) |
 | `Own.DoiChozu` | string | 手水石(水盤) — 稲荷の社前・参道の西(`yashiro.chozu`)。 | DoiBuilder.Niwa(Niwa_F_Yashiro), TypologyBuilder.Keidai(NiwaKeidai) |
 | `Own.DoiKutsunugi` | string | 沓脱石 — 奥棟の南入側の前の一枚石(`gardens.G_Okuniwa.kutsunugi.Kutsunugi_Oku`)。 | DoiBuilder.Niwa(ResolveNiwaApi) |
 | `Own.DoiMizushiriShiki` | string | 水尻の石の閾(余水吐)。汀 #14(西端)、天端は `mizu.mizushiri.shiki.sill` (水面 +0.05)。 | DoiBuilder.Niwa(Niwa_C_Mizushiri) |

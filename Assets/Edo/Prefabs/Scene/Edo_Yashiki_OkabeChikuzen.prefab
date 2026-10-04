@@ -660,6 +660,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: EdgeSkin
       objectReference: {fileID: 0}
+    - target: {fileID: 6337600190745495562, guid: bb9664d0d53b4410383142c9bec6bb8c, type: 3}
+      propertyPath: m_Mesh
+      value: 
+      objectReference: {fileID: 4300000, guid: d51c5e3b547a4497989fb19840c0095a, type: 2}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []

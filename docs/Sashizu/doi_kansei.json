@@ -8,36 +8,36 @@
    "label": "隙 0",
    "what": "塀と塀・門と塀・長屋 run の駒どうしの隙・めり込み・裏表(許容 0)",
    "how": "edo-fushin-qa 項目 6(run の格子)・7(裏表)・8(門の取り合い)、JointQA / GateQA",
-   "value": null,
-   "verdict": null,
-   "at": null,
+   "value": "走りの継ぎ目・裏表・門の隙は 0。門の屋根の重なりは未測",
+   "verdict": "fail",
+   "at": "2026-10-04",
    "note": ""
   },
   "boundary": {
    "label": "境界侵犯 0",
    "what": "棟・塀・木・石が区画 / 庭の区域 / 建物 / 水面 / 道へ入らない",
    "how": "edo-fushin-qa 項目 1(境界)と区域の点検(EdoGeom.PIP)",
-   "value": null,
-   "verdict": null,
-   "at": null,
+   "value": "壁体の越境 0・軒 最大0.353・木 南の崖_低木0028 が Yakusho の内 0.465m",
+   "verdict": "fail",
+   "at": "2026-10-04",
    "note": ""
   },
   "ground": {
    "label": "埋没・浮き 0",
    "what": "地面との隙が −0.01〜+0.01 の外の駒が 0(oki-kata §4)",
    "how": "edo-fushin-qa 項目 2(接地)と GroundQA",
-   "value": null,
-   "verdict": null,
-   "at": null,
+   "value": "浮き10: L_OkuNagatsubone 0.620・L_HiromaOku 0.48〜0.77・E13_N01隅 0.904・E12_N03隅 0.743・橋の版 0.151/0.362・Danishi_02 0.177・木と下草 4(最大0.158)",
+   "verdict": "fail",
+   "at": "2026-10-04",
    "note": ""
   },
   "match": {
    "label": "突き合わせ 0",
    "what": "指図(意図)と実装の食い違いが 0 件",
    "how": "Unity メニュー Edo/<敷地>/指図と実装を突き合わせる",
-   "value": null,
-   "verdict": null,
-   "at": null,
+   "value": "31件(外周26・主郭5: L_HiromaOku 5.75m ほか)・門の完備 表門⭕/通用門・広敷門 型が無く未検査",
+   "verdict": "fail",
+   "at": "2026-10-04",
    "note": ""
   },
   "render": {
@@ -58,6 +58,30 @@
    "event": "init",
    "zu_red": 2,
    "quote": "EDO-0533 の実装を始めて"
+  },
+  {
+   "at": "2026-10-04T21:38:57+09:00",
+   "event": "record",
+   "item": "gap",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-10-04T21:38:57+09:00",
+   "event": "record",
+   "item": "boundary",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-10-04T21:38:57+09:00",
+   "event": "record",
+   "item": "ground",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-10-04T21:38:57+09:00",
+   "event": "record",
+   "item": "match",
+   "verdict": "fail"
   }
  ]
 }

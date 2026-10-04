@@ -12944,17 +12944,17 @@
   "niwashi": {
    "at": "2026-10-04",
    "verdict": "pass",
-   "hash": "52fc287a38652965",
-   "note": "7巡目 可 指摘0",
+   "hash": "f0d6cee2ac281aba",
+   "note": "8巡目(施主A・7巡目の10件の確認だけ)合格。新しい取り合いは実装への申し送り(坂と表向の帯の段0.035〜0.094・番所の背の溝と坂の継ぎ目・通り口の摺り付け・垣際6本の揺らぎ・R_MonNoUchi の grade 表記0.06→0.065・園路を道辺に数えないことの確認)",
    "chapters": {
     "gardens": "454531e06208",
     "tenkei": "434e500e7a5f",
-    "routes": "0d57fc9d6713",
+    "routes": "60a775f8a5f7",
     "sensui": "58341b579090",
-    "mizu": "a1202b6a7c41",
+    "mizu": "6481c94c775c",
     "tsukiyama": "8cb1db480c84",
     "gardenSections": "0de6f34548f5",
-    "viewpoints": "2398487a0b71",
+    "viewpoints": "d7d176671184",
     "nakajikiriRule": "d45adfdd2d91",
     "py": "d1ecf9d33c4755ec"
    },
@@ -13002,14 +13002,18 @@
     {
      "at": "2026-10-04T12:11:19+09:00",
      "verdict": "pass"
+    },
+    {
+     "at": "2026-10-04T13:19:29+09:00",
+     "verdict": "pass"
     }
    ]
   },
   "kenzu": {
    "at": "2026-10-04",
-   "verdict": "fail",
-   "hash": "1077364b9a2878d3",
-   "note": "7巡目(施主A)3巡で止まる 中3低4・どれも直し方の数値つき: 西の番所の背で雨落ちの溝と坂の頭が番所の床下へ0.23間/溝の出口の高さ(側溝底25.5以下・西へ)/J_NakanokuchiUra_N_W の相手(長屋の基壇の東の小口)/通り口0.91m→土留めを v7.0 で止め1間/坂と表向の帯の持ち主/垣際の低木の減数の取り違え/露地の中木と園路2m",
+   "verdict": "pass",
+   "hash": "b1af4f731ebbf7da",
+   "note": "8巡目(施主A・7巡目の10件の確認だけ)合格。新しい取り合いは実装への申し送り(坂と表向の帯の段0.035〜0.094・番所の背の溝と坂の継ぎ目・通り口の摺り付け・垣際6本の揺らぎ・R_MonNoUchi の grade 表記0.06→0.065・園路を道辺に数えないことの確認)",
    "chapters": {
     "const": "312f7254702e",
     "ishigaki": "b5bed1646006",
@@ -13017,8 +13021,8 @@
     "edgeProfiles": "9a96f3e8e6d1",
     "grid": "5841fa85521e",
     "planes": "2d21ee1540c9",
-    "terraces": "47f9495da239",
-    "terraceWalls": "5c56267b533a",
+    "terraces": "e3fda782b2d2",
+    "terraceWalls": "ab6530384477",
     "slopeBands": "59ba14991948",
     "runs": "e247db0826cb",
     "fences": "d851f8275101",
@@ -13035,9 +13039,9 @@
     "kaidans": "c3e26385e42d",
     "sections": "ea451cfcb09c",
     "bom": "74f139484401",
-    "routes": "0d57fc9d6713",
+    "routes": "60a775f8a5f7",
     "nakajikiri": "00770dadeb12",
-    "planting": "6e3a48262448",
+    "planting": "813baa9ae566",
     "tenkei": "434e500e7a5f",
     "hairyo": "1d11849c9692",
     "kenzan": "a8c4e1460af7",
@@ -13046,15 +13050,15 @@
     "fuchi": "4f53cda18c2b",
     "chains": "257c507c2d2a",
     "kado": "e828df19f3fe",
-    "joints": "23b4d00f794c",
+    "joints": "0f068333c9e3",
     "perimeterClosure": "3f08d731064c",
-    "plantRule": "16a7df1bc5c4",
+    "plantRule": "94ce43d92017",
     "slopeArea": "2070edd4d29d",
     "slopePlanting": "cabd7ebef213",
-    "viewpoints": "2398487a0b71",
+    "viewpoints": "d7d176671184",
     "tsukiyama": "8cb1db480c84",
     "sensui": "58341b579090",
-    "mizu": "a1202b6a7c41",
+    "mizu": "6481c94c775c",
     "nakajikiriRule": "d45adfdd2d91",
     "gardenSections": "0de6f34548f5",
     "viewpointRule": "53a48d85719b",
@@ -13066,19 +13070,15 @@
     "noteScanned": "27ea2f8a8044",
     "assetRequests": "3c9347dbfc7a",
     "boundaryNatural": "6df7a437f423",
-    "ramps": "cd78151817f3",
+    "ramps": "120282710db1",
     "edoReconRedo": "3edfe32cf306",
     "kenpeiAim": "84502799fb89",
     "tsukiyamaSoil": "bbfae69adeac",
-    "drains": "cd6aacedac57",
+    "drains": "cbaa41a58a8c",
     "py": "d1ecf9d33c4755ec",
     "md": "18f79496d6200da6"
    },
    "rounds": [
-    {
-     "at": "2026-09-14T23:09:56+09:00",
-     "verdict": "pass"
-    },
     {
      "at": "2026-09-15T08:59:51+09:00",
      "verdict": "fail"
@@ -13122,14 +13122,18 @@
     {
      "at": "2026-10-04T12:11:19+09:00",
      "verdict": "fail"
+    },
+    {
+     "at": "2026-10-04T13:19:28+09:00",
+     "verdict": "pass"
     }
    ]
   },
   "kosho": {
    "at": "2026-10-04",
    "verdict": "pass",
-   "hash": "1077364b9a2878d3",
-   "note": "7巡目 可 低1: V2・V8・MZ5〜7 の cert P→U(帳簿)",
+   "hash": "b1af4f731ebbf7da",
+   "note": "8巡目(施主A・7巡目の10件の確認だけ)合格。新しい取り合いは実装への申し送り(坂と表向の帯の段0.035〜0.094・番所の背の溝と坂の継ぎ目・通り口の摺り付け・垣際6本の揺らぎ・R_MonNoUchi の grade 表記0.06→0.065・園路を道辺に数えないことの確認)",
    "chapters": {
     "const": "312f7254702e",
     "ishigaki": "b5bed1646006",
@@ -13137,8 +13141,8 @@
     "edgeProfiles": "9a96f3e8e6d1",
     "grid": "5841fa85521e",
     "planes": "2d21ee1540c9",
-    "terraces": "47f9495da239",
-    "terraceWalls": "5c56267b533a",
+    "terraces": "e3fda782b2d2",
+    "terraceWalls": "ab6530384477",
     "slopeBands": "59ba14991948",
     "runs": "e247db0826cb",
     "fences": "d851f8275101",
@@ -13155,9 +13159,9 @@
     "kaidans": "c3e26385e42d",
     "sections": "ea451cfcb09c",
     "bom": "74f139484401",
-    "routes": "0d57fc9d6713",
+    "routes": "60a775f8a5f7",
     "nakajikiri": "00770dadeb12",
-    "planting": "6e3a48262448",
+    "planting": "813baa9ae566",
     "tenkei": "434e500e7a5f",
     "hairyo": "1d11849c9692",
     "kenzan": "a8c4e1460af7",
@@ -13166,15 +13170,15 @@
     "fuchi": "4f53cda18c2b",
     "chains": "257c507c2d2a",
     "kado": "e828df19f3fe",
-    "joints": "23b4d00f794c",
+    "joints": "0f068333c9e3",
     "perimeterClosure": "3f08d731064c",
-    "plantRule": "16a7df1bc5c4",
+    "plantRule": "94ce43d92017",
     "slopeArea": "2070edd4d29d",
     "slopePlanting": "cabd7ebef213",
-    "viewpoints": "2398487a0b71",
+    "viewpoints": "d7d176671184",
     "tsukiyama": "8cb1db480c84",
     "sensui": "58341b579090",
-    "mizu": "a1202b6a7c41",
+    "mizu": "6481c94c775c",
     "nakajikiriRule": "d45adfdd2d91",
     "gardenSections": "0de6f34548f5",
     "viewpointRule": "53a48d85719b",
@@ -13186,19 +13190,15 @@
     "noteScanned": "27ea2f8a8044",
     "assetRequests": "3c9347dbfc7a",
     "boundaryNatural": "6df7a437f423",
-    "ramps": "cd78151817f3",
+    "ramps": "120282710db1",
     "edoReconRedo": "3edfe32cf306",
     "kenpeiAim": "84502799fb89",
     "tsukiyamaSoil": "bbfae69adeac",
-    "drains": "cd6aacedac57",
+    "drains": "cbaa41a58a8c",
     "py": "d1ecf9d33c4755ec",
     "md": "18f79496d6200da6"
    },
    "rounds": [
-    {
-     "at": "2026-09-14T23:09:57+09:00",
-     "verdict": "pass"
-    },
     {
      "at": "2026-09-15T08:59:51+09:00",
      "verdict": "pass"
@@ -13242,17 +13242,21 @@
     {
      "at": "2026-10-04T12:11:19+09:00",
      "verdict": "pass"
+    },
+    {
+     "at": "2026-10-04T13:19:28+09:00",
+     "verdict": "pass"
     }
    ]
   },
   "hayashi": {
    "at": "2026-10-04",
    "verdict": "pass",
-   "hash": "13462a780ed2600c",
-   "note": "7巡目 2巡目で可 低1: 道から幹2.0mは街路だけで庭の園路は keepout.roji と欄で読み分ける",
+   "hash": "88bf3ae18b0e83a9",
+   "note": "8巡目(施主A・7巡目の10件の確認だけ)合格。新しい取り合いは実装への申し送り(坂と表向の帯の段0.035〜0.094・番所の背の溝と坂の継ぎ目・通り口の摺り付け・垣際6本の揺らぎ・R_MonNoUchi の grade 表記0.06→0.065・園路を道辺に数えないことの確認)",
    "chapters": {
-    "planting": "6e3a48262448",
-    "plantRule": "16a7df1bc5c4",
+    "planting": "813baa9ae566",
+    "plantRule": "94ce43d92017",
     "slopeArea": "2070edd4d29d",
     "slopePlanting": "cabd7ebef213",
     "slopeBands": "59ba14991948",
@@ -13278,25 +13282,29 @@
     {
      "at": "2026-10-04T12:11:19+09:00",
      "verdict": "pass"
+    },
+    {
+     "at": "2026-10-04T13:19:29+09:00",
+     "verdict": "pass"
     }
    ]
   },
   "fushin": {
    "at": "2026-10-04",
-   "verdict": "fail",
-   "hash": "af8800a7f3f16555",
-   "note": "7巡目 3巡で止まる 中3低3・直し方つき: 番所の背の溝を v0.88〜1.1 へ鉤の手・坂の北の端を番所の背25.83/土留めの西の端は長屋の基壇の東の小口へ突き付け天端26.2は手前で止める/TW_Nakanokuchi_NE の南端 v7.0 で口1間・見付0.15/潜戸の内に石蓋/R_MonNoUchiW の grade 0.065",
+   "verdict": "pass",
+   "hash": "56dad1aece1f811a",
+   "note": "8巡目(施主A・7巡目の10件の確認だけ)合格。新しい取り合いは実装への申し送り(坂と表向の帯の段0.035〜0.094・番所の背の溝と坂の継ぎ目・通り口の摺り付け・垣際6本の揺らぎ・R_MonNoUchi の grade 表記0.06→0.065・園路を道辺に数えないことの確認)",
    "chapters": {
-    "terraces": "47f9495da239",
+    "terraces": "e3fda782b2d2",
     "planes": "2d21ee1540c9",
     "edgeProfiles": "9a96f3e8e6d1",
     "sections": "ea451cfcb09c",
-    "terraceWalls": "5c56267b533a",
+    "terraceWalls": "ab6530384477",
     "ishigaki": "b5bed1646006",
     "fuchi": "4f53cda18c2b",
     "kaidans": "c3e26385e42d",
-    "ramps": "cd78151817f3",
-    "drains": "cd6aacedac57",
+    "ramps": "120282710db1",
+    "drains": "cbaa41a58a8c",
     "valleys": "193dcdb4a59c",
     "py": "d1ecf9d33c4755ec"
    },
@@ -13316,6 +13324,10 @@
     {
      "at": "2026-10-04T12:11:20+09:00",
      "verdict": "fail"
+    },
+    {
+     "at": "2026-10-04T13:19:29+09:00",
+     "verdict": "pass"
     }
    ]
   }
@@ -15553,7 +15565,7 @@
  ],
  "_reviews": "**検図関門。**この指図を誰が検めたか。⛔ 呼んだ側(普請奉行)が結果を書き戻す — 検分役は read-only で自分では書けない。`hash` はその検分が見た範囲の指紋で、指図を書き換えるとずれ、検分は自動で『検め直しが要る』になる。見張りは `python3 Tools/Sashizu/review_gate.py`。⛔ 関門が赤の指図を実装しない(途中見せは止めない・CLAUDE.md 規則22)。",
  "_rounds_ack": {
-  "at": "2026-10-04T11:50:26+09:00",
-  "quote": "施主 2026-10-04『A]』(7巡目の検分を直した所だけ回す)"
+  "at": "2026-10-04T13:17:45+09:00",
+  "quote": "施主 2026-10-04『A』(8巡目は7巡目の10件が直ったかだけを確かめる一回。新しい取り合いは規則5どおり実装で測って納める)"
  }
 }

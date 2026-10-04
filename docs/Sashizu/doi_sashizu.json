@@ -2076,7 +2076,11 @@
    "inRun": "E13_N09",
    "kind": "長屋の潜り門",
    "asset": "EdoAssets.Own.NagayaOmoteMon(len, gateFromLeft, true)",
-   "cert": "U"
+   "cert": "U",
+   "h": 2.8,
+   "gateDrop": 0.7,
+   "hFrom": "口の有効高 2.8m は敷居から測る(岡部の裏門の門長屋 20.07_mon4.07 と同じ高さ・人と駕籠が通る・馬は表門から)【U 普請奉行 2026-10-04】",
+   "gateDropFrom": "敷居 19.0 は棟 E13_N09 の座 19.7 より 0.70 低い ── 扉口だけ敷居まで切り下げる(表門の plinth.how と同じ納め・部材は --gate-drop 0.70)【U 普請奉行 2026-10-04】"
   }
  ],
  "gates": [

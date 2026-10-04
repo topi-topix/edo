@@ -456,6 +456,7 @@ public static partial class EdoDoiBuilder
         {
             if (r.pts == null || r.pts.Count < 2 || !r.build || r.after != null) continue;
             var pts = r.pts.ConvertAll(q => Grid.W(q.x, q.y));
+            string endNote = EndsToFaces(r, pts);
             var segL = new List<float>(); for (int i = 0; i + 1 < pts.Count; i++) segL.Add(Vector2.Distance(pts[i], pts[i + 1]));
             // 口(広敷門など gates[].inRun)── 鎖の道のりへ
             var gaps = new List<Vector2>(); var gapAt = new List<KeyValuePair<int, Vector2>>(); var gapHalf = new List<float>();
@@ -489,11 +490,40 @@ public static partial class EdoDoiBuilder
                 log.AppendLine("  奥の塀 " + r.name + " 区" + i + ": " + note);
                 org += segL[i];
             }
-            sb.AppendLine("  ⚠ 奥の塀 " + r.name + ": " + nm + " 駒・" + dn + " ── 端の突き付け(" + string.Join(" / ", r.name == "Oku_Hei" ? new[] { "廊下 L_HiromaOku の東の側面", "建仁寺垣の端柱" } : new[] { "廊下 L_HiromaOku の西の側面", "書院 Shoin の東の妻" })
-                        + ")と棟の壁の面との離れは相手が S4 で未建 ── 指図の線の端で止めた(未検査)");
-            warn++;
+            bool allEnds = endNote.IndexOf('⚠') < 0;
+            sb.AppendLine("  " + (allEnds ? "" : "⚠ ") + "奥の塀 " + r.name + ": " + nm + " 駒・" + dn + " ── 端の突き付け: " + endNote);
+            if (!allEnds) warn++;
         }
         return warn;
+    }
+
+    /// <summary>runs[].ends の「廊下 L_xxx の…側面」を、建っている廊下の実メッシュへ突き付ける(EdoBuild.EndToFace)。
+    /// 相手が未建・名指しが廊下でない端は指図の線の端のまま ⚠ を返す(S5 の後に S3 を流し直すと突き付く)。</summary>
+    static string EndsToFaces(Run r, List<Vector2> pts)
+    {
+        Dictionary<string, object> raw = null;
+        foreach (var o in A(D["runs"])) { var q = O(o); if (S(q["name"]) == r.name) { raw = q; break; } }
+        if (raw == null || !Has(raw, "ends")) return "欄 ends が無い";
+        var notes = new List<string>();
+        var bld = Group("Buildings");
+        foreach (var eo in A(raw["ends"]))
+        {
+            var e = O(eo); string face = S(e["face"]), label = S(e["end"]);
+            var m = System.Text.RegularExpressions.Regex.Match(face, @"L_[A-Za-z]+");
+            if (!m.Success) { notes.Add("⚠" + label + "(" + face.Split('(')[0] + ")は相手が建たない/測れない ── 線の端のまま"); continue; }
+            var tgt = bld.Find(m.Value);
+            if (tgt == null) { notes.Add("⚠" + label + ": 廊下 " + m.Value + " が未建 ── 線の端のまま"); continue; }
+            // どちらの端か: 相手に近い方
+            var c = EdoBuild.RB(tgt.gameObject).center; var cw = new Vector2(c.x, c.z);
+            bool atStart = Vector2.Distance(pts[0], cw) < Vector2.Distance(pts[pts.Count - 1], cw);
+            int ie = atStart ? 0 : pts.Count - 1, ii = atStart ? 1 : pts.Count - 2;
+            float gy = GroundY(pts[ie].x, pts[ie].y);
+            float sh; var ne = EdoBuild.EndToFace(pts[ii], pts[ie], tgt.gameObject, gy + 0.3f, gy + 1.8f, 0.3f, out sh);
+            if (float.IsNaN(sh) || Mathf.Abs(sh) > 1.2f) { notes.Add("⚠" + label + ": " + m.Value + " の面が線の先に測れない(" + (float.IsNaN(sh) ? "点なし" : sh.ToString("+0.00;-0.00") + "m") + ")── 線の端のまま"); continue; }
+            pts[ie] = ne;
+            notes.Add(label + " → " + m.Value + " の側面へ " + sh.ToString("+0.000;-0.000") + "m");
+        }
+        return string.Join(" / ", notes.ToArray());
     }
 
     static EdoPartSpec.Spec SpecOf(GameObject go) { return EdoBuild.SpecOf(go); }

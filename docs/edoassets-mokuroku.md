@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 382(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 384(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -80,7 +80,7 @@
 | `Goten.Beam` | string | — | GotenKit(Roka) |
 | `Goten.Tatami` | string | — | GotenKit(Mune) |
 | `Goten.FloorBoard` | string | — | GotenKit(Mune・Roka) |
-| `Goten.RokaEnita` | string | 渡廊下の縁板 一間角(厚 1寸 0.0303)。 | GotenKit(Mune・Roka) |
+| `Goten.RokaEnita` | string | 渡廊下の縁板 一間角(厚 1寸 0.0303)。 | GotenKit(MeanYNear・Mune・Roka) |
 | `Goten.Ceiling` | string | — | GotenKit(Mune) |
 | `Goten.Nureen` | string | — | GotenKit(Mune) |
 | `Goten.NureenCorner` | string | — | GotenKit(Mune) |
@@ -88,11 +88,11 @@
 | `Goten.EnKeta(floor)` | 関数 | 御殿の床下の足元(EDO-0502 2026-10-03)。 | GotenKit(Mune), OkabeYashiki(PlaceMunes) |
 | `Goten.EnTsuka(floor)` | 関数 | — | GotenKit(Mune) |
 | `Goten.Soseki(floor)` | 関数 | — | GotenKit(Mune) |
-| `Goten.KaidanRoka(run, drop)` | 関数 | 階段廊下 — 木の段になった渡廊下。幅は他の廊下と同じ一間。 | DoiBuilder.Mune(PlaceLinksA) |
+| `Goten.KaidanRoka(run, drop)` | 関数 | 階段廊下 — 木の段になった渡廊下。幅は他の廊下と同じ一間。 | DoiBuilder.Mune(PlaceLinksA), GotenKit(Roka) |
 | `Goten.Fusuma` | string | 建具・座敷飾り(キットに無いので Blender で新造 — build_goten_fittings.py) | GotenKit(Mune・Partition), OkabeYashiki(PlaceLinks) |
 | `Goten.Ranma` | string | — | GotenKit(Mune・Partition) |
 | `Goten.Amado` | string | — | — |
-| `Goten.JodanKamachi` | string | — | GotenKit(Jodan・Mune・Roka) |
+| `Goten.JodanKamachi` | string | — | GotenKit(Jodan・MeanYNear・Mune) |
 | `Goten.Tokonoma` | string | — | GotenKit(Zashikikazari) |
 | `Goten.Chigaidana` | string | — | GotenKit(Zashikikazari) |
 | `Goten.Chodaigamae` | string | — | GotenKit(Zashikikazari) |
@@ -110,7 +110,7 @@
 | `Goten.HirairiNotches(mune, rokaRects, side, ken)` | 関数 | 棟に取り付く渡廊下から、RoofHirairi へ渡す切り欠き (辺 side と中心の間数 ken)を解く。 | MatsudairaDewa(Stage4_Goten) |
 | `Goten.RoofRokaGeya(nKen)` | 関数 | 渡廊下の差し掛けの下屋(両流れ)。主屋の軒下から葺き下ろす下屋で、 独立した大棟を持つ RoofKirizuma とは別物(松江松平 2026-09-17 ユーザー裁定A)。 | GotenKit(Mune・Roka) |
 | `Goten.Amaosae(danMm)` | 関数 | 段違いの下屋の折れ目を塞ぐ雨押え(小壁 + 面戸の一体物)。 | MatsudairaDewa(Stage4_Goten) |
-| `Goten.RokaKamachi(danMm)` | 関数 | 渡廊下の段を受ける框(框 + 蹴込板 + 地覆)。 | GotenKit(Roka・RokaKamachi) |
+| `Goten.RokaKamachi(danMm)` | 関数 | 渡廊下の段を受ける框(框 + 蹴込板 + 地覆)。 | GotenKit(MeanYNear・RokaKamachi) |
 | `Goten.RoofNoboriro(tag)` | 関数 | 登廊(階段廊下)の屋根。切妻を斜長ぶん通し、幅は石段の平場ぶん取ったもの。 | — |
 | `Goten.Ken` | float | — | GotenKit, OkabeYashiki(PlaceLinks) |
 | `Goten.DoorH` | float | — | GotenKit |
@@ -118,7 +118,7 @@
 | `Goten.RanmaH` | float | — | — |
 | `Goten.ColumnW` | float | — | — |
 | `Goten.KoranH` | float | — | — |
-| `Goten.BeamH` | float | — | GotenKit(Roka) |
+| `Goten.BeamH` | float | — | GotenKit(MeanYNear・Roka) |
 
 ## JC
 
@@ -303,8 +303,8 @@
 | `Own.MachiKido(haba, keisha)` | 関数 | 道の横断勾配に追従する町木戸。keisha = −X 端から +X 端への地面の下がり[m] (正 = +X が低い)。 | TypologyBuilder.Machiya(MachiKido・MachiyaFrontEdges), BuildMachiya(UraNagayaRun) |
 | `Own.MarutaTesuri` | string | 丸太の手すり 1スパン(岡部邸 `routes.R_Katte.outsideRail.tesuri`)。 | OkabeYashiki(AssetByKey) |
 | `Own.MarutaTesuriPost` | string | 手すりの run の端に足す柱1本。ピボット = 柱の芯・地盤レベル。 | OkabeYashiki(AssetByKey・PlaceTesuri) |
-| `Own.MarutaSaku(h)` | 関数 | 丸太の二段柵 1スパン(土井邸 fences F04 馬場の埒 h1.2 / F05 厩の平場の縁 h1.1)。 | — |
-| `Own.MarutaSakuPost(h)` | 関数 | 丸太の二段柵の run の +X 端に足す柱1本。 | — |
+| `Own.MarutaSaku(h)` | 関数 | 丸太の二段柵 1スパン(土井邸 fences F04 馬場の埒 h1.2 / F05 厩の平場の縁 h1.1)。 | DoiBuilder.Saku(SakuPart) |
+| `Own.MarutaSakuPost(h)` | 関数 | 丸太の二段柵の run の +X 端に足す柱1本。 | DoiBuilder.Saku(SakuPart) |
 | `Own.Kui(dia)` | 関数 | 汀の杭 1本(岡部邸 `nishi.kuiretsu`)。 | OkabeYashiki(AssetByKey・PlaceKuiretsu・ReportNishiRest), BuildRun(FenceRun・KuiRun) |
 | `Own.KuiNuki` | string | 杭列の貫(`nishi.kuiretsu.nuki`)。 | OkabeYashiki(AssetByKey・PlaceKuiretsu) |
 | `Own.GotenRoofIrimoya(wKen, dKen)` | 関数 | 御殿の入母屋屋根を間数で引く。⚠ 実体は Goten.RoofIrimoya_ で、 これはそこへの転送(⛔ パスの literal を二重に書かないため)。 | OkabeYashiki(AssetByKey・PlaceMunes) |
@@ -402,10 +402,10 @@
 | `Own.Ishibashi()` | 関数 | 切石橋(切石の一枚物の橋)。松江松平上屋敷の庭向け。 | MatsudairaDewa(ResolveApi) |
 | `Own.HatakeUne` | string | 菜園の畝(うね)1本・1間(樹下邸の菜園・EDO-0532)。 | TypologyBuilder.Katte(Katte) |
 | `Own.Ikegaki(end)` | 関数 | 刈込の生垣モジュール(ツゲ・マサキの見立て・1 間 × 1.90m × 0.80m、葉カード・材 M_FJG_Plant_Boxwood_01_Spring・LOD1)。 | MatsudairaDewaBuilder.Niwa(Stage6d_Tenkei) |
-| `Own.YotsumeGaki(h)` | 関数 | 四つ目垣 1スパン(1間)。親柱1 + 立子5 + 胴縁(h1.2 で4段 / h0.9 で3段)+ 棕櫚縄の結び。 | OkabeYashiki(PlaceDanKaki・PlaceNiwaItem・PlaceTakegaki), DoiBuilder.Niwa(Niwa_G_Kaki・ResolveNiwaApi), Doi(PlaceTakegaki) |
-| `Own.YotsumeGakiPost(h)` | 関数 | 四つ目垣の run の +X 端に足す親柱1本。 | OkabeYashiki(PlaceDanKaki・PlaceNiwaItem・PlaceTakegaki), DoiBuilder.Niwa(Niwa_G_Kaki・ResolveNiwaApi), Doi(PlaceTakegaki) |
-| `Own.KenninjiGaki(h)` | 関数 | 建仁寺垣 1スパン(1間)。親柱1 + 胴縁3(裏)+ 割竹の立子35枚を隙間なく + 押縁3段 + 玉縁 + 結び12。 | DoiBuilder.Niwa(Niwa_G_Kaki・ResolveNiwaApi), OkabeYashiki(PlaceDanKaki・PlaceNiwaItem), BuildRun(FenceRun) |
-| `Own.KenninjiGakiPost(h)` | 関数 | 建仁寺垣の run の +X 端に足す親柱1本。 | DoiBuilder.Niwa(Niwa_G_Kaki・ResolveNiwaApi), OkabeYashiki(PlaceDanKaki・PlaceNiwaItem) |
+| `Own.YotsumeGaki(h)` | 関数 | 四つ目垣 1スパン(1間)。親柱1 + 立子5 + 胴縁(h1.2 で4段 / h0.9 で3段)+ 棕櫚縄の結び。 | OkabeYashiki(PlaceDanKaki・PlaceNiwaItem・PlaceTakegaki), DoiBuilder.Niwa(Niwa_G_Kaki・ResolveNiwaApi), Doi(PlaceTakegaki), DoiBuilder.Saku(SakuPart) |
+| `Own.YotsumeGakiPost(h)` | 関数 | 四つ目垣の run の +X 端に足す親柱1本。 | OkabeYashiki(PlaceDanKaki・PlaceNiwaItem・PlaceTakegaki), DoiBuilder.Niwa(Niwa_G_Kaki・ResolveNiwaApi), Doi(PlaceTakegaki), DoiBuilder.Saku(SakuPart) |
+| `Own.KenninjiGaki(h)` | 関数 | 建仁寺垣 1スパン(1間)。親柱1 + 胴縁3(裏)+ 割竹の立子35枚を隙間なく + 押縁3段 + 玉縁 + 結び12。 | DoiBuilder.Niwa(Niwa_G_Kaki・ResolveNiwaApi), OkabeYashiki(PlaceDanKaki・PlaceNiwaItem), BuildRun(FenceRun), DoiBuilder.Saku(SakuPart) |
+| `Own.KenninjiGakiPost(h)` | 関数 | 建仁寺垣の run の +X 端に足す親柱1本。 | DoiBuilder.Niwa(Niwa_G_Kaki・ResolveNiwaApi), OkabeYashiki(PlaceDanKaki・PlaceNiwaItem), DoiBuilder.Saku(SakuPart) |
 | `Own.DoiNagayamon` | string | 土井邸の表門 = 長屋門(片番所 格子付・片潜門)。 | Doi(GateSpan), DoiBuilder.Mon(Stage3_Mon) |
 | `Own.DoiUmaya` | string | 厩 5.5×7間(土井邸 `munes.Umaya`)。 | Doi(PlaceUmaya) |
 | `Own.DoiUmaya5x11` | string | 厩 11×5間(`service.Umaya`)。 | DoiBuilder.Mune(ServicePart) |

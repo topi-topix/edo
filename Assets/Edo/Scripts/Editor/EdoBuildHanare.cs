@@ -38,4 +38,25 @@ public static partial class EdoBuild
         }
         return moved;
     }
+
+    /// <summary>**線の端を相手の面へ突き付ける**(塀の端 → 廊下・棟の側面)。線の最後の区間 <paramref name="inner"/>→<paramref name="end"/>
+    /// の向き d に沿い、<paramref name="inner"/> から相手 <paramref name="target"/> の実メッシュ(屋根を除く)の三角形へ水平な光線を打ち
+    /// (高さ帯 [<paramref name="yLo"/>, <paramref name="yHi"/>] は世界の Y・横は ±<paramref name="halfW"/>・<see cref="ReachToBodies"/>)、最初に触れる所へ端を動かす
+    /// (= 触れている箇所を測る・⛔ 相手のピボットや指図の座標で決めない)。硬い条件: 隙 0。
+    /// 当たる先: 土井の奥の塀 Oku_Hei / Oku_Hei_Roka の端(廊下 L_HiromaOku の側面・runs[].ends)。指図の runs[].ends に面を名指す塀すべて。
+    /// ⟶ 返す: 新しい端(世界 xz)。測れなければ <paramref name="end"/> のまま・<paramref name="shift"/> = NaN。shift は d 向きの移動量[m]。</summary>
+    public static Vector2 EndToFace(Vector2 inner, Vector2 end, GameObject target, float yLo, float yHi, float halfW, out float shift)
+    {
+        shift = float.NaN;
+        if (target == null) return end;
+        // ⭐ 面で測る(ReachToBodies = 三角形への光線)。⛔ 頂点の窓で採らない ── 廊下の側桁・高欄・柱は低ポリで
+        //   頂点が端にしか無く、塀の線の前の帯は空だった(2026-10-04 EDO-0533「点なし」)。
+        Vector2 d = (end - inner).normalized;
+        float reach = Vector2.Distance(inner, end) + 1.5f;
+        float hit = ReachToBodies(inner, d, new[] { target }, halfW, yLo, yHi, reach);
+        if (float.IsNaN(hit)) return end;
+        var ne = inner + d * hit;
+        shift = Vector2.Dot(ne - end, d);
+        return ne;
+    }
 }

@@ -446,7 +446,7 @@ public static class EdoGotenKit
                                   float floor = 0.62f, bool koranS = true, bool koranN = true,
                                   bool roof = true, bool colStart = true, bool colEnd = true,
                                   float geyaHeadLocalY = float.NaN, float geyaKobai = 0f,
-                                  bool enita = false)
+                                  bool enita = false, float stairDrop = 0f)
     {
         bool geya = !float.IsNaN(geyaHeadLocalY);
         if (!geya && RokaRidgeTop > MUNE_EAVE)
@@ -478,8 +478,9 @@ public static class EdoGotenKit
             float bw = (i < nFull) ? 1f : rem;           // この駒の間数
             float xc = i * K + bw * K / 2f;
             var sc = new Vector3(bw, 1f, 1f);
-            Put(board, g.transform,
-                new Vector3(xc, floor, K / 2f), 0f, sc);
+            if (stairDrop <= 0f)                         // 階段廊下は床を段の部材が持つ(KaidanRoka)
+                Put(board, g.transform,
+                    new Vector3(xc, floor, K / 2f), 0f, sc);
             // 桁 — 柱の天端に渡す。屋根の裏に隠れる高さ
             Put(EdoAssets.Goten.Beam, g.transform,
                 new Vector3(xc, floor + colH - EdoAssets.Goten.BeamH, 0f), 0f, sc);
@@ -498,9 +499,11 @@ public static class EdoGotenKit
             if (i == 0 && !colStart) continue;
             if (i == nBay && !colEnd) continue;
             float xl = Mathf.Min(i, nFull) * K + (i > nFull ? rem * K : 0f);
+            // 階段廊下: 柱の足は段なりに下がり(原点=上の床・+X が坂下)、頭は桁の高さのまま
+            float sink = stairDrop > 0f ? stairDrop * xl / (nx * K) : 0f;
             for (int j = 0; j < 2; j++)
                 Put(EdoAssets.Goten.Column, g.transform,
-                    new Vector3(xl, floor, j * K), 0f, colS);
+                    new Vector3(xl, floor - sink, j * K), 0f, (colH + sink) / H);
         }
 
         if (roof)
@@ -520,6 +523,90 @@ public static class EdoGotenKit
                     new Vector3(nx * K / 2f, geya ? geyaHeadLocalY : floor + ROKA_EAVE, K / 2f), 0f);
         }
         return g;
+    }
+
+    /// <summary>**階段廊下。**郭の段をまたぐ幅一間の渡廊下 — 骨組みと屋根は <see cref="Roka"/>
+    /// (上の床の高さで桁・屋根を通し、柱の足だけ段なりに下げる)、床と高欄は段の部材
+    /// <see cref="EdoAssets.Goten.KaidanRoka"/> が持つ。
+    /// <para><paramref name="posHi"/> = **上の端**(上の棟の面)の幅の端・床の地盤、<paramref name="yaw"/> = 局所 +X が
+    /// **坂下**を向く方位、<paramref name="floor"/> = 上の床の高さ(地盤から)。</para>
+    /// <para>⛔ 段の部材は原点で据えない。置いた駒の実メッシュから**踏板(材 floor)の点**を採り、
+    /// 下る向き=低い端が +X になる回しを選び、最も低い踏板の天端(=下の床に触れる箇所)を上の床 − 落差へ・
+    /// 上の端の縁を局所 X=0(上の棟の面)へ寄せる。戻り値は寄せ終えた段の駒(無ければ null)。</para></summary>
+    public static GameObject KaidanRoka(string name, Transform parent, Vector3 posHi, float yaw, float nx,
+                                        float floor, float drop, string part, out string note)
+    {
+        note = "";
+        var g = Roka(name, parent, posHi, yaw, nx, floor, koranS: false, koranN: false,
+                     colStart: false, colEnd: false, stairDrop: drop);
+        if (g == null) { note = "骨組みが組めない"; return null; }
+        var p = Put(part, g.transform, new Vector3(0f, floor, K / 2f), 0f);
+        if (p == null) { note = "段の部材が無い " + part; return g; }
+        // ⭐ 段 = 踏板の材(サブメッシュ "floor")の頂点。⛔ 幅の内の窓で採らない ── 低ポリの踏板は頂点が
+        //   幅の端(側桁の下)にしか無く、窓の内は空になって回しを誤った(2026-10-04 EDO-0533: 走り 1.818・落差 1.502)。
+        float bestScore = float.NegativeInfinity, bestRy = 0f;
+        foreach (float ry in new[] { 0f, 90f, 180f, 270f })
+        {
+            p.transform.localRotation = Quaternion.Euler(0f, ry, 0f);
+            float mnX, mxX, yLo, yHi, lowTop; int nIn;
+            Treads(g.transform, p.transform, out mnX, out mxX, out yLo, out yHi, out lowTop, out nIn);
+            if (nIn < 8) continue;
+            float span = mxX - mnX;
+            // 踏板の高さを走りの頭と尻で比べる: 頭(−X 側)が高いほど良い・走りが X に沿うほど良い
+            float hiEnd = MeanYNear(g.transform, p.transform, mnX, mnX + span * 0.2f);
+            float loEnd = MeanYNear(g.transform, p.transform, mxX - span * 0.2f, mxX);
+            float score = (hiEnd - loEnd) + span;
+            if (score > bestScore) { bestScore = score; bestRy = ry; }
+        }
+        p.transform.localRotation = Quaternion.Euler(0f, bestRy, 0f);
+        {
+            float mnX, mxX, yLo, yHi, lowTop; int nIn;
+            Treads(g.transform, p.transform, out mnX, out mxX, out yLo, out yHi, out lowTop, out nIn);
+            if (nIn < 8) { note = "段の部材に踏板(材 floor)が無い " + part; return p; }
+            // 触れる所: 上の端の縁 = 上の棟の面(局所 X=0)・最も低い踏板の天端 = 下の床(上の床 − 落差)
+            p.transform.localPosition += new Vector3(-mnX, (floor - drop) - lowTop, 0f);
+            Treads(g.transform, p.transform, out mnX, out mxX, out yLo, out yHi, out lowTop, out nIn);
+            note = string.Format("段の内 走り {0:F3}(欄 {1:F3})・上の縁 X={2:+0.000;-0.000}・上の踏板の天端 {3:+0.000;-0.000}(上の床から)・落差 {4:F3}(欄 {5:F3})",
+                                 mxX - mnX, nx * K, mnX, yHi - floor, floor - lowTop, drop);
+        }
+        return p;
+    }
+
+    /// <summary>段の駒の踏板(材 "floor"・無ければ全材)の点の局所 X の範囲・高さの範囲・
+    /// 最も低い踏板の天端(走りの尻 20% の最高点)を廊下 g の局所で。</summary>
+    static void Treads(Transform g, Transform piece, out float mnX, out float mxX,
+                       out float yLo, out float yHi, out float lowTop, out int n)
+    {
+        mnX = yLo = float.PositiveInfinity; mxX = yHi = lowTop = float.NegativeInfinity; n = 0;
+        var Q = TreadPts(g, piece);
+        foreach (var q in Q)
+        {
+            n++;
+            mnX = Mathf.Min(mnX, q.x); mxX = Mathf.Max(mxX, q.x);
+            yLo = Mathf.Min(yLo, q.y); yHi = Mathf.Max(yHi, q.y);
+        }
+        float x0 = mxX - (mxX - mnX) * 0.2f;
+        foreach (var q in Q) if (q.x >= x0) lowTop = Mathf.Max(lowTop, q.y);
+    }
+
+    static List<Vector3> TreadPts(Transform g, Transform piece)
+    {
+        var W = EdoBuild.BodyOfMat(piece, "floor");
+        if (W.Count == 0) W = EdoBuild.Body(piece, 4000, true);
+        var L = new List<Vector3>(W.Count);
+        foreach (var w in W) L.Add(g.InverseTransformPoint(w));
+        return L;
+    }
+
+    static float MeanYNear(Transform g, Transform piece, float x0, float x1)
+    {
+        float s = 0f; int n = 0;
+        foreach (var q in TreadPts(g, piece))
+        {
+            if (q.x < x0 || q.x > x1) continue;
+            s += q.y; n++;
+        }
+        return n > 0 ? s / n : float.NegativeInfinity;
     }
 
     /// <summary>**渡廊下の床の段(框)。**段の線に一間の材を横たえ、

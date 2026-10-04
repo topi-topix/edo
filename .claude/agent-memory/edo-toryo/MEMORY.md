@@ -74,6 +74,7 @@
 - [口の奥の土の壁は均していない坂](gap-cheek-is-unbuilt-kiritoshi.md) — profS だけの坂を誰も均さず。返しは地表で測ると裏返る(lowForce)
 - [口の縁は門の実メッシュで測る・端は点で取る](run-end-at-opening.md) — 射影だけだと横のずれが落ちて 0.822m の口。柱物は帯でなく断面(SectionAt)
 - [GetDetailLayer/GetHoles は寸法を [w,h] と偽る](terrain-detail-array-dims-lie.md) — 中身は [y,x]。正方でない範囲は DetailBlock で読み直す
+- [低ポリの駒を頂点の窓で測ると空になる](lowpoly-vertex-window-empty.md) — 階段廊下が回しを誤り塀の端が点なし。材(BodyOfMat)か光線(ReachToBodies)で
 - [筋割りの Contact は平らな面どうしを見落とす](contact-cells-miss-flat-faces.md) — 柱と礎石で屋形が 1.93m 沈んだ。鉛直は RestOn(面で測る)
 - [斜めの隅の駒は「回廊」で測る](corner-piece-corridor-not-projection.md) — 全頂点の射影だと 1.13m の口が残る。DobeiProfile→BodyAt→CorridorSpan
 - [流したら計測より先に書き戻す](writeback-before-measuring.md) — 途中の reload の間に claim が他の窓へ移り書き戻せなくなった

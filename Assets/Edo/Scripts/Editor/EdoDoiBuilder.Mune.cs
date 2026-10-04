@@ -187,9 +187,33 @@ public static partial class EdoDoiBuilder
             }
             string rk = EdoAssets.Goten.RoofKirizuma(run);
             if (!Exists(rk)) line(1, "廊下 " + nm + ": 切妻屋根が無い " + rk);
-            float y = FaceY(u0, v0, u1, v1, F(l["y"]), "廊下 " + nm);
+            if (drop > 0.001f)
+            {
+                // 上の端 = 走りの両端で当たる棟のうち面の高い方。局所 +X が坂下を向くよう、上の端から張る
+                float yS = float.NaN, yE = float.NaN; Dictionary<string, object> mS = null, mE = null;
+                foreach (var mo in A(D["munes"]))
+                {
+                    var m = O(mo);
+                    if (alongU ? Mathf.Abs(F(m["u1"]) - u0) < 0.01f : Mathf.Abs(F(m["v1"]) - v0) < 0.01f) { yS = F(m["y"]); mS = m; }
+                    if (alongU ? Mathf.Abs(F(m["u0"]) - u1) < 0.01f : Mathf.Abs(F(m["v0"]) - v1) < 0.01f) { yE = F(m["y"]); mE = m; }
+                }
+                bool hiAtEnd = !float.IsNaN(yE) && (float.IsNaN(yS) || yE > yS);
+                // 上の端の床は上の棟の床に触れる ⇒ 地盤は上の棟の足形で測った面(⛔ 廊下の足形の中央値は下の段を拾う)
+                var mHi = hiAtEnd ? mE : mS;
+                float y = mHi != null ? FaceY(F(mHi["u0"]), F(mHi["v0"]), F(mHi["u1"]), F(mHi["v1"]), F(mHi["y"]), "廊下 " + nm + " の上の棟 " + S(mHi["name"]))
+                                      : FaceY(u0, v0, u1, v1, F(l["y"]), "廊下 " + nm);
+                Vector2 wh = alongU ? (hiAtEnd ? f.W(u1, v1) : f.W(u0, v0)) : (hiAtEnd ? f.W(u0, v1) : f.W(u1, v0));
+                float yaw = (alongU ? YawAlongU() : YawAlongV()) + (hiAtEnd ? 180f : 0f);
+                string kn;
+                var kg = EdoGotenKit.KaidanRoka(nm, grp, new Vector3(wh.x, y, wh.y), yaw, run, floor, drop,
+                                                EdoAssets.Goten.KaidanRoka(run * f.ken, drop), out kn);
+                if (kg != null) { Undo.RegisterCreatedObjectUndo(kg.transform.parent.gameObject, "kaidan"); line(0, "廊下 " + nm + "(階段廊下 " + run + "間・落差 " + drop + "): " + kn); }
+                else line(2, "廊下 " + nm + ": 階段廊下が組めない ── " + kn);
+                continue;
+            }
+            float yF = FaceY(u0, v0, u1, v1, F(l["y"]), "廊下 " + nm);
             var w = alongU ? f.W(u0, v0) : f.W(u1, v0);
-            var g = EdoGotenKit.Roka(nm, grp, new Vector3(w.x, y, w.y), alongU ? YawAlongU() : YawAlongV(), run, floor, colStart: false, colEnd: false);
+            var g = EdoGotenKit.Roka(nm, grp, new Vector3(w.x, yF, w.y), alongU ? YawAlongU() : YawAlongV(), run, floor, colStart: false, colEnd: false);
             if (g != null) { Undo.RegisterCreatedObjectUndo(g, "roka"); line(0, "廊下 " + nm + ": " + run + "間"); }
         }
     }

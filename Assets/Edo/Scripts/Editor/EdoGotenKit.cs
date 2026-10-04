@@ -170,15 +170,19 @@ public static class EdoGotenKit
     /// 柱の頭(桁の下)は動かさず、触れている箇所(EdoBuild.Contact = 足と地表の隙)を測って足だけを地表 −root まで伸ばす
     /// (伸ばした後に足を実測して平行移動する ── ピボットが底とは限らない)。
     /// 当たる先: 土井の渡廊下・階段廊下(EdoDoiBuilder.PlaceLinksA)。郭の段をまたぐ・床下の地面が下がる渡廊下すべて。
-    /// ⟶ 返す: 伸ばした柱の数。<paramref name="maxStretch"/> = 伸ばした量の最大[m]。</summary>
+    /// ⟶ 返す: 伸ばした柱の数。<paramref name="maxStretch"/> = 伸ばした量の最大[m]。
+    /// ⭐ 測る地面は**描かれた地表**(<see cref="EdoBuild.Drawn"/> ── 縁の皮の升では皮)。⛔ 2026-10-05 まで地形の高さ(EdoBuild.Contact = Probe)で
+    /// 測り、縁の皮が地形より低く描いた升で柱が 0.69〜1.24m 浮いた(L_HiromaOku・L_OkuNagatsubone 0.69〜0.86 ── 全項目の検査 EDO-0533)。
+    /// 皮の無い穴の升(描かれた地表が無い)は測れないので触らない。</summary>
     public static int RokaFeetToGround(GameObject roka, float root, out float maxStretch)
     {
         int n = 0; maxStretch = 0f;
+        var dg = EdoBuild.Drawn();
         foreach (Transform c in roka.transform)
         {
             if (!c.name.StartsWith("Goten_Column")) continue;
             Vector3 at; int cnt;
-            float gap = EdoBuild.Contact(c.gameObject, out at, out cnt);
+            float gap = EdoBuild.ContactOn(c.gameObject, dg.At, out at, out cnt);
             if (float.IsNaN(gap) || gap <= 0f) continue;
             var b0 = EdoBuild.RB(c.gameObject); float top = b0.max.y, h = b0.size.y; if (h < 0.01f) continue;
             float k = (h + gap + root) / h;

@@ -27,8 +27,8 @@ public static partial class EdoDoiBuilder
         int stairN = 0;
         foreach (var r in Group("Fuzoku/Kaidan").GetComponentsInChildren<MeshRenderer>()) { parts.Add(r.gameObject); stairN++; }
         // 溝・桝・蓋石・水切り(S9 排水・群 Mizo)── 天端を地盤に据えて地形の下へ潜るので、升に穴を開けて皮で描く(⚠ S9 の後にこれを流し直す)
-        int mizoN = 0;
-        foreach (Transform c in Group("Mizo")) if (c.gameObject.activeInHierarchy) { parts.Add(c.gameObject); mizoN++; }
+        int mizoN = 0; var hollow = new List<GameObject>();
+        foreach (Transform c in Group("Mizo")) if (c.gameObject.activeInHierarchy) { parts.Add(c.gameObject); hollow.Add(c.gameObject); mizoN++; }
         // 面 = 指図 terraces のうち設計の地盤が面の高さに収まる物(勾配の面は graded のまま描く)
         var faces = new List<EdoBuild.SkinFace>(); var f = Grid; var G = Graded;
         foreach (var o in A(D["terraces"]) ?? new List<object>())
@@ -75,11 +75,16 @@ public static partial class EdoDoiBuilder
         // ⭐ 庭の土工の矩形(6a が池を掘り築山を盛る範囲)は面の縁の升に数えない ── 皮で池を埋め戻さない
         var keep = new List<Vector2[]>();
         { var nm = NiwaModel; if (nm != null) keep.Add(new[] { Wu(nm.u0, nm.v0), Wu(nm.u1, nm.v0), Wu(nm.u1, nm.v1), Wu(nm.u0, nm.v1) }); }
+        // ⭐ 溝は掘る部材(hollowParts)── 脇の皮を溝の底まで下げない。⭐ 邸の据わった駒すべて(外周・棟・附属屋・植栽・柵・溝)を seated に渡し、
+        //   皮が元の地形より下げて駒を浮かせない守りを掛ける(硬い・2026-10-05 全項目の検査 接地 fail の直し)
+        var rootGo = GameObject.Find(Grp);
+        var seated = EdoBuild.SeatedUnder(rootGo != null ? rootGo.transform : null, grp);
         var rep = EdoBuild.CutEdgeSkin("Doi", grp, parts, faces, tol, design: design, backfill: 0f, sealFace: true,
-                                       crestBandParts: band, plantPoints: plant, faceKeepOut: keep);
+                                       crestBandParts: band, plantPoints: plant, faceKeepOut: keep,
+                                       hollowParts: hollow, seated: seated);
         AssetDatabase.SaveAssetIfDirty(EdoBuild.T().terrainData);
         sb.AppendLine("  庭の土工の矩形 " + keep.Count + " を面の縁から外した");
-        sb.AppendLine("  古い皮を外して塞いだ升 " + filled + " / 部材 " + rep.parts + "(土留め " + band.Count + "・石段 " + stairN + "・溝 " + mizoN + ")/ 面 " + faces.Count + " / 守った点 " + plant.Count);
+        sb.AppendLine("  古い皮を外して塞いだ升 " + filled + " / 部材 " + rep.parts + "(土留め " + band.Count + "・石段 " + stairN + "・溝 " + mizoN + ")/ 面 " + faces.Count + " / 守った点 " + plant.Count + " / 据わりを守るメッシュ " + seated.Count);
         sb.AppendLine("  " + rep);
         sb.Append(EdoBuild.SkinGapTable(parts, faces, tol));
         return sb.ToString();

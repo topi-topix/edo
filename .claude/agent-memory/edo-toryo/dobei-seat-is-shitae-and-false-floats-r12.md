@@ -15,3 +15,7 @@ metadata:
 
 **How to apply:** 外周の練塀を据える Stage を触るときは 1 の型を先に入れる。検査の浮きの報告は 2 の測りで確かめてから直す。
 関連: [[koba-left-dirty-by-other-window]] [[pitfall-unity-claim-not-verified]] [[gate-float-measure-on-bed]]
+
+追記(同日・直した後): RootToBed の足跡の箱は隅の L 字の駒で L の外の空き(道)まで覆い、偽の浮き 2.30m で Kado_P7 を沈めた
+⇒ SinkGroupToBed は GroundCandidates の格子の最下点(下端から 0.05 以内)で測る。光線の測りは**皮に collider が無い**ので
+穴の升では石垣の控えの斜面を読み偽の浮き 0.8 を出す ── 床は Drawn と光線の部材の高い方で測る。

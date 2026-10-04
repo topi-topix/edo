@@ -1282,7 +1282,20 @@ public static partial class EdoBuild
     {
         return DanPlanCore(chain, out note, gates, 0f, float.PositiveInfinity);
     }
+    /// <summary>段差に**硬い上限** <paramref name="stepHardMax"/>(超える段は引かない)と、区間の最短 <paramref name="minSec"/>[m](半間まで)を名指す版。
+    /// 指図の段塀が「段差の上限 X m(硬い)・1間の落差が上限を超える所は半間ごとに刻む」と言うとき(松江松平の崖の上の練塀 W_Hei_Gake・dansei)。
+    /// 上限の内で引けなければ従来どおり(上限を外して引き ⚠ を註に刷る)。当たる先: 段差の上限を硬く名乗る指図の段塀すべて。</summary>
+    public static List<DanSec> DanPlan(IList<Vector2> chain, out string note, IList<Vector2> gates, float stepQ, float minSec, float stepHardMax)
+    {
+        var r = DanPlanCore(chain, out note, gates, stepQ, DanStepFloor(stepQ), minSec, stepHardMax);
+        if (r.Count > 0 && note.IndexOf("区切りが引けない") < 0) return r;
+        var r2 = DanPlanCore(chain, out note, gates, stepQ, DanStepFloor(stepQ), minSec, float.PositiveInfinity);
+        note = "⚠ 段差の上限 " + stepHardMax.ToString("F2") + " の内で引けず上限を外した ── " + note;
+        return r2;
+    }
     static List<DanSec> DanPlanCore(IList<Vector2> chain, out string note, IList<Vector2> gates, float stepQ, float showMax)
+    { return DanPlanCore(chain, out note, gates, stepQ, showMax, DAN_MIN_SEC, float.PositiveInfinity); }
+    static List<DanSec> DanPlanCore(IList<Vector2> chain, out string note, IList<Vector2> gates, float stepQ, float showMax, float minSec, float stepHardMax)
     {
         var segL = new List<float>(); float L = 0f;
         for (int i = 0; i + 1 < chain.Count; i++) { float l = Vector2.Distance(chain[i], chain[i + 1]); segL.Add(l); L += l; }
@@ -1318,7 +1331,7 @@ public static partial class EdoBuild
         int N = Mathf.Max(1, Mathf.CeilToInt(L / DAN_Q - 1e-3f));
         var E = new float[N + 1]; for (int k = 0; k <= N; k++) E[k] = Mathf.Min(k * DAN_Q, L);
         var corners = new List<float>(); { float c = 0f; for (int i = 0; i + 1 < segL.Count; i++) { c += segL[i]; corners.Add(c); } }
-        int qMin = Mathf.Max(1, Mathf.RoundToInt(DAN_MIN_SEC / DAN_Q)), qMax = Mathf.Max(qMin, Mathf.FloorToInt(DAN_MAX_SEC / DAN_Q));
+        int qMin = Mathf.Max(1, Mathf.RoundToInt(minSec / DAN_Q)), qMax = Mathf.Max(qMin, Mathf.FloorToInt(DAN_MAX_SEC / DAN_Q));
         // 門の口(塀が立たない)── 地面を見ない・左右 DAN_GATE_SODE に区切りを置かない(EDO-0514)
         var gs = new List<Vector2>();
         if (gates != null) foreach (var g in gates) { float g0 = Mathf.Clamp(Mathf.Min(g.x, g.y), 0f, L), g1 = Mathf.Clamp(Mathf.Max(g.x, g.y), 0f, L); if (g1 - g0 > 1e-3f) gs.Add(new Vector2(g0, g1)); }
@@ -1401,6 +1414,7 @@ public static partial class EdoBuild
                     for (int kk = 0; kk < stW[i].Count; kk++)
                     {
                         float d = Mathf.Abs(W - stW[i][kk]), pen = d * d;
+                        if (d > stepHardMax + 1e-3f) continue;                 // 段差の硬い上限(名指した版だけ)
                         if (d > 0.005f)
                         {
                             if (stepQ > 0f && Mathf.Abs(d / stepQ - Mathf.Round(d / stepQ)) * stepQ > 0.005f) pen += 50f;   // 段は stepQ の倍数(柔らかい)

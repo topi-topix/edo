@@ -1,0 +1,18 @@
+---
+name: redrawn-sashizu-shapes-and-stale-joints
+description: 図から起こし直した指図は欄の形(poly/pts/place の文字列)が変わり、旧い隅の joints が残る。松江松平 EDO-0554 で踏んだ
+metadata:
+  type: project
+---
+
+松江松平の起こし直し(2026-10-04・EDO-0554)で踏んだ3つ。
+
+1. **欄の形が変わる**: terraces/munes/service/gardens が `poly`、runs に `pts` だけの run(edge/s0 無し)、`place` が bool と文字列("置く"/"置かない…")の両方、`rails` が消える、石段に `pos` が無い。
+   **Why:** 旧ビルダーは u0..v1・edge を無条件に読むので KeyNotFound。Stage2 は群を Clear した後に落ちて外周が空になる。
+   **How to apply:** 読み替えは `NormalizeShapes`(D を読んだ直後)と `PolyOrRect` に寄せた。矩形で読む Stage は `PolyApprox` を ⚠ で刷る。他邸の起こし直しでも同じ形が来る。
+2. **旧い隅の継ぎ目が残る**: 谷の境を木柵へ変えたのに joints に J_P3〜J_P12 の練塀の隅(kado)が残り、PlaceKado が谷底に隅を立てた(fences.hard「谷底に練塀を置かない」と矛盾)。
+   **How to apply:** 両側の辺に塀・長屋の run が無い隅は据えない(PlaceKado)。指図方へ joints の掃除を差し戻す。
+3. **DanPlan の段の上限は柔らかい(1.00)**: 指図が「段差 ≤1.3 硬い・1間で超える所は半間で刻む」と言うと、1間の区間しか切れず 1.40 の段が出た。
+   **How to apply:** `EdoBuild.DanPlan(chain, out note, gates, stepQ, minSec, stepHardMax)` を足した(minSec = 半間)。崖の上の練塀 212m で段 27・最大 1.00。
+
+関連: [[pitfall-writeback-mcp-timeout]](段ごとに 25〜40 秒・続けて投げた execute_code も詰まる)

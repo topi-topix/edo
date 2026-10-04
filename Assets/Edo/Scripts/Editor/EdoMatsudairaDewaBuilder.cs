@@ -61,6 +61,47 @@ public static partial class EdoMatsudairaDewaBuilder
             return _d;
         }
     }
+    /// <summary>**口の外の上がり口**(中の口 = munes.Omotegoten.order.中の口.at・広敷の口 = links[].sotoAgari)の沓脱と踏段。
+    /// 床の高さ = 載る段の面 + 床高(GOTEN_FLOOR)、地面 = 面の外 1m の描かれた地表。蹴上 ≤ 0.25(従属値・普請奉行の決め)。
+    /// 沓脱 = 中の口 Own.DoiKutsunugi / 広敷の口 Own.Kutsunugi、踏段 = 幅の最も近い段石(SannoDanNearest)。置き方は EdoBuild.AgariSteps。</summary>
+    static string PlaceAgari(Transform bld)
+    {
+        var f = Grid; var sb = new System.Text.StringBuilder(); var grp = Group("Fuzoku/Agari"); Clear(grp);
+        Func<float, float, string, string, Vector2, string, string> one = (u, v, kutsu, name, outDir, faceNote) =>
+        {
+            Vector2 fp = f.W(u, v); float sp; int np;
+            float floorY = TerraceY(TerraceOf(u - outDir.x * 0.5f, v - outDir.y * 0.5f), out sp, out np) + GOTEN_FLOOR;
+            Vector2 ow = (f.W(u + outDir.x, v + outDir.y) - fp).normalized;
+            Vector2 gp = fp + ow * 1.0f; float gy = EdoBuild.Ground(gp.x, gp.y);
+            string note;
+            var got = EdoBuild.AgariSteps(grp, fp, ow, floorY, gy, 0.25f, kutsu, k => EdoAssets.Own.SannoDanNearest(0.9f, k), name, out note);
+            return "上がり口 " + name + "(" + faceNote + "): " + note + "・床 " + floorY.ToString("F2") + " / 地面 " + gy.ToString("F2");
+        };
+        // 中の口: 表玄関の北面(v8)の西寄り u−12〜−9・北向き(−v)
+        foreach (var o in A(D["munes"]))
+        {
+            var m = O(o); if (!Has(m, "order")) continue; var ord = O(m["order"]);
+            if (!Has(ord, "中の口")) continue; var nk = O(ord["中の口"]); if (!Has(nk, "at")) continue; var at = O(nk["at"]);
+            string mn = (string)at["mune"]; Dictionary<string, object> mm = null;
+            foreach (var o2 in A(D["munes"])) { var q = O(o2); if ((string)q["name"] == mn) mm = q; }
+            if (mm == null || !Has(at, "u")) { sb.AppendLine("⚠ 中の口: 面の位置が読めない"); continue; }
+            var uu = A(at["u"]); float uc = (F(uu[0]) + F(uu[1])) * 0.5f;
+            sb.AppendLine(one(uc, F(mm["v0"]), EdoAssets.Own.DoiKutsunugi, "Nakanokuchi", new Vector2(0f, -1f), "北面 v" + F(mm["v0"]).ToString("0.#")));
+        }
+        // 広敷の口: links[].sotoAgari(face「…の東の側面(u2)」・at「v45.5」)
+        foreach (var o in A(D["links"]))
+        {
+            var l = O(o); if (!Has(l, "sotoAgari")) continue; var sa = O(l["sotoAgari"]);
+            var mu = System.Text.RegularExpressions.Regex.Match((string)sa["face"], @"\(u([−\-0-9.]+)\)");
+            var mv = System.Text.RegularExpressions.Regex.Match((string)sa["at"], @"v([0-9.]+)");
+            if (!mu.Success || !mv.Success) { sb.AppendLine("⚠ " + l["name"] + ": sotoAgari の面と位置が読めない"); continue; }
+            float uf = float.Parse(mu.Groups[1].Value.Replace("−", "-"), System.Globalization.CultureInfo.InvariantCulture), vf = float.Parse(mv.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+            float dirU = Mathf.Abs(uf - F(l["u1"])) < Mathf.Abs(uf - F(l["u0"])) ? 1f : -1f;
+            sb.AppendLine(one(uf, vf, EdoAssets.Own.Kutsunugi, "HiroshikiGuchi", new Vector2(dirU, 0f), (string)sa["face"]));
+        }
+        return sb.ToString().TrimEnd();
+    }
+
     /// <summary>突き合わせ(EdoSashizuExport.CheckScene)が棟・廊下の据えた点を期待する式 ── **ビルダーの据え方と同じ式**(検査だけが式を持たない・規則19)。
     /// 棟: poly の棟は外接矩形の (u0, v1)(部分の棟をまとめる親の点)・矩形は (u0, v1)。廊下: 桁行が u なら (u0, v1)・v なら (u0, v0)、
     /// 段の線を持たない階段廊下は上の端の角(Stage4 と同じ)。</summary>
@@ -2999,6 +3040,12 @@ public static partial class EdoMatsudairaDewaBuilder
                 }
                 Undo.RegisterCreatedObjectUndo(g, "roka");
                 segGo[si] = g;
+                if (g != null)
+                {
+                    // ⭐ 柱の足を地面まで(口の廊下は床下の足が無く 0.62 浮いた ── EDO-0554 第4段の普請検査)
+                    float stc; int nc = EdoBuild.ColumnsToGround(g, "Goten_Column", 0.10f, out stc);
+                    if (nc > 0) sb.AppendLine("・" + sname + ": 柱の足を地面まで伸ばした " + nc + " 本(最大 " + stc.ToString("F2") + "m)");
+                }
             }
 
             // ⭐ 框(`dan.kind`)— 段の線で床が段になる。**高さは両側の段の面の差**(従属値)。
@@ -4499,6 +4546,7 @@ public static partial class EdoMatsudairaDewaBuilder
             sb.AppendLine("⚠ 建てられなかった内長屋 " + svWait.Count + " 棟: " + string.Join(" / ", svWait.ToArray()));
         sb.AppendLine(TerraceWallsNozura());
         sb.AppendLine(PlaceMizo());
+        sb.AppendLine(PlaceAgari(null));                // 口の外の上がり口(Fuzoku/Agari ── Stage6 は Fuzoku を一掃するのでここで)
         sb.Append("中仕切 " + nHei + "枚 / 竹垣 " + nGaki + "枚 / 段石 " + nDan + "枚 / 井戸 " +
                   nIdo + "基 / 隅櫓 " + nYag + "基 / 附属屋 " + nYa + "棟 / 縁石 " + nFu + "本");
         return sb.ToString();

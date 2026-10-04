@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 89・関数 790(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 89・関数 791(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -24,7 +24,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoDoiBuilder.Shokusai.cs](#edodoibuildershokusaics) | 土井 S8 植栽(案A・EDO-0533)── 林方の設計(指図 planting)を生成器が撒いた点 `doi_impl.json` の planting.points を据える。 | 1 | 2 |
 | [EdoDoiBuilder.cs](#edodoibuildercs) | 土井大隅守上屋敷(三河刈谷藩2万3千石・譜代・雁間)ビルダー。 | 15 | 88 |
 | [EdoMatsudairaDewaBuilder.Niwa.cs](#edomatsudairadewabuilderniwacs) | 松平出羽守上屋敷 — 庭の工程(池・築山・水の系・石組・点景・滝見口)。 | 9 | 30 |
-| [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 16 | 119 |
+| [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 16 | 120 |
 | [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 19 | 131 |
 | [EdoSannoShaBuilder.cs](#edosannoshabuildercs) | 山王権現社(日枝神社)本体+樹下家邸+山王門前町ビルダー (2026-08-11。観理院は 2026-09-26 に類型へ移し削除) | 1 | 31 |
 | [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 13 | 102 |
@@ -347,7 +347,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `Edo/松平出羽守上屋敷/6d 点景と垣` | `Stage6dMenu` | `Stage6d_Tenkei`, `StrOf` |
 | `Edo/松平出羽守上屋敷/6e 滝見口を開ける` | `Stage6eMenu` | `Stage6e_TakiKido`, `StrOf` |
 | `Edo/松平出羽守上屋敷/6f 参道の玉砂利(稲荷)` | `Stage6fMenu` | `Stage6f_Tamajari`, `StrOf`, `HasKey` |
-| `Edo/松平出羽守上屋敷/7' 植栽(指図の散布点を据える)` | `Stage7bMenu` | `Stage7b_NiwaFromScatter` |
+| `Edo/松平出羽守上屋敷/7' 植栽(指図の散布点を据える)` | `Stage7bMenu` | `Stage7b_NiwaFromScatter`, `HasKey` |
 
 | 関数 | 返す | 公開 | 何をするか(注釈の一文目) |
 |---|---|---|---|
@@ -399,6 +399,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | 関数 | 返す | 公開 | 何をするか(注釈の一文目) |
 |---|---|---|---|
 | `Reload()` | `void` | 公 | — |
+| `PlaceAgari(bld)` | `string` |  | 口の外の上がり口(中の口 = munes.Omotegoten.order.中の口.at・広敷の口 = links[].sotoAgari)の沓脱と踏段。 |
 | `Pivot(o, kind)` | `Vector2` | 公 | 突き合わせ(EdoSashizuExport.CheckScene)が棟・廊下の据えた点を期待する式 ── ビルダーの据え方と同じ式(検査だけが式を持たない・規則19)。 |
 | `NormalizeShapes(d)` | `void` |  | 図から起こし直した指図(2026-10-04・EDO-0554)の新しい欄の形を、矩形で読む古い Stage が落ちないように読み替える。 |
 | `MunesExpanded()` | `List<object>` |  | 棟の一覧を、poly の棟は屋根の部分(roof.parts)ごとの矩形の棟へ割って返す(EDO-0554・L 字の表御殿)。 |

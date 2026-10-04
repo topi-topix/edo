@@ -76,6 +76,11 @@ public static partial class EdoBuild
             if (nm == "Boxwood") return EdoAssets.JG.Boxwood(idx);
             if (nm == "Fern")    return EdoAssets.JG.Fern(idx);
         }
+        else if (fam == "JC")
+        {
+            // 在庫の城パックの躑躅(`JC.Azalea01` / `Azalea03` / `Azalea04` ── 名の数字が型番・A 02 は無い)。松江松平の算出物が名指す(EDO-0554)
+            if (nm.StartsWith("Azalea")) { int k; if (int.TryParse(nm.Substring(6), out k)) return EdoAssets.JG.Azalea(k); }
+        }
         else if (fam == "Own")
         {
             if (nm == "Jouryoku") return EdoAssets.Own.Jouryoku(size, idx);

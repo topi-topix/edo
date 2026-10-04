@@ -409,7 +409,9 @@ public static partial class EdoMatsudairaDewaBuilder
             { var ash = O(t["atShore"]); gapIdx = Convert.ToInt32(ash["shore"]) - 1; gapSpan = F(ash["spanMax"]); } }
         foreach (var bo in A(gogan["bands"]))
         {
-            var b = O(bo); int i0 = Convert.ToInt32(b["from"]) - 1, i1 = Convert.ToInt32(b["to"]) - 1;   // ⚠ 指図の from/to は汀線の番号 #(1始まり)。生成器 gogan_bands() と同じく −1(2026-09-06 検図 第13次 中1)
+            var b = O(bo);
+            if (!HasKey(b, "tenbaishi")) { nGoganSkip++; continue; }   // 護岸石を置かない帯(玉石の州浜 ── kind)は石組を据えない(州浜の玉石は部材待ち)
+            int i0 = Convert.ToInt32(b["from"]) - 1, i1 = Convert.ToInt32(b["to"]) - 1;   // ⚠ 指図の from/to は汀線の番号 #(1始まり)。生成器 gogan_bands() と同じく −1(2026-09-06 検図 第13次 中1)
             var tb = A(b["tenbaishi"]); float sMin = F(tb[0]), sMax = F(tb[1]);       // 天端石の長さ帯
             var ta = A(b["topAbove"]); float aMin = F(ta[0]), aMax = F(ta[1]);        // 天端 = 水面 + この帯
             float gap = HasKey(gogan, "gapRatio") ? F(gogan["gapRatio"]) : 0.78f;
@@ -822,74 +824,58 @@ public static partial class EdoMatsudairaDewaBuilder
     public static string Stage7b_NiwaFromScatter()
     {
         { var g = EdoSashizuExport.ReviewGate("matsudaira_dewa"); if (g != null) return g; }
-        // 指図と同じ場所(SashizuRel と同じ解き方)
-        string path = System.IO.Path.Combine(System.IO.Directory.GetParent(Application.dataPath).FullName,
-                                             "docs/Sashizu/matsudaira_dewa_planting_out.json");
-        if (!System.IO.File.Exists(path))
-            return "⛔ " + path + " が無い — 生成器 build_matsudaira_dewa_sashizu.py が散布点を書き出していない(--export-planting)";
-        var doc = EdoMiniJson.Parse(System.IO.File.ReadAllText(path)) as Dictionary<string, object>;
-        if (doc == null || !doc.ContainsKey("points")) return "⛔ planting_out の形が違う(points が無い)";
-        var pts = doc["points"] as List<object>;
-        // ⭐ **2026-09-09: 指図 `plantRule.forbidden` を読む。**⛔ 禁じられた部材(自作の低ポリの木)を
-        //   散布点が名指ししていたら**据えずに鳴らす**。CLAUDE.md 規則10 が機械で効くようにする。
-        //   それまで `plantRule` はビルダーが一度も読まない設計値だった(`_pending.jissouShukudai` ①)。
+        // ⭐ 植栽は算出物 `matsudaira_dewa_impl.json` の planting.points(焼き手 Tools/Sashizu/impl_matsudaira_dewa.py が撒いた点)を据える
+        //   (2026-10-04 EDO-0554・土井 Stage8 / 岡部 7' に倣う)。⛔ 旧い planting_out.json(9/20)は読まない。⛔ 実装で撒き直さない。
+        //   置き方は EdoBuild.PlantAtPoint(幹の足を描かれた地表へ埋めて据える)・部材は EdoBuild.PlantPathByKey(規則21)。
+        string ipath = System.IO.Path.Combine(System.IO.Directory.GetParent(Application.dataPath).FullName, "docs/Sashizu/matsudaira_dewa_impl.json");
+        if (!System.IO.File.Exists(ipath)) return "⛔ 算出物が無い " + ipath + "(python3 Tools/Sashizu/bake_impl.py matsudaira_dewa --write)";
+        var impl = EdoMiniJson.Parse(System.IO.File.ReadAllText(ipath)) as Dictionary<string, object>;
+        var bk = impl != null && HasKey(impl, "baked") ? O(impl["baked"]) : null;
+        var car = bk != null && HasKey(bk, "carried") ? O(bk["carried"]) : null;
+        if (car != null && car.ContainsKey("planting")) return "⛔ 算出物 planting が据え置き(前の指図のまま)── 据えない";
+        var pl = impl != null && HasKey(impl, "planting") ? O(impl["planting"]) : null;
+        var pts = pl != null && HasKey(pl, "points") ? A(pl["points"]) : null;
+        if (pts == null) return "⛔ 算出物に planting.points が無い";
         var forbidden = new List<string>();
-        if (HasKey(D, "plantRule"))
-        {
-            var pr = O(D["plantRule"]);
-            if (HasKey(pr, "forbidden")) foreach (var o in A(pr["forbidden"])) forbidden.Add(o as string);
-        }
-        int nForbid = 0;
-        var f = Grid; var rnd = new System.Random(1856);
+        if (HasKey(D, "plantRule")) { var pr = O(D["plantRule"]); if (HasKey(pr, "forbidden")) foreach (var o in A(pr["forbidden"])) forbidden.Add(o as string); }
+        var f = Grid;
         var root = Group("Niwa/Planting"); Clear(root);
-        // 主視点(傾ける向きの相手)
-        var vps = new Dictionary<string, Vector2>();
-        foreach (var o in A(D["viewpoints"])) { var vp = O(o); vps[StrOf(vp, "name")] = f.W(F(vp["u"]), F(vp["v"])); }
-        int placed = 0, noPart = 0, nTerrain = 0; var byZone = new Dictionary<string, int>();
+        { var sh = Group("Shamen"); Clear(sh); }                 // 旧 Stage8 の法面の林(算出物の点が法面も持つ)
+        var drawn = EdoBuild.Drawn();
+        int made = 0, noPart = 0, noPos = 0, seatBad = 0, nForbid = 0, outP = 0; var bad = new List<string>(); var missing = new HashSet<string>();
+        var byLayer = new Dictionary<string, int>();
         foreach (var o in pts)
         {
-            var p = O(o); string zone = StrOf(p, "zone") ?? "?";
-            string rawApi = StrOf(p, "api");
-            string api = ResolveApi(rawApi);
-            if (api == null) { noPart++; continue; }
-            { bool ng = false;
-              foreach (var fb in forbidden) if (fb != null && (fb == rawApi || fb == api)) ng = true;
-              if (ng) { nForbid++; continue; } }
-            float u = F(p["u"]), v = F(p["v"]);
-            var sub = Group("Niwa/Planting/" + zone + "/" + (StrOf(p, "layer") ?? "層"));
-            float scale = HasKey(p, "scale") ? F(p["scale"]) : 1f;
-            string nm = zone + "_" + (StrOf(p, "role") ?? "") + "_" + placed;
-            // ground: "design"(庭=設計面 DesignY)/ "terrain"(法面=造成しないので live terrain を実測)。
-            // ⛔ 法面に DesignY を使うと段の高さで宙に浮く(旧 Stage8 の作法を引き継ぐ)。
-            bool onTerrain = (StrOf(p, "ground") ?? "design") == "terrain";
-            var go = onTerrain
-                ? PlantOnTerrain(api, f.W(u, v), sub, nm, scale, rnd, 0.82f, 1.18f, 0f, 0f)
-                : Plant(api, u, v, sub, nm, scale, rnd, 0f);
-            if (go == null) { noPart++; continue; }
-            if (onTerrain) nTerrain++;
-            // 傾き: 層の tilt [lo,hi]°、向きは tiltDir(random / V1.. = その主視点へ)。⛔ 撤回済みの「全数 −u へ」は無い
-            if (HasKey(p, "tilt"))
-            {
-                var tl = A(p["tilt"]); float lo = F(tl[0]), hi = F(tl[1]);
-                float deg = Mathf.Lerp(lo, hi, (float)rnd.NextDouble());
-                if (deg > 1e-3f)
-                {
-                    string dir = StrOf(p, "tiltDir") ?? "random";
-                    Vector2 here = f.W(u, v); float az;
-                    if (vps.ContainsKey(dir)) { var to = vps[dir] - here; az = Mathf.Atan2(to.x, to.y) * Mathf.Rad2Deg; }
-                    else az = (float)rnd.NextDouble() * 360f;
-                    // 幹を az の向きへ deg 倒す(倒す軸は az に直交する水平軸)
-                    var axis = Quaternion.Euler(0, az + 90f, 0) * Vector3.forward;
-                    go.transform.RotateAround(go.transform.position, axis, deg);
-                }
-            }
-            placed++; byZone[zone] = byZone.ContainsKey(zone) ? byZone[zone] + 1 : 1;
+            var q = O(o); if (q == null) continue;
+            string key = StrOf(q, "asset"), nm = StrOf(q, "name");
+            if (key == null) { noPart++; continue; }
+            bool ng = false; foreach (var fb in forbidden) if (fb != null && key.Contains(fb.Replace("EdoAssets.", ""))) ng = true;
+            if (ng) { nForbid++; continue; }
+            string path = EdoBuild.PlantPathByKey(key, nm ?? key);
+            if (path == null || AssetDatabase.LoadAssetAtPath<GameObject>(path) == null) { missing.Add(key); noPart++; continue; }
+            Vector2 c; var w = HasKey(q, "world") ? A(q["world"]) : null;
+            if (w != null && w.Count >= 2) c = new Vector2(F(w[0]), F(w[1]));
+            else if (HasKey(q, "u") && HasKey(q, "v")) c = f.W(F(q["u"]), F(q["v"]));
+            else { noPos++; continue; }
+            float tilt = HasKey(q, "tilt") ? F(q["tilt"]) : 0f; Vector2 dirW = Vector2.up;
+            if (Mathf.Abs(tilt) > 0.01f) { var d2 = HasKey(q, "tiltDir") ? A(q["tiltDir"]) : null; Vector2 dir = (d2 != null && d2.Count == 2) ? new Vector2(F(d2[0]), F(d2[1])) : Vector2.up; dirW = (f.W(dir.x, dir.y) - f.W(0f, 0f)).normalized; }
+            string lay = StrOf(q, "layer") ?? ""; string zone = StrOf(q, "zone") ?? "?";
+            var sub = Group("Niwa/Planting/" + zone);
+            bool seated; float bu, fl;
+            var go = EdoBuild.PlantAtPoint(path, c, HasKey(q, "h") ? F(q["h"]) : 0f, tilt, dirW, lay, sub, nm ?? (zone + "_" + made), drawn, out seated, out bu, out fl);
+            if (go == null) { missing.Add(key); noPart++; continue; }
+            if (!seated) { seatBad++; if (bad.Count < 6) bad.Add(go.name + " 埋 " + bu.ToString("F2") + " 浮 " + fl.ToString("F2")); }
+            if (!EdoGeom.PIP(Poly, c)) outP++;
+            made++; byLayer[lay] = (byLayer.ContainsKey(lay) ? byLayer[lay] : 0) + 1;
         }
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine(string.Format("植栽 {0} 本を据えた(散布点 {3} 点 / うち法面=live terrain {1})/ 部材が解けず {2}",
-                                    placed, nTerrain, noPart, pts.Count));
-        if (nForbid > 0) sb.AppendLine("★ 指図 plantRule.forbidden の部材を名指しした点 " + nForbid + " 点 — 据えず");
-        foreach (var kv in byZone) sb.AppendLine("  " + kv.Key + ": " + kv.Value);
+        sb.Append("植栽(算出物): " + made + " 本据えた(点 " + pts.Count + ")");
+        foreach (var kv in byLayer) sb.Append(" / " + kv.Key + " " + kv.Value);
+        sb.AppendLine();
+        if (noPart > 0) sb.AppendLine("  ✗ 部材が引けない " + noPart + ": " + string.Join("・", new List<string>(missing).ToArray()));
+        if (noPos > 0) sb.AppendLine("  ✗ 位置の無い点 " + noPos);
+        if (nForbid > 0) sb.AppendLine("  ★ plantRule.forbidden の部材を名指しした点 " + nForbid + " ── 据えず");
+        sb.AppendLine("  " + (seatBad > 0 ? "⚠" : "⭕") + " 幹の足の据え(埋没 ≤1.0・浮き ≤0.7 を外れた)" + seatBad + (bad.Count > 0 ? ": " + string.Join(" / ", bad.ToArray()) : "") + "・区画の外の幹 " + outP);
         return sb.ToString();
     }
 

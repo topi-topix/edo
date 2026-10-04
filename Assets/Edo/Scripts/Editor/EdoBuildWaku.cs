@@ -255,3 +255,63 @@ public static partial class EdoBuild
         go.transform.localScale = s; return o0;
     }
 }
+
+public static partial class EdoBuild
+{
+    /// <summary>**廊下の柱の足を地面まで伸ばす**(硬い: 浮き 0)。<paramref name="go"/> の子のうち名が <paramref name="prefix"/> で始まる柱を、
+    /// 頭(実メッシュの天端)を動かさずに局所 Y を伸ばし、足を描かれた地表 − <paramref name="root"/> へ届かせる(触れている箇所 = Contact で測る)。
+    /// 当たる先: 床下の足を持たない口の廊下(松江松平 御錠口・広敷の口・板縁 ── 浮き 0.62)。土井の EdoGotenKit.RokaFeetToGround と同じ型。
+    /// ⟶ 返す: 伸ばした柱の数(最大の伸びは out)。</summary>
+    public static int ColumnsToGround(GameObject go, string prefix, float root, out float maxStretch)
+    {
+        int n = 0; maxStretch = 0f;
+        foreach (Transform c in go.GetComponentsInChildren<Transform>(true))
+        {
+            if (c == go.transform || !c.name.StartsWith(prefix)) continue;
+            Vector3 at; int cnt; float gap = Contact(c.gameObject, out at, out cnt);
+            if (float.IsNaN(gap) || gap <= 0f) continue;
+            var rb = RB(c.gameObject); float top = rb.max.y, h = rb.size.y; if (h < 0.01f) continue;
+            float s = (h + gap + root) / h;
+            var ls = c.localScale; c.localScale = new Vector3(ls.x, ls.y * s, ls.z);
+            var rb2 = RB(c.gameObject); c.position += new Vector3(0f, top - rb2.max.y, 0f);
+            n++; maxStretch = Mathf.Max(maxStretch, gap + root);
+        }
+        return n;
+    }
+}
+
+public static partial class EdoBuild
+{
+    /// <summary>**上がり口の段**(床 → 地面)。蹴上 ≤ <paramref name="keriMax"/> で段数を割り(従属値 n = ceil(落差 / keriMax))、
+    /// 床から k 段下の踏面(k = 1…n−1)を外へ並べる。一番下の踏面は沓脱石 <paramref name="bottomPath"/>、ほかは踏段 <paramref name="stepPath"/>(k → 部材)。
+    /// 各駒は実メッシュで測って、背 = 前の駒の前面(一つ目は建物の面 <paramref name="facePt"/>)・天端 = 床 − k×蹴上・横の芯 = 面の芯 へ寄せる
+    /// (⛔ ピボットで決めない)。見え面(局所 +Z)を <paramref name="outward"/> へ向ける。返り値 = 据えた駒・note に段割り。
+    /// 当たる先: 御殿の口の外の上がり口(松江松平 中の口・広敷の口)。</summary>
+    public static List<GameObject> AgariSteps(Transform parent, Vector2 facePt, Vector2 outward, float floorY, float groundY, float keriMax,
+        string bottomPath, Func<int, string> stepPath, string prefix, out string note)
+    {
+        var made = new List<GameObject>(); note = "";
+        float rise = floorY - groundY;
+        if (rise <= 0.02f) { note = "落差なし"; return made; }
+        int n = Mathf.Max(1, Mathf.CeilToInt(rise / keriMax - 1e-4f)); float r = rise / n;
+        Vector2 lat = new Vector2(-outward.y, outward.x);
+        float yaw = Mathf.Atan2(outward.x, outward.y) * Mathf.Rad2Deg;
+        float back = Vector2.Dot(facePt, outward);
+        for (int k = 1; k <= n - 1; k++)
+        {
+            string p = k == n - 1 ? bottomPath : stepPath(k);
+            if (p == null) continue;
+            var go = Place(p, new Vector3(facePt.x, floorY, facePt.y), yaw, Vector3.one, parent, prefix + "_" + k);
+            if (go == null) continue;
+            var b = Body(go.transform, 3000); float mnO = float.MaxValue, mxO = float.MinValue, mnL = float.MaxValue, mxL = float.MinValue, top = float.MinValue;
+            foreach (var v in b) { var q = new Vector2(v.x, v.z); float o = Vector2.Dot(q, outward), l = Vector2.Dot(q, lat); mnO = Mathf.Min(mnO, o); mxO = Mathf.Max(mxO, o); mnL = Mathf.Min(mnL, l); mxL = Mathf.Max(mxL, l); top = Mathf.Max(top, v.y); }
+            float dO = back - mnO, dL = Vector2.Dot(facePt, lat) - (mnL + mxL) * 0.5f;
+            var mv = outward * dO + lat * dL;
+            go.transform.position += new Vector3(mv.x, (floorY - k * r) - top, mv.y);
+            back = mxO + dO;
+            made.Add(go);
+        }
+        note = "落差 " + rise.ToString("F2") + " を " + n + " 蹴上(" + r.ToString("F3") + ")・踏面 " + made.Count + "(沓脱 1)";
+        return made;
+    }
+}

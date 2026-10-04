@@ -27,4 +27,7 @@ metadata:
 10. **隅長屋の手は焼いた向きと逆の隅がある**: 内角 106 の P23 で +X の腕が辺の延長へ出て 5.04m 区画の外。EdoBuild.ChooseHandInside で鏡と比べる。KadoDeg は外角(74)で返す ── 隅長屋の名は内角。
 11. **普請検査の「区域侵犯・浮き」は一体の長屋の軒と基壇を読み違える**: 長屋の外面は足元2mで測ると −0.26(線の内)。塀の浮き 110 駒は石の天端を見ていなかった(実の浮きは斜面の run の 10 駒)。
 
+12. **Stage6 は Fuzoku を一掃する**: Stage4 で Fuzoku/ に据えた物(上がり口)は Stage6 で消える。群を選ぶ前に Clear する Stage を見る。
+13. **算出物の植栽のキーに JC.Azalea が来る**: PlantPathByKey が JC 家を知らず 134 点が落ちた(EdoAssets.JG.Azalea に結んだ)。
+
 関連: [[pitfall-writeback-mcp-timeout]](段ごとに 25〜40 秒・続けて投げた execute_code も詰まる)

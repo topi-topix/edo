@@ -174,7 +174,7 @@
 | `JG.BoxwoodSingle(i)` | 関数 | 柘植の一株(Single)。01..03・実寸 約1.0×0.8〜1.1×0.9m・120〜140ポリ。 | BuildRun(IkegakiRow), DoiBuilder.Niwa(ResolveNiwaApi) |
 | `JG.Fern(i)` | 関数 | 羊歯の下草。Spring/Fall × 01..02 | DoiBuilder.Niwa(Niwa_H_Shokusai・ResolveNiwaApi), MatsudairaDewa(ResolveApi・Stage7_Niwa), BuildShokusai(PlantPathByKey), TypologyBuilder.Niwa(MomijiPalFor) |
 | `JG.Rock(i)` | 関数 | 庭石。01..03 | MatsudairaDewa(ResolveApi・Stage7_Niwa), MatsudairaDewaBuilder.Niwa(Stage6c_Ishigumi・Stage6d_Tenkei) |
-| `JG.Azalea(i)` | 関数 | 躑躅・皐月。⚠ A 02 は存在しない — 01 / 03 / 04 の3種 | MatsudairaDewa(ResolveApi・Stage7_Niwa), BuildRun(OutsidePlot), DoiBuilder.Niwa(ResolveNiwaApi) |
+| `JG.Azalea(i)` | 関数 | 躑躅・皐月。⚠ A 02 は存在しない — 01 / 03 / 04 の3種 | MatsudairaDewa(ResolveApi・Stage7_Niwa), BuildRun(OutsidePlot), BuildShokusai(PlantPathByKey), DoiBuilder.Niwa(ResolveNiwaApi) |
 
 ## NM
 
@@ -217,7 +217,7 @@
 | `Own.SannoUmaya(nuKen, nvKen, ewMm, nsMm)` | 関数 | 山王社の御厩(供の棟)。nuKen(東西=X・桁行)×nvKen(南北=Z・梁間)[間]、 ewMm×nsMm = 柱芯[mm]。 | — |
 | `Own.SannoKura(nuKen, nvKen, ewMm, nsMm)` | 関数 | 山王社の御蔵 — 土蔵造・置屋根【`bom` 行33】。 | — |
 | `Own.SannoDan(keri, fumi, w, i)` | 関数 | 山王社の段石(石段の一段)。蹴上 keri / 踏面 fumi / 幅 w[m]、 個体 i の偶奇で a / b を振る(⛔ 片方だけを53段並べない — 目地が一直線に立つ)。 | DoiBuilder.Dan(MeasureNozura・PlaceKaidansA), SannoSha(Dan), TypologyBuilder.Katte(Katte) |
-| `Own.SannoDanNearest(width, i)` | 関数 | 幅が最も近い焼けた段石(SannoDan の綴りの物の中から・個体 i の偶奇で a / b)。 | SannoSha(Stage5b_Fumiishi) |
+| `Own.SannoDanNearest(width, i)` | 関数 | 幅が最も近い焼けた段石(SannoDan の綴りの物の中から・個体 i の偶奇で a / b)。 | MatsudairaDewa(PlaceAgari), SannoSha(Stage5b_Fumiishi) |
 | `Own.IshidanSode(keri, fumi, i)` | 関数 | 石段の袖(袖石垣)の1段ぶんの駒 — どの石段にも使える汎用の型(寸法は蹴上 keri・踏面 fumi[m] から従属)。 | BuildIshidan(FitObliqueEnd・PlaceIshidanSode), SannoSha(AbutStairsToWalls・Stage2_Kaidan) |
 | `Own.ISHIDAN_SODE_DEPTH_STD` | float | 袖の丈(天端の線から下端まで)の既定 2.20 = 最大見付 1.74 + 根入れ 0.46。 | BuildIshidan(MiterIshidanSode), SannoSha(Stage2_Kaidan) |
 | `Own.IshidanSodeDepths` | float[] | 焼いてある袖の丈(浅い順)。切通しで袖を背の地盤まで上げる(`copingRise:"groundHi"`)とき、 上げの上限 = 丈 − 笠の上がり 0.30 − 段石の根入れ(実メッシュで測る。 | SannoSha(Stage2_Kaidan・Stage5b_Fumiishi), BuildIshidan(PlaceIshidanSode) |
@@ -402,7 +402,7 @@
 | `Own.ItabeiHashiraHk` | string | `Itabei_Hashira_Hk0.60.fbx` — 板塀の柱1本・光付けの代つき(ItabeiJifuku と組・2026-09-27・EDO-0437 案A)。 | BuildRun(PostBoardRun), SannoSha(Stage4_Kakoi) |
 | `Own.Ishigumi(i)` | 関数 | 庭石1個(景石・石組護岸の石・岩島・中島の汀石・荒磯の立石を全部これで置く)。 | DoiBuilder.Niwa(Niwa_B_Gogan・ResolveNiwaApi), OkabeYashiki(PlaceNiwaItem), TypologyBuilder.Niwa(MomijiPalFor) |
 | `Own.Tobiishi(i)` | 関数 | 飛石・沢飛石1枚(天端が平ら)。⭕ 同じ photoscanned rock の頭を水平に 落として天端を作り、縁は自然石のまま残してある(⛔ 切石に見せない)。 | DoiBuilder.Niwa(Niwa_D_Tenkei・ResolveNiwaApi・ResolveTobi), OkabeYashiki(PlaceNiwaItem), TypologyBuilder.Niwa(MomijiPalFor) |
-| `Own.Kutsunugi` | string | 沓脱石(根府川石)。天端を平らに落とした自然石。 | DoiBuilder.Niwa(ResolveNiwaApi), OkabeYashiki(PlaceNiwaItem) |
+| `Own.Kutsunugi` | string | 沓脱石(根府川石)。天端を平らに落とした自然石。 | DoiBuilder.Niwa(ResolveNiwaApi), MatsudairaDewa(PlaceAgari), OkabeYashiki(PlaceNiwaItem) |
 | `Own.Tateishi(size, variant)` | 関数 | 立石(縦長の庭石)3種。松江松平上屋敷の庭(`tenkei[].stones[]` の 主石・副石・鏡石、`sensui.iwaya` の鏡石ほか)向け。 | DoiBuilder.Niwa(ResolveNiwaApi), MatsudairaDewa(ResolveApi) |
 | `Own.Hiraishi(kind)` | 関数 | 大型の平石2種(天井石・伏石)。松江松平上屋敷の庭向け。 | MatsudairaDewa(ResolveApi) |
 | `Own.Ishibashi()` | 関数 | 切石橋(切石の一枚物の橋)。松江松平上屋敷の庭向け。 | MatsudairaDewa(ResolveApi) |
@@ -423,7 +423,7 @@
 | `Own.DoiKura(hariKen, ketaKen)` | 関数 | 土蔵(土井邸 `service` の `Komegura` / `Kura1` / `Kura2`)。 | Doi(PlaceService), DoiBuilder.Mune(ServicePart) |
 | `Own.DoiIdo` | string | 井戸(土井邸 `wells` の5口とも同じ部材)。 | Doi(PlaceWells), DoiBuilder.Mune(PlaceWellsA) |
 | `Own.DoiChozu` | string | 手水石(水盤) — 稲荷の社前・参道の西(`yashiro.chozu`)。 | DoiBuilder.Niwa(Niwa_F_Yashiro), TypologyBuilder.Keidai(NiwaKeidai) |
-| `Own.DoiKutsunugi` | string | 沓脱石 — 奥棟の南入側の前の一枚石(`gardens.G_Okuniwa.kutsunugi.Kutsunugi_Oku`)。 | DoiBuilder.Niwa(ResolveNiwaApi) |
+| `Own.DoiKutsunugi` | string | 沓脱石 — 奥棟の南入側の前の一枚石(`gardens.G_Okuniwa.kutsunugi.Kutsunugi_Oku`)。 | DoiBuilder.Niwa(ResolveNiwaApi), MatsudairaDewa(PlaceAgari) |
 | `Own.DoiIshibashi` | string | 切石の一枚橋(`hashi[Hashi_Ishi]`・反りなし)。 | DoiBuilder.Niwa(ResolveTobi) |
 | `Own.DoiDobashi` | string | 土橋(`hashi[Hashi_Do]`)。 | — |
 | `Own.DoiMarutaDan` | string | 丸太の土留め段 1段(`gardens[G_Sensui].dan`)。 | DoiBuilder.Niwa(Niwa_E_Enro) |

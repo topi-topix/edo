@@ -195,9 +195,13 @@ public static partial class EdoBuild
         /// 下手ほど縁の上の膨らみまで地表に出る ── 0.5 は「下手の縁が、足の芯を通る地表の面から R·tanθ/2 下」= 底の傾きの半分を下手でも埋める量。
         /// ⛔ 2026-09-29 まで下手の縁は**ちょうど地表**で止まり(根入れが沈めを食った)、斜面林のエノキの根元が浮いて見えた。</summary>
         public const float TREE_SLOPE_K = 0.5f;
-        /// <summary>高木・中木の上手の最深の埋まり[m]【確度 U】。斜度の沈めを足した後の、幹の足の下端の最も深い所。
-        /// 丈 10m 超の幹なので 1.5m 埋めても見えは崩れない。越える坂(足の半径 0.5m で約 45°超)には置かない(硬い制約)。</summary>
-        public const float TREE_BURY_MAX = 1.5f;
+        /// <summary>**植栽の埋没の上限**[m](硬い・完成の表の線 ── 普請検査の「植栽の埋没 &gt; 1.0」と同じ数・<see cref="SeatPlant"/> の buryMax 既定と同じ)。
+        /// 測りは<see cref="LowestGap"/>(全ての当たりの最小の隙)。⛔ 建てる側の上限を検査より緩くしない(検査で捕まえず建てる時点で防ぐ)。</summary>
+        public const float PLANT_BURY_MAX = 1.0f;
+        /// <summary>高木・中木の上手の最深の埋まり[m](硬い)。斜度の沈めを足した後の、幹の足の下端と枝葉の最も深い所。越える坂には置かない。
+        /// ⛔ 2026-10-05 まで 1.5(「丈 10m 超の幹なので」U)で、検査の線 1.0 より緩く、土井の泉水の松 4 本が 1.15〜1.49m 埋まったまま建った(EDO-0533)。
+        /// 斜度の沈め(<see cref="TREE_SLOPE_K"/>)は**柔らかい狙い**なので、この上限で頭打ちにする(⛔ 狙いのために木を落とさない)。</summary>
+        public const float TREE_BURY_MAX = PLANT_BURY_MAX;
         /// <summary>低木・刈込・下草の根元の帯の最深の埋まり[m]【確度 U】(2026-10-04 EDO-0533 普請検査 第1回)。根元の帯の最も浮いた所を
         /// 地表まで沈め切った(浮き 0・硬い)後の、帯の最も深い所の上限。株の丈 0.5〜1.5m の半分を越えて埋めない目安。越える坂には置かない(DropNeire)。</summary>
         public const float SHRUB_BURY_MAX = 0.40f;
@@ -354,6 +358,10 @@ public static partial class EdoBuild
         /// 木の沈めは <c>Neire</c>/<c>MaxNeire</c>(上手の最深)にも数え、置けなかった木は <c>DropNeire</c>(上限は TREE_BURY_MAX)に入る。</summary>
         public int SlopeSink;
         public float MaxSlopeTan;
+        /// <summary><c>SlopeShort</c> = 斜度の沈め(柔らかい狙い)を埋まりの上限(TREE_BURY_MAX)で頭打ちにした木の数・<c>MaxSlopeShort</c> = 狙いに届かなかった量の最大[m]
+        /// (△ 狙い未達 ── 不合格に数えない・2026-10-05 EDO-0533)。</summary>
+        public int SlopeShort;
+        public float MaxSlopeShort;
         /// <summary><c>RootSunk</c> = 根元の帯の最も浮いた当たりを地表まで沈め切った木・低木・下草の数(最大 <c>MaxRootSunk</c>[m])
         /// ── 2026-10-04 EDO-0533 普請検査 第1回(下草・刈込は根入れを測らず、坂の下手の根元が 0.02〜0.16 浮いた)。</summary>
         public int RootSunk;
@@ -614,19 +622,22 @@ public static partial class EdoBuild
                 var nr = plant ? RootBandGap(go, bed) : RootToBed(go, bed, 0.05f);
                 if (!float.IsNaN(tan) && !float.IsNaN(nr.hi))
                 {
-                    float want = sink + footR * tan * o.SlopeSinkK;            // 下手の縁の埋まり
+                    float want = sink + footR * tan * o.SlopeSinkK;            // 下手の縁の埋まり(柔らかい狙い)
                     float more = nr.hi + want;                                   // nr.hi = 下手の縁 − 地表(≤0 で既に埋まっている)
-                    if (more > 0.005f)
+                    // ⭐⭐ 2026-10-05 EDO-0533(土井 Matsu_Soeyama_0 1.34m・Matsu_Shukei_0 1.49m 埋没): 沈めの狙いは**柔らかい**。上手の最深
+                    //    (根元の帯の最深と全ての当たりの最深の大きい方)が TREE_BURY_MAX に届く所で頭打ちにし、未達は ⚠ で数える(SlopeShort)。
+                    //    footR は根元の帯(下端から ROOT_TOUCH)の半径で、放射に根を張る松(JG.Pine*)では 2m 前後ある ── 狙いがそのまま
+                    //    上手の埋まりになり、旧は 1.5m まで埋めて建てていた。⛔ 狙いのために木を落とさない(落とすのは硬い上限だけ・下の plant の節)。
+                    float gAll = LowestGap(go, bed);
+                    float low = float.IsNaN(gAll) ? nr.lo : Mathf.Min(nr.lo, gAll);
+                    float room = NiwaSet.TREE_BURY_MAX + low;                    // 硬い上限までの余地(low = 最も低い当たりの隙・負 = 埋まり)
+                    float give = Mathf.Max(0f, Mathf.Min(more, room));
+                    if (more > give + 0.005f) { SlopeShort++; MaxSlopeShort = Mathf.Max(MaxSlopeShort, more - give); }
+                    if (give > 0.005f)
                     {
-                        float deepest = more - nr.lo;                            // 沈めた後の上手の最深の埋まり
-                        if (deepest > NiwaSet.TREE_BURY_MAX)
-                        {
-                            WorstNeire = Mathf.Max(WorstNeire, deepest);
-                            UnityEngine.Object.DestroyImmediate(go); DropNeire++; return null;
-                        }
-                        go.transform.position -= new Vector3(0f, more, 0f);
+                        go.transform.position -= new Vector3(0f, give, 0f);
                         SlopeSink++; MaxSlopeTan = Mathf.Max(MaxSlopeTan, tan);
-                        Neire++; MaxNeire = Mathf.Max(MaxNeire, deepest);
+                        Neire++; MaxNeire = Mathf.Max(MaxNeire, give - low);
                         rb = RB(go);
                     }
                 }
@@ -639,7 +650,8 @@ public static partial class EdoBuild
             if (plant)
             {
                 var fr = RootBandGap(go, bed);
-                if (!float.IsNaN(fr.hi) && fr.hi > 0f)
+                float sinkFr = (!float.IsNaN(fr.hi) && fr.hi > 0f) ? fr.hi : 0f;
+                if (sinkFr > 0f)
                 {
                     float deepest = fr.hi - fr.lo;                               // 沈め切った後の帯の最深の埋まり
                     float lim = o.Tall ? NiwaSet.TREE_BURY_MAX : NiwaSet.SHRUB_BURY_MAX;
@@ -648,8 +660,19 @@ public static partial class EdoBuild
                         WorstNeire = Mathf.Max(WorstNeire, deepest);
                         UnityEngine.Object.DestroyImmediate(go); DropNeire++; return null;
                     }
-                    go.transform.position -= new Vector3(0f, fr.hi, 0f);
-                    RootSunk++; MaxRootSunk = Mathf.Max(MaxRootSunk, fr.hi);
+                }
+                // ⭐ 硬い・全ての当たり(幹の芯・山側の枝葉を含む)の埋まり ≤ PLANT_BURY_MAX(検査と同じ測り・2026-10-05 EDO-0533)。
+                //    根元の帯の最深だけでは、帯の外の幹の芯・枝葉の埋まり(土井 Matsu_Shukei_0 帯 −1.443・全体 −1.492)を見落とした。
+                float gAll2 = LowestGap(go, bed);
+                if (!float.IsNaN(gAll2) && sinkFr - gAll2 > NiwaSet.PLANT_BURY_MAX + 1e-4f)
+                {
+                    WorstNeire = Mathf.Max(WorstNeire, sinkFr - gAll2);
+                    UnityEngine.Object.DestroyImmediate(go); DropNeire++; return null;
+                }
+                if (sinkFr > 0f)
+                {
+                    go.transform.position -= new Vector3(0f, sinkFr, 0f);
+                    RootSunk++; MaxRootSunk = Mathf.Max(MaxRootSunk, sinkFr);
                     rb = RB(go);
                 }
             }
@@ -1382,19 +1405,39 @@ public static partial class EdoBuild
     }
 
     /// <summary>**据えた木を傾ける**(指図 `lean: {deg, to}`)。足の芯を軸に頭を倒し(<see cref="NiwaTilt"/>)、倒して浮いた根張りの縁を
-    /// 当たり(<see cref="RootToBed"/>)で測って地面まで沈める(**硬い**: 浮き 0)。返り値 = 沈めた量[m]。
-    /// <paramref name="deepest"/> = 沈めた後の最も深い埋まり[m](&gt; NiwaSet.TREE_BURY_MAX なら呼び手が ⚠ で刷る)。</summary>
+    /// 根元の帯の当たり(<see cref="RootBandGap"/>)で測って地面まで沈める(**硬い**: 浮き 0)。返り値 = 沈めた量[m]。
+    /// <paramref name="deepest"/> = 沈めた後の最も深い埋まり[m](根元の帯と全ての当たり <see cref="LowestGap"/> の深い方 ── 検査と同じ測り)。</summary>
     /// <param name="bedAt">据わる床(null なら地形)。⭐ 根元は<see cref="RootBandGap"/>(根元の帯の当たり)で測る ── 傾けた木の足跡の外接の箱は
     /// 根の無い隅を測って沈め過ぎた(2026-10-04 土井 Matsu_Naka_0)。当たる先: 庭の傾けた木(土井の泉水の松・以後の lean の全て)。</param>
     public static float NiwaLeanTree(GameObject go, Vector2 towardXZ, float deg, out float deepest, Func<float, float, float> bedAt = null)
     {
-        deepest = 0f;
-        NiwaTilt(go, towardXZ, deg);
-        var rt = RootBandGap(go, bedAt ?? (Func<float, float, float>)Ground);
-        if (float.IsNaN(rt.hi) || rt.hi <= 0.005f) { deepest = float.IsNaN(rt.lo) ? 0f : -rt.lo; return 0f; }
-        go.transform.position -= new Vector3(0f, rt.hi, 0f);
-        deepest = rt.hi - rt.lo;
-        return rt.hi;
+        float used; return NiwaLeanTree(go, towardXZ, deg, out deepest, out used, bedAt);
+    }
+
+    /// <summary>傾けの角は**柔らかい狙い**、埋まりの上限 <see cref="NiwaSet.TREE_BURY_MAX"/> は**硬い**(docs/oki-kata.md §4a・2026-10-05 EDO-0533)。
+    /// 狙いの角で倒して沈めた後の最深が上限を越えるなら、角を 1° ずつ(角の 1/8 が大きければそれ)起こして試し、上限に収まる最も大きい角で据える。
+    /// 0° は Put が上限の内で据えた姿なので必ず収まる。<paramref name="degUsed"/> = 据えた角(&lt; <paramref name="deg"/> なら呼び手が ⚠ と実測で名乗る)。
+    /// ⛔ 2026-10-05 まで角を固定して上限を見ずに沈め、土井 Matsu_Naka_0(12°)1.26m・Matsu_Misaki_0(10°)1.15m・Matsu_Shukei_0(5°)1.49m が埋まったまま建った
+    /// ── 放射に根を張る松は倒すと根の先が 根の半径 × sin(角) だけ浮き、その分を沈めて上手と幹の芯が埋まった。</summary>
+    public static float NiwaLeanTree(GameObject go, Vector2 towardXZ, float deg, out float deepest, out float degUsed, Func<float, float, float> bedAt = null)
+    {
+        var bed = bedAt ?? (Func<float, float, float>)Ground;
+        var p0 = go.transform.position; var r0 = go.transform.rotation;
+        float step = Mathf.Max(1f, Mathf.Abs(deg) / 8f), d = deg;
+        while (true)
+        {
+            go.transform.SetPositionAndRotation(p0, r0);
+            NiwaTilt(go, towardXZ, d);
+            var rt = RootBandGap(go, bed);
+            float sunk = (!float.IsNaN(rt.hi) && rt.hi > 0.005f) ? rt.hi : 0f;
+            if (sunk > 0f) go.transform.position -= new Vector3(0f, sunk, 0f);
+            float g = LowestGap(go, bed);
+            float lo = float.IsNaN(rt.lo) ? float.NaN : rt.lo - sunk;
+            float low = float.IsNaN(g) ? lo : (float.IsNaN(lo) ? g : Mathf.Min(lo, g));
+            deepest = float.IsNaN(low) ? 0f : Mathf.Max(0f, -low);
+            if (deepest <= NiwaSet.TREE_BURY_MAX + 1e-4f || Mathf.Abs(d) < 1e-4f) { degUsed = d; return sunk; }
+            d = Mathf.Abs(d) <= step ? 0f : d - Mathf.Sign(d) * step;
+        }
     }
 
     /// <summary>指図の石一つの据えの記録(邸ビルダーが刷る)。</summary>

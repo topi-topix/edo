@@ -106,6 +106,21 @@ public static partial class EdoBuild
         return res;
     }
 
+    /// <summary>**最も低い当たりの隙**[m](負 = 埋まり)── 当たり = 格子ごとの最下点(<see cref="GroundCandidates"/>・幹・根張り・枝葉の全部)の 下端 − <paramref name="bedAt"/> の最小。
+    /// ⭐ 完成の表の「植栽の埋没」と同じ測り(普請検査は全ての当たりの最小の隙で数える ── 根元の帯だけでは帯の外の幹の芯・山側の枝葉の埋まりを見落とす)。
+    /// 床が NaN の当たりは数えない。当たりが無ければ NaN。当たる先: <see cref="NiwaField"/>.Put・<see cref="NiwaLeanTree"/> の埋まりの上限(NiwaSet.PLANT_BURY_MAX)。</summary>
+    public static float LowestGap(GameObject go, System.Func<float, float, float> bedAt, int maxSamples = 4000)
+    {
+        var pts = GroundCandidates(go.transform, maxSamples);
+        float cmin = float.NaN;
+        foreach (var p in pts)
+        {
+            float b = bedAt(p.x, p.z); if (float.IsNaN(b)) continue;
+            float d = p.y - b; if (float.IsNaN(cmin) || d < cmin) cmin = d;
+        }
+        return cmin;
+    }
+
     // ── 幹の足(2026-09-25・EDO-0409)──────────────────────────────────────────────
     // ⭐ **何が足りなかったか**: 社叢の木は点へ**ピボット**を置いていた(⛔ 規則21)。部材によって幹の足は
     //    ピボットから最大 0.315m 離れていて、道辺 2m・芯々 1m の検めが実物の幹で外れた。

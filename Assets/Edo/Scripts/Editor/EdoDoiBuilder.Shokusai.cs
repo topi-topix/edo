@@ -60,12 +60,13 @@ public static partial class EdoDoiBuilder
             }
             string lay = Has(q, "layer") ? S(q["layer"]) : "";
             string grpName = Has(q, "group") ? S(q["group"]) : "?";
-            bool seated; float bu, fl;
+            bool seated, refused; float bu, fl;
+            string goName = nm ?? (grpName + "_" + made);
             var go = EdoBuild.PlantAtPoint(path, c, F(Has(q, "h") ? q["h"] : null), tilt, dirW, lay, grp,
-                                           nm ?? (grpName + "_" + made), drawn, out seated, out bu, out fl);
+                                           goName, drawn, out seated, out bu, out fl, out refused);
+            if (refused)
+            { seatBad++; if (seatBadLog.Count < 8) seatBadLog.Add(goName + " 埋没 " + bu.ToString("F2") + " 浮き " + fl.ToString("F2")); continue; }
             if (go == null) { missing.Add(key + " → " + path); noPart++; continue; }
-            if (!seated)
-            { seatBad++; if (seatBadLog.Count < 8) seatBadLog.Add(go.name + " 埋没 " + bu.ToString("F2") + " 浮き " + fl.ToString("F2")); }
             made++;
             byGroup[grpName] = (byGroup.ContainsKey(grpName) ? byGroup[grpName] : 0) + 1;
             byLayer[lay] = (byLayer.ContainsKey(lay) ? byLayer[lay] : 0) + 1;
@@ -78,8 +79,8 @@ public static partial class EdoDoiBuilder
         if (noAsset > 0) sb.AppendLine("  ✗ asset の無い点 " + noAsset + "(在庫方の判断 ── 実装で見繕わない)");
         if (noPos > 0) sb.AppendLine("  ✗ 位置(world・u/v)の無い点 " + noPos);
         if (vineSkip > 0) sb.AppendLine("  ⚠ つる " + vineSkip + " ── 据えない(土井 Stage8 は宿主の幹径を測る二巡目を持たない)");
-        sb.AppendLine("  " + (seatBad > 0 ? "⚠" : "⭕") + " 据え(幹の足の当たり): 埋没 ≤1.0・浮き ≤0.7 を外れた " + seatBad
-                      + " 本(硬い ── 許容0 の浮き・埋没は検査で数える)" + (seatBadLog.Count > 0 ? "\n    " + string.Join(" / ", seatBadLog.ToArray()) : ""));
+        sb.AppendLine("  " + (seatBad > 0 ? "⛔" : "⭕") + " 据え(幹の足の当たり): 埋没 ≤1.0・根元の浮き 0 を外れて建てなかった " + seatBad
+                      + " 本(硬い ── 許容0 を破る点には建てない・docs/oki-kata.md §4a)" + (seatBadLog.Count > 0 ? "\n    " + string.Join(" / ", seatBadLog.ToArray()) : ""));
         // 焼き手の名乗り(読めなかった欄・柔らかい制約の未達)をそのまま刷る ── ⛔ 黙って捨てない(規則19)
         var notes = pl != null && Has(pl, "notes") ? A(pl["notes"]) : null;
         if (notes != null && notes.Count > 0)

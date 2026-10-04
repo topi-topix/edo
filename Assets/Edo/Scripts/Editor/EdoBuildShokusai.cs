@@ -131,14 +131,17 @@ public static partial class EdoBuild
     /// <summary>**算出物の撒いた点に一本据える。**仮置き → 丈を `wantH` へ(一様の倍率・`wantH` ≤ 0.1 なら素の丈)→
     /// 傾け(`tiltDeg`・世界 xz の向き `tiltDirWorld`)→ 幹の足を点へ寄せ、足の当たりで描かれた地表へ据える(<see cref="SeatPlantAt"/>)。
     /// ⛔ 外接の底・ピボットで据えない。⛔ 丈を丸めない・上限を当て直さない(生成器が噛ませた後の値)。
-    /// 戻りは置いた物(部材が引けなければ null)。<paramref name="seated"/> は据えが許容(埋没 ≤ <paramref name="buryMax"/>・
-    /// 浮き ≤ <paramref name="floatMax"/>)に入ったか ── 許容0 の浮き・埋没は検査で数える。</summary>
+    /// 戻りは置いた物。<paramref name="seated"/> は据えが許容(埋没 ≤ <paramref name="buryMax"/>・根元の浮き 0)に入ったか。
+    /// ⭐⭐ **硬い条件(許容0)を破る木は建てない**(docs/oki-kata.md §4a ── 2026-10-05 EDO-0533)。据わらなければ消して null を返し
+    /// <paramref name="refused"/> = true(部材が引けない null と分ける)。⛔ 2026-10-05 まで据わらない木も置いたまま「検査で数える」とし、
+    /// 土井 西の谷の斜面_落葉0017(埋没 1.07)・南の崖_低木0019(1.30)が建っていた ── 斜面で根張りの帯の幅 × 勾配が上限を越える点。
+    /// 当たる先: 算出物の植栽を据える全邸(土井 Stage8・岡部 PlantFromImpl・松江松平 Niwa の算出物)。</summary>
     public static GameObject PlantAtPoint(string path, Vector2 trunkXZ, float wantH, float tiltDeg, Vector2 tiltDirWorld,
                                           string layer, Transform parent, string name, DrawnGround drawn,
-                                          out bool seated, out float bury, out float flt,
+                                          out bool seated, out float bury, out float flt, out bool refused,
                                           float buryMax = 1.0f, float floatMax = 0.7f)
     {
-        seated = false; bury = flt = float.NaN;
+        seated = false; refused = false; bury = flt = float.NaN;
         float y = Ground(trunkXZ.x, trunkXZ.y);              // 仮置き ── 据えは下の SeatPlantAt(幹の足の当たり)
         var go = Place(path, new Vector3(trunkXZ.x, y, trunkXZ.y), 0f, Vector3.one, parent, name);
         if (go == null) return null;
@@ -150,7 +153,18 @@ public static partial class EdoBuild
             go.transform.rotation = Quaternion.AngleAxis(tiltDeg, new Vector3(w2.y, 0f, -w2.x));
         }
         seated = SeatPlantAt(go, trunkXZ, PlantSink(layer ?? ""), out bury, out flt, buryMax, floatMax, drawn);
+        if (!seated) { Object.DestroyImmediate(go); refused = true; return null; }
         return go;
+    }
+
+    /// <summary>旧の形(<paramref name="seated"/> だけ返す)。据わらない木は建てない(null)── 部材が引けない null と分けるなら refused を返す形を使う。</summary>
+    public static GameObject PlantAtPoint(string path, Vector2 trunkXZ, float wantH, float tiltDeg, Vector2 tiltDirWorld,
+                                          string layer, Transform parent, string name, DrawnGround drawn,
+                                          out bool seated, out float bury, out float flt,
+                                          float buryMax = 1.0f, float floatMax = 0.7f)
+    {
+        bool refused;
+        return PlantAtPoint(path, trunkXZ, wantH, tiltDeg, tiltDirWorld, layer, parent, name, drawn, out seated, out bury, out flt, out refused, buryMax, floatMax);
     }
 
     /// <summary>据えた木の**幹径**[m]。根元の少し上(`y0`〜`y1` m)の帯で、幹の芯からの半径の非ゼロの 25 分位を 2 倍する。

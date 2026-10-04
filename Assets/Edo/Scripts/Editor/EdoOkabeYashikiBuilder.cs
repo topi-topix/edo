@@ -4318,13 +4318,13 @@ public static class EdoOkabeYashikiBuilder
                 w2 = (f.W(dir.x, dir.y) - f.W(0f, 0f)).normalized;
             }
             string lay = S(Get(q, "layer")) ?? "";
-            bool seated; float bu, fl;
-            var go = EdoBuild.PlantAtPoint(path, c, F(Get(q, "h")), tilt, w2, lay, grp,
-                                           Has(q, "name") ? S(q["name"]) : (S(q["zone"]) + "_" + made), drawnG,
-                                           out seated, out bu, out fl, 1.0f, 0.7f);
+            bool seated, refused; float bu, fl;
+            string goName = Has(q, "name") ? S(q["name"]) : (S(q["zone"]) + "_" + made);
+            var go = EdoBuild.PlantAtPoint(path, c, F(Get(q, "h")), tilt, w2, lay, grp, goName, drawnG,
+                                           out seated, out bu, out fl, out refused, 1.0f, 0.7f);
+            if (refused)
+            { seatBad++; if (seatBadLog.Count < 8) seatBadLog.Add(goName + " 埋没 " + bu.ToString("F2") + " 浮き " + fl.ToString("F2") + "(建てない)"); continue; }
             if (go == null) { missing.Add(key + " → " + path); noPart++; continue; }
-            if (!seated)
-            { seatBad++; if (seatBadLog.Count < 8) seatBadLog.Add(go.name + " 埋没 " + bu.ToString("F2") + " 浮き " + fl.ToString("F2")); }
             if (Has(q, "name")) placed[S(q["name"])] = go;
             made++;
             string z = S(Get(q, "zone")) ?? "?";
@@ -4390,7 +4390,7 @@ public static class EdoOkabeYashikiBuilder
         if (noPart > 0) sb.Append(" ｜ 部材が引けず据えられない " + noPart);
         if (vineSkip > 0) sb.Append(" ｜ つる 据えず " + vineSkip);
         if (vineLog.Count > 0) sb.Append("\n  つるの幹径(実測): " + string.Join(" / ", vineLog.ToArray()));
-        sb.Append(" ｜ 据え(幹の足の当たり): 埋没 ≤1.0・浮き ≤0.7 を外れた " + seatBad + " 本(硬い ── 許容0 の浮き・埋没は検査で数える)"
+        sb.Append(" ｜ 据え(幹の足の当たり): 埋没 ≤1.0・浮き ≤0.7 を外れて建てなかった " + seatBad + " 本(硬い ── 許容0 を破る点には建てない)"
                 + (seatBadLog.Count > 0 ? "\n  ⚠ " + string.Join(" / ", seatBadLog.ToArray()) : ""));
         return sb.ToString();
     }

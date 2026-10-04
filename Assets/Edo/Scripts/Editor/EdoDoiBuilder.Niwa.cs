@@ -1686,6 +1686,7 @@ public static partial class EdoDoiBuilder
         var gs = Garden("G_Sensui"); var go2 = Garden("G_Okuniwa");
         int trees = 0, shrubs = 0, kari = 0, shida = 0, mizu = 0, leanDeep = 0;
         var softMoved = new List<string>();   // 柔らかい狙い(atSoft)から寄せた木(⚠ で刷る)
+        var softLean = new List<string>();    // 柔らかい狙い(lean の角)を埋まりの上限で起こした木(⚠ で刷る)
 
         // ── 高木・中木・刈込玉(泉水 shokusai[] の at[])
         if (gs != null && Has(gs, "shokusai"))
@@ -1719,9 +1720,12 @@ public static partial class EdoDoiBuilder
                     if (tsuge) shrubs++; else trees++;
                     if (Has(sk, "lean"))
                     {
-                        var ln = O(sk["lean"]); float deep;
-                        EdoBuild.NiwaLeanTree(go, WDir(uv, UV(ln["to"])), F(ln["deg"]), out deep, fld.BedAt);
-                        if (deep > EdoBuild.NiwaSet.TREE_BURY_MAX) leanDeep++;
+                        // 角は柔らかい狙い・埋まりの上限は硬い(EdoBuild.NiwaLeanTree が角を起こして上限に収める)
+                        var ln = O(sk["lean"]); float deep, degUsed, degWant = F(ln["deg"]);
+                        EdoBuild.NiwaLeanTree(go, WDir(uv, UV(ln["to"])), degWant, out deep, out degUsed, fld.BedAt);
+                        if (deep > EdoBuild.NiwaSet.TREE_BURY_MAX + 1e-4f) leanDeep++;
+                        if (Mathf.Abs(degUsed - degWant) > 0.05f)
+                            softLean.Add("植栽『" + nm + "』#" + i + " 傾け " + degWant.ToString("F0") + "° → " + degUsed.ToString("F1") + "°(最深の埋まり " + deep.ToString("F2") + "m ≤ " + EdoBuild.NiwaSet.TREE_BURY_MAX.ToString("F1") + ")");
                     }
                 }
             }
@@ -1964,6 +1968,8 @@ public static partial class EdoDoiBuilder
              + " / 据えなかった: 区画の線 " + fld.DropEdge + "・急斜面 " + fld.DropSteep + "・根入れ超 " + fld.DropNeire + "・測れない " + fld.Refused
              + (fld.RootSunk > 0 ? " / 根元の帯の浮きを沈め切った " + fld.RootSunk + "(最大 " + fld.MaxRootSunk.ToString("F3") + "m・硬い 浮き 0)" : "")
              + (softMoved.Count > 0 ? "\n    ⚠ 狙い(atSoft)から寄せた: " + string.Join("・", softMoved.ToArray()) : "")
+             + (softLean.Count > 0 ? "\n    ⚠ 傾けの角(柔)を埋まりの上限(硬)で起こした: " + string.Join("・", softLean.ToArray()) : "")
+             + (fld.SlopeShort > 0 ? "\n    △ 斜度の沈め(柔)を埋まりの上限で頭打ちにした木 " + fld.SlopeShort + "(狙いとの差 最大 " + fld.MaxSlopeShort.ToString("F2") + "m)" : "")
              + skRep.ToString() + ikeRep;
     }
 

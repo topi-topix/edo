@@ -1065,8 +1065,9 @@ public static partial class EdoBuild
         _stepCache[path] = r; return r;
     }
 
-    /// <summary>段落ち・落としの並べ(返り値)。rises = 段ごとの実測の 1段・tailY = 尻の底(段の後の高さ)。</summary>
-    public class StepRun { public bool ok = true; public string hard = "", soft = ""; public int steps; public float headY, tailY, pitch, length; public List<float> rises = new List<float>(); public List<GameObject> pieces = new List<GameObject>(); }
+    /// <summary>段落ち・落としの並べ(返り値)。rises = 段ごとの実測の 1段・tailY = 尻の底(段の後の高さ)。
+    /// overlap = 踏面が駒より短いときの段の駒どうしの重ねの最大[m](柔・0 = 重ねない)/ headOut = 頭の駒が線の頭より上流へ出る量[m]。</summary>
+    public class StepRun { public bool ok = true; public string hard = "", soft = ""; public int steps; public float headY, tailY, pitch, length, overlap, headOut; public List<float> rises = new List<float>(); public List<GameObject> pieces = new List<GameObject>(); }
 
     static GameObject SeatAt(Transform parent, string path, string name, Vector2 at, float yaw, Vector3 localRef, float y)
     {
@@ -1080,8 +1081,11 @@ public static partial class EdoBuild
     /// <summary>**型 H 石組の段落ち**を p0(頭)→ p1(尻)の直線に並べる。段数 = <paramref name="steps"/>(0 なら ceil(落差 / riseMax))・1段 = 残りの落差 ÷ 残りの段数 を
     /// 0.05 刻みに切り下げた駒(尻は狙いより下がらない)・踏面 = 平面の長さ ÷ 段数。駒ごとに**駒の実メッシュで測った段鼻の天端と段鼻の線**を段の高さと位置へ当て
     /// (⛔ ピボットで決めない)、踏面の残りは平らな駒(rise 0 ── 実測の溝の底)で埋める(端の駒は引き戻して重ねる)。
-    /// 硬: 1段 ≤ riseMax・踏面 ≥ 駒の長さ・尻の底 ≥ tailMin(NaN なら問わない)── 一つでも破れば何も据えない。
-    /// 当たる先: 土井 D9 seg2(小段 → 供待の平場)・D10 seg4(谷頭 → 練塀の水抜き)・D11 seg1(崖の段落ち)。</summary>
+    /// 硬: 1段 ≤ riseMax・段鼻の線が守れる(踏面が駒より短いときの重ね ≤ 前の段の駒の水叩きの長さ)・尻の底 ≥ tailMin(NaN なら問わない)── 一つでも破れば何も据えない。
+    /// 柔: **踏面 &lt; 駒の長さ**なら次の段の駒を前の段の駒の水叩きへ重ねて据える(部材どうしのめり込みは数えない ── 埋めて隠す・docs/oki-kata.md §4)。
+    ///     段鼻は (k+1) × 踏面 の位置・高さのまま。重ね[m]と、頭の駒が線の頭より上流へ出る量を ⚠ と実測で名乗る(<see cref="StepRun.overlap"/>)。
+    /// ⛔ 2026-10-05 まで「踏面 ≥ 駒の長さ」を硬い条件にして D9 seg2(踏面 0.43・駒 0.50)を建てなかった ── 重なりは許容0の欠陥ではない(EDO-0533)。
+    /// 当たる先: 土井 D9 seg2(小段 → 供待の平場)・D10 seg4(谷頭 → 練塀の水抜き)・D11 seg1(崖の段落ち)── LayDanOchi を呼ぶ所すべて(今は土井だけ)。</summary>
     public static StepRun LayDanOchi(Transform parent, string prefix, Vector2 p0, Vector2 p1, float headY, float tailWant, int steps, float riseMax, float tailMin, Func<float, string> pathOfRise)
     {
         var R = new StepRun { headY = headY };
@@ -1098,8 +1102,22 @@ public static partial class EdoBuild
             if (!sp.ok) { R.ok = false; R.hard += "駒が測れない " + (path ?? "(名が無い)") + "・"; return R; }
             paths.Add(path); sps.Add(sp); R.rises.Add(sp.Rise); rem -= sp.Rise;
             if (sp.Rise > riseMax + 1e-4f) { R.ok = false; R.hard += "1段 " + sp.Rise.ToString("F3") + " > 上限 " + riseMax.ToString("F2") + "・"; }
-            if (R.pitch < sp.Len - 1e-3f) { R.ok = false; R.hard += "踏面 " + R.pitch.ToString("F2") + " < 駒の長さ " + sp.Len.ToString("F2") + "・"; }
+            // 踏面が駒より短い ── 柔: 次の段の駒を前の段の駒の水叩き(段鼻より下流)へ重ねる。硬: 重ねが前の段の水叩きを越えて段鼻の線に掛かる
+            float ov = sp.Len - R.pitch;
+            if (ov > 1e-3f)
+            {
+                R.overlap = Mathf.Max(R.overlap, ov);
+                if (k > 0)
+                {
+                    var pv = sps[k - 1]; float apron = pv.zMax - pv.noseZ;
+                    if (ov > apron + 1e-3f) { R.ok = false; R.hard += "段鼻の線が守れない(段 " + k + " の重ね " + ov.ToString("F3") + " > 前の段の駒の水叩き " + apron.ToString("F3") + ")・"; }
+                }
+                else R.headOut = ov;
+            }
         }
+        if (R.overlap > 1e-3f)
+            R.soft += "踏面 " + R.pitch.ToString("F3") + " < 駒の長さ ── 次の段の駒を前の段の水叩きへ最大 " + R.overlap.ToString("F3") + "m 重ねた(めり込み)"
+                    + (R.headOut > 1e-3f ? "・頭の駒は線の頭より " + R.headOut.ToString("F3") + "m 上流へ出る(入る区間の底へ重ねる)" : "") + "・";
         R.tailY = headY - (drop - rem);
         if (!float.IsNaN(tailMin) && R.tailY < tailMin - 1e-4f) { R.ok = false; R.hard += "尻の底 " + R.tailY.ToString("F3") + " < 下限 " + tailMin.ToString("F3") + "・"; }
         if (Mathf.Abs(rem) > 0.005f) R.soft += "尻の底が狙いと " + rem.ToString("+0.000;-0.000") + "m 違う(駒の 1段 は 0.05 刻み)・";

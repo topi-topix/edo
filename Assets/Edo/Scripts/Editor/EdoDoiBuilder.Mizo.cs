@@ -1026,7 +1026,7 @@ public static partial class EdoDoiBuilder
         var ms = masuOf(g); if (ms != null) { ms.inEnds.Add(p1); ms.inBottoms.Add(R.tailY); }
         var rs = new List<string>(); foreach (var x in R.rises) rs.Add(x.ToString("F2"));
         line(R.soft.Length > 0 ? 1 : 0, g.id + "(型 H 段落ち): " + R.pieces.Count + " 駒 ── 平面 " + R.length.ToString("F2") + "m・段 " + R.steps + "(1段 " + string.Join("・", rs.ToArray()) + "・踏面 " + R.pitch.ToString("F2")
-             + ")・底 " + head.ToString("F3") + "(" + up + " の尻)→ " + R.tailY.ToString("F3") + "(尻の狙い " + tailHow + ")【硬 ⭕ 1段 ≤ " + riseMax.ToString("F2") + "・踏面 ≥ 駒の長さ" + (float.IsNaN(tailMin) ? "" : "・尻 ≥ 下限") + "】"
+             + ")・底 " + head.ToString("F3") + "(" + up + " の尻)→ " + R.tailY.ToString("F3") + "(尻の狙い " + tailHow + ")【硬 ⭕ 1段 ≤ " + riseMax.ToString("F2") + "・段鼻の線" + (float.IsNaN(tailMin) ? "" : "・尻 ≥ 下限") + "】"
              + (R.soft.Length > 0 ? "【柔 ⚠ " + R.soft + "】" : ""));
     }
 

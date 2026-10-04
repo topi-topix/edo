@@ -861,10 +861,10 @@ public static partial class EdoMatsudairaDewaBuilder
             if (Mathf.Abs(tilt) > 0.01f) { var d2 = HasKey(q, "tiltDir") ? A(q["tiltDir"]) : null; Vector2 dir = (d2 != null && d2.Count == 2) ? new Vector2(F(d2[0]), F(d2[1])) : Vector2.up; dirW = (f.W(dir.x, dir.y) - f.W(0f, 0f)).normalized; }
             string lay = StrOf(q, "layer") ?? ""; string zone = StrOf(q, "zone") ?? "?";
             var sub = Group("Niwa/Planting/" + zone);
-            bool seated; float bu, fl;
-            var go = EdoBuild.PlantAtPoint(path, c, HasKey(q, "h") ? F(q["h"]) : 0f, tilt, dirW, lay, sub, nm ?? (zone + "_" + made), drawn, out seated, out bu, out fl);
+            bool seated, refused; float bu, fl; string goName = nm ?? (zone + "_" + made);
+            var go = EdoBuild.PlantAtPoint(path, c, HasKey(q, "h") ? F(q["h"]) : 0f, tilt, dirW, lay, sub, goName, drawn, out seated, out bu, out fl, out refused);
+            if (refused) { seatBad++; if (bad.Count < 6) bad.Add(goName + " 埋 " + bu.ToString("F2") + " 浮 " + fl.ToString("F2") + "(建てない)"); continue; }
             if (go == null) { missing.Add(key); noPart++; continue; }
-            if (!seated) { seatBad++; if (bad.Count < 6) bad.Add(go.name + " 埋 " + bu.ToString("F2") + " 浮 " + fl.ToString("F2")); }
             if (!EdoGeom.PIP(Poly, c)) outP++;
             made++; byLayer[lay] = (byLayer.ContainsKey(lay) ? byLayer[lay] : 0) + 1;
         }
@@ -875,7 +875,7 @@ public static partial class EdoMatsudairaDewaBuilder
         if (noPart > 0) sb.AppendLine("  ✗ 部材が引けない " + noPart + ": " + string.Join("・", new List<string>(missing).ToArray()));
         if (noPos > 0) sb.AppendLine("  ✗ 位置の無い点 " + noPos);
         if (nForbid > 0) sb.AppendLine("  ★ plantRule.forbidden の部材を名指しした点 " + nForbid + " ── 据えず");
-        sb.AppendLine("  " + (seatBad > 0 ? "⚠" : "⭕") + " 幹の足の据え(埋没 ≤1.0・浮き ≤0.7 を外れた)" + seatBad + (bad.Count > 0 ? ": " + string.Join(" / ", bad.ToArray()) : "") + "・区画の外の幹 " + outP);
+        sb.AppendLine("  " + (seatBad > 0 ? "⚠" : "⭕") + " 幹の足の据え(埋没 ≤1.0・根元の浮き 0 を外れて建てなかった)" + seatBad + (bad.Count > 0 ? ": " + string.Join(" / ", bad.ToArray()) : "") + "・区画の外の幹 " + outP);
         return sb.ToString();
     }
 

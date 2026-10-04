@@ -694,7 +694,19 @@ public static class EdoOkabeYashikiBuilder
         int x0, z0, w, h; Window(out x0, out z0, out w, out h);
         var H = td.GetHeights(x0, z0, w, h);
         var P = Poly;
-        int bad = 0, all = 0, hole = 0; float mx = 0f; Vector2 worst = Vector2.zero;
+        int bad = 0, all = 0, hole = 0, edge = 0; float mx = 0f, edgeMx = 0f; Vector2 worst = Vector2.zero;
+        float cell = ts.x / (hres - 1);
+        // ⭐ 縁の皮の升(Stage3b が地形に開けた穴)を囲む節点は描かれない ── 見えている面は皮が持ち、隙・浮きの表で測る。
+        //   節点の4つの升が全部穴なら数えない(1つでも地形の升が残れば地形が見えるので数える)。件数は別に刷る
+        // ⚠ GetHoles を窓で切って読むと返る配列が窓より小さい(2026-10-04 実測: 範囲外で穴と読み、区画の半分を「皮」と数えた)── 全面を読む
+        int hr = td.holesResolution;
+        var HO = td.GetHoles(0, 0, hr, hr);   // [z, x]・true = 地形の升・false = 穴
+        System.Func<int, int, bool> solid = delegate(int cx, int cz)
+        {
+            if (cx < 0 || cz < 0 || cz >= HO.GetLength(0) || cx >= HO.GetLength(1)) return true;
+            return HO[cz, cx];
+        };
+        int skin = 0;
         for (int z = 0; z < h; z++)
             for (int x = 0; x < w; x++)
             {
@@ -702,14 +714,31 @@ public static class EdoOkabeYashikiBuilder
                 if (!EdoGeom.PIP(P, p)) continue;
                 float y = Graded.At(p.x, p.y);
                 if (float.IsNaN(y)) { hole++; continue; }
+                int gx = x0 + x, gz = z0 + z;
+                if (!solid(gx, gz) && !solid(gx - 1, gz) && !solid(gx, gz - 1) && !solid(gx - 1, gz - 1)) { skin++; continue; }
                 all++;
                 float d = Mathf.Abs((H[z, x] * ts.y + tp.y) - y);
+                // ⭐ 段の縁: 設計面が地形の 1 升の内で TOL を超えて段違いになる所(段の石垣・土留めの線)は、
+                //   格子の地形では描けない ── 見えている面は石垣と縁の皮(Stage3b)が描き、隙・浮きの表で測る。
+                //   ⛔ 超過に混ぜず、⛔ 黙って捨てもしない ── 件数と最大を別に刷る(規則19)
+                if (d > TOL)
+                {
+                    float lo = y, hi = y;
+                    for (int k = 0; k < 4; k++)
+                    {
+                        float yy = Graded.At(p.x + (k == 0 ? cell : k == 1 ? -cell : 0f), p.y + (k == 2 ? cell : k == 3 ? -cell : 0f));
+                        if (float.IsNaN(yy)) continue;
+                        lo = Mathf.Min(lo, yy); hi = Mathf.Max(hi, yy);
+                    }
+                    if (hi - lo > TOL) { edge++; edgeMx = Mathf.Max(edgeMx, d); continue; }
+                }
                 if (d > TOL) bad++;
                 if (d > mx) { mx = d; worst = p; }
             }
         return string.Format("造成QA 敷地内 {0} セル / 許容 {1:F2}m ｜ 超過 {2} ({3:F1}%) 最大 {4:F2}m @({5:F0},{6:F0}){7} {8}",
             all, TOL, bad, bad * 100f / Mathf.Max(1, all), mx, worst.x, worst.y,
-            hole > 0 ? " ｜ 算出物の穴 " + hole : "", bad > 0 ? "✗" : "✔");
+            (hole > 0 ? " ｜ 算出物の穴 " + hole : "") + (skin > 0 ? " ｜ 皮が描く升の内(数えない) " + skin + " 節点" : "") + (edge > 0 ? string.Format(" ｜ 段の縁(石垣・土留めが描く・超過に数えない) {0} セル 最大 {1:F2}m", edge, edgeMx) : ""),
+            bad > 0 ? "✗" : "✔");
     }
 
     // =====================================================================
@@ -4724,7 +4753,8 @@ public static class EdoOkabeYashikiBuilder
                     string nm = S(b["run"]);
                     if (!byName.ContainsKey(nm)) { ng("base の run " + nm + " が指図の runs に無い"); continue; }
                     var r = byName[nm];
-                    if (Has(b, "s") && Mathf.Abs(F(b["s"]) - r.s) > 1e-4f)
+                    // ⭐ 案1: 指図の run が s を持たない(sFrom だけ)なら s は焼き手が出す(impl_okabe.bake_base)── 算出物の s が正で、比べる相手が無い(r.s = 0)
+                    if (Has(b, "s") && r.s > 0f && Mathf.Abs(F(b["s"]) - r.s) > 1e-4f)
                         ng("base " + nm + " の倍率 s=" + F(b["s"]).ToString("0.##") + " が指図の run の s=" + r.s.ToString("0.##") + " と違う");
                     foreach (var q in A(Get(b, "segs")) ?? new List<object>())
                     {
@@ -4739,6 +4769,9 @@ public static class EdoOkabeYashikiBuilder
         }
 
         // ---- ⑤ 法肩の竹垣が段の縁に載るか ------------------------------
+        // ⭐ 据え置きの欄(前の指図のまま・Stale)は建てない ── 検めず ℹ で名指す(未検査であって合格ではない・規則19)
+        if (Stale("rails")) sb.Append("  ℹ rails は据え置きの欄(前の指図のまま)── 建てないので検めない\n");
+        else
         {
             var rs = A(Get(im, "rails"));
             if (rs == null) ng("rails が無い — 法肩の竹垣は生成器の算出値で、指図の json は持たない");
@@ -4809,6 +4842,8 @@ public static class EdoOkabeYashikiBuilder
         }
 
         // ---- ⑦ 汀の杭が汀線に載るか ------------------------------------
+        if (Stale("kui")) sb.Append("  ℹ kui は据え置きの欄(前の指図のまま)── 建てないので検めない\n");
+        else
         {
             var ks = A(Get(im, "kui"));
             var tt = O(Get(O(Get(D, "nishi")), "tsutsumi"));

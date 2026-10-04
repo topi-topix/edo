@@ -384,7 +384,8 @@ public static class EdoSashizuExport
                 {
                     if (nm == null) continue;
                     int c = 0;
-                    foreach (var h in have) if (h == nm || h.StartsWith(nm + "_")) c++;
+                    // ⭐ 端を切った駒(EdoBuild.KiriEnd の `Kiri_<run>`)も その run の駒 ── 短い run は切り駒だけで建つ(岡部 SE_Hei・2026-10-04)
+                    foreach (var h in have) if (h == nm || h.StartsWith(nm + "_") || h == "Kiri_" + nm) c++;
                     if (c == 0 && absorbed.Contains(nm)) { note("外周", "囲い " + nm + " は辺の両端の隅の腕が覆う(run の駒なし・覆いは閉じの検査が測る)"); continue; }
                     if (c == 0) bad("外周", "囲い " + nm + " の部材が実装に一つも無い");
                 }

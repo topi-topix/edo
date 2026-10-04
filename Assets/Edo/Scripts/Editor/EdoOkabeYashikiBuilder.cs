@@ -1439,6 +1439,43 @@ public static class EdoOkabeYashikiBuilder
         return true;
     }
 
+    /// <summary>坂の路肩の野面石の縁(Stage1 の <see cref="PlaceCurb"/>・Saka/Curb_*)の段の境の継ぎ目の下を、**皮を起こした後の描かれた地表**まで
+    /// 同じ駒で積み下ろす(置き方は <see cref="EdoBuild.StackDownAtNozuraSteps"/> ── 段の土留め TW_Kado_Sode と同じ型)。
+    /// 縁は造成(Stage1)で皮の前の 2m 格子に据わるので、入隅の端の駒 Curb_R_UraZaka_0_004f が描かれた法から 0.153m 浮いた(2026-10-04 第14巡)。
+    /// 前の巡の積み(*_tsumi*)を外してから積む(Stage3b を何度流しても同じ)。</summary>
+    static string StackCurbOnSkin()
+    {
+        var saka = Group("Saka"); var names = new List<string>();
+        foreach (Transform c in saka) if (c.name.StartsWith("Curb_")) names.Add(c.name);
+        if (names.Count == 0) return "縁の積み下ろし: 縁なし";
+        var dg = EdoBuild.Drawn();
+        var log = new System.Text.StringBuilder(); int tot = 0; float wbA = float.NegativeInfinity, waA = float.NegativeInfinity;
+        foreach (var nm in names)
+        {
+            var cg = Group("Saka/" + nm);
+            var old = new List<GameObject>(); foreach (Transform c in cg) if (c.name.Contains("_tsumi")) old.Add(c.gameObject);
+            foreach (var g in old) UnityEngine.Object.DestroyImmediate(g);
+            var placed = new List<KeyValuePair<GameObject, Vector2>>();
+            foreach (Transform c in cg) if (c.gameObject.activeInHierarchy) placed.Add(new KeyValuePair<GameObject, Vector2>(c.gameObject, EdoBuild.WallFace(c.gameObject)));
+            float wb, wa; tot += EdoBuild.StackDownAtNozuraSteps(placed, dg.At, cg, 4, log, out wb, out wa);
+            wbA = Mathf.Max(wbA, wb); waA = Mathf.Max(waA, wa);
+        }
+        return "縁の積み下ろし(描かれた地表へ): " + tot + " 駒・継ぎ目の駒の抜け 最悪 " + (float.IsNegativeInfinity(wbA) ? "-" : wbA.ToString("+0.000;-0.000")) + " → "
+             + (float.IsNegativeInfinity(waA) ? "-" : waA.ToString("+0.000;-0.000")) + "m" + (waA > 0.005f ? " ⛔" : "") + (log.Length > 0 ? "\n" + log.ToString().TrimEnd() : "");
+    }
+
+    /// <summary>天端の垣 DanKaki を皮の後の据わる床(描かれた地表と土留め Ishigaki・Dan の上向きの面の高い方)で据え直す
+    /// (置き方は <see cref="EdoBuild.ReseatCrestFence"/>)。Stage3b の末で練塀の <see cref="SeatHeiOnBed"/> と並べて呼ぶ。</summary>
+    static string SeatKakiOnBed()
+    {
+        var tops = new List<GameObject>();
+        foreach (var gn in new[] { "Ishigaki", "Dan" })
+            foreach (Transform c in Group(gn)) if (c.gameObject.activeInHierarchy) tops.Add(c.gameObject);
+        var bed = new EdoBuild.Bed(tops);
+        float up, dn; int n = EdoBuild.ReseatCrestFence(Group("DanKaki"), bed.At, out up, out dn);
+        return "天端の垣を床へ据えた(根入れ 0.15): " + n + " 駒・最も上げた +" + up.ToString("F3") + "m / 最も下げた " + dn.ToString("F3") + "m";
+    }
+
     /// <summary>練塀(表裏の f/b を一組)・隅 Kado_*・端を切った Kiri_* を、床 = 描かれた地表と基壇 IG_* の天端の高い方
     /// (<see cref="EdoBuild.Bed"/>)へ組ごと据える(<see cref="EdoBuild.SinkGroupToBed"/>)。長屋・門は触らない。</summary>
     static string SeatHeiOnBed(Transform kak)
@@ -2503,6 +2540,8 @@ public static class EdoOkabeYashikiBuilder
         // ⭐ 皮を起こし直した後に、練塀・隅を**描かれた皮の上**で据え直す(EdoBuild.SinkGroupToBed)。Stage2 の時点の床は
         //    皮を外した 2m 格子で、皮の細かい面より 0.06〜0.40m 高い所があり、N_Hei_35_3 が 0.40m 浮いた(2026-10-04 第12巡)。
         sb.AppendLine("  皮の後に " + SeatHeiOnBed(Group("Kakoi")));
+        sb.AppendLine("  皮の後に " + SeatKakiOnBed());
+        sb.AppendLine("  皮の後に " + StackCurbOnSkin());
         return sb.ToString();
     }
 
@@ -4375,7 +4414,11 @@ public static class EdoOkabeYashikiBuilder
             }
             // ⭕ 幹の足を点へ寄せ、足の当たりで描かれた地表へ据える(EdoBuild.SeatPlantAt)。⛔ 外接の底で据えない
             float bu, fl;
-            if (!EdoBuild.SeatPlantAt(go, c, 0f, out bu, out fl, 1.0f, 0.7f, drawnG))
+            // 沈め = 層の型の宣言(EdoBuild.NiwaSet の SinkLo ── 低木 0.03・中木/高木 0.15)。⛔ 0 で据えない ── 根元の当たりが地表に
+            //   ちょうど載るだけで、格子ごとの最下点で測ると +0.025〜0.036 浮いた(第14巡 土手の林 2 本)
+            string lay = S(Get(q, "layer")) ?? "";
+            float sinkL = lay == "低木" ? EdoBuild.NiwaSet.Shrub.SinkLo : lay == "中木" ? EdoBuild.NiwaSet.Chuboku.SinkLo : EdoBuild.NiwaSet.Tree.SinkLo;
+            if (!EdoBuild.SeatPlantAt(go, c, sinkL, out bu, out fl, 1.0f, 0.7f, drawnG))
             { seatBad++; if (seatBadLog.Count < 8) seatBadLog.Add(go.name + " 埋没 " + bu.ToString("F2") + " 浮き " + fl.ToString("F2")); }
             if (Has(q, "name")) placed[S(q["name"])] = go;
             made++;

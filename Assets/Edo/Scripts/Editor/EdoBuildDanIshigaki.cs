@@ -283,7 +283,7 @@ public static partial class EdoBuild
     /// <summary>垣の駒の足(走りの両端と中ほど・局所 +X の向き <paramref name="ux"/> の実メッシュの範囲)の真下の当たり =
     /// 土留めの駒の上向きの面(<see cref="BedTopAt"/>)と描かれた地表の高い方、を測り、**最も高い当たり**へ床(底 + 根入れ 0.15)を据える。
     /// <paramref name="spread"/> = 最も高い当たり − 最も低い当たり(その分だけ床の下が空く所がある ── 根入れ 0.15 の内なら見えない)。</summary>
-    static bool SeatFenceOnBeds(GameObject go, Vector2 ux, IList<GameObject> beds, out float spread)
+    static bool SeatFenceOnBeds(GameObject go, Vector2 ux, IList<GameObject> beds, out float spread, Func<float, float, float> bedAt = null)
     {
         spread = float.NaN;
         float mn = float.MaxValue, mx = float.MinValue, bot = float.MaxValue, top = float.MinValue; Vector2 c = Vector2.zero; int nv = 0;
@@ -294,8 +294,13 @@ public static partial class EdoBuild
         foreach (float u in new[] { mn + 0.03f, (mn + mx) * 0.5f, mx - 0.03f })
         {
             Vector2 p = c + ux * (u - cu);
-            float g = Ground(p.x, p.y), b = BedTopAt(p, beds, g + 6f);   // 光線は 8m まで ⇒ 地表の 6m 上から(⛔ 据える前の駒の頭からでは天端に届かない)
-            float y = float.IsNaN(b) ? g : Mathf.Max(b, g);
+            float y;
+            if (bedAt != null) y = bedAt(p.x, p.y);   // 据わる床(描かれた地表と土留めの上向きの面の高い方 ── EdoBuild.Bed)
+            else
+            {
+                float g = Ground(p.x, p.y), b = BedTopAt(p, beds, g + 6f);   // 光線は 8m まで ⇒ 地表の 6m 上から(⛔ 据える前の駒の頭からでは天端に届かない)
+                y = float.IsNaN(b) ? g : Mathf.Max(b, g);
+            }
             if (float.IsNaN(y)) continue;
             hi = Mathf.Max(hi, y); lo = Mathf.Min(lo, y);
         }
@@ -303,6 +308,27 @@ public static partial class EdoBuild
         go.transform.position += Vector3.up * (hi - 0.15f - bot);
         spread = hi - lo;
         return true;
+    }
+
+    /// <summary>天端の垣(<see cref="PlaceCrestFence"/> が据えた間と親柱)を、**皮を起こした後の据わる床**
+    /// <paramref name="bedAt"/>(<see cref="Bed"/>.At = 描かれた地表と土留め・石段の上向きの面の高い方)で据え直す(2026-10-04 EDO-0502 第15巡)。
+    /// 置き方は据えと同じ(足の三点の最も高い当たり − 根入れ 0.15)。走りの位置・向きは動かさない。
+    /// ⛔ 皮の前の 2m 格子(Ground)で据えたままにしない ── 岡部 Kaki_TW_Higashi_Hokuto_5_post は格子が土留めの天端より 0.2 高く、床から 0.050 浮いた。
+    /// 当たる先: 皮を起こす邸の天端の垣すべて(岡部 fenceOnTop 4 欄)。練塀の <see cref="SinkGroupToBed"/>(皮の後の据え直し)と対。
+    /// ⟶ 返す: 据え直した駒の数(<paramref name="up"/>/<paramref name="dn"/> = 最も上げた・下げた量[m])。</summary>
+    public static int ReseatCrestFence(Transform fgrp, Func<float, float, float> bedAt, out float up, out float dn)
+    {
+        up = 0f; dn = 0f; int n = 0;
+        if (fgrp == null || bedAt == null) return 0;
+        foreach (Transform c in fgrp)
+        {
+            if (!c.gameObject.activeInHierarchy) continue;
+            Vector3 rx = c.right; Vector2 ux = new Vector2(rx.x, rx.z); if (ux.sqrMagnitude < 1e-6f) continue; ux.Normalize();
+            float y0 = c.position.y, sp;
+            if (!SeatFenceOnBeds(c.gameObject, ux, null, out sp, bedAt)) continue;
+            float mv = c.position.y - y0; up = Mathf.Max(up, mv); dn = Mathf.Min(dn, mv); n++;
+        }
+        return n;
     }
 
     /// <summary>**段石の下を同じ段石で接地まで積む**(雁木の積み・2026-10-03 EDO-0502 第4巡 岡部 K_Kuruwa: 石垣の口から下の面へ

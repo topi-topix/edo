@@ -23,6 +23,26 @@ public static class EdoGotenKit
     public const float H = EdoAssets.Goten.DoorH;    // 2.727
     public const float JODAN = 0.15f;                // 上段の段の高さ
 
+    /// <summary>**根入れの宣言**(docs/oki-kata.md §0a「合わせの余地」・2026-10-04 EDO-0502 第15巡)。床下の足元
+    /// (縁桁の束石・縁束・礎石 = Goten_EnKeta/EnTsuka/Soseki)の下端は名目の地盤 −0.30 に焼いてある(build_goten_tsuka.py)。
+    /// 棟の接地の検査はこの深さまでの埋まりを**根入れ**として数え、越えた分だけを埋没に数える(浮きは ±0.01 のまま)。
+    /// 木の <c>EdoBuild.NiwaSet.TREE_BURY_MAX</c>・塀の <c>EdoBuild.DAN_BURY_MAX</c>・門の <c>EdoBuild.GATE_BURY_MAX</c> と同じ作法。
+    /// 当たる先: 御殿の棟(EdoGotenKit.Mune(ashimoto: true))を建てる全邸(岡部の御殿5棟・土井の奥)。</summary>
+    public const float ASHIMOTO_NEIRI = 0.30f;
+
+    /// <summary>棟 <paramref name="go"/> に宣言された根入れ[m](床下の足元を持つ棟は <see cref="ASHIMOTO_NEIRI"/>・持たなければ 0)。
+    /// 検査はこれを読んで、接地の負の隙のうち −NeiriOf までを根入れとして数える。</summary>
+    public static float NeiriOf(GameObject go)
+    {
+        if (go == null) return 0f;
+        foreach (var t in go.GetComponentsInChildren<Transform>(false))
+        {
+            string nm = t.name;
+            if (nm.StartsWith("Goten_Soseki") || nm.StartsWith("Goten_EnTsuka") || nm.StartsWith("Goten_EnKeta")) return ASHIMOTO_NEIRI;
+        }
+        return 0f;
+    }
+
     // --- 雁行する棟どうしの屋根の取り合い ------------------------------------
     // ユーザー裁定(2026-08-14): **(a) 渡廊下の低い切妻で処理する**。谷や隅は作らず、
     // 各棟は独立した入母屋のまま置いて、その軒下を渡廊下の屋根がくぐる(福井図・二条城も同形)。
@@ -105,7 +125,7 @@ public static class EdoGotenKit
     /// (roofAtFloor の値に関係なく同じ式が効く — 実測ベースなので系列の差を吸収する)。</para></summary>
     /// <summary>棟の床下の足元(縁桁の束石・縁束・礎石)の**地面との当たり**を測る(EDO-0502)。当たり = 各駒の最下(石の下端)。
     /// 返り値 = 最も浮いた量[m](正 = 浮き・負 = 全部が埋まり、その中で最も浅い根入れ)。n = 測った駒の数・floating = 浮き &gt; 0.01m の数。
-    /// 硬い: 浮き ≤ +0.01m(docs/oki-kata.md §4)。埋まりは根入れ(余地 0.30m)なので数えない。</summary>
+    /// 硬い: 浮き ≤ +0.01m(docs/oki-kata.md §4)。埋まりは根入れ(余地 <see cref="ASHIMOTO_NEIRI"/>)なので数えない。</summary>
     public static float AshimotoGap(GameObject mune, out int n, out int floating, out string worstName)
     {
         n = 0; floating = 0; worstName = null; float worst = float.NegativeInfinity;

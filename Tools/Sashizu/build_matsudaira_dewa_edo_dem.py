@@ -374,6 +374,63 @@ def reconstruct(seed, sz, spec):
     log.append("③ 変えた %d セル+周り = %d セルを %d 回平滑化(変えていないセルの動きは上限 %.2fm・頭打ち %d)"
                % (len(changed), len(soft), sm["passes"], hal, clip))
 
+    # ④' 尾根の頭の南西面(edoReconRedo.areas ridgeSW)── model between: 二本の折れ線(法肩・法尻)の間を距離の比で結ぶ。
+    #   cliffS の南の羽はこちらで上書きする。辺15 は toeEdges なので edgeClip は当たらない。
+    ridge = set()
+    if "ridgeSW" in AR:
+        rs = AR["ridgeSW"]
+        crw = [gr.W(u, v) for u, v in rs["crestUV"]]
+        e = int(rs["toeEdge"])
+        pA, pB = poly[e], poly[(e + 1) % len(poly)]          # 辺15 = P15 → P16
+        uvA, uvB = gr.L(*pA), gr.L(*pB)
+        tyv = [(float(v), float(y)) for v, y in rs["toeY"]]
+        vend = tyv[-1][0]
+        f = (vend - uvA[1]) / (uvB[1] - uvA[1])
+        p95 = (pA[0] + (pB[0] - pA[0]) * f, pA[1] + (pB[1] - pA[1]) * f)
+        toe_seg = (pB, p95)                                    # P16 → v95
+        bound = crw + [p95, pB]
+        def _toe_y(v):
+            if v <= tyv[0][0]: return tyv[0][1]
+            for (v0, y0), (v1, y1) in zip(tyv, tyv[1:]):
+                if v0 <= v <= v1:
+                    return y0 + (y1 - y0) * (v - v0) / (v1 - v0)
+            return tyv[-1][1]
+        cfr = float(rs["crestFeather"])
+        for (ix, iz), (x, z) in inside.items():
+            if h[iz][ix] is None or not in_poly(bound, x, z):
+                continue
+            dt, tt = _seg_d(x, z, *toe_seg)
+            dc, ci = None, None
+            for k in range(len(crw) - 1):
+                dd, t2 = _seg_d(x, z, crw[k], crw[k + 1])
+                if dc is None or dd < dc:
+                    dc, ci = dd, (k, t2)
+            k, t2 = ci
+            cx = crw[k][0] + (crw[k + 1][0] - crw[k][0]) * t2
+            cz = crw[k][1] + (crw[k + 1][1] - crw[k][1]) * t2
+            cy = bilinear(seed, cx, cz)
+            tx = toe_seg[0][0] + (toe_seg[1][0] - toe_seg[0][0]) * tt
+            tz = toe_seg[0][1] + (toe_seg[1][1] - toe_seg[0][1]) * tt
+            ty = _toe_y(gr.L(tx, tz)[1])
+            t = dt / max(dt + dc, 1e-9)
+            y = ty + (cy - ty) * t
+            w = min(1.0, dc / cfr) if cfr > 0 else 1.0
+            h[iz][ix] = y * w + seed["h"][iz][ix] * (1.0 - w)
+            ridge.add((ix, iz))
+        # 継ぎ目(cliffS の羽・正本)との段を仕様の平滑化(③ と同じ回数)で均す ── 尾根のセルだけを動かす
+        def _dcrest(x, z):
+            return min(_seg_d(x, z, crw[k], crw[k + 1])[0] for k in range(len(crw) - 1))
+        soft_r = [q for q in ridge if _seg_d(inside[q][0], inside[q][1], *toe_seg)[0] > 1.5 * st
+                  and _dcrest(*inside[q]) > cfr]   # 法尻の筋(⑨)と法肩の羽(正本へ摺り付け)は動かさない
+        for _ in range(sm["passes"]):
+            cur = dict((q, h[q[1]][q[0]]) for q in ridge)
+            for ix, iz in soft_r:
+                acc = [cur.get((p, q), h[q][p]) for p in (ix - 1, ix, ix + 1) for q in (iz - 1, iz, iz + 1)
+                       if 0 <= p < nx and 0 <= q < nz and h[q][p] is not None]
+                h[iz][ix] = sum(acc) / len(acc)
+        log.append("④' 尾根の頭の南西面(ridgeSW・between): %d セル(%.0f㎡)── 法肩 %d 点・法尻 辺%d の P16→v%.0f(%.1f→%.1f)"
+                   % (len(ridge), len(ridge) * st * st, len(crw), e, vend, tyv[0][1], tyv[-1][1]))
+
     # ⑤ 区画線の上は正本(隣家と同じ面を読む協定)
     ec = float(spec["edgeClip"]["m"])
     n5 = 0
@@ -404,7 +461,7 @@ def reconstruct(seed, sz, spec):
             if abs(b4 - h[iz][ix]) > 0.005:
                 n5 += 1
     log.append("④ 区画線から %.1fm はまるごと正本・そこから %.1fm で復元へ摺り付け(%d セル)" % (ec, ec, n5))
-    touched = changed | soft
+    touched = changed | soft | ridge
 
     # ⑥ 辺20(edgeClip を外さない)の確かめ
     if "edge20" in AR:
@@ -455,7 +512,7 @@ def reconstruct(seed, sz, spec):
         reg, stack = set(), []
         for (ix, iz), (x, z) in inside.items():
             y = h[iz][ix]
-            if y is None or not (flat_lo <= y <= flat_hi):
+            if y is None or not (flat_lo <= y <= flat_hi) or (ix, iz) in ridge:
                 continue
             dd, _t = _near(x, z)
             if ec <= dd < ec + 2 * st:
@@ -467,7 +524,7 @@ def reconstruct(seed, sz, spec):
                 if q in reg or q not in inside:
                     continue
                 y = h[q[1]][q[0]]
-                if y is None or not (flat_lo <= y <= flat_hi):
+                if y is None or not (flat_lo <= y <= flat_hi) or q in ridge:
                     continue
                 if _near(*inside[q])[0] < ec:
                     continue
@@ -489,6 +546,31 @@ def reconstruct(seed, sz, spec):
                    % (len(reg), len(reg) * st * st, fixed, dep, bed0 + dep, bed1 + dep, len(free), nit,
                       min(dv) if dv else 0, max(dv) if dv else 0))
         touched |= reg
+
+    # ⑨ 法尻の筋の水下り(ridgeSW.make.drainRule・hard)── 登り返しだけを削って P16→P15 を下り続けさせる
+    if "ridgeSW" in AR:
+        rs = AR["ridgeSW"]
+        e = int(rs["toeEdge"])
+        pA, pB = poly[e], poly[(e + 1) % len(poly)]          # P15, P16
+        lanes = {}
+        for (ix, iz), (x, z) in inside.items():
+            dd, tt = _seg_d(x, z, pB, pA)
+            if dd > 1.5 * st or tt <= 0.0 or tt >= 1.0 or h[iz][ix] is None:
+                continue
+            lanes.setdefault(int(dd), []).append((tt, ix, iz))
+        nclip, dmax = 0, 0.0
+        for k, cells in lanes.items():
+            cells.sort()
+            run = None
+            for tt, ix, iz in cells:
+                if run is not None and h[iz][ix] > run:
+                    dmax = max(dmax, h[iz][ix] - run)
+                    h[iz][ix] = run
+                    nclip += 1
+                    touched.add((ix, iz))
+                run = h[iz][ix] if run is None else min(run, h[iz][ix])
+        log.append("⑨ 法尻の筋(辺%d の %.0fm 内・筋 %d 本)の登り返しを削った %d セル(最大 %.2fm)"
+                   % (e, 1.5 * st, len(lanes), nclip, dmax))
     return h, log, touched
 
 

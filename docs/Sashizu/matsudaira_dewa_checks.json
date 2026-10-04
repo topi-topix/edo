@@ -1,8 +1,8 @@
 {
  "_": "図の機械検査の結果。生成器が毎回書き、kansei_gate.py --init が読んで赤なら止める(EDO-0291)。⛔ 手で書かない — 図を焼き直せば入れ替わる。",
  "estate": "matsudaira_dewa",
- "at": "2026-10-04T18:15:37+09:00",
- "sashizu_sha": "9a3e55790a0c19de",
+ "at": "2026-10-04T18:24:13+09:00",
+ "sashizu_sha": "397f92d989de445b",
  "ng": 8,
  "na": 7,
  "rows": [
@@ -111,7 +111,7 @@
   {
    "id": "C18",
    "what": "地盤の出所 — 造成前の地盤が正本 base_dem.json から来て、派生物が古くなく、隣家の指図が動いていない",
-   "res": "地盤 = matsudaira_dewa_edo_world.json / 正本 base_dem と一致する点 2722 / 3101(88%)。差は復元(近代の掘削を戻した)所 / ⚠ matsudaira_dewa_terrain.json が地盤 matsudaira_dewa_edo_world.json より古い(34.9 日)",
+   "res": "地盤 = matsudaira_dewa_edo_world.json / 正本 base_dem と一致する点 2667 / 3101(86%)。差は復元(近代の掘削を戻した)所 / ⚠ matsudaira_dewa_terrain.json が地盤 matsudaira_dewa_edo_world.json より古い(34.9 日)",
    "status": "ng"
   },
   {

@@ -2124,7 +2124,12 @@
     5
    ],
    "rooms": [],
-   "roof": null
+   "roof": "Goten_Doi_Genkan",
+   "kw": 6,
+   "kd": 5,
+   "ridge": "u",
+   "iri": 1,
+   "roofCert": "**U** — 入母屋・長手に棟を通す(岡部の御殿5棟と同じ類型・EdoGotenKit)。部材は桁行×梁間で部材方が焼く【普請奉行 2026-10-04】"
   },
   {
    "name": "Hiroma",
@@ -2141,7 +2146,12 @@
     10
    ],
    "rooms": [],
-   "roof": null
+   "roof": "Goten_Doi_Hiroma",
+   "kw": 14,
+   "kd": 10,
+   "ridge": "u",
+   "iri": 1,
+   "roofCert": "**U** — 入母屋・長手に棟を通す(岡部の御殿5棟と同じ類型・EdoGotenKit)。部材は桁行×梁間で部材方が焼く【普請奉行 2026-10-04】"
   },
   {
    "name": "Shoin",
@@ -2158,7 +2168,12 @@
     8
    ],
    "rooms": [],
-   "roof": null
+   "roof": "Goten_Doi_Shoin",
+   "kw": 11,
+   "kd": 8,
+   "ridge": "u",
+   "iri": 1,
+   "roofCert": "**U** — 入母屋・長手に棟を通す(岡部の御殿5棟と同じ類型・EdoGotenKit)。部材は桁行×梁間で部材方が焼く【普請奉行 2026-10-04】"
   },
   {
    "name": "Yakusho",
@@ -2175,7 +2190,12 @@
     8
    ],
    "rooms": [],
-   "roof": null
+   "roof": "Goten_Doi_Yakusho",
+   "kw": 8,
+   "kd": 6,
+   "ridge": "v",
+   "iri": 1,
+   "roofCert": "**U** — 入母屋・長手に棟を通す(岡部の御殿5棟と同じ類型・EdoGotenKit)。部材は桁行×梁間で部材方が焼く【普請奉行 2026-10-04】"
   },
   {
    "name": "Daidokoro",
@@ -2192,7 +2212,12 @@
     9
    ],
    "rooms": [],
-   "roof": null
+   "roof": "Goten_Doi_Daidokoro",
+   "kw": 9,
+   "kd": 8,
+   "ridge": "v",
+   "iri": 1,
+   "roofCert": "**U** — 入母屋・長手に棟を通す(岡部の御殿5棟と同じ類型・EdoGotenKit)。部材は桁行×梁間で部材方が焼く【普請奉行 2026-10-04】"
   },
   {
    "name": "Oku",
@@ -2209,7 +2234,12 @@
     9
    ],
    "rooms": [],
-   "roof": null
+   "roof": "Goten_Doi_Oku",
+   "kw": 11,
+   "kd": 9,
+   "ridge": "u",
+   "iri": 1,
+   "roofCert": "**U** — 入母屋・長手に棟を通す(岡部の御殿5棟と同じ類型・EdoGotenKit)。部材は桁行×梁間で部材方が焼く【普請奉行 2026-10-04】"
   },
   {
    "name": "Nagatsubone",
@@ -2226,7 +2256,12 @@
     8.5
    ],
    "rooms": [],
-   "roof": null
+   "roof": "Goten_Doi_Nagatsubone",
+   "kw": 12,
+   "kd": 8.5,
+   "ridge": "u",
+   "iri": 1,
+   "roofCert": "**U** — 入母屋・長手に棟を通す(岡部の御殿5棟と同じ類型・EdoGotenKit)。部材は桁行×梁間で部材方が焼く【普請奉行 2026-10-04】"
   }
  ],
  "links": [

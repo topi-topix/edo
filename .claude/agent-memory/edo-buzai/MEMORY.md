@@ -82,3 +82,7 @@
 - [丸太の二段柵と丸太の長さ表](maruta-saku-two-rail.md) — 根入れ込みの柱は log_04・柱の −X 端は Blender +x(手すりの注記は疑い)(2026-10-04)
 - [隅の物見は帯に付けて折る・控柱つきの木柵](monomi-on-strip-and-saku-hikae.md) — omote の main を guard・控柱の断面の半幅は HB/2/|d.y|(2026-10-04)
 - [松江松平の帯割り屋根の妻の軒0と平入りの照会文](matsudaira-banded-gable-noki-and-hirairi-notch-log.md) — 妻側 noki=0 は生成器が止める・--notch は名から補う(2026-10-04)
+- [join で UV 層が別れる・切り口の色と元石・岩に穴を彫る](join-uv-layer-names-and-rock-color-match.md) — 1層同名へ揃えてから join・灰の個体を選ぶ・円の輪で綴じる(2026-10-04)
+- [出隅の表長屋は延ばして二等分の面で切る](nagaya-miter-cut-convex-corner.md) — 94.6° は剪断で潰れる・出隅は背ほど短い・len は外隅 Q から(2026-10-04)
+- [排水の駒は口と隙から地形の下の空が抜ける](haisui-modules-holes-and-soil-scale.md) — 切り欠きは溝が付く所だけ・FJG Soil 8m・玉石 fill 1.25(2026-10-04)
+- [野面の出隅を 90° 以外の折れで焼く](nozura-kado-oblique-fold.md) — t=tan(折れ/2) で σ を一般化・裏石は腕ごとの直線の駒を留めで選ぶ・make_wall は reset(2026-10-05)

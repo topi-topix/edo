@@ -7,6 +7,8 @@
     blender --background --python Tools/Blender/build_sanno_nozura.py -- all --render
     blender --background --python Tools/Blender/build_sanno_nozura.py -- check                 # 継ぎ目の一致を数で検める
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado [--h=1.5] [--render]   # 出隅 90° の隅の駒
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- kado --h=4.8 --render       # 同・深い駒(型を 5.0 まで延ばす・EDO-0502)
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=49.4,51.8 --h=4.8 [--render]  # 折れが 90° でない出隅(名の角は丸め・EDO-0502)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_cut --h=0.9 --v=b --axis=x --at=0.085 [--render]  # 隅の駒の片腕を袖の背で一度切った版(EDO-0437)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_cut --h=0.9 --v=b --axis=x --at=0.085 --arm=0.5 [--render]  # 同・切った腕を詰め天端を切り口まで通した版(r16)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_cap --h=1.5 --v=a [--render]  # 隅の駒の腕の先の継ぎ目の口を天端から 0.25 塞ぐ(同じ名で焼き直す)
@@ -1165,7 +1167,7 @@ def cbat(u):
     return BATTER * (-u)
 
 
-def kado_layout(v, depth=DEEP):
+def kado_layout(v, depth=DEEP, t=1.0):
     """出隅の駒の割り。**σ = 面に沿って隅(稜線)から測った距離**(腕1 = −・腕2 = +)。
     面は法で下ほど前へ出るので、深さ u での面の幅は腕ごとに 0.909 + c(u)(c = 0.3·(−u))。
     ⇒ 継ぎ目の線は σ 空間で斜め(σ = ±(0.909 + c(u)))。端の石は直線の駒と**同じ種・同じ形**
@@ -1173,7 +1175,8 @@ def kado_layout(v, depth=DEEP):
     隅(σ ≈ 0)には稜線に跨る石の列を置く ⇒ 竪目地が稜線を通らない。種の符号はばらばら(算木の互い違いにしない)。"""
     rh, gw = (0.26, 0.40), 0.40
     cols, guards, bseeds = boundary_column("nozura-wall-B", depth, gw, 0.10, rh, HEAD, (0.16, 0.32))
-    W = lambda u: L / 2 + cbat(u)
+    # t = tan(折れ/2)(`kado_frame`)。90° は t = 1 で旧版と同じ式・同じ浮動小数
+    W = (lambda u: L / 2 + cbat(u)) if t == 1.0 else (lambda u: L / 2 + cbat(u) * t)
     ends, fixed, bpts = [], [], []
     for side, sg in (("B-", -1), ("B+", 1)):
         for poly, key in cols:
@@ -1214,8 +1217,8 @@ def kado_layout(v, depth=DEEP):
         if len(poly) < 3:
             continue
         # 継ぎ目の斜めの線(σ = ±W(u))の内へ: σ + 0.3u ≤ 0.889 / −σ + 0.3u ≤ 0.889
-        poly = clip(poly, (1, BATTER), L / 2 - 0.02)
-        poly = clip(poly, (-1, BATTER), L / 2 - 0.02)
+        poly = clip(poly, (1, BATTER * t), L / 2 - 0.02)
+        poly = clip(poly, (-1, BATTER * t), L / 2 - 0.02)
         for op, side, key in ends:
             if len(poly) < 3:
                 break
@@ -1254,7 +1257,9 @@ def make_kado(h, v):
       腕1: (x, z) = (σ + c, z)  腕2: (x, z) = (z, −σ + c)   跨る石: (σ + z, z) / (z, −σ + z)(σ = 0 が留めの線 x = z)"""
     V.reset()
     mats = materials()
-    raw_ends, cells = kado_layout(v)
+    # ⭐ 深い駒(H2.40 より深い・EDO-0502 岡部の東の土留め H4.80)だけ型を h+BURY まで延ばす。既定 DEEP の駒の割りは変えない
+    #   (`wall_cells` と同じ判断 ── 端の石の列は下へ継ぎ足すだけなので、同じ見付の直線の駒の継ぎ目と合う)
+    raw_ends, cells = kado_layout(v) if h + BURY <= DEEP else kado_layout(v, h + BURY)
     cut = lambda p: clip(p, (0, -1), h + BURY)
     objs = []
     # ① 端の石 ── 直線の駒と同じ鍵・同じ P(tag "wall")⇒ 形・材・UV の位相まで同じ
@@ -1344,7 +1349,7 @@ def make_kado(h, v):
     return o, name
 
 
-def kado_hull_stones(objs, h, depth=0.5, keep_from_end=0.86):
+def kado_hull_stones(objs, h, depth=0.5, keep_from_end=0.86, d2=None):
     """objs のうち、天端から depth 以内に上面が在り、腕の先(X/Z < −keep_from_end)に掛からない石を、その凸包(閉じた塊)に置き換える。
     材は元の面で最も多い材・UV は石ごとの箱投影(`box_uv`)。板(厚みの無い物)は触らない。返り値 = 置き換えた数。"""
     n = 0
@@ -1353,7 +1358,8 @@ def kado_hull_stones(objs, h, depth=0.5, keep_from_end=0.86):
         if len(me.vertices) < 8:
             continue
         U = [_b2u(ob.matrix_world @ v.co) for v in me.vertices]
-        if max(u[1] for u in U) < h - depth or min(u[0] for u in U) < -keep_from_end or min(u[2] for u in U) < -keep_from_end:
+        far2 = (min(u[2] for u in U) < -keep_from_end) if d2 is None else (max(u[0] * d2[0] + u[2] * d2[1] for u in U) > keep_from_end)
+        if max(u[1] for u in U) < h - depth or min(u[0] for u in U) < -keep_from_end or far2:
             continue
         ext = sorted(max(u[k] for u in U) - min(u[k] for u in U) for k in range(3))
         if ext[0] < 0.01:
@@ -1462,6 +1468,294 @@ def kado_backface_rays(o, h, step=0.01):
             if len(ex) < 8:
                 ex.append(tuple(round(c, 3) for c in _b2u(hit[0])))
     return bad, ex
+
+
+# ------------------------------------------------------------------ 出隅の折れが 90° でない隅の駒(2026-10-05 EDO-0502)
+# 岡部の東の野面の土留め: 折れ 49.4°(TW_Higashi_Hokuto 001f×002f)・51.8°(TW_Kado_Sode 0_2_dan×1_0)。60° 未満の折れには隅の駒が無く、
+# 直線の駒を突き付けた外の角に足元ほど広い楔(足元で約 0.79m ── 法の出 0.3×見付 が両腕で開く)が見えた。
+# `Sanno_Nozura_Kado<折れ°>_H<見付mm>_<a|b>`。折れ = 走りの向きの変わり(`EdoBuildNozura` の turn と同じ・90 が Kado90)。
+#   腕1 = 稜線から −X へ 0.909(見え面 +Z)── Kado90 と同じ。腕2 = 稜線から d2 = (cos φ, −sin φ) へ 0.909(見え面 n2 = (sin φ, cos φ))。
+#   ピボット = 天端の線どうしの交点(稜線)・床レベル。腕の先の切り口は直線の駒の切り口と同じ形(腕2 の先は直線の駒を yaw φ で回した物)。
+#   面は σ 空間で起こして折る(Kado90 と同じ): 深さ u の面の稜線は c(u)·(t, 1)(t = tan(φ/2))⇒ 腕の面の幅は 0.909 + c·t。
+#   裏石は腕ごとに直線の駒の裏石を起こし、留めの線(二等分)から MARGIN だけ越える石まで採る(切らない ── 上から見て留めの直線を出さない)。
+def kado_deg_name(phi, h, v):
+    return "Sanno_Nozura_Kado%d_H%04d_%s" % (int(round(phi)), int(round(h * 1000)), v)
+
+
+def kado_frame(phi):
+    """折れ phi(度)の局所の向き(Unity の (x, z)): 腕2 の走り d2・腕2 の見え面 n2・t = tan(φ/2)。90° は厳密な (0,−1),(1,0),1"""
+    if abs(phi - 90.0) < 1e-9:
+        return (0.0, -1.0), (1.0, 0.0), 1.0
+    r = math.radians(phi)
+    return (math.cos(r), -math.sin(r)), (math.sin(r), math.cos(r)), math.tan(r / 2)
+
+
+def _arm2(d2, n2, x, z):
+    """直線の駒の局所 (x, z)(+X が腕の先・+Z が見え面)→ 腕2 の (x, z)。yaw φ の回転"""
+    return (x * d2[0] + z * n2[0], x * d2[1] + z * n2[1])
+
+
+def _map_obj(o, f):
+    for vt in o.data.vertices:
+        x, y, z = _b2u(vt.co)
+        X, Z = f(x, z)
+        vt.co = _u2b(X, y, Z)
+    o.data.update()
+
+
+KADO_DEG_URA_MARGIN = 0.06   # 裏石を留めの線から越えて採る量(重なりは石の中に隠れる)
+
+
+def kado_deg_ura(h, v, mats, phi):
+    d2, n2, t = kado_frame(phi)
+    nm = math.hypot(1.0, t)
+    side = lambda x, z: (x - t * z) / nm          # < 0 = 腕1 の側
+    va, vb = {"a": ("a", "c"), "b": ("b", "d")}[v]
+    out = []
+    for arm, vv in ((1, va), (2, vb)):
+        for o in wall_ura(h, 0.0, vv, mats):
+            if arm == 2:
+                _map_obj(o, lambda x, z: _arm2(d2, n2, x, z))
+            if "floor" in o.name:
+                sg = 1.0 if arm == 1 else -1.0
+                bm_ = bmesh.new(); bm_.from_mesh(o.data)            # 板は塞がずに切るだけ
+                bmesh.ops.bisect_plane(bm_, geom=bm_.verts[:] + bm_.edges[:] + bm_.faces[:], dist=1e-6, plane_co=Vector((0, 0, 0)),
+                                       plane_no=Vector(_u2b(sg / nm, 0.0, -sg * t / nm)), clear_outer=True, clear_inner=False)
+                bm_.to_mesh(o.data); bm_.free(); o.data.update()
+                out.append(o)
+                continue
+            U = [_b2u(vt.co) for vt in o.data.vertices]
+            sd = side(sum(u[0] for u in U) / len(U), sum(u[2] for u in U) / len(U))
+            if (arm == 1 and sd <= KADO_DEG_URA_MARGIN) or (arm == 2 and sd >= -KADO_DEG_URA_MARGIN):
+                out.append(o)
+            else:
+                bpy.data.objects.remove(o)
+    return out
+
+
+def kado_deg_rays(o, h, phi, step=0.01):
+    """表から当てた光線(真上・腕1 の面の前から −n1・腕2 の面の前から −n2)が最初に裏の面に当たる本数"""
+    from mathutils.bvhtree import BVHTree
+    d2, n2, t = kado_frame(phi)
+    me = o.data
+    bvh = BVHTree.FromPolygons([v.co.copy() for v in me.vertices], [tuple(p.vertices) for p in me.polygons])
+    (x0, x1), (y0, y1), (z0, z1) = unity_bounds(o)
+    rays = []
+    nx, nz = int((x1 - x0) / step) + 1, int((z1 - z0) / step) + 1
+    for i in range(nx):
+        for j in range(nz):
+            rays.append(((x0 + (i + 0.5) * step, h + 0.5, z0 + (j + 0.5) * step), (0, -1, 0)))
+    na = int((L / 2 + 0.3) / step)
+    for i in range(na):
+        a = -L / 2 + (i + 0.5) * step
+        b = L / 2 - (i + 0.5) * step
+        for k in range(int(h / step)):
+            y = step * (k + 0.5)
+            rays.append(((a, y, 3.0), (0, 0, -1)))
+            p = (b * d2[0] + 3.0 * n2[0], b * d2[1] + 3.0 * n2[1])
+            rays.append(((p[0], y, p[1]), (-n2[0], 0, -n2[1])))
+    bad, ex = 0, []
+    for (pu, du) in rays:
+        o_ = Vector(_u2b(*pu)); d_ = Vector(_u2b(*du))
+        hit = bvh.ray_cast(o_, d_, 8.0)
+        if hit[0] is None:
+            continue
+        if hit[1].dot(d_) > 0.0:
+            bad += 1
+            if len(ex) < 8:
+                ex.append(tuple(round(c, 3) for c in _b2u(hit[0])))
+    return bad, len(rays), ex
+
+
+def make_kado_deg(h, v, phi):
+    V.reset()
+    mats = materials()
+    d2, n2, t = kado_frame(phi)
+    raw_ends, cells = kado_layout(v, max(DEEP, h + BURY), t)
+    cut = lambda p: clip(p, (0, -1), h + BURY)
+    objs = []
+    # ① 端の石 ── 直線の駒と同じ鍵・同じ P(tag "wall")。腕2 の先は yaw φ で回す
+    ends = [(cut(p), k, key) for p, k, key in raw_ends]
+    ends = [c for c in ends if len(c[0]) >= 3 and area(c[0]) > 0.004]
+    for poly, side, key in ends:
+        o = build_stones([(poly, side, key)], wall_P(h, 0.0), mats, tag="wall")[0]
+        if side == "B+":
+            _map_obj(o, lambda x, z: _arm2(d2, n2, x, z))
+        objs.append(o)
+    # ② 中の石と稜線に跨る石 ── σ 空間で起こして折る
+    Pf = wall_P(h, 0.0)
+    for poly, kind, key in cells:
+        p2 = cut(poly)
+        if len(p2) < 3 or area(p2) <= 0.004:
+            continue
+        smin, smax = min(p[0] for p in p2), max(p[0] for p in p2)
+        o = build_stones([(p2, kind, key)], Pf, mats, tag="kado%d" % int(round(phi)),
+                         lift_ds=lambda s_, du: (BATTER * t if s_ < 0 else -BATTER * t) * du)[0]
+        cross = smin < 0 < smax
+        if cross:
+            V.sel([o])
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.mesh.bisect(plane_co=(0, 0, 0), plane_no=(1, 0, 0), use_fill=False,
+                                clear_inner=False, clear_outer=False)
+            bpy.ops.object.mode_set(mode='OBJECT')
+        arm1 = (smin + smax) < 0
+        for vt in o.data.vertices:
+            s, y, z = _b2u(vt.co)
+            c = cbat(y - h)
+            if cross:
+                # 留めの線(稜線の向き (t, 1))へ控えを剪断: σ ≤ 0 は腕1 の走り・σ > 0 は腕2 の走り
+                nx, nz = (z * t + s, z) if s <= 0 else (z * t + s * d2[0], z + s * d2[1])
+            elif arm1:
+                nx, nz = s + c * t, z
+            else:
+                nx, nz = _arm2(d2, n2, s - c * t, z)
+            vt.co = _u2b(nx, y, nz)
+        o.data.update()
+        objs.append(o)
+    # ②' 裏石
+    objs += kado_deg_ura(h, v, mats, phi)
+    # 表の石の脇の間詰め(両腕の面から TF_D)
+    dep1 = lambda x, z: -z
+    dep2 = lambda x, z: -(x * n2[0] + z * n2[1])
+    keep_k = lambda x, z: (x > -L / 2 + 0.005 and x * d2[0] + z * d2[1] < L / 2 - 0.005
+                           and dep1(x, z) >= TF_D[0] and dep2(x, z) >= TF_D[0] and min(dep1(x, z), dep2(x, z)) <= TF_D[1])
+    bx1 = max(0.05, L / 2 * d2[0] + 0.05)
+    bz0 = min(L / 2 * d2[1] - 1.2 * n2[1], -1.2)
+    objs += taper_fill(objs, lambda co: (-co.x, -co.y, co.z - h), (-L / 2, bx1, bz0, 0.0), keep_k, "K%d%s" % (int(round(phi)), v),
+                       lambda xx, zz, u: _u2b(xx, h + u, zz), mats, h + BURY, "tf-kado%d-%s" % (int(round(phi)), v),
+                       depth_of=lambda x, z: min(dep1(x, z), dep2(x, z)))
+    nh = kado_hull_stones(objs, h, depth=h + BURY + 0.1, d2=d2)
+    print("KADODEG 凸な塊に焼き直した石 %d" % nh)
+    # ③ 目地の奥を塞ぐ板(面から dd 奥・法に沿う)── 二枚が留めの線で閉じる
+    for arm, (dd, u0, u1) in ((1, (0.12, -0.12, -(h + BURY))), (2, (0.12, -0.12, -(h + BURY))), (1, BACK2), (2, BACK2)):
+        bm = bmesh.new()
+        vs = []
+        for u in (u0, u1):
+            k = cbat(u) - dd
+            m = (k * t, k)
+            e = (-L / 2, k) if arm == 1 else _arm2(d2, n2, L / 2, k)
+            vs += [bm.verts.new(_u2b(e[0], h + u, e[1])), bm.verts.new(_u2b(m[0], h + u, m[1]))]
+        bm.faces.new((vs[0], vs[1], vs[3], vs[2]))
+        me = bpy.data.meshes.new("back%d" % arm); bm.to_mesh(me); bm.free()
+        ob = bpy.data.objects.new("back%d" % arm, me)
+        bpy.context.scene.collection.objects.link(ob)
+        ob.data.materials.append(mats[1])
+        me.update()
+        nU = _b2u(me.polygons[0].normal)
+        want = (0.0, 1.0) if arm == 1 else n2
+        if nU[0] * want[0] + nU[2] * want[1] < 0:
+            me.flip_normals()
+        box_uv(ob, (0.3, 0.7))
+        objs.append(ob)
+    name = kado_deg_name(phi, h, v)
+    o = V.join(objs, name)
+    bisect_keep(o, (L / 2, 0, 0), (1, 0, 0))                     # 腕1 の先: Unity X ≥ −L/2
+    bm_cut_keep(o, _u2b(L / 2 * d2[0], 0.0, L / 2 * d2[1]), _u2b(d2[0], 0.0, d2[1]), chip=0.0)   # 腕2 の先: p·d2 ≤ L/2
+    nd = clean_degenerate(o)
+    print("KADODEG %s 面積 0・辺 < 0.1mm の三角形 %d" % (name, nd))
+    V.set_origin(o, (0, 0, 0))
+    return o, name
+
+
+def kado_deg_ref(h):
+    """直線の駒(a)の両端の切り口の点(make_wall は V.reset するので隅の駒を起こす前に採る)"""
+    ow, _, _ = make_wall(h, 0.0, "a")
+    return ({(round(p[0], 3), round(p[1] - h, 3)) for p in seam_verts(ow, -L / 2)},
+            {(round(p[0], 3), round(p[1] - h, 3)) for p in seam_verts(ow, L / 2)})
+
+
+def check_kado_deg(o, h, phi, ref):
+    """腕の先の切り口 = 直線の駒の切り口(天端から 0.25 まで・1mm で丸め)。返り値 = 差のある腕の数"""
+    d2, n2, t = kado_frame(phi)
+    ref_p, ref_m = ref
+    a1 = {(round(p[0], 3), round(p[1] - h, 3)) for p in seam_verts(o, L / 2)}
+    a2 = set()
+    for vt in o.data.vertices:
+        x, y, z = _b2u(vt.co)
+        if abs(x * d2[0] + z * d2[1] - L / 2) < 2e-4:
+            a2.add((round(-(x * n2[0] + z * n2[1]), 3), round(y - h, 3)))
+    top = lambda S: {p for p in S if p[1] > -0.25 and p[0] < 0.6}
+    deep = lambda S: {p for p in S if p[1] > -0.25 and p[0] >= 0.6}
+    d1, dd2 = len(top(ref_p) ^ top(a1)), len(top(ref_m) ^ top(a2))
+    print("KADODEG CHECK %s: 腕1の先 %d点 差%d / 腕2の先 %d点 差%d(面から 0.6 より奥の差 %d / %d)" % (
+        o.name, len(top(a1)), d1, len(top(a2)), dd2, len(deep(a1) ^ deep(ref_p)), len(deep(a2) ^ deep(ref_m))))
+    return (d1 > 0) + (dd2 > 0)
+
+
+def render_kado_deg(h, phi, outdir, walldir):
+    """隅の駒を直線の駒で挟んで撮る(焼いた FBX を読み戻す)。腕1 の先に直線 2 駒・腕2 の先に直線 2 駒(yaw φ)。"""
+    d2, n2, t = kado_frame(phi)
+    shots = []
+    for v in KADO_VARIANTS:
+        V.reset()
+        _import_at(os.path.join(outdir, kado_deg_name(phi, h, v) + ".fbx"), 0, 0, 0)
+        for i, wv in enumerate("ab"):
+            _import_at(os.path.join(walldir, wall_name(h, 0, wv) + ".fbx"), -L * (i + 1), 0, 0)
+            _import_at(os.path.join(walldir, wall_name(h, 0, "cd"[i]) + ".fbx"), L * (i + 1) * d2[0], L * (i + 1) * d2[1], 0, phi)
+        hook_stone_textures()
+        ground(0.0, -30, 30)
+        # 帯の上(天端 + 0.06・両腕の面の奥)
+        sh = (-0.06 * (0 + n2[0]), -0.06 * (1 + n2[1]))
+        far = 14.0
+        poly = [(0, 0), (-far, 0), (-far, -far * 1.2), (far * d2[0] - far * 0.8 * n2[0], far * d2[1] - far * 0.8 * n2[1]), (far * d2[0], far * d2[1])]
+        bm = bmesh.new()
+        vs = [bm.verts.new(_u2b(x + sh[0], h + 0.06, z + sh[1])) for x, z in poly]
+        bm.faces.new(vs); me = bpy.data.meshes.new("Upper"); bm.to_mesh(me); bm.free()
+        ou = bpy.data.objects.new("Upper", me); bpy.context.scene.collection.objects.link(ou)
+        mu = bpy.data.materials.new("Upper"); mu.use_nodes = True
+        mu.node_tree.nodes["Principled BSDF"].inputs['Base Color'].default_value = (0.18, 0.24, 0.11, 1)
+        me.materials.append(mu)
+        b = (n2[0], 1 + n2[1]); bl = math.hypot(*b); b = (b[0] / bl, b[1] / bl)       # 外向きの二等分
+        dist = 4.5 + 1.3 * h
+        tag = "%d_H%04d_%s" % (int(round(phi)), int(round(h * 1000)), v)
+        p = os.path.join(SHOT, "okabe_nozura_kado%s.png" % tag)
+        studio_run([], _u2b(b[0] * dist, 0.45 * h + 1.0, b[1] * dist), _u2b(-0.3 * b[0], h * 0.45, -0.3 * b[1]), 30, p); shots.append(p)
+        p = os.path.join(SHOT, "okabe_nozura_kado%s_magenta.png" % tag)
+        studio_run([], _u2b(b[0] * dist, 0.45 * h + 1.0, b[1] * dist), _u2b(-0.3 * b[0], h * 0.45, -0.3 * b[1]), 30, p, magenta=True); shots.append(p)
+        # 隅の足元の寄り(楔が閉じているか)
+        p = os.path.join(SHOT, "okabe_nozura_kado%s_foot.png" % tag)
+        studio_run([], _u2b(b[0] * 4.0 + 1.0 * d2[0], 1.2, b[1] * 4.0 + 1.0 * d2[1]), _u2b(0.4 * b[0], 0.6, 0.4 * b[1]), 30, p); shots.append(p)
+        # 腕2 の継ぎ目の寄り
+        e2 = (L / 2 * d2[0], L / 2 * d2[1])
+        p = os.path.join(SHOT, "okabe_nozura_kado%s_seam2.png" % tag)
+        studio_run([], _u2b(e2[0] + 3.2 * n2[0] + 0.4 * d2[0], 2.2, e2[1] + 3.2 * n2[1] + 0.4 * d2[1]), _u2b(e2[0], h * 0.6, e2[1]), 30, p); shots.append(p)
+        # 真上から
+        bpy.data.objects.remove(ou)
+        sc = bpy.context.scene
+        cam = sc.camera
+        cam.data.type = 'ORTHO'; cam.data.ortho_scale = 6.0
+        cam.location = _u2b(0.0, 12.0, -0.6); cam.rotation_euler = (0, 0, 0)
+        p = os.path.join(SHOT, "okabe_nozura_kado%s_plan.png" % tag)
+        V.render(p); shots.append(p)
+    return shots
+
+
+def do_kado_deg():
+    outdir = V.out_dir(os.path.join(V.REPO, "Assets", "Edo", "Models", "Sanno"))
+    walldir = os.path.join(V.REPO, "Assets", "Edo", "Models", "Sanno")
+    os.makedirs(outdir, exist_ok=True)
+    degs = _floats("deg", [49.4, 51.8])
+    hs = _floats("h", [4.8])
+    bad = 0
+    info = []
+    for phi in degs:
+        for h in hs:
+            ref = kado_deg_ref(h)
+            for v in KADO_VARIANTS:
+                o, name = make_kado_deg(h, v, phi)
+                bad += check_kado_deg(o, h, phi, ref)
+                nb, nr, ex = kado_deg_rays(o, h, phi)
+                print("KADODEG %s 表から当てた光線 %d 本のうち裏の面に当たる %d %s" % (name, nr, nb, ex))
+                export(o, name, outdir)
+                info.append((name, nb))
+            if RENDER:
+                for p in render_kado_deg(h, phi, outdir, walldir):
+                    print("KADODEG SHOT", p)
+    for n, nb in info:
+        print("KADODEG_SUM %s backface_rays=%d" % (n, nb))
+    if bad:
+        sys.exit("KADODEG ⛔ 継ぎ目の検算が %d 件落ちた" % bad)
 
 
 # ---- 隅の駒の片腕を袖の背の面で一度だけ切った版(2026-09-27 EDO-0437 施主「端の石は細くしない。袖に当たる石は袖の背に沿った一辺だけ切る」)
@@ -3173,6 +3467,9 @@ if __name__ == "__main__":
         do_kado()
         if RENDER:
             render_kado(float(OPT.get("h") or 1.5))
+    if what == "kado_deg":
+        # blender ... -- kado_deg --deg=49.4,51.8 --h=4.8 [--render] ── 出隅の折れが 90° でない隅の駒(EDO-0502)
+        do_kado_deg()
     if what == "kado_cut":
         # blender ... -- kado_cut --h=0.9 --v=b --axis=x --at=0.085 [--render] ── 隅の駒の片腕を袖の背の面で一度切った版(EDO-0437)
         #   焼いた組: H0900_b cutX0.085(西 Kiri_kado2)/ H1500_b cutZ0.097(東 N_kado2)

@@ -2409,6 +2409,26 @@ public static class EdoAssets
         /// 実寸 0.107 × 0.920 × 0.119。</summary>
         public const string MarutaTesuriPost = MarutaDir + "Maruta_Tesuri_Post.fbx";
 
+        /// <summary>**丸太の二段柵 1スパン**(土井邸 fences F04 馬場の埒 h1.2 / F05 厩の平場の縁 h1.1)。
+        /// 柱 丸太 φ0.12・芯々1間、横木 φ0.08(下)/ φ0.09(上)の二段。横木の芯 = 0.458h / 0.833h
+        /// (h1.2 → 0.55/1.00・h1.1 → 0.50/0.92)。在庫の丸太(NatureManufacture `wood_log_0X`)を切って使う。
+        /// ⛔ 四つ目垣・建仁寺垣で代えない。
+        ///
+        /// ローカル: 幅=X(走り)/ 高さ=Y / 厚み=Z。ピボット = **スパンの中心・地盤レベル**。
+        /// 柱は **−X 端**(芯 x = −0.909)、横木は −0.909..+0.909 を**柱の +Z 面に添えて**通す(+Z = 見え面)。
+        /// ⇒ 1.818 ピッチで並べ、⛔ **run の +X 端に <see cref="MarutaSakuPost"/> を1本**(芯を終端へ)。
+        /// 根入れ 0.150(Y −0.150..h)— <see cref="YotsumeGaki"/> と同じく `SeatBottom` で据えず `position.y = 地盤`。
+        /// 実寸 1.866 × (h+0.150) × 0.194(X −0.957..0.909・Z −0.056..0.138)。札 `PartSpecs/Maruta_Saku_&lt;h&gt;.json`(fence)。
+        /// 生成: blender --background --python Tools/Blender/build_maruta_saku.py -- --h &lt;丈&gt; [--render]</summary>
+        public static string MarutaSaku(float h)
+        { return MarutaDir + "Maruta_Saku_" + h.ToString("0.0#", System.Globalization.CultureInfo.InvariantCulture) + ".fbx"; }
+
+        /// <summary>丸太の二段柵の run の **+X 端に足す柱1本**。ピボット = **柱の芯・地盤レベル**(芯を run の終端へ)。
+        /// 実寸 0.107 × (h+0.150) × 0.118。根入れ 0.150。札 `PartSpecs/Maruta_SakuPost_&lt;h&gt;.json`(fence)。
+        /// 生成: blender --background --python Tools/Blender/build_maruta_saku.py -- --h &lt;丈&gt;</summary>
+        public static string MarutaSakuPost(float h)
+        { return MarutaDir + "Maruta_SakuPost_" + h.ToString("0.0#", System.Globalization.CultureInfo.InvariantCulture) + ".fbx"; }
+
         /// <summary>**汀の杭 1本**(岡部邸 `nishi.kuiretsu`)。全長 1.55(根入れ1.2)・傾 5°。
         /// <paramref name="dia"/> は 0.12 / 0.15 / 0.18 の3種(指図 `dMin`..`dMax`)。
         /// ⛔ **1種で並べない・芯々を等間隔にしない**(`pitchMin` 0.30〜`pitchMax` 0.40)。

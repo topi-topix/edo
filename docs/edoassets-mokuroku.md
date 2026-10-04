@@ -303,6 +303,8 @@
 | `Own.MachiKido(haba, keisha)` | 関数 | 道の横断勾配に追従する町木戸。keisha = −X 端から +X 端への地面の下がり[m] (正 = +X が低い)。 | TypologyBuilder.Machiya(MachiKido・MachiyaFrontEdges), BuildMachiya(UraNagayaRun) |
 | `Own.MarutaTesuri` | string | 丸太の手すり 1スパン(岡部邸 `routes.R_Katte.outsideRail.tesuri`)。 | OkabeYashiki(AssetByKey) |
 | `Own.MarutaTesuriPost` | string | 手すりの run の端に足す柱1本。ピボット = 柱の芯・地盤レベル。 | OkabeYashiki(AssetByKey・PlaceTesuri) |
+| `Own.MarutaSaku(h)` | 関数 | 丸太の二段柵 1スパン(土井邸 fences F04 馬場の埒 h1.2 / F05 厩の平場の縁 h1.1)。 | — |
+| `Own.MarutaSakuPost(h)` | 関数 | 丸太の二段柵の run の +X 端に足す柱1本。 | — |
 | `Own.Kui(dia)` | 関数 | 汀の杭 1本(岡部邸 `nishi.kuiretsu`)。 | OkabeYashiki(AssetByKey・PlaceKuiretsu・ReportNishiRest), BuildRun(FenceRun・KuiRun) |
 | `Own.KuiNuki` | string | 杭列の貫(`nishi.kuiretsu.nuki`)。 | OkabeYashiki(AssetByKey・PlaceKuiretsu) |
 | `Own.GotenRoofIrimoya(wKen, dKen)` | 関数 | 御殿の入母屋屋根を間数で引く。⚠ 実体は Goten.RoofIrimoya_ で、 これはそこへの転送(⛔ パスの literal を二重に書かないため)。 | OkabeYashiki(AssetByKey・PlaceMunes) |

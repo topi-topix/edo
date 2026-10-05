@@ -6,7 +6,7 @@
     blender --background --python Tools/Blender/build_nagaya_kado.py -- --deg 90.9 --arms 10.05,9.19 --tsuma negZ --render
         # 内角 90.9°(+X の腕は固定・−Z の腕が回る)・−Z の腕の先を妻(knagaya01r の妻の端)で閉じる → Nagaya_Kado_90p9_A1005x919_TZ
         # 名前: 内角は 0.1° 単位(90 → `90`・90.9 → `90p9`)・腕は cm・妻は `_TZ` / `_TX` / `_TZX`(EdoAssets.Own.NagayaKado と同じ綴り)
-        # 妻の腕の長さは**妻壁の外面**(namako2 の表)まで。土台の端は 0.030 内・破風と鬼は 0.322 外へ出る。
+        # 妻の腕の長さは**妻壁の外面**(namako2 の表)まで。土台・白壁も外面に揃える(seal_gable)・破風と鬼は 0.322 外へ出る。
     blender --background --python Tools/Blender/build_nagaya_kado.py -- --deg 106 --arms 5.18,5.56 --monomi --render
         # 外隅に物見(L 字に回り込む出格子・番所の出格子 add_degoshi を借りる)→ Nagaya_Kado_106_A518x556_Monomi(松江松平 J_P23・EDO-0554)
     blender --background --python Tools/Blender/build_nagaya_kado.py -- --straight 8.07 --render
@@ -200,9 +200,11 @@ def seal_gable(gl, gr, s):
     妻の浮き彫り `namako2` は外面から 0.026m までの裏の無い殻 ⇒ 間に幅 0.010 の縦の隙が躯体を貫いて開く。
     ②その上の白壁 `n_wall` の妻の面は外面より 0.033 引っ込む ⇒ 外面に突き付けた隣の棟との間に隙が出る。
     ⇒ `n_namako` の端を浮き彫りの殻の中(外面から 0.013 obj)まで延ばし、`n_wall` の妻の端(水切りの帯ごと)を
-      外面へ揃える。外面・長さ・破風・土台の端(札の値)は変えない。measure_tsuma の後に呼ぶ。"""
+      外面へ揃える。外面・長さ・破風は変えない。土台の端も外面へ出し(④)、札の値は塞いだ後に測り直す。measure_tsuma の後に呼ぶ。"""
     for g, e, sg in ((gl, s.e_l, +1), (gr, s.e_r, -1)):
-        for name, to in (("n_namako", e - sg * 0.013), ("n_wall", e)):
+        # ④(EDO-0533 2026-10-05)土台 `n_dodai` の妻の端(0.030 内)も外面へ ── 座の違う妻どうしを突き付けると
+        #   上の棟の土台の高さに素通しの隙が開いた(表長屋の `build_nagaya_omote.seal_tsuma` と同じ手)。
+        for name, to in (("n_namako", e - sg * 0.013), ("n_wall", e), ("n_dodai", e)):
             me = g[name].data
             for v in me.vertices:
                 if sg * (v.co.x - e) > -0.025:
@@ -228,6 +230,11 @@ def seal_gable(gl, gr, s):
         bmesh.ops.delete(bm, geom=nf, context='FACES_ONLY')
         bmesh.ops.delete(bm, geom=[caps[0]], context='FACES_ONLY')
         bm.to_mesh(me); bm.free(); me.update()
+    # 札の値(土台の端・帯の最下段の端)は塞いだ後の実メッシュで測り直す(⇒ 外面 e と一致する)
+    s.l_foot = max(span(gl["n_dodai"], 0)[1], span(gl["n_namako"], 0)[1])
+    s.l_dodai = span(gl["n_dodai"], 0)[1]
+    s.r_foot = min(span(gr["n_dodai"], 0)[0], span(gr["n_namako"], 0)[0])
+    s.r_dodai = span(gr["n_dodai"], 0)[0]
 
 
 def periodic_source(g, s, ncopy=2):
@@ -1064,7 +1071,7 @@ def main():
     tsu = ()
     if "--tsuma" in argv:
         t = argv[argv.index("--tsuma") + 1]
-        tsu = {"negZ": (-1,), "posX": (+1,), "both": (-1, +1)}[t]
+        tsu = {"negZ": (-1,), "posX": (+1,), "both": (-1, +1), "negZ,posX": (-1, +1)}[t]   # 札の source の綴り(negZ,posX)も受ける
     build(arms[0], arms[1], deg=deg, tsu=tsu, render="--render" in argv, monomi="--monomi" in argv)
 
 

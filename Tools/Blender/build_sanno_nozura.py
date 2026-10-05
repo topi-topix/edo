@@ -17,11 +17,14 @@
     blender --background --python Tools/Blender/build_sanno_nozura.py -- dan --render          # 段の境の並べ焼き
     blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=set       # 前庭の天端を流す勾配の駒 ±0.12 × 8 段(2026-09-26)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- grade --render [--h=0.9]   # 勾配の駒の並べ焼き
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=0.275,-0.275 --h=0.6,0.9,1.2,1.5,1.8,2.1,2.4  # 岡部 外周の土留めの端を下げ打つ勾配の駒 ±0.275(EDO-0502・2026-10-06)
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- grade --grade=0.275 --render [--h=1.2]   # 同・並べ焼き
     blender --background --python Tools/Blender/build_sanno_nozura.py -- crest [--dir=…] [--json=…]  # 全駒の背の天端の下がり(≤ 0.03)・頭の出(≤ 0)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- holes [--dir=…] [--json=…]  # 全駒を真上から見て天端に穴(裏・下の見える所)が 0 か
     blender --background --python Tools/Blender/build_sanno_nozura.py -- back --render         # 背の側(土の側)から撮る
     blender --background --python Tools/Blender/build_sanno_nozura.py -- nkiri --list=Tools/Blender/sanno_nozura_kiri_set.txt --render  # 片端を斜めの鉛直面で切った駒(女坂の袖に当てる・2026-09-26)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- mikiri_h [--h=1.5,1.8] --render   # 丈を合わせた見切り石(天端まで届く・2026-09-26)
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- mikiri_h --h=2.4 --render         # 同・見付 2.40(岡部 外周の塞がる端・EDO-0502・2026-10-06)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- nnori --list=Tools/Blender/sanno_nozura_nori_set.txt --render  # 小口を相手の法 1:0.3 で切った短い駒(入隅の可動側の端・第3巡)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- sode_nori --keri=0.250 --fumi=0.542 [--e=-0.15] --render     # 背を相手の法 1:0.3 で切った野面の袖(第3巡)
 
@@ -37,7 +40,8 @@
   見付 2.3 の所は 2.4 を 0.1 沈めて据える(下は地中)。
 【勾配】駒を鉛直に剪断して天端を勾配に載せる(石段の袖と同じ・段に折らない)。G = 天端が Unity +X へ
   1m あたり上がる量(‰)。焼いてあるのは G0・根石の打ち切り(H0150 の G±180)・段の境(H1500 の G±220)・
-  前庭の天端を流す G±120(H1800 を除く 8 段・2026-09-26 EDO-0437)。他の勾配は `--grade=` で足す。
+  前庭の天端を流す G±120(H1800 を除く 8 段・2026-09-26 EDO-0437)・岡部の外周の端を下げ打つ G±275(H0600〜H2400 の 7 段・
+  2026-10-06 EDO-0502)。他の勾配は `--grade=` で足す。
 【軸(Unity)】幅 = X / 高さ = Y / 厚み = Z、**見え面 = +Z**。面は 3分(0.3)の法 — **天端の線から測る**
   (段の違う駒どうしで面が食い違わないように)。
 【ピボット】1間の中心(X=0)・**床レベル = 中心での天端 − 見付**(Y=0)・Z=0 は**天端の線での面**。
@@ -3506,7 +3510,7 @@ if __name__ == "__main__":
     if what == "grade" and RENDER:
         # blender ... -- grade --render [--h=0.9] ── 勾配の駒の並べ焼き(焼いてから)
         for hh in _floats("h", [0.90]):
-            render_grade(abs(GRADE_SET[0]), hh)
+            render_grade(abs(float(OPT.get("grade") or GRADE_SET[0])), hh)
     if what == "nkiri":
         # blender ... -- nkiri --list=Tools/Blender/sanno_nozura_kiri_set.txt [--render] ── 斜めに切った端の駒(女坂の袖に当てる)
         lp = OPT.get("list") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "sanno_nozura_kiri_set.txt")

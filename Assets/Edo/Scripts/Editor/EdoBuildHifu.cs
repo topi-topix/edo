@@ -294,6 +294,15 @@ public static partial class EdoBuild
         }
         /// <summary>(x,z) の部材の最も低い面(= 底)。</summary>
         public float Bottom(float x, float z, out int who) { return Scan(x, z, false, out who); }
+        /// <summary>(x,z) の、外形 <paramref name="k"/> の駒だけの最も低い面。無ければ NaN。当たる先: 据わりの守りの掘る部材の底の標本(<see cref="SeatGuard"/>)。</summary>
+        public float BottomOwner(float x, float z, int k)
+        {
+            float best = float.NaN, y;
+            List<int> l; if (!hash.TryGetValue(K(Mathf.FloorToInt(x / B), Mathf.FloorToInt(z / B)), out l)) return best;
+            foreach (var id in l)
+                if (owner[id] == k && TriYAt(tris[id], x, z, out y) && (float.IsNaN(best) || y < best)) best = y;
+            return best;
+        }
         /// <summary>**皮を寄せる底**(x,z)── 最も低い面が下を向いた面(駒の底)ならその高さ。最も低い面が**法・見え面**(下を向かない ──
         /// 殻の駒・隅の駒の傾いた面の途中)なら、それは底でなく面の途中 ── その駒の**見え面の足の線**(<see cref="WallBottom"/> を
         /// 近く 0.2m と広く <paramref name="rWide"/> で取った低い方)を底とする。駒が無ければ NaN。
@@ -1347,7 +1356,7 @@ public static partial class EdoBuild
         {
             var nbr = new[] { new Vector2Int(1, 0), new Vector2Int(-1, 0), new Vector2Int(0, 1), new Vector2Int(0, -1), new Vector2Int(1, 1), new Vector2Int(-1, -1) };
             var faceOf = new Dictionary<int, Vector2>();
-            var cand = new List<long>(); var candWho = new Dictionary<long, int>();
+            var cand = new List<long>(); var candWho = new Dictionary<long, List<int>>();
             foreach (var kv in H)
             {
                 if (PIN.Contains(kv.Key)) continue;
@@ -1356,9 +1365,22 @@ public static partial class EdoBuild
                 if (NearPart(gi, gj) != 2) continue;
                 int who; float tr = idx.TopRaw(x, z, out who);
                 if (float.IsNaN(tr) || who < 0 || !idx.banded[who]) continue;
-                if (!faceOf.ContainsKey(who)) { Vector2 fv = Vector2.zero; try { fv = WallFace(idx.gos[who]); } catch (Exception) { } faceOf[who] = fv; }
-                if (faceOf[who].sqrMagnitude < 0.5f) continue;
-                cand.Add(kv.Key); candWho[kv.Key] = who;
+                // ⭐ 外形の中の点が**複数の駒の外形**に入る所(入隅で袖と城の石垣が重なる所)は、天端の一番高い駒だけでなく、点を外形に含む
+                //   天端の帯の駒すべての見え面の向きで測る(2026-10-05 EDO-0502 第21巡: 門の内の袖 × TW_Kado_Shumen_0_0 の入隅で、点が袖の駒の外形の
+                //   中と読まれ袖の見え面の向きだけを測り、城の石垣の見え面の 0.02m 奥の点から前の地盤へ張る皮の三角が法の前へ突き出ていた)。
+                //   当たる先: CutEdgeSkin を通る全邸の、天端の帯の駒が入隅で重なる所(岡部 Stage3b・山王 Stage9)。
+                var whos = new List<int>();
+                for (int k = 0; k < idx.gos.Count; k++)
+                {
+                    if (!idx.banded[k]) continue; var bb = idx.bounds[k];
+                    if (x < bb.x - 0.01f || x > bb.z + 0.01f || z < bb.y - 0.01f || z > bb.w + 0.01f) continue;
+                    if (k != who && (idx.hulls[k] == null || !EdoGeom.PIP(idx.hulls[k], new Vector2(x, z)))) continue;
+                    if (!faceOf.ContainsKey(k)) { Vector2 fv = Vector2.zero; try { fv = WallFace(idx.gos[k]); } catch (Exception) { } faceOf[k] = fv; }
+                    if (faceOf[k].sqrMagnitude < 0.5f) continue;
+                    whos.Add(k);
+                }
+                if (whos.Count == 0) continue;
+                cand.Add(kv.Key); candWho[kv.Key] = whos;
             }
             Func<long, Vector3> PosOf = kk => { int gi = (int)(kk >> 32), gj = (int)(uint)(kk & 0xffffffff); return new Vector3(org.x + gi * step, H[kk], org.z + gj * step); };
             // 辺 k(高さ hk)→ k2 が見え面の前の空を通るか
@@ -1385,23 +1407,26 @@ public static partial class EdoBuild
                 foreach (var kk in cand)
                 {
                     int gi = (int)(kk >> 32), gj = (int)(uint)(kk & 0xffffffff);
-                    var fv = faceOf[candWho[kk]]; float hk = H[kk];
+                    float hk = H[kk]; float nh = hk;
+                    foreach (var whoK in candWho[kk])
+                    {
+                    var fv = faceOf[whoK];
                     float lo = float.NaN; var front = new List<long>();
                     foreach (var o2 in nbr)
                     {
                         long k2 = CK(gi + o2.x, gj + o2.y); float h2;
-                        if (!H.TryGetValue(k2, out h2) || h2 >= hk - 0.02f) continue;
+                        if (!H.TryGetValue(k2, out h2) || h2 >= nh - 0.02f) continue;
                         if (Vector2.Dot(new Vector2(o2.x, o2.y).normalized, fv) < 0.3f) continue;   // 見え面の側だけ
                         front.Add(k2); if (float.IsNaN(lo) || h2 > lo) lo = h2;
                     }
                     if (front.Count == 0) continue;
-                    float bl = BotL(gi, gj); float floor = float.IsNaN(bl) ? lo : Mathf.Max(lo, Mathf.Min(bl, hk));
-                    float nh = hk;
+                    float bl = BotL(gi, gj); float floor = float.IsNaN(bl) ? lo : Mathf.Max(lo, Mathf.Min(bl, nh));
                     while (nh > floor + 1e-4f)
                     {
                         bool any = false; foreach (var k2 in front) if (Exposed(kk, nh, k2, fv)) { any = true; break; }
                         if (!any) break;
                         nh = Mathf.Max(floor, nh - 0.05f);
+                    }
                     }
                     if (nh < hk - 1e-4f)
                     {
@@ -1423,7 +1448,7 @@ public static partial class EdoBuild
         //   ⛔ 升を外して元の地形へ戻さない(元の地形は溝・受けの天端より高い・2026-10-05 第10巡)。譲って届かない点は駒の側として名乗る。
         if (seated != null)
             SeatGuard(idx, parts, seated, H, O, PIN, In, ci0, cj0, ci1, cj1, N, step, org, probe, CK,
-                      design != null && design.batterFill > 1e-3f ? design.batterFill : SEAT_BATTER, ref r);
+                      design != null && design.batterFill > 1e-3f ? design.batterFill : SEAT_BATTER, ref r, hollowSet);
         r.pinned = PIN.Count;
 
         // ---- 4 メッシュ
@@ -1690,7 +1715,8 @@ public static partial class EdoBuild
     /// 当たる先: CutEdgeSkin に seated を渡す邸(いまは土井 Stage4b)。岡部・山王は渡していない ── 同じ浮きが出たら seated を渡せば効く。</summary>
     static void SeatGuard(TopIndex idx, IList<GameObject> parts, IList<GameObject> seated, Dictionary<long, float> H, Dictionary<long, float> O,
                           HashSet<long> PIN, Func<int, int, bool> In, int ci0, int cj0, int ci1, int cj1, int N, float step,
-                          Vector3 org, GroundProbe probe, Func<int, int, long> CK, float batter, ref SkinReport r)
+                          Vector3 org, GroundProbe probe, Func<int, int, long> CK, float batter, ref SkinReport r,
+                          HashSet<GameObject> hollowSet = null)
     {
         r.seatGuard = true;
         float cs = step * N;
@@ -1745,7 +1771,29 @@ public static partial class EdoBuild
                     long qk = CK(qi, qj); Vector3 o; if (!low.TryGetValue(qk, out o) || w.y < o.y) low[qk] = w;
                 }
             }
-            if (low.Count == 0) continue;
+            // ⭐ 掘る部材(hollowSet ── 土井が渡す・2026-10-05 EDO-0533 第11巡の直し)は、頂点に加えて**底の面の全体**を 0.125m 毎に標本に取る ──
+            //   溝の駒は低ポリの箱で頂点が四隅と縁にしか無く、頂点の升だけを床へ上げると駒の中ほどの皮は 3 の cap(窪みの底 − under 0.15)のまま残り、
+            //   底の薄い型(B 玉石・C/D 素掘り)の駒の底の帯が皮から 0.10〜0.15 浮いた(溝の一部浮き 243 の大半 ── D10・D6・D1 seg3)。
+            //   標本の真下に他の部材の面がある所(溝の上に掛かる蓋石の中ほど・重ねた駒の重なり)は取らない(その駒は地面でなく部材に載る)。
+            //   当たる先: CutEdgeSkin に hollowParts と seated を両方渡す邸(いまは土井 Stage4b)。渡さない邸は不変。
+            var extra = new List<Vector3>();
+            if (owner != null && hollowSet != null && hollowSet.Contains(owner))
+                for (int k = 0; k < idx.gos.Count; k++)
+                {
+                    if (idx.gos[k] != owner) continue;
+                    var hb = idx.bounds[k]; var hull = idx.hulls[k];
+                    for (float x = Mathf.Floor(hb.x / 0.125f) * 0.125f; x <= hb.z; x += 0.125f)
+                        for (float z = Mathf.Floor(hb.y / 0.125f) * 0.125f; z <= hb.w; z += 0.125f)
+                        {
+                            if (x < wx0 || x > wx1 || z < wz0 || z > wz1) continue;
+                            var q = new Vector2(x, z); if (!EdoGeom.PIP(hull, q) || EdoGeom.DistToPolyEdge(hull, q) < 0.02f) continue;
+                            if (!In(Mathf.FloorToInt((x - org.x) / step / N), Mathf.FloorToInt((z - org.z) / step / N))) continue;
+                            float yb = idx.BottomOwner(x, z, k); if (float.IsNaN(yb)) continue;
+                            int wl; float yl = idx.Bottom(x, z, out wl); if (wl >= 0 && wl != k && !float.IsNaN(yl) && yl < yb - 0.005f) continue;
+                            extra.Add(new Vector3(x, yb, z));
+                        }
+                }
+            if (low.Count == 0 && extra.Count == 0) continue;
             var touch = new List<Vector3>(); int onPart = 0;
             foreach (var v in low.Values)
             {
@@ -1753,6 +1801,13 @@ public static partial class EdoBuild
                 int wo; float tp = idx.TopRaw(v.x, v.z, out wo);
                 if (wo >= 0 && idx.gos[wo] != owner && !float.IsNaN(tp) && tp >= v.y - SEAT_ON_PART_LO && tp <= v.y + SEAT_ON_PART_HI) { onPart++; continue; }
                 touch.Add(new Vector3(v.x, Mathf.Min(og, v.y), v.z));   // y = 下限
+            }
+            foreach (var v in extra)
+            {
+                float og = probe.At(v.x, v.z); if (float.IsNaN(og) || v.y > og + SEAT_TOL) continue;
+                int wo; float tp = idx.TopRaw(v.x, v.z, out wo);
+                if (wo >= 0 && idx.gos[wo] != owner && !float.IsNaN(tp) && tp >= v.y - SEAT_ON_PART_LO && tp <= v.y + SEAT_ON_PART_HI) continue;   // 載る点は数えずに外す(比は頂点で見る)
+                touch.Add(new Vector3(v.x, Mathf.Min(og, v.y), v.z));
             }
             if (touch.Count == 0) continue;
             if (onPart * 4 > touch.Count + onPart) { r.seatOnPart++; continue; }

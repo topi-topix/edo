@@ -278,7 +278,15 @@ public static partial class EdoBuild
         // 隅の見え面: 隅の外(対角 1.5m)の地表が天端 − 0.5 より高ければ、隅は土に隠れて口は見えない ⇒ 据えない
         //   (据えると 5m の駒の天端を土が覆い、天端の埋没を増やす ── 2026-09-25 御供所の郭 N×E・社殿の腰石垣で実測 −0.15m)
         {
-            Vector2 dq = P + (nX + nZ).normalized * 2.12f; float gd = groundAt(dq.x, dq.y);
+            //   ⭐ 「隅の外」は両脇の駒の**前の面(法の足先 = 外向きへの射影の最大)**の交点から測る(2026-10-05 EDO-0502 第19巡)。
+            //   控えの線の交点 P から 2.12m では、控え 2.1m 超の城の石垣(天端 1.4 + 法の出 0.73)で点が駒の外形の中(高い側の面)に落ち、
+            //   見えている出隅(岡部 TW_Kado_Hokuto の返し・外の地表 13.1 / 天端 16.5)を「土に隠れる」と退けて隅に 0.73m の V の口が残った。
+            //   当たる先: PlaceRunKado を通る全ての出隅(山王 Stage3 の土留め・郭・腰石垣、岡部 Stage2b の城の石垣)── 控えが 1.5m 未満の駒は前と同じ点の近く。
+            Func<IList<GameObject>, Vector2, float> front = (run, n) =>
+            { float f = float.MinValue; foreach (var g in run) { if (g == null) continue; foreach (var v in Body(g.transform, 999999)) f = Mathf.Max(f, v.x * n.x + v.z * n.y); } return f; };
+            float fX = front(runX, nX), fZ = front(runZ, nZ), detF = nX.x * nZ.y - nX.y * nZ.x;
+            Vector2 PF = Mathf.Abs(detF) < 1e-4f ? P : new Vector2((fX * nZ.y - fZ * nX.y) / detF, (nX.x * fZ - nZ.x * fX) / detF);
+            Vector2 dq = PF + (nX + nZ).normalized * 0.71f; float gd = groundAt(dq.x, dq.y);
             if (!float.IsNaN(gd) && crest - gd < 0.5f) { note = "隅は土に隠れる(隅の外の地表 = 天端 " + (gd - crest).ToString("+0.00;-0.00") + "m)— 据えない"; return null; }
         }
         // 丈: 両脇の直線材の底より浅くしない + 隅の据え点(両腕の控えの線の上)の地表より下まで届く

@@ -1,6 +1,6 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 08327904647d -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 38f326790557 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
@@ -81,7 +81,7 @@
 | `EdoBuild.ProjSpan(go, dir)` | `float` | 面 | 駒の実メッシュ(見えている物だけ)を走り方向 dir(xz)へ投影した伸び[m]。 | TypologyBuilder.Niwa(Niwa・NiwaUra), MatsudairaDewa(ProjSpan), TypologyBuilder.Keidai(NiwaKeidai) |
 | `EdoBuild.LocalSpan(tr, localAxis)` | `float` |  | 駒の壁体を、駒の局所軸 localAxis へ投影した伸び[m](世界の尺度)。 | — |
 | `EdoBuild.Face(go, dir, yLo, yHi, maxSide, perpDir=…, origin=…, perpMax=…)` | `float` |  | FaceSpan の片側。maxSide なら dir の正の側の面。 | DoiBuilder.Mune(PlaceServiceA), MatsudairaDewa(Stage5_Mon) |
-| `EdoBuild.FaceOut(go, a, n, yLo, yHi, pick=…)` | `float` |  | 線(点 a・外向き法線 n)からの、帯内の頂点の最大の張り出し[m] (= その駒の外面の位置。 | OkabeYashiki(AlignInubashiri・BackTrenches・FaceOut) |
+| `EdoBuild.FaceOut(go, a, n, yLo, yHi, pick=…)` | `float` |  | 線(点 a・外向き法線 n)からの、帯内の頂点の最大の張り出し[m] (= その駒の外面の位置。 | OkabeYashiki(AlignInubashiri・BackTrenches・FaceOut…) |
 | `EdoBuild.AlignFace(go, a, n, target, yLo, yHi, pick=…)` | `float` |  | 外面(FaceOut)が target へ来るよう、法線 n 方向に 平行移動する。 ⟶ 返す: 移動量[m](測れなければ NaN) | MatsudairaDewa(Stage5_Mon) |
 | `EdoBuild.Abut(mover, dir, yLo, yHi, moverMaxSide, targetProj, gap=…, perpDir=…, origin=…, perpMax=…)` | `float` | 駒どうし・面 | 突き付け。可動側 mover の面(帯で測る)を、走り方向 dir 上の 相手の面の投影値 targetProj へ寄せる。 ⟶ 返す: 移動量[m](測れなければ NaN) | DoiBuilder.Mune(PlaceServiceA), MatsudairaDewa(Stage5_Mon), SannoSha(ToriiFromMune) |
 | `EdoBuild.StretchEnd(piece, pair, ax, sgn, target)` | `float` |  | 駒の端を目標へ伸縮させる(敷設の最後の一手。 ⟶ 返す: 伸ばした量[m](負 = 縮めた | — |
@@ -864,7 +864,7 @@ EdoBuild — 継ぎ目を躯体の実面で納める(2026-10-03・EDO-0502 岡�
 | 関数 | 返す | 札 | 何をするか(注釈の一文目) | 呼んでいる所 |
 |---|---|---|---|---|
 | `EdoBuild.BodySpanAlong(go, origin, along, bandLo=…, bandHi=…)` | `Vector2` |  | 駒の躯体(屋根の材を除く・BodyExRoof)の、走り along 上の区間 [最小, 最大] (origin からの距離 s)。 | DoiBuilder.Mon(PlinthOpeningEdges・SpanOn・Stage3_Mon), OkabeYashiki(BackTrenches・PlaceOmoteNagaya) |
-| `EdoBuild.SpecBodySpanAlong(go, origin, along)` | `Vector2` |  | 駒の躯体の端(札の jambL / jambR)の、走り along 上の区間 [最小, 最大](origin からの s)。 | DoiBuilder.Mon(BuildBackPlinth・SpanOn・Stage3_Mon), OkabeYashiki(BackTrenches・PlaceOmoteNagaya), Doi(Stage2_Perimeter) |
+| `EdoBuild.SpecBodySpanAlong(go, origin, along)` | `Vector2` |  | 駒の躯体の端(札の jambL / jambR)の、走り along 上の区間 [最小, 最大](origin からの s)。 | DoiBuilder.Mon(BuildBackPlinth・SpanOn・Stage3_Mon), OkabeYashiki(BackTrenches・PlaceOmoteNagaya・Stage2b_Dan), Doi(Stage2_Perimeter) |
 | `EdoBuild.AbutBodyAlong(go, origin, along, sTarget, lowEnd)` | `float` | 硬 駒どうし | 長さの固定された駒(長屋)を、走りに沿う平行移動だけで、前の相手の躯体の端へ突き付ける(硬い・隙 0)。 ⟶ 返す: 動かした量[m](札が無ければ NaN) | Doi(Stage2_Perimeter), DoiBuilder.Mon(Stage3_Mon), OkabeYashiki(PlaceOmoteNagaya) |
 | `EdoBuild.SeamSlit(lo, hi, origin, along, atY, openBand, bandAbove=…, step=…)` | `float` | 断面 | 継ぎ目の素通しを目の高さの帯の断面で測る(2026-10-05・EDO-0533 第9巡)。 ⟶ 返す: その最大[m](正 = その高さで素通しの隙・負 = めり込み)・測れなければ NaN | DoiBuilder.Mon(Stage3_Mon) |
 | `EdoBuild.FaceLineCorner(a1, d1, out1, c1, a2, d2, out2, c2)` | `Vector2` |  | 二本の壁の外面の線(辺の始点 a1・走り d1・外向き out1 の線から内へ c1)の交点 Q(外隅)。 | Doi(Stage2_Perimeter) |

@@ -250,7 +250,12 @@ public static partial class EdoBuild
                 {
                     Tori.Custom(kg.name + " 稜線", kg, false, -0.002f, 0.002f,
                         () => { var e = edges(); return Mathf.Abs(e.x) >= Mathf.Abs(e.y) ? e.x : e.y; },
-                        () => { var e = edges(); var d = new Vector3(f1c.x * e.x + f2c.x * e.y, 0f, f1c.y * e.x + f2c.y * e.y);
+                        () => { var e = edges();
+                                // ⭐ 二つの見え面の向きが直交しない(折れ 20〜60° の隅)ときは d·f1 = e1・d·f2 = e2 を解く(2026-10-05・EDO-0502 第18巡)
+                                //   ── f1·e1 + f2·e2 を引くだけだと斜交で過不足が出て 2 巡で 0.04〜0.05 残った。90° では従前と同じ。
+                                float det = f1c.x * f2c.y - f1c.y * f2c.x; Vector3 d;
+                                if (Mathf.Abs(det) > 0.2f) { float dx = (e.x * f2c.y - e.y * f1c.y) / det, dz = (f1c.x * e.y - f2c.x * e.x) / det; d = new Vector3(dx, 0f, dz); }
+                                else d = new Vector3(f1c.x * e.x + f2c.x * e.y, 0f, f1c.y * e.x + f2c.y * e.y);
                                 kgc.transform.position -= d; return d.magnitude; }),
                     Tori.Custom(kg.name + " 天端", kg, false, -0.002f, 0.002f,
                         () => { float c = crestKado(kgc); return float.IsNaN(c) ? float.NaN : c - crestC; },

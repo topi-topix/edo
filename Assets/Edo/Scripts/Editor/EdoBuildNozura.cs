@@ -22,6 +22,9 @@ public static partial class EdoBuild
         public Func<float, float, int, string> straight;
         /// <summary>隅の駒 (見付, 個体) → パス。</summary>
         public Func<float, int, string> kado;
+        /// <summary>出隅の折れが 90° でない隅の駒(折れ°, 見付, 通し番号)→ パス(2026-10-05・EDO-0502 第18巡)。折れ 20〜60° に据える。
+        /// 腕1 = 局所 −X(見え面 +Z)・腕2 = 局所 (cos 折れ, 0, −sin 折れ)。焼いていない組は null か無いパス ⇒ ⚠ を刷って据えない(従前の楔のまま)。</summary>
+        public Func<float, float, int, string> kadoDeg = EdoAssets.Own.SannoNozuraKadoDeg;
         /// <summary>段の境の駒 (+X へ上がるか, 個体) → パス。</summary>
         public Func<bool, int, string> dan;
         /// <summary>打ち切りの駒 (+X へ上がるか, 個体) → パス(端に相手が居ないとき)。</summary>
@@ -175,7 +178,12 @@ public static partial class EdoBuild
         var fixedSpans = new List<float[]>();                      // [s の始まり, s の終わり](走りの座標)
         for (int i = 1; i + 1 < m; i++)
         {
-            float turn = Vector2.Angle(dir[i - 1], dir[i]); if (turn < 60f) continue;
+            float turn = Vector2.Angle(dir[i - 1], dir[i]);
+            // ⭐ 折れ 20〜60° は折れの角で焼いた隅の駒を据える(2026-10-05・EDO-0502 第18巡)── 直線の駒の突き付けでは外の角に足元ほど広い楔
+            //   (法の出 0.3×見付 が両腕で開く・岡部 TW_Higashi_Hokuto 49.4° で足元 0.79)が開いた。20° 未満は従前どおり直線の駒の継ぎ。
+            //   当たる先: 野面の土留めの 20〜60° の出隅すべて(岡部 TW_Higashi_Hokuto・TW_Kado_Sode ほか、山王・松江松平・土井・類型の縁の野面)。
+            bool oblique = turn < 60f;
+            if (oblique && turn < 20f) continue;
             // 隅の二つの見え面は隅の際(腕の長さ 1間)で測る ── 区間の途中で入れ替わる土留めは区間の票と隅の際が違う
             Vector2 f1 = faceOn(i - 1, s0[i] - W, s0[i]), f2 = faceOn(i, s0[i], s0[i] + W);
             // 凸(出隅): 次の区間は前の区間の見え面の裏(−f1)へ向かう
@@ -186,9 +194,20 @@ public static partial class EdoBuild
             Func<Vector2, Vector2> ccw = v => new Vector2(-v.y, v.x);
             Vector2 X = Vector2.Dot(ccw(f2), f1) > 0f ? f2 : f1; Vector2 Z = ccw(X);
             float yaw = Mathf.Atan2(-X.y, X.x) * Mathf.Rad2Deg;
-            string path = w.kado(hk, idx);
+            string path = oblique ? (w.kadoDeg != null ? w.kadoDeg(turn, hk, idx) : null) : w.kado(hk, idx);
+            if (oblique)
+            {
+                // 腕1 は「見え面 F を反時計 90° 回した向き」へ伸びる腕(局所 +Z = F・−X = 腕1)。腕1 が前の区間か次の区間かは隅の巡りで決まる。
+                Vector2 armA0 = -dir[i - 1], armB0 = dir[i];
+                Vector2 F = Vector2.Dot(ccw(f1), armA0) >= Vector2.Dot(ccw(f2), armB0) ? f1 : f2;
+                yaw = Mathf.Atan2(F.x, F.y) * Mathf.Rad2Deg;
+            }
             if (path == null || !System.IO.File.Exists(System.IO.Path.Combine(System.IO.Directory.GetParent(Application.dataPath).FullName, path)))
-            { log.AppendLine("    ⛔ " + name + " 隅 " + i + ": 隅の駒が焼いていない(見付 " + hk + ")— 据えない"); continue; }
+            {
+                if (oblique) log.AppendLine("    ⚠ " + name + " 隅 " + i + ": 折れ " + turn.ToString("F1") + "° の隅の駒が焼いていない(見付 " + hk + "・" + (path ?? "null") + ")── 直線の駒の継ぎのまま(外の角に楔)");
+                else log.AppendLine("    ⛔ " + name + " 隅 " + i + ": 隅の駒が焼いていない(見付 " + hk + ")— 据えない");
+                continue;
+            }
             var kg = Place(path, new Vector3(P[i].x, crest - hk, P[i].y), yaw, Vector3.one, parent, name + "_kado" + i);
             // ⭐ 隅の駒の天端は**二本の腕の中ほど**で測る(2026-10-04・EDO-0502 第16巡)── crestOf は外接箱の芯を通る筋で測るので、L 字の駒では
             //   芯の筋が隅の内の法の石を拾い、天端を 0.4〜0.6 低く読んで駒を持ち上げた(岡部 TW_Higashi_Hokuto の隅 2 つ: 腕の天端 16.70/16.89・直線の 16.31)。

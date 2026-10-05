@@ -1572,6 +1572,18 @@ public static class EdoAssets
             return "Assets/Edo/Models/Sanno/Sanno_Nozura_Kado90_H" + hmm.ToString("0000") + "_" + (((i % 2) + 2) % 2 == 0 ? "a" : "b") + ".fbx";
         }
 
+        /// <summary>野面の出隅の駒・**折れ <paramref name="deg"/>°**(走りの向きの変わり。90 は <see cref="SannoNozuraKado"/>)。腕1 = 稜線から局所 −X へ 0.909(見え面 +Z)/
+        /// 腕2 = 局所 (cos deg, 0, −sin deg) へ 0.909(見え面 (sin deg, 0, cos deg))。ピボット = 天端の稜線・床レベル。腕の先は直線の駒と頂点一致。焼けている組: 49 / 52 × H4.80。
+        /// 材 Kirishi / Danishi ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=49.4,51.8 --h=4.8 --render</summary>
+        public static string SannoNozuraKadoDeg(float deg, float h, int i)
+        {
+            int d = (int)System.Math.Round(deg);
+            if (d == 90) return SannoNozuraKado(h, i);
+            int hmm = (int)System.Math.Round(h * 1000.0);
+            return "Assets/Edo/Models/Sanno/Sanno_Nozura_Kado" + d + "_H" + hmm.ToString("0000") + "_" + (((i % 2) + 2) % 2 == 0 ? "a" : "b") + ".fbx";
+        }
+
         /// <summary><see cref="SannoNozuraKado"/> の**片腕を袖の背の面で一度だけ切った版**(EDO-0437 2026-09-27・参道の階の前庭の北の縁の口の出隅。
         /// 返し側の腕の法 1:0.3 の足が袖の中へ W 0.31 / E 0.47 入った ── 施主「端の石は細くしない。袖に当たる石は袖の背に沿った一辺だけ切る」)。
         /// 元の駒(<see cref="SannoNozuraKado"/>(h, i)・1c84bf9b の塊に焼き直した版)を局所の軸に直交する平面 <paramref name="axis"/> = <paramref name="at"/> で切り、

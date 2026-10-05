@@ -810,9 +810,13 @@ public static partial class EdoDoiBuilder
     }
 
     // ---- ②護岸(石組・玉石・荒磯・呑口・州浜の玉石・乱杭)
+    // 汀の石の天端を水面より上に据える硬い条件(EdoBuild.NiwaIshiSueruAbove)の勘定 ── 護岸・押さえ石・州浜の玉石で共有し、Niwa_B_Gogan の末で刷る
+    static EdoBuild.SeiyakuTally aboveTally = new EdoBuild.SeiyakuTally();
+    static List<string> aboveMoved = new List<string>(), aboveDrop = new List<string>();
     public static string Niwa_B_Gogan()
     {
         var n = NiwaModel; if (n == null) return "護岸: 汀線を持つ庭が無い";
+        aboveTally = new EdoBuild.SeiyakuTally(); aboveMoved.Clear(); aboveDrop.Clear();
         var g = n.g; float ken = Grid.ken, wy = n.waterY, bs = EdoBuild.SEAT_TO_BED_LO;
         var grp = Group("Niwa/Gogan"); Clear(grp);
         var rnd = new System.Random(20261004);
@@ -861,11 +865,33 @@ public static partial class EdoDoiBuilder
                 string path = yaku ? EdoAssets.Own.Ishigumi(3) : (tama ? EdoAssets.Own.Neishi(tl0) : EdoAssets.Own.Ishigumi(variant));
                 if (!Exists(path)) { Wait("庭石の部材が無い: " + path); continue; }
                 float sc = tama ? 1f : EdoBuild.NiwaScaleForLong(path, axis);   // 玉石は焼いた長さのまま(⛔ 縮めない)
-                Vector2 gq = gp + WaterSide(gp, dir, naka) * ((ins + off) / ken);
-                EdoBuild.NiwaIshiRep rep;
-                var go = EdoBuild.NiwaIshiSueru(grp, nm + "_" + i + (yaku ? "_Yaku" : tama ? "_Tama" : ""), path, WuV(gq), yaw, sc,
-                                                float.NaN, wy, bs, out rep, wy + cap);
-                if (go != null) tl.Add(rep); else Wait("護岸『" + nm + "』の石 " + i + " が測れず据わらない(" + path + ")");
+                Vector2 ws = WaterSide(gp, dir, naka);
+                // ⭐ 硬い・天端を水面より上(EdoBuild.NiwaIshiSueruAbove ── 2026-10-05 第9巡: 汀の石 14 が水面の下)。候補は**欄の帯の内だけ**:
+                //    寄せ = 狙い(ins+off)から帯の陸の端(inset の下限 − jag)まで / 長さ = 狙いから帯の上(lenMax・役石は yakuMax・玉石は tamaAsset の帯の長い物)。
+                //    狙いに近い順(寄せの段 + 長さの段)。どれも水面の下なら建てない(名指す)。
+                var spots = new List<EdoBuild.NiwaIshiSpot>();
+                float inLand = inLo - jag, aimIn = ins + off;
+                var insC = new List<float> { aimIn };
+                for (int k = 1; k <= 3; k++) { float x = Mathf.Lerp(aimIn, inLand, k / 3f); if (x < aimIn - 1e-4f) insC.Add(x); }
+                var szC = new List<KeyValuePair<string, float>> { new KeyValuePair<string, float>(path, sc) };
+                if (tama) { foreach (var L in tamaL) if (L > tl0 + 1e-4f && szC.Count < 4) { string p2 = EdoAssets.Own.Neishi(L); if (Exists(p2)) szC.Add(new KeyValuePair<string, float>(p2, 1f)); } }
+                else
+                {
+                    float axMax = yaku ? ykMax : lenMax;
+                    for (int k = 1; k <= 3; k++) { float a2 = Mathf.Lerp(axis, axMax, k / 3f); if (a2 > axis + 1e-4f) szC.Add(new KeyValuePair<string, float>(path, EdoBuild.NiwaScaleForLong(path, a2))); }
+                }
+                for (int step = 0; step <= insC.Count - 1 + szC.Count - 1; step++)
+                    for (int ki = 0; ki < insC.Count; ki++)
+                    {
+                        int ji = step - ki; if (ji < 0 || ji >= szC.Count) continue;
+                        spots.Add(new EdoBuild.NiwaIshiSpot { path = szC[ji].Key, scale = szC[ji].Value, xz = WuV(gp + ws * (insC[ki] / ken)), aimTop = wy + cap,
+                                                              why = (ki > 0 ? "寄せ " + insC[ki].ToString("F2") : "") + (ji > 0 ? (ki > 0 ? "・" : "") + "大きさ +" + ji : "") });
+                    }
+                EdoBuild.NiwaIshiRep rep; int used; float bestTop;
+                var go = EdoBuild.NiwaIshiSueruAbove(grp, nm + "_" + i + (yaku ? "_Yaku" : tama ? "_Tama" : ""), spots, yaw, float.NaN, wy, bs, aboveTally,
+                                                     out rep, out used, out bestTop);
+                if (go != null) { tl.Add(rep); if (used > 0) aboveMoved.Add(nm + "_" + i + "(" + spots[used].why + ")"); }
+                else { aboveDrop.Add(nm + "_" + i + "(試した最も高い天端 " + (float.IsNaN(bestTop) ? "測れない" : (bestTop - wy).ToString("+0.000;-0.000") + "m") + ")"); }
             }
 
             // 呑口(入江の奥の石樋の口)。+Z = 流れの下流 = 池の内(部材の docstring)
@@ -924,7 +950,7 @@ public static partial class EdoDoiBuilder
 
         // 州浜の玉石(指図の [u,v,L] が一つずつの正)。⭐ 据えは Neishi の作り(丈 = 2 × 見え = bury 0.5・EdoAssets.Own.Neishi の注記と suhama.ishiNote)
         const float NEISHI_BURY = 0.5f;
-        int su = 0;
+        int su = 0, suDrop = 0;                // su は名の通し番号(建てなかった石も番号を進める ── 名を巡ごとにずらさない)
         var suList = new List<KeyValuePair<string, Dictionary<string, object>>>();
         if (Has(g, "suhama")) foreach (var o in A(g["suhama"])) suList.Add(new KeyValuePair<string, Dictionary<string, object>>("suhama", O(o)));
         if (Has(g, "suhamaNaka")) suList.Add(new KeyValuePair<string, Dictionary<string, object>>("suhamaNaka", O(g["suhamaNaka"])));
@@ -941,9 +967,12 @@ public static partial class EdoDoiBuilder
                     if (float.IsNaN(best)) { Wait("州浜『" + nm + "』の玉石 L" + L.ToString("F2") + " に当たる Neishi が焼いていない"); continue; }
                     string path = EdoAssets.Own.Neishi(best);
                     if (!Exists(path)) { Wait("玉石の部材が無い: " + path); continue; }
-                    EdoBuild.NiwaIshiRep rep;
-                    var go = EdoBuild.NiwaIshiSueru(grp, nm + "_" + su, path, Wu(F(q[0]), F(q[1])), Rnd(rnd, 0f, 360f), 1f, NEISHI_BURY, wy, bs, out rep);
+                    // ⭐ 硬い・天端を水面より上(EdoBuild.NiwaIshiSueruAbove)── 石の点 [u,v,L] は指図の正(一つずつ)なので候補は一つ。沈むなら建てない(名指す)
+                    var spS = new List<EdoBuild.NiwaIshiSpot> { new EdoBuild.NiwaIshiSpot { path = path, xz = Wu(F(q[0]), F(q[1])), scale = 1f, aimTop = float.NaN, why = "" } };
+                    EdoBuild.NiwaIshiRep rep; int usedS; float topS;
+                    var go = EdoBuild.NiwaIshiSueruAbove(grp, nm + "_" + su, spS, Rnd(rnd, 0f, 360f), NEISHI_BURY, wy, bs, aboveTally, out rep, out usedS, out topS);
                     if (go != null) { tl.Add(rep); su++; }
+                    else { aboveDrop.Add(nm + "_" + su + "(点 " + F(q[0]).ToString("F2") + "," + F(q[1]).ToString("F2") + "・試した天端 " + (float.IsNaN(topS) ? "測れない" : (topS - wy).ToString("+0.000;-0.000") + "m") + ")"); su++; suDrop++; }
                 }
             if (Has(sh, "layer"))
                 Wait("州浜『" + nm + "』の地の仕上げ(" + Sk(sh, "layer") + (Has(sh, "bare") && sh["bare"] is bool && (bool)sh["bare"] ? "・そこの草を消す" : "")
@@ -984,7 +1013,12 @@ public static partial class EdoDoiBuilder
                     if (go != null) { tl.Add(rep); ran++; }
                 }
             }
-        sb.Append("護岸・玉石・荒磯・州浜・乱杭: " + tl.Line() + " / うち州浜の玉石 " + su + "・乱杭 " + ran + " / 呑口 " + nomi + " / skip で抜いた " + skipped);
+        sb.Append("護岸・玉石・荒磯・州浜・乱杭: " + tl.Line() + " / うち州浜の玉石 " + (su - suDrop) + "・乱杭 " + ran + " / 呑口 " + nomi + " / skip で抜いた " + skipped);
+        // 汀の石の天端(硬い・水面より上): 狙いのままで沈む石は欄の帯の内で寄せ・大きさを変えた(⚠)/帯の内のどこでも沈む石は建てない(⛔)
+        sb.Append("\n  汀の石の天端 ≥ 水面(硬い): " + (aboveMoved.Count == 0 ? "狙いのまま全部上" : "⚠ 帯の内で寄せ・大きさを変えて上へ出した " + aboveMoved.Count + "(" + string.Join("・", aboveMoved.ToArray()) + ")")
+                  + (aboveDrop.Count == 0 ? "" : " / ⛔ 帯の内のどこでも天端が水面の下で建てない " + aboveDrop.Count + "(" + string.Join("・", aboveDrop.ToArray()) + ")")
+                  + " / " + aboveTally.Summary());
+        foreach (var x in aboveDrop) Wait("汀の石 " + x + ": 指図の帯(inset・長さ・石の点)の内では天端が水面の下 ── 建てない(硬い)。帯か石の点の欄の上書きが要る(庭方へ)");
         return sb.ToString();
     }
 
@@ -1033,10 +1067,14 @@ public static partial class EdoDoiBuilder
             {
                 float sgn = (k % 2 == 0) ? 1f : -1f;
                 var xz = core + tgW * (sgn * F(os["fromCore"]));
-                EdoBuild.NiwaIshiRep rp;
-                var go = EdoBuild.NiwaIshiSueru(grp, nm + "_Nomikuchi_Osae_" + k, path, xz, Rnd(rnd, 0f, 360f), EdoBuild.NiwaScaleForLong(path, Rnd(rnd, lLo, lHi)),
-                                                float.NaN, wy, bs, out rp, sueTop);
-                if (go != null) { tl.Add(rp); made++; } else Wait("呑口の押さえ石(" + nm + " #" + k + ")が測れず据わらない");
+                float yawO = Rnd(rnd, 0f, 360f), lAim = Rnd(rnd, lLo, lHi);
+                // ⭐ 硬い・天端を水面より上(EdoBuild.NiwaIshiSueruAbove)── 候補は長さの帯(long)の内だけ: 狙いから lHi まで。位置(fromCore)は欄のまま
+                var spO = new List<EdoBuild.NiwaIshiSpot> { new EdoBuild.NiwaIshiSpot { path = path, xz = xz, scale = EdoBuild.NiwaScaleForLong(path, lAim), aimTop = sueTop, why = "" } };
+                for (int j = 1; j <= 3; j++) { float l2 = Mathf.Lerp(lAim, lHi, j / 3f); if (l2 > lAim + 1e-4f) spO.Add(new EdoBuild.NiwaIshiSpot { path = path, xz = xz, scale = EdoBuild.NiwaScaleForLong(path, l2), aimTop = sueTop, why = "長さ " + l2.ToString("F2") }); }
+                EdoBuild.NiwaIshiRep rp; int usedO; float topO;
+                var go = EdoBuild.NiwaIshiSueruAbove(grp, nm + "_Nomikuchi_Osae_" + k, spO, yawO, float.NaN, wy, bs, aboveTally, out rp, out usedO, out topO);
+                if (go != null) { tl.Add(rp); made++; if (usedO > 0) aboveMoved.Add(nm + "_Nomikuchi_Osae_" + k + "(" + spO[usedO].why + ")"); }
+                else aboveDrop.Add(nm + "_Nomikuchi_Osae_" + k + "(試した最も高い天端 " + (float.IsNaN(topO) ? "測れない" : (topO - wy).ToString("+0.000;-0.000") + "m") + ")");
             }
             res += "・押さえ石 " + made + "/" + nn;
         }
@@ -1683,6 +1721,13 @@ public static partial class EdoDoiBuilder
         // ⭐ 据わる床は描かれた地表(縁の皮を含む ── 皮は Stage4b が起こした後)。地形の格子で据えると皮の升で根元が浮く(Kari_Oku_4 +0.016・2026-10-04)
         var drawnG = EdoBuild.Drawn();
         fld.BedAt = (x, z) => { float d = drawnG.At(x, z); return float.IsNaN(d) ? EdoBuild.Ground(x, z) : d; };
+        // ⭐⭐ 硬い・許容0(2026-10-05 EDO-0533 普請検査 第9巡 ── 刈込玉 Oku_Tsuge_2 の幹が長局の足元の外形の内 0.102m・水際の草 5 株が水面の下 最大 0.160m):
+        //    ① 幹の芯を建物・塀・門・附属屋の**壁体の足元の外形**に立てない(EdoBuild.BodyHulls ── 軒は入れない)。この庭の地は Eaves も Walls も撒かず、
+        //       庭方の座標の行が建物を避けているかを誰も測っていなかった。② 根元を**水面の下**に入れない(見えている水面 PondEdge の内で、描かれた地表 < waterY)。
+        //    どちらも EdoBuild.NiwaField.PutOnce が据えた後の実の幹で退ける(DropBody・DropWet)。当たる先: この庭の全ての植物(高中木・刈込玉・刈込・シダ・水際の草・生垣)。
+        fld.Bodies = EdoBuild.BodyHulls(BodyGroups());
+        float wyS = n.waterY;
+        fld.WetAt = (x, z) => { var g9 = Grid.L(new Vector2(x, z)); if (!InWater(g9.x, g9.y)) return false; float b9 = fld.BedAt(x, z); return !float.IsNaN(b9) && b9 < wyS; };
         var gs = Garden("G_Sensui"); var go2 = Garden("G_Okuniwa");
         int trees = 0, shrubs = 0, kari = 0, shida = 0, mizu = 0, leanDeep = 0;
         var softMoved = new List<string>();   // 柔らかい狙い(atSoft)から寄せた木(⚠ で刷る)
@@ -1966,11 +2011,23 @@ public static partial class EdoDoiBuilder
         return "植栽: 高中木 " + trees + " / 刈込玉 " + shrubs + " / 刈込 " + kari + " 株 / シダ " + shida + " / 水際の草 " + mizu
              + (leanDeep > 0 ? " / ⚠ 傾けて根入れが " + EdoBuild.NiwaSet.TREE_BURY_MAX.ToString("F1") + "m を越えた木 " + leanDeep : "")
              + " / 据えなかった: 区画の線 " + fld.DropEdge + "・急斜面 " + fld.DropSteep + "・根入れ超 " + fld.DropNeire + "・測れない " + fld.Refused
+             + "・壁体の足元の外形の内 " + fld.DropBody + "(外形 " + fld.Bodies.Count + " 枚)・水面の下 " + fld.DropWet + "(硬い)"
              + (fld.RootSunk > 0 ? " / 根元の帯の浮きを沈め切った " + fld.RootSunk + "(最大 " + fld.MaxRootSunk.ToString("F3") + "m・硬い 浮き 0)" : "")
              + (softMoved.Count > 0 ? "\n    ⚠ 狙い(atSoft)から寄せた: " + string.Join("・", softMoved.ToArray()) : "")
              + (softLean.Count > 0 ? "\n    ⚠ 傾けの角(柔)を埋まりの上限(硬)で起こした: " + string.Join("・", softLean.ToArray()) : "")
              + (fld.SlopeShort > 0 ? "\n    △ 斜度の沈め(柔)を埋まりの上限で頭打ちにした木 " + fld.SlopeShort + "(狙いとの差 最大 " + fld.MaxSlopeShort.ToString("F2") + "m)" : "")
              + skRep.ToString() + ikeRep;
+    }
+
+    /// <summary>壁体の足元の外形を取る群(建物・廊下・囲い・門・奥の塀・附属屋と基壇・井戸・石段・柵)── 在る物だけ(⛔ Group で作らない)。
+    /// Stage8 植栽(EdoDoiBuilder.Shokusai)と庭の植栽(Niwa_H_Shokusai)が同じ一本を使う。</summary>
+    static List<Transform> BodyGroups()
+    {
+        var res = new List<Transform>();
+        var root = Group("Niwa").parent;
+        if (root == null) return res;
+        foreach (var nm in new[] { "Buildings", "Kakoi", "Mon", "OkuHei", "Fuzoku" }) { var t = root.Find(nm); if (t != null) res.Add(t); }
+        return res;
     }
 
     /// <summary>庭の区画(泉水・奥庭の poly)のどれかの内か。下草の域が NiwaM の矩形(泉水)の外の奥庭に掛かる時のため。</summary>

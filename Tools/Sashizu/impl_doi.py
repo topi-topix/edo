@@ -272,6 +272,24 @@ class _Site(object):
             P = [a, b, (b[0] + n[0] * dep, b[1] + n[1] * dep), (a[0] + n[0] * dep, a[1] + n[1] * dep)]
             self.nagaya.append((r["name"], P))
             if r["edge"] in (14, 15): self.kita.append((r["name"], P))
+        # ---- 区画の辺に立つ練塀の**足元の外形**(壁体 ── 軒ではない)【硬・許容0】
+        # ⭐ 2026-10-05 EDO-0533 普請検査 第9巡: 中木0004 の幹が練塀 E11_Hei_5 の壁体の中 0.266m に立った。退けていたのは塀・囲いの
+        #   線(kakoi_lines)= **区画の線**から 2.0m だけで、建った練塀は線の上に無い ── EdoDoiBuilder の練塀は外面を長屋・基壇の外面の線
+        #   (区画の線から 城の石垣の控え(実測)+ 犬走り)へ揃えて立つ(芯 = 控え + inubashiri + 厚み/2)。控えは石垣の駒を据えて測る値で
+        #   紙には無い(土井 辺12・13 で 1.000m)。⇒ 練塀は同じ線へ外面を揃える**長屋の帯**(区画の線から inubashiri + nagayaD)の内に必ず
+        #   納まる(控え ≤ nagayaD − dobeiT)ので、帯の奥行で足元の外形を取る(欄の値だけ・⛔ 控えを発明しない)。走りの両端は隅で
+        #   次の辺の塀へ回り込む(E11_Hei の端 s=10.46 の先 0.04m に中木0004)ので、区間からの距離で取る(端も丸く覆う)。
+        #   当たる先: 区画の辺に立つ練塀の全部(E11_Hei・E12_Hei・E13_Hei_Kado・E14_Hei_Kado)。長屋の帯は従前どおり。
+        self.heiDep = dep
+        self.hei = []
+        dT = float(M.const.get("dobeiT") or 0.0)
+        for r in d.get("runs") or []:
+            if r.get("kind") != "Dobei" or r.get("edge") is None or r.get("s0") is None or r.get("build") is False: continue
+            self.hei.append((r["name"], M.edge_pt(r["edge"], r["s0"]), M.edge_pt(r["edge"], r["s1"])))
+        if self.hei:
+            notes.append("⚠ 区画の辺の練塀 %s の足元の外形は、区画の線の区間から %.2fm(inubashiri + nagayaD ── 外面を揃える長屋の帯)で取った【硬】"
+                         "── 建った練塀の芯は 城の石垣の控え(実測)+ inubashiri + dobeiT %.2f/2 で、控えは紙に無い(帯の奥行は控え ≤ %.2fm まで覆う)"
+                         % ("・".join(h[0] for h in self.hei), dep, dT, dep - dT - (M.const.get("inubashiri") or 0.0)))
         notes.append("⚠ 供待・惣後架・平家長屋・家中長屋・稲荷社は clearance.nagaya(軒の出 %.2fm + 1.0m・低木 0.6m)で退けた"
                      "(clearance に名の無い附属屋)/廊下(links)も同じ値・棟(munes)の低木は 0.6m(欄に無い)── 棟の足形は欄の矩形に"
                      "四周の濡縁の出 %.2fm(在庫 Goten_Nureen_1ken の実寸)を足した形" % (NAGAYA_EAVE_M, self.nureen))
@@ -384,6 +402,8 @@ class _Site(object):
                 if L._pip(p, Q): return nm + " の上"
         for nm, P in self.kaidans + self.munes + self.links + self.kura + self.nagaya:
             if L._pip(p, P): return nm + " の上"
+        for nm, a, b in self.hei:
+            if _seg_d(p, a, b) < self.heiDep - 1e-9: return "練塀 %s の足元の外形(区画の線から %.2fm)の上" % (nm, self.heiDep)
         for nm, P9, hw, _k in self.ramps:
             if _pl_d(p, P9) < hw - 1e-9: return nm + " の敷き"
         if self.f09 and len(self.f09) >= 3 and L._pip(p, self.f09): return "玉垣 F09 の内"

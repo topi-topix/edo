@@ -29,8 +29,12 @@ public static partial class EdoDoiBuilder
         var f = Grid;
         // ⭐ 据えは描かれた地表(縁の皮を含む)で ── 皮は Stage4b が起こした後に流す
         var drawn = EdoBuild.Drawn();
-        int made = 0, noPart = 0, noAsset = 0, noPos = 0, seatBad = 0, vineSkip = 0;
-        var seatBadLog = new List<string>();
+        // ⭐⭐ 硬い・許容0: 幹の芯を建物・塀・門・附属屋の**壁体の足元の外形**に立てない(EdoBuild.BodyHulls ── 軒は入れない)。
+        //    焼き手(impl_doi.py `_Site.base_block`)も紙の外形で退けるが、紙は建った位置(練塀の控えは石垣の実測)を知らない ──
+        //    正の輪は据えた現物の幹で測るここ(2026-10-05 EDO-0533 普請検査 第9巡: 中木0004 が練塀 E11_Hei_5 の中 0.266m)。
+        var bodies = EdoBuild.BodyHulls(BodyGroups());
+        int made = 0, noPart = 0, noAsset = 0, noPos = 0, seatBad = 0, vineSkip = 0, bodyBad = 0;
+        var seatBadLog = new List<string>(); var bodyBadLog = new List<string>();
         var byGroup = new Dictionary<string, int>();
         var byLayer = new Dictionary<string, int>();
         var missing = new HashSet<string>();
@@ -67,6 +71,12 @@ public static partial class EdoDoiBuilder
             if (refused)
             { seatBad++; if (seatBadLog.Count < 8) seatBadLog.Add(goName + " 埋没 " + bu.ToString("F2") + " 浮き " + fl.ToString("F2")); continue; }
             if (go == null) { missing.Add(key + " → " + path); noPart++; continue; }
+            Vector2 tr;
+            if (EdoBuild.PlantInBody(go, bodies, out tr))
+            {
+                bodyBad++; if (bodyBadLog.Count < 8) bodyBadLog.Add(goName + " (" + tr.x.ToString("F1") + "," + tr.y.ToString("F1") + ")");
+                UnityEngine.Object.DestroyImmediate(go); continue;
+            }
             made++;
             byGroup[grpName] = (byGroup.ContainsKey(grpName) ? byGroup[grpName] : 0) + 1;
             byLayer[lay] = (byLayer.ContainsKey(lay) ? byLayer[lay] : 0) + 1;
@@ -81,6 +91,8 @@ public static partial class EdoDoiBuilder
         if (vineSkip > 0) sb.AppendLine("  ⚠ つる " + vineSkip + " ── 据えない(土井 Stage8 は宿主の幹径を測る二巡目を持たない)");
         sb.AppendLine("  " + (seatBad > 0 ? "⛔" : "⭕") + " 据え(幹の足の当たり): 埋没 ≤1.0・根元の浮き 0 を外れて建てなかった " + seatBad
                       + " 本(硬い ── 許容0 を破る点には建てない・docs/oki-kata.md §4a)" + (seatBadLog.Count > 0 ? "\n    " + string.Join(" / ", seatBadLog.ToArray()) : ""));
+        sb.AppendLine("  " + (bodyBad > 0 ? "⛔" : "⭕") + " 幹の芯が壁体の足元の外形(" + bodies.Count + " 枚)の内で建てなかった " + bodyBad
+                      + " 本(硬い ── 区域侵犯・焼き手の外形で退けきれなかった点)" + (bodyBadLog.Count > 0 ? "\n    " + string.Join(" / ", bodyBadLog.ToArray()) : ""));
         // 焼き手の名乗り(読めなかった欄・柔らかい制約の未達)をそのまま刷る ── ⛔ 黙って捨てない(規則19)
         var notes = pl != null && Has(pl, "notes") ? A(pl["notes"]) : null;
         if (notes != null && notes.Count > 0)

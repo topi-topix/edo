@@ -289,6 +289,64 @@ public static partial class EdoBuild
         return true;
     }
 
+    /// <summary>壁体の足元の外形を取る帯の高さ[m]: 地表から この高さまでの頂点だけを壁体に数える(軒先の垂れ 2.3m 前後を入れない ──
+    /// 附属屋の背の取り合い・塀の芯の離れが壁体の面を測る帯 0.15〜1.8m と同じ上端)。</summary>
+    public const float BODY_FOOT_BAND = 1.8f;
+
+    /// <summary>**建物・塀・門の壁体の足元の外形**(世界 XZ の凸包の列 ── メッシュ一枚ごとに一つ)。屋根系の名(<see cref="IsRoofName"/>・"roof")の
+    /// メッシュを除き、残りの頂点のうち**その点の地表から <see cref="BODY_FOOT_BAND"/> m まで**の物だけで包む(軒・屋根の張り出しは入れない ──
+    /// 区域侵犯は壁体で数える・docs/oki-kata.md §4)。縁・廊下の床と束(地面に立つ)は入る。凸包の候補は局所 XZ の凸包(<see cref="HullXZIndices"/>)。
+    /// ⛔ 外接箱・ピボットで取らない(規則21)。⚠ 一枚の凸メッシュに凹みがあれば凹みも外形に入る(保守側 ── 退ける側へ外れる)。
+    /// 当たる先: 植物の幹を壁体に立てない硬い条件の全て(<see cref="NiwaField.Bodies"/>・<see cref="PlantInBody"/> ── 土井 Stage8・泉水・奥庭)。</summary>
+    public static List<Vector2[]> BodyHulls(IEnumerable<Transform> groups)
+    {
+        var res = new List<Vector2[]>();
+        foreach (var g in groups)
+        {
+            if (g == null) continue;
+            foreach (var mf in g.GetComponentsInChildren<MeshFilter>())
+            {
+                var m = mf.sharedMesh; if (m == null) continue;
+                var rr = mf.GetComponent<Renderer>(); if (rr == null || !rr.enabled || !mf.gameObject.activeInHierarchy) continue;
+                var root = PrefabUtility.GetNearestPrefabInstanceRoot(mf.gameObject);
+                string pn = PartName(root != null ? root.transform : mf.transform, mf);
+                if (IsRoofName(pn) || pn.ToLower().Contains("roof")) continue;
+                var vs = m.vertices; var l2w = mf.transform.localToWorldMatrix;
+                var low = new List<Vector2>();
+                foreach (int i in HullXZIndices(m))
+                {
+                    var w = l2w.MultiplyPoint3x4(vs[i]);
+                    float gy = Ground(w.x, w.z);
+                    if (float.IsNaN(gy) || w.y <= gy + BODY_FOOT_BAND) low.Add(new Vector2(w.x, w.z));
+                }
+                if (low.Count < 3) continue;
+                var arr = low.ToArray(); var hi = EdoGeom.HullXZ(arr);
+                if (hi.Length < 3) continue;
+                var P = new Vector2[hi.Length];
+                for (int k = 0; k < hi.Length; k++) P[k] = arr[hi[k]];
+                res.Add(P);
+            }
+        }
+        return res;
+    }
+
+    /// <summary>点が <see cref="BodyHulls"/> のどれかの内なら、その添字。無ければ −1。</summary>
+    public static int BodyHullHit(IList<Vector2[]> hulls, Vector2 p)
+    {
+        if (hulls == null) return -1;
+        for (int i = 0; i < hulls.Count; i++) if (EdoGeom.PIP(hulls[i], p)) return i;
+        return -1;
+    }
+
+    /// <summary>**据えた植物の幹の芯が壁体の足元の外形の内か**(硬い・許容0 ── 区域侵犯)。幹の芯は <see cref="NiwaTrunk"/>(地際の頂点の重心)、
+    /// 測れなければ実バウンズの芯(呼び手が数える)。<paramref name="trunk"/> = 測った芯。
+    /// 当たる先: 算出物の撒いた点を据える全邸(土井 Stage8 ── <see cref="PlantAtPoint"/> の後に呼ぶ)。</summary>
+    public static bool PlantInBody(GameObject go, IList<Vector2[]> hulls, out Vector2 trunk)
+    {
+        if (!NiwaTrunk(go, out trunk)) { var b = RB(go); trunk = new Vector2(b.center.x, b.center.z); }
+        return BodyHullHit(hulls, trunk) >= 0;
+    }
+
     /// <summary>**幹の足の下の地表の傾き tanθ** と、足の半径 <paramref name="footR"/>[m](2026-09-29 EDO-0488)。
     /// 足 = 下端から <see cref="ROOT_TOUCH"/> 以内の頂点(<see cref="RootToBed"/> が当たりに数える所と同じ)。その芯のまわりの
     /// 半径 max(R, 0.5) の輪の 16 点と芯で <paramref name="bedAt"/> を引き、最小二乗の面の勾配を返す。
@@ -336,6 +394,17 @@ public static partial class EdoBuild
         public List<Vector2> Cells = new List<Vector2>();   // 庭域の格子点(2m)
         public List<Vector2[]> Voids = new List<Vector2[]>();  // 池代地(木を置かない空地)
         public List<Vector2[]> Fields = new List<Vector2[]>(); // 菜園・段石(庭域にせず木も下草も入れない ── EDO-0532)
+        /// <summary>建物・塀・門の**壁体の足元の外形**(<see cref="BodyHulls"/> ── 屋根・軒を除く実メッシュの XZ 凸包)。
+        /// ⭐ **硬い・許容0**: 木・刈込・下草の幹の芯をこの内に置かない(区域侵犯)。⛔ 軒の下は退けない(軒は <see cref="Eaves"/> の柔らかい離れ)。
+        /// ⛔ 2026-10-05 EDO-0533 普請検査 第9巡: 土井の庭の地(EdoDoiBuilder.Niwa)は Eaves も Walls も撒かず、刈込玉 Oku_Tsuge_2 の幹が
+        /// 長局の縁桁の下(足元の外形の内 0.102m)に立った。Walls は頂点までの距離なので、大きな棟の内の点は頂点から遠く拾えない ── 内外で測る。
+        /// 当たる先: NiwaField.Put で据える全ての駒(呼び手が Bodies を撒いた庭 ── 土井の泉水・奥庭)。</summary>
+        public List<Vector2[]> Bodies = new List<Vector2[]>();
+        /// <summary>**根元が水面の下か**(x, z → true = 水に浸かる)。null なら測らない。⭐ 硬い・許容0(下草・木を水に入れない)。
+        /// 呼び手が見えている水面の多角形と描かれた地表で組む(土井: 水面メッシュの縁 PondEdge の内で、地表 &lt; waterY)。</summary>
+        public Func<float, float, bool> WetAt;
+        /// <summary><c>DropBody</c> = 幹の芯が壁体の足元の外形の内で置かなかった数 / <c>DropWet</c> = 根元が水面の下で置かなかった数。</summary>
+        public int DropBody, DropWet;
         public float Cell = 2f;
 
         // 参道の帯(白洲)— ⛔ ここに木・石・刈込・灯籠を置かない(§5-0 c)
@@ -432,6 +501,23 @@ public static partial class EdoBuild
             return false;
         }
 
+        /// <summary>植物の組か(高木・中木・低木・刈込・下草 ── 剛体の据え物 NeireMax &gt; 0 の石・灯籠・井戸を除く。PutOnce の plant と同じ分け)。</summary>
+        static bool IsPlantSet(NiwaSet o) { return o.Tall || o.NeireMax <= 0f; }
+
+        /// <summary>据えた植物の根元が水面の下か ── 幹の芯と、芯のまわり半径 min(樹冠, 0.6)/2 の 8 点(根元の帯の広がり)を <see cref="WetAt"/> で引く。</summary>
+        bool RootWet(Vector2 trunk, float rr)
+        {
+            if (WetAt == null) return false;
+            if (WetAt(trunk.x, trunk.y)) return true;
+            float r = 0.5f * Mathf.Min(rr, 0.6f);
+            for (int k = 0; k < 8; k++)
+            {
+                float a = k * Mathf.PI / 4f;
+                if (WetAt(trunk.x + r * Mathf.Cos(a), trunk.y + r * Mathf.Sin(a))) return true;
+            }
+            return false;
+        }
+
         public bool InVoid(Vector2 p)
         {
             for (int i = 0; i < Voids.Count; i++) if (EdoGeom.PIP(Voids[i], p)) return true;
@@ -476,6 +562,8 @@ public static partial class EdoBuild
             if (InSando(p, r)) return false;
             if (!voidOk && InVoid(p)) return false;
             if (InField(p, 0.5f)) return false;                                                // 菜園・段石(幹の芯で)
+            if (IsPlantSet(o) && BodyHullHit(Bodies, p) >= 0) return false;                    // 植物: 壁体の足元の外形の内(硬い・幹の芯で)
+            if (IsPlantSet(o) && WetAt != null && WetAt(p.x, p.y)) return false;               // 植物: 水面の下(硬い)
             if (o.ClearWall > 0f && Walls.Dist(p, o.ClearWall) < o.ClearWall) return false;   // 幹の芯で
             float ce = r + o.PadEave;
             if (Eaves.Dist(p, ce) < ce) return false;                                          // 樹冠の外接円で
@@ -680,6 +768,12 @@ public static partial class EdoBuild
             var c = new Vector2(rb.center.x, rb.center.z);
             Vector2 trunk;
             if (!NiwaTrunk(go, out trunk)) { TrunkNaN++; trunk = c; }   // ⛔ 黙って埋めない — 数えて刷る
+            // ⭐⭐ 硬い・許容0(2026-10-05 EDO-0533 普請検査 第9巡 ── 刈込玉 Oku_Tsuge_2 が長局の足元の外形の内 0.102m・水際の草 5 株が水面の下 最大 0.160m):
+            //    据えた後の**実の幹の芯**で、壁体の足元の外形(Bodies)の内と、根元の水面の下(WetAt)を退ける。狙いの点(Free)でなく現物で測る
+            //    (幹は部材の芯からずれる)。⛔ 寄せ直さない ── どこへ寄せるかは呼び手の欄(狙いの半径 atSoft を持つ行は NiwaPutNear が次の候補を試す)。
+            //    当たる先: NiwaField.Put / NiwaPutNear / NiwaClump で据える全ての植物のうち、呼び手が Bodies・WetAt を撒いた庭(土井の泉水・奥庭)。
+            if (plant && BodyHullHit(Bodies, trunk) >= 0) { UnityEngine.Object.DestroyImmediate(go); DropBody++; return null; }
+            if (plant && RootWet(trunk, rr)) { UnityEngine.Object.DestroyImmediate(go); DropWet++; return null; }
             // ⭐ 区画の線からの控えは**据えた後の実バウンズ**でも守る。Free は推定の樹冠半径で判定するので、
             //    実バウンズが推定より大きい木は線を越える(Stage6 が区域侵犯として数える)。EdgeK < 0 は検めない。
             if (o.EdgeK >= 0f)
@@ -1532,6 +1626,42 @@ public static partial class EdoBuild
         return go;
     }
 
+    /// <summary>汀の石の一つの置き場の候補(<see cref="NiwaIshiSueruAbove"/>)── 部材・足の芯・等方の倍率・狙いの天端(NaN = 無し)・何を変えたか。</summary>
+    public struct NiwaIshiSpot { public string path; public Vector2 xz; public float scale, aimTop; public string why; }
+
+    /// <summary>天端が水面より上と数える余裕[m](丸めの誤差だけ ── 検査の「天端が水面の下」の線は水面そのもの)。</summary>
+    public const float NIWA_TOP_OVER_WATER = 0.005f;
+
+    /// <summary>**汀の石を、天端を水面より上に据える**(硬い・許容0 ── 護岸・玉石・押さえ石・州浜の玉石など見せる石)。
+    /// <paramref name="spots"/> を順に <see cref="NiwaIshiSueru"/> で据え、天端 ≥ <paramref name="waterY"/> + <see cref="NIWA_TOP_OVER_WATER"/> の最初の物を残す
+    /// (<see cref="PlaceBest{T}"/> の Hard)。候補の順 = 狙いに近い順で、候補は**呼び手が指図の欄の帯の内だけで**組む(inset の帯・石の長さの帯 ──
+    /// ⛔ 帯の外の値を発明しない)。どれも水面の下なら**建てない**(null)── 呼び手が名指す(<paramref name="bestTop"/> = 試した中の最も高い天端)。
+    /// ⭐ 水面の下に沈むのは、狙いの天端(waterY + cap)で据えた後に**水中の足を池床 −seatToBed へ沈める硬い条件**(<see cref="NiwaSinkWetFeet"/>)が
+    /// 石を引き下げるため ── 石の丈 &lt; cap + 足の下の水深 + seatToBed。浅い所(汀へ寄せる)か丈のある石(長さの帯の上)で解く。
+    /// ⛔ 2026-10-05 EDO-0533 普請検査 第9巡まで天端の下限を持たず、汀の石 14 が天端 25.91〜25.996(水面 26.00)で建っていた。
+    /// <paramref name="usedSpot"/> = 残した候補の添字(0 = 狙いのまま・−1 = 建てない)。
+    /// 当たる先: 土井の泉水の護岸(Gogan_*・中島 Gogan_Naka_N)・呑口の押さえ石・州浜の玉石。以後、指図が汀の石を持つ庭の全て。</summary>
+    public static GameObject NiwaIshiSueruAbove(Transform parent, string name, IList<NiwaIshiSpot> spots, float yaw, float bury,
+                                                float waterY, float bedSink, SeiyakuTally tally, out NiwaIshiRep rep, out int usedSpot, out float bestTop,
+                                                Vector2 tiltTo = default(Vector2), float tiltDeg = 0f)
+    {
+        var reps = new NiwaIshiRep[spots.Count];
+        float bt = float.NegativeInfinity; int cur = -1;
+        var idx = new List<int>(); for (int i = 0; i < spots.Count; i++) idx.Add(i);
+        var hard = new List<Hard> { new Hard("汀の石の天端が水面より上", g => { float lo, hi; return NiwaSpanY(g, out lo, out hi) && hi >= waterY + NIWA_TOP_OVER_WATER; }) };
+        var go = PlaceBest<int>(idx, idx.Count, i =>
+        {
+            cur = i; var s = spots[i];
+            var g = NiwaIshiSueru(parent, name, s.path, s.xz, yaw, s.scale, bury, waterY, bedSink, out reps[i], s.aimTop, false, tiltTo, tiltDeg);
+            float lo, hi; if (g != null && NiwaSpanY(g, out lo, out hi)) bt = Mathf.Max(bt, hi);
+            return g;
+        }, hard, new List<Soft>(), tally);
+        usedSpot = go != null ? cur : -1;
+        rep = go != null ? reps[cur] : (spots.Count > 0 ? reps[0] : default(NiwaIshiRep));
+        bestTop = float.IsNegativeInfinity(bt) ? float.NaN : bt;
+        return go;
+    }
+
     // ─────────── 指図の庭 ── 縁・段・生垣・腰掛の据え(EDO-0533 第7巡) ───────────
     //
     // 当たる先(この小節の全関数): EdoDoiBuilder.Niwa 6d(沓脱 Shoin/Naga・縁先手水鉢・腰掛)・6e(丸太段)・6h(奥庭の生垣)。
@@ -2179,10 +2309,10 @@ public static partial class EdoBuild
                                          string name, string layer, NiwaSet o, out float moved)
     {
         moved = float.NaN;
-        int pEave = f.DropEave, pEdge = f.DropEdge, pSteep = f.DropSteep, pNeire = f.DropNeire, pRef = f.Refused, pBand = f.DropBand;
+        int pEave = f.DropEave, pEdge = f.DropEdge, pSteep = f.DropSteep, pNeire = f.DropNeire, pRef = f.Refused, pBand = f.DropBand, pBody = f.DropBody, pWet = f.DropWet;
         var go0 = f.Put(parent, path, aim, yaw, scale, sink, name, layer, o);
         if (go0 != null) { Vector2 c0; moved = NiwaTrunk(go0, out c0) ? Vector2.Distance(c0, aim) : 0f; return go0; }
-        int dEave = f.DropEave, dEdge = f.DropEdge, dSteep = f.DropSteep, dNeire = f.DropNeire, dRef = f.Refused, dBand = f.DropBand;
+        int dEave = f.DropEave, dEdge = f.DropEdge, dSteep = f.DropSteep, dNeire = f.DropNeire, dRef = f.Refused, dBand = f.DropBand, dBody = f.DropBody, dWet = f.DropWet;
         var spots = new List<Vector2>();
         const float RING = 0.2f, ARC = 0.25f;
         for (float r = RING; r <= radius + 1e-4f; r += RING)
@@ -2193,8 +2323,8 @@ public static partial class EdoBuild
         var tally = new SeiyakuTally();
         var go = PlaceBest(spots, spots.Count, p => f.Put(parent, path, p, yaw, scale, sink, name, layer, o), new List<Hard>(), new List<Soft>(), tally);
         // 落とした数: 据わったなら試しを全部数えない・どこも据わらなければ狙いで退けた理由だけ残す
-        if (go != null) { f.DropEave = pEave; f.DropEdge = pEdge; f.DropSteep = pSteep; f.DropNeire = pNeire; f.Refused = pRef; f.DropBand = pBand; }
-        else { f.DropEave = dEave; f.DropEdge = dEdge; f.DropSteep = dSteep; f.DropNeire = dNeire; f.Refused = dRef; f.DropBand = dBand; }
+        if (go != null) { f.DropEave = pEave; f.DropEdge = pEdge; f.DropSteep = pSteep; f.DropNeire = pNeire; f.Refused = pRef; f.DropBand = pBand; f.DropBody = pBody; f.DropWet = pWet; }
+        else { f.DropEave = dEave; f.DropEdge = dEdge; f.DropSteep = dSteep; f.DropNeire = dNeire; f.Refused = dRef; f.DropBand = dBand; f.DropBody = dBody; f.DropWet = dWet; }
         if (go == null) return null;
         Vector2 c; moved = NiwaTrunk(go, out c) ? Vector2.Distance(c, aim) : float.NaN;
         return go;

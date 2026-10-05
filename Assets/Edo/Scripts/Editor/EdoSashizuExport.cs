@@ -556,6 +556,8 @@ public static class EdoSashizuExport
                         if (pn > 0) { su = cu / pn; sv = cv / pn; }
                     }
                     if (D(s2, "yose") != null) { seen.Add(Str(s2, "name")); note(secOf("主郭", Str(s2, "name")), "附属屋 " + Str(s2, "name") + " は背を囲いの面へ寄せる(yose)── 芯では比べない"); continue; }
+                    // 背を相手の面から離す硬い取り合い(`back`・土井の供待 ── 表長屋の背から 0.5間)も、置き場は取り合いが決めるので芯では比べない(2026-10-05 EDO-0533)
+                    if (D(s2, "back") != null) { seen.Add(Str(s2, "name")); note(secOf("主郭", Str(s2, "name")), "附属屋 " + Str(s2, "name") + " は背を相手の面から離す取り合い(back)で据わる ── 芯では比べない"); continue; }
                     var seat = D(s2, "seat"); var buhin = D(s2, "buhin");
                     var zl = buhin == null ? null : A(buhin, "zLocal");
                     if (seat != null && zl != null && zl.Length == 2 && ken > 0f)

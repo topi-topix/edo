@@ -843,10 +843,12 @@ public static partial class EdoBuild
     /// **駒の実体が溝の芯の真上にあり、足元が溝の底(芯の鉛直線で上を向く面の最も高い所 ── 縁の天端 − 0.02 より下)より 0.01 を超えて高い**なら、駒は溝の窪みを
     /// 跨いで浮いている ── 同じく蓋を据える(天端 = 足元・厚みは最も薄い物 ── 蓋が溝の縁へ埋まるのは部材どうしで数えない)。
     /// ⛔ 渡さないと従来どおり(足元 − 天端 ≤ 0.01 は「溝が足元を割る」と読んで飛ばす ── 奥の塀の布石 Oku_Hei_0_0〜0_4_ishi が溝 D2 の窪みの上で 0.13〜0.18 浮いた)。</para>
+    /// <para>⭐ coverHollow のとき(2026-10-05 EDO-0533 第12巡): 窪みを跨ぐかは溝の芯でなく**足元を引いた点**で見る(溝が駒の脇を並走して芯が駒の外にある所 ── 布石の縁だけが溝に掛かる所)/他の駒の天端に載る足元(布石に載る塀の下端)は数えない(<see cref="RestsOnOther"/>)。</para>
+    /// <para><paramref name="minSolid"/>: 足元と読む実体の厚みの下限(<see cref="LowestFootAt"/>)。既定 0.3 は塀の笠の裏を外す値 ── 薄い石(飛石・沓脱)を相手にする呼び手だけが下げる。</para>
     /// 当たる先: 溝が塀・布石・石段の足元の下を通る所の全部(いまは土井 S9 だけが呼ぶ ── 奥の塀・奥の塀の廊下際・蔵の石段)。</summary>
     public static List<GameObject> LayAnkyoUnder(Transform parent, string prefix, IList<GameObject> channel, IList<GameObject> over,
                                                  Func<float, string> lidPathForT, float[] tChoices, Func<float, float, float> groundAt, out AnkyoRep rep,
-                                                 bool coverHollow = false)
+                                                 bool coverHollow = false, float minSolid = 0.3f)
     {
         rep = new AnkyoRep(); var made = new List<GameObject>();
         if (channel == null || over == null || tChoices == null || tChoices.Length == 0) return made;
@@ -897,15 +899,21 @@ public static partial class EdoBuild
                 var rect = new List<Vector2> { c - d * 0.5f * lidLen - nrm * lidHalfW, c + d * 0.5f * lidLen - nrm * lidHalfW, c + d * 0.5f * lidLen + nrm * lidHalfW, c - d * 0.5f * lidLen + nrm * lidHalfW };
                 if (lidAt.Exists(q => (q - c).sqrMagnitude < 0.25f * lidLen * lidLen)) continue;
                 // 足元 = 蓋の天端の面(中ほどと四隅の内 0.8)の上にある駒の下面の最も低い所(塀が布石に載る所は布石の下面)
-                float foot = float.MaxValue; string who = null; SurfaceSet whoS = null; var on = new List<SurfaceSet>();
+                float foot = float.MaxValue; string who = null; SurfaceSet whoS = null; var on = new List<SurfaceSet>(); Vector2 footQ = c;
                 foreach (var f in hits)
                 {
                     if (!ConvexOverlap(rect, f.hull)) continue;
-                    float fm = float.MaxValue;
+                    float fm = float.MaxValue; Vector2 fq = c;
                     foreach (var q in new[] { c, c + 0.8f * (rect[0] - c), c + 0.8f * (rect[1] - c), c + 0.8f * (rect[2] - c), c + 0.8f * (rect[3] - c) })
-                    { float y = LowestFootAt(f, q); if (!float.IsNaN(y)) fm = Mathf.Min(fm, y); }   // 笠・水切りの張り出しの裏は足元でない
+                    {
+                        float y = LowestFootAt(f, q, minSolid); if (float.IsNaN(y)) continue;   // 笠・水切りの張り出しの裏は足元でない
+                        // coverHollow(土井): 他の駒の天端に載る足元(布石に載る塀の下端)は地面の足元でない ── 数えると布石の天端 27.10 を足元と読み「蓋が宙に浮く」と退けた
+                        //   (奥の塀 Oku_Hei_0_4・1_4 ── EDO-0533 第12巡)。足元は布石(載せている駒)の側で引く
+                        if (coverHollow && RestsOnOther(f, q, y, hits)) continue;
+                        if (y < fm) { fm = y; fq = q; }
+                    }
                     if (fm == float.MaxValue) continue;
-                    on.Add(f); if (fm < foot) { foot = fm; who = f.go.name; whoS = f; }
+                    on.Add(f); if (fm < foot) { foot = fm; who = f.go.name; whoS = f; footQ = fq; }
                 }
                 if (on.Count == 0) continue;
                 float crest = crestAt(c); if (float.IsNaN(crest)) continue;
@@ -913,9 +921,11 @@ public static partial class EdoBuild
                 if (foot - crest <= 0.01f)
                 {
                     // 足元は溝の天端より高くない(溝が足元を割る所 ── 部材どうしの重なり)。coverHollow のときだけ、窪みを跨ぐ駒かを見る
-                    if (!coverHollow || whoS == null || float.IsNaN(LowestFootAt(whoS, c))) continue;
+                    // ⭐ 窪みを跨ぐかは**足元を引いた点**(footQ)で見る ── 溝の芯で駒の実体を引くと、溝が駒の脇を並走して芯が駒の外にある所(布石の縁だけが溝の上に
+                    //   掛かる所)を全部飛ばした(奥の塀 Oku_Hei_0_0〜0_3_ishi が D2 の上で 0.15〜0.18 浮いたまま・溝の芯は布石の外 ── EDO-0533 第12巡)
+                    if (!coverHollow || whoS == null) continue;
                     SurfaceSet cs; if (!chSurf.TryGetValue(ci, out cs)) { cs = SurfaceOf(chGo[ci]); chSurf[ci] = cs; }
-                    float fl = cs != null ? ChannelFloorAt(cs, c, crest - 0.02f) : float.NaN;
+                    float fl = cs != null ? ChannelFloorAt(cs, footQ, crest - 0.02f) : float.NaN;
                     if (float.IsNaN(fl) || foot - fl <= 0.01f) continue;
                     bridge = true;
                 }
@@ -946,6 +956,28 @@ public static partial class EdoBuild
         return made;
     }
 
+    /// <summary>駒 <paramref name="f"/> の点 q の足元 <paramref name="y"/> が、<paramref name="others"/> の別の駒の**上を向く面**(天端)に ±<paramref name="tol"/> で載っているか
+    /// (塀が布石に載る・柱が礎石に載る)。載っていれば、その足元は地面の足元でない。当たる先: <see cref="LayAnkyoUnder"/> の coverHollow(土井 S9)。</summary>
+    public static bool RestsOnOther(SurfaceSet f, Vector2 q, float y, IList<SurfaceSet> others, float tol = 0.03f)
+    {
+        if (others == null) return false;
+        foreach (var g in others)
+        {
+            if (g == null || g == f || g.go == f.go) continue;
+            foreach (var t in g.tris)
+            {
+                Vector3 a = t[0], b = t[1], c = t[2];
+                if (q.x < Mathf.Min(a.x, Mathf.Min(b.x, c.x)) || q.x > Mathf.Max(a.x, Mathf.Max(b.x, c.x)) || q.y < Mathf.Min(a.z, Mathf.Min(b.z, c.z)) || q.y > Mathf.Max(a.z, Mathf.Max(b.z, c.z))) continue;
+                if (Vector3.Cross(b - a, c - a).normalized.y <= 0.1f) continue;
+                float d = (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z); if (Mathf.Abs(d) < 1e-9f) continue;
+                float u = ((b.z - c.z) * (q.x - c.x) + (c.x - b.x) * (q.y - c.z)) / d, v = ((c.z - a.z) * (q.x - c.x) + (a.x - c.x) * (q.y - c.z)) / d, w = 1f - u - v;
+                if (u < -1e-5f || v < -1e-5f || w < -1e-5f) continue;
+                if (Mathf.Abs(u * a.y + v * b.y + w * c.y - y) <= tol) return true;
+            }
+        }
+        return false;
+    }
+
     /// <summary>溝の駒の**底**(点 q の鉛直線で上を向く面のうち <paramref name="below"/> より低い最も高い所 ── 窪みの床)。無ければ NaN。
     /// 当たる先: <see cref="LayAnkyoUnder"/> の coverHollow(土井 S9)。</summary>
     public static float ChannelFloorAt(SurfaceSet s, Vector2 q, float below)
@@ -973,6 +1005,8 @@ public static partial class EdoBuild
     {
         public bool ok; public string why;
         public Vector2 at, outDir, lat, center, faceIn, faceOut, faceXmin, faceXmax, onLine;
+        /// <summary>桝の駒の局所の原点(ピボット = 桝の芯)の世界 XZ ── 局所 +X = lat・+Z = outDir。内法の窪みの外形を引くのに使う(<see cref="MasuInnerHull"/>)。</summary>
+        public Vector2 pivot;
         public float off, straightDev, axisSkewDeg;
     }
 
@@ -1003,6 +1037,7 @@ public static partial class EdoBuild
         float xmid = 0.5f * (mp.xMin + mp.xMax), zmid = 0.5f * (mp.zMin + mp.zMax);
         var P = r.onLine + n * (off - mp.zMin) - lat * xmid;   // 局所の原点(棟側の面 = 線 + off・横の外形の中央 = 軸線)
         r.outDir = n; r.lat = lat;
+        r.pivot = P;
         r.at = P + n * zmid;
         r.center = P + n * zmid + lat * xmid;
         r.faceIn = P + n * mp.zMin + lat * xmid; r.faceOut = P + n * mp.zMax + lat * xmid;
@@ -1113,6 +1148,48 @@ public static partial class EdoBuild
         for (float sq = 0.02f; sq <= Mathf.Min(maxCut, L - minLeft) + 1e-4f; sq += 0.02f) if (!inside(sq)) { sOut = sq; break; }
         if (float.IsNaN(sOut)) return pl;
         cut = sOut; return SubPolyline(pl, sOut, L);
+    }
+
+    /// <summary>**面の取り合いで解いた桝の内法の窪み**(世界 XZ の矩形 ── 局所 x, z ∈ [−a, a]・a = 内法の半分)。桝の外の面の壁の厚みの内は含めない
+    /// (溝の駒が桝の壁へ載るのは部材どうしの重なりで数えない ── oki-kata §0a)。当たる先: <see cref="TrimTailOutOfHull"/>(土井 D1 masu[0])。</summary>
+    public static Vector2[] MasuInnerHull(MasuPlan pl, float innerHalf)
+    {
+        if (pl == null || !pl.ok || innerHalf <= 0f) return null;
+        var o = pl.pivot; var x = pl.lat; var z = pl.outDir;
+        return new[] { o - x * innerHalf - z * innerHalf, o + x * innerHalf - z * innerHalf, o + x * innerHalf + z * innerHalf, o - x * innerHalf + z * innerHalf };
+    }
+
+    /// <summary>**線の尻を、尻の駒が窪み <paramref name="hull"/> の上へ張り出さない所で止める**(硬い ── 溝の駒が桝の窪みの上で浮かない)。
+    /// 駒割り(<see cref="MizoPieceSpans"/>)の各駒を<b>弦</b>(P(s0)→P(s1)・幅 2 × <paramref name="halfW"/>)の矩形で引き、どれかが hull と重なる間、尻を 0.01m ずつ上流へ戻す。
+    /// 戻す長さが <paramref name="maxCut"/> を超える(= 線が窪みを横切る)か、残りが <paramref name="minLeft"/> に満たないなら切らない(元の線・cut = −1)。
+    /// ⭐ 2026-10-05 EDO-0533 第12巡: 面の取り合いで解いた桝(<see cref="MasuPlanOffLine"/>)へ 45° の脚(<see cref="EaveLineToFace"/>)で入る雨落ち D1 seg2・seg4 は、
+    /// 尻の小口の芯を桝の側面の中央へ当てるので、斜めの小口の隅が壁(厚み 0.15)を越えて内法の上へ出て、尻の駒が 0.33〜0.53 浮いた(<see cref="TrimLineAtCircle"/> は
+    /// 面の取り合いの桝には掛けていなかった)。⇒ 窪みの矩形と駒の弦の矩形の重なりで止める(円でなく ── 斜めに入る小口の隅を測る)。
+    /// 当たる先: 面の中央で止める線の全て(土井 D1 seg2・seg3・seg4)。以後、斜めに桝・吐口へ入る溝の全て。</summary>
+    public static List<Vector2> TrimTailOutOfHull(List<Vector2> pl, Vector2[] hull, float halfW, float pieceLen, float maxCut, float minLeft, out float cut)
+    {
+        cut = 0f; float L = PolylineLength(pl); if (L < 1e-3f || hull == null || hull.Length < 3) return pl;
+        var hl = new List<Vector2>(hull);
+        Func<List<Vector2>, bool> over = line =>
+        {
+            float LL = PolylineLength(line);
+            foreach (var sp in MizoPieceSpans(LL, pieceLen))
+            {
+                if (sp.y < LL - 2f * pieceLen - 1e-3f) continue;   // 尻から 2 駒より上流は窪みに届かない
+                Vector2 dd; var a = PointAt(line, sp.x, out dd); var b = PointAt(line, sp.y, out dd);
+                var d = b - a; if (d.sqrMagnitude < 1e-8f) continue; d.Normalize(); var n = new Vector2(-d.y, d.x);
+                var rect = new List<Vector2> { a - n * halfW, b - n * halfW, b + n * halfW, a + n * halfW };
+                if (ConvexOverlap(rect, hl, 0.005f)) return true;
+            }
+            return false;
+        };
+        if (!over(pl)) return pl;
+        for (float c = 0.01f; c <= maxCut + 1e-4f && L - c >= minLeft; c += 0.01f)
+        {
+            var t = SubPolyline(pl, 0f, L - c);
+            if (!over(t)) { cut = c; return t; }
+        }
+        cut = -1f; return pl;
     }
 
     /// <summary>坂の頭へ水切り石を据える。平面 = 坂の頭の縁から下へ <paramref name="inset"/> の線の中ほど・坂の軸に対して skew 度振る

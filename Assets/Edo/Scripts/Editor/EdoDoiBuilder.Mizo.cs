@@ -173,6 +173,28 @@ public static partial class EdoDoiBuilder
             }
             return EdoBuild.AssetByName("Own", "DoiMizo", k);
         };
+        // ⭐ 据える駒の深さの版(LayMizo の pathAt)── A・C・D も部材方が深さの版を焼いてある(A 0.10〜0.30・C 0.10/0.15・D 0.20〜0.45 ── 欄 depthFrom「面 − 底(底の勾配からの従属値)」)。
+        //   要求以下で最も深い版(E・F と同じ硬い選び方)。⛔ 2026-10-05 まで A・C・D は既定の一版だけで勾配を取り、天端が地面より沈んで(D2 seg2 0.136・D10 seg1 0.136・
+        //   D1 seg2 0.200・D2 seg1 0.768)、溝の脇に据わった駒(蔵 Kura1 0.184・平家長屋 Hiraya_SE1/2 0.13・飛石 Tobi_Shoin_0 0.147)が沈んだ天端の上に浮いた(EDO-0533 第12巡)。
+        //   底は従来どおり既定の版の深さで解く(SolveMizoBottom の depthMin)── 変わるのは沈む所の駒が深い版になり天端が地面へ戻ることだけ。
+        var depthOf = new Dictionary<string, float>();
+        Func<string, float, string> mizoPathVar = (k, depth) =>
+        {
+            if (!(k == "A" || k == "C" || k == "D")) return mizoPath(k, depth);
+            float dmin = kf(k, "depthMin"), dmax = kf(k, "depthMax");
+            if (float.IsNaN(dmin) || float.IsNaN(dmax)) return mizoPath(k, depth);
+            string shallow = null;
+            for (float d = dmax; d >= dmin - 1e-4f; d -= 0.05f)
+            {
+                string pth = EdoBuild.AssetByName("Own", "DoiMizo", k, (float)Math.Round(d, 2));
+                if (pth == null || !Exists(pth)) continue;
+                float dep; if (!depthOf.TryGetValue(pth, out dep)) { var mpk = EdoBuild.MizoPieceOf(pth); dep = mpk.ok ? mpk.Depth : float.NaN; depthOf[pth] = dep; }
+                if (float.IsNaN(dep)) continue;
+                shallow = pth;
+                if (dep <= depth + 0.005f) return pth;
+            }
+            return shallow ?? mizoPath(k, depth);
+        };
 
         // ---- 系統と区間を集める
         var segs = new List<MzSeg>(); var byId = new Dictionary<string, MzSeg>(); var masus = new Dictionary<string, MzMasu>();
@@ -827,7 +849,7 @@ public static partial class EdoDoiBuilder
             var mp0 = EdoBuild.MizoPieceOf(p0);
             if (!mp0.ok) { line(2, g.id + ": 駒の溝の底が測れない " + p0); continue; }
             g.halfW = mp0.halfW;
-            bool fixedD = !(g.kata == "E" || g.kata == "F");
+            bool fixedD = !(g.kata == "E" || g.kata == "F" || g.kata == "A" || g.kata == "C" || g.kata == "D");   // A・C・D も深さの版を選ぶ(mizoPathVar)
             var tls = targetLines(g);
             var ms = masuOf(g);
             g.lines = new List<List<Vector2>>();
@@ -877,6 +899,20 @@ public static partial class EdoDoiBuilder
                         else hl.Add("⚠ 線" + (li + 1) + " 桝へ入る他の尻が散らばり、桝の芯が引けない ── 尻を切らない");
                     }
                 }
+                else if (ms != null && masuPlan.ContainsKey(ms.id))
+                {
+                    // 面の取り合いで解いた桝へ入る尻(線は面の中央で止まる)── 尻の駒の弦の矩形が桝の内法の窪みに掛からない所まで戻す(EdoBuild.TrimTailOutOfHull・硬)。
+                    //   45° の脚で入る D1 seg2・seg4 は斜めの小口の隅が壁(0.15)を越えて窪みの上へ出て、尻の駒が 0.33〜0.53 浮いた(EDO-0533 第12巡)
+                    var mk = Has(kata, Sk(ms.raw, "kata") ?? "") ? O(kata[Sk(ms.raw, "kata")]) : null; var inn = mk != null ? A(Gk(mk, "inner")) : null;
+                    float ih = inn != null && inn.Count > 0 ? 0.5f * F(inn[0]) : float.NaN;
+                    if (float.IsNaN(ih)) hl.Add("⚠ 線" + (li + 1) + " 桝 " + ms.id + " の内法(欄 kata." + Sk(ms.raw, "kata") + ".inner)が無い ── 尻を窪みで止められない(未検査)");
+                    else
+                    {
+                        float tc; var trt = EdoBuild.TrimTailOutOfHull(pl, EdoBuild.MasuInnerHull(masuPlan[ms.id], ih), Mathf.Max(Mathf.Abs(mp0.xMin), Mathf.Abs(mp0.xMax)), 1f, 0.6f, 0.5f, out tc);
+                        if (tc > 1e-3f) { pl = trt; g.lines[li] = trt; hl.Add("線" + (li + 1) + " 尻を桝 " + ms.id + " の内法の窪みの外で " + tc.ToString("F2") + "m 止めた(駒の弦の矩形 × 内法 " + (2f * ih).ToString("F2") + " 角)"); }
+                        else if (tc < 0f) hl.Add("⚠ 線" + (li + 1) + " 尻の駒が桝 " + ms.id + " の内法の窪みに掛かる ── 0.6m 戻しても外れない(線が窪みを横切る)");
+                    }
+                }
                 // 頭が別の系統の既に据わった溝の駒の外形の中から出るなら、外形の外で止める(EdoBuild.TrimHeadOutOfHulls ── 頭の駒が他の溝の窪みの上に張り出して浮く・
                 //   D2 seg1 線3 × D3 seg1 線3 の奥の隅 0.28・小口の下の隙 0.24 ── EDO-0533 第11巡)。同じ系統の線(二手に分けた線の頭)は外す
                 {
@@ -897,7 +933,7 @@ public static partial class EdoDoiBuilder
                 if (!fixedD) sp.depthMin = Mathf.Max(sp.depthMin, mp0.Depth);   // 選べる駒の最も浅い版の実測の深さ(欄の depthMin より深ければそれ)
                 // 硬「溝の底 ≤ そこの地面 + topAbove − 深さ」の「そこ」= 駒が覆う矩形 ── 芯から最も遠い縁まで(片側の溝は芯に対して非対称)
                 sp.halfW = Mathf.Max(Mathf.Abs(mp0.xMin), Mathf.Abs(mp0.xMax));
-                if (!fixedD) { var mpD = EdoBuild.MizoPieceOf(mizoPath(g.kata, sp.depthMax + sp.topAbove)); if (mpD.ok) sp.halfW = Mathf.Max(sp.halfW, Mathf.Max(Mathf.Abs(mpD.xMin), Mathf.Abs(mpD.xMax))); }
+                if (!fixedD) { var mpD = EdoBuild.MizoPieceOf(mizoPathVar(g.kata, sp.depthMax + sp.topAbove)); if (mpD.ok) sp.halfW = Mathf.Max(sp.halfW, Mathf.Max(Mathf.Abs(mpD.xMin), Mathf.Abs(mpD.xMax))); }
                 // 硬: 受ける側の底 < 入る側の底 ── 入る区間の尻を上限に
                 foreach (var kv in solvedEnds)
                 {
@@ -911,7 +947,7 @@ public static partial class EdoDoiBuilder
                 g.prof.Add(pr);
                 if (!pr.ok) { hardMsg.Add("線 " + (li + 1) + ": " + pr.hard); continue; }
                 var floatFail = new List<string>();
-                var made = EdoBuild.LayMizo(grp, pfx + "_" + li, pr, need => mizoPath(g.kata, need + sp.topAbove), out int mi, out string mw, groundMizo, floatFail);
+                var made = EdoBuild.LayMizo(grp, pfx + "_" + li, pr, need => mizoPathVar(g.kata, need + sp.topAbove), out int mi, out string mw, groundMizo, floatFail);   // 版は要求以下で最も深い物(mizoPathVar)
                 g.pieces.AddRange(made); laid += made.Count; miss += mi; if (mw != null) missWhy = mw;
                 if (floatFail.Count > 0)
                 {
@@ -1116,6 +1152,24 @@ public static partial class EdoDoiBuilder
                      + (ar.notes.Count > 0 ? "\n      " + string.Join("\n      ", ar.notes.ToArray()) : ""));
                 foreach (var w in ar.refusedWhy) { line(2, "  暗渠(型 " + kt + ") 据えない: " + w); Wait("暗渠: " + w); }
             }
+            // 飛石・沓脱・手水の石(Niwa/Tenkei)が溝の上に掛かる所にも同じ蓋(延段・飛石が雨落ちを渡る所は蓋石 ── 欄 lids の「延段・R07・R08 を横切る所」と同じ作り)。
+            //   石は薄い(0.1〜0.25)ので足元と読む厚みの下限を 0.05 へ下げる(塀の笠を外すための既定 0.3 では石の下面を引けない)。
+            //   ⭐ 飛石 Tobi_Shoin_0 が D1 seg2 の上で 0.147・Tobi_Naga_0 が D3 seg1 の上で 0.249 浮いた(EDO-0533 第12巡)── 置き方は EdoBuild.LayAnkyoUnder
+            var overT = new List<GameObject>();
+            foreach (Transform c in Group("Niwa/Tenkei")) if (c.gameObject.activeInHierarchy && c.GetComponentInChildren<MeshFilter>() != null) overT.Add(c.gameObject);
+            if (overT.Count > 0)
+                foreach (var kt in katas)
+                {
+                    var chans = new List<GameObject>(); foreach (var g in segs) if (g.built && g.kata == kt) foreach (var pc in g.pieces) if (pc != null) chans.Add(pc);
+                    string kk = kt;
+                    EdoBuild.AnkyoRep ar;
+                    EdoBuild.LayAnkyoUnder(grp, "AnkyoT_" + kt, chans, overT, tt => EdoBuild.AssetByName("Own", "DoiFutaishiFor", kk, tt), new[] { 0.20f, 0.15f }, EdoBuild.Ground, out ar,
+                                           coverHollow: true, minSolid: 0.05f);
+                    if (ar.lids == 0 && ar.refused == 0) continue;
+                    line(ar.refused > 0 ? 2 : 0, "暗渠・石の下(型 " + kt + "): " + ar.Summary() + "・蓋の天端 − 足元 最悪 " + ar.worstTop.ToString("F3") + "m【硬 " + (ar.refused > 0 ? "✗" : "⭕") + " 石の足元が溝の上で浮かない】"
+                         + (ar.notes.Count > 0 ? "\n      " + string.Join("\n      ", ar.notes.ToArray()) : ""));
+                    foreach (var w in ar.refusedWhy) { line(2, "  暗渠・石の下(型 " + kt + ") 据えない: " + w); Wait("暗渠・石の下: " + w); }
+                }
         }
 
         // ---- 取り合いの検め(建った物どうしの離れ)

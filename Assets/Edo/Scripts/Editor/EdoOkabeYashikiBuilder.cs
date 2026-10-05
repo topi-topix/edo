@@ -2782,6 +2782,12 @@ public static class EdoOkabeYashikiBuilder
             x0 = dx0, z0 = dz0, step = dstep, nx = dnx, nz = dnz, h = gh, ok = ok,
             batterCut = C("batterCut"), batterFill = C("batterFill"), baseAt = EdoBuild.BaseDem(), own = Poly
         };
+        // ⭐ 部材に埋まった地形の木(幹の足が土留め・石垣・石段の外形の中)は先に退ける(EdoBuild.RetireTreesInParts・硬い)──
+        //   守ると穴が開かず、2m 格子が駒の下の節点を見え面の前へ描いて土の尾根が立つ(EDO-0502 第27巡 西の返し)
+        {
+            var tlog = new List<string>(); int tn = EdoBuild.RetireTreesInParts(Poly, parts, tlog);
+            if (tn > 0) sb.AppendLine("  部材に埋まった地形の木を退けた " + tn + " 本: " + string.Join(" / ", tlog.ToArray()));
+        }
         // ⛔ 地形の木の升には穴を開けない(Unity は穴の升の地形の木を黙って落とす)── 区画の中の地形の木の点を渡す
         var plant = new List<Vector2>();
         {

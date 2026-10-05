@@ -360,6 +360,49 @@ public static partial class EdoBuild
         return new Vector2(point.x - d.x, point.y - d.z);
     }
 
+    /// <summary>**部材に埋まった地形の木を退ける**(硬い・許容0 ── 幹の足が部材の実メッシュの平面の外形の中 = 幹が石垣・石段の中に立つ)。
+    /// 区画 <paramref name="poly"/> の中の地形の木(TreeInstance)の幹の足(ピボット + R·幹の足 × widthScale)を、<paramref name="parts"/> の
+    /// 外形(<see cref="HullOfMat"/>)と比べ、中に在り、かつ根元の高さが駒の外接の上端より下の物を treeInstances から外す。
+    /// ⭐ 埋まった木が居ると縁の皮の穴がその升を守って開かず(⛔ 地形の木の升に穴を開けない)、2m 格子が駒の下の節点の高さを
+    /// 見え面の前へ一次で描いて土の尾根を立てる(2026-10-05 EDO-0502 第27巡・岡部 西の返し TW_Minami_Koshi#ret0 に低木 Teiboku_H24_02 が
+    /// 埋まり、見え面の 0.4m 前が 20.10・溝の設計 19.2)。⛔ 地形の編集は Undo の外 ── 呼ぶ前に TerrainData を退避すること。
+    /// 当たる先: 縁の皮を張る全邸で、前の巡・類型の地形の木が後から据えた土留め・石段・石垣の外形に入った所(岡部・土井・山王・十坊)。
+    /// ⟶ 返す: 退けた本数(<paramref name="log"/> に名と位置)。</summary>
+    public static int RetireTreesInParts(Vector2[] poly, IList<GameObject> parts, List<string> log = null)
+    {
+        var t = T(); var td = t.terrainData; var org = t.transform.position; var sz = td.size;
+        var trees = td.treeInstances; if (trees.Length == 0 || parts == null || parts.Count == 0) return 0;
+        var bs = new List<Bounds>(); var gs = new List<GameObject>();
+        foreach (var g in parts) { if (g == null || !g.activeInHierarchy) continue; var b = RB(g); if (b.size == Vector3.zero) continue; bs.Add(b); gs.Add(g); }
+        var hulls = new Dictionary<int, Vector2[]>();
+        var footCache = new Dictionary<int, Vector2>();
+        var keep = new List<TreeInstance>(trees.Length); int n = 0;
+        foreach (var ti in trees)
+        {
+            var piv = new Vector2(org.x + ti.position.x * sz.x, org.z + ti.position.z * sz.z);
+            if (poly != null && !EdoGeom.PIP(poly, piv)) { keep.Add(ti); continue; }
+            Vector2 fl;
+            if (!footCache.TryGetValue(ti.prototypeIndex, out fl)) { fl = TrunkFootLocal(td.treePrototypes[ti.prototypeIndex].prefab); footCache[ti.prototypeIndex] = fl; }
+            var d = Quaternion.AngleAxis(ti.rotation * Mathf.Rad2Deg, Vector3.up) * new Vector3(fl.x * ti.widthScale, 0f, fl.y * ti.widthScale);
+            var foot = new Vector2(piv.x + d.x, piv.y + d.z);
+            float fy = org.y + ti.position.y * sz.y;
+            int hit = -1;
+            for (int k = 0; k < bs.Count && hit < 0; k++)
+            {
+                var b = bs[k];
+                if (foot.x < b.min.x || foot.x > b.max.x || foot.y < b.min.z || foot.y > b.max.z || fy > b.max.y) continue;
+                Vector2[] h; if (!hulls.TryGetValue(k, out h)) { h = HullOfMat(gs[k].transform, null); hulls[k] = h; }
+                if (h != null && h.Length >= 3 && EdoGeom.PIP(h, foot)) hit = k;
+            }
+            if (hit < 0) { keep.Add(ti); continue; }
+            n++;
+            if (log != null) log.Add(System.IO.Path.GetFileNameWithoutExtension(AssetDatabase.GetAssetPath(td.treePrototypes[ti.prototypeIndex].prefab))
+                                     + " @(" + foot.x.ToString("F2") + ", " + fy.ToString("F2") + ", " + foot.y.ToString("F2") + ") ⊂ " + gs[hit].name);
+        }
+        if (n > 0) { td.SetTreeInstances(keep.ToArray(), true); EditorUtility.SetDirty(td); }
+        return n;
+    }
+
     /// <summary>据えた木の幹の足の中心(世界)。傾き・scale は据えたとおり(帯は上向きに 0.3m)。</summary>
     public static bool TrunkFootWorld(GameObject go, out Vector3 foot)
     {

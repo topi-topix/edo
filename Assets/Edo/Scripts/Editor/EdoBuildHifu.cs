@@ -208,6 +208,7 @@ public static partial class EdoBuild
         readonly List<int> owner = new List<int>();
         readonly List<bool> up = new List<bool>();
         readonly List<bool> down = new List<bool>();   // 下を向いた面(駒の底)── FootBottom が法の面と見分ける
+        readonly List<Vector3> nrm = new List<Vector3>();   // 表の向きの単位法線(鏡の駒は巻きを直した)── UnderFace が見え面と背・小口を見分ける
         readonly Dictionary<long, List<int>> hash = new Dictionary<long, List<int>>();
         const float B = 1f;
         public readonly List<Vector2[]> hulls = new List<Vector2[]>();
@@ -244,6 +245,7 @@ public static partial class EdoBuild
                 var nv = Vector3.Cross(t[1] - t[0], t[2] - t[0]); float mag = nv.magnitude;
                 up.Add(mag > 1e-9f && sgn * nv.y / mag > UP_NY);
                 down.Add(mag > 1e-9f && sgn * nv.y / mag < -DOWN_NY);
+                nrm.Add(mag > 1e-9f ? sgn * nv / mag : Vector3.zero);
                 float x0 = Mathf.Min(t[0].x, Mathf.Min(t[1].x, t[2].x)), x1 = Mathf.Max(t[0].x, Mathf.Max(t[1].x, t[2].x));
                 float z0 = Mathf.Min(t[0].z, Mathf.Min(t[1].z, t[2].z)), z1 = Mathf.Max(t[0].z, Mathf.Max(t[1].z, t[2].z));
                 for (int i = Mathf.FloorToInt(x0 / B); i <= Mathf.FloorToInt(x1 / B); i++)
@@ -281,6 +283,20 @@ public static partial class EdoBuild
                 if (!float.IsNaN(t2) && t2 > mx) mx = t2;
             }
             return mx;
+        }
+        /// <summary>(x,z) の真上に駒 <paramref name="k"/> の**見え面**(上を向かない面で、表の法線の水平が <paramref name="fv"/> の側 ── 内積 &gt; 0.3)が在るか。
+        /// = 点が法の帯(見え面の足の線と天端の前の縁の間)の下に在る。⛔ 背・小口・外形の縁の帯(天端も見え面も上に無い所)は false。
+        /// 当たる先: <see cref="CutEdgeSkin"/> の 3b の候補(城の石垣の滑らかな見え面の下の点 ── 2026-10-05 EDO-0502 第23巡)。</summary>
+        public bool UnderFace(float x, float z, int k, Vector2 fv)
+        {
+            float y;
+            List<int> l; if (!hash.TryGetValue(K(Mathf.FloorToInt(x / B), Mathf.FloorToInt(z / B)), out l)) return false;
+            foreach (var id in l)
+            {
+                if (owner[id] != k || up[id]) continue; var n = nrm[id];
+                if (n.x * fv.x + n.z * fv.y > 0.3f && TriYAt(tris[id], x, z, out y)) return true;
+            }
+            return false;
         }
         /// <summary>篩わない天端(帯で外した法の面も含む)。</summary>
         public float TopRaw(float x, float z, out int who) { return Scan(x, z, true, out who); }
@@ -1356,7 +1372,7 @@ public static partial class EdoBuild
         {
             var nbr = new[] { new Vector2Int(1, 0), new Vector2Int(-1, 0), new Vector2Int(0, 1), new Vector2Int(0, -1), new Vector2Int(1, 1), new Vector2Int(-1, -1) };
             var faceOf = new Dictionary<int, Vector2>();
-            var cand = new List<long>(); var candWho = new Dictionary<long, List<int>>();
+            var cand = new List<long>(); var candWho = new Dictionary<long, List<int>>(); var underFace = new HashSet<long>();
             foreach (var kv in H)
             {
                 if (PIN.Contains(kv.Key)) continue;
@@ -1364,7 +1380,14 @@ public static partial class EdoBuild
                 float x = org.x + gi * step, z = org.z + gj * step;
                 if (NearPart(gi, gj) != 2) continue;
                 int who; float tr = idx.TopRaw(x, z, out who);
-                if (float.IsNaN(tr) || who < 0 || !idx.banded[who]) continue;
+                // ⭐ 上を向いた面の無い法の帯(城の石垣の滑らかな見え面 ── 法線の y 0.24 < UP_NY)の下の点も候補に入れる(2026-10-05 EDO-0502 第23巡):
+                //   TopRaw が NaN でも、真上にその駒の**見え面**が在れば(TopIndex.UnderFace)法の帯の下の点。⛔ 2026-10-05 まで TopRaw の NaN で外し、門の内の
+                //   TW_Kado_Shumen_0_0 の法の帯(外形の中 3 駒)の皮の点が 1 点も測られず、見え面の線の点 17.39 から前の地盤 16.94 へ張る
+                //   皮の三角が法の前へ立っていた(野面は石の頭の小面が上を向くので候補に入っていた)。
+                //   ⛔ 外形の中というだけで入れない ── 天端も見え面も上に無い背の帯(外形の縁)の点まで下げ、TW_Higashi_Hokuto_6_0 の背に
+                //   深さ 1.4m の窪みを掘って小口の隙を 7→13 に増やした(同じ巡の試し)。
+                //   当たる先: CutEdgeSkin を通る全邸の、天端の帯で篩う城の石垣(Castle Wall)の法の帯(岡部 Stage3b の外周・郭の石垣・山王 Stage9 の土留め)。
+                if (float.IsNaN(tr) || who < 0 || !idx.banded[who]) who = -1;
                 // ⭐ 外形の中の点が**複数の駒の外形**に入る所(入隅で袖と城の石垣が重なる所)は、天端の一番高い駒だけでなく、点を外形に含む
                 //   天端の帯の駒すべての見え面の向きで測る(2026-10-05 EDO-0502 第21巡: 門の内の袖 × TW_Kado_Shumen_0_0 の入隅で、点が袖の駒の外形の
                 //   中と読まれ袖の見え面の向きだけを測り、城の石垣の見え面の 0.02m 奥の点から前の地盤へ張る皮の三角が法の前へ突き出ていた)。
@@ -1377,10 +1400,11 @@ public static partial class EdoBuild
                     if (k != who && (idx.hulls[k] == null || !EdoGeom.PIP(idx.hulls[k], new Vector2(x, z)))) continue;
                     if (!faceOf.ContainsKey(k)) { Vector2 fv = Vector2.zero; try { fv = WallFace(idx.gos[k]); } catch (Exception) { } faceOf[k] = fv; }
                     if (faceOf[k].sqrMagnitude < 0.5f) continue;
+                    if (who < 0 && !idx.UnderFace(x, z, k, faceOf[k])) continue;   // 天端の無い点は見え面の下だけ
                     whos.Add(k);
                 }
                 if (whos.Count == 0) continue;
-                cand.Add(kv.Key); candWho[kv.Key] = whos;
+                cand.Add(kv.Key); candWho[kv.Key] = whos; if (who < 0) underFace.Add(kv.Key);
             }
             Func<long, Vector3> PosOf = kk => { int gi = (int)(kk >> 32), gj = (int)(uint)(kk & 0xffffffff); return new Vector3(org.x + gi * step, H[kk], org.z + gj * step); };
             // 辺 k(高さ hk)→ k2 が見え面の前の空を通るか
@@ -1420,7 +1444,12 @@ public static partial class EdoBuild
                         front.Add(k2); if (float.IsNaN(lo) || h2 > lo) lo = h2;
                     }
                     if (front.Count == 0) continue;
-                    float bl = BotL(gi, gj); float floor = float.IsNaN(bl) ? lo : Mathf.Max(lo, Mathf.Min(bl, nh));
+                    // 見え面の下の点(underFace)の底は、その駒の見え面の足の線(WallBottom ── 殻の駒の法の途中は底でない)。⛔ BotL(最も低い面)は
+                    //   法の帯の下で法の面そのものを返し、見え面の線の点を 1cm も下げられなかった(2026-10-05 第23巡)。⛔ 広い輪の FootBottom は
+                    //   段違いの隣の駒の低い足を拾う ── その駒だけ・0.2m で取る。天端の下の点は従来どおり BotL。
+                    float bl = BotL(gi, gj);
+                    if (underFace.Contains(kk)) { float wb = idx.WallBottom(org.x + gi * step, org.z + gj * step, 0.2f, whoK); if (!float.IsNaN(wb)) bl = wb; }
+                    float floor = float.IsNaN(bl) ? lo : Mathf.Max(lo, Mathf.Min(bl, nh));
                     while (nh > floor + 1e-4f)
                     {
                         bool any = false; foreach (var k2 in front) if (Exposed(kk, nh, k2, fv)) { any = true; break; }

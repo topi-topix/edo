@@ -95,6 +95,7 @@
 - [石垣の隅は区間の端ごとに・T 字の継ぎ目・二段築の下段](run-corners-seams-and-tiers.md) — PlaceRunCorners/PlaceTierBelow。控えは外向きの駒で・基壇の向きは低い地盤で測り直す
 - [野面の網の罠](nozura-net-face-crest-end.md) — 見え面は設計面と天端の列の控えで・端の行は口の地表・端の光線は前の地表まで・打ち切りは低い端だけ
 - [斜めの取り合いは相手の面の法線で測る・法の楔](oblique-contact-and-batter-wedge.md) — 走りの筋では −0.27 の嘘。入隅の鉛直な小口は縮めても法へ入る
+- [城の石垣の法の帯は 3b の候補に入らない](castle-batter-no-up-tris-skips-3b.md) — 見え面 ny 0.24 で TopRaw NaN。UnderFace で足す・外形の中だけで足すと背を掘る
 - [野面の見え面の土の帯は皮の辺](skin-edge-across-nozura-face.md) — 抜けでなく天端下の点と足元の点を結ぶ皮の三角形。光線で駒/皮/地形の先着を数える
 - [野面の土留めの罠](nozura-wall-traps.md) — 見え面は局所+Z・殻の石垣は光線で測る・足元の溝は天端の帯(CREST_BAND)で解消・背の帯の溝は据えで消えない(前が0.4〜0.75飛び出す)・Stage7 の順
 - [袖の根入れは丈で取る・埋まる隅は先に測る](sode-neiri-and-buried-crest.md) — 足元は設計面で測る(皮は嘘)。男坂も 3.20 を焼いた。25.94 の隅は古い読み
@@ -104,6 +105,8 @@
 - [二重折れの出隅は一つの駒](double-fold-kado-one-piece.md) — 中の区間の1駒が消え折れ2が黙って飛ぶ。PlaceRunKado2
 - [短い返しは票が割れて裏返る・袖は run の走る段だけ・別 run の出隅を芯で測ると入隅と誤る](short-return-tie-and-sode-extent.md) — RunLowHand/OverlapAlong/ShortSegConvexEnd。段の小口は中ほどで突き付け(跨ぐ段は解けない)
 - [野面 第3巡の測りの罠](nozura-round3-measure-traps.md) — 最も離れる向きの Contact は段石×隅 0.17 を見落とす・外形の中の面の無い点で皮が溝・法切り駒の見付は足元の面で
+
+- [暗渠の蓋が測れない・足元を笠の裏と読む](ankyo-lid-and-foot-under-overhang.md) — MizoPieceOf は板で ok=偽。足元は LowestFootAt(厚み0.3・底の開いた腰)
 
 - [敷石の面取りの口・門の上向きの面の下の皮・同じ高さの重なり](fumiishi-chamfer-and-floor-cover.md) — 天端の帯で口を閉じる。門の面は深さ 0.15 で拾う。重なりは下の側を 0.01 ずつ
 

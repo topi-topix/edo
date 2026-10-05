@@ -420,7 +420,9 @@ public static partial class EdoDoiBuilder
         sb.AppendLine("  背の基壇 丙(切り): " + (nodes == 0 ? "切る所なし" : string.Join(" / ", cutBy.ToArray()) + " ── 計 " + volAll.ToString("F1") + "m³・最大 " + cutAll.ToString("F2") + "m(区画の内だけ・切 1:1.0)"));
         // 据える
         var outer = new List<GameObject>(); foreach (Transform c in ig) if (!c.name.StartsWith("IGB_")) outer.Add(c.gameObject);
-        var res = EdoBuild.PlaceCastleBack(secs, inu, outer, EdoBuild.Ground, ig, log);
+        // 段の継ぎ目の掛けは S2 の外の基壇(PlaceCastleRun の stepLap)と同じ値 ── 背の基壇の高い区間の天端を低い隣へ届かせ、棟の足の端を浮かせない
+        //   (第10〜12巡 ✗11: 背の下端 − 下の石の天端 +0.3〜1.5・通用門 E13_N09 が地面から 0.122 浮いた)
+        var res = EdoBuild.PlaceCastleBack(secs, inu, outer, EdoBuild.Ground, ig, log, stepLap: STEP_LAP);
         sb.AppendLine("  背の基壇: " + res.pieces.Count + " 駒(見え面と埋め)" + (res.buried > 0 ? "・全体が地表の下で据えない " + res.buried : ""));
         foreach (var s in secs)
         {

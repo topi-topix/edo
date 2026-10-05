@@ -2158,6 +2158,9 @@ public static partial class EdoBuild
         // ↓ 地中に入る深さの合計(NiwaAbutSeatSpec.neiriFrac)── embedFrac = 据えた石の (足の芯の地表 − 下端) / 丈(NaN = 測れない)・
         //   embedCapHit = 沈めをこの上限で止めた(硬い ── 起伏はそこまでの最良で残る)。
         public float embedFrac; public bool embedCapHit;
+        // ↓ 丈の下限(NiwaAbutSeatSpec.hMin ── 柔らかい)── hGot = 据えた石の丈[m]・hMinScale = 下限へ届かせるため大きくした縮尺(1 = しない)・
+        //   hMinMet = 丈 ≥ hMin(false なら ⚠ 狙い未達 ── 地中の深さの上限 neiriFrac で止めたか、測れなかった)。
+        public float hGot, hMinScale; public bool hMinMet;
     }
 
     /// <summary>**石橋の版と橋台石の据えの作法**(指図 `hashi[].abutSeat` ── 邸ビルダーが欄を読んで埋める。⛔ ここに既定の値を持たない)。
@@ -2177,6 +2180,84 @@ public static partial class EdoBuild
     {
         public float kakari, inner, umeMax, atariFrac, atariLo, atariHi, sukiMax, reliefMax; public int turns; public bool flips;
         public List<string> alts = new List<string>(); public float neiriMax, neiriFrac = float.NaN;
+        /// <summary>石の丈の下限[m](指図 `abutStone[].hMin` ── **柔らかい**。NaN = 欄が無い)。②'' の後、丈が足りなければ石を等方に大きくして
+        /// (天端は ③ で版の下面のまま・増した分は足が地中へ沈む)下限へ届かせる。地中に入る深さの合計 ≤ neiriFrac × 丈(硬い)は守る ──
+        /// 越える所は届く限りで止めて ⚠(hMinMet = false)。2026-10-05 EDO-0533 庭方: 汀の保証で袂が掘られ、丈の短い石では足が届かなかった。</summary>
+        public float hMin = float.NaN;
+    }
+
+    // ──────────────────────────────────────────────── 石橋の袂(汀の保証を掛けない・座を盛る ── 6a の地形の段・2026-10-05 EDO-0533)
+    /// <summary>石橋の**袂** = 版の下の陸の帯(版の端 end 〜 汀の点 shore・幅 2 × halfW)。指図 `migiwa.shoreRule.guarantee.exceptAbut` / `shoreRule.abutPad`。</summary>
+    public struct NiwaTamoto { public Vector2 end, shore; public float halfW; }
+
+    /// <summary>橋 a→b(世界 xz・汀の点)・版の長さ <paramref name="L"/>・幅 <paramref name="W"/> から両端の袂を返す。版は径間の芯に据わる
+    /// (<see cref="NiwaSpanBridge"/> と同じ ── 径間 = |b − a|)ので、端 = 汀の点から外へ (L − 径間)/2。幅 = W + <paramref name="widen"/>。
+    /// 版が径間より長くなければ袂は無い(空)。⛔ 版の実メッシュはまだ無い(6a は橋を架ける 6e より前)── 指図の L・W から引く。
+    /// 当たる先: 土井の石橋 Hashi_Ishi。以後、汀に架ける版橋・土橋の袂の全て。</summary>
+    public static List<NiwaTamoto> NiwaTamotoOfBridge(Vector2 aW, Vector2 bW, float L, float W, float widen)
+    {
+        var res = new List<NiwaTamoto>();
+        var ab = bW - aW; float span = ab.magnitude;
+        if (span < 1e-4f || float.IsNaN(L) || L <= span + 1e-4f || float.IsNaN(W)) return res;
+        var d = ab / span; float over = 0.5f * (L - span), hw = 0.5f * (W + widen);
+        res.Add(new NiwaTamoto { end = aW - d * over, shore = aW, halfW = hw });
+        res.Add(new NiwaTamoto { end = bW + d * over, shore = bW, halfW = hw });
+        return res;
+    }
+
+    /// <summary>格子の節点 <paramref name="w"/> の高さが袂の内の地表に効くか ── 節点のまわり ±<paramref name="cell"/> の正方形(地形の三角形の補間が届く範囲)が
+    /// 袂の矩形に掛かる(分離軸で判定)。⚠ 格子 2.0m に袂は 0.3 × 1.05m しか無く、節点の中心で判定すると一つも入らない。</summary>
+    public static bool NiwaTamotoReach(IList<NiwaTamoto> ts, Vector2 w, float cell)
+    {
+        if (ts == null) return false;
+        float h = cell * 0.999f;
+        foreach (var t in ts)
+        {
+            var ax = t.shore - t.end; float len = ax.magnitude; if (len < 1e-5f) continue;
+            var u = ax / len; var v = new Vector2(-u.y, u.x); var c = 0.5f * (t.end + t.shore); float hu = 0.5f * len, hv = t.halfW;
+            var dc = w - c; bool sep = false;
+            // 軸 x・z(正方形の軸)
+            float rx = hu * Mathf.Abs(u.x) + hv * Mathf.Abs(v.x), rz = hu * Mathf.Abs(u.y) + hv * Mathf.Abs(v.y);
+            if (Mathf.Abs(dc.x) > h + rx || Mathf.Abs(dc.y) > h + rz) sep = true;
+            // 軸 u・v(矩形の軸)
+            if (!sep && Mathf.Abs(Vector2.Dot(dc, u)) > hu + h * (Mathf.Abs(u.x) + Mathf.Abs(u.y))) sep = true;
+            if (!sep && Mathf.Abs(Vector2.Dot(dc, v)) > hv + h * (Mathf.Abs(v.x) + Mathf.Abs(v.y))) sep = true;
+            if (!sep) return true;
+        }
+        return false;
+    }
+
+    /// <summary>汀の式の値 <paramref name="y"/> に、袂の除外と座の下限を掛ける(6a の地形の段で節点ごとに呼ぶ)。
+    /// reach = 節点が袂に効く(<see cref="NiwaTamotoReach"/>)・guarantee = 保証(橋の軸・水口)が掛かる節点・gY = 保証の高さ(水面 − sub)・
+    /// padY = 袂の座の下限(水面 + keepAbove ── **硬い**。NaN = 掛けない)・wet = 節点が見えている汀の内・padWet = 汀の内の節点も盛る(二巡目)。
+    /// ⭐ 袂に効く節点には保証を掛けない(exceptAbut)。座の下限は一巡目は陸の節点だけに掛け(池の形を崩さない)、それで座の最低が下限に届かなければ
+    /// 呼び手が padWet = true で二巡目を流す(硬い条件を池の形より先に立てる ── 汀の内へ出た土は呼び手が数えて刷る)。</summary>
+    public static float NiwaShoreTamoto(float y, bool reach, bool guarantee, float gY, float padY, bool wet, bool padWet)
+    {
+        if (!reach) return guarantee ? Mathf.Min(y, gY) : y;
+        if (!float.IsNaN(padY) && (!wet || padWet)) y = Mathf.Max(y, padY);
+        return y;
+    }
+
+    /// <summary>袂の座の地表の最低(袂の矩形を <paramref name="step"/> 刻みで <paramref name="groundAt"/> に引く)と、その点。袂が無ければ NaN。</summary>
+    public static float NiwaTamotoSeatMin(IList<NiwaTamoto> ts, Func<float, float, float> groundAt, out Vector2 at, float step = 0.05f)
+    {
+        at = Vector2.zero; float mn = float.NaN;
+        if (ts == null) return mn;
+        foreach (var t in ts)
+        {
+            var ax = t.shore - t.end; float len = ax.magnitude; if (len < 1e-5f) continue;
+            var u = ax / len; var v = new Vector2(-u.y, u.x);
+            int ni = Mathf.Max(1, Mathf.CeilToInt(len / step)), nj = Mathf.Max(1, Mathf.CeilToInt(2f * t.halfW / step));
+            for (int i = 0; i <= ni; i++)
+                for (int j = 0; j <= nj; j++)
+                {
+                    var q = t.end + u * (len * i / ni) + v * (-t.halfW + 2f * t.halfW * j / nj);
+                    float g = groundAt(q.x, q.y); if (float.IsNaN(g)) continue;
+                    if (float.IsNaN(mn) || g < mn) { mn = g; at = q; }
+                }
+        }
+        return mn;
     }
 
     /// <summary>点 (x, z) の鉛直線と駒の三角形の交わりのうち**最も高い高さ** = その点の天端。交わらなければ NaN(LowestSurfaceAt の対)。</summary>
@@ -2490,6 +2571,35 @@ public static partial class EdoBuild
                 if (kGot > 1f + 1e-4f) { bestSc *= kGot; bestRelief = rGot; bestCover = cGot; rep.sinkScale = kGot; rep.sinkDeep = (kGot - 1f) * h1; }
             }
         }
+        // ②''' 丈の下限(hMin ── 柔らかい)。天端は ③ で版の下面へ着けるので、大きくした分は足が沈む。地中の深さの上限(neiriFrac ── 硬い)を越える段は採らない
+        rep.hMinScale = 1f; rep.hMinMet = true; rep.hGot = float.NaN;
+        if (!float.IsNaN(seat.hMin) && seat.hMin > 1e-4f)
+        {
+            var gh = put(bestTurn, bestFlip, bestSc, false).Key;
+            float loH = 0f, hiH = 0f; bool okH = gh != null && NiwaSpanY(gh, out loH, out hiH);
+            if (gh != null) UnityEngine.Object.DestroyImmediate(gh);
+            float h0 = hiH - loH;
+            if (!okH || h0 < 1e-3f) rep.hMinMet = false;
+            else if (h0 < seat.hMin - 1e-3f)
+            {
+                float kWant = seat.hMin / h0, kGot = 1f;
+                if (float.IsNaN(seat.neiriFrac)) kGot = kWant;
+                else
+                {
+                    float efW = embedFracAt(bestSc * kWant);
+                    if (!float.IsNaN(efW) && efW <= seat.neiriFrac + 1e-4f) kGot = kWant;
+                    else
+                    {
+                        // 届く限り: 1〜kWant を二分して地中の深さの上限に収まる最大の縮尺
+                        float lo = 1f, hi = kWant;
+                        for (int it = 0; it < 10; it++) { float mid = 0.5f * (lo + hi); float ef = embedFracAt(bestSc * mid); if (!float.IsNaN(ef) && ef <= seat.neiriFrac + 1e-4f) lo = mid; else hi = mid; }
+                        kGot = lo; rep.embedCapHit = true;
+                    }
+                }
+                if (kGot > 1f + 1e-4f) { bestSc *= kGot; rep.hMinScale = kGot; }
+                rep.hMinMet = h0 * kGot >= seat.hMin - 1e-3f;
+            }
+        }
         rep.yawDeg = 360f / turns * bestTurn; rep.flip = bestFlip; rep.shrunk = bestSc < scPath0 - 1e-6f && !rep.swapped;
         // ③④ 高さ・足(足が届かなければ丈を増してやり直す)
         GameObject go = null; float sc = bestSc; List<KeyValuePair<float, bool>> dd = null; float dz = 0f;
@@ -2516,7 +2626,7 @@ public static partial class EdoBuild
         }
         if (rep.footFloat > need + 0.005f) { UnityEngine.Object.DestroyImmediate(go); rep.why = "丈を増しても足が届かない(浮き " + rep.footFloat.ToString("F2") + "m)"; return null; }
         // 刷る値(据えた後の隙 d' = d − dz)
-        { float lo4, hi4; Vector3 ft4; if (NiwaSpanY(go, out lo4, out hi4) && hi4 - lo4 > 1e-4f && NiwaFootPoint(go, out ft4)) { float gy4 = Ground(ft4.x, ft4.z); if (!float.IsNaN(gy4)) rep.embedFrac = Mathf.Max(0f, gy4 - lo4) / (hi4 - lo4); } }
+        { float lo4, hi4; Vector3 ft4; if (NiwaSpanY(go, out lo4, out hi4) && hi4 - lo4 > 1e-4f) { rep.hGot = hi4 - lo4; if (!float.IsNaN(seat.hMin)) rep.hMinMet = rep.hGot >= seat.hMin - 1e-3f; if (NiwaFootPoint(go, out ft4)) { float gy4 = Ground(ft4.x, ft4.z); if (!float.IsNaN(gy4)) rep.embedFrac = Mathf.Max(0f, gy4 - lo4) / (hi4 - lo4); } } }
         float dmin2 = dd[0].Key - dz, d302 = dd[k30(dd)].Key - dz;
         rep.seated = true;
         rep.relief = d302 - dmin2; rep.umeDeep = -dmin2; rep.atariGap = d302;

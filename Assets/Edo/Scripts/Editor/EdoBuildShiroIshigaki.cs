@@ -413,10 +413,15 @@ public static partial class EdoBuild
     /// 天端の前の縁にした列を足して埋める(長屋の下 ── 妻の小口と口の脇で地表が見えない一つの台にする)。</para>
     /// <para>硬い(許容0): 天端 = crest・全体が地表の下の駒は置かない(PlaceCrestWall)・札の無い棟は据えない(★)。
     /// 柔らかい: 見付の狙いは呼び手が刷る(<see cref="CastleCrestExposure"/>)。</para>
+    /// <para>⭐ <paramref name="stepLap"/> ≥ 0(段の継ぎ目の掛け・2026-10-05 EDO-0533 ── <see cref="PlaceCastleRun"/> の stepLap と同じ作法): 同じ辺で隣の区間の天端が
+    /// 低い端では、**高い区間の天端の面を継ぎ目(棟の躯体の端)より <paramref name="stepLap"/> 先まで届かせる** ── 仮に据えた見え面の駒の天端の面(天端 −0.005 より上の頂点)が
+    /// 端に届かない分を測り、その分 + stepLap だけ端を低い区間の側へ延ばす(延ばした駒は低い区間の天端の上に立ち、段の小口が掛けの分だけ低い側へ出る)。
+    /// 棟の足の端が下の段の天端・地表の上に浮かないため(土井 E13 の表長屋・通用門 E13_N09 ── 第10〜12巡 背の下端 − 下の石の天端 +0.3〜1.5)。
+    /// 隣の判定は「同じ辺で端の s を覆うか接する(±0.05)、天端の低い区間」── 口の脇の切れ端を高い区間の裏へ延ばした区間も含む。負(既定)なら延ばさない(従来どおり)。</para>
     /// 当たる先: 外周の基壇に載る表長屋・門の背が内の地表より高い所(土井 boundaryPlinth.back。岡部の表長屋・家臣長屋の背は未適用)。
     /// ⟶ 返す: <see cref="CastleBack"/>(駒・区間ごとの見え面と埋めの駒・線・隙)</summary>
     public static CastleBack PlaceCastleBack(IList<BackSec> secs, float inu, IList<GameObject> outer, Func<float, float, float> groundAt, Transform parent,
-                                             System.Text.StringBuilder log, string prefix = "IGB_")
+                                             System.Text.StringBuilder log, string prefix = "IGB_", float stepLap = -1f)
     {
         var res = new CastleBack();
         if (secs == null || secs.Count == 0) return res;
@@ -484,6 +489,45 @@ public static partial class EdoBuild
                 subs.Add(new BackWall { origin = w.origin, along = w.along, inward = w.inward, t = w.t, crest = w.crest, s0 = a0, s1 = a1, members = w.members, gaps = new List<Vector2>(), key = "_k" + k });
             }
         }
+        // 段の継ぎ目の掛け(stepLap ≥ 0)── 天端の低い隣へ向く端を、仮に据えた見え面の天端の面の届かない分 + stepLap だけ延ばす
+        var lapLog = new List<KeyValuePair<BackWall, Vector2>>();   // (区間, (延ばした低い側の端の s・高い側の端の s) ── NaN = 延ばさない)
+        if (stepLap >= 0f)
+        {
+            Func<BackWall, BackWall, bool> sameLine = (x, y) => Vector2.Dot(x.along, y.along) > 0.9999f && (x.origin - y.origin).sqrMagnitude < 1e-4f;
+            // 端 s の低い側の隣: 同じ辺で s を覆うか接し、天端が低い
+            Func<BackWall, bool, BackWall> lowerAt = (w, hiEnd) =>
+            {
+                float se = hiEnd ? w.s1 : w.s0;
+                return subs.Find(x => x != w && sameLine(x, w) && x.crest < w.crest - 1e-3f
+                                      && (hiEnd ? (x.s0 <= se + 0.05f && x.s1 > se + 0.05f) : (x.s1 >= se - 0.05f && x.s0 < se - 0.05f)));
+            };
+            Func<List<GameObject>, BackWall, Vector2> crestSpan = (gos, w) =>
+            {
+                float lo = float.MaxValue, hi = float.MinValue;
+                foreach (var go in gos) { if (go == null) continue; foreach (var v in Body(go.transform, 999999)) if (v.y >= w.crest - 0.005f) { float sv = Vector2.Dot(new Vector2(v.x, v.z) - w.origin, w.along); lo = Mathf.Min(lo, sv); hi = Mathf.Max(hi, sv); } }
+                return new Vector2(lo, hi);
+            };
+            var newS = new Dictionary<BackWall, Vector2>();
+            foreach (var w in subs)
+            {
+                var nbLo = lowerAt(w, false); var nbHi = lowerAt(w, true);
+                if (nbLo == null && nbHi == null) continue;
+                Vector2 a = w.origin + w.along * w.s0 + w.inward * w.t, b = w.origin + w.along * w.s1 + w.inward * w.t;
+                var inw = w.inward;
+                var pcw = new CrestWall { name = prefix + "Probe_" + w.members[0].name + w.key, nodes = new List<Vector2> { a, b }, nodeTops = new List<float> { w.crest, w.crest }, gaps = new List<Vector2>(),
+                                          pathOfH = CastleWallOfExpose, runAlongX = false, runLen = 2.0f, pitchMax = 1.8f, lowHint = (p, q) => inw, lowForce = true };
+                float pwf; int pbs;
+                var probe = PlaceCrestWall(pcw, groundAt, parent, null, null, new System.Text.StringBuilder(), out pwf, out pbs);
+                var sp = crestSpan(probe, w);
+                foreach (var go in probe) if (go != null) UnityEngine.Object.DestroyImmediate(go);
+                if (sp.x > sp.y) continue;
+                float s0n = nbLo != null ? w.s0 - (Mathf.Max(0f, sp.x - w.s0) + stepLap) : w.s0;
+                float s1n = nbHi != null ? w.s1 + (Mathf.Max(0f, w.s1 - sp.y) + stepLap) : w.s1;
+                newS[w] = new Vector2(s0n, s1n);
+                lapLog.Add(new KeyValuePair<BackWall, Vector2>(w, new Vector2(nbLo != null ? w.s0 : float.NaN, nbHi != null ? w.s1 : float.NaN)));
+            }
+            foreach (var kv in newS) { kv.Key.s0 = kv.Value.x; kv.Key.s1 = kv.Value.y; }
+        }
         foreach (var w in subs)
         {
             string nm0 = w.members[0].name;
@@ -544,6 +588,15 @@ public static partial class EdoBuild
             foreach (var m in w.members) res.slot[m.name] = res.slot.ContainsKey(m.name) && !float.IsNaN(res.slot[m.name]) ? Mathf.Max(res.slot[m.name], slot) : slot;
             log?.AppendLine("  背の基壇 " + nm0 + w.key + ": s " + w.s0.ToString("F2") + "〜" + w.s1.ToString("F2") + "・天端 " + w.crest.ToString("F2") + "・見え面 " + faceP.Count + " 駒・埋め " + fillAll.Count + " 駒・外の基壇の背との隙 "
                             + (float.IsNaN(slot) ? "外の駒なし" : slot.ToString("F3")) + "m");
+            // 段の継ぎ目の掛けの検め(硬い ── 見え面の天端の面が元の端を stepLap 越える)
+            foreach (var kv in lapLog)
+            {
+                if (kv.Key != w) continue;
+                float lo = float.MaxValue, hi = float.MinValue;
+                foreach (var go in faceP) { if (go == null) continue; foreach (var v in Body(go.transform, 999999)) if (v.y >= w.crest - 0.005f) { float sv = Vector2.Dot(new Vector2(v.x, v.z) - w.origin, w.along); lo = Mathf.Min(lo, sv); hi = Mathf.Max(hi, sv); } }
+                if (!float.IsNaN(kv.Value.x)) log?.AppendLine("  " + (lo <= kv.Value.x + 1e-3f ? "⭕" : "★") + " 背の基壇 " + nm0 + w.key + ": 低い側の段の継ぎ目(s=" + kv.Value.x.ToString("F2") + ")へ天端の面を延ばした ⇒ 天端の面の端 s=" + lo.ToString("F3") + "(継ぎ目を " + (kv.Value.x - lo).ToString("+0.000;-0.000") + "m 越える・掛け " + stepLap.ToString("F2") + ")");
+                if (!float.IsNaN(kv.Value.y)) log?.AppendLine("  " + (hi >= kv.Value.y - 1e-3f ? "⭕" : "★") + " 背の基壇 " + nm0 + w.key + ": 高い側の端の隣が低い段の継ぎ目(s=" + kv.Value.y.ToString("F2") + ")へ天端の面を延ばした ⇒ 天端の面の端 s=" + hi.ToString("F3") + "(継ぎ目を " + (hi - kv.Value.y).ToString("+0.000;-0.000") + "m 越える)");
+            }
         }
         return res;
     }

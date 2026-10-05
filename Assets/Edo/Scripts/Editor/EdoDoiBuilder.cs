@@ -590,6 +590,8 @@ public static partial class EdoDoiBuilder
 
     /// <summary>据えられなかった部材の控え。⛔ 仮の代用品を置かずここへ積み、報告に出す。</summary>
     static readonly List<string> _wait = new List<string>();
+    /// <summary>城の石垣の段の継ぎ目の掛け[m] ── 高い区間の天端の面を低い隣へ越して届かせる量。S2 の外の基壇(PlaceCastleRun)と S3 の背の基壇(PlaceCastleBack)で同じ値。</summary>
+    const float STEP_LAP = 0.03f;
     static void Wait(string s) { if (!_wait.Contains(s)) _wait.Add(s); }
 
     /// <summary>**指図の欄のうち実装が知らない物**を「未据え付け」へ積む守り。
@@ -1391,7 +1393,7 @@ public static partial class EdoDoiBuilder
         }
         // 段の継ぎ目の掛け 0.03m: 表長屋の足(札の foot)は躯体の端 = run の s まで来る ── 高い段の天端の面を継ぎ目の面より先へ届かせ、足の端を下の段の天端の上に浮かせない
         //   (EDO-0533 第10巡: 札の foot が ±L/2 − 0.030 から ±L/2 へ伸び、E13_N02・N04・N05 の足の端が 0.6 浮いた。掛けの 0.03 は第9巡まで足が天端の内に収まっていた控えと同じ)
-        var cr = EdoBuild.PlaceCastleRun(secs, P, EdoBuild.Ground, ig, log, stepLap: 0.03f);
+        var cr = EdoBuild.PlaceCastleRun(secs, P, EdoBuild.Ground, ig, log, stepLap: STEP_LAP);
         var kcs = new List<GameObject>();
         int kn = EdoBuild.PlaceRunCorners(cr.ends, cr.segs, EdoAssets.Own.IshigakiKado, EdoBuild.Ground, ig, 0.02f, log, kcs);
         sb.AppendLine("  基壇(城の石垣): " + cr.pieces.Count + " 駒・出隅の駒 " + kn + (cr.buried > 0 ? "・全体が埋まり退けた " + cr.buried : "")

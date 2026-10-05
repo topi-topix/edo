@@ -64,8 +64,7 @@ jq -n --arg m "$msg" '{
   hookSpecificOutput: {
     hookEventName: "PreToolUse",
     permissionDecision: "deny",
-    permissionDecisionReason: "Unity のアセンブリがソースより古い(コンパイル未完/停止)。このまま実行すると誤診します。",
-    additionalContext: $m
+    permissionDecisionReason: ("止めた(ユーザーに許可は求めない)。compile_wait.py で作り直してから同じ execute_code をやり直す。\n\n" + $m)
   }
 }'
 exit 0

@@ -15,14 +15,14 @@
 - [隅部材の remap の menu は Kado 89 本を再 import して何巡も回る](remap-menu-reimports-all-kado.md) — 新しい FBX が少なければ1本ずつ remap
 
 - [古い port 登録で「instances なし」が一回おき](pitfall-bridge-drops-after-domain-reload.md) — 6400→6401 退避 + 別プロジェクトの残骸。待たずに再送
-- [start --unity が通っても claim が付いていないことがある](pitfall-unity-claim-not-verified.md) — status で「資源: unity」を見るまで MCP を叩かない
+- [start --unity が通っても claim が付いていないことがある](pitfall-unity-claim-not-verified.md) — status で「資源: unity」を見るまで MCP を叩かない・渡された直後の引き取り(compile_wait 前に読み直す)
 - [claim が無い巡は .cs も保存しない](cs-edit-is-not-claim-free.md) — 1行で他人の bridge が2分落ちる。用意は scratchpad の OLD/NEW 指示書へ
 - [[MenuItem] の直下に関数を差すとメニューが化ける・子の印は親と動く](menuitem-drift-and-child-mark-moves.md) — 「4 囲い」が柵を建てていなかった。印 _axis が 0.117 ずれた
 - [delayCall は他窓の reload で消える・指図の同時書き](delaycall-lost-and-shared-sashizu.md) — Stage は直に呼ぶ。流す前に指図の sha と impl の src を見る・着手前に kansei の reopen を見る
 - [別セッションの赤い .cs で Editor アセンブリが焼けない](editor-dll-blocked-by-other-session.md) — dll の mtime が止まり CPU も静か。⛔refresh を繰り返さず console の error を読む
 
 - [欄の上書きの直後は算出物の指紋で Stage1 が止まる](impl-fingerprint-after-yat-overwrite.md) — 食い違い0なら bake_impl --write。長い流しは印+txt で待つ
-- [作業場が前の窓の邸で dirty・旧い退避は前の案の造成前](koba-left-dirty-by-other-window.md) — UnwrittenIn を見て保存→開く。案ごとに退避を分ける
+- [作業場が前の窓の邸で dirty・旧い退避は前の案の造成前](koba-left-dirty-by-other-window.md) — UnwrittenIn を最初に見る。他邸の書き戻しは分類器が止める→返す
 
 ## 部材の据え方
 
@@ -129,8 +129,11 @@
 - [端を切った練塀の駒は片方の端にしか合わない](dobei-kiri-hand-and-radian.md) — 849_L は SE_Hei の始めで手が逆。Atan2 はラジアン
 - [相手の無い端の口は区画の線の楔](free-run-end-at-oblique-parcel-corner.md) — 岡部 辺0/辺24。伸ばすと区域侵犯・斜めの小口の部材
 - [壁の口から張り出す石段は浮く・yAt が地盤と違う](stair-out-of-wall-and-yat-mismatch.md) — StackDownToGround・LevelPad で中央値へ
+- [面の中の細い溝は小さい面として足す](trench-behind-nagaya-needs-face.md) — 地形を切っても設計の地盤を下げても皮が面の高さで埋め戻す。返しの低い側は lowHint で
 - [段の土留めの3つの罠](dan-ishigaki-r3-traps.md) — BedTopAt は 8m まで・指図の文言の上書きで正規表現が 0・語だけの直しでも指紋で止まる
 - [野面の段の境の駒は H1.50 だけ・継ぎ目の下が抜ける](nozura-dan-piece-fixed-height.md) — 直線は H4.8 まで選ぶ。StackDownAtNozuraSteps で積み下ろす
+
+- [検証レンダの構図は残らない](render-camera-poses-not-kept.md) — 同じ構図で撮るには cams.txt。皮の裏は灰色の平面に見える
 
 ## 測り方・関門
 
@@ -174,7 +177,7 @@
 - [法の途中を底と読む歯・石段の前の土・外周の石垣を皮へ渡す](foot-bottom-batter-and-stair-front.md) — TopIndex.FootBottom。点の Bottom/WallBottom を reflection で刷る
 - [見え面の足元の山形は外形の中の節点](wall-foot-ridge-from-nodes-under-hull.md) — 皮が近くの点を地形のまま描いた。CleanAt・差で混ぜる・Stage9 は6回走る
 - [盛土の床・基壇の向き・設計面の縁の溝](fill-only-floor-and-base-facing.md) — fillOnly を皮の面にしない・BlockOutward・DesignOut は地形で埋める
-- [総当たりの計測は Unity を1時間ふさぐ](brute-force-measure-hangs-unity.md) — kubomi.cs で TCS timed out 100回超。升の索引+印で打つ・着手前に log を見る
+- [総当たりの計測は Unity を1時間ふさぐ](brute-force-measure-hangs-unity.md) — 升の索引+印で打つ。RayToBodies は1呼び出し100本まで・mesh.vertices を輪の中で呼ばない(四度目 10-05)
 - [落とした後の Stage9 は空の皮を焼く](unity-kill-leaves-holes-without-skin.md) — 穴は地形・皮はシーン。null の皮には最新の資産を差してから流す
 - [線の上の基壇・柵は区画外に出る](line-sitting-pieces-pivot-out.md) — float 0.25mm・端の控え・芯置き。材 null の一体駒は屋根を躯体と数える
 - [区画の辺に沿う城の石垣・長屋の4つの罠](castle-run-along-parcel-edge-traps.md) — s の丸めは VTX_TOL・90°超の出隅は PullAlongInside・駒の実長>送り・疎な駒は筋 1.0

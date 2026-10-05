@@ -2155,6 +2155,8 @@ public static class EdoOkabeYashikiBuilder
         foreach (var x in kwait) sb.AppendLine("    ★ " + x);
         var kaiRoot = GameObject.Find(GN) == null ? null : GameObject.Find(GN).transform.Find("Fuzoku/Kaidan");
         var sodeB = SodeBenches(sb); var benchAll = new List<EdoBuild.BackBench>();
+        // 返しと長屋の背の間の溝(BackTrenches)は長屋の実メッシュで解く ⇒ 外周(Stage2)の後に読み直す。溝は平らな面として SkinGround にも入る(FlatFaces)
+        _flat = null; var trenches = BackTrenches(sb);
         foreach (var o in tws)
         {
             var w = O(o); if (w == null) continue;
@@ -2165,6 +2167,25 @@ public static class EdoOkabeYashikiBuilder
             var tops = new List<float>();
             var tl = A(Get(w, "tops"));
             for (int i = 0; i < nodes.Count; i++) tops.Add(tl != null && i < tl.Count ? F(tl[i]) : F(Get(w, "top")));
+            // ⭐ 線の先が長屋の背へ入り込むなら背から一間離して返し、高い側の妻の線で背まで閉じる(指図 terraceWalls[].return<run>・end・backOf<run>
+            //   ── EDO-0502 第19巡)。溝は相手の面まで切る(地形 = CutAlongBack・皮の設計の地盤 = Stage3b が同じ BackTrenches を読む)。据えより先に。
+            Func<Vector2, Vector2, Vector2> trenchHint = null;
+            foreach (var tr in trenches)
+            {
+                if (tr.wall != nm) continue;
+                nodes.Clear(); nodes.AddRange(tr.nodes);
+                float t0 = tops[0]; tops.Clear(); for (int k = 0; k < nodes.Count; k++) tops.Add(t0);
+                float cm, cv; int cn = EdoBuild.CutAlongBack(Poly, tr.stop, tr.far + tr.along * tr.off, tr.yard, tr.y, tr.off, 0.1f, out cm, out cv);
+                AssetDatabase.SaveAssetIfDirty(EdoBuild.T().terrainData);
+                sb.AppendLine("    溝(返しと " + tr.run + " の背の間)を地形で " + tr.y.ToString("F2") + " まで切った: 節点 " + cn + "・切り 最大 " + cm.ToString("F2") + "m・" + cv.ToString("F0") + "m³(2m 格子は溝を描けない ── 皮が設計の地盤で描く)");
+                // 低い側: 返しと妻の閉じは溝の側(両側が地形で同じ高さに読めるので地表で決めない)・元の線は地表で測る
+                var trc = tr; trenchHint = (pa, pb) =>
+                {
+                    Vector2 mid = (pa + pb) * 0.5f, ctr = (trc.stop + trc.far) * 0.5f + trc.yard * (trc.off * 0.5f);
+                    if (Vector2.Distance(mid, ctr) < Vector2.Distance(trc.stop, trc.far) * 0.5f + trc.off + 0.5f) return (ctr - mid).normalized;
+                    int v1, v2; return EdoBuild.LowSide(pa, pb, SkinGround, 3.0f, 0.05f, null, out v1, out v2);
+                };
+            }
             string key = nm + (part != null ? "_" + part : "");
             wallOf[key] = w; lineOf[key] = nodes; topOf[key] = tops[0];
             var gaps = new List<Vector2>();
@@ -2220,7 +2241,8 @@ public static class EdoOkabeYashikiBuilder
                     gaps = ng;
                 }
                 var cw = new EdoBuild.CrestWall { name = key, nodes = nodes, nodeTops = tops, gaps = gaps, runAlongX = false, runLen = 2.0f, pitchMax = 1.8f,
-                                                  pathOfH = EdoBuild.CastleWallOfExpose };   // 見付 4m 超は丈違いの駒(TW_Kado_Shumen 4.5・EDO-0502)
+                                                  pathOfH = EdoBuild.CastleWallOfExpose };
+                if (trenchHint != null) { cw.lowHint = trenchHint; cw.lowForce = true; }   // 見付 4m 超は丈違いの駒(TW_Kado_Shumen 4.5・EDO-0502)
                 float wf; int bs;
                 var made = EdoBuild.PlaceCrestWall(cw, SkinGround, grp, runEnds, segPieces, log, out wf, out bs);
                 castle.AddRange(made);
@@ -2403,6 +2425,68 @@ public static class EdoOkabeYashikiBuilder
         return sb.ToString();
     }
 
+
+    /// <summary>段の土留めの線が長屋の背へ入り込む所の返しと溝(指図 terraceWalls[].return<run> を持つ欄・EDO-0502 第19巡)。</summary>
+    public class BackTrench { public string wall, run; public List<Vector2> nodes; public Vector2 stop, far, yard, along; public float off, y; }
+
+    /// <summary>**返しの石垣と溝を解く**(Stage2b の据えと Stage3b の皮の設計の地盤が同じ答えを読む)。背の面・妻は据えた長屋の実メッシュ
+    /// (FaceOut・SpecBodySpanAlong)、止める妻 = 帯の縁で地表の高い側、線の切りと返しは <see cref="EdoBuild.ReturnAlongBack"/>、
+    /// 溝の高さ = 欄 lo の面(terraces[].y)。一間は柔らかい(ES)。⛔ 座標を書かない ── 毎回測る。</summary>
+    static List<BackTrench> BackTrenches(System.Text.StringBuilder sb)
+    {
+        var res = new List<BackTrench>();
+        var rootR = GameObject.Find(GN);
+        foreach (var o in A(Get(IMPL, "terraceWalls")) ?? new List<object>())
+        {
+            var w = O(o); if (w == null) continue; string nm = S(Get(w, "name"));
+            var ln = A(Get(w, "line")); if (ln == null || ln.Count < 2) continue;
+            Dictionary<string, object> twD = null;
+            foreach (var o2 in A(Get(D, "terraceWalls")) ?? new List<object>()) { var t2 = O(o2); if (t2 != null && S(Get(t2, "name")) == nm) twD = t2; }
+            if (twD == null) continue;
+            foreach (var kvR in twD)
+            {
+                if (!kvR.Key.StartsWith("return") || kvR.Key.Length <= 6) continue;
+                var nodes = new List<Vector2>(); foreach (var q in ln) { var p = A(q); nodes.Add(new Vector2(F(p[0]), F(p[1]))); }
+                string rn = kvR.Key.Substring(6); int ri = -1;
+                for (int k = 0; k < Runs.Length; k++) if (Runs[k].name == rn) ri = k;
+                var nbT = rootR == null ? null : rootR.transform.Find("Kakoi/" + rn);
+                if (ri < 0 || nbT == null) { if (sb != null) sb.AppendLine("  " + nm + " × " + rn + ": ⚠ 長屋が無い ── 返さない"); continue; }
+                int e = Runs[ri].edge; Vector2 ea = EdgePt(e, 0f), ax = (EdgePt(e, 1f) - ea).normalized, yard = -OutNormal(e);
+                float seatY = nbT.position.y;
+                float back = EdoBuild.FaceOut(nbT.gameObject, ea, yard, seatY + 0.1f, seatY + 1.2f);
+                var sp = EdoBuild.SpecBodySpanAlong(nbT.gameObject, ea, ax); if (float.IsNaN(sp.x)) sp = EdoBuild.BodySpanAlong(nbT.gameObject, ea, ax);
+                if (float.IsNaN(back) || float.IsNaN(sp.x)) { if (sb != null) sb.AppendLine("  " + nm + " × " + rn + ": ⚠ 背の面を測れず ── 返さない"); continue; }
+                Vector2 b0 = ea + ax * sp.x + yard * back, b1 = ea + ax * sp.y + yard * back;
+                float off = ES;   // 一間(柔らかい・指図「長屋の背から一間離して」)
+                // 止める妻 = 帯の縁の高い側(門の内の土を受ける側)── 造成の設計の地盤(graded)で測る(地形は溝を切った後で両側が同じに読める)
+                var G = Graded;
+                float g0 = G.At((b0 + yard * off).x, (b0 + yard * off).y), g1 = G.At((b1 + yard * off).x, (b1 + yard * off).y);
+                Vector2 bStop = g0 >= g1 ? b0 : b1, bFar = g0 >= g1 ? b1 : b0;
+                Vector2 tFar; string rnote;
+                var nn = EdoBuild.ReturnAlongBack(nodes, bStop, bFar, yard, off, out tFar, out rnote);
+                if (sb != null) sb.AppendLine("  " + nm + " × " + rn + "(背 " + back.ToString("F2") + "m・妻 s " + sp.x.ToString("F2") + "〜" + sp.y.ToString("F2") + "・止めの妻の設計の地盤 "
+                                            + Mathf.Max(g0, g1).ToString("F2") + " / 反対 " + Mathf.Min(g0, g1).ToString("F2") + "): " + rnote);
+                if (nn == null) continue;
+                string loName = S(Get(w, "lo")); float loY = float.NaN;
+                foreach (var o3 in A(D["terraces"]) ?? new List<object>()) { var t3 = O(o3); if (t3 != null && S(Get(t3, "name")) == loName) loY = F(Get(t3, "y")); }
+                if (float.IsNaN(loY)) { if (sb != null) sb.AppendLine("    ⚠ 低い側の面 " + (loName ?? "-") + " の高さが無い ── 返さない"); continue; }
+                res.Add(new BackTrench { wall = nm, run = rn, nodes = nn, stop = bStop, far = tFar, yard = yard, along = (bFar - bStop).normalized, off = off, y = loY });
+            }
+        }
+        return res;
+    }
+
+    /// <summary>点 q が溝(背の面から off の帯・止めの妻から返しの端 + off まで)の中なら溝の高さ、外なら NaN。</summary>
+    static float TrenchAt(List<BackTrench> ts, Vector2 q)
+    {
+        foreach (var t in ts)
+        {
+            float s = Vector2.Dot(q - t.stop, t.along), d = Vector2.Dot(q - t.stop, t.yard), L = Vector2.Dot(t.far - t.stop, t.along) + t.off;
+            if (s >= -0.05f && s <= L && d >= -0.30f && d <= t.off) return t.y;
+        }
+        return float.NaN;
+    }
+
     /// <summary>天端の垣を、指図 terraceWalls[].fenceOnTop の型で据える(置き方は <see cref="EdoBuild.PlaceCrestFence"/>)。
     /// 型 = kaku の「→」の後の最初の名(建仁寺垣 / 四つ目垣 / 木柵)。⚠ 丈は指図に無い ── 焼けた丈で建てて報告する。
     /// 置く線 = 天端の前の縁から高い側へ、その土留めの駒の**天端の控えの半分**(実メッシュ・<see cref="EdoBuild.CrestToBack"/>)。
@@ -2546,6 +2630,20 @@ public static class EdoOkabeYashikiBuilder
                 gh = h2; ok = ok2; dstep = G.step / R; dnx = nx2; dnz = nz2;
                 sb.AppendLine("  袖の背の小段の裏込めを設計の地盤へ写した節点 " + nb + "(設計の格子を " + dstep.ToString("F2") + "m に割って)");
             }
+        }
+        // ⭐ 返しの石垣と長屋の背の間の溝(Stage2b と同じ BackTrenches)も設計の地盤へ ── 溝の中は低い側の面まで下げる(⛔ 上げない)。
+        //   皮が graded(門の内の面)のまま描くと、溝を N39_1 の背まで土で埋め戻す(EDO-0502 第19巡)
+        {
+            var trs = BackTrenches(null); int nt = 0;
+            if (trs.Count > 0)
+                for (int j = 0; j < dnz; j++)
+                    for (int i = 0; i < dnx; i++)
+                    {
+                        int k = j * dnx + i; if (!ok[k]) continue;
+                        float ty = TrenchAt(trs, new Vector2(dx0 + i * dstep, dz0 + j * dstep));
+                        if (!float.IsNaN(ty) && ty < gh[k] - 1e-4f) { gh[k] = ty; nt++; }
+                    }
+            if (trs.Count > 0) sb.AppendLine("  返しと長屋の背の間の溝を設計の地盤へ写した節点 " + nt + "(溝 " + trs.Count + ")");
         }
         var design = new EdoBuild.SkinDesign
         {
@@ -2704,6 +2802,15 @@ public static class EdoOkabeYashikiBuilder
                 }
             if (nIn == 0 || dev > 0.05f) { if (sb != null) sb.AppendLine("  面 " + S(Get(t, "name")) + "(" + y.ToString("F2") + "): 設計の地盤が面から最大 " + dev.ToString("F2") + "m 外れる勾配の面 ── 面にせず graded で描く"); continue; }
             faces.Add(new EdoBuild.SkinFace(S(Get(t, "name")), poly, y));
+        }
+        // ⭐ 返しの石垣と長屋の背の間の溝(BackTrenches・EDO-0502 第19巡)も平らな面 ── 門の内の面より小さいので入れ子の内の面として勝つ
+        //   (皮は面積の小さい面を採る)。帯 = 背の面の 0.30 内(棟の下)から返しの見え面まで・止めの妻から返しの端 + 一間まで
+        foreach (var tr in BackTrenches(null))
+        {
+            float L = Vector2.Dot(tr.far - tr.stop, tr.along) + tr.off;
+            Vector2 p0 = tr.stop - tr.yard * 0.30f, p1 = p0 + tr.along * L, p2 = tr.stop + tr.along * L + tr.yard * tr.off, p3 = tr.stop + tr.yard * tr.off;
+            faces.Add(new EdoBuild.SkinFace("Mizo_" + tr.run, new[] { p0, p1, p2, p3 }, tr.y));
+            if (sb != null) sb.AppendLine("  面 溝 " + tr.run + "(" + tr.y.ToString("F2") + "): 返しと背の間 " + L.ToString("F2") + "×" + (tr.off + 0.30f).ToString("F2") + "m");
         }
         return faces;
     }

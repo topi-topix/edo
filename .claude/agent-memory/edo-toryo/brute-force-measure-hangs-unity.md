@@ -15,3 +15,12 @@ sample(`sample <pid>`)の主スレッドは EditorApplication.update → 管理�
 **How to apply:** 計測は必ず升の索引(0.5m の hash)で三角形を引く(kubomi2.cs の形)+ 印のファイルで再送を弾く
 ([[long-run-guard-and-soft-only-converge]])。着手前に `tail Logs/Editor.log` で `TCS timed out` が積まれていないか見る。
 積まれていて CPU 90% なら、前の計測が回っている ── 待つか Unity を落とすかは呼び出し元へ返す(自分で kill しない)。
+
+**三度目 2026-10-05 EDO-0502 第18巡**: 隅の駒の腕に沿う面の出を `EdoBuild.RayToBodies` で 1,656 本(腕2×23点×18段×2隅)打ったら、
+Unity が約 6 分ふさがり再送で TCS timed out 37 回・bridge が一度「instances なし」。その間に claim が他窓へ移り、書き戻し後の保存とレンダの撮り直しが出来なくなった。
+⇒ RayToBodies は呼ぶたびに駒の頂点を舐める。**光線は 1 呼び出し 100 本まで**・印のファイル必須。楔は Stage のログ(継ぎ目の隙)と一枚のレンダで足りる。
+
+**四度目 2026-10-05 EDO-0502 第19巡**: 隅の駒の頂点を材ごとに測る execute_code で、内側の輪の中に `mesh.vertices[i]` を書いた
+(呼ぶたびに配列を丸ごと複写 → 頂点数² の大きな確保)。`sample <pid>` の主スレッドは `GC_alloc_large → GC_collect_a_little → GC_mark_some`
+で、一回の確保ごとに全ヒープを舐めていた。30 分戻らず、作業に一度も入れなかった。
+⇒ **`var vs = mesh.vertices;` は輪の外で一度だけ**(`sharedMesh.vertices`・`GetTriangles` も同じ)。送る前に輪の中のプロパティ呼びを目で検める。

@@ -550,4 +550,46 @@ public static partial class EdoBuild
         }
         return n;
     }
+
+    /// <summary>**段の土留めの線の先が棟の背へ入り込むなら、背から <paramref name="off"/> 離して背と平行に返し、高い側の妻の線で背まで閉じる**
+    /// (2026-10-05・EDO-0502 第19巡 岡部 TW_Kado_Hokuto.end / returnN39_1 ── 門の内の土が石垣の端を回り N39_1 の背へ山になって崩れていた)。
+    /// <paramref name="backStop"/>・<paramref name="backFar"/> = 棟の背の面の足元の線の両端(実メッシュで測った物)。stop = 土を受ける側の妻(高い側)。
+    /// <paramref name="yard"/> = 背から庭(区画の内)への単位の向き。線を始まりから辿り、背から off の帯へ最初に入る点 X で切って
+    /// X → 帯の縁の stop 側の端 → 背の線の stop の点、と継ぐ(途中に土の口なし)。
+    /// <para>硬い: 背から off の内に石垣を立てない・返しの端は背の線で止める。柔らかい: off(一間)。
+    /// 帯へ入らない(背の端の外で終わる・背に届かない)なら null ── 返しは要らない。</para>
+    /// <para>返り値 = 新しい節点(始まりの側の節点はそのまま ⇒ 口の道のり s は変わらない)。
+    /// <paramref name="trenchFar"/> = 背の線の上で、溝(返しと背の間)の stop の反対の端(X の射影)。</para>
+    /// 当たる先: 段の土留めの線が長屋・棟の背に当たる所(岡部 TW_Kado_Hokuto × N39_1)。</summary>
+    public static List<Vector2> ReturnAlongBack(List<Vector2> nodes, Vector2 backStop, Vector2 backFar, Vector2 yard, float off,
+                                                out Vector2 trenchFar, out string note)
+    {
+        trenchFar = backStop; note = null;
+        if (nodes == null || nodes.Count < 2) { note = "節点が無い"; return null; }
+        yard = yard.normalized;
+        Vector2 u = backFar - backStop; float Lb = u.magnitude; if (Lb < 1e-3f) { note = "背の線が無い"; return null; }
+        u /= Lb;
+        Vector2 P0 = backStop + yard * off;
+        for (int i = 0; i + 1 < nodes.Count; i++)
+        {
+            Vector2 p = nodes[i], q = nodes[i + 1];
+            float fp = Vector2.Dot(p - P0, yard), fq = Vector2.Dot(q - P0, yard);
+            if (!(fp > 0f && fq <= 0f)) continue;
+            float t = fp / (fp - fq); Vector2 X = Vector2.Lerp(p, q, t);
+            float sx = Vector2.Dot(X - P0, u);
+            if (sx < 0f || sx > Lb + off) continue;                    // 背の端の外を通る ── この棟の背ではない
+            var res = new List<Vector2>();
+            for (int k = 0; k <= i; k++) res.Add(nodes[k]);
+            res.Add(X); res.Add(P0); res.Add(backStop);
+            trenchFar = backStop + u * sx;
+            note = "背から " + off.ToString("F3") + "m で返した: 交点 (" + X.x.ToString("F2") + "," + X.y.ToString("F2") + ")・返しの長さ " + sx.ToString("F2")
+                 + "m・妻の線の閉じ " + off.ToString("F2") + "m(元の線の残り " + (Vector2.Distance(X, q) + SumLen(nodes, i + 1)).ToString("F2") + "m を外した)";
+            return res;
+        }
+        note = "線が背から " + off.ToString("F2") + "m の帯へ入らない ── 返し要らない";
+        return null;
+    }
+
+    static float SumLen(List<Vector2> nodes, int from)
+    { float s = 0f; for (int k = from; k + 1 < nodes.Count; k++) s += Vector2.Distance(nodes[k], nodes[k + 1]); return s; }
 }

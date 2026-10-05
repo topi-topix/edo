@@ -202,7 +202,7 @@ public static partial class EdoDoiBuilder
         {
             var dr = O(drains[di]); string dn = (Sk(dr, "name") ?? "").Split(' ')[0];
             AuditKeys(dr, "排水 " + dn, "name", "kind", "from", "route", "slope", "outlet", "hard", "soft", "acc", "segs", "masu", "cross", "toriai", "outletBuild",
-                      "levels", "hardAdd", "softAdd", "src", "lids", "doryu", "note", "rule", "meyasu", "kenbunNote");
+                      "levels", "hardAdd", "softAdd", "src", "lids", "doryu", "note", "rule", "meyasu", "kenbunNote", "segMasu");
             var sl = A(Gk(dr, "segs")) ?? new List<object>();
             for (int si = 0; si < sl.Count; si++)
             {
@@ -213,10 +213,32 @@ public static partial class EdoDoiBuilder
             var ml = A(Gk(dr, "masu")) ?? new List<object>();
             for (int k = 0; k < ml.Count; k++) { var m = O(ml[k]); masus[dn + " masu[" + k + "]"] = new MzMasu { id = dn + " masu[" + k + "]", raw = m, di = di, k = k, then = Sk(m, "then") }; }
         }
+        // 欄 segMasu(区間に足す桝と、その先の埋樋の受け ── D2 seg1・2026-10-06)── 区間 "segN" の欄を引く/「→ segM」の受ける区間
+        Func<MzSeg, Dictionary<string, object>> segMasuOf = g =>
+        {
+            foreach (var o in A(Gk(g.dr, "segMasu")) ?? new List<object>()) { var m = O(o); if (m != null && (Sk(m, "seg") ?? "").Trim() == "seg" + (g.si + 1)) return m; }
+            return null;
+        };
+        Func<MzSeg, MzSeg> segMasuRecv = g =>
+        {
+            var m = segMasuOf(g); if (m == null) return null;
+            var mm = Regex.Match(Sk(m, "then") ?? "", @"→\s*(?:(D\d+)\s*)?seg(\d+)"); if (!mm.Success) return null;
+            string id = (mm.Groups[1].Success && mm.Groups[1].Value.Length > 0 ? mm.Groups[1].Value : g.drain) + " seg" + mm.Groups[2].Value;
+            return byId.ContainsKey(id) ? byId[id] : null;
+        };
+        // 欄 masuAt「軒の矩形の出隅」の出隅 = 区間の線の言い方に名の出る棟の軒の矩形の四隅(「…を除く」の棟は外す)
+        Func<MzSeg, List<Vector2>> eaveCorners = g =>
+        {
+            string ln = Regex.Replace(g.line, @"──\s*[^・]*?を除く", "");
+            var l = new List<Vector2>();
+            foreach (var kv in eave) if (Regex.IsMatch(ln, @"(?<![A-Za-z0-9_])" + Regex.Escape(kv.Key) + @"(?![A-Za-z0-9_])")) l.AddRange(kv.Value);
+            return l;
+        };
         // 'to' の言い方 → 受ける側(区間・桝・系統)
         Func<MzSeg, List<MzSeg>> receivers = g =>
         {
             var r = new List<MzSeg>();
+            if (Has(g.raw, "masuPitchMaxM")) return r;   // 桝で割る区間は自分の桝へ尻を入れる(欄 to「… seg4 へは入れない」を受けと読まない)── 桝から先は segMasu の埋樋
             foreach (Match mm in Regex.Matches(g.to, @"(D\d+)?\s*seg(\d+)")) { string id = (mm.Groups[1].Success && mm.Groups[1].Value.Length > 0 ? mm.Groups[1].Value : g.drain) + " seg" + mm.Groups[2].Value; if (byId.ContainsKey(id)) r.Add(byId[id]); }
             if (r.Count == 0)
                 foreach (Match mm in Regex.Matches(g.to, @"\b(D\d+)\b(?!\s*masu)"))
@@ -360,6 +382,7 @@ public static partial class EdoDoiBuilder
         {
             var l = new List<List<Vector2>>();
             foreach (var r in receivers(g)) { if (r.built && r.lines != null) l.AddRange(r.lines); else { var rl = lineOf(r); if (rl != null) l.AddRange(rl); } }
+            { var ur = segMasuRecv(g); if (ur != null) { var rl = ur.built && ur.lines != null ? ur.lines : lineOf(ur); if (rl != null) l.AddRange(rl); } }   // 桝で割る区間の尻は埋樋の受けの側へ
             var mg = masuOf(g);
             if (mg != null) foreach (var h in segs) if (h != g && masuOf(h) == mg) { var hl = lineOf(h); if (hl != null) l.AddRange(hl); }
             return l;
@@ -831,13 +854,14 @@ public static partial class EdoDoiBuilder
 
         // ---- 区間ごとに解いて据える
         var solvedEnds = new List<KeyValuePair<MzSeg, Vector3>>();   // (入る区間, (尻の x, z, 尻の底))
+        var splitMasus = new List<KeyValuePair<MzSeg, EdoBuild.MasuCut>>();   // 欄 masuPitchMaxM で区間に足した桝(この後 埋樋の口を引く)
         foreach (var g in order)
         {
             var s = g.raw;
             AuditKeys(s, "排水 " + g.id, "kata", "line", "flow", "to", "slope", "slopeMin", "bottom", "bottomHead", "bottomTail", "depth", "offKen", "offRef", "offM",
                       "lid", "drop", "innerW", "rule", "note", "stepPitchKen", "stepRiseMax", "stepRiseFrom", "stepPitchFrom", "stepPitchQuantumKen", "stepsMin", "stepsMax",
                       "steps", "rise", "riseFrom", "riseMax", "stepsFrom", "stepsEst", "riseEst", "treadFrom", "sizeKen", "groundToCenter", "backOffsetFromNeishiM",
-                      "downpipeAt", "lenMaxKen", "swale", "edgeFall", "maxToNamedKen");
+                      "downpipeAt", "lenMaxKen", "swale", "edgeFall", "maxToNamedKen", "masuPitchMaxM", "masuPitchNote", "masuAt");
             if (Has(s, "innerW") && g.kata == "A")
             { line(2, g.id + "(型 A・内法 " + F(s["innerW"]).ToString("0.00") + "): 内法 0.30 の駒しか無い ── 建てない"); Wait(g.id + ": 内法 " + F(s["innerW"]).ToString("0.00") + " の雨落ちの駒が要る(部材方 ── Own.DoiMizo の内法違い)"); continue; }
             if (g.kata == "J") continue;   // 受けは桝を据えた後(下の「受け」の段)
@@ -852,6 +876,20 @@ public static partial class EdoDoiBuilder
             bool fixedD = !(g.kata == "E" || g.kata == "F" || g.kata == "A" || g.kata == "C" || g.kata == "D");   // A・C・D も深さの版を選ぶ(mizoPathVar)
             var tls = targetLines(g);
             var ms = masuOf(g);
+            // 欄 masuPitchMaxM・masuAt・segMasu: 区間を桝で割り、区間ごとに尻を桝に入れる(置き場は EdoBuild.SplitMizoAtMasu → PlaceBest)
+            float splitPitch = Has(s, "masuPitchMaxM") ? F(s["masuPitchMaxM"]) : float.NaN;
+            string splitKata = null, splitPath = null; List<Vector2> splitCorners = null; float splitTopA = 0f, splitSump = 0f, splitDepthHard = float.NaN;
+            if (!float.IsNaN(splitPitch))
+            {
+                var smRaw = segMasuOf(g); splitKata = smRaw != null ? Sk(smRaw, "kata") : null;
+                if (splitKata == null) { var gm = Regex.Match(g.to, @"\b(G\d+)\b"); if (gm.Success) splitKata = gm.Groups[1].Value; }
+                splitPath = splitKata != null ? EdoBuild.AssetByName("Own", "DoiMasu", splitKata) : null;
+                if (splitPath == null || !Exists(splitPath)) { line(2, g.id + "(型 " + g.kata + "): 区間に足す桝の駒 " + (splitPath ?? "Own.DoiMasu(" + (splitKata ?? "型が欄に無い") + ")") + " が無い ── 建てない"); Wait(g.id + ": 区間に足す桝の駒 Own.DoiMasu(\"" + (splitKata ?? "?") + "\") が無い(部材方)"); continue; }
+                var smk = splitKata != null && Has(kata, splitKata) ? O(kata[splitKata]) : null;
+                if (smk != null) { splitTopA = Has(smk, "topAbove") ? F(smk["topAbove"]) : 0f; splitSump = Has(smk, "sumpBelowOutlet") ? F(smk["sumpBelowOutlet"]) : 0f; }
+                if ((Sk(s, "masuAt") ?? "").Contains("出隅")) { splitCorners = eaveCorners(g); if (splitCorners.Count == 0) Wait(g.id + ": 欄 masuAt「出隅」の棟の軒の矩形が引けない ── 出隅の狙いを外して割る"); }
+                splitDepthHard = kf(g.kata, "depthMax");
+            }
             g.lines = new List<List<Vector2>>();
             foreach (var pl in raw) { if (g.fixedDir) g.lines.Add(new List<Vector2>(pl)); else g.lines.AddRange(orient(pl, tls, g.flow.Contains("二手"))); }
             // 段・勾配・頭と尻の高さ(欄)
@@ -943,6 +981,33 @@ public static partial class EdoDoiBuilder
                     float dist; float sAt = EdoBuild.NearestS(pl, new Vector2(kv.Value.x, kv.Value.y), out dist);
                     if (dist <= 3f) sp.caps.Add(new Vector3(sAt, kv.Value.z, dropMin));
                 }
+                if (!float.IsNaN(splitPitch))
+                {
+                    var srep = EdoBuild.SplitMizoAtMasu(grp, pfx + "_" + li, sp, splitPath, splitPitch, float.IsNaN(splitDepthHard) ? sp.depthMax : splitDepthHard, splitTopA, splitSump, splitCorners);
+                    for (int ck = 0; ck < srep.cuts.Count; ck++)
+                    {
+                        var cut = srep.cuts[ck]; g.prof.Add(cut.pr);
+                        var ffail = new List<string>();
+                        var cmade = EdoBuild.LayMizo(grp, pfx + "_" + li + "_" + ck, cut.pr, need => mizoPathVar(g.kata, need + sp.topAbove), out int cmi, out string cmw, groundMizo, ffail);
+                        g.pieces.AddRange(cmade); laid += cmade.Count; miss += cmi; if (cmw != null) missWhy = cmw;
+                        if (ffail.Count > 0)
+                        {
+                            floatN += ffail.Count;
+                            hardMsg.Add("線 " + (li + 1) + " 区間 " + (ck + 1) + ": 地面より浮く駒 " + ffail.Count + " を据えない(" + string.Join(" / ", ffail.ToArray()) + ")");
+                            Wait(g.id + " 線 " + (li + 1) + " 区間 " + (ck + 1) + ": 溝の駒が地面より浮く ── 据えない " + ffail.Count + " 駒(" + ffail[0] + (ffail.Count > 1 ? " ほか" : "") + ")");
+                        }
+                        sink = Mathf.Max(sink, cut.pr.worstSink); deep = Mathf.Max(deep, cut.pr.worstDeep); shallow = Mathf.Max(shallow, cut.pr.worstShallow); rise = Mathf.Max(rise, cut.pr.worstRise);
+                        string where = cut.atEnd ? "線の尻" : float.IsNaN(cut.cornerDist) ? "出隅の狙いなし" : "出隅から " + cut.cornerDist.ToString("F2") + "m" + (cut.cornerDist <= 0.6f ? "" : "【柔 ⚠】");
+                        hl.Add("線" + (li + 1) + "・区間" + (ck + 1) + " " + cut.pr.length.ToString("F1") + "m" + (cut.len > splitPitch + 1e-3f ? "(> " + splitPitch.ToString("F0") + "m【柔 ⚠】)" : "")
+                               + " 底 " + cut.pr.Head.ToString("F3") + "→" + cut.pr.Tail.ToString("F3") + "・要る深さ 最大 " + cut.needDepth.ToString("F3") + "【硬 ≤ " + (float.IsNaN(splitDepthHard) ? sp.depthMax : splitDepthHard).ToString("F2") + " ⭕】"
+                               + " → 桝 " + cut.masu.name + "(" + splitKata + "・" + where + "・底 " + cut.floor.ToString("F3") + " < 尻の底【硬 ⭕】" + (cut.sink > 0.005f ? "・天端の沈み " + cut.sink.ToString("F3") + "m【柔 ⚠】" : "") + ")");
+                        solvedEnds.Add(new KeyValuePair<MzSeg, Vector3>(g, new Vector3(cut.at.x, cut.at.y, cut.pr.Tail)));
+                        splitMasus.Add(new KeyValuePair<MzSeg, EdoBuild.MasuCut>(g, cut));
+                    }
+                    { string tsum = srep.tally.Summary(); if (tsum.Length > 0) hl.Add("線" + (li + 1) + " 桝の置き場" + tsum); }
+                    if (!srep.ok) { hardMsg.Add("線 " + (li + 1) + ": " + srep.why + " ── その先は据えない"); Wait(g.id + " 線 " + (li + 1) + ": " + srep.why); }
+                    continue;
+                }
                 var pr = EdoBuild.SolveMizoBottom(sp);
                 g.prof.Add(pr);
                 if (!pr.ok) { hardMsg.Add("線 " + (li + 1) + ": " + pr.hard); continue; }
@@ -978,6 +1043,28 @@ public static partial class EdoDoiBuilder
 
         // ---- 張り石の落とし(型 I ── 区間の欄 drop)
         foreach (var g in segs) if (Has(g.raw, "drop")) BuildHariOtoshi9(g, grp, byId, edgeChk, kf, line);
+
+        // ---- 区間に足した桝から先の埋樋(焼かない)→ 受ける区間の石組の側壁の口(型 M)── 欄 segMasu・hardAdd「埋樋の勾配 ≥ …、尻の底 > 受ける溝の底」
+        //   口の所は EdoBuild.UzumiToiMouth(受ける溝の底が埋樋の尻の底より欄の落ち以上低くなる最初の所)。側壁を割る口の据え方はまだ無い ── Wait に名乗る
+        foreach (var kvM in splitMasus)
+        {
+            var gU = kvM.Key; var cutU = kvM.Value; var smr = segMasuOf(gU); var rcU = segMasuRecv(gU);
+            string nmU = gU.id + " 桝 " + cutU.masu.name;
+            if (smr == null || rcU == null) { line(2, nmU + ": 桝から先の受ける区間が欄 segMasu に無い ── 埋樋を引かない"); Wait(nmU + ": 桝から先の受ける区間(欄 segMasu の「→ segN」)が無い"); continue; }
+            float slopeU = float.NaN;
+            foreach (var o in A(Gk(gU.dr, "hardAdd")) ?? new List<object>()) { var mm = Regex.Match(S(o) ?? "", @"埋樋の勾配\s*≥\s*([0-9.]+)"); if (mm.Success) slopeU = float.Parse(mm.Groups[1].Value, ci); }
+            float dropU = float.NaN; { var mm = Regex.Match(Sk(smr, "then") ?? "", @"([0-9.]+)\s*以上低く"); if (mm.Success) dropU = float.Parse(mm.Groups[1].Value, ci); }
+            if (float.IsNaN(slopeU) || float.IsNaN(dropU)) { line(2, nmU + ": 埋樋の勾配(hardAdd)か口の落ち(segMasu.then)が欄に無い ── 埋樋を引かない"); Wait(nmU + ": 埋樋の勾配・口の落ちが欄に無い"); continue; }
+            var okP = new List<EdoBuild.MizoProfile>(); if (rcU.built) foreach (var p in rcU.prof) if (p != null && p.ok) okP.Add(p);
+            if (okP.Count == 0) { line(2, nmU + " → " + rcU.id + ": 受ける溝が建っていない ── 埋樋の口が決まらない"); Wait(nmU + " → " + rcU.id + ": 受ける溝が建っていない ── 埋樋の口が決まらない"); continue; }
+            Vector2 mAt; float tbU, lenU, rbU; int rlU; string uw;
+            if (!EdoBuild.UzumiToiMouth(cutU.at, cutU.outletBottom, slopeU, dropU, okP, out mAt, out tbU, out lenU, out rbU, out rlU, out uw))
+            { line(2, nmU + " → " + rcU.id + ": " + uw + "【硬 ✗】── 埋樋を引かない"); Wait(nmU + " → " + rcU.id + ": " + uw); continue; }
+            line(0, nmU + " → 埋樋(焼かない)" + lenU.ToString("F1") + "m・桝の出口の底 " + cutU.outletBottom.ToString("F3") + " → 尻の底 " + tbU.ToString("F3") + " → " + rcU.id + " 線" + (rlU + 1) + " の底 " + rbU.ToString("F3")
+                    + " @(" + mAt.x.ToString("F1") + ", " + mAt.y.ToString("F1") + ")【硬 ⭕ 勾配 " + slopeU.ToString("0.000") + " ≥ " + slopeU.ToString("0.000") + "・尻の底 − 受ける溝の底 " + (tbU - rbU).ToString("F3") + " ≥ " + dropU.ToString("F2") + "】");
+            Wait(nmU + " → " + rcU.id + ": 石組の側壁の口(型 M)を (" + mAt.x.ToString("F1") + ", " + mAt.y.ToString("F1") + ")・底 " + tbU.ToString("F3")
+                 + " に開ける部材と置き場が無い(Own.DoiAnkyoKuchi は溝の端の口 ── 側壁を割る口の据え方が EdoBuild に無い・部材方と EdoBuild)── 埋樋は焼かない・地中の経路と他の物との取り合いは未検査");
+        }
 
         // ---- 桝(溝の出合い)
         var masuAt = new Dictionary<string, Vector2>();
@@ -1225,6 +1312,10 @@ public static partial class EdoDoiBuilder
                     string t = S(o) ?? ""; if (t.Length == 0) continue;
                     // 式と測りに入っている物: 段の 1段・柵の柱の根・区画の線からの離れ
                     if (t.Contains("1段") || t.Contains("柱の根") || t.Contains("区画の線")) continue;
+                    // 桝で割った区間(欄 masuPitchMaxM)の深さと埋樋は、桝の置き場を選ぶ時(EdoBuild.SplitMizoAtMasu)と埋樋の口(EdoBuild.UzumiToiMouth)で硬で測った
+                    bool splitHere = false; foreach (var kvS in splitMasus) if (kvS.Key.drain == dn) splitHere = true;
+                    if (splitHere && t.Contains("埋樋")) continue;
+                    if (splitHere && t.Contains("型 A の深さ")) { Wait(dn + " 硬「" + t + "」: 桝で割った区間(欄 masuPitchMaxM)だけ硬で測った ── 他の型 A の区間は未検査"); continue; }
                     Wait(dn + " " + (key == "hardAdd" ? "硬" : "柔") + "「" + t + "」: 未検査(この巡の式と測りに入っていない)");
                 }
         }

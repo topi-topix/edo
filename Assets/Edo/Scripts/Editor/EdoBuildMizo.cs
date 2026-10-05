@@ -650,6 +650,139 @@ public static partial class EdoBuild
         return go;
     }
 
+    // ---------------------------------------------------------------- 区間を桝で割る(土井 D2 seg1 の欄 masuPitchMaxM・masuAt・segMasu ── 2026-10-06 EDO-0533)
+    /// <summary>桝で割った区間の一つ(上流 → 下流の底)と、その尻を受ける桝。</summary>
+    public class MasuCut
+    {
+        public MizoProfile pr; public GameObject masu; public Vector2 at, outDir; public float s, len, floor, sink, outletBottom, cornerDist = float.NaN, needDepth; public bool atEnd;
+    }
+    public class MasuSplitRep
+    {
+        public bool ok = true; public string why; public float length;
+        public List<MasuCut> cuts = new List<MasuCut>(); public SeiyakuTally tally = new SeiyakuTally();
+    }
+
+    /// <summary>溝の設計を別の線で写す(頭の底・尻の上限・入る溝の底は呼び手が区間ごとに直す)。</summary>
+    public static MizoSpec CloneMizoSpec(MizoSpec sp, List<Vector2> line)
+    {
+        return new MizoSpec
+        {
+            name = sp.name, kata = sp.kata, line = line, groundAt = sp.groundAt, topAbove = sp.topAbove, pieceDepth = sp.pieceDepth,
+            depthMin = sp.depthMin, depthMax = sp.depthMax, slopeMin = sp.slopeMin, headBottom = sp.headBottom, tailMax = sp.tailMax,
+            stepPitch = sp.stepPitch, stepRiseMax = sp.stepRiseMax, halfW = sp.halfW, pieceLen = sp.pieceLen, chord = sp.chord
+        };
+    }
+
+    /// <summary>解いた底で <see cref="LayMizo"/> が駒ごとに要る深さ(天端 = 駒が覆う矩形の地面の最低 + topAbove)の最大。</summary>
+    public static float MizoNeedDepthMax(MizoProfile pr)
+    {
+        float worst = 0f; var spans = MizoPieceSpans(pr.length, pr.pieceLen);
+        for (int q = 0; q < spans.Count; q++)
+        {
+            float g = pr.pieceGround != null && q < pr.pieceGround.Length ? pr.pieceGround[q] : float.NaN;
+            if (float.IsNaN(g)) { int i = Array.BinarySearch(pr.s, 0.5f * (spans[q].x + spans[q].y)); if (i < 0) i = Mathf.Clamp(~i, 0, pr.s.Length - 1); g = pr.ground[i]; }
+            worst = Mathf.Max(worst, g + pr.topAbove - Mathf.Max(pr.At(spans[q].x), pr.At(spans[q].y)));
+        }
+        return worst;
+    }
+
+    /// <summary>**一本の溝を桝で割って据える置き場を選ぶ**(欄 masuPitchMaxM・masuAt)。上流から順に、次の桝の弧長 s の候補を
+    /// <see cref="PlaceBest{T}"/> に渡す ── 候補ごとに区間 [前の桝の外の面, s − 桝の外の面] の底を <see cref="SolveMizoBottom"/> で解き、桝を
+    /// <see cref="PlaceMasu"/> で据えて(底 = min(天端の狙い − 桝の深さ, 区間の尻の底 − 溜め))測る。
+    /// 硬(許容0 ── 破る置き場は退ける): 区間の底が解ける(逆勾配0・尻 &lt; 頭・地盤が引ける)/ 駒ごとに要る深さ ≤ <paramref name="depthHard"/>
+    /// (天端 = 地盤 + topAbove ── <see cref="MizoNeedDepthMax"/>)/ 桝の底 &lt; 区間の尻の底。
+    /// 柔(狙い ── 満たす所が無ければ最も近い所へ ⚠): 桝は <paramref name="corners"/>(軒の矩形の出隅)から <paramref name="cornerTol"/> 以内
+    /// (線の尻の桝は免除 ── 尻には必ず桝が要る)/ 区間の長さ ≤ <paramref name="pitchMax"/>。
+    /// 候補の順 = 線の尻(残りが pitchMax 以内なら)→ 出隅(遠い順)→ 1m ごとの点(遠い順)→ pitchMax を超える点(近い順)── 狙いを全部満たす最初の所 = 最も遠い出隅。
+    /// 線の尻にも桝を据える(区間ごとに尻を桝に入れる)。どこでも硬い条件を破るなら、そこから先は据えず ok = false。
+    /// ⛔ 溝の駒はここでは据えない(呼び手が cuts[k].pr を <see cref="LayMizo"/> へ渡す)。
+    /// 当たる先: 土井 D2 seg1(型 A・G1)── 他の邸・系統は欄 masuPitchMaxM を書いた区間だけ。</summary>
+    public static MasuSplitRep SplitMizoAtMasu(Transform parent, string prefix, MizoSpec tmpl, string masuPath, float pitchMax, float depthHard,
+                                                float masuTopAbove, float sump, IList<Vector2> corners, float cornerTol = 0.6f, float step = 1f)
+    {
+        var rep = new MasuSplitRep();
+        var mp = MizoPieceOf(masuPath);
+        if (!mp.ok) { rep.ok = false; rep.why = "桝の駒が測れない " + (masuPath ?? "(名が無い)"); return rep; }
+        float r = Mathf.Max(mp.halfW, 0.5f * (mp.zMax - mp.zMin));   // 桝の芯から外の面まで(入る区間の尻・出る区間の頭をここで止める)
+        var line = tmpl.line; float L = PolylineLength(line); rep.length = L;
+        float minChunk = 1f;
+        if (L < r + minChunk) { rep.ok = false; rep.why = "線 " + L.ToString("F1") + "m が桝の外の面 + 1m より短い"; return rep; }
+        var vS = new List<float>(); { float acc = 0f; for (int i = 0; i < line.Count; i++) { if (i > 0) acc += Vector2.Distance(line[i - 1], line[i]); vS.Add(acc); } }
+        bool useCorner = corners != null && corners.Count > 0;
+        Func<Vector2, float> cornerDist = q => { float b = float.MaxValue; if (useCorner) foreach (var c in corners) b = Mathf.Min(b, Vector2.Distance(c, q)); return b; };
+        var info = new Dictionary<GameObject, MasuCut>();
+        float sA = 0f; int k = 0;
+        while (sA < L - 1e-3f)
+        {
+            float lo = sA + (sA > 0f ? 2f * r : r) + minChunk, hiSoft = sA + pitchMax, hi = Mathf.Min(L, sA + 1.5f * pitchMax);
+            Func<float, bool> valid = s => s >= lo - 1e-4f && s <= hi + 1e-4f && (s >= L - 1e-3f || L - s >= 2f * r + minChunk);   // 尻の残りが桝 + 1m を割らない
+            var cands = new List<float>();
+            Action<float> add = s => { if (!valid(s)) return; foreach (var c in cands) if (Mathf.Abs(c - s) < 0.05f) return; cands.Add(s); };
+            if (L <= hiSoft + 1e-4f) add(L);
+            if (useCorner) { var cs = new List<float>(); foreach (var s in vS) if (s <= hiSoft + 1e-4f) { Vector2 dd; if (cornerDist(PointAt(line, s, out dd)) <= cornerTol) cs.Add(s); } cs.Sort((a, b) => b.CompareTo(a)); foreach (var s in cs) add(s); }
+            for (float s = Mathf.Min(hiSoft, L); s >= lo; s -= step) add(s);
+            { var over = new List<float>(); foreach (var s in vS) if (s > hiSoft) over.Add(s); for (float s = hiSoft + step; s <= hi + 1e-4f; s += step) over.Add(s); if (hi >= L - 1e-3f) over.Add(L); over.Sort(); foreach (var s in over) add(s); }
+            if (cands.Count == 0) { rep.ok = false; rep.why = "弧長 " + sA.ToString("F1") + "m から先に桝の候補が無い(残り " + (L - sA).ToString("F1") + "m)"; break; }
+            float sA0 = sA; int kk = k;
+            Func<float, GameObject> place = s =>
+            {
+                float s0 = sA0 > 0f ? sA0 + r : 0f, s1 = s - r;
+                if (s1 - s0 < minChunk) return null;
+                var sp = CloneMizoSpec(tmpl, SubPolyline(line, s0, s1));
+                if (sA0 > 0f) sp.headBottom = float.NaN;
+                if (s < L - 1e-3f) sp.tailMax = float.NaN;
+                foreach (var c in tmpl.caps) if (c.x >= s0 - 1e-3f && c.x <= s1 + 1e-3f) sp.caps.Add(new Vector3(c.x - s0, c.y, c.z));
+                var pr = SolveMizoBottom(sp);
+                Vector2 dIn; var at = PointAt(line, s, out dIn); PointAt(line, Mathf.Max(0f, s - r - 0.01f), out dIn);
+                float gy = tmpl.groundAt(at.x, at.y); if (float.IsNaN(gy)) return null;
+                float fl, sk;
+                var go = PlaceMasu(parent, prefix + "_Masu" + kk, masuPath, at, dIn, gy + masuTopAbove, pr.Tail - Mathf.Max(0.01f, sump), out fl, out sk);
+                if (go == null) return null;
+                info[go] = new MasuCut { pr = pr, masu = go, at = at, outDir = dIn, s = s, len = s1 - s0, floor = fl, sink = sk, outletBottom = fl + Mathf.Max(0.01f, sump),
+                                         cornerDist = useCorner ? cornerDist(at) : float.NaN, needDepth = MizoNeedDepthMax(pr), atEnd = s >= L - 1e-3f };
+                return go;
+            };
+            var hards = new List<Hard>
+            {
+                new Hard("区間の底が解ける(逆勾配0・尻 < 頭・地盤が引ける)", go => info[go].pr.ok),
+                new Hard("型 " + tmpl.kata + " の深さ ≤ " + depthHard.ToString("F2") + "(天端 = 地盤 + " + tmpl.topAbove.ToString("F2") + ")", go => info[go].needDepth <= depthHard + 1e-4f),
+                new Hard("桝の底 < 区間の尻の底", go => info[go].floor < info[go].pr.Tail - 1e-4f)
+            };
+            var softs = new List<Soft> { new Soft("区間の長さ ≤ " + pitchMax.ToString("F0") + "m(超えた m の負)", 0f, go => Mathf.Min(0f, pitchMax - info[go].len)) };
+            if (useCorner) softs.Add(new Soft("桝は軒の矩形の出隅(距離の負)", -cornerTol, go => info[go].atEnd ? 0f : -info[go].cornerDist));
+            var got = PlaceBest(cands, cands.Count, place, hards, softs, rep.tally);
+            if (got == null) { rep.ok = false; rep.why = "弧長 " + sA.ToString("F1") + "m から先に硬い条件を満たす桝の置き場が無い(候補 " + cands.Count + " ── " + rep.tally.Summary() + ")"; break; }
+            var cut = info[got]; rep.cuts.Add(cut); sA = cut.s; k++;
+        }
+        return rep;
+    }
+
+    /// <summary>**埋樋(焼かない)の口の所**: 桝の出口(底 <paramref name="outBottom"/>)から受ける溝の底の点へ真っ直ぐ勾配 <paramref name="slopeMin"/> で下ろし、
+    /// 受ける溝の底がその埋樋の尻の底より <paramref name="dropMin"/> 以上低くなる**最初の所**(受ける溝の上流から)を返す。
+    /// 硬(式で満たす): 埋樋の勾配 ≥ slopeMin・尻の底 − 受ける溝の底 ≥ dropMin(&gt; 0)。どの点でも満たさなければ false。
+    /// 線ごとに最初の所を取り、埋樋の短い方を採る。当たる先: 土井 D2 seg1 の桝 → seg8(欄 segMasu)。</summary>
+    public static bool UzumiToiMouth(Vector2 from, float outBottom, float slopeMin, float dropMin, IList<MizoProfile> recv,
+                                     out Vector2 at, out float tailBottom, out float len, out float recvBottom, out int recvLine, out string why)
+    {
+        at = Vector2.zero; tailBottom = recvBottom = len = float.NaN; recvLine = -1; why = null;
+        if (recv == null || recv.Count == 0) { why = "受ける溝の底が解けていない"; return false; }
+        for (int li = 0; li < recv.Count; li++)
+        {
+            var pr = recv[li]; if (pr == null || !pr.ok || pr.p == null) continue;
+            for (int i = 0; i < pr.p.Length; i++)
+            {
+                float d = Vector2.Distance(from, pr.p[i]); float tb = outBottom - slopeMin * d;
+                if (pr.bottom[i] <= tb - dropMin + 1e-5f)
+                {
+                    if (float.IsNaN(len) || d < len) { at = pr.p[i]; tailBottom = tb; len = d; recvBottom = pr.bottom[i]; recvLine = li; }
+                    break;
+                }
+            }
+        }
+        if (recvLine < 0) { why = "受ける溝の底が、出口の底 " + outBottom.ToString("F3") + " から勾配 " + slopeMin.ToString("0.000") + " で下ろした埋樋の尻より " + dropMin.ToString("F2") + " 以上低くなる所が無い"; return false; }
+        return true;
+    }
+
     /// <summary>蓋石を溝の天端に載せる。平面 = 溝の芯の上(長さは溝を横切る向き = 局所 X)。高さ = 蓋の**下端**を、その位置の溝の駒の
     /// 実メッシュの天端(当たり = 縁の天端)へ。路面との差(柔 topTol)を off に返す。当たる先: 型 L(D2・D3・D5 の横断・路の上)。</summary>
     public static GameObject LayFutaishi(Transform parent, string name, string path, Vector2 at, Vector2 flowDir, IList<GameObject> under, Func<float, float, float> groundAt, out float off)

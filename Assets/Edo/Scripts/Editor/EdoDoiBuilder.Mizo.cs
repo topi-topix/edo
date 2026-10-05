@@ -70,6 +70,23 @@ public static partial class EdoDoiBuilder
                 }
             return null;
         };
+        // 溝の地面 = 造成後の地盤(graded)と、点を含む面(指図 terraces の poly・y)の低い方。
+        // ⭐ graded は 1m の格子の双一次で、0.5間 の小段や面の縁では隣の升(塀の天端・上の面)を拾って高く読む ── 皮は面の中を面の高さで描くので、
+        //    溝はその低い方に合わせる(⛔ 高く読んだ地面に底を合わせて、駒の縁と小口を下の面の上へ浮かせない ── D9 seg1・EDO-0533)。
+        var mizoFaces = new List<KeyValuePair<Vector2[], float>>();
+        foreach (var o in A(D["terraces"]) ?? new List<object>())
+        {
+            var t = O(o); if (t == null || !Has(t, "poly") || !Has(t, "y") || t["y"] == null || t["y"] is string) continue;
+            var pl = A(t["poly"]); if (pl == null || pl.Count < 3) continue;
+            var w = new Vector2[pl.Count]; for (int i = 0; i < pl.Count; i++) { var q = A(pl[i]); w[i] = f.W(F(q[0]), F(q[1])); }
+            mizoFaces.Add(new KeyValuePair<Vector2[], float>(w, F(t["y"])));
+        }
+        Func<float, float, float> groundMizo = (x, z) =>
+        {
+            float gy = GroundY(x, z); var q = new Vector2(x, z);
+            foreach (var fc in mizoFaces) if (EdoGeom.PIP(fc.Key, q)) gy = float.IsNaN(gy) ? fc.Value : Mathf.Min(gy, fc.Value);
+            return gy;
+        };
         // 「<相手>側」の相手の語 → 面・庭の名(指図の label の頭の語で引く)
         Func<string, string> sideTarget = word =>
         {
@@ -140,9 +157,19 @@ public static partial class EdoDoiBuilder
         {
             if (k == "E" || k == "F")
             {
+                // ⭐ 硬: 駒の深さ(実メッシュの天端 − 溝の底)≤ 要求 ── 要求以下で最も深い版を選ぶ(⛔ 丸めで深い版へ上げない ── 天端が地面より上へ出て縁と小口が浮く・EDO-0533)。
+                // どの版も要求より深ければ最も浅い版を返す(据える側 LayMizo の硬い検めが浮きを退ける)。
                 float dmin = kf(k, "depthMin"), dmax = kf(k, "depthMax");
-                float d = Mathf.Clamp(Mathf.Ceil(depth / 0.05f - 1e-3f) * 0.05f, dmin, dmax);
-                return EdoBuild.AssetByName("Own", "DoiMizo", k, (float)Math.Round(d, 2));
+                string shallow = null;
+                for (float d = dmax; d >= dmin - 1e-4f; d -= 0.05f)
+                {
+                    string pth = EdoBuild.AssetByName("Own", "DoiMizo", k, (float)Math.Round(d, 2));
+                    if (pth == null || !Exists(pth)) continue;
+                    var mpk = EdoBuild.MizoPieceOf(pth); if (!mpk.ok) continue;
+                    shallow = pth;
+                    if (mpk.Depth <= depth + 0.005f) return pth;
+                }
+                return shallow ?? EdoBuild.AssetByName("Own", "DoiMizo", k, (float)Math.Round(dmin, 2));
             }
             return EdoBuild.AssetByName("Own", "DoiMizo", k);
         };
@@ -730,18 +757,22 @@ public static partial class EdoDoiBuilder
             float dropMin = 0.01f;
             foreach (var o in A(Gk(g.dr, "toriai")) ?? new List<object>()) { var t = O(o); if (Has(t, "dropMin")) dropMin = Mathf.Max(dropMin, F(t["dropMin"])); }
             int laid = 0, miss = 0; string missWhy = null; var pfx = g.id.Replace(" ", "_");
-            var hardMsg = new List<string>(); float sink = 0f, deep = 0f, shallow = 0f, rise = 0f; var hl = new List<string>();
+            var hardMsg = new List<string>(); int floatN = 0; float sink = 0f, deep = 0f, shallow = 0f, rise = 0f; var hl = new List<string>();
             for (int li = 0; li < g.lines.Count; li++)
             {
                 var pl = g.lines[li];
                 var sp = new EdoBuild.MizoSpec
                 {
-                    name = g.id, kata = g.kata, line = pl, groundAt = GroundY, topAbove = topAbove(g.kata),
+                    name = g.id, kata = g.kata, line = pl, groundAt = groundMizo, topAbove = topAbove(g.kata),
                     pieceDepth = fixedD ? mp0.Depth : float.NaN, depthMin = kf(g.kata, "depthMin"), depthMax = kf(g.kata, "depthMax"),
                     slopeMin = slopeMin, headBottom = head, tailMax = tail, stepPitch = stepPitch, stepRiseMax = stepRise
                 };
                 if (float.IsNaN(sp.depthMin)) sp.depthMin = Has(O(kata[g.kata]), "depth") ? kf(g.kata, "depth") : 0.05f;
                 if (float.IsNaN(sp.depthMax)) sp.depthMax = Mathf.Max(sp.depthMin, 1f);
+                if (!fixedD) sp.depthMin = Mathf.Max(sp.depthMin, mp0.Depth);   // 選べる駒の最も浅い版の実測の深さ(欄の depthMin より深ければそれ)
+                // 硬「溝の底 ≤ そこの地面 + topAbove − 深さ」の「そこ」= 駒が覆う矩形 ── 芯から最も遠い縁まで(片側の溝は芯に対して非対称)
+                sp.halfW = Mathf.Max(Mathf.Abs(mp0.xMin), Mathf.Abs(mp0.xMax));
+                if (!fixedD) { var mpD = EdoBuild.MizoPieceOf(mizoPath(g.kata, sp.depthMax + sp.topAbove)); if (mpD.ok) sp.halfW = Mathf.Max(sp.halfW, Mathf.Max(Mathf.Abs(mpD.xMin), Mathf.Abs(mpD.xMax))); }
                 // 硬: 受ける側の底 < 入る側の底 ── 入る区間の尻を上限に
                 foreach (var kv in solvedEnds)
                 {
@@ -754,8 +785,16 @@ public static partial class EdoDoiBuilder
                 var pr = EdoBuild.SolveMizoBottom(sp);
                 g.prof.Add(pr);
                 if (!pr.ok) { hardMsg.Add("線 " + (li + 1) + ": " + pr.hard); continue; }
-                var made = EdoBuild.LayMizo(grp, pfx + "_" + li, pr, need => mizoPath(g.kata, need + sp.topAbove), out int mi, out string mw);
+                var floatFail = new List<string>();
+                var made = EdoBuild.LayMizo(grp, pfx + "_" + li, pr, need => mizoPath(g.kata, need + sp.topAbove), out int mi, out string mw, groundMizo, floatFail);
                 g.pieces.AddRange(made); laid += made.Count; miss += mi; if (mw != null) missWhy = mw;
+                if (floatFail.Count > 0)
+                {
+                    floatN += floatFail.Count;
+                    hardMsg.Add("線 " + (li + 1) + ": 地面より浮く駒 " + floatFail.Count + " を据えない(" + string.Join(" / ", floatFail.ToArray()) + ")");
+                    Wait(g.id + " 線 " + (li + 1) + ": 溝の駒が地面より浮く ── 据えない " + floatFail.Count + " 駒(" + floatFail[0] + (floatFail.Count > 1 ? " ほか" : "") + ")");
+                }
+                if (pr.headLowered > 0.005f) hl.Add("⚠ 線" + (li + 1) + " 頭の底を欄 " + head.ToString("F3") + " から " + pr.Head.ToString("F3") + " へ " + pr.headLowered.ToString("F3") + "m 下げた(硬: 底 ≤ 駒が覆う地面の最低 + " + sp.topAbove.ToString("F2") + " − 深さ)");
                 sink = Mathf.Max(sink, pr.worstSink); deep = Mathf.Max(deep, pr.worstDeep); shallow = Mathf.Max(shallow, pr.worstShallow); rise = Mathf.Max(rise, pr.worstRise);
                 hl.Add("線" + (li + 1) + " " + pr.length.ToString("F1") + "m 底 " + pr.Head.ToString("F3") + "→" + pr.Tail.ToString("F3")
                        + "(落差 " + (pr.Head - pr.Tail).ToString("F3") + "・平均勾配 " + ((pr.Head - pr.Tail) / Mathf.Max(0.01f, pr.length)).ToString("0.0000")
@@ -771,7 +810,7 @@ public static partial class EdoDoiBuilder
                 string soft = (sink > 0.005f ? "・天端の沈み 最悪 " + sink.ToString("F3") + "m(柔: 深さの決まった駒で勾配を取った分)" : "")
                             + (deep > 0.005f ? "・深さが上限を " + deep.ToString("F3") + "m 超える区間(柔" + (g.kata == "D" ? ": D は E へ替える区間" : "") + ")" : "")
                             + (shallow > 0.005f ? "・深さが下限に " + shallow.ToString("F3") + "m 足りない区間" : "");
-                line(soft.Length > 0 ? 1 : 0, head2 + laid + " 駒 ── " + string.Join(" / ", hl.ToArray()) + "【硬 ⭕ 逆勾配0・入る底より低い・段 ≤ 上限】" + soft);
+                line(soft.Length > 0 ? 1 : 0, head2 + laid + " 駒 ── " + string.Join(" / ", hl.ToArray()) + (floatN > 0 ? "【硬 ✗ 地面より浮く駒 " + floatN + " を据えず ── 他は ⭕ 逆勾配0・入る底より低い・段 ≤ 上限】" : "【硬 ⭕ 逆勾配0・入る底より低い・段 ≤ 上限・駒が地面より浮かない】") + soft);
             }
             if (miss > 0) { line(1, g.id + ": 据えられない駒 " + miss + "(" + missWhy + ")"); Wait(g.id + ": 駒 " + missWhy + " が無い(部材方)"); }
         }

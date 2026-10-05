@@ -13,6 +13,9 @@ using UnityEngine;
 //      段落ち(H)・張り石の落とし(I)・受け(J)も末尾の節(駒の実メッシュの段鼻・天端・縁を測って据える)。
 //   ② 底の高さは**硬い条件**を式で満たす(<see cref="SolveMizoBottom"/>): 落とし先へ下がり続ける(逆勾配・窪み 0)/
 //      受ける側の底 < 入る側の底(呼び手が上流の底を `caps` で渡す)/ 段落ち 1段 ≤ riseMax。
+//      ⭐ 溝の底 ≤ **駒が覆う矩形の地面の最低** + topAbove − 深さ(<see cref="MizoFootGroundMin"/>)── 欄の頭の底はその上限として読み、地面より高ければ下げて名乗る。
+//      据えた駒も矩形の各点で 天端 ≤ 地面 + topAbove + 0.01 を検め、破る駒は据えずに呼び手へ返す(<see cref="LayMizo"/> の hardFail)。
+//      ⛔ 線の上の一点で地面を引かない ── 小段・面の縁・線の折れの外で、駒の縁と小口が下の面の上へ浮く(土井 D9 seg1・2026-10-05・EDO-0533)。
 //      ⛔ 硬い条件は「最も近い所」で妥協しない ── 破れば ✗ を返し、呼び手は据えない。
 //   ③ 天端を地盤 + topAbove に揃えるのは**柔らかい条件**(狙い)── 深さの決まった駒で勾配を取ると天端が沈む。沈みの最悪を ⚠ で返す。
 //   ④ 駒の高さは**駒の実メッシュで測った溝の底(当たり)**を解いた底へ当てて決める(<see cref="MizoPieceOf"/>)。⛔ ピボットで決めない。
@@ -410,12 +413,21 @@ public static partial class EdoBuild
         public float stepPitch, stepRiseMax;
         /// <summary>上流から入る溝の底(弧長 s で底 ≤ 値 − drop)。硬い条件「受ける側の底 &lt; 入る側の底」。</summary>
         public List<Vector3> caps = new List<Vector3>();   // (s, 入る底, 落ちの最小)
+        /// <summary>駒の幅の半分[m](実測)。0 なら線の上だけで地面を引く。⭐ 硬「溝の底 ≤ そこの地面 + topAbove − 深さ」の「そこ」は駒が覆う矩形の全体(EDO-0533)。</summary>
+        public float halfW;
+        /// <summary>駒の長さ[m](<see cref="LayMizo"/> の駒割りと同じ)。</summary>
+        public float pieceLen = 1f;
     }
     public class MizoProfile
     {
         public bool ok = true; public string hard = "";
         public float[] s, ground, bottom; public Vector2[] p; public float length;
         public float worstSink, worstDeep, worstShallow; public float worstRise; public int steps;
+        /// <summary>駒 q が覆う矩形の地面の最低(<see cref="MizoPieceSpans"/> の駒割り)。<see cref="LayMizo"/> が深さを選ぶのに使う。</summary>
+        public float[] pieceGround;
+        public float halfW, pieceLen = 1f, topAbove;
+        /// <summary>欄の頭の底を硬い条件(地面 − 深さ)で下げた量[m](0 = 欄のまま)。</summary>
+        public float headLowered;
         public float Head { get { return bottom[0]; } }
         public float Tail { get { return bottom[bottom.Length - 1]; } }
         public float At(float ss)
@@ -425,15 +437,47 @@ public static partial class EdoBuild
             return bottom[bottom.Length - 1];
         }
     }
-    /// <summary>**溝の底を解く**(硬い条件を式で満たす)。各点の底の候補 = 天端の狙い(地盤 + topAbove)− 深さ(深さの決まった駒はその深さ・
-    /// 選べる駒は depthMin)。上流から `底[i] = min(候補[i], 底[i−1] − slopeMin × ds, 入る溝の底 − 落ち)` で下ろし、尻を tailMax 以下へ抑える。
+    /// <summary>駒割り(<see cref="LayMizo"/> と同じ): 駒 q は弧長 [s0, s1](最後の駒は走りの端へ引き戻して前の駒へ重ねる)。</summary>
+    public static List<Vector2> MizoPieceSpans(float L, float pieceLen = 1f)
+    {
+        var res = new List<Vector2>(); if (L < 0.2f) return res;
+        float pl = Mathf.Max(0.1f, pieceLen);
+        int k = Mathf.Max(1, Mathf.CeilToInt(L / pl - 1e-3f));
+        for (int q = 0; q < k; q++) { float s0 = Mathf.Min(q * pl, Mathf.Max(0f, L - pl)); res.Add(new Vector2(s0, Mathf.Min(L, s0 + pl))); }
+        return res;
+    }
+
+    /// <summary>**駒が覆う矩形の地面の最低**。矩形 = 弧長 [s0, s1] の中ほどの点を芯に、その点の向きへ長さ (s1 − s0)・幅 2 × halfW
+    /// (<see cref="LayMizo"/> の据え方と同じ ── 駒は線の折れに沿わず弦に真っ直ぐ据わるので、折れの外へ小口の隅が出る)。
+    /// 縦 5 × 横 3 の点で引く。引けない点は飛ばし、全部引けなければ NaN。
+    /// ⭐ 線の上の一点で地面を引くと、格子(1m)より細い小段の上では塀の天端の升を拾って高く読み、駒の縁と小口が下の平場へ浮く(土井 D9 seg1 ── EDO-0533)。
+    /// 当たる先: 溝の全系統(<see cref="SolveMizoBottom"/>・<see cref="LayMizo"/>)。</summary>
+    public static float MizoFootGroundMin(List<Vector2> line, float s0, float s1, float halfW, Func<float, float, float> groundAt)
+    {
+        float sc = 0.5f * (s0 + s1), half = 0.5f * (s1 - s0); Vector2 d; var c = PointAt(line, sc, out d);
+        if (d.sqrMagnitude < 1e-8f) d = Vector2.up; d.Normalize(); var nrm = new Vector2(-d.y, d.x);
+        float g = float.MaxValue;
+        for (int a = -2; a <= 2; a++)
+            for (int b = -1; b <= 1; b++)
+            {
+                var q = c + d * (half * a / 2f) + nrm * (halfW * b);
+                float y = groundAt(q.x, q.y); if (!float.IsNaN(y)) g = Mathf.Min(g, y);
+            }
+        return g == float.MaxValue ? float.NaN : g;
+    }
+
+    /// <summary>**溝の底を解く**(硬い条件を式で満たす)。各点の底の候補 = **駒が覆う矩形の地面の最低** + topAbove − 深さ(深さの決まった駒はその深さ・
+    /// 選べる駒は depthMin)。⭐ 硬: 「溝の底 ≤ そこの地面 + topAbove − 深さ」── 「そこ」はその点を覆う駒(前後の駒も ── 弧長 ds の内で掛かる駒)の矩形の全体。
+    /// 上流から `底[i] = min(候補[i], 底[i−1] − slopeMin × ds, 入る溝の底 − 落ち)` で下ろし、尻を tailMax 以下へ抑える。欄の頭の底(headBottom)は**上限**として読み、
+    /// 候補より高ければ候補へ下げて <see cref="MizoProfile.headLowered"/> に名乗る(⛔ 欄の底のまま駒を地面の上へ浮かせない)。
     /// 段に落とす溝(stepPitch &gt; 0)は区間ごとに最も低い底で平らにし、段の落ちが stepRiseMax を超えたら ✗(硬)。
-    /// 返り値の worstSink = 天端の狙いからの沈みの最悪(柔 ⚠)・worstDeep = depthMax を超えた最悪(柔 ⚠ ── D は E へ替える区間)。
-    /// 当たる先: 溝の全系統(D1〜D13 の segs)。</summary>
+    /// 返り値の worstSink = 天端の狙い(線の上の地盤 + topAbove)からの沈みの最悪(柔 ⚠)・worstDeep = depthMax を超えた最悪(柔 ⚠ ── D は E へ替える区間)。
+    /// 当たる先: 溝の全系統(D1〜D13 の segs)── 今は土井 S9 だけが呼ぶ。</summary>
     public static MizoProfile SolveMizoBottom(MizoSpec sp, float ds = 0.5f)
     {
         var pr = new MizoProfile();
         float L = PolylineLength(sp.line); pr.length = L;
+        pr.halfW = Mathf.Max(0f, sp.halfW); pr.pieceLen = Mathf.Max(0.1f, sp.pieceLen); pr.topAbove = sp.topAbove;
         int n = Mathf.Max(2, Mathf.CeilToInt(L / ds) + 1);
         pr.s = new float[n]; pr.ground = new float[n]; pr.bottom = new float[n]; pr.p = new Vector2[n];
         float slope = Mathf.Max(sp.slopeMin, 0.001f);
@@ -444,11 +488,32 @@ public static partial class EdoBuild
             pr.s[i] = s; pr.p[i] = q; pr.ground[i] = sp.groundAt(q.x, q.y);
             if (float.IsNaN(pr.ground[i])) { pr.ok = false; pr.hard += "地盤が引けない点 @" + s.ToString("F1") + "m・"; pr.ground[i] = i > 0 ? pr.ground[i - 1] : 0f; }
         }
+        // 駒ごとの矩形の地面の最低 → 点ごとの地面(その点を弧長 ds の内で覆う駒すべての最低)
+        var spans = MizoPieceSpans(L, pr.pieceLen);
+        pr.pieceGround = new float[spans.Count];
+        for (int q = 0; q < spans.Count; q++)
+        {
+            float g = MizoFootGroundMin(sp.line, spans[q].x, spans[q].y, pr.halfW, sp.groundAt);
+            pr.pieceGround[q] = float.IsNaN(g) ? float.MaxValue : g;
+        }
+        var foot = new float[n];
         for (int i = 0; i < n; i++)
         {
-            float cand = pr.ground[i] + sp.topAbove - (fixedDepth ? sp.pieceDepth : sp.depthMin);
+            float g = pr.ground[i];
+            for (int q = 0; q < spans.Count; q++)
+                if (pr.s[i] >= spans[q].x - ds - 1e-4f && pr.s[i] <= spans[q].y + ds + 1e-4f) g = Mathf.Min(g, pr.pieceGround[q]);
+            foot[i] = g;
+        }
+        for (int q = 0; q < spans.Count; q++) if (pr.pieceGround[q] == float.MaxValue) pr.pieceGround[q] = float.NaN;
+        for (int i = 0; i < n; i++)
+        {
+            float cand = foot[i] + sp.topAbove - (fixedDepth ? sp.pieceDepth : sp.depthMin);
             foreach (var c in sp.caps) if (Mathf.Abs(c.x - pr.s[i]) <= ds * 0.5f + 1e-4f) cand = Mathf.Min(cand, c.y - Mathf.Max(0.001f, c.z));
-            if (i == 0) pr.bottom[0] = float.IsNaN(sp.headBottom) ? cand : sp.headBottom;
+            if (i == 0)
+            {
+                if (float.IsNaN(sp.headBottom)) pr.bottom[0] = cand;
+                else { pr.bottom[0] = Mathf.Min(sp.headBottom, cand); pr.headLowered = Mathf.Max(0f, sp.headBottom - cand); }
+            }
             else pr.bottom[i] = Mathf.Min(cand, pr.bottom[i - 1] - slope * (pr.s[i] - pr.s[i - 1]));
         }
         if (!float.IsNaN(sp.tailMax) && pr.bottom[n - 1] > sp.tailMax)
@@ -490,31 +555,60 @@ public static partial class EdoBuild
     // ---------------------------------------------------------------- 駒を並べる
     /// <summary>**1m の駒を線に並べる**。駒ごとに: 平面 = 線の上(部材の作法: 溝の芯・+Z が下流)/ 向き = 区間の向き /
     /// 傾き = 底の勾配(駒の前後の底の差)/ 高さ = **駒の実測の溝の底**を解いた底へ当てる(⛔ ピボットで決めない)。
-    /// 最後の駒は走りの端へ引き戻して前の駒へ重ねる(切る・伸ばさない)。<paramref name="pathAt"/> は駒の中ほどの深さの要求から部材を選ぶ
-    /// (null を返したら据えずに数える)。当たる先: 溝の全系統。</summary>
-    public static List<GameObject> LayMizo(Transform parent, string prefix, MizoProfile pr, Func<float, string> pathAt, out int missing, out string missWhy)
+    /// 最後の駒は走りの端へ引き戻して前の駒へ重ねる(切る・伸ばさない)。<paramref name="pathAt"/> は駒の深さの要求(= 駒が覆う矩形の地面の最低 − 駒の頭の底)から
+    /// 部材を選ぶ(null を返したら据えずに数える)。
+    /// ⭐ 硬(許容0): **駒が地面より浮かない** ── 据えた駒の実メッシュの矩形(縦 3 × 横 3 の点)で、天端 ≤ その点の地面 + topAbove + 0.01(oki-kata §4 地面 ±0.01)。
+    /// 破る駒は据えずに消し、<paramref name="hardFail"/> へ駒の名・浮きの最悪・場所を積む(呼び手は Wait に名乗る ── ⛔ 浮かせて据えない)。
+    /// groundAt が null なら検めない(旧の呼び方)。当たる先: 溝の全系統。</summary>
+    public static List<GameObject> LayMizo(Transform parent, string prefix, MizoProfile pr, Func<float, string> pathAt, out int missing, out string missWhy,
+                                           Func<float, float, float> groundAt = null, List<string> hardFail = null)
     {
         var made = new List<GameObject>(); missing = 0; missWhy = null;
         var line = new List<Vector2>(pr.p);
         float L = pr.length; if (L < 0.2f) return made;
-        int k = Mathf.Max(1, Mathf.CeilToInt(L - 1e-3f));
-        for (int q = 0; q < k; q++)
+        var spans = MizoPieceSpans(L, pr.pieceLen);
+        for (int q = 0; q < spans.Count; q++)
         {
-            float s0 = Mathf.Min(q * 1f, Mathf.Max(0f, L - 1f)), s1 = Mathf.Min(L, s0 + 1f), sc = 0.5f * (s0 + s1);
+            float s0 = spans[q].x, s1 = spans[q].y, sc = 0.5f * (s0 + s1);
             Vector2 dir; var c = PointAt(line, sc, out dir);
             float b0 = pr.At(s0), b1 = pr.At(s1), bc = 0.5f * (b0 + b1);
-            float need = 0f; { int i = Array.BinarySearch(pr.s, sc); if (i < 0) i = Mathf.Clamp(~i, 0, pr.s.Length - 1); need = pr.ground[i] - bc; }
+            // 深さの要求 = 駒が覆う矩形の地面の最低 − 駒の頭(高い側)の底(⛔ 線の上の一点の地面で選ばない ── 縁と小口が浮く)
+            float gq = pr.pieceGround != null && q < pr.pieceGround.Length && !float.IsNaN(pr.pieceGround[q]) ? pr.pieceGround[q] : float.NaN;
+            float need;
+            if (!float.IsNaN(gq)) need = gq - Mathf.Max(b0, b1);
+            else { int i = Array.BinarySearch(pr.s, sc); if (i < 0) i = Mathf.Clamp(~i, 0, pr.s.Length - 1); need = pr.ground[i] - bc; }
             string path = pathAt(need);
             if (string.IsNullOrEmpty(path) || AssetDatabase.LoadAssetAtPath<GameObject>(path) == null) { missing++; if (missWhy == null) missWhy = path ?? "(部材の名が無い)"; continue; }
             var mp = MizoPieceOf(path); if (!mp.ok) { missing++; if (missWhy == null) missWhy = path + "(溝の底が測れない)"; continue; }
             float pitch = Mathf.Atan2(b0 - b1, Mathf.Max(1e-3f, s1 - s0)) * Mathf.Rad2Deg;
             float yaw = Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg;
-            var go = Place(path, new Vector3(c.x, 0f, c.y), yaw, Vector3.one, parent, prefix + "_" + q.ToString("000"));
+            string nm = prefix + "_" + q.ToString("000");
+            var go = Place(path, new Vector3(c.x, 0f, c.y), yaw, Vector3.one, parent, nm);
             go.transform.rotation = Quaternion.Euler(pitch, yaw, 0f);
             // 溝の底の当たり(局所 (0, floor, 中ほど))を解いた底 bc へ
             var zc = 0.5f * (mp.zMin + mp.zMax);
             var w = go.transform.TransformPoint(new Vector3(0f, mp.floor, zc));
             go.transform.position += new Vector3(c.x - w.x, bc - w.y, c.y - w.z);
+            if (groundAt != null)
+            {
+                // 硬: 駒の矩形の各点で 天端 ≤ 地面 + topAbove + 0.01
+                float worst = 0f; Vector3 at = Vector3.zero; float atG = float.NaN;
+                foreach (float lx in new[] { mp.xMin, 0.5f * (mp.xMin + mp.xMax), mp.xMax })
+                    foreach (float lz in new[] { mp.zMin, zc, mp.zMax })
+                    {
+                        var tp = go.transform.TransformPoint(new Vector3(lx, mp.top, lz));
+                        float g = groundAt(tp.x, tp.z); if (float.IsNaN(g)) continue;
+                        float over = tp.y - (g + pr.topAbove);
+                        if (over > worst) { worst = over; at = tp; atG = g; }
+                    }
+                if (worst > 0.01f)
+                {
+                    UnityEngine.Object.DestroyImmediate(go);
+                    if (hardFail != null) hardFail.Add(nm + " 天端が地面 + " + pr.topAbove.ToString("F2") + " より " + worst.ToString("F3") + "m 上 @(" + at.x.ToString("F1") + ", " + at.z.ToString("F1")
+                                                       + ")(底 " + bc.ToString("F3") + "・深さ " + mp.Depth.ToString("F2") + "・地面 " + atG.ToString("F2") + ")");
+                    continue;
+                }
+            }
             made.Add(go);
         }
         return made;

@@ -2088,7 +2088,39 @@ public static partial class EdoBuild
     /// footFloat = 下端の当たりの最大の浮き(陸 ≤ 0・水中 ≤ −seatToBed が硬い)・wet = 足元が水中・grew = 足が届かず丈を増した・
     /// inside = 石の平面が版の下面の範囲に収まった・pokeOut = 版の下面の範囲の外の石の頂点の、版の下面からの最大の出[m](&gt; 0 = 版の脇で下面より上に出る ── 柔らかい ⚠)・
     /// shrunk = 版の幅に収めるため長さを縮めた。</summary>
-    public struct NiwaAbutRep { public float deckUnder, stoneTop, gapGround, longGot, footFloat, pokeOut; public bool wet, buried, grew, inside, shrunk; public string why; }
+    public struct NiwaAbutRep
+    {
+        public float deckUnder, stoneTop, gapGround, longGot, footFloat, pokeOut; public bool wet, buried, grew, inside, shrunk; public string why;
+        // ↓ 据えの作法(NiwaAbutSeatSpec)を渡したときだけ埋まる。relief = 受ける範囲の内の天端の高い atariFrac の面の起伏[m]・
+        //   umeDeep = 最も高い一点の版への埋め[m](硬い ≤ umeMax)・atariGap = その面の最も低い点の隙[m](柔らかい ≤ atariHi が狙い)・
+        //   sukiMax / sukiVis = 受ける範囲の内 / 範囲の縁(見える側)の隙の最大・sukiOver = 隙 > sukiMax の点の割合(飼石と土で塞いだ扱い)・
+        //   cover = 受ける範囲のうち石が下にある割合・yawDeg = 選んだ向き(広い面を橋軸に直交した向きからの回し)・flip = 表裏を返した・
+        //   atariMet = 当たりの狙い(面が版の下面から atariLo〜atariHi)を満たした・reliefOver = 起伏が reliefMax を超えた(石の版を替える指示)。
+        public bool seated, atariMet, flip, reliefOver; public float relief, umeDeep, atariGap, sukiMax, sukiVis, sukiOver, cover, yawDeg;
+    }
+
+    /// <summary>**石橋の版と橋台石の据えの作法**(指図 `hashi[].abutSeat` ── 邸ビルダーが欄を読んで埋める。⛔ ここに既定の値を持たない)。
+    /// kakari・inner = 石が受けるのは版の端から inner〜kakari の帯(橋軸の向き)・umeMax = 版の下面へ石が入る深さの上限(硬い)・
+    /// atariFrac = 当たりの面(受ける範囲の内の天端の高い方からの面積の割合)・atariLo〜atariHi = その面を入れる版の下面からの高さ(柔らかい)・
+    /// sukiMax = これを超える隙は飼石と土で塞いだ扱い(刷るだけ)・reliefMax = 天端の起伏がこれを超えたら石の版を替える(刷るだけ)・
+    /// turns = 向きの候補の数(360/turns 度ずつ)・flips = 表裏を返す候補も試す。</summary>
+    public class NiwaAbutSeatSpec { public float kakari, inner, umeMax, atariFrac, atariLo, atariHi, sukiMax, reliefMax; public int turns; public bool flips; }
+
+    /// <summary>点 (x, z) の鉛直線と駒の三角形の交わりのうち**最も高い高さ** = その点の天端。交わらなければ NaN(LowestSurfaceAt の対)。</summary>
+    public static float HighestSurfaceAt(SurfaceSet s, Vector2 q)
+    {
+        float best = float.MinValue;
+        foreach (var t in s.tris)
+        {
+            Vector3 a = t[0], b = t[1], c = t[2];
+            if (q.x < Mathf.Min(a.x, Mathf.Min(b.x, c.x)) || q.x > Mathf.Max(a.x, Mathf.Max(b.x, c.x)) || q.y < Mathf.Min(a.z, Mathf.Min(b.z, c.z)) || q.y > Mathf.Max(a.z, Mathf.Max(b.z, c.z))) continue;
+            float d = (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z); if (Mathf.Abs(d) < 1e-9f) continue;
+            float u = ((b.z - c.z) * (q.x - c.x) + (c.x - b.x) * (q.y - c.z)) / d, v = ((c.z - a.z) * (q.x - c.x) + (a.x - c.x) * (q.y - c.z)) / d, w = 1f - u - v;
+            if (u < -1e-5f || v < -1e-5f || w < -1e-5f) continue;
+            best = Mathf.Max(best, u * a.y + v * b.y + w * c.y);
+        }
+        return best == float.MinValue ? float.NaN : best;
+    }
 
     /// <summary>**石橋の版の端に見える橋台石を据える**(指図 `hashi[].abutStone`)。
     /// <para>① 版 <paramref name="deck"/> の実メッシュを橋軸 a→b に射影して版の端(<paramref name="atA"/> なら a 側の端)を測り、端から
@@ -2102,9 +2134,12 @@ public static partial class EdoBuild
     /// ⛔ 2026-10-04 EDO-0533 普請検査 第1回: 石を足の芯で端から inFromEnd の点へ置き、**石の全体の最も高い頂点**を版の下面に合わせていた ──
     /// 石の頂点が版の外(端の先)にあり、版の下の石の面は 0.15/0.36m 下がって隙が開いた(重なる升 1)。
     /// 版の下面が石の位置の地表以下なら石は全身が埋まるので据えない(rep.buried ── 指図「地表が高ければ埋めて可」)。測れなければ null。
-    /// 当たる先: 石橋の橋台石(土井 Hashi_Ishi)。以後、版の下に据えて版を受ける石・束石の全て(土橋の橋台・縁の下の束石の受け)。</summary>
+    /// 当たる先: 石橋の橋台石(土井 Hashi_Ishi)。以後、版の下に据えて版を受ける石・束石の全て(土橋の橋台・縁の下の束石の受け)。
+    /// ⭐ <paramref name="seat"/>(指図 `abutSeat`)を渡すと ④ を「最も高い一点」でなく**天端の高い面で受ける**据えに替える(<see cref="NiwaAbutSeatPlace"/>)。
+    /// ⛔ 2026-10-05 EDO-0533 普請検査 第4回: 一点で当てた石橋が橋台 a を相手にしても 0.160 浮いた(石の天端の頂が版の下面の範囲の際の一点だった)。</summary>
     public static GameObject NiwaAbutStone(Transform parent, string name, string path, GameObject deck, Vector2 aXZ, Vector2 bXZ, bool atA,
-                                           float inFromEnd, float longM, float waterY, float seatToBed, out NiwaAbutRep rep)
+                                           float inFromEnd, float longM, float waterY, float seatToBed, out NiwaAbutRep rep,
+                                           NiwaAbutSeatSpec seat = null)
     {
         rep = new NiwaAbutRep { deckUnder = float.NaN, stoneTop = float.NaN, gapGround = float.NaN, longGot = float.NaN, footFloat = float.NaN, pokeOut = float.NaN };
         if (deck == null || string.IsNullOrEmpty(path)) { rep.why = "版か部材が無い"; return null; }
@@ -2141,6 +2176,7 @@ public static partial class EdoBuild
         float yaw = NiwaBroadFaceYaw(path, pos, pos + dir);
         float sc = NiwaScaleForLong(path, longM);
         if (float.IsNaN(sc)) { rep.why = "部材の実寸が測れない"; return null; }
+        if (seat != null) return NiwaAbutSeatPlace(parent, name, path, deck, aXZ, dir, perp, atA, s0, s1, sPos, tc, ut0, ut1, under, g0, need, yaw, sc, seat, ref rep);
         GameObject go = null;
         // 石の平面を版の下面の範囲の内へ寄せ、範囲の内の最も高い頂点を版の下面へ。返り値 = 範囲に収まったか
         Func<GameObject, bool> fit = g =>
@@ -2208,6 +2244,157 @@ public static partial class EdoBuild
         rep.stoneTop = topIn2 == float.MinValue ? float.NaN : topIn2;
         rep.pokeOut = poke == float.MinValue ? float.NaN : poke;
         float mn, mx, pn2, px2; ProjExtent(go, dir, float.MinValue, float.MaxValue, null, out mn, out mx); ProjExtent(go, perp, float.MinValue, float.MaxValue, null, out pn2, out px2);
+        rep.longGot = Mathf.Max(mx - mn, px2 - pn2);
+        return go;
+    }
+
+    /// <summary>**橋台石を据えの作法どおりに据える**(<see cref="NiwaAbutStone"/> に <see cref="NiwaAbutSeatSpec"/> を渡したとき ── 指図 `hashi[].abutSeat`)。
+    /// <para>当たり = **版の下面 × 受ける範囲の内の石の天端の高い方から面積 atariFrac の面**(面で受ける ── ⛔ 最も高い一点に当てない)。
+    /// 跨ぎ = 範囲の内のそれより低い天端(隙は飼石と土で塞いだ扱い ── sukiMax を超える点の割合と、範囲の縁 = 見える側の隙の最大を刷る)。</para>
+    /// <para>① 受ける範囲 = 版の端から inner〜kakari(橋軸)× 版の下面の幅。版の下面は点ごとに実メッシュの三角形を鉛直に引く(<see cref="LowestSurfaceAt"/>)。
+    /// ② 天端の選び: 向き turns 通り × 表裏を試し、石の平面を範囲へ寄せ(s の芯は inFromEnd の点 ── 範囲より長ければ範囲の芯・t の芯は版の幅の芯)、
+    /// 範囲の内の天端(<see cref="HighestSurfaceAt"/>)の高い atariFrac の面の起伏が最小のものを採る(同点は広い面を橋軸に直交した向きを先に)。
+    /// ③ 高さ: atariFrac の面の最も低い点を版の下面に着ける(= 面の全体が下面から −起伏〜0)。最も高い一点の埋めが umeMax を超えるなら umeMax で止める
+    /// (硬い ── 当たりの狙いは柔らかいので未達を atariMet=false で刷る)。④ 足: 陸は地表から浮かない・水中は池床 −seatToBed(硬い)。届かなければ丈を増して ②③ をやり直す。</para>
+    /// ⛔ 版の topY は動かさない ── 合わせるのは石の側。
+    /// 当たる先: 土井の石橋 Hashi_Ishi の橋台石。以後、版を面で受ける石の全て(土橋の橋台・縁束の束石の受け)が同じ欄の形で使える。</summary>
+    static GameObject NiwaAbutSeatPlace(Transform parent, string name, string path, GameObject deck, Vector2 aXZ, Vector2 dir, Vector2 perp, bool atA,
+                                        float s0, float s1, float sPos, float tc, float ut0, float ut1, float under, float g0, float need, float yaw0, float sc0,
+                                        NiwaAbutSeatSpec seat, ref NiwaAbutRep rep)
+    {
+        Func<Vector3, float> S = w => Vector2.Dot(new Vector2(w.x, w.z) - aXZ, dir);
+        Func<Vector3, float> T = w => Vector2.Dot(new Vector2(w.x, w.z) - aXZ, perp);
+        float r0 = atA ? s0 + seat.inner : s1 - seat.kakari, r1 = atA ? s0 + seat.kakari : s1 - seat.inner;
+        if (r1 - r0 < 0.02f || ut1 - ut0 < 0.02f) { rep.why = "受ける範囲が引けない(版の端から " + seat.inner.ToString("F2") + "〜" + seat.kakari.ToString("F2") + ")"; return null; }
+        var deckSS = SurfaceOf(deck);
+        if (deckSS == null) { rep.why = "版の三角形が測れない"; return null; }
+        const float STEP = 0.02f;
+        var gq = new List<Vector2>(); var gEdge = new List<bool>(); var gDeck = new List<float>();
+        int ns = Mathf.Max(1, Mathf.CeilToInt((r1 - r0) / STEP)), nt = Mathf.Max(1, Mathf.CeilToInt((ut1 - ut0) / STEP));
+        for (int i = 0; i <= ns; i++)
+            for (int j = 0; j <= nt; j++)
+            {
+                float s = r0 + (r1 - r0) * i / ns, t = ut0 + (ut1 - ut0) * j / nt;
+                var q = aXZ + dir * s + perp * t;
+                float yd = LowestSurfaceAt(deckSS, q); if (float.IsNaN(yd)) continue;
+                gq.Add(q); gDeck.Add(yd); gEdge.Add(i == 0 || i == ns || j == 0 || j == nt);
+            }
+        if (gq.Count == 0) { rep.why = "受ける範囲に版の下面が無い"; return null; }
+        float rc = 0.5f * (r0 + r1);
+        var pos = aXZ + dir * sPos + perp * tc;
+        int turns = Mathf.Max(1, seat.turns);
+        // 置いて範囲へ寄せ、範囲の内の (隙 d = 版の下面 − 石の天端, 縁か) を返す。石の高さは置いたまま(③で動かす)
+        Func<GameObject, List<KeyValuePair<float, bool>>> eval = g =>
+        {
+            var sp = MeshPointsW(g);
+            float a0 = float.MaxValue, a1 = float.MinValue, b0 = float.MaxValue, b1 = float.MinValue;
+            foreach (var w in sp) { float s = S(w), t = T(w); a0 = Mathf.Min(a0, s); a1 = Mathf.Max(a1, s); b0 = Mathf.Min(b0, t); b1 = Mathf.Max(b1, t); }
+            float hd = 0.5f * (a1 - a0);
+            float cs = (r1 - r0) >= 2f * hd ? Mathf.Clamp(sPos, r0 + hd, r1 - hd) : rc;
+            var sh = dir * (cs - 0.5f * (a0 + a1)) + perp * (tc - 0.5f * (b0 + b1));
+            g.transform.position += new Vector3(sh.x, 0f, sh.y);
+            var ss = SurfaceOf(g); var res = new List<KeyValuePair<float, bool>>();
+            if (ss == null) return res;
+            for (int k = 0; k < gq.Count; k++)
+            {
+                float ys = HighestSurfaceAt(ss, gq[k]); if (float.IsNaN(ys)) continue;
+                res.Add(new KeyValuePair<float, bool>(gDeck[k] - ys, gEdge[k]));
+            }
+            res.Sort((x, y) => x.Key.CompareTo(y.Key));
+            return res;
+        };
+        Func<List<KeyValuePair<float, bool>>, int> k30 = d => Mathf.Clamp(Mathf.CeilToInt(seat.atariFrac * d.Count) - 1, 0, Mathf.Max(0, d.Count - 1));
+        // 置く(向き・表裏・縮尺)── 石の幅が版の下面の幅を越えるなら縮める(柔らかい)。返り値の sc は縮めた後
+        Func<int, bool, float, bool, KeyValuePair<GameObject, float>> put = (turn, flip, scIn, mayShrink) =>
+        {
+            float yw = yaw0 + 360f / turns * turn, s2 = scIn;
+            GameObject g = null;
+            for (int pass = 0; pass < 2; pass++)
+            {
+                if (g != null) UnityEngine.Object.DestroyImmediate(g);
+                g = Place(path, new Vector3(pos.x, g0, pos.y), yw, Vector3.one * s2, parent, name);
+                if (g == null) return new KeyValuePair<GameObject, float>(null, s2);
+                if (flip) g.transform.rotation = Quaternion.Euler(0f, yw, 0f) * Quaternion.Euler(0f, 0f, 180f);
+                if (!mayShrink || pass == 1) break;
+                float pn, px; ProjExtent(g, perp, float.MinValue, float.MaxValue, null, out pn, out px);
+                float uw = ut1 - ut0;
+                if (!(px - pn > uw + 1e-4f)) break;
+                s2 *= uw / (px - pn) * 0.999f;
+            }
+            return new KeyValuePair<GameObject, float>(g, s2);
+        };
+        // ② 天端の選び
+        int bestTurn = -1; bool bestFlip = false; float bestRelief = float.MaxValue, bestCover = 0f, bestSc = sc0;
+        for (int f = 0; f < (seat.flips ? 2 : 1); f++)
+            for (int turn = 0; turn < turns; turn++)
+            {
+                var pr = put(turn, f == 1, sc0, true); if (pr.Key == null) continue;
+                var d = eval(pr.Key); UnityEngine.Object.DestroyImmediate(pr.Key);
+                if (d.Count == 0) continue;
+                float relief = d[k30(d)].Key - d[0].Key, cover = (float)d.Count / gq.Count;
+                bool upright = (360f / turns * turn) % 180f < 1e-3f && f == 0;   // 広い面を橋軸に直交したまま
+                bool bestUpright = bestTurn >= 0 && !bestFlip && (360f / turns * bestTurn) % 180f < 1e-3f;
+                bool better;
+                if (bestTurn < 0 || relief < bestRelief - 0.005f) better = true;
+                else if (relief > bestRelief + 0.005f) better = false;
+                else if (upright != bestUpright) better = upright;
+                else better = cover > bestCover + 0.05f || (cover >= bestCover - 0.05f && relief < bestRelief);
+                if (better) { bestTurn = turn; bestFlip = f == 1; bestRelief = relief; bestCover = cover; bestSc = pr.Value; }
+            }
+        if (bestTurn < 0) { rep.why = "どの向きでも受ける範囲の下に石が来ない"; return null; }
+        rep.yawDeg = 360f / turns * bestTurn; rep.flip = bestFlip; rep.shrunk = bestSc < sc0 - 1e-6f;
+        // ③④ 高さ・足(足が届かなければ丈を増してやり直す)
+        GameObject go = null; float sc = bestSc; List<KeyValuePair<float, bool>> dd = null; float dz = 0f;
+        for (int it = 0; it < 6; it++)
+        {
+            if (go != null) UnityEngine.Object.DestroyImmediate(go);
+            go = put(bestTurn, bestFlip, sc, false).Key;
+            if (go == null) { rep.why = "置けない"; return null; }
+            dd = eval(go);
+            if (dd.Count == 0) { UnityEngine.Object.DestroyImmediate(go); rep.why = "丈を増したら受ける範囲の下に石が来ない"; return null; }
+            float dmin = dd[0].Key, d30 = dd[k30(dd)].Key;
+            dz = d30;                                                          // 3 割の面の最も低い点を版の下面へ
+            if (dz - dmin > seat.umeMax) dz = dmin + seat.umeMax;              // 硬い: 最も高い一点の埋め ≤ umeMax
+            go.transform.position += new Vector3(0f, dz, 0f);
+            var rt = RootToBed(go, Ground, 0.05f);
+            if (float.IsNaN(rt.hi)) { UnityEngine.Object.DestroyImmediate(go); rep.why = "当たりが測れない"; return null; }
+            rep.footFloat = rt.hi;
+            if (rt.hi <= need + 0.005f) break;
+            float lo, hi; NiwaSpanY(go, out lo, out hi);
+            float H = (hi - lo) + (rt.hi - need) + 0.02f;
+            float sc2 = sc * H / Mathf.Max(1e-4f, hi - lo);
+            if (sc2 <= sc * 1.0001f) break;
+            sc = sc2; rep.grew = true;
+        }
+        if (rep.footFloat > need + 0.005f) { UnityEngine.Object.DestroyImmediate(go); rep.why = "丈を増しても足が届かない(浮き " + rep.footFloat.ToString("F2") + "m)"; return null; }
+        // 刷る値(据えた後の隙 d' = d − dz)
+        float dmin2 = dd[0].Key - dz, d302 = dd[k30(dd)].Key - dz;
+        rep.seated = true;
+        rep.relief = d302 - dmin2; rep.umeDeep = -dmin2; rep.atariGap = d302;
+        rep.atariMet = d302 <= seat.atariHi + 1e-4f && dmin2 >= seat.atariLo - 1e-4f;
+        rep.reliefOver = rep.relief > seat.reliefMax + 1e-4f;
+        rep.cover = (float)dd.Count / gq.Count;
+        float smax = float.MinValue, svis = float.MinValue; int over = 0;
+        foreach (var kv in dd)
+        {
+            float g2 = kv.Key - dz;
+            smax = Mathf.Max(smax, g2); if (kv.Value) svis = Mathf.Max(svis, g2);
+            if (g2 > seat.sukiMax) over++;
+        }
+        rep.sukiMax = smax; rep.sukiVis = svis == float.MinValue ? float.NaN : svis; rep.sukiOver = (float)over / dd.Count;
+        rep.stoneTop = under + rep.umeDeep;
+        // 版の外(端の先・版の幅の外)で版の下面より上に出る所
+        float poke = float.MinValue, sEnd = atA ? s0 : s1;
+        foreach (var w in MeshPointsW(go))
+        {
+            float s = S(w), t = T(w);
+            bool outDeck = (atA ? s < sEnd : s > sEnd) || t < ut0 - 1e-4f || t > ut1 + 1e-4f;
+            if (outDeck) poke = Mathf.Max(poke, w.y - under);
+        }
+        rep.pokeOut = poke == float.MinValue ? float.NaN : poke;
+        float pn2, px2; ProjExtent(go, perp, float.MinValue, float.MaxValue, null, out pn2, out px2);
+        rep.inside = px2 - pn2 <= (ut1 - ut0) + 1e-3f;
+        float mn, mx; ProjExtent(go, dir, float.MinValue, float.MaxValue, null, out mn, out mx);
         rep.longGot = Mathf.Max(mx - mn, px2 - pn2);
         return go;
     }

@@ -491,7 +491,9 @@ public static partial class EdoDoiBuilder
                 Vector2 gc = Vector2.zero; float gh = -1f;
                 for (int gi = 0; gi < gapAt.Count; gi++) if (gapAt[gi].Key == i) { gc = gapAt[gi].Value; gh = gapHalf[gi]; }
                 string note;
-                nm += EdoBuild.NeribeiStepRun(oku, pts[i], pts[i + 1], nrm, r.name + "_" + i, ds, gc, gh, out note).Count;
+                // 布石は地面まで届かせ、鎖の折れ(i>0 の頭・最後でない尻)と段の継ぎ目で延ばす(EdoBuild.NunoishiReach ── 奥の塀の折れで塀が布石の外へ出て 1.238 浮いた・EDO-0533 第4回検査)
+                var reach = new EdoBuild.NunoishiReach { lapA = i > 0, lapB = i + 2 < pts.Count };
+                nm += EdoBuild.NeribeiStepRun(oku, pts[i], pts[i + 1], nrm, r.name + "_" + i, ds, gc, gh, out note, reach).Count;
                 log.AppendLine("  奥の塀 " + r.name + " 区" + i + ": " + note);
                 org += segL[i];
             }

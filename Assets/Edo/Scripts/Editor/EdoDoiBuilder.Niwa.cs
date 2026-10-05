@@ -1445,6 +1445,48 @@ public static partial class EdoDoiBuilder
         return true;
     }
 
+    /// <summary>指図 `hashi[].abutSeat` を据えの作法へ読む(言い方の照合はここ・据えは EdoBuild.NiwaAbutStone)。
+    /// 読む言い方: kakari・umeMax・sukiMax(数)/ kakariFrom「版の端から A〜B」の A = inner / atari「面積 N 割」「−A〜B」/
+    /// tenba「向き N」「表裏」「起伏 >X」。umeMaxHard は true であること(据えは硬いとして扱う)。読めなければ null と理由。</summary>
+    static EdoBuild.NiwaAbutSeatSpec ReadAbutSeat(Dictionary<string, object> o, string nm, out string why)
+    {
+        why = null;
+        AuditKeys(o, "橋台石の据え(" + nm + ")", "kakari", "kakariFrom", "umeMax", "umeMaxHard", "atari", "atariSoft", "sukiMax", "sukiNote", "tenba", "acc", "src");
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        Func<string, string> norm = x => (x ?? "").Replace('−', '-').Replace('—', '-').Replace('～', '〜').Replace('>', '>');
+        if (!Has(o, "kakari") || !Has(o, "umeMax") || !Has(o, "sukiMax")) { why = "kakari / umeMax / sukiMax が無い"; return null; }
+        if (!(Has(o, "umeMaxHard") && o["umeMaxHard"] is bool && (bool)o["umeMaxHard"])) { why = "umeMaxHard が true でない(埋めの上限は硬いとして据える)"; return null; }
+        var sp = new EdoBuild.NiwaAbutSeatSpec { kakari = F(o["kakari"]), umeMax = F(o["umeMax"]), sukiMax = F(o["sukiMax"]) };
+        var mk = System.Text.RegularExpressions.Regex.Match(norm(Sk(o, "kakariFrom")), @"([0-9.]+)\s*〜\s*([0-9.]+)");
+        if (!mk.Success) { why = "kakariFrom から「A〜B」(石が受ける帯)が読めない"; return null; }
+        sp.inner = float.Parse(mk.Groups[1].Value, inv);
+        float kB = float.Parse(mk.Groups[2].Value, inv);
+        if (Mathf.Abs(kB - sp.kakari) > 1e-3f) { why = "kakariFrom の帯の奥 " + kB.ToString("F2") + " が kakari " + sp.kakari.ToString("F2") + " と食い違う"; return null; }
+        string at = norm(Sk(o, "atari"));
+        var mf = System.Text.RegularExpressions.Regex.Match(at, @"面積\s*([0-9]+)\s*割");
+        var mr = System.Text.RegularExpressions.Regex.Match(at, @"(-?[0-9.]+)\s*〜\s*(-?[0-9.]+)");
+        if (!mf.Success || !mr.Success) { why = "atari から「面積 N 割」「A〜B」が読めない"; return null; }
+        sp.atariFrac = int.Parse(mf.Groups[1].Value, inv) / 10f;
+        sp.atariLo = float.Parse(mr.Groups[1].Value, inv); sp.atariHi = float.Parse(mr.Groups[2].Value, inv);
+        string tb = norm(Sk(o, "tenba"));
+        var mt = System.Text.RegularExpressions.Regex.Match(tb, @"向き\s*([0-9]+)");
+        var mx = System.Text.RegularExpressions.Regex.Match(tb, @"起伏\s*>\s*([0-9.]+)");
+        if (!mt.Success || !mx.Success) { why = "tenba から「向き N」「起伏 >X」が読めない"; return null; }
+        sp.turns = int.Parse(mt.Groups[1].Value, inv); sp.flips = tb.Contains("表裏"); sp.reliefMax = float.Parse(mx.Groups[1].Value, inv);
+        return sp;
+    }
+
+    /// <summary>据えの作法で据えた橋台石の刷り(硬い = 埋め ≤ umeMax・柔らかい = 当たりの面・刷るだけ = 隙と起伏)。</summary>
+    static string AbutSeatLine(EdoBuild.NiwaAbutRep ar, EdoBuild.NiwaAbutSeatSpec sp)
+    {
+        return "\n      据え(abutSeat): 向き +" + ar.yawDeg.ToString("F0") + "°" + (ar.flip ? "・表裏を返した" : "") + "・受ける範囲の石 " + (ar.cover * 100f).ToString("F0") + "%"
+             + "・最も高い一点の埋め " + ar.umeDeep.ToString("F3") + "m【硬 ≤" + sp.umeMax.ToString("F2") + (ar.umeDeep <= sp.umeMax + 1e-4f ? " ✔" : " ✗") + "】"
+             + "・高い " + (sp.atariFrac * 10f).ToString("F0") + " 割の面の起伏 " + ar.relief.ToString("F3") + "m・面の最も低い点の隙 " + ar.atariGap.ToString("+0.000;-0.000") + "m"
+             + (ar.atariMet ? "【柔 ⭕ 面が " + sp.atariLo.ToString("+0.00;-0.00") + "〜" + sp.atariHi.ToString("0.00") + "】" : "【柔 ⚠ 狙い未達 ── 埋めの上限で止めた】")
+             + "・隙の最大 " + ar.sukiMax.ToString("F3") + "m(縁 = 見える側 " + (float.IsNaN(ar.sukiVis) ? "?" : ar.sukiVis.ToString("F3")) + "m・" + sp.sukiMax.ToString("F2") + " を超える点 " + (ar.sukiOver * 100f).ToString("F0") + "% は飼石と土で塞いだ扱い)"
+             + (ar.reliefOver ? "・⚠ 起伏が " + sp.reliefMax.ToString("F2") + " を超える ── 指図は「石の版を替える」だが替えの版の欄が無い(abutStone.asset は一つ)" : "");
+    }
+
     // ---- ⑤園路・橋・段・延段
     static string Niwa_E_Enro()
     {
@@ -1459,7 +1501,7 @@ public static partial class EdoDoiBuilder
             foreach (var o in A(gs["hashi"]))
             {
                 var h = O(o); string nm = Sk(h, "name");
-                AuditKeys(h, "橋『" + nm + "』", "name", "kata", "a", "b", "spanM", "L", "W", "T", "sori", "topY", "endTopY", "asset", "abut", "abutStone", "abutNote", "hasami", "cert", "why");
+                AuditKeys(h, "橋『" + nm + "』", "name", "kata", "a", "b", "spanM", "L", "W", "T", "sori", "topY", "endTopY", "asset", "abut", "abutStone", "abutNote", "abutSeat", "hasami", "cert", "why");
                 bool ishi = nm == "Hashi_Ishi" || (Sk(h, "kata") ?? "").StartsWith("石橋");
                 string member = ishi ? "DoiIshibashi" : "DoiDobashi";
                 string path = OptAsset("Own", member);
@@ -1478,7 +1520,14 @@ public static partial class EdoDoiBuilder
                     {
                         // 見える橋台石(指図 abutStone): 天端 = 測った版の下面(接する・硬い)・足は陸なら地表へ・水中なら池床 −seatToBed(硬い)
                         var stones = new List<GameObject>(); bool ok = true; Dictionary<string, object> first = null;
-                        foreach (var e0 in A(h["abutStone"]))
+                        // 据えの作法(指図 abutSeat)── 無ければ旧来の「範囲の内の最も高い一点 = 版の下面」
+                        EdoBuild.NiwaAbutSeatSpec seat = null;
+                        if (Has(h, "abutSeat"))
+                        {
+                            string sw; seat = ReadAbutSeat(O(h["abutSeat"]), nm, out sw);
+                            if (seat == null) { Wait("✗ 橋『" + nm + "』abutSeat が読めない: " + sw + " ── 橋を据えない"); ok = false; }
+                        }
+                        if (ok) foreach (var e0 in A(h["abutStone"]))
                         {
                             var e = O(e0); string end = Sk(e, "end");
                             AuditKeys(e, "橋台石(" + nm + " " + end + ")", "end", "asset", "long", "top", "inFromEnd", "at", "yaw", "seat", "same", "note");
@@ -1489,7 +1538,7 @@ public static partial class EdoDoiBuilder
                             string ap = ResolveNiwaApi(Sk(src, "asset"), 1);
                             if (ap == null || !Exists(ap)) { Wait("橋台石の部材が引けない: " + Sk(src, "asset")); ok = false; break; }
                             EdoBuild.NiwaAbutRep ar;
-                            var sgo = EdoBuild.NiwaAbutStone(grp, nm + "_Abut_" + end, ap, go, WuV(a), WuV(b), end == "a", F(src["inFromEnd"]), F(src["long"]), wy, bs, out ar);
+                            var sgo = EdoBuild.NiwaAbutStone(grp, nm + "_Abut_" + end, ap, go, WuV(a), WuV(b), end == "a", F(src["inFromEnd"]), F(src["long"]), wy, bs, out ar, seat);
                             if (sgo == null && ar.buried) { hashiRep += "\n    橋台石(" + nm + " " + end + "): " + ar.why + " ── 埋めて可(据えない)"; continue; }
                             if (sgo == null) { Wait("✗ 橋台石(" + nm + " " + end + "): " + ar.why + " ── 版の下面に接する石が据わらないので橋を据えない(硬い)"); ok = false; break; }
                             stones.Add(sgo);
@@ -1498,7 +1547,8 @@ public static partial class EdoDoiBuilder
                                       + "m・長さ " + ar.longGot.ToString("F2") + "m(狙い " + F(src["long"]).ToString("F2") + (ar.grew ? " ⚠ 足が届かず丈を増した ── 柔らかい" : "")
                                       + (ar.shrunk ? " ⚠ 版の幅に収めるため縮めた ── 柔らかい" : "") + ")"
                                       + (ar.inside ? "・平面は版の下面の範囲の内" : "・⚠ 平面が版の下面の範囲に収まらない(天端は範囲の内で接した)")
-                                      + (!float.IsNaN(ar.pokeOut) && ar.pokeOut > 0.005f ? "・⚠ 範囲の外で版の下面より " + ar.pokeOut.ToString("F2") + "m 上に出る" : "");
+                                      + (!float.IsNaN(ar.pokeOut) && ar.pokeOut > 0.005f ? "・⚠ 範囲の外で版の下面より " + ar.pokeOut.ToString("F2") + "m 上に出る" : "")
+                                      + (ar.seated ? AbutSeatLine(ar, seat) : "");
                         }
                         if (!ok) { foreach (var sgo in stones) UnityEngine.Object.DestroyImmediate(sgo); UnityEngine.Object.DestroyImmediate(go); }
                         else { hashi++; abutN += stones.Count; }

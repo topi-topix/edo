@@ -1515,10 +1515,19 @@ public static partial class EdoBuild
         return chain[chain.Count - 1];
     }
 
+    /// <summary>段塀の布石を**地面まで届かせる**選び(<see cref="NeribeiStepRun"/> に渡したときだけ効く ── 渡さない呼び手は従来どおり)。
+    /// lapA / lapB = 走りの A / B の端が鎖の折れ(隣の走りへ続く)なら true ── その端と区間の継ぎ目(段)で、布石を**石の実測の厚みの半分**だけ先へ延ばす
+    /// (折れの外の隅と段の継ぎ目で、塀の下端の足跡が布石の外へ出て浮くのを塞ぐ)。開口の脇と鎖の端は延ばさない。
+    /// 据えた布石の下端の当たり(<see cref="RootToBed"/>)が地面から浮けば、天端を塀の下端に残したまま丈を伸ばして地面 − <see cref="DAN_STONE_EMBED"/> まで入れる(硬い)。</summary>
+    public class NunoishiReach { public bool lapA, lapB; }
+
     /// <summary>練塀を段塀で建てる。<paramref name="secs"/> は A からの道のりの区間(座 W)。駒は水平に据え(笠は区間ごとに水平)、
-    /// 段の上手の端と開口の脇は妻を塞いだ駒(Dobei2mEnd)。駒の下の地面が座より下がる所は布石を据える(天端 = 据えた塀の下端を測って合わせる)。</summary>
+    /// 段の上手の端と開口の脇は妻を塞いだ駒(Dobei2mEnd)。駒の下の地面が座より下がる所は布石を据える(天端 = 据えた塀の下端を測って合わせる)。
+    /// ⭐ <paramref name="reach"/> を渡すと、布石を折れ・段の継ぎ目で延ばし、下端を地面まで届かせる(<see cref="NunoishiReach"/>)。
+    /// ⛔ 2026-10-05 EDO-0533 普請検査 第4回: 奥の塀の折れ(区2 の 1 駒)で、塀の下端が布石の足跡の外へ出て 1.238 浮いた(第9巡 0.711)・布石の下端も 0.091 浮いた。
+    /// 当たる先: 土井の奥の塀 Oku_Hei・Oku_Hei_Roka(BuildOkuHei が渡す)。渡さない呼び手(類型の段塀 FenceRun・土井の辺11/12)は不変。</summary>
     public static List<GameObject> NeribeiStepRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward, string prefix,
-        IList<DanSec> secs, Vector2 gapC, float gapHalf, out string note)
+        IList<DanSec> secs, Vector2 gapC, float gapHalf, out string note, NunoishiReach reach = null)
     {
         var made = new List<GameObject>();
         Vector2 dir = (B - A).normalized; float len = (B - A).magnitude;
@@ -1536,7 +1545,7 @@ public static partial class EdoBuild
         float psi = Mathf.Atan2(outward.x, outward.y) * Mathf.Rad2Deg;
         float a0 = Vector2.Dot(A, dir);
         var inN = -outward.normalized;
-        int idx = 0, nStone = 0; float worstShow = 0f, deepStone = 0f;
+        int idx = 0, nStone = 0, nStretch = 0, nLap = 0; float worstShow = 0f, deepStone = 0f, worstStretch = 0f, worstStoneFloat = float.NegativeInfinity;
         foreach (var seg in segs)
         {
             if (seg[1] - seg[0] < bodyLen * 0.25f) continue;
@@ -1584,18 +1593,54 @@ public static partial class EdoBuild
                     var rootG = RootToBed(go, Ground, 0.05f);
                     if (float.IsNaN(rootG.hi) || rootG.hi <= DAN_FLOAT_TOL) continue;
                     float wb = RB(go).min.y, gmin = wb - rootG.hi;
-                    var st = Place(EdoAssets.Own.Dobei2mNunoishi, Vector3.zero, psi, new Vector3((mx - mn) / stoneLen, 1f, 1f), parent, prefix + "_" + (idx - 1) + "_ishi");
+                    float lapLo = 0f, lapHi = 0f;
+                    if (reach != null)
+                    {
+                        // 延ばすのは折れ(lapA/lapB)と区間の継ぎ目(段)の端だけ ── 開口の脇・鎖の端は延ばさない
+                        bool atLo = k == 0 && (si > 0 || (!gapLo && reach.lapA));
+                        bool atHi = k == n - 1 && (si < sub.Count - 1 || (!gapHi && reach.lapB));
+                        if (atLo || atHi)
+                        {
+                            var pr = Place(EdoAssets.Own.Dobei2mNunoishi, Vector3.zero, psi, Vector3.one, parent, "_probe");
+                            float tn, tx; ProjExtent(pr, outward, float.MinValue, float.MaxValue, null, out tn, out tx);
+                            UnityEngine.Object.DestroyImmediate(pr);
+                            float half = 0.5f * (tx - tn);
+                            if (atLo) lapLo = half; if (atHi) lapHi = half;
+                            nLap++;
+                        }
+                    }
+                    var st = Place(EdoAssets.Own.Dobei2mNunoishi, Vector3.zero, psi, new Vector3((mx - mn + lapLo + lapHi) / stoneLen, 1f, 1f), parent, prefix + "_" + (idx - 1) + "_ishi");
                     float smn, smx;
-                    ButtOnRun(st, A, dir, outward, 0f, mn, out smn, out smx);
+                    ButtOnRun(st, A, dir, outward, 0f, mn - lapLo, out smn, out smx);
                     var srb = RB(st); st.transform.position += new Vector3(0f, wb - srb.max.y, 0f);
+                    if (reach != null)
+                    {
+                        // 硬: 布石の下端の当たりが地面から浮かない(地面 − DAN_STONE_EMBED まで入れる)── 天端は塀の下端に残し、丈だけ伸ばす(測り直して天端を合わせ直す)
+                        var rs = RootToBed(st, Ground, 0.05f);
+                        if (!float.IsNaN(rs.hi) && rs.hi > -DAN_STONE_EMBED + 1e-4f)
+                        {
+                            float need = rs.hi + DAN_STONE_EMBED, H = srb.max.y - srb.min.y;
+                            if (H > 1e-3f)
+                            {
+                                var ls = st.transform.localScale; st.transform.localScale = new Vector3(ls.x, ls.y * (H + need) / H, ls.z);
+                                var srb2 = RB(st); st.transform.position += new Vector3(0f, wb - srb2.max.y, 0f);
+                                nStretch++; worstStretch = Mathf.Max(worstStretch, need);
+                                rs = RootToBed(st, Ground, 0.05f);
+                            }
+                        }
+                        if (!float.IsNaN(rs.hi)) worstStoneFloat = Mathf.Max(worstStoneFloat, rs.hi);
+                    }
                     made.Add(st); nStone++;
                     worstShow = Mathf.Max(worstShow, wb - gmin);
-                    if (wb - gmin > stoneH - 0.05f) deepStone = Mathf.Max(deepStone, wb - gmin);
+                    if (reach == null && wb - gmin > stoneH - 0.05f) deepStone = Mathf.Max(deepStone, wb - gmin);
                 }
             }
         }
         note = string.Format("布石 {0} 駒(見え最大 {1:F2}m){2}", nStone, worstShow,
                              deepStone > 0f ? string.Format("・⛔ 布石の丈 {0:F2} より地面が下がる所 {1:F2}m(石の下が浮く)", stoneH, deepStone) : "");
+        if (reach != null && nStone > 0)
+            note += string.Format("・折れ・段の継ぎ目で延ばした布石 {0}・丈を伸ばした布石 {1}(最大 +{2:F2}m)・布石の下端の浮き 最悪 {3:+0.000;-0.000}m【硬 ≤ {4:+0.00;-0.00} {5}】",
+                                  nLap, nStretch, worstStretch, worstStoneFloat, -DAN_STONE_EMBED, worstStoneFloat <= -DAN_STONE_EMBED + 0.005f ? "⭕" : "✗");
         return made;
     }
 

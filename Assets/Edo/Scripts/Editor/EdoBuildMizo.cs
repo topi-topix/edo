@@ -828,6 +828,121 @@ public static partial class EdoBuild
         return made;
     }
 
+    // ---------------------------------------------------------------- 桝の置き場を面の取り合いで解く(EDO-0533 第11巡)
+    /// <summary><see cref="MasuPlanOffLine"/> の答え。at・outDir は <see cref="PlaceMasu"/> へそのまま渡す。face* = 桝の外面の中央(世界 XZ)──
+    /// faceIn = 棟側(線の側)・faceOut = 外(outDir の側)・faceXmin / faceXmax = 局所 X の両側面。onLine = 軸線と線の交点。
+    /// straightDev = 二つの辺の一直線からの外れの最大[m]・axisSkewDeg = 軸線と線の法線のなす角。</summary>
+    public class MasuPlan
+    {
+        public bool ok; public string why;
+        public Vector2 at, outDir, lat, center, faceIn, faceOut, faceXmin, faceXmax, onLine;
+        public float off, straightDev, axisSkewDeg;
+    }
+
+    /// <summary>**桝の平面を面の取り合いで解く**(指図 masu[].at「<棟>と<棟>の間の坪の中心線を<相手>側へ延ばした線の上。桝の棟側の外面は、<棟>・<棟> の軒の矩形の<相手>側の辺から外へ d。
+    /// 桝の辺は軒の矩形に平行」)。線 = <paramref name="sideA"/>(軒の矩形の辺)を通る直線・外 = 棟の芯 <paramref name="bldCenter"/> から離れる向き。
+    /// 桝の向き: 局所 +Z(<see cref="PlaceMasu"/> の outDir)= 線の外向きの法線(辺は線に平行)。
+    /// 位置: **桝の駒の実測の外形**(<see cref="MizoPieceOf"/> の xMin..xMax・zMin..zMax)で、棟側の外面(局所 zMin の面)を線から外へ <paramref name="off"/>、
+    /// 横の外形の中央を軸線 <paramref name="axis"/>(坪の中心線を延ばした線)の上へ。⛔ ピボット・入る溝の尻の平均で置かない。
+    /// <paramref name="sideB"/> は「二つは一直線」の確かめ(外れの最大を straightDev に刷る ── 呼び手が判ずる)。
+    /// 当たる先: 土井 D1 masu[0](書院・表役所の坪の口)。以後、軒先の線・塀の面から離れを指図した桝の全て。</summary>
+    public static MasuPlan MasuPlanOffLine(string path, List<Vector2> sideA, List<Vector2> sideB, Vector2 bldCenter, List<Vector2> axis, float off)
+    {
+        var r = new MasuPlan { off = off };
+        var mp = MizoPieceOf(path); if (!mp.ok) { r.why = "桝の駒が測れない(" + path + ")"; return r; }
+        if (sideA == null || sideA.Count < 2 || axis == null || axis.Count < 2) { r.why = "線か軸線が無い"; return r; }
+        Vector2 a = sideA[0], t = sideA[sideA.Count - 1] - sideA[0]; if (t.sqrMagnitude < 1e-6f) { r.why = "軒の辺の長さが 0"; return r; }
+        t.Normalize();
+        var n = new Vector2(-t.y, t.x); if (Vector2.Dot(n, a - bldCenter) < 0f) n = -n;
+        r.straightDev = 0f;
+        if (sideB != null) foreach (var q in sideB) r.straightDev = Mathf.Max(r.straightDev, Mathf.Abs(Vector2.Dot(q - a, n)));
+        Vector2 ad = axis[axis.Count - 1] - axis[0]; if (ad.sqrMagnitude < 1e-6f) { r.why = "軸線の長さが 0"; return r; }
+        ad.Normalize();
+        float cosA = Mathf.Abs(Vector2.Dot(ad, n));
+        if (cosA < 0.5f) { r.why = "軸線が軒の辺とほぼ平行(交わらない)"; return r; }
+        r.axisSkewDeg = Mathf.Acos(Mathf.Clamp01(cosA)) * Mathf.Rad2Deg;
+        r.onLine = EdoGeom.LineIntersect(axis[0], ad, a, t, axis[0]);
+        var lat = new Vector2(n.y, -n.x);   // PlaceMasu の yaw で局所 +X が向く向き
+        float xmid = 0.5f * (mp.xMin + mp.xMax), zmid = 0.5f * (mp.zMin + mp.zMax);
+        var P = r.onLine + n * (off - mp.zMin) - lat * xmid;   // 局所の原点(棟側の面 = 線 + off・横の外形の中央 = 軸線)
+        r.outDir = n; r.lat = lat;
+        r.at = P + n * zmid;
+        r.center = P + n * zmid + lat * xmid;
+        r.faceIn = P + n * mp.zMin + lat * xmid; r.faceOut = P + n * mp.zMax + lat * xmid;
+        r.faceXmin = P + n * zmid + lat * mp.xMin; r.faceXmax = P + n * zmid + lat * mp.xMax;
+        r.ok = true; return r;
+    }
+
+    /// <summary>**直線の折れ線の、点 <paramref name="q"/> に近い方の端を q へ動かす**(延ばす・縮める)── 坪の中心線を桝の面の中央まで延ばす(指図「泉水側の端は masu の棟側の面の中央まで延ばす」)。
+    /// q が終わりの区間の延長から <paramref name="tol"/> を超えて外れるなら null(延ばす線が桝の面の中央を通らない)。返すのは q で終わる向き(上流 → q)。
+    /// 当たる先: 土井 D1 seg3。以後、区間の端を桝・吐口の面の中央で止める線の全て。</summary>
+    public static List<Vector2> LineEndAt(List<Vector2> pl, Vector2 q, float tol, out string why)
+    {
+        why = null; if (pl == null || pl.Count < 2) { why = "線が無い"; return null; }
+        var cp = new List<Vector2>(pl);
+        if ((q - cp[0]).sqrMagnitude < (q - cp[cp.Count - 1]).sqrMagnitude) cp.Reverse();
+        var p0 = cp[cp.Count - 2]; var t = cp[cp.Count - 1] - p0; if (t.sqrMagnitude < 1e-8f) { why = "終わりの区間の長さが 0"; return null; }
+        t.Normalize();
+        var d = q - p0; float off = Mathf.Abs(t.x * d.y - t.y * d.x);
+        if (off > tol) { why = "桝の面の中央が線の延長から " + off.ToString("F3") + "m 外れる(許し " + tol.ToString("F2") + ")"; return null; }
+        if (Vector2.Dot(d, t) < 0.05f) { why = "桝の面の中央が線の終わりの区間より手前"; return null; }
+        cp[cp.Count - 1] = q; return cp;
+    }
+
+    /// <summary>**軒先の鉛直下の溝を、桝の側面の中央から <paramref name="deg"/> 度に引いた線で折って桝へ入れる**(指図「坪の側の端は、桝の X 側の面の中央から 45° に引いた線が
+    /// 軒先の線に当たる所で止め、そこから masu の X 側の面の中央へ最短」)。<paramref name="eave"/> = 軒先の辺(2 点)・<paramref name="face"/> = 桝の側面の中央・
+    /// <paramref name="faceN"/> = その面の外向き(桝の芯から面へ ── 軒の辺に平行)。面の中央から faceN を軒先の線の側へ deg 度振った線が軒先の線に当たる点 K を求め、
+    /// [軒先の辺の K から遠い端, K, 面の中央] を返す(上流 → 桝)。K が軒先の辺の外なら null。当たる先: 土井 D1 seg2・seg4。以後、軒先の線の外に据えた桝へ入る雨落ちの全て。</summary>
+    public static List<Vector2> EaveLineToFace(List<Vector2> eave, Vector2 face, Vector2 faceN, float deg, out string why)
+    {
+        why = null;
+        if (eave == null || eave.Count < 2) { why = "軒先の辺が無い"; return null; }
+        Vector2 a = eave[0], b = eave[eave.Count - 1], t = b - a; float L = t.magnitude; if (L < 1e-3f) { why = "軒先の辺の長さが 0"; return null; }
+        t /= L;
+        var foot = a + t * Vector2.Dot(face - a, t); var toLine = foot - face; float dl = toLine.magnitude;
+        if (dl < 1e-3f) { why = "桝の面の中央が軒先の線の上にある"; return null; }
+        toLine /= dl;
+        var fn = faceN - toLine * Vector2.Dot(faceN, toLine); if (fn.sqrMagnitude < 1e-6f) { why = "桝の面が軒先の線に向く(側面でない)"; return null; }
+        fn.Normalize();
+        float rad = Mathf.Clamp(deg, 1f, 89f) * Mathf.Deg2Rad;
+        var dir = fn * Mathf.Cos(rad) + toLine * Mathf.Sin(rad);
+        var K = face + dir * (dl / Mathf.Sin(rad));
+        float sK = Vector2.Dot(K - a, t), sF = Vector2.Dot(foot - a, t);
+        if (sK < -1e-3f || sK > L + 1e-3f) { why = "当たる所が軒先の辺の外(辺の端から " + (sK < 0f ? -sK : sK - L).ToString("F2") + "m)"; return null; }
+        var far = sK > sF ? b : a;
+        if ((far - K).magnitude < 0.05f) { why = "当たる所が軒先の辺の端と重なる"; return null; }
+        return new List<Vector2> { far, K, face };
+    }
+
+    /// <summary>棟の床下の足元(子の名の頭が <paramref name="prefixes"/> の駒)の、**駒の下端から <paramref name="band"/> までの実メッシュ**の平面の外形(凸包・世界 XZ)を駒ごとに返す
+    /// (束石の外形 = 縁束の駒の下の帯 ── 縁束・縁桁の上の部を外形に入れない)。当たる先: 桝・溝と束石の離れ(土井 D1 toriai)。</summary>
+    public static List<List<Vector2>> FootHullsXZ(Transform mune, string[] prefixes, float band)
+    {
+        var res = new List<List<Vector2>>(); if (mune == null) return res;
+        foreach (var tr in mune.GetComponentsInChildren<Transform>())
+        {
+            bool hit = false; foreach (var p in prefixes) if (tr.name.StartsWith(p)) { hit = true; break; }
+            if (!hit || !tr.gameObject.activeInHierarchy) continue;
+            var pts = Body(tr, 4000, false); if (pts.Count < 3) continue;
+            float y0 = float.MaxValue; foreach (var p in pts) y0 = Mathf.Min(y0, p.y);
+            var xz = new List<Vector2>(); foreach (var p in pts) if (p.y <= y0 + band) xz.Add(new Vector2(p.x, p.z));
+            var h = ConvexHull2(xz); if (h.Count >= 3) res.Add(h);
+        }
+        return res;
+    }
+
+    /// <summary>二つの凸多角形(XZ)の離れ[m](重なれば負 ── 値は −0.001 の印)。当たる先: 桝・溝と束石の離れ。</summary>
+    public static float HullGapXZ(List<Vector2> a, List<Vector2> b)
+    {
+        if (a == null || b == null || a.Count < 3 || b.Count < 3) return float.NaN;
+        if (ConvexOverlap(a, b, 0f)) return -0.001f;
+        var la = new List<Vector2>(a) { a[0] }; var lb = new List<Vector2>(b) { b[0] };
+        float best = float.MaxValue;
+        foreach (var p in a) best = Mathf.Min(best, Vector2.Distance(p, ClosestOn(lb, p)));
+        foreach (var q in b) best = Mathf.Min(best, Vector2.Distance(q, ClosestOn(la, q)));
+        return best;
+    }
+
     /// <summary>線を、点 <paramref name="c"/> から半径 <paramref name="r"/> の円に初めて入る所で切る(桝へ入る溝の尻を桝の外の面で止める ──
     /// 溝の駒が桝の窪みの上へ張り出さない)。円は桝の外形に内接するので、どの向きから入っても尻は桝の壁の中に止まり、隙は開かない。
     /// 切った長さが <paramref name="minLen"/> に満たなければ元の線を返す。当たる先: 桝へ入る溝の全部(土井 S9 の D1・D2・D11)。</summary>

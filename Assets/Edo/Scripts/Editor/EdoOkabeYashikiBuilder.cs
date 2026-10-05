@@ -2708,7 +2708,7 @@ public static class EdoOkabeYashikiBuilder
         var parts = new List<GameObject>(); var band = new List<GameObject>();
         var danB = new List<Bounds>();
         foreach (Transform c in Group("Dan")) if (c.gameObject.activeInHierarchy) { parts.Add(c.gameObject); band.Add(c.gameObject); danB.Add(EdoBuild.RB(c.gameObject)); }
-        int stairN = 0, igN = 0;
+        int stairN = 0, igN = 0, igOut = 0;
         var root = GameObject.Find(GN); var kai = root == null ? null : root.transform.Find("Fuzoku/Kaidan");
         // ⭐ 外周の石垣(Ishigaki)の駒のうち段の土留めの駒に接する物(外接 1m 内)も部材として渡す(2026-10-04 EDO-0502 第10巡):
         //   皮は渡された駒しか知らない ── 段の土留め 辺24 の穴の升が外周の基壇の石垣 IG_S_Hei_21 の見え面に掛かり、皮が設計の地盤
@@ -2721,6 +2721,11 @@ public static class EdoOkabeYashikiBuilder
                 if (!c.gameObject.activeInHierarchy) continue;
                 var b = EdoBuild.RB(c.gameObject); if (b.size == Vector3.zero) continue; b.Expand(1f); bool near = false;
                 foreach (var db in danB) if (db.Intersects(b)) { near = true; break; }
+                // ⭐ 区画の外の足元を 2m 格子が描けない外周の石垣も渡す(EdoBuild.OutsideFootExcess・2026-10-06 EDO-0502 第29巡):
+                //   見え面は区画の線の外へ出て、線の内の節点(台の天端の側 16.4)から線の外の節点(12.7)まで一次で描かれ、
+                //   東の長屋の台(IG_N40_2・N41)の見え面の前に高さ最大 2.9m の土の楔が鋸の歯に立った。許しは皮の描きの許し(0.10)。
+                Vector2 fa;
+                if (!near && EdoBuild.OutsideFootExcess(c.gameObject, Poly, EdoBuild.BaseDem(), out fa) > 0.10f) { near = true; igOut++; }
                 if (near) { parts.Add(c.gameObject); band.Add(c.gameObject); igN++; }
             }
         if (kai != null)
@@ -2782,11 +2787,16 @@ public static class EdoOkabeYashikiBuilder
             x0 = dx0, z0 = dz0, step = dstep, nx = dnx, nz = dnz, h = gh, ok = ok,
             batterCut = C("batterCut"), batterFill = C("batterFill"), baseAt = EdoBuild.BaseDem(), own = Poly
         };
+        // ⭐ 区画の外の節点は区画の外の地盤(今の地形・区画の内と駒の下の節点は造成前)で持たせる(EDO-0502 第29巡)── 外周の石垣の見え面の前
+        EdoBuild.DesignOutsideOwn(design, parts, sb);
         // ⭐ 部材に埋まった地形の木(幹の足が土留め・石垣・石段の外形の中)は先に退ける(EdoBuild.RetireTreesInParts・硬い)──
         //   守ると穴が開かず、2m 格子が駒の下の節点を見え面の前へ描いて土の尾根が立つ(EDO-0502 第27巡 西の返し)
         {
             var tlog = new List<string>(); int tn = EdoBuild.RetireTreesInParts(Poly, parts, tlog);
             if (tn > 0) sb.AppendLine("  部材に埋まった地形の木を退けた " + tn + " 本: " + string.Join(" / ", tlog.ToArray()));
+            // ⭐ 道辺から幹の芯が 2.0m 未満の地形の木も退ける(硬い・EdoBuild.RetireTreesNearRoad・2026-10-06 EDO-0502 第29巡 辺14 の proto40 1.138m)
+            var rlog = new List<string>(); int rn = EdoBuild.RetireTreesNearRoad(Poly, EdoBuild.NiwaSet.TREE_KEEP, rlog);
+            if (rn > 0) sb.AppendLine("  道辺から 2.0m 未満の地形の木を退けた " + rn + " 本: " + string.Join(" / ", rlog.ToArray()));
         }
         // ⛔ 地形の木の升には穴を開けない(Unity は穴の升の地形の木を黙って落とす)── 区画の中の地形の木の点を渡す
         var plant = new List<Vector2>();
@@ -2813,7 +2823,7 @@ public static class EdoOkabeYashikiBuilder
         var rep = EdoBuild.CutEdgeSkin("Okabe", grp, parts, faces, tol, design: design, backfill: 0f, sealFace: true,
                                        crestBandParts: band, plantPoints: plant);
         AssetDatabase.SaveAssetIfDirty(EdoBuild.T().terrainData);
-        sb.AppendLine("  古い皮を外して塞いだ升 " + filled + " / 部材 " + rep.parts + "(土留め " + (band.Count - igN) + "・外周の石垣 " + igN + "・石段 " + stairN + ")/ 面 " + faces.Count + " / 守った地形の木 " + plant.Count);
+        sb.AppendLine("  古い皮を外して塞いだ升 " + filled + " / 部材 " + rep.parts + "(土留め " + (band.Count - igN) + "・外周の石垣 " + igN + "(うち区画の外の足元を描けない " + igOut + ")・石段 " + stairN + ")/ 面 " + faces.Count + " / 守った地形の木 " + plant.Count);
         sb.AppendLine("  " + rep);
         sb.Append(EdoBuild.SkinGapTable(parts, faces, tol));
         // ⭐ 皮を起こし直した後に、練塀・隅を**描かれた皮の上**で据え直す(EdoBuild.SinkGroupToBed)。Stage2 の時点の床は
@@ -3564,6 +3574,11 @@ public static class EdoOkabeYashikiBuilder
         var grp = Group("Fuzoku/Service"); Clear(grp);
         var f = Grid;
         int made = 0, noAsset = 0, pivotOdd = 0;
+        // ⭐ 棟の下の均しは全棟を据えた後に**低い順**に掛ける(2026-10-06 EDO-0502 第29巡)── 隣り合う棟(米蔵 15.77 と薪蔵 15.62・離れ 0.25m)は
+        //   2m 格子の同じ節点を分け合い、後から均した低い棟が節点を切り下げて、高い棟の縁が 0.124 浮いた。低い順なら共有する節点は高い方が勝ち、
+        //   低い棟の縁は埋まる(埋めて隠す・docs/oki-kata.md §4)。足元の地盤も均しの前の地形で測る(据えの順に依らない)。
+        //   当たる先: 勾配の面の上で棟の下を均す全邸(LevelPad を呼ぶ附属屋・家臣長屋)。
+        var pads = new List<KeyValuePair<float, System.Action>>();
         foreach (var o in A(D["service"]) ?? new List<object>())
         {
             var s2 = O(o); if (s2 == null) continue;
@@ -3648,15 +3663,21 @@ public static class EdoOkabeYashikiBuilder
                         var cq = (foot[0] + foot[2]) * 0.5f; gs.Add(EdoBuild.Ground(cq.x, cq.y));
                         gs.RemoveRange(0, 2); gs.Sort(); float med = gs[gs.Count / 2];
                         bgo.transform.position += new Vector3(0f, med - bot, 0f);
-                        float cm, fm; int nn = EdoBuild.LevelPad(TerracePolyAt(cq), foot, med, C("batterFill"), C("batterCut"), out cm, out fm);   // ⭐ 均しは棟の建つ面の中だけ(⛔ 区画で切ると段の土留めを越えて下の面を 2.01m 盛った・第7巡)
-                        wait.Add("附属屋 " + nm + ": 足あとの地盤 " + lo.ToString("F2") + "〜" + hi.ToString("F2") + " が棟の底 " + bot.ToString("F2")
-                               + "(指図 yAt)と食い違う ⇒ 底を足元の中央値 " + med.ToString("F2") + " へ据え、棟の下を均した(EdoBuild.LevelPad 節点 " + nn
-                               + "・切 " + cm.ToString("F2") + " / 盛 " + fm.ToString("F2") + "m)" + (Mathf.Abs(med - sy) > 0.25f ? " ⚠ 指図の yAt " + sy.ToString("F2") + " と " + (med - sy).ToString("+0.00;-0.00") + "m(±0.25 を超える ── 欄の上書きは普請奉行)" : ""));
+                        var padPoly = TerracePolyAt(cq); var padFoot = foot; float padY = med, padLo = lo, padHi = hi, padBot = bot, padSy = sy; string padNm = nm;
+                        pads.Add(new KeyValuePair<float, System.Action>(med, () =>
+                        {
+                            float cm, fm; int nn = EdoBuild.LevelPad(padPoly, padFoot, padY, C("batterFill"), C("batterCut"), out cm, out fm);   // ⭐ 均しは棟の建つ面の中だけ(⛔ 区画で切ると段の土留めを越えて下の面を 2.01m 盛った・第7巡)
+                            wait.Add("附属屋 " + padNm + ": 足あとの地盤 " + padLo.ToString("F2") + "〜" + padHi.ToString("F2") + " が棟の底 " + padBot.ToString("F2")
+                                   + "(指図 yAt)と食い違う ⇒ 底を足元の中央値 " + padY.ToString("F2") + " へ据え、棟の下を均した(EdoBuild.LevelPad 節点 " + nn
+                                   + "・切 " + cm.ToString("F2") + " / 盛 " + fm.ToString("F2") + "m)" + (Mathf.Abs(padY - padSy) > 0.25f ? " ⚠ 指図の yAt " + padSy.ToString("F2") + " と " + (padY - padSy).ToString("+0.00;-0.00") + "m(±0.25 を超える ── 欄の上書きは普請奉行)" : ""));
+                        }));
                     }
                 }
             }
         }
-        var sb = new System.Text.StringBuilder("附属屋: " + made + " 棟据えた");
+        pads.Sort((x, y) => x.Key.CompareTo(y.Key));   // 低い順(共有する節点は後の高い棟が勝つ)
+        foreach (var pd in pads) pd.Value();
+        var sb = new System.Text.StringBuilder("附属屋: " + made + " 棟据えた" + (pads.Count > 0 ? "(棟の下の均し " + pads.Count + " 棟を低い順に)" : ""));
         if (noAsset > 0) sb.Append(" / " + noAsset + " 棟は部材が引けない");
         if (pivotOdd > 0) sb.Append(" / " + pivotOdd + " 棟はピボットの規約待ち");
         return sb.ToString();
@@ -5000,6 +5021,15 @@ public static class EdoOkabeYashikiBuilder
         var ops = Openings();
         var sb = new System.Text.StringBuilder("外周の閉じ\n");
         float sumDoc = 0f, sumImpl = 0f;
+        // ⭐ 実装の被覆は建っている駒の実メッシュで測る(EdoBuild.CoverAlongEdge・目の高さの帯 0.3〜2.0m・辺から 1.5m 以内)
+        //   (2026-10-06 EDO-0502 第29巡)── 指図の s で数えると、辺41 の通用門の柱と袖の練塀が 0.7m 重なっているのに 0.27 の切れ目と数えた
+        var built = new List<GameObject>();
+        {
+            var rt = GameObject.Find(GN);
+            if (rt != null)
+                foreach (var gn in new[] { "Kakoi", "Mon", "Fences" })
+                { var g = rt.transform.Find(gn); if (g != null) foreach (Transform c in g) if (c.gameObject.activeInHierarchy) built.Add(c.gameObject); }
+        }
         for (int e = 0; e < n; e++)
         {
             float len = EdgeLen(e);
@@ -5010,10 +5040,10 @@ public static class EdoOkabeYashikiBuilder
                 {
                     ours = true;
                     doc.Add(new Iv { a = r.s0, b = r.s1 });
-                    // ⭕ 2026-09-04 裁定12=A で表長屋も S2 で建つようになった。
-                    //    ⛔ 練塀だけを「実装の被覆」に数えると、建っている 79.66m を素通しと報告する
-                    impl.Add(new Iv { a = r.s0, b = r.s1 });
                 }
+            if (ours)
+                foreach (var cv in EdoBuild.CoverAlongEdge(P[e], P[(e + 1) % n], built, 1.5f, 0.3f, 2.0f))
+                    impl.Add(new Iv { a = cv.x, b = cv.y });
             foreach (var o in A(Get(D, "fences")) ?? new List<object>())
             {
                 var fd = O(o); if (fd == null || (int)F(fd["edge"]) != e) continue;

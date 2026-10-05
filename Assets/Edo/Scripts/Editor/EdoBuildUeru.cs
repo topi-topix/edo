@@ -403,6 +403,49 @@ public static partial class EdoBuild
         return n;
     }
 
+    /// <summary>**道辺から幹の芯が近すぎる地形の木を退ける**(硬い・許容0・区域 ── 施主の規則「幹の芯 ↔ 道辺 ≥ 2.0m」NiwaSet.TREE_KEEP)。
+    /// 区画 <paramref name="poly"/> の中に幹の足(TrunkFootLocal で測る・⛔ ピボットで測らない)がある地形の木のうち、区画の辺までの離れが
+    /// <paramref name="keep"/> 未満で、その辺の最寄りの点の 0.3m 外が**どの区画にも入らない**(= 道 ── 道は区画の間に残った領域)物を退ける。
+    /// 隣の区画に接する辺(囲いの線)は数えない。⭐ 2026-10-06 EDO-0502 第29巡: 岡部 辺14 の内に proto40 の幹が道辺から 1.138m で立っていた
+    /// (地形の木は類型・植栽の器を通らず、道辺の控えを誰も見ていなかった)。当たる先: 地形の木を区画の中に持つ全邸。
+    /// ⟶ 返す: 退けた本数</summary>
+    public static int RetireTreesNearRoad(Vector2[] poly, float keep, List<string> log = null)
+    {
+        var t = T(); var td = t.terrainData; var org = t.transform.position; var sz = td.size;
+        var trees = td.treeInstances; if (trees.Length == 0 || poly == null || poly.Length < 3) return 0;
+        var others = new List<Vector2[]>();
+        foreach (var p in EdoParcels.All) { var pp = EdoParcels.Get(p.id); if (pp != null && pp.Length >= 3 && pp != poly) others.Add(pp); }
+        var footCache = new Dictionary<int, Vector2>();
+        var keepL = new List<TreeInstance>(trees.Length); int n = 0;
+        foreach (var ti in trees)
+        {
+            var piv = new Vector2(org.x + ti.position.x * sz.x, org.z + ti.position.z * sz.z);
+            Vector2 fl;
+            if (!footCache.TryGetValue(ti.prototypeIndex, out fl)) { fl = TrunkFootLocal(td.treePrototypes[ti.prototypeIndex].prefab); footCache[ti.prototypeIndex] = fl; }
+            var d = Quaternion.AngleAxis(ti.rotation * Mathf.Rad2Deg, Vector3.up) * new Vector3(fl.x * ti.widthScale, 0f, fl.y * ti.widthScale);
+            var foot = new Vector2(piv.x + d.x, piv.y + d.z);
+            if (!EdoGeom.PIP(poly, foot)) { keepL.Add(ti); continue; }
+            bool near = false; float best = keep; int be = -1;
+            for (int e = 0; e < poly.Length; e++)
+            {
+                Vector2 a = poly[e], b = poly[(e + 1) % poly.Length], ab = b - a; float L2 = ab.sqrMagnitude; if (L2 < 1e-8f) continue;
+                float s = Mathf.Clamp01(Vector2.Dot(foot - a, ab) / L2); var c = a + ab * s; float dist = Vector2.Distance(foot, c);
+                if (dist >= keep) continue;
+                var outw = (c - foot).sqrMagnitude > 1e-8f ? (c - foot).normalized : new Vector2(ab.y, -ab.x).normalized;
+                var q = c + outw * 0.3f; bool inOther = false;
+                foreach (var o in others) if (EdoGeom.PIP(o, q)) { inOther = true; break; }
+                if (inOther) continue;
+                near = true; if (dist < best) { best = dist; be = e; }
+            }
+            if (!near) { keepL.Add(ti); continue; }
+            n++;
+            if (log != null) log.Add(System.IO.Path.GetFileNameWithoutExtension(AssetDatabase.GetAssetPath(td.treePrototypes[ti.prototypeIndex].prefab))
+                                     + " @(" + foot.x.ToString("F2") + ", " + foot.y.ToString("F2") + ") 道辺(辺" + be + ")から " + best.ToString("F3") + "m");
+        }
+        if (n > 0) { td.SetTreeInstances(keepL.ToArray(), true); EditorUtility.SetDirty(td); }
+        return n;
+    }
+
     /// <summary>据えた木の幹の足の中心(世界)。傾き・scale は据えたとおり(帯は上向きに 0.3m)。</summary>
     public static bool TrunkFootWorld(GameObject go, out Vector3 foot)
     {

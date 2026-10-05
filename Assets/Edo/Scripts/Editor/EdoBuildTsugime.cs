@@ -59,6 +59,44 @@ public static partial class EdoBuild
         return d;
     }
 
+    /// <summary>**継ぎ目の素通しを目の高さの帯の断面で測る**(2026-10-05・EDO-0533 第9巡)。走り <paramref name="along"/> の上で
+    /// <paramref name="lo"/>(s の小さい側)と <paramref name="hi"/>(大きい側)の継ぎ目を、二つの駒の足元のうち高い方から
+    /// <paramref name="bandAbove"/> までを <paramref name="step"/> 刻みの水平断面(三角形と面の交わり)で切り、高さごとに
+    /// 「hi の端の面 − lo の端の面」を取る。返り値 = その最大[m](正 = その高さで素通しの隙・負 = めり込み)・測れなければ NaN。
+    /// <paramref name="atY"/> = 最大の高さ(世界)・<paramref name="openBand"/> = 隙が 0.001 を超える高さの帯の厚み[m]。
+    /// <para>⭐ <see cref="Contact(GameObject,GameObject,Vector3,out Vector3,out int,float,float,int,bool)"/>(筋ごとの最小)は**どこか一筋が当たれば 0** を返すので、
+    /// 妻の海鼠(±len/2)が当たっていれば、座の違う隣どうしで**上の棟の土台(海鼠より 0.030 内)・下の棟の漆喰(0.0335 内)**の高さに開く
+    /// 素通しを捕まえない(土井 通用門 E13_N09 の両脇・表門 × E13_N11 で 0.030〜0.036 を ⭕ と刷った ── メモリ「門と塀の閉じ」の再発)。
+    /// 当たる先: 座の違う表長屋・門長屋どうしの継ぎ目すべて(土井 辺13 の段の継ぎ目・岡部・松江松平の段の付いた外周)。測るだけで動かさない。</para></summary>
+    public static float SeamSlit(GameObject lo, GameObject hi, Vector2 origin, Vector2 along, out float atY, out float openBand,
+                                 float bandAbove = 2.5f, float step = 0.05f)
+    {
+        atY = float.NaN; openBand = 0f;
+        along = along.normalized;
+        var spL = SpecBodySpanAlong(lo, origin, along);
+        float sJ = !float.IsNaN(spL.y) ? spL.y : BodySpanAlong(lo, origin, along, 0.3f, 2.0f).y;
+        if (float.IsNaN(sJ)) return float.NaN;
+        System.Func<Vector3, float> S = p => Vector2.Dot(new Vector2(p.x, p.z) - origin, along);
+        // 継ぎ目の際(±0.5m)の躯体の下端 ── 高い方から帯を取る(門長屋の扉口の切り下げは際の外)
+        float bLo = float.MaxValue, bHi = float.MaxValue;
+        foreach (var p in BodyExRoof(lo.transform, 20000)) if (Mathf.Abs(S(p) - sJ) <= 0.5f) bLo = Mathf.Min(bLo, p.y);
+        foreach (var p in BodyExRoof(hi.transform, 20000)) if (Mathf.Abs(S(p) - sJ) <= 0.5f) bHi = Mathf.Min(bHi, p.y);
+        if (bLo == float.MaxValue || bHi == float.MaxValue) return float.NaN;
+        float y0 = Mathf.Max(bLo, bHi) + 0.02f, y1 = Mathf.Max(bLo, bHi) + bandAbove;
+        float worst = float.NaN;
+        for (float y = y0; y <= y1 + 1e-4f; y += step)
+        {
+            float a = float.MinValue, b = float.MaxValue;
+            foreach (var p in Section(lo.transform, y)) { float s = S(p); if (s >= sJ - 1.0f && s <= sJ + 0.5f) a = Mathf.Max(a, s); }
+            foreach (var p in Section(hi.transform, y)) { float s = S(p); if (s >= sJ - 0.5f && s <= sJ + 1.0f) b = Mathf.Min(b, s); }
+            if (a == float.MinValue || b == float.MaxValue) continue;
+            float g = b - a;
+            if (g > 0.001f) openBand += step;
+            if (float.IsNaN(worst) || g > worst) { worst = g; atY = y; }
+        }
+        return worst;
+    }
+
     // ───────────────────────────── 出隅の留めの長屋(二等分の面で切った版・EDO-0533 2026-10-04)
     //  据えの型: ① 両辺の壁の外面の線(区画の線から内へ c = 基壇の控え + 犬走り)の交点 Q を求める(FaceLineCorner)
     //            ② 要る長さ = Q から反対の端(隣の棟の躯体の端の s)までの壁の外面の長さ ⇒ 焼いた版を札の長さで引く(PickMiterCut)

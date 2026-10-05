@@ -179,7 +179,10 @@ public static partial class EdoDoiBuilder
                 // 躯体(屋根の材を除く)の当たりで測る ── 破風・軒どうしの重なりは埋めて隠す(oki-kata §4)
                 Vector3 at; int cnt; float c = EdoBuild.Contact(n11, gate, new Vector3(d.x, 0f, d.y), out at, out cnt, 0.01f, 0.25f, 4000, false);
                 var sp = SpanOn(n11, ge); float seam = gSpan.x - sp.y;
-                tally(seam <= 0.001f && (float.IsNaN(c) || c <= 0.001f), true, "表門の南の妻面 ↔ E13_N11 の北の妻面: 躯体の端の隙 " + seam.ToString("+0.000;-0.000") + "m(s " + sp.y.ToString("F3") + " / " + gSpan.x.ToString("F3") + ")・躯体の当たり " + (float.IsNaN(c) ? "測れず" : c.ToString("+0.000;-0.000")) + "m(" + cnt + " 筋)"
+                // 目の高さの帯の断面(Contact は一筋当たれば 0 ── 座の違う妻の土台・漆喰の高さの素通しは断面でしか出ない)
+                float slY, slB; float slit = EdoBuild.SeamSlit(n11, gate, a0, d, out slY, out slB);
+                tally(seam <= 0.001f && (float.IsNaN(c) || c <= 0.001f) && !(slit > 0.001f), true, "表門の南の妻面 ↔ E13_N11 の北の妻面: 躯体の端の隙 " + seam.ToString("+0.000;-0.000") + "m(s " + sp.y.ToString("F3") + " / " + gSpan.x.ToString("F3") + ")・躯体の当たり " + (float.IsNaN(c) ? "測れず" : c.ToString("+0.000;-0.000")) + "m(" + cnt + " 筋)"
+                      + "・目の高さの断面 " + SlitNote(slit, slY, slB)
                       + (seam > 0.001f ? " ── 部材の躯体 " + (gSpan.y - gSpan.x).ToString("F3") + "m < 欄の monW " + F(O(g["plan"])["monW"]).ToString("F2") + "(呼び寸法 = 破風込みの旧い版)── 躯体 = 呼び寸法の版が要る(部材方)" : ""));
             }
         }
@@ -261,7 +264,9 @@ public static partial class EdoDoiBuilder
                 var ns = EdoBuild.SpecBodySpanAlong(ng, ka0, kd);
                 float seam = hiSide ? ns.x - kSpan.y : kSpan.x - ns.y;
                 Vector3 at; int cnt; float c = EdoBuild.Contact(go, ng, hiSide ? new Vector3(kd.x, 0f, kd.y) : new Vector3(-kd.x, 0f, -kd.y), out at, out cnt);
-                tally(seam <= 0.001f && (float.IsNaN(c) || c <= 0.001f), true, "通用門 ↔ " + nr.name + ": 躯体の端の隙 " + seam.ToString("+0.0000;-0.0000") + "m・実メッシュの当たり " + (float.IsNaN(c) ? "測れず" : c.ToString("+0.000;-0.000")) + "m(" + cnt + " 筋)");
+                float slY, slB; float slit = hiSide ? EdoBuild.SeamSlit(go, ng, ka0, kd, out slY, out slB) : EdoBuild.SeamSlit(ng, go, ka0, kd, out slY, out slB);
+                tally(seam <= 0.001f && (float.IsNaN(c) || c <= 0.001f) && !(slit > 0.001f), true, "通用門 ↔ " + nr.name + ": 躯体の端の隙 " + seam.ToString("+0.0000;-0.0000") + "m・実メッシュの当たり " + (float.IsNaN(c) ? "測れず" : c.ToString("+0.000;-0.000")) + "m(" + cnt + " 筋)"
+                      + "・目の高さの断面 " + SlitNote(slit, slY, slB));
             }
             // 扉口の高さ・敷居・道
             {
@@ -527,4 +532,14 @@ public static partial class EdoDoiBuilder
     }
 
     static EdoPartSpec.Spec SpecOf(GameObject go) { return EdoBuild.SpecOf(go); }
+
+    /// <summary>継ぎ目の素通し(<see cref="EdoBuild.SeamSlit"/>)の刷り。隙があれば、平行移動では閉じない理由と要る物を添える(硬い・許容0)。</summary>
+    static string SlitNote(float slit, float y, float band)
+    {
+        if (float.IsNaN(slit)) return "測れず";
+        if (slit <= 0.001f) return slit.ToString("+0.000;-0.000") + "m(閉じている)";
+        return "素通し " + slit.ToString("F3") + "m(最大の高さ " + y.ToString("F2") + "・開く帯の厚み " + band.ToString("F2") + "m)"
+             + " ── 妻の土台(海鼠の面より 0.030 内)と漆喰(0.0335 内)が、座の違う隣の海鼠と向き合う高さで開く。"
+             + "長さの固定された棟が両脇にあり平行移動では閉じない(閉じれば反対の継ぎ目が倍に開く)── 妻の面を土台〜二階まで海鼠の面に揃えた版が要る(部材方)";
+    }
 }

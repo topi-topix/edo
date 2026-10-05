@@ -217,7 +217,7 @@ public static partial class EdoDoiBuilder
                                                 EdoAssets.Goten.KaidanRoka(run * f.ken, drop), out kn);
                 if (kg != null)
                 {
-                    float st; int nf = EdoGotenKit.RokaFeetToGround(kg.transform.parent.gameObject, 0.05f, out st);
+                    float st; int nf = EdoGotenKit.RokaFeetToGround(kg.transform.parent.gameObject, 0.05f, out st, ImplY);
                     line(0, "廊下 " + nm + "(階段廊下 " + run + "間・落差 " + drop + "): " + kn + (nf > 0 ? "・柱の足を地面まで下ろした " + nf + " 本(最大 " + st.ToString("F3") + "m)" : ""));
                 }
                 else line(2, "廊下 " + nm + ": 階段廊下が組めない ── " + kn);
@@ -229,10 +229,33 @@ public static partial class EdoDoiBuilder
             if (g != null)
             {
                 Undo.RegisterCreatedObjectUndo(g, "roka");
-                float st; int nf = EdoGotenKit.RokaFeetToGround(g, 0.05f, out st);
+                float st; int nf = EdoGotenKit.RokaFeetToGround(g, 0.05f, out st, ImplY);
                 line(0, "廊下 " + nm + ": " + run + "間" + (nf > 0 ? "・柱の足を地面まで下ろした " + nf + " 本(最大 " + st.ToString("F3") + "m)" : ""));
             }
         }
+    }
+
+    [MenuItem(MENU + "5棟b 廊下の柱の足を据え直す(4b・9 の後)")]
+    public static void Stage5bRokaAshiMenu() { Debug.Log("[Doi] " + Stage5b_RokaAshi()); }
+
+    /// <summary>**廊下の柱の足を、今の描かれた地表で据え直す**(EDO-0533 第9巡)。S5 の後に S9 排水・S4b 縁の皮を流すと地表が変わり、
+    /// S5 で下ろした柱の足が皮の古い高さに残って浮く(L_OkuNagatsubone 0.176/0.155)。⇒ 地表を最後に触る巡(4b)の後にこれを流す。
+    /// 浮いた柱だけを伸ばす(<see cref="EdoGotenKit.RokaFeetToGround"/>・冪等)。⛔ 置き方はここに書かない(規則21)。</summary>
+    public static string Stage5b_RokaAshi()
+    {
+        { var gate0 = EdoSashizuExport.ReviewGate("doi"); if (gate0 != null) return gate0; }
+        var sb = new System.Text.StringBuilder("S5b 廊下の柱の足(4b の後):\n");
+        var grp = Group("Buildings"); int links = 0, cols = 0; float worst = 0f;
+        foreach (Transform l in grp)
+        {
+            if (!l.name.StartsWith("L_")) continue;
+            var t = l.Find(l.name + "_Kaidan") ?? l;   // 階段廊下は根の下の段の組が柱を持つ
+            float st; int nf = EdoGotenKit.RokaFeetToGround(t.gameObject, 0.05f, out st, ImplY);
+            links++; cols += nf; worst = Mathf.Max(worst, st);
+            if (nf > 0) sb.AppendLine("  廊下 " + l.name + ": 柱の足を下ろした " + nf + " 本(最大 " + st.ToString("F3") + "m)");
+        }
+        sb.AppendLine("  廊下 " + links + " 本・下ろした柱 " + cols + " 本(最大 " + worst.ToString("F3") + "m)");
+        return sb.ToString();
     }
 
     // ---------------------------------------------------------------- ③ 附属屋

@@ -8,6 +8,9 @@
     blender --background --python Tools/Blender/build_kado.py -- --part nagaya --deg 38.3 --render
     blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 90 --h 5 --render
         # 丈違い(石垣だけ)。素の 4m の下へ 1m の段を勾配のまま継ぎ足す → Ishigaki_Kado_90_H0500
+    blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 100.212 --h 4 --render
+        # 鈍い出隅(EDO-0502 岡部 TW_Kado_Hokuto の返し)。折れは区画 okabe の辺39 と impl の線から小数のまま・名は丸めた度
+        # → Ishigaki_Kado_100_H0400。張り出し 2.87 > 1 モジュールなので −Y に 2 枚積んで切る(n_neg は自動)
     blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 90 --h 4 --arms 1.59,2.0 --render
         # 短い腕(石垣だけ)。腕 = 据え点(両腕の控えの線の交点)から腕の先までの走り[m]。
         # 順は (Unity 局所 −Z の腕, +X の腕)。→ Ishigaki_Kado_90_H0400_A159x200(EDO-0430)

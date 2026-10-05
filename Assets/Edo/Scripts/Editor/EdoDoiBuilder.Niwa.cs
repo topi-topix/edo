@@ -578,8 +578,25 @@ public static partial class EdoDoiBuilder
         sb.AppendLine("[6f] " + Niwa_F_Yashiro());
         sb.AppendLine("[6g] " + Niwa_G_Kaki());
         sb.AppendLine("[6h] " + Niwa_H_Shokusai());
+        sb.AppendLine("[6i] " + Niwa_I_Kagami());      // 庭の物を全部建てた後に焼く(後に建てた物は映らない)
         sb.Append(WaitReport());
         return sb.ToString();
+    }
+
+    // ---- ⑨池の水面の映り(反射プローブ)── 置き方・焼き方は EdoBuild.MizuKagami(規則21)。ここは池を渡すだけ
+    [MenuItem(MENU + "6i 池の水面の上に反射プローブを置いて焼く(6h の後)")]
+    public static void Niwa_I_Menu() { Debug.Log("[Doi] " + Niwa_I_Kagami()); }
+    public static string Niwa_I_Kagami()
+    {
+        var grp = Group("Niwa/Kagami"); Clear(grp);
+        var wb = Group("Niwa/Mizu").GetComponentInChildren<WaterBody>();
+        if (wb == null) { Wait("池の映り: 水面(Niwa/Mizu の WaterBody)が無い ── 6a の後に流す"); return "映り: 水面が無い"; }
+        EdoBuild.MizuKagamiRep kr;
+        var pr = EdoBuild.MizuKagami(grp, wb, out kr);
+        if (pr == null) { Wait("池の映り(" + wb.name + "): " + kr.why); return "映り: 置けない(" + kr.why + ")"; }
+        if (!kr.baked) Wait("池の映り(" + wb.name + "): プローブは置いたが焼けない ── " + kr.why);
+        return "映り: " + pr.name + " 範囲 " + kr.size.x.ToString("F1") + "×" + kr.size.z.ToString("F1") + "×" + kr.size.y.ToString("F1") + "m・写す点 " + kr.eyeY.ToString("F2")
+             + (kr.baked ? "・焼いた → " + kr.texPath : "・⚠ 焼けない(" + kr.why + ")");
     }
 
     // ---- ①池の掘削と築山の盛土 + 水面
@@ -812,11 +829,11 @@ public static partial class EdoDoiBuilder
     // ---- ②護岸(石組・玉石・荒磯・呑口・州浜の玉石・乱杭)
     // 汀の石の天端を水面より上に据える硬い条件(EdoBuild.NiwaIshiSueruAbove)の勘定 ── 護岸・押さえ石・州浜の玉石で共有し、Niwa_B_Gogan の末で刷る
     static EdoBuild.SeiyakuTally aboveTally = new EdoBuild.SeiyakuTally();
-    static List<string> aboveMoved = new List<string>(), aboveDrop = new List<string>();
+    static List<string> aboveMoved = new List<string>(), aboveDrop = new List<string>(), hMinShort = new List<string>();
     public static string Niwa_B_Gogan()
     {
         var n = NiwaModel; if (n == null) return "護岸: 汀線を持つ庭が無い";
-        aboveTally = new EdoBuild.SeiyakuTally(); aboveMoved.Clear(); aboveDrop.Clear();
+        aboveTally = new EdoBuild.SeiyakuTally(); aboveMoved.Clear(); aboveDrop.Clear(); hMinShort.Clear();
         var g = n.g; float ken = Grid.ken, wy = n.waterY, bs = EdoBuild.SEAT_TO_BED_LO;
         var grp = Group("Niwa/Gogan"); Clear(grp);
         var rnd = new System.Random(20261004);
@@ -828,7 +845,7 @@ public static partial class EdoDoiBuilder
             var gg = O(o); string nm = Sk(gg, "name");
             AuditKeys(gg, "護岸『" + nm + "』", "name", "walk", "frm", "to", "kata", "ishiPick", "lenMin", "lenMax",
                       "yakuMin", "yakuMax", "yakuEvery", "capMin", "capMax", "jag", "pitchRatio", "inset", "skip", "skipUV",
-                      "tamaMix", "tamaAsset", "nomikuchi", "araiso", "cert", "why");
+                      "tamaMix", "tamaAsset", "nomikuchi", "araiso", "cert", "why", "hMin", "buryRatio", "lenUp", "hMinFrom");
             bool naka = Has(gg, "walk") && Sk(gg, "walk") == "nakajima";
             string nakaNote = null;
             var line = naka ? NakaWalk((int)F(gg["frm"]), (int)F(gg["to"]), out nakaNote) : EdgeWalk((int)F(gg["frm"]), (int)F(gg["to"]));
@@ -848,6 +865,11 @@ public static partial class EdoDoiBuilder
                 if (rg.Count >= 2) foreach (var L in EdoAssets.Own.NeishiLong) if (L >= rg[0] - 1e-4f && L <= rg[rg.Count - 1] + 1e-4f) tamaL.Add(L);
                 if (tamaL.Count == 0) { Wait("護岸『" + nm + "』: `tamaAsset` の長さの帯が読めない — 玉石を混ぜずに地の石で据えた"); tamaMix = 0f; }
             }
+            // 2026-10-05 庭方(欄の上書き): hMin = 石の鉛直の丈の下限(柔らかい ── 帯の長さの内で満たす)・buryRatio = 丈のうち池床より下の割合(柔らかい)・
+            //   lenUp = 「inset を 0 へ寄せてなお水面の下なら lenMax + lenUp までの一段大きい個体へ」。欄が無ければ従来のまま(⛔ 既定を発明しない)
+            float hMin = Has(gg, "hMin") ? F(gg["hMin"]) : float.NaN;
+            float buLo, buHi; if (!Pair(gg, "buryRatio", out buLo, out buHi)) { buLo = buHi = float.NaN; }
+            float lenUp = Has(gg, "lenUp") ? F(gg["lenUp"]) : 0f;
             var sk = SkipPts(gg);
             float Lm = LineLen(line) * ken;
             int cnt = Mathf.Max(1, Mathf.RoundToInt(Lm / Mathf.Max(0.05f, (lenMin + lenMax) * 0.5f * pr)));
@@ -870,40 +892,63 @@ public static partial class EdoDoiBuilder
                 //    寄せ = 狙い(ins+off)から帯の陸の端(inset の下限 − jag)まで / 長さ = 狙いから帯の上(lenMax・役石は yakuMax・玉石は tamaAsset の帯の長い物)。
                 //    狙いに近い順(寄せの段 + 長さの段)。どれも水面の下なら建てない(名指す)。
                 var spots = new List<EdoBuild.NiwaIshiSpot>();
-                float inLand = inLo - jag, aimIn = ins + off;
+                float inLand = Mathf.Min(inLo - jag, 0f), aimIn = ins + off;
+                // 寄せ: 狙い → 汀(inset 0)→ 帯の陸の端(inset の下限 − jag)。0 を必ず通る(庭方 2026-10-05「inset を 0 へ」)
                 var insC = new List<float> { aimIn };
-                for (int k = 1; k <= 3; k++) { float x = Mathf.Lerp(aimIn, inLand, k / 3f); if (x < aimIn - 1e-4f) insC.Add(x); }
-                var szC = new List<KeyValuePair<string, float>> { new KeyValuePair<string, float>(path, sc) };
-                if (tama) { foreach (var L in tamaL) if (L > tl0 + 1e-4f && szC.Count < 4) { string p2 = EdoAssets.Own.Neishi(L); if (Exists(p2)) szC.Add(new KeyValuePair<string, float>(p2, 1f)); } }
+                if (aimIn > 1e-4f) for (int k = 1; k <= 3; k++) insC.Add(Mathf.Lerp(aimIn, 0f, k / 3f));
+                if (inLand < Mathf.Min(aimIn, 0f) - 1e-4f) insC.Add(inLand);
+                // 大きさ: 狙い(丈の下限 hMin を帯の長さの内で満たす)→ 帯の上(lenMax)→ 帯の上 + lenUp(一段大きい個体)→ ishiPick の他の個体
+                float axMax = yaku ? ykMax : lenMax, axUp = yaku ? ykMax : lenMax + lenUp;   // lenUp は欄の文言どおり lenMax(地の石)に掛ける ── 役石の帯は延ばさない
+                var szC = new List<KeyValuePair<string, float>>();
+                Action<string, float> addSz = (p2, s2) =>
+                {
+                    if (float.IsNaN(s2) || !Exists(p2)) return;
+                    foreach (var kv in szC) if (kv.Key == p2 && Mathf.Abs(kv.Value - s2) <= 1e-4f * Mathf.Max(1f, s2)) return;
+                    szC.Add(new KeyValuePair<string, float>(p2, s2));
+                };
+                bool hOk0;
+                if (tama)
+                {
+                    var tl2 = new List<float>(tamaL); tl2.Sort();
+                    // 狙いの玉石が丈の下限に届かなければ、帯の内の長い玉石のうち届く最初の物を狙いにする(⛔ 縮めない・焼いた長さのまま)
+                    string aimP = path;
+                    if (!float.IsNaN(hMin) && EdoBuild.PartSize(path).y < hMin - 1e-4f)
+                        foreach (var L in tl2) if (L > tl0 + 1e-4f) { string p2 = EdoAssets.Own.Neishi(L); if (Exists(p2) && EdoBuild.PartSize(p2).y >= hMin - 1e-4f) { aimP = p2; break; } }
+                    addSz(aimP, 1f);
+                    foreach (var L in tl2) if (L > tl0 + 1e-4f) addSz(EdoAssets.Own.Neishi(L), 1f);
+                    // 一段大きい個体: 焼いた玉石のうち帯の上から lenMax + lenUp まで
+                    if (lenUp > 0f) foreach (var L in EdoAssets.Own.NeishiLong) if (L > (tl2.Count > 0 ? tl2[tl2.Count - 1] : tl0) + 1e-4f && L <= lenMax + lenUp + 1e-4f) addSz(EdoAssets.Own.Neishi(L), 1f);
+                }
                 else
                 {
-                    float axMax = yaku ? ykMax : lenMax;
-                    for (int k = 1; k <= 3; k++) { float a2 = Mathf.Lerp(axis, axMax, k / 3f); if (a2 > axis + 1e-4f) szC.Add(new KeyValuePair<string, float>(path, EdoBuild.NiwaScaleForLong(path, a2))); }
+                    addSz(path, EdoBuild.NiwaScaleForLongHMin(path, axis, hMin, axMax, out hOk0));
+                    for (int k = 1; k <= 3; k++) { float a2 = Mathf.Lerp(axis, axMax, k / 3f); if (a2 > axis + 1e-4f) addSz(path, EdoBuild.NiwaScaleForLongHMin(path, a2, hMin, axMax, out hOk0)); }
+                    if (axUp > axMax + 1e-4f) for (int k = 1; k <= 2; k++) { float a2 = Mathf.Lerp(axMax, axUp, k / 2f); addSz(path, EdoBuild.NiwaScaleForLongHMin(path, a2, hMin, axUp, out hOk0)); }
                     // 地の石は欄 ishiPick の他の個体も帯の内(2026-10-05 第11巡)── 平面の長さが同じでも丈の高い個体(立石)なら天端が水面の上に出る。
-                    // 狙いから遠いので最後に足す(長さは帯の上 = 丈の最も高い所)。乱数は引かない(他の石の並びを変えない)
+                    // 狙いから遠いので最後に足す(帯の上、続いて帯の上 + lenUp)。乱数は引かない(他の石の並びを変えない)
                     if (!yaku)
                     {
                         var seen = new HashSet<int> { variant };
-                        foreach (int v2 in pick)
-                        {
-                            if (!seen.Add(v2)) continue;
-                            string p2 = EdoAssets.Own.Ishigumi(v2); if (!Exists(p2)) continue;
-                            float s2 = EdoBuild.NiwaScaleForLong(p2, axMax); if (float.IsNaN(s2)) continue;
-                            szC.Add(new KeyValuePair<string, float>(p2, s2));
-                        }
+                        var others = new List<string>();
+                        foreach (int v2 in pick) if (seen.Add(v2)) others.Add(EdoAssets.Own.Ishigumi(v2));
+                        foreach (var p2 in others) addSz(p2, EdoBuild.NiwaScaleForLongHMin(p2, axMax, hMin, axMax, out hOk0));
+                        if (axUp > axMax + 1e-4f) foreach (var p2 in others) addSz(p2, EdoBuild.NiwaScaleForLongHMin(p2, axUp, hMin, axUp, out hOk0));
                     }
                 }
-                for (int step = 0; step <= insC.Count - 1 + szC.Count - 1; step++)
+                if (szC.Count == 0) { Wait("護岸『" + nm + "』#" + i + ": 部材の実寸が測れない ── 据えない"); continue; }
+                // 直す順(庭方 2026-10-05): 狙いの大きさで寄せを汀へ → なお水面の下なら大きさを一段ずつ上げる(各段で寄せを同じ順に)
+                for (int ji = 0; ji < szC.Count; ji++)
                     for (int ki = 0; ki < insC.Count; ki++)
-                    {
-                        int ji = step - ki; if (ji < 0 || ji >= szC.Count) continue;
                         spots.Add(new EdoBuild.NiwaIshiSpot { path = szC[ji].Key, scale = szC[ji].Value, xz = WuV(gp + ws * (insC[ki] / ken)), aimTop = wy + cap,
-                                                              why = (ki > 0 ? "寄せ " + insC[ki].ToString("F2") : "") + (ji > 0 ? (ki > 0 ? "・" : "") + (szC[ji].Key != path ? "個体 " + System.IO.Path.GetFileNameWithoutExtension(szC[ji].Key) : "大きさ +" + ji) : "") });
-                    }
+                                                              why = (ki > 0 ? "寄せ " + insC[ki].ToString("F2") : "") + (ji > 0 ? (ki > 0 ? "・" : "") + (szC[ji].Key != szC[0].Key ? "個体 " + System.IO.Path.GetFileNameWithoutExtension(szC[ji].Key) : "大きさ +" + ji) : "") });
                 EdoBuild.NiwaIshiRep rep; int used; float bestTop, bestTa;
                 var go = EdoBuild.NiwaIshiSueruAbove(grp, nm + "_" + i + (yaku ? "_Yaku" : tama ? "_Tama" : ""), spots, yaw, float.NaN, wy, bs, aboveTally, true,
-                                                     out rep, out used, out bestTop, out bestTa);
-                if (go != null) { tl.Add(rep); if (used > 0) aboveMoved.Add(nm + "_" + i + "(" + spots[used].why + ")"); }
+                                                     out rep, out used, out bestTop, out bestTa, buryLo: buLo, buryHi: buHi);
+                if (go != null)
+                {
+                    tl.Add(rep); if (used > 0) aboveMoved.Add(nm + "_" + i + "(" + spots[used].why + ")");
+                    if (!float.IsNaN(hMin) && !float.IsNaN(rep.H) && rep.H < hMin - 0.005f) hMinShort.Add(nm + "_" + i + "(丈 " + rep.H.ToString("F2") + ")");
+                }
                 else { aboveDrop.Add(nm + "_" + i + "(試した最も高い天端 " + (float.IsNaN(bestTop) ? "測れない" : (bestTop - wy).ToString("+0.000;-0.000") + "m") + AboveGroundNote(bestTa) + ")"); }
             }
 
@@ -1031,6 +1076,8 @@ public static partial class EdoDoiBuilder
         sb.Append("\n  汀の石の天端 ≥ 水面・地表(硬い): " + (aboveMoved.Count == 0 ? "狙いのまま全部上" : "⚠ 帯の内で寄せ・大きさを変えて上へ出した " + aboveMoved.Count + "(" + string.Join("・", aboveMoved.ToArray()) + ")")
                   + (aboveDrop.Count == 0 ? "" : " / ⛔ 帯の内のどこでも天端が水面か地表の下で建てない " + aboveDrop.Count + "(" + string.Join("・", aboveDrop.ToArray()) + ")")
                   + " / " + aboveTally.Summary());
+        // 丈の下限(柔らかい ── 欄 hMin・osae.hMin): 長さの帯(lenMax + lenUp・役石は yakuMax・押さえ石は long)の内で届かなかった石
+        sb.Append("\n  汀の石の丈 ≥ hMin(柔): " + (hMinShort.Count == 0 ? "全部届いた" : "⚠ 長さの帯の内で届かず帯の上で建てた " + hMinShort.Count + "(" + string.Join("・", hMinShort.ToArray()) + ")"));
         foreach (var x in aboveDrop) Wait("汀の石 " + x + ": 指図の帯(inset・長さ・石の点)の内では天端が水面の下 ── 建てない(硬い)。帯か石の点の欄の上書きが要る(庭方へ)");
         return sb.ToString();
     }
@@ -1069,7 +1116,8 @@ public static partial class EdoDoiBuilder
         if (Has(st, "osae"))
         {
             var os = O(st["osae"]);
-            AuditKeys(os, "呑口の押さえ石(" + nm + ")", "asset", "long", "n", "fromCore");
+            AuditKeys(os, "呑口の押さえ石(" + nm + ")", "asset", "long", "n", "fromCore", "hMin");
+            float hMinO = Has(os, "hMin") ? F(os["hMin"]) : float.NaN;   // 丈の下限(柔らかい ── 長さの帯 long の内で満たす・庭方 2026-10-05)
             string path = Has(os, "asset") ? ResolveNiwaApi(Sk(os, "asset"), 1) : null;
             float lLo, lHi;
             if (path == null || !Exists(path) || !Pair(os, "long", out lLo, out lHi) || !Has(os, "fromCore")) { Wait("呑口の押さえ石(" + nm + "): asset / long / fromCore が読めない ── 据えない"); return res; }
@@ -1082,11 +1130,22 @@ public static partial class EdoDoiBuilder
                 var xz = core + tgW * (sgn * F(os["fromCore"]));
                 float yawO = Rnd(rnd, 0f, 360f), lAim = Rnd(rnd, lLo, lHi);
                 // ⭐ 硬い・天端を水面より上(EdoBuild.NiwaIshiSueruAbove)── 候補は長さの帯(long)の内だけ: 狙いから lHi まで。位置(fromCore)は欄のまま
-                var spO = new List<EdoBuild.NiwaIshiSpot> { new EdoBuild.NiwaIshiSpot { path = path, xz = xz, scale = EdoBuild.NiwaScaleForLong(path, lAim), aimTop = sueTop, why = "" } };
-                for (int j = 1; j <= 3; j++) { float l2 = Mathf.Lerp(lAim, lHi, j / 3f); if (l2 > lAim + 1e-4f) spO.Add(new EdoBuild.NiwaIshiSpot { path = path, xz = xz, scale = EdoBuild.NiwaScaleForLong(path, l2), aimTop = sueTop, why = "長さ " + l2.ToString("F2") }); }
+                bool hOkO;
+                var spO = new List<EdoBuild.NiwaIshiSpot> { new EdoBuild.NiwaIshiSpot { path = path, xz = xz, scale = EdoBuild.NiwaScaleForLongHMin(path, lAim, hMinO, lHi, out hOkO), aimTop = sueTop, why = "" } };
+                for (int j = 1; j <= 3; j++)
+                {
+                    float l2 = Mathf.Lerp(lAim, lHi, j / 3f); if (l2 <= lAim + 1e-4f) continue;
+                    float s2 = EdoBuild.NiwaScaleForLongHMin(path, l2, hMinO, lHi, out hOkO);
+                    if (spO.Exists(x => Mathf.Abs(x.scale - s2) <= 1e-4f * Mathf.Max(1f, s2))) continue;   // 丈の下限で同じ倍率に揃った段は重ねない
+                    spO.Add(new EdoBuild.NiwaIshiSpot { path = path, xz = xz, scale = s2, aimTop = sueTop, why = "長さ " + l2.ToString("F2") });
+                }
                 EdoBuild.NiwaIshiRep rp; int usedO; float topO, taO;
                 var go = EdoBuild.NiwaIshiSueruAbove(grp, nm + "_Nomikuchi_Osae_" + k, spO, yawO, float.NaN, wy, bs, aboveTally, true, out rp, out usedO, out topO, out taO);
-                if (go != null) { tl.Add(rp); made++; if (usedO > 0) aboveMoved.Add(nm + "_Nomikuchi_Osae_" + k + "(" + spO[usedO].why + ")"); }
+                if (go != null)
+                {
+                    tl.Add(rp); made++; if (usedO > 0) aboveMoved.Add(nm + "_Nomikuchi_Osae_" + k + "(" + spO[usedO].why + ")");
+                    if (!float.IsNaN(hMinO) && !float.IsNaN(rp.H) && rp.H < hMinO - 0.005f) hMinShort.Add(nm + "_Nomikuchi_Osae_" + k + "(丈 " + rp.H.ToString("F2") + ")");
+                }
                 else aboveDrop.Add(nm + "_Nomikuchi_Osae_" + k + "(試した最も高い天端 " + (float.IsNaN(topO) ? "測れない" : (topO - wy).ToString("+0.000;-0.000") + "m") + AboveGroundNote(taO) + ")");
             }
             res += "・押さえ石 " + made + "/" + nn;
@@ -1464,7 +1523,7 @@ public static partial class EdoDoiBuilder
     static EdoBuild.NiwaAbutSeatSpec ReadAbutSeat(Dictionary<string, object> o, string nm, out string why)
     {
         why = null;
-        AuditKeys(o, "橋台石の据え(" + nm + ")", "kakari", "kakariFrom", "umeMax", "umeMaxHard", "atari", "atariSoft", "sukiMax", "sukiNote", "tenba", "neiriMax", "acc", "src");
+        AuditKeys(o, "橋台石の据え(" + nm + ")", "kakari", "kakariFrom", "umeMax", "umeMaxHard", "atari", "atariSoft", "sukiMax", "sukiNote", "tenba", "neiriMax", "neiriNote", "acc", "src");
         var inv = System.Globalization.CultureInfo.InvariantCulture;
         Func<string, string> norm = x => (x ?? "").Replace('−', '-').Replace('—', '-').Replace('～', '〜').Replace('>', '>');
         if (!Has(o, "kakari") || !Has(o, "umeMax") || !Has(o, "sukiMax")) { why = "kakari / umeMax / sukiMax が無い"; return null; }
@@ -1488,6 +1547,10 @@ public static partial class EdoDoiBuilder
         sp.turns = int.Parse(mt.Groups[1].Value, inv); sp.flips = tb.Contains("表裏"); sp.reliefMax = float.Parse(mx.Groups[1].Value, inv);
         // 「石を沈めて根入れを深く」の上限(m)── 欄 neiriMax が無ければ 0 = 沈めない(指図に無い値は発明しない ── 刷りで要求する)
         sp.neiriMax = Has(o, "neiriMax") ? F(o["neiriMax"]) : 0f;
+        // 地中に入る深さの合計の上限(丈に対する割合)── 欄 neiriNote「…丈の 0.6 まで」から読む。読めなければ沈めない(EdoBuild 側で NaN = 沈めない)
+        var mn = System.Text.RegularExpressions.Regex.Match(norm(Sk(o, "neiriNote")), @"丈の\s*([0-9.]+)");
+        sp.neiriFrac = mn.Success ? float.Parse(mn.Groups[1].Value, inv) : float.NaN;
+        if (sp.neiriMax > 0f && float.IsNaN(sp.neiriFrac)) Wait("橋台石の据え(" + nm + "): neiriMax はあるが neiriNote から「丈の N」(地中に入る深さの合計の上限)が読めない ── 沈めない(指図へ)");
         return sp;
     }
 
@@ -1502,6 +1565,7 @@ public static partial class EdoDoiBuilder
              + "\n      起伏の手当て: 名指しの版の起伏 " + ar.reliefFirst.ToString("F3") + "m"
              + (ar.swapped ? "・版を替えた → " + System.IO.Path.GetFileNameWithoutExtension(ar.pathGot) + "(替えは名指しの族の個体から ── 柔らかい)" : (sp.alts.Count > 0 && ar.reliefFirst > sp.reliefMax + 1e-4f ? "・替えの版 " + sp.alts.Count + " 個はどれも名指しより合わない" : ""))
              + (ar.sinkScale > 1.0001f ? "・石を ×" + ar.sinkScale.ToString("F2") + " に大きくして沈めた(根入れ +" + ar.sinkDeep.ToString("F2") + "m ≤ " + sp.neiriMax.ToString("F2") + ")" : "")
+             + (float.IsNaN(ar.embedFrac) ? "" : "・地中に入る深さ 丈の " + ar.embedFrac.ToString("F2") + (float.IsNaN(sp.neiriFrac) ? "" : "【硬 沈めは ≤" + sp.neiriFrac.ToString("F1") + (ar.embedCapHit ? " ── この上限で沈めを止めた" : "") + "】"))
              + (ar.reliefOver ? "・⚠ 起伏 " + ar.relief.ToString("F3") + " が " + sp.reliefMax.ToString("F2") + " を超えて残る"
                 + (sp.neiriMax <= 0f ? " ── 指図「なお合わなければ石を沈めて根入れを深く」の上限(abutSeat.neiriMax・m)が無いので沈めない" : "") : "");
     }

@@ -1276,6 +1276,33 @@ public static partial class EdoBuild
         return m > 1e-4f ? L / m : float.NaN;
     }
 
+    /// <summary>**平面の長さ L で、鉛直の丈の下限 hMin を満たす等方スケール**(指図 護岸 `hMin`・押さえ石 `osae.hMin` ── 庭方 2026-10-05)。
+    /// 長さ L の倍率と丈 hMin の倍率の大きい方を採る。ただしその倍率で平面の長さが <paramref name="lenCap"/> を越えるなら lenCap の倍率で止め、
+    /// <paramref name="hOk"/> = false(丈は下限に届かない)。hMin が NaN なら長さ L の倍率のまま(hOk = true)。部材が無ければ NaN。
+    /// **柔らかい**(建てる丈の狙い ── 硬いのは呼び手の「天端が水面より上」)。実寸は <see cref="PartSize"/>(⛔ 名前から推さない)。
+    /// 当たる先: 土井の泉水の護岸の地の石・役石・玉石と呑口の押さえ石。以後、汀の石に丈の下限を持つ指図の庭の全て。</summary>
+    public static float NiwaScaleForLongHMin(string path, float L, float hMin, float lenCap, out bool hOk)
+    {
+        hOk = true;
+        var s = PartSize(path);
+        float m = Mathf.Max(s.x, s.z);
+        if (m <= 1e-4f || s.y <= 1e-4f) return float.NaN;
+        float sc = L / m;
+        if (float.IsNaN(hMin) || sc * s.y >= hMin - 1e-4f) return sc;
+        float scH = hMin / s.y, scCap = float.IsNaN(lenCap) ? float.PositiveInfinity : Mathf.Max(sc, lenCap / m);
+        if (scH <= scCap + 1e-6f) return scH;
+        hOk = false; return scCap;
+    }
+
+    /// <summary>石の鉛直の丈のうち**足の芯の地表(池床)より下の割合**(指図 護岸 `buryRatio` の測り ── (足の芯の地表 − 下端) / 丈・0〜1)。測れなければ NaN。</summary>
+    public static float NiwaBuryFrac(GameObject go)
+    {
+        float lo, hi; Vector3 ft;
+        if (go == null || !NiwaSpanY(go, out lo, out hi) || hi - lo <= 1e-4f || !NiwaFootPoint(go, out ft)) return float.NaN;
+        float g = Ground(ft.x, ft.z);
+        return float.IsNaN(g) ? float.NaN : Mathf.Clamp01((g - lo) / (hi - lo));
+    }
+
     // Unity の yaw ry で local +X → (cos ry, −sin ry)・local +Z → (sin ry, cos ry)。
     static float YawLocalAxisTo(bool axisIsX, Vector2 d)
     {
@@ -1653,11 +1680,14 @@ public static partial class EdoBuild
     /// <paramref name="topOverGround"/> = true で**天端が地表より上**(<see cref="NiwaIshiRep.topAbove"/> &gt; 0 ── 検査の「天端まで埋没」と同じ測り)も硬い制約に足す版
     /// (2026-10-05 EDO-0533 第11巡 ── 汀の石 6 個が天端まで埋まったまま建った: NiwaIshiSueru は余地の内でしか持ち上げず、帯の他の置き場を試さなかった)。
     /// 帯の内の候補(寄せ・大きさ・個体)を同じ順で試し、どれも埋まるなら建てない。<paramref name="bestTopAbove"/> = 試した中の最も大きい topAbove[m](名指しに使う)。
-    /// 当たる先: 土井の泉水の護岸・押さえ石・州浜の玉石(EdoDoiBuilder.Niwa が true で呼ぶ)。他邸は既定の版のまま。</summary>
+    /// 当たる先: 土井の泉水の護岸・押さえ石・州浜の玉石(EdoDoiBuilder.Niwa が true で呼ぶ)。他邸は既定の版のまま。
+    /// <para>⭐ <paramref name="buryLo"/>〜<paramref name="buryHi"/>(指図 護岸 `buryRatio`・庭方 2026-10-05)を渡すと、丈のうち池床より下の割合
+    /// (<see cref="NiwaBuryFrac"/>)をその帯へ入れる**柔らかい**狙いを足す ── 硬い条件を通った候補のうち帯の内の最初の物、無ければ帯から最も近い物を建てる
+    /// (<see cref="PlaceBest{T}"/> の Soft・⚠ は tally の「狙い未達」に数える)。NaN = 狙わない(既定)。</para></summary>
     public static GameObject NiwaIshiSueruAbove(Transform parent, string name, IList<NiwaIshiSpot> spots, float yaw, float bury,
                                                 float waterY, float bedSink, SeiyakuTally tally, bool topOverGround,
                                                 out NiwaIshiRep rep, out int usedSpot, out float bestTop, out float bestTopAbove,
-                                                Vector2 tiltTo = default(Vector2), float tiltDeg = 0f)
+                                                Vector2 tiltTo = default(Vector2), float tiltDeg = 0f, float buryLo = float.NaN, float buryHi = float.NaN)
     {
         var reps = new NiwaIshiRep[spots.Count];
         float bt = float.NegativeInfinity, bta = float.NegativeInfinity; int cur = -1;
@@ -1665,6 +1695,13 @@ public static partial class EdoBuild
         var hard = new List<Hard> { new Hard("汀の石の天端が水面より上", g => { float lo, hi; return NiwaSpanY(g, out lo, out hi) && hi >= waterY + NIWA_TOP_OVER_WATER; }) };
         if (topOverGround)
             hard.Add(new Hard("汀の石の天端が地表より上", g => cur < 0 || float.IsNaN(reps[cur].topAbove) || reps[cur].topAbove > 0f));
+        var softs = new List<Soft>();
+        if (!float.IsNaN(buryLo) && !float.IsNaN(buryHi))
+            softs.Add(new Soft("汀の石の丈の池床より下の割合 " + buryLo.ToString("F1") + "〜" + buryHi.ToString("F1") + "(帯からの外れ ×−1)", 0f, g =>
+            {
+                float f = NiwaBuryFrac(g); if (float.IsNaN(f)) return -1f;
+                return f < buryLo ? f - buryLo : (f > buryHi ? buryHi - f : 0f);
+            }));
         var go = PlaceBest<int>(idx, idx.Count, i =>
         {
             cur = i; var s = spots[i];
@@ -1672,7 +1709,7 @@ public static partial class EdoBuild
             float lo, hi; if (g != null && NiwaSpanY(g, out lo, out hi)) bt = Mathf.Max(bt, hi);
             if (g != null && !float.IsNaN(reps[i].topAbove)) bta = Mathf.Max(bta, reps[i].topAbove);
             return g;
-        }, hard, new List<Soft>(), tally);
+        }, hard, softs, tally);
         usedSpot = go != null ? cur : -1;
         rep = go != null ? reps[cur] : (spots.Count > 0 ? reps[0] : default(NiwaIshiRep));
         bestTop = float.IsNegativeInfinity(bt) ? float.NaN : bt;
@@ -2118,6 +2155,9 @@ public static partial class EdoBuild
         // ↓ 起伏の手当て(NiwaAbutSeatSpec.alts / neiriMax)── pathGot = 据えた石の版(替えたなら替えた先)・swapped = 版を替えた・
         //   reliefFirst = 名指しの版の最良の起伏[m]・sinkScale = 起伏を下げるため石を大きくして沈めた縮尺(1 = しない)・sinkDeep = それで増した根入れ[m]。
         public string pathGot; public bool swapped; public float reliefFirst, sinkScale, sinkDeep;
+        // ↓ 地中に入る深さの合計(NiwaAbutSeatSpec.neiriFrac)── embedFrac = 据えた石の (足の芯の地表 − 下端) / 丈(NaN = 測れない)・
+        //   embedCapHit = 沈めをこの上限で止めた(硬い ── 起伏はそこまでの最良で残る)。
+        public float embedFrac; public bool embedCapHit;
     }
 
     /// <summary>**石橋の版と橋台石の据えの作法**(指図 `hashi[].abutSeat` ── 邸ビルダーが欄を読んで埋める。⛔ ここに既定の値を持たない)。
@@ -2129,11 +2169,14 @@ public static partial class EdoBuild
     /// alts = 替えの版(部材のパス・邸ビルダーが欄から解く。空 = 替えない)── 名指しの版の最良の起伏が reliefMax を超えたときだけ、同じ向き×表裏で試し、
     /// 起伏 ≤ reliefMax のうち受ける範囲を最も広く覆う版(無ければ起伏の最小)を採る(受ける範囲の 5 割を覆わない版は採らない)。
     /// neiriMax = 石を大きくして沈め、根入れを深くしてよい量の上限[m](0 = しない)── なお起伏が reliefMax を超えるとき、石を等方に大きくして
-    /// (天端の丸みが受ける範囲の内で緩む)天端は版の下面のまま足を深く沈める。増す根入れ ≤ neiriMax(硬い)。</summary>
+    /// (天端の丸みが受ける範囲の内で緩む)天端は版の下面のまま足を深く沈める。増す根入れ ≤ neiriMax(硬い)。
+    /// neiriFrac = 地中に入る深さの合計の上限(石の丈に対する割合 ── 指図 neiriNote「丈の 0.6 まで」・2026-10-05 庭方)。沈めのどの段でも
+    /// (足の芯の地表 − 下端) ≤ neiriFrac × 丈 を守る(硬い ── 越える段は採らない)。NaN = 上限の欄が無い(沈めない)。
+    /// 天端の当たり(最も高い一点の埋め ≤ umeMax)は沈めても硬いまま ── ③ が版の下面に着けてから足を測る。</summary>
     public class NiwaAbutSeatSpec
     {
         public float kakari, inner, umeMax, atariFrac, atariLo, atariHi, sukiMax, reliefMax; public int turns; public bool flips;
-        public List<string> alts = new List<string>(); public float neiriMax;
+        public List<string> alts = new List<string>(); public float neiriMax, neiriFrac = float.NaN;
     }
 
     /// <summary>点 (x, z) の鉛直線と駒の三角形の交わりのうち**最も高い高さ** = その点の天端。交わらなければ NaN(LowestSurfaceAt の対)。</summary>
@@ -2401,7 +2444,28 @@ public static partial class EdoBuild
         }
         // ②'' なお合わなければ石を沈めて根入れを深く(指図の後ろの手)── 石を等方に大きくすると受ける範囲の内の天端の丸みが緩む。
         //     天端は ③ で版の下面へ着けるので、大きくした分だけ足が沈む(増す根入れ ≈ 丈の増し ≤ neiriMax・硬い)。版の幅に収める縮めはしない(柔らかい inside に刷る)
-        if (bestRelief > seat.reliefMax + 1e-4f && seat.neiriMax > 1e-4f)
+        // ③ と同じ高さの決め(3 割の面の最も低い点を版の下面へ・最も高い一点の埋め ≤ umeMax)で仮に据え、地中に入る深さ ÷ 丈を返す(NaN = 測れない)
+        Func<float, float> embedFracAt = scl =>
+        {
+            var g = put(bestTurn, bestFlip, scl, false).Key; if (g == null) return float.NaN;
+            var d = eval(g);
+            float res = float.NaN;
+            if (d.Count > 0)
+            {
+                float dzz = d[k30(d)].Key; if (dzz - d[0].Key > seat.umeMax) dzz = d[0].Key + seat.umeMax;
+                g.transform.position += new Vector3(0f, dzz, 0f);
+                float lo3, hi3; Vector3 ft;
+                if (NiwaSpanY(g, out lo3, out hi3) && hi3 - lo3 > 1e-4f && NiwaFootPoint(g, out ft))
+                {
+                    float gy = Ground(ft.x, ft.z);
+                    if (!float.IsNaN(gy)) res = Mathf.Max(0f, gy - lo3) / (hi3 - lo3);
+                }
+            }
+            UnityEngine.Object.DestroyImmediate(g);
+            return res;
+        };
+        rep.embedFrac = float.NaN;
+        if (bestRelief > seat.reliefMax + 1e-4f && seat.neiriMax > 1e-4f && !float.IsNaN(seat.neiriFrac))
         {
             var g1 = put(bestTurn, bestFlip, bestSc, false).Key;
             float lo1 = 0f, hi1 = 0f; bool okSpan = g1 != null && NiwaSpanY(g1, out lo1, out hi1);
@@ -2416,6 +2480,9 @@ public static partial class EdoBuild
                     var g2 = put(bestTurn, bestFlip, bestSc * k, false).Key; if (g2 == null) break;
                     var d2 = eval(g2); UnityEngine.Object.DestroyImmediate(g2);
                     if (d2.Count == 0) continue;
+                    // 硬い: 地中に入る深さの合計 ≤ neiriFrac × 丈 ── 大きくするほど深くなるので、越えた段で止める
+                    float ef = embedFracAt(bestSc * k);
+                    if (float.IsNaN(ef) || ef > seat.neiriFrac + 1e-4f) { rep.embedCapHit = true; break; }
                     float r2 = d2[k30(d2)].Key - d2[0].Key;
                     if (r2 < rGot - 1e-4f) { kGot = k; rGot = r2; cGot = (float)d2.Count / gq.Count; }
                     if (r2 <= seat.reliefMax + 1e-4f) break;
@@ -2449,6 +2516,7 @@ public static partial class EdoBuild
         }
         if (rep.footFloat > need + 0.005f) { UnityEngine.Object.DestroyImmediate(go); rep.why = "丈を増しても足が届かない(浮き " + rep.footFloat.ToString("F2") + "m)"; return null; }
         // 刷る値(据えた後の隙 d' = d − dz)
+        { float lo4, hi4; Vector3 ft4; if (NiwaSpanY(go, out lo4, out hi4) && hi4 - lo4 > 1e-4f && NiwaFootPoint(go, out ft4)) { float gy4 = Ground(ft4.x, ft4.z); if (!float.IsNaN(gy4)) rep.embedFrac = Mathf.Max(0f, gy4 - lo4) / (hi4 - lo4); } }
         float dmin2 = dd[0].Key - dz, d302 = dd[k30(dd)].Key - dz;
         rep.seated = true;
         rep.relief = d302 - dmin2; rep.umeDeep = -dmin2; rep.atariGap = d302;
@@ -2750,5 +2818,77 @@ public static partial class EdoBuild
         float pa = 0.5f * (a0 + a1), pb = 0.5f * (b0 + b1);
         c = new Vector2((pa * az.y - ax.y * pb) / det, (ax.x * pb - pa * az.x) / det);
         return true;
+    }
+
+    // ─────────── 池の水面の映り(反射プローブ)── EDO-0533 ───────────
+    //
+    // ⛔ 2026-10-05 EDO-0533: 場面に反射プローブが無く、Edo/Water の GlossyEnvironmentReflection(EdoWater.shader の「反射(空/環境)」)が
+    //    Default-Skybox の地面側(灰茶)を映して、泉水の水面が低い角度で茶色く見えた。⇒ 池ごとに一つ、水面の上に焼いたプローブを置く。
+    // ⭐ 焼きの方式(Unity の定石): 静かな景色なので**焼き**(realtime にしない)。プローブは邸のプレハブの中に入るので、場面の照明データに
+    //    焼き込む Baked でなく **Custom + 焼いたキューブマップの資産**(Lighting の Bake と同じ Lightmapping.BakeReflectionProbe ── 資産を参照するので
+    //    プレハブを解き直しても失わない)。庭の石・木は Static でないので renderDynamicObjects を立てて写す。焼く間は水面そのものを隠す(自分を映さない)。
+    // ⛔ 水の材質は触らない(見え方は WaterBaker.ApplyLook の式)。焼いた絵の置き場は水面の材質(無ければメッシュ)の資産の隣・名は水域の名から
+    //    (⛔ パスの文字列を書かない ── 規則12)。
+    // 当たる先: 土井の泉水(EdoDoiBuilder.Niwa 6i)。同じ型で岡部・松江松平・山王の池にも効く(WaterBody を渡すだけ ── 呼び出しは各邸の庭の工程へ)。
+
+    /// <summary>反射プローブの範囲の余裕(水面の外接箱の外へ水平に)・水面から上の高さ・下の深さ・写す点の水面からの高さ[m]・キューブマップの一辺[px]。
+    /// 描画の都合の値で、指図の設計値ではない(邸ごとに変えない)。</summary>
+    public const float MIZU_KAGAMI_MARGIN = 3f, MIZU_KAGAMI_ABOVE = 8f, MIZU_KAGAMI_BELOW = 1f, MIZU_KAGAMI_EYE = 1f;
+    public const int MIZU_KAGAMI_RES = 128;
+
+    /// <summary><see cref="MizuKagami"/> の記録。baked = 焼けた・texPath = 焼いた絵の資産・size = 範囲の箱・eyeY = 写した点の高さ・why = 置けない/焼けない理由。</summary>
+    public struct MizuKagamiRep { public bool baked; public string texPath, why; public Vector3 size; public float eyeY; }
+
+    /// <summary>**池の水面の上に反射プローブを一つ置いて焼く**(水面が空の地面側を映して茶色く見えるのを、周りの庭を映すように直す)。
+    /// <para>範囲 = 水面の実メッシュの外接箱(世界)の外へ <paramref name="margin"/>・高さは水面 −<see cref="MIZU_KAGAMI_BELOW"/>〜+<paramref name="above"/>
+    /// (水面の描画の箱を必ず含む ── プローブはこの箱で水面に割り当たる)。写す点 = 箱の平面の芯・水面 +<see cref="MIZU_KAGAMI_EYE"/>。
+    /// Custom・renderDynamicObjects・HDR・一辺 <see cref="MIZU_KAGAMI_RES"/>・空で消す。水面の描画は BlendProbes にする(Off なら映らない)。</para>
+    /// 置いた GameObject は <paramref name="parent"/> の下(名 = 水域の名 + "_Kagami")。焼けなければプローブは残し baked = false と理由を返す。
+    /// ⚠ 庭の物を全部建てた後に呼ぶ(焼いた後に建てた物は映らない ── 建て直したら焼き直す)。</summary>
+    public static ReflectionProbe MizuKagami(Transform parent, WaterBody wb, out MizuKagamiRep rep, float margin = MIZU_KAGAMI_MARGIN, float above = MIZU_KAGAMI_ABOVE)
+    {
+        rep = new MizuKagamiRep { eyeY = float.NaN };
+        if (wb == null) { rep.why = "水域(WaterBody)が無い"; return null; }
+        var mr = wb.GetComponent<MeshRenderer>(); var mf = wb.GetComponent<MeshFilter>();
+        if (mr == null || mf == null || mf.sharedMesh == null) { rep.why = "水面のメッシュが無い(WaterBaker.RebuildSurface の前)"; return null; }
+        string src = mr.sharedMaterial != null ? AssetDatabase.GetAssetPath(mr.sharedMaterial) : null;
+        if (string.IsNullOrEmpty(src)) src = AssetDatabase.GetAssetPath(mf.sharedMesh);
+        if (string.IsNullOrEmpty(src)) { rep.why = "水面の材質にもメッシュにも資産のパスが無い ── 焼いた絵の置き場が決まらない"; return null; }
+        rep.texPath = System.IO.Path.GetDirectoryName(src).Replace('\\', '/') + "/" + wb.name + "_Kagami.exr";
+        var b = mr.bounds;
+        float y0 = wb.waterY - MIZU_KAGAMI_BELOW, y1 = wb.waterY + above;
+        var bmin = new Vector3(b.min.x - margin, Mathf.Min(y0, b.min.y - 0.1f), b.min.z - margin);
+        var bmax = new Vector3(b.max.x + margin, Mathf.Max(y1, b.max.y + 0.1f), b.max.z + margin);
+        var eye = new Vector3(0.5f * (bmin.x + bmax.x), wb.waterY + MIZU_KAGAMI_EYE, 0.5f * (bmin.z + bmax.z));
+        rep.size = bmax - bmin; rep.eyeY = eye.y;
+        var go = new GameObject(wb.name + "_Kagami");
+        Undo.RegisterCreatedObjectUndo(go, "mizu kagami");
+        if (parent != null) go.transform.SetParent(parent, true);
+        go.transform.position = eye; go.transform.rotation = Quaternion.identity; go.transform.localScale = Vector3.one;
+        var pr = go.AddComponent<ReflectionProbe>();
+        pr.mode = UnityEngine.Rendering.ReflectionProbeMode.Custom;
+        pr.renderDynamicObjects = true;
+        pr.refreshMode = UnityEngine.Rendering.ReflectionProbeRefreshMode.ViaScripting;
+        pr.boxProjection = true;
+        pr.size = rep.size; pr.center = 0.5f * (bmin + bmax) - eye;
+        pr.resolution = MIZU_KAGAMI_RES; pr.hdr = true;
+        pr.clearFlags = UnityEngine.Rendering.ReflectionProbeClearFlags.Skybox;
+        pr.nearClipPlane = 0.1f; pr.farClipPlane = 1000f;
+        pr.importance = 1; pr.intensity = 1f; pr.blendDistance = 1f; pr.cullingMask = ~0;
+        if (mr.reflectionProbeUsage == UnityEngine.Rendering.ReflectionProbeUsage.Off) mr.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.BlendProbes;
+        bool was = mr.enabled; bool ok = false;
+        try { mr.enabled = false; ok = Lightmapping.BakeReflectionProbe(pr, rep.texPath); }
+        catch (Exception e) { rep.why = "焼けない: " + e.Message; }
+        finally { mr.enabled = was; }
+        if (!ok) { if (rep.why == null) rep.why = "Lightmapping.BakeReflectionProbe が false を返した"; return pr; }
+        AssetDatabase.ImportAsset(rep.texPath, ImportAssetOptions.ForceUpdate);
+        var ti = AssetImporter.GetAtPath(rep.texPath) as TextureImporter;
+        if (ti != null && ti.textureShape != TextureImporterShape.TextureCube) { ti.textureShape = TextureImporterShape.TextureCube; ti.SaveAndReimport(); }
+        var tex = AssetDatabase.LoadAssetAtPath<Texture>(rep.texPath);
+        if (tex == null) { rep.why = "焼いた絵が読めない: " + rep.texPath; return pr; }
+        pr.customBakedTexture = tex;
+        EditorUtility.SetDirty(pr);
+        rep.baked = true;
+        return pr;
     }
 }

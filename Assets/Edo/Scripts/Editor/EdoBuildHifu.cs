@@ -824,6 +824,26 @@ public static partial class EdoBuild
             if (wm > 1e-6) { float g = CleanAt(x, z); if (!float.IsNaN(g)) { sv += wm * g; sw += wm; } }
             return (float)(sv / sw);
         };
+        // ⭐ 溝は囲いでない(keepBatter &gt; 0 のとき・2026-10-06 EDO-0533 第16巡): 囲い(法を当てない縁)を測るとき掘る部材(溝・桝・受け・蓋)の外形を数えない
+        //   ── 溝は土を留めない(地表に掘り込む駒)。⛔ 第15巡まで、下の面(26.75)の縁が溝 D2 seg1 の谷の側の外形から WALLED 以内に在り「囲いのある縁」と
+        //   読んで法を当てず、溝と面の間の細い帯が 2m 格子の設計の地盤(≥ 27.36)のまま残り、keepBatter の床(溝の天端から外へ上る法)で上ってから
+        //   面へ 0.5〜0.6m 切り立った ── 溝の斜めの線が 0.25m 格子を横切る列ごとに三角の山が立つ鋸(蔵の基壇の前・溝 D2 seg1_2 の南の脇)。
+        //   法で受ければ帯は面の縁で面の高さ・溝の側で min(天端の外の辺 − tuck, 面 + 離れ ÷ 法)── 位置について連続(崖を立てない)。
+        //   切土の側(設計の地盤 &gt; 面)だけ ── 下げるだけで面の高さより下げない ⇒ 被りは増えない・隙は面の点(既に面の高さ)より悪くならない。
+        //   当たる先: keepBatter を渡す邸(いまは土井 Stage4b)の、面の縁に沿う溝・蓋の脇のすべて。渡さない邸は従来どおり(溝も囲いに数える)。
+        bool ditchOpen = keepBatter > 1e-3f && hollowSet != null;
+        Func<Vector2, bool> WalledAt = q =>
+        {
+            if (!ditchOpen) return NearAt(q, WALLED) != 0;
+            for (int h = 0; h < idx.hulls.Count; h++)
+            {
+                if (IsHollow(h)) continue;
+                var hb = idx.bounds[h];
+                if (q.x < hb.x - WALLED || q.x > hb.z + WALLED || q.y < hb.y - WALLED || q.y > hb.w + WALLED) continue;
+                if (EdoGeom.PIP(idx.hulls[h], q) || EdgeDist(idx.hulls[h], q) < WALLED) return true;
+            }
+            return false;
+        };
         // 面の外の点の描く高さ: 設計の地盤(無ければ地形)を、最寄りの**囲いの無い**面の縁から法で受ける。
         //   囲い(部材)が縁に立つ所は法を当てない(土留めの前に盛土を出さない)。sloped = 法で受けたか。
         Func<Vector2, bool[], float> OutsideY = (q, sloped) =>
@@ -833,7 +853,10 @@ public static partial class EdoBuild
             if (design == null) return s;
             float bd = BATTER_REACH; SkinFace bf = default(SkinFace); Vector2 bq = Vector2.zero; bool found = false;
             foreach (var f in fl) { Vector2 cq; float d = ClosestOnPoly(f.poly, q, out cq); if (d < bd) { bd = d; bf = f; bq = cq; found = true; } }
-            if (!found || NearAt(bq, WALLED) != 0) return s;
+            if (!found || WalledAt(bq)) return s;
+            //   溝だけが縁に立つ所は切土の側(設計の地盤が面より高い ⇒ 下げるだけ・面の高さより下げない)にだけ法を当てる ──
+            //   盛土の側で溝の脇を上げると溝の天端に被り得るので従来どおり(皮の被りを増やさない)
+            if (ditchOpen && s <= bf.y && NearAt(bq, WALLED) != 0) return s;
             float t = s > bf.y ? Mathf.Min(s, bf.y + bd / Mathf.Max(design.batterCut, 1e-3f))
                                : Mathf.Max(s, bf.y - bd / Mathf.Max(design.batterFill, 1e-3f));
             if (sloped != null && Mathf.Abs(t - s) > 1e-3f) sloped[0] = true;

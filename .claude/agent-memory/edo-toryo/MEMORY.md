@@ -60,6 +60,7 @@
 
 - [土井の附属屋は Body に軒が残る・座は格子で起伏](doi-service-eaves-in-body-and-za-not-flat.md) — 離れは帯 0.15〜1.8 の Face で。布石で座が +0.36 上がる
 - [帯割り屋根は床へ据える](banded-roof-sits-at-floor.md) — FBX が軒高を焼き込み済み。寄せ直すと 0.71m 浮く。⚠ 渡廊下と当たる
+- [小段の盛り残りは Stage1 から流せば消える](backbench-residue-cleared-by-stage1.md) — 岡部 S1 は graded へ上書き。返しの前の尾根は壁の下の節点を 2m 格子が描く物
 - [皮を庭の後に流すと池を埋める・印は巡ごとに名を替える](skin-after-garden-fills-pond.md) — CutEdgeSkin faceKeepOut に庭の矩形
 - [園路の敷きはメッシュ。スプラット不可](gravel-band-mesh-not-splat.md) — alphamap 4.0 m/px。巻きは上から見て時計回り
 

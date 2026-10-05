@@ -421,6 +421,40 @@ public static partial class EdoBuild
         return res;
     }
 
+    /// <summary>**天端と背の地盤の差で run を切る割り**(指図 TW_Minami_Koshi.returnTop・EDO-0502 第24巡 ── 普請方の設計)。
+    /// 上手の端(s = 0・出隅)の天端 <paramref name="firstTop"/> で始め、天端 − 背の地盤 &gt; <paramref name="maxGap"/>【硬】になる所で run を切り、
+    /// 次の run の天端 = その上手の端の背の地盤を <paramref name="step"/> 刻みで切り上げた値(前の天端を越えない)。
+    /// 終わり: 表の地表と背の地盤の差が <paramref name="endDiff"/> 未満になった所(<paramref name="sEnd"/>・無ければ L)。
+    /// ⭐ run の長さに下限は無い ── <paramref name="minLen"/>(1 駒)より短い run は、駒の端を**下手の端**に合わせ、始まりを上手へ延ばして
+    /// 余りを上手の run の駒の裏へ重ねて埋める(返す a が前の run の b より手前になる)。返す: (a, b, 天端)。測るだけ。
+    /// 当たる先: 段違いの天端で割る返し・袖(RunsByBackSlope の「下がる量」でなく「天端との差」で切る欄 ── いまは岡部の腰石垣の返し)。</summary>
+    public static List<Vector3> RunsByCrestGap(float L, Func<float, float> backAt, Func<float, float> frontAt, float firstTop, float step, float maxGap,
+                                               float endDiff, float minLen, out float sEnd, float ds = 0.25f)
+    {
+        var res = new List<Vector3>(); sEnd = L;
+        int n = Mathf.Max(1, Mathf.CeilToInt(L / ds));
+        for (int i = 1; i <= n; i++)
+        {
+            float s = L * i / n, bk = backAt(s), fr = frontAt != null ? frontAt(s) : float.NaN;
+            if (!float.IsNaN(bk) && !float.IsNaN(fr) && Mathf.Abs(bk - fr) < endDiff) { sEnd = s; break; }
+        }
+        float top = firstTop, a = 0f; int m = Mathf.Max(1, Mathf.CeilToInt(sEnd / ds));
+        for (int i = 0; i <= m; i++)
+        {
+            float s = sEnd * i / m, bk = backAt(s); if (float.IsNaN(bk)) continue;
+            if (top - bk > maxGap + 1e-4f && s > a + 1e-3f)
+            {
+                res.Add(new Vector3(a, s, top));
+                float nt = Mathf.Min(top, Mathf.Ceil(bk / step - 1e-4f) * step);
+                a = s; top = nt;
+            }
+        }
+        if (sEnd - a > 1e-3f) res.Add(new Vector3(a, sEnd, top));
+        for (int i = 0; i < res.Count; i++)
+            if (res[i].y - res[i].x < minLen) res[i] = new Vector3(Mathf.Max(0f, res[i].y - minLen), res[i].y, res[i].z);
+        return res;
+    }
+
     /// <summary>背の小段の裏込めを地形へ書く(<see cref="BackBenchAt"/> を節点ごとに・run を順に重ねる)。硬い: 盛るだけ・区画の外は触らない・盛り ≤ maxFill。
     /// ⟶ 返す: 書いた節点の数(盛りの最大は out)。</summary>
     public static int BackBenchWrite(IList<BackBench> ks, out float fillMax)

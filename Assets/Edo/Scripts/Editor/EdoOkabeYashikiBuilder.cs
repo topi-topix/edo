@@ -2335,13 +2335,18 @@ public static class EdoOkabeYashikiBuilder
                     List<KeyValuePair<int, EdoBuild.BackBench>> rbk;
                     if (sodeB.TryGetValue(nm + "#ret", out rbk))
                     {
-                        var cnt2 = new Dictionary<int, int>();
+                        var cnt2 = new Dictionary<int, int>(); var prevB = new Dictionary<int, Vector2>();
                         foreach (var kv in rbk)
                         {
                             int ci0; cnt2.TryGetValue(kv.Key, out ci0); cnt2[kv.Key] = ci0 + 1;
                             var bk = kv.Value; float yt = bk.top; benchAll.Add(bk);
                             string rk = key + "#ret" + kv.Key;
-                            nozSegs.Add(new EdoBuild.NozuraSeg { name = rk + "_" + ci0, a = bk.a, b = bk.b, crestAt = sl => yt });
+                            // 上手の run の終わりより手前から始まる run(RunsByCrestGap が 1 駒に延ばして重ねた)は両端とも突き付けない(EDO-0502 第24巡)
+                            Vector2 pB; bool lap = prevB.TryGetValue(kv.Key, out pB) && Vector2.Dot(pB - bk.a, (bk.b - bk.a).normalized) > 0.05f;
+                            prevB[kv.Key] = bk.b;
+                            var ns = new EdoBuild.NozuraSeg { name = rk + "_" + ci0, a = bk.a, b = bk.b, crestAt = sl => yt };
+                            if (lap) { ns.noAbut[0] = true; ns.noAbut[1] = true; }
+                            nozSegs.Add(ns);
                             if (!lineOf.ContainsKey(rk)) { wallOf[rk] = w; lineOf[rk] = new List<Vector2> { bk.a, bk.b }; topOf[rk] = yt; }
                             else lineOf[rk].Add(bk.b);
                             sb.AppendLine("    返し " + rk + "_" + ci0 + ": 長さ " + Vector2.Distance(bk.a, bk.b).ToString("F2") + "m 天端 " + yt.ToString("F2") + "(背の地盤を 0.5 刻みで切り上げ)・背の小段 幅 " + bk.w.ToString("F2"));
@@ -2879,12 +2884,16 @@ public static class EdoOkabeYashikiBuilder
             Dictionary<string, object> sw = null;
             foreach (var o2 in A(Get(D, "terraceWalls")) ?? new List<object>()) { var w2 = O(o2); if (w2 != null && S(Get(w2, "name")) == nm) sw = w2; }
             if (sw == null || Get(sw, "returnTop") == null || Get(sw, "returnBackfill") == null) continue;
-            string top = S(Get(sw, "returnTop")), bfT = S(Get(sw, "returnBackfill")), drT = S(Get(sw, "returnBackDrain"));
-            float step = rx(top, @"([0-9.]+)\s*刻み"), maxDrop = rx(top, @"背が\s*([0-9.]+)\s*を超えて");
+            string top = S(Get(sw, "returnTop")), bfT = S(Get(sw, "returnBackfill")), drT = S(Get(sw, "returnBackDrain")), enT = S(Get(sw, "returnEnd"));
+            // 第24巡(76ce2fd6): 「天端と背の地盤の差が 0.9 を超える所で run を切る」「表の地表と背の地盤の差が 0.6 未満になった所で終える」
+            //   「run の長さに下限は置かない(短い run は余りを上手へ重ねて埋める)」・returnEnd の土羽の法と 1 間
+            float step = rx(top, @"([0-9.]+)\s*刻み"), maxDrop = rx(top, @"差が\s*([0-9.]+)\s*を超える"), endDiff = rx(top, @"差が\s*([0-9.]+)\s*未満");
+            float bfEnd = rx(enT, @"法\s*1\s*:\s*([0-9.]+)");
             float drop = rx(bfT, @"天端\s*[−\-]\s*([0-9.]+)"), wKen = rx(bfT, @"〜\s*([0-9.]+)\s*間"), bf = rx(bfT, @"法\s*1\s*:\s*([0-9.]+)"), maxFill = rx(bfT, @"盛りは\s*([0-9.]+)\s*以下");
             float drn = rx(drT, @"1\s*/\s*([0-9.]+)");
             var miss = new List<string>();
-            if (float.IsNaN(step)) miss.Add("returnTop の刻み"); if (float.IsNaN(maxDrop)) miss.Add("returnTop の下がる量"); if (float.IsNaN(drop)) miss.Add("returnBackfill の天端からの下げ");
+            if (float.IsNaN(step)) miss.Add("returnTop の刻み"); if (float.IsNaN(maxDrop)) miss.Add("returnTop の天端と背の差"); if (float.IsNaN(endDiff)) miss.Add("returnTop の終える落差");
+            if (float.IsNaN(bfEnd)) miss.Add("returnEnd の土羽の法"); if (float.IsNaN(drop)) miss.Add("returnBackfill の天端からの下げ");
             if (float.IsNaN(wKen)) miss.Add("returnBackfill の幅"); if (float.IsNaN(bf)) miss.Add("returnBackfill の法"); if (float.IsNaN(maxFill)) miss.Add("returnBackfill の盛りの上限");
             if (float.IsNaN(drn)) miss.Add("returnBackDrain の勾配"); if (float.IsNaN(depth)) miss.Add("avoid.dodomeCrestDepthM[野面の乱積み]");
             if (miss.Count > 0) { if (note != null) note.AppendLine("  ★ " + nm + " の返し: 指図から読めない(" + string.Join("・", miss.ToArray()) + ")── 返しの割りと裏込めをしない"); continue; }
@@ -2892,14 +2901,29 @@ public static class EdoOkabeYashikiBuilder
             var nodes = new List<Vector2>(); foreach (var q in ln) { var p = A(q); nodes.Add(new Vector2(F(p[0]), F(p[1]))); }
             var tops = new List<float>(); var tl = A(Get(w, "tops")); for (int i = 0; i < nodes.Count; i++) tops.Add(tl != null && i < tl.Count ? F(tl[i]) : F(Get(w, "top")));
             List<EndReturn> rets; EndDecisions(nm, w, nodes, tops, null, out rets);
-            float pieceL = 1.818f;   // 野面の駒の走り(PlaceNozuraNet の送り)── 「run は 1 駒より短くしない」
+            float pieceL = 1.818f;   // 野面の駒の走り(PlaceNozuraNet の送り)── 1 駒より短い run は余りを上手へ重ねる(RunsByCrestGap)
             var list = new List<KeyValuePair<int, EdoBuild.BackBench>>();
             foreach (var rt in rets)
             {
                 Vector2 a = rt.pg, b = rt.pb; float L = Vector2.Distance(a, b); if (L < 0.3f) continue;
                 Vector2 t = (b - a) / L; float off = depth + 0.25f;
-                var runs = EdoBuild.RunsByBackSlope(L, sl => DesignY(a + t * sl + rt.back * off), step, maxDrop, pieceL);
-                float yMain = tops[0];
+                Func<float, float> backAt = sl => DesignY(a + t * sl + rt.back * off), frontAt = sl => DesignY(a + t * sl - rt.back * off);
+                float yMain = tops[0], sEnd;
+                var runs = EdoBuild.RunsByCrestGap(L, backAt, frontAt, yMain, step, maxDrop, endDiff, pieceL, out sEnd);
+                string endNote;
+                if (sEnd < L - 1e-3f)
+                {
+                    // 返しの終わりから妻までは土羽(法 1:bfEnd・法尻は返しの線の上)。法尻が長屋の背から 1 間の外に取れなければ妻まで延ばす【硬】
+                    float dh = Mathf.Abs(backAt(sEnd) - frontAt(sEnd)), toe = sEnd + bfEnd * dh;
+                    if (L - toe < C("ken") - 1e-3f)
+                    {
+                        runs = EdoBuild.RunsByCrestGap(L, backAt, frontAt, yMain, step, maxDrop, -1f, pieceL, out sEnd);
+                        endNote = "落差 " + dh.ToString("F2") + " で終えると土羽の法尻が長屋の背から " + (L - toe).ToString("F2") + "m(< 1 間)── 妻まで延ばした";
+                    }
+                    else endNote = "落差 " + dh.ToString("F2") + " で終えて土羽(法尻 " + toe.ToString("F2") + "m・長屋の背まで " + (L - toe).ToString("F2") + "m)⚠ 土羽の盛りは未実装";
+                }
+                else endNote = "落差 " + endDiff.ToString("F1") + " 未満の所が無い ── 妻まで";
+                if (note != null) note.AppendLine("    返し " + nm + " 端" + rt.end + ": 長さ " + sEnd.ToString("F2") + "/" + L.ToString("F2") + "m・run " + runs.Count + "・" + endNote);
                 foreach (var r in runs)
                     list.Add(new KeyValuePair<int, EdoBuild.BackBench>(rt.end, new EdoBuild.BackBench
                     {

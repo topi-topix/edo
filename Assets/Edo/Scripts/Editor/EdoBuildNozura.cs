@@ -933,6 +933,9 @@ public static partial class EdoBuild
         public Func<float, Vector2> sidesAt;
         /// <summary>端(0 = a / 1 = b)が口の縁で、見切り石を置いて相手(城の石垣・袖の駒)から一歩引く ── 相手の駒。無ければ null。</summary>
         public List<GameObject>[] mikiriTo = new List<GameObject>[2];
+        /// <summary>端(0 = a / 1 = b)を近くの駒へ突き付けず打ち切りで終える ── 1 駒より短い run を上手の run の駒の裏へ重ねて埋める所
+        /// (<see cref="RunsByCrestGap"/>・EDO-0502 第24巡)。突き付けると重ねた分だけ縮んで駒が 0 になった。</summary>
+        public bool[] noAbut = new bool[2];
         public float Len { get { return Vector2.Distance(a, b); } }
         public Vector2 Dir { get { return (b - a).normalized; } }
     }
@@ -1113,6 +1116,7 @@ public static partial class EdoBuild
                         endDesc[side] = "口の縁 → ⛔ 見切り石を退けた ⇒ 相手の実面へ直に(駒 " + to.Count + ")";
                     }
                 }
+                else if (segs[k].noAbut[e]) endDesc[side] = "打ち切り(重ねて埋める run の端 ── 突き付けない)";
                 else
                 {
                     foreach (var g in pool) if (g != null)

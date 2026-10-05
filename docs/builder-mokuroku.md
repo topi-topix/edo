@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 92・関数 812(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 92・関数 814(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -19,7 +19,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoDoiBuilder.Mizo.cs](#edodoibuildermizocs) | 土井 S9 排水(案A・EDO-0533)── 指図 drains[D1〜D13] の segs/masu/cross/toriai/outletBuild と drainKata(型 A〜P)を読み、 | 1 | 9 |
 | [EdoDoiBuilder.Mon.cs](#edodoibuildermoncs) | ══════════════════════════════════════════════════════════════════════ | 1 | 17 |
 | [EdoDoiBuilder.Mune.cs](#edodoibuildermunecs) | ══════════════════════════════════════════════════════════════════════ | 2 | 11 |
-| [EdoDoiBuilder.Niwa.cs](#edodoibuilderniwacs) | 土井大隅守上屋敷 — 奥庭(Stage6)。 | 4 | 79 |
+| [EdoDoiBuilder.Niwa.cs](#edodoibuilderniwacs) | 土井大隅守上屋敷 — 奥庭(Stage6)。 | 4 | 81 |
 | [EdoDoiBuilder.Saku.cs](#edodoibuildersakucs) | 土井 S6 柵・垣(案A・EDO-0533)── 指図 fences[] を読み、EdoBuild.GakiRun で敷く。 | 1 | 3 |
 | [EdoDoiBuilder.Shokusai.cs](#edodoibuildershokusaics) | 土井 S8 植栽(案A・EDO-0533)── 林方の設計(指図 planting)を生成器が撒いた点 `doi_impl.json` の planting.points を据える。 | 2 | 4 |
 | [EdoDoiBuilder.cs](#edodoibuildercs) | 土井大隅守上屋敷(三河刈谷藩2万3千石・譜代・雁間)ビルダー。 | 15 | 88 |
@@ -163,6 +163,8 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `PondOverlapsCell(wx, wz, half)` | `bool` |  | セル(世界の軸平行な正方形)が汀多角形と少しでも重なるか(coverage &gt; 0)。 |
 | `EditNiwaHeights(fn, label)` | `string` |  | ハイトマップの窓を開いて fn(u, v, 現況) で書き、閉じる。 |
 | `ShoreRule()` | `ShoreRuleV` |  | — |
+| `TamotoW(widen)` | `List<EdoBuild.NiwaTamoto>` |  | 石橋の袂(世界)── 指図 `hashi[]` の a・b(汀の点)・L・W と exceptAbut の幅の余りから EdoBuild.NiwaTamotoOfBridge で引く。 |
+| `TamotoSeatCheck(sr, tamoto)` | `string` |  | 6a の後の袂の座の検め(abutPad ── 硬い)。 |
 | `SuhamaWaterLine(run, fromWater)` | `List<Vector2>` |  | 州浜(`suhama[name=run]`)の見えている汀の折れ線(グリッド)と、水の側の帯の幅 fromWater[m]。 |
 | `SuhamaZone(line, q, dVisM, fromWater)` | `bool` |  | 点 q(汀の内)が州浜の帯の内か: 最寄りの見えている汀が州浜の区間で、そこから fromWater m 以内。 |
 | `BridgeAxesW()` | `List<Vector2[]>` |  | 橋(`hashi[]`)の軸 a→b(世界)。 |

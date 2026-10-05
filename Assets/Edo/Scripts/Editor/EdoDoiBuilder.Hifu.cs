@@ -30,6 +30,7 @@ public static partial class EdoDoiBuilder
         int mizoN = 0; var hollow = new List<GameObject>(); var channel = new List<GameObject>();
         foreach (Transform c in Group("Mizo")) if (c.gameObject.activeInHierarchy) { parts.Add(c.gameObject); hollow.Add(c.gameObject); mizoN++; if (!c.name.StartsWith("Ankyo", StringComparison.Ordinal)) channel.Add(c.gameObject); }
         // ⭐ 溝の脇の守り(硬い・2026-10-05 EDO-0533 第14巡): 溝の駒(蓋石 Ankyo* は窪みを持たないので除く)の外形の外の皮は造成の面より下げない(EdoBuild.CutEdgeSkin の keepGradeBeside)
+        //   床は min(造成の面, 溝の天端の外の辺から切土の法 1:batterCut)── 天端が沈んだ溝の脇は法で造成の面へ上げる(歯形を立てない・2026-10-06 第15巡 keepBatter)
         // 面 = 指図 terraces のうち設計の地盤が面の高さに収まる物(勾配の面は graded のまま描く)
         var faces = new List<EdoBuild.SkinFace>(); var f = Grid; var G = Graded;
         foreach (var o in A(D["terraces"]) ?? new List<object>())
@@ -82,7 +83,8 @@ public static partial class EdoDoiBuilder
         var seated = EdoBuild.SeatedUnder(rootGo != null ? rootGo.transform : null, grp);
         var rep = EdoBuild.CutEdgeSkin("Doi", grp, parts, faces, tol, design: design, backfill: 0f, sealFace: true,
                                        crestBandParts: band, plantPoints: plant, faceKeepOut: keep,
-                                       hollowParts: hollow, seated: seated, keepGradeBeside: channel);
+                                       hollowParts: hollow, seated: seated, keepGradeBeside: channel,
+                                       keepBatter: design.batterCut > 1e-3f ? design.batterCut : 1f);
         AssetDatabase.SaveAssetIfDirty(EdoBuild.T().terrainData);
         sb.AppendLine("  庭の土工の矩形 " + keep.Count + " を面の縁から外した");
         sb.AppendLine("  古い皮を外して塞いだ升 " + filled + " / 部材 " + rep.parts + "(土留め " + band.Count + "・石段 " + stairN + "・溝 " + mizoN + ")/ 面 " + faces.Count + " / 守った点 " + plant.Count + " / 据わりを守るメッシュ " + seated.Count);

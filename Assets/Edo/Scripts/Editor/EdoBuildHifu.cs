@@ -105,6 +105,9 @@ public static partial class EdoBuild
         /// 外形の縁で閉じる(3c)の下げを造成の面で止めた点。<see cref="coverSunk"/> = 被りのうち、溝・蓋の天端が造成の面より低い所の物(溝の側 ──
         /// 深さの版が足りず天端が地盤の下へ沈んだ溝・地盤の下に据わった蓋。皮は造成の面より下げない)。</summary>
         public int keepHeld, keepRimHeld, coverSunk; public string coverSunkBy;
+        /// <summary>溝の脇の法(<c>keepBatter</c> &gt; 0 を渡したとき・2026-10-06 EDO-0533 第15巡): 溝の天端が造成の面より沈んだ所で、外形の外の皮を
+        /// 天端の外の辺から切土の法(1:keepBatter)で造成の面まで上げた点(= 造成の面より下げた点)と、その下げの最大・場所。</summary>
+        public int keepBatterCut; public float keepBatterMax; public Vector3 keepBatterAt;
         public override string ToString()
         {
             return (string.IsNullOrEmpty(floors) ? "" : "床を覆う部材:" + floors + "(面の下へ納めた皮 " + gateUnder + " 点) / ") + "穴 " + holesCut + " 升(部材 " + cellsParts + "・面の縁 " + cellsFace + "(うち縁の線の帯 " + cellsBand + ")・裏込め " + cellsFill +
@@ -127,6 +130,7 @@ public static partial class EdoBuild
                                        (coverPlantCell > 0 ? "・そのうち地形の木・植栽の点が立つ升 " + coverPlantCell + "〔" + coverPlantBy + "〕── 駒の側" : "") + ")" : "") +
                    (coverSunk > 0 ? "(うち溝・蓋の天端が造成の面より低い所 " + coverSunk + "〔" + coverSunkBy + "〕── 溝の側・皮は造成の面より下げない)" : "") +
                    (keepHeld + keepRimHeld > 0 ? " / 溝の脇の皮を造成の面で止めた " + keepHeld + " 点・外形の縁で閉じる下げを止めた " + keepRimHeld + " 点" : "") +
+                   (keepBatterCut > 0 ? " / 溝の天端が沈んだ脇を天端の外の辺から法で上げた " + keepBatterCut + " 点(造成の面から最大 " + keepBatterMax.ToString("F2") + "m 下げ @(" + keepBatterAt.x.ToString("F1") + ", " + keepBatterAt.z.ToString("F1") + ")── 溝の側: 天端の沈み)" : "") +
                    " / メッシュ " + mesh +
                    (seatGuard ? "\n    硬い(許容0): 据わりの守り ── 駒 " + seatPieces + "(部材に載るので外した " + seatOnPart + ")・地面に触れていた点 " + seatContacts +
                                 " / 皮を上げた頂点 " + seatRaised + "(うち周りへ法で下ろした " + seatMound + ")" + (seatRaised > 0 ? "・最大 " + seatRaiseMax.ToString("F3") + "m @(" + seatRaiseAt.x.ToString("F1") + ", " + seatRaiseAt.z.ToString("F1") + ")〔" + seatRaiseBy + "〕" : "") +
@@ -208,6 +212,22 @@ public static partial class EdoBuild
     /// <summary>天端の帯の深さ・周りを見る半径[m](<see cref="TopIndex.banded"/>)。0.15 = 野面の天端の石の凹凸(±0.08)は入り、
     /// 天端の奥の控え(天端 − 0.3)は外れる ── 控えは上の面の土に入るのが正しい納め(0.3 では控えを天端と読み、背の帯に 0.25m の溝が残った)。</summary>
     public const float CREST_BAND = 0.15f, CREST_R = 0.6f;
+    /// <summary>溝の脇の法(<see cref="CutEdgeSkin"/> の keepBatter): 法の足を溝の駒の天端の外の辺より下げる量[m](縁石の外の面へ皮を納める ──
+    /// 天端に被らない)と、法を引く外形からの範囲の上限[m](沈み 1.5m まで・法 1:1 で)。</summary>
+    const float KEEP_RIM_TUCK = 0.02f, KEEP_BATTER_R = 1.5f;
+    /// <summary>凸な外形の縁上で点 <paramref name="p"/> に最も近い点と、その距離。</summary>
+    static Vector2 HullNearest(Vector2[] poly, Vector2 p, out float dist)
+    {
+        Vector2 best = p; dist = float.MaxValue;
+        for (int i = 0; i < poly.Length; i++)
+        {
+            Vector2 a = poly[i], b = poly[(i + 1) % poly.Length], ab = b - a; float l2 = ab.sqrMagnitude;
+            float t = l2 > 1e-12f ? Mathf.Clamp01(Vector2.Dot(p - a, ab) / l2) : 0f;
+            var c = a + ab * t; float d = (p - c).magnitude;
+            if (d < dist) { dist = d; best = c; }
+        }
+        return best;
+    }
     sealed class TopIndex
     {
         readonly List<Vector3[]> tris = new List<Vector3[]>();
@@ -532,6 +552,13 @@ public static partial class EdoBuild
     /// 溝・蓋の天端が造成の面より低い所では皮がその縁に被る ── 被りのうち該当する物は <see cref="SkinReport.coverSunk"/>(溝の側)として名乗る。
     /// ⛔ 2026-10-05 第13巡まで、溝 D2 の天端が地盤の 0.5〜0.64m 下にある所(深さの版の上限 0.30 を超える区間)で、溝の外形の外 0.5m の皮を天端 26.06 まで
     /// 下げ(地盤 26.6)、幅 0.84 の蓋石の両端・蔵の石段の脇が 0.16〜0.5m の窪みの上に出ていた。渡さなければ従来どおり。</para>
+    /// <para>⭐ <paramref name="keepBatter"/> &gt; 0(溝の脇の法 ── 硬い・許容0。2026-10-06 EDO-0533 第15巡): 上の守りの床を、点ごとに
+    /// **min(造成の面, 最寄りの溝の駒の天端の外の辺の高さ − <see cref="KEEP_RIM_TUCK"/> + 外形の縁からの水平距離 ÷ keepBatter)** にする
+    /// (位置について連続な床 ── 二値で止めない)。溝の外の皮はこの床まで下げ、床より下げない。天端が造成の面にある溝では床 = 造成の面(従来と同じ)、
+    /// 天端が沈んだ溝(深さの版が勾配の落ちに足りない区間 ── S9 の「深さが上限を超える区間」)では、天端の外の辺から切土の法で造成の面まで上がる。
+    /// ⛔ 2026-10-05 第14巡まで、守りは頂点ごとに「造成の面で止める/止めない」の二値で、外形の外の頂点は造成の面(26.30)・内の頂点は天端 − under(25.75)
+    /// のまま、溝の斜めの線が 0.25m 格子を階段に横切る所で隣どうしが 0.55m 違い、三角形が溝の縁石に被る歯形(三角の山の列)が立った(溝 D2 seg1 の脇・
+    /// 被り 1,481 点が「溝の側」)。0 なら第14巡の二値の守りのまま。当たる先: keepGradeBeside を渡す邸(いまは土井 Stage4b)の全ての溝の脇。</para>
     public static SkinReport CutEdgeSkin(string name, Transform parent, IList<GameObject> parts, IList<SkinFace> faces,
                                          float faceTol, float step = 0.25f, float margin = 0.5f, float eps = 0f, float under = 0.15f,
                                          SkinDesign design = null, float drawTol = 0.10f, float backfill = 0f, bool sealFace = false,
@@ -539,7 +566,7 @@ public static partial class EdoBuild
                                          IList<GameObject> crestBandParts = null, IList<Vector2> plantPoints = null,
                                          IList<GameObject> floorParts = null, IList<Vector2[]> faceKeepOut = null,
                                          IList<GameObject> hollowParts = null, IList<GameObject> seated = null,
-                                         IList<GameObject> keepGradeBeside = null)
+                                         IList<GameObject> keepGradeBeside = null, float keepBatter = 0f)
     {
         var r = new SkinReport();
         var t = T(); var td = t.terrainData; var org = t.transform.position;
@@ -594,6 +621,31 @@ public static partial class EdoBuild
         };
         // 点 → その点の造成の面(溝の外形の外で、掘る部材の cap が当たった点だけ)── 3c の下げもここで止める
         var keepFloor = keepSet != null ? new Dictionary<long, float>() : null;
+        // 溝の脇の法(keepBatter > 0): 外形の外の点 q の床 = 溝の駒ごとに「天端の外の辺の高さ − KEEP_RIM_TUCK + 外形の縁からの距離 ÷ keepBatter」の最小
+        //   (q を含む外形は呼び手が除く)。天端の外の辺の高さ = 外形の縁の最寄りの点から内へ 0.03・0.08m の、その駒の上向きの面の最高。無ければ NaN。
+        //   min を取る関数はどれも位置について連続 ⇒ 床は連続(頂点ごとの二値で止めない ── 歯形を立てない)。
+        Func<Vector2, float> BatterFloor = q =>
+        {
+            if (keepSet == null || keepBatter <= 1e-3f) return float.NaN;
+            float best = float.NaN;
+            foreach (var k in keepHulls)
+            {
+                var hb = idx.bounds[k];
+                if (q.x < hb.x - KEEP_BATTER_R || q.x > hb.z + KEEP_BATTER_R || q.y < hb.y - KEEP_BATTER_R || q.y > hb.w + KEEP_BATTER_R) continue;
+                float d; var c = HullNearest(idx.hulls[k], q, out d);
+                if (d > KEEP_BATTER_R || d < 1e-5f) continue;
+                var inw = (c - q) / d; float rim = float.NaN;
+                foreach (float s in new[] { 0.03f, 0.08f })
+                {
+                    int who; var sp = c + inw * s; float tp = idx.TopRaw(sp.x, sp.y, out who);
+                    if (who == k && !float.IsNaN(tp) && (float.IsNaN(rim) || tp > rim)) rim = tp;
+                }
+                if (float.IsNaN(rim)) continue;
+                float f = rim - KEEP_RIM_TUCK + d / keepBatter;
+                if (float.IsNaN(best) || f < best) best = f;
+            }
+            return best;
+        };
 
         // ---- 2 穴の升
         var cells = new HashSet<long>();
@@ -1250,7 +1302,16 @@ public static partial class EdoBuild
                         // ⭐ 溝の脇の守り(keepGradeBeside・硬い): この点が溝の駒の外形の外なら、掘る部材(溝・蓋)の天端で下げる cap を造成の面 hgt0 で止める
                         //   (cap を掛ける前の高さ = 面・設計の地盤)。外形の内か(keepY = NaN)は掘る部材の cap に当たったときだけ引く。
                         float keepY = float.NaN; bool keepAsked = false, keepHit = false;
-                        Func<float> KeepY = () => { if (!keepAsked) { keepAsked = true; if (keepSet != null && !InKeepHull(p)) keepY = hgt0; } return keepY; };
+                        //   keepBatter > 0 なら床は min(造成の面, 溝の天端の外の辺からの法)── 位置について連続(BatterFloor)
+                        Func<float> KeepY = () =>
+                        {
+                            if (!keepAsked)
+                            {
+                                keepAsked = true;
+                                if (keepSet != null && !InKeepHull(p)) { float bf = BatterFloor(p); keepY = float.IsNaN(bf) ? hgt0 : Mathf.Min(hgt0, bf); }
+                            }
+                            return keepY;
+                        };
                         if (!float.IsNaN(self))
                         {
                             cap = self - under; if (faceTop.Contains(CK(gi, gj))) cap = Floor(cap, gi, gj);
@@ -1285,6 +1346,21 @@ public static partial class EdoBuild
                         if (!float.IsNaN(self)) { float sc = self - (FillSeeded(gi, gj) ? FILL_UNDER : under); capF = float.IsNaN(capF) ? sc : Mathf.Min(capF, sc); }
                         float pre = hgt;
                         if (!float.IsNaN(cap) && hgt > cap) { hgt = cap; r.clamped++; if (!float.IsNaN(self)) r.under++; }
+                        // ⭐ 溝の脇の法(keepBatter > 0・硬): 天端が沈んだ溝の外形の外は、床(天端の外の辺からの法)まで下げる ── 造成の面のまま残すと
+                        //   外形の内の頂点(天端 − under)との三角形が縁石に被って歯形になる。床が造成の面にある点(沈んでいない溝・法の届かない点)は触らない。
+                        if (keepBatter > 1e-3f && keepSet != null)
+                        {
+                            float ky = KeepY();
+                            if (!float.IsNaN(ky) && ky < hgt0 - 1e-4f)
+                            {
+                                keepHit = true;
+                                if (hgt > ky)
+                                {
+                                    hgt = ky; r.keepBatterCut++;
+                                    if (hgt0 - ky > r.keepBatterMax) { r.keepBatterMax = hgt0 - ky; r.keepBatterAt = new Vector3(x, ky, z); }
+                                }
+                            }
+                        }
                         if (keepHit) { keepFloor[k] = keepY; if (hgt >= keepY - 1e-4f && !float.IsNaN(cap)) r.keepHeld++; }
                         // ⭐ 裏込め(backfill > 0): 部材の底より下にある所は底まで盛る。外形の中では(縁の FLAT の帯を除き)
                         //   その点の部材の底より上げない(駒の面から皮を出さない)。天端の下へ納める cap は守る。

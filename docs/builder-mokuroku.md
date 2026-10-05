@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 90・関数 805(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 92・関数 812(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -19,13 +19,13 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoDoiBuilder.Mizo.cs](#edodoibuildermizocs) | 土井 S9 排水(案A・EDO-0533)── 指図 drains[D1〜D13] の segs/masu/cross/toriai/outletBuild と drainKata(型 A〜P)を読み、 | 1 | 9 |
 | [EdoDoiBuilder.Mon.cs](#edodoibuildermoncs) | ══════════════════════════════════════════════════════════════════════ | 1 | 17 |
 | [EdoDoiBuilder.Mune.cs](#edodoibuildermunecs) | ══════════════════════════════════════════════════════════════════════ | 2 | 11 |
-| [EdoDoiBuilder.Niwa.cs](#edodoibuilderniwacs) | 土井大隅守上屋敷 — 奥庭(Stage6)。 | 3 | 75 |
+| [EdoDoiBuilder.Niwa.cs](#edodoibuilderniwacs) | 土井大隅守上屋敷 — 奥庭(Stage6)。 | 4 | 79 |
 | [EdoDoiBuilder.Saku.cs](#edodoibuildersakucs) | 土井 S6 柵・垣(案A・EDO-0533)── 指図 fences[] を読み、EdoBuild.GakiRun で敷く。 | 1 | 3 |
-| [EdoDoiBuilder.Shokusai.cs](#edodoibuildershokusaics) | 土井 S8 植栽(案A・EDO-0533)── 林方の設計(指図 planting)を生成器が撒いた点 `doi_impl.json` の planting.points を据える。 | 1 | 2 |
+| [EdoDoiBuilder.Shokusai.cs](#edodoibuildershokusaics) | 土井 S8 植栽(案A・EDO-0533)── 林方の設計(指図 planting)を生成器が撒いた点 `doi_impl.json` の planting.points を据える。 | 2 | 4 |
 | [EdoDoiBuilder.cs](#edodoibuildercs) | 土井大隅守上屋敷(三河刈谷藩2万3千石・譜代・雁間)ビルダー。 | 15 | 88 |
 | [EdoMatsudairaDewaBuilder.Niwa.cs](#edomatsudairadewabuilderniwacs) | 松平出羽守上屋敷 — 庭の工程(池・築山・水の系・石組・点景・滝見口)。 | 9 | 30 |
 | [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 16 | 120 |
-| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 19 | 133 |
+| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 19 | 134 |
 | [EdoSannoShaBuilder.cs](#edosannoshabuildercs) | 山王権現社(日枝神社)本体+樹下家邸+山王門前町ビルダー (2026-08-11。観理院は 2026-09-26 に類型へ移し削除) | 1 | 31 |
 | [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 13 | 102 |
 | [EdoSanyashikiRebuild.cs](#edosanyashikirebuildcs) | 三屋敷(太田・加納・鍋島=松平肥前守)の区画を下書きv3へ更新 (2026-08-08) | 0 | 6 |
@@ -133,7 +133,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `Stage5_Mune()` | `string` | 公 | S5 棟(案A・EDO-0533)。① 御殿7棟を EdoGotenKit.Mune(入側四周1間 = const.moyaBand.irikawa・入母屋 = munes[].roof・床下の足元)で、 面 = 造成後… |
 | `PlaceGotenA(line)` | `void` |  | — |
 | `PlaceLinksA(line)` | `void` |  | — |
-| `Stage5b_RokaAshi()` | `string` | 公 | 廊下の柱の足を、今の描かれた地表で据え直す(EDO-0533 第9巡)。 |
+| `Stage5b_RokaAshi()` | `string` | 公 | 廊下の柱の足と御殿の棟の床下の足元を、今の描かれた地表で据え直す(EDO-0533 第9巡・棟の足元は第11巡)。 |
 | `PlaceServiceA(line)` | `void` |  | — |
 | `PlaceWellsA(line)` | `void` |  | — |
 
@@ -145,6 +145,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 |---|---|---|
 | `検査④ 池が水面の下に納まっているか PondQA` | `PondQAMenu` | `PondQA` |
 | `6 奥庭(掘削・護岸・点景・園路・稲荷・植栽)` | `Stage6Menu` | `Stage6_Niwa`, `Niwa_A_Dokou`, `Niwa_B_Gogan`, `Niwa_C_Mizushiri` |
+| `6i 池の水面の上に反射プローブを置いて焼く(6h の後)` | `Niwa_I_Menu` | `Niwa_I_Kagami` |
 | `6a 池を掘り築山を盛る(⛔ WaterBaker.Recarve は呼ばない)` | `Niwa_A_Menu` | `Niwa_A_Dokou` |
 
 | 関数 | 返す | 公開 | 何をするか(注釈の一文目) |
@@ -172,6 +173,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `InWater(u, v)` | `bool` |  | 水面メッシュの縁の内側か(⛔ `NiwaM.InPond` は設計の汀で、こちらは見える汀)。 |
 | `PondQA()` | `string` | 公 | — |
 | `Stage6_Niwa()` | `string` | 公 | — |
+| `Niwa_I_Kagami()` | `string` | 公 | — |
 | `Niwa_A_Dokou()` | `string` | 公 | — |
 | `Garden(name)` | `Dictionary<string, object>` |  | 指図の庭を名で引く(`gardens[].name`)。 |
 | `UV(o)` | `Vector2` |  | — |
@@ -194,6 +196,8 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `Kutsunugi(grp, kg, nm, notes)` | `bool` |  | 沓脱石一つ(数の topY・水切りの向き mizukiri.to)。 |
 | `ReadAbutSeat(o, nm, why)` | `EdoBuild.NiwaAbutSeatSpec` |  | 指図 `hashi[].abutSeat` を据えの作法へ読む(言い方の照合はここ・据えは EdoBuild.NiwaAbutStone)。 |
 | `AbutSeatLine(ar, sp)` | `string` |  | 据えの作法で据えた橋台石の刷り(硬い = 埋め ≤ umeMax・柔らかい = 当たりの面・刷るだけ = 隙と起伏)。 |
+| `AboveGroundNote(bestTopAbove)` | `string` |  | 汀の石を建てなかった名指しに添える「天端と地表」の一句(天端が地表の下に沈む候補しか無かったとき)。 |
+| `AbutAlts(api)` | `List<string>` |  | 橋台石の「石の版を替える」先(指図 abutSeat.tenba)── 名指しの部材が個体の族(Own.Ishigumi(i))なら同じ族の他の個体。 |
 | `Niwa_E_Enro()` | `string` |  | — |
 | `Niwa_F_Yashiro()` | `string` |  | — |
 | `Niwa_G_Kaki()` | `string` |  | — |
@@ -242,10 +246,12 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | メニュー | 関数 | 呼ぶ関数(Stage) |
 |---|---|---|
 | `8 植栽(算出物の点を据える)` | `Stage8ShokusaiMenu` | `Stage8_Shokusai` |
+| `8b 植栽・庭の木の根元を据え直す(9・4b の後)` | `Stage8bSuenaoshiMenu` | `Stage8b_RootReseat` |
 
 | 関数 | 返す | 公開 | 何をするか(注釈の一文目) |
 |---|---|---|---|
 | `Stage8_Shokusai()` | `string` | 公 | — |
+| `Stage8b_RootReseat()` | `string` | 公 | 植栽・庭の木・刈込・下草の根元を、今の描かれた地表で据え直す(EDO-0533 第11巡 ── 根元の浮き 19・最大 0.209)。 |
 
 ## EdoDoiBuilder.cs
 
@@ -597,6 +603,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `Stage2b_Dan()` | `string` | 公 | — |
 | `BackTrenches(sb)` | `List<BackTrench>` |  | 返しの石垣と溝を解く(Stage2b の据えと Stage3b の皮の設計の地盤が同じ答えを読む)。 |
 | `TrenchAt(ts, q)` | `float` |  | 点 q が溝(背の面から off の帯・止めの妻から返しの端 + off まで)の中なら溝の高さ、外なら NaN。 |
+| `EndDecisions(nm, w, nodes, tops, sb, rets)` | `void` |  | 段の土留めの両端の決め(指図 terraceWalls[].ends・EDO-0502 第20巡 TW_Minami_Koshi)。 |
 | `PlaceDanKaki(fgrp, walls, wallOf, lineOf, topOf)` | `string` |  | 天端の垣を、指図 terraceWalls[].fenceOnTop の型で据える(置き方は EdoBuild.PlaceCrestFence)。 |
 | `Stage3_Shukaku()` | `string` | 公 | — |
 | `Stage3b_Hifu()` | `string` | 公 | — |

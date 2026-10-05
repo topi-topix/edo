@@ -2326,57 +2326,25 @@ public static class EdoOkabeYashikiBuilder
                     }
                     continue;
                 }
-                // ⭐ 両端の決め(指図 terraceWalls[].ends・EDO-0502 第20巡 TW_Minami_Koshi): 端ごとに、線を延ばして落差(天端 − 低い側の地表)が
-                //   0.6 未満になる所があれば、そこまで延ばして土羽で止める。その前に端の側の長屋の妻の線に届けば、妻の線で長屋の側へ返して背の線で止める
-                //   (長屋の背から一間の内に土を入れない)。落差・妻・背は実測(SkinGround・据えた長屋の札の躯体)。0.6 は指図(stop・ends)の値。
+                // ⭐ 両端の決め(指図 terraceWalls[].ends・EDO-0502 第20巡)── 延ばして土羽か、妻の線で返すか(EndDecisions)。
+                //   返しは主の線に入れず、妻の線までの延長(出隅・主と同じ天端)だけを主へ足す。返しの run は天端の割りと背の小段(指図 return*)ごとに
+                //   SodeBenches が "<名>#ret<端>" で解き、下の袖と同じ流れで据える(第22巡)。
                 {
-                    Dictionary<string, object> twK = null;
-                    foreach (var o2 in A(Get(D, "terraceWalls")) ?? new List<object>()) { var t2 = O(o2); if (t2 != null && S(Get(t2, "name")) == nm) twK = t2; }
-                    if (twK != null && Get(twK, "ends") != null && S(Get(w, "lo")) == null && nodes.Count >= 2)
+                    List<EndReturn> rets0;
+                    EndDecisions(nm, w, nodes, tops, sb, out rets0);
+                    List<KeyValuePair<int, EdoBuild.BackBench>> rbk;
+                    if (sodeB.TryGetValue(nm + "#ret", out rbk))
                     {
-                        var kakK = GameObject.Find(GN) == null ? null : GameObject.Find(GN).transform.Find("Kakoi");
-                        for (int ei = 0; ei < 2 && kakK != null; ei++)
+                        var cnt2 = new Dictionary<int, int>();
+                        foreach (var kv in rbk)
                         {
-                            Vector2 pe = ei == 0 ? nodes[0] : nodes[nodes.Count - 1], pn = ei == 0 ? nodes[1] : nodes[nodes.Count - 2];
-                            Vector2 dE = (pe - pn).normalized, nL = new Vector2(dE.y, -dE.x);
-                            float yT = tops[ei == 0 ? 0 : tops.Count - 1];
-                            // 低い側 = 線の両脇 2m の設計の地表の低い方
-                            float gp = SkinGround(pe.x + nL.x * 2f, pe.y + nL.y * 2f), gm = SkinGround(pe.x - nL.x * 2f, pe.y - nL.y * 2f);
-                            Vector2 lowN = gp < gm ? nL : -nL;
-                            // 端の側の長屋(低い側に在り、札の躯体の走りが端の射影を含む棟)と、延ばす向きの妻
-                            float tG = float.NaN, backD = float.NaN; Vector2 axG = Vector2.zero, eaG = Vector2.zero, yardG = Vector2.zero; string nagN = null;
-                            foreach (var r in Runs)
-                            {
-                                if (!r.Nagaya) continue; var tN = kakK.Find(r.name); if (tN == null) continue;
-                                Vector2 ea = EdgePt(r.edge, 0f), ax = (EdgePt(r.edge, 1f) - ea).normalized, yard = -OutNormal(r.edge);
-                                var sp = EdoBuild.SpecBodySpanAlong(tN.gameObject, ea, ax); if (float.IsNaN(sp.x)) continue;
-                                float sE = Vector2.Dot(pe - ea, ax), dIn = Vector2.Dot(pe - ea, yard);
-                                if (sE < sp.x - 0.01f || sE > sp.y + 0.01f || dIn < 0f || dIn > 12f || Vector2.Dot(lowN, -yard) < 0.3f) continue;
-                                float da = Vector2.Dot(dE, ax); if (Mathf.Abs(da) < 0.2f) continue;
-                                float sG = da > 0f ? sp.y : sp.x; tG = (sG - sE) / da;
-                                float seatY = tN.position.y; backD = EdoBuild.FaceOut(tN.gameObject, ea, yard, seatY + 0.1f, seatY + 1.2f);
-                                axG = da > 0f ? ax : -ax; eaG = ea; yardG = yard; nagN = r.name; break;
-                            }
-                            float tMax = float.IsNaN(tG) ? 12f : Mathf.Max(0f, tG);
-                            float tStop = float.NaN;
-                            for (float tt = 0f; tt <= tMax + 1e-3f; tt += 0.25f)
-                            { var q = pe + dE * tt + lowN * 2f; float g = SkinGround(q.x, q.y); if (!float.IsNaN(g) && yT - g < 0.6f) { tStop = tt; break; } }
-                            if (!float.IsNaN(tStop))
-                            {
-                                Vector2 pz = pe + dE * tStop;
-                                if (tStop > 0.01f) { if (ei == 0) { nodes.Insert(0, pz); tops.Insert(0, yT); } else { nodes.Add(pz); tops.Add(yT); } }
-                                sb.AppendLine("    両端の決め " + key + " 端" + ei + ": 延ばして落差 0.6 未満で止める(土羽)── 延長 " + tStop.ToString("F2") + "m" + (nagN != null ? "(" + nagN + " の妻まで " + tG.ToString("F2") + "m)" : ""));
-                            }
-                            else if (nagN != null && !float.IsNaN(backD))
-                            {
-                                Vector2 pg = pe + dE * Mathf.Max(0f, tG);
-                                float dG = Vector2.Dot(pg - eaG, yardG); Vector2 pb = pg - yardG * (dG - backD);
-                                var add = new List<Vector2>(); if (tG > 0.01f) add.Add(pg); add.Add(pb);
-                                if (ei == 0) { add.Reverse(); nodes.InsertRange(0, add); foreach (var _ in add) tops.Insert(0, yT); }
-                                else { nodes.AddRange(add); foreach (var _ in add) tops.Add(yT); }
-                                sb.AppendLine("    両端の決め " + key + " 端" + ei + ": 妻の線まで落差 0.6 未満にならない ── " + nagN + " の妻の線で長屋の側へ返す(延長 " + Mathf.Max(0f, tG).ToString("F2") + "m・返し " + (dG - backD).ToString("F2") + "m で背の線に止める)");
-                            }
-                            else sb.AppendLine("    両端の決め " + key + " 端" + ei + ": ⚠ 12m 延ばしても落差 0.6 未満にならず端の側の長屋も無い ── 延ばさない");
+                            int ci0; cnt2.TryGetValue(kv.Key, out ci0); cnt2[kv.Key] = ci0 + 1;
+                            var bk = kv.Value; float yt = bk.top; benchAll.Add(bk);
+                            string rk = key + "#ret" + kv.Key;
+                            nozSegs.Add(new EdoBuild.NozuraSeg { name = rk + "_" + ci0, a = bk.a, b = bk.b, crestAt = sl => yt });
+                            if (!lineOf.ContainsKey(rk)) { wallOf[rk] = w; lineOf[rk] = new List<Vector2> { bk.a, bk.b }; topOf[rk] = yt; }
+                            else lineOf[rk].Add(bk.b);
+                            sb.AppendLine("    返し " + rk + "_" + ci0 + ": 長さ " + Vector2.Distance(bk.a, bk.b).ToString("F2") + "m 天端 " + yt.ToString("F2") + "(背の地盤を 0.5 刻みで切り上げ)・背の小段 幅 " + bk.w.ToString("F2"));
                         }
                     }
                 }
@@ -2586,6 +2554,63 @@ public static class EdoOkabeYashikiBuilder
             if (s >= -0.05f && s <= L && d >= -0.30f && d <= t.off) return t.y;
         }
         return float.NaN;
+    }
+
+
+    /// <summary>端の返し(EndDecisions の答え)── 妻の線の点 pg(出隅)から背の線の点 pb まで。back = 返しの背(長屋の溝と逆の側)。</summary>
+    public class EndReturn { public int end; public Vector2 pg, pb, back; public string nagaya; }
+
+    /// <summary>**段の土留めの両端の決め**(指図 terraceWalls[].ends・EDO-0502 第20巡 TW_Minami_Koshi)。端ごとに、線を延ばして落差(天端 − 低い側の地表)が
+    /// 0.6 未満になる所があればそこまで延ばして土羽で止める(nodes に足す)。その前に端の側の長屋の妻の線に届けば、妻の線まで延ばし(nodes に足す・出隅)、
+    /// そこから長屋の側へ返して背の線で止める返しを rets に返す(長屋の背から一間の内に土を入れない)。落差・妻・背は実測(SkinGround・札の躯体)。
+    /// 0.6 は指図(stop・ends)の値。lo の無い欄(腰石垣)だけ。</summary>
+    static void EndDecisions(string nm, Dictionary<string, object> w, List<Vector2> nodes, List<float> tops, System.Text.StringBuilder sb, out List<EndReturn> rets)
+    {
+        rets = new List<EndReturn>();
+        Dictionary<string, object> twK = null;
+        foreach (var o2 in A(Get(D, "terraceWalls")) ?? new List<object>()) { var t2 = O(o2); if (t2 != null && S(Get(t2, "name")) == nm) twK = t2; }
+        if (twK == null || Get(twK, "ends") == null || S(Get(w, "lo")) != null || nodes.Count < 2) return;
+        var kakK = GameObject.Find(GN) == null ? null : GameObject.Find(GN).transform.Find("Kakoi");
+        for (int ei = 0; ei < 2 && kakK != null; ei++)
+        {
+            Vector2 pe = ei == 0 ? nodes[0] : nodes[nodes.Count - 1], pn = ei == 0 ? nodes[1] : nodes[nodes.Count - 2];
+            Vector2 dE = (pe - pn).normalized, nL = new Vector2(dE.y, -dE.x);
+            float yT = tops[ei == 0 ? 0 : tops.Count - 1];
+            float gp = SkinGround(pe.x + nL.x * 2f, pe.y + nL.y * 2f), gm = SkinGround(pe.x - nL.x * 2f, pe.y - nL.y * 2f);
+            Vector2 lowN = gp < gm ? nL : -nL;
+            float tG = float.NaN, backD = float.NaN; Vector2 eaG = Vector2.zero, yardG = Vector2.zero; string nagN = null;
+            foreach (var r in Runs)
+            {
+                if (!r.Nagaya) continue; var tN = kakK.Find(r.name); if (tN == null) continue;
+                Vector2 ea = EdgePt(r.edge, 0f), ax = (EdgePt(r.edge, 1f) - ea).normalized, yard = -OutNormal(r.edge);
+                var sp = EdoBuild.SpecBodySpanAlong(tN.gameObject, ea, ax); if (float.IsNaN(sp.x)) continue;
+                float sE = Vector2.Dot(pe - ea, ax), dIn = Vector2.Dot(pe - ea, yard);
+                if (sE < sp.x - 0.01f || sE > sp.y + 0.01f || dIn < 0f || dIn > 12f || Vector2.Dot(lowN, -yard) < 0.3f) continue;
+                float da = Vector2.Dot(dE, ax); if (Mathf.Abs(da) < 0.2f) continue;
+                float sG = da > 0f ? sp.y : sp.x; tG = (sG - sE) / da;
+                float seatY = tN.position.y; backD = EdoBuild.FaceOut(tN.gameObject, ea, yard, seatY + 0.1f, seatY + 1.2f);
+                eaG = ea; yardG = yard; nagN = r.name; break;
+            }
+            float tMax = float.IsNaN(tG) ? 12f : Mathf.Max(0f, tG);
+            float tStop = float.NaN;
+            for (float tt = 0f; tt <= tMax + 1e-3f; tt += 0.25f)
+            { var q = pe + dE * tt + lowN * 2f; float g = SkinGround(q.x, q.y); if (!float.IsNaN(g) && yT - g < 0.6f) { tStop = tt; break; } }
+            if (!float.IsNaN(tStop))
+            {
+                Vector2 pz = pe + dE * tStop;
+                if (tStop > 0.01f) { if (ei == 0) { nodes.Insert(0, pz); tops.Insert(0, yT); } else { nodes.Add(pz); tops.Add(yT); } }
+                if (sb != null) sb.AppendLine("    両端の決め " + nm + " 端" + ei + ": 延ばして落差 0.6 未満で止める(土羽)── 延長 " + tStop.ToString("F2") + "m");
+            }
+            else if (nagN != null && !float.IsNaN(backD))
+            {
+                Vector2 pg = pe + dE * Mathf.Max(0f, tG);
+                float dG = Vector2.Dot(pg - eaG, yardG); Vector2 pb = pg - yardG * (dG - backD);
+                if (tG > 0.01f) { if (ei == 0) { nodes.Insert(0, pg); tops.Insert(0, yT); } else { nodes.Add(pg); tops.Add(yT); } }
+                rets.Add(new EndReturn { end = ei, pg = pg, pb = pb, back = dE, nagaya = nagN });
+                if (sb != null) sb.AppendLine("    両端の決め " + nm + " 端" + ei + ": 妻の線まで落差 0.6 未満にならない ── " + nagN + " の妻の線で長屋の側へ返す(延長 " + Mathf.Max(0f, tG).ToString("F2") + "m・返し " + (dG - backD).ToString("F2") + "m で背の線に止める)");
+            }
+            else if (sb != null) sb.AppendLine("    両端の決め " + nm + " 端" + ei + ": ⚠ 12m 延ばしても落差 0.6 未満にならず端の側の長屋も無い ── 延ばさない");
+        }
     }
 
     /// <summary>天端の垣を、指図 terraceWalls[].fenceOnTop の型で据える(置き方は <see cref="EdoBuild.PlaceCrestFence"/>)。
@@ -2845,6 +2870,44 @@ public static class EdoOkabeYashikiBuilder
                     }));
             }
             res[nm] = list;
+        }
+        // ⭐ 端の返し(指図 terraceWalls[].returnTop/returnBackfill/returnBackDrain・EDO-0502 第22巡 TW_Minami_Koshi)── 袖と同じ型で、
+        //   出隅の駒の先から背の地盤(妻の外)で天端を割り(RunsByBackSlope・run は 1 駒より短くしない)、各 run の背に小段(BackBench)。"<名>#ret" に入れる。
+        foreach (var o in A(Get(IMPL, "terraceWalls")) ?? new List<object>())
+        {
+            var w = O(o); if (w == null) continue; string nm = S(Get(w, "name"));
+            Dictionary<string, object> sw = null;
+            foreach (var o2 in A(Get(D, "terraceWalls")) ?? new List<object>()) { var w2 = O(o2); if (w2 != null && S(Get(w2, "name")) == nm) sw = w2; }
+            if (sw == null || Get(sw, "returnTop") == null || Get(sw, "returnBackfill") == null) continue;
+            string top = S(Get(sw, "returnTop")), bfT = S(Get(sw, "returnBackfill")), drT = S(Get(sw, "returnBackDrain"));
+            float step = rx(top, @"([0-9.]+)\s*刻み"), maxDrop = rx(top, @"背が\s*([0-9.]+)\s*を超えて");
+            float drop = rx(bfT, @"天端\s*[−\-]\s*([0-9.]+)"), wKen = rx(bfT, @"〜\s*([0-9.]+)\s*間"), bf = rx(bfT, @"法\s*1\s*:\s*([0-9.]+)"), maxFill = rx(bfT, @"盛りは\s*([0-9.]+)\s*以下");
+            float drn = rx(drT, @"1\s*/\s*([0-9.]+)");
+            var miss = new List<string>();
+            if (float.IsNaN(step)) miss.Add("returnTop の刻み"); if (float.IsNaN(maxDrop)) miss.Add("returnTop の下がる量"); if (float.IsNaN(drop)) miss.Add("returnBackfill の天端からの下げ");
+            if (float.IsNaN(wKen)) miss.Add("returnBackfill の幅"); if (float.IsNaN(bf)) miss.Add("returnBackfill の法"); if (float.IsNaN(maxFill)) miss.Add("returnBackfill の盛りの上限");
+            if (float.IsNaN(drn)) miss.Add("returnBackDrain の勾配"); if (float.IsNaN(depth)) miss.Add("avoid.dodomeCrestDepthM[野面の乱積み]");
+            if (miss.Count > 0) { if (note != null) note.AppendLine("  ★ " + nm + " の返し: 指図から読めない(" + string.Join("・", miss.ToArray()) + ")── 返しの割りと裏込めをしない"); continue; }
+            var ln = A(Get(w, "line")); if (ln == null || ln.Count < 2) continue;
+            var nodes = new List<Vector2>(); foreach (var q in ln) { var p = A(q); nodes.Add(new Vector2(F(p[0]), F(p[1]))); }
+            var tops = new List<float>(); var tl = A(Get(w, "tops")); for (int i = 0; i < nodes.Count; i++) tops.Add(tl != null && i < tl.Count ? F(tl[i]) : F(Get(w, "top")));
+            List<EndReturn> rets; EndDecisions(nm, w, nodes, tops, null, out rets);
+            float pieceL = 1.818f;   // 野面の駒の走り(PlaceNozuraNet の送り)── 「run は 1 駒より短くしない」
+            var list = new List<KeyValuePair<int, EdoBuild.BackBench>>();
+            foreach (var rt in rets)
+            {
+                Vector2 a = rt.pg, b = rt.pb; float L = Vector2.Distance(a, b); if (L < 0.3f) continue;
+                Vector2 t = (b - a) / L; float off = depth + 0.25f;
+                var runs = EdoBuild.RunsByBackSlope(L, sl => DesignY(a + t * sl + rt.back * off), step, maxDrop, pieceL);
+                float yMain = tops[0];
+                foreach (var r in runs)
+                    list.Add(new KeyValuePair<int, EdoBuild.BackBench>(rt.end, new EdoBuild.BackBench
+                    {
+                        name = nm + "_ret" + rt.end, a = a + t * r.x, b = a + t * r.y, back = rt.back, top = Mathf.Min(yMain, r.z), drop = drop, w = wKen * C("ken"),
+                        drain = 1f / drn, bf = bf, maxFill = maxFill, parcel = Poly, baseAt = DesignY
+                    }));
+            }
+            if (list.Count > 0) res[nm + "#ret"] = list;
         }
         return res;
     }

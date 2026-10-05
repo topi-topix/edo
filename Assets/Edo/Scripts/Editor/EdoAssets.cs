@@ -2576,7 +2576,11 @@ public static class EdoAssets
         /// **95 × 4.00(出隅)** — 土井 外周の基壇 辺12/13 の出隅(区画 doi の頂点 13・折れ 94.616°・天端 15.2 一本 = E12_N03 × E13_N01・
         /// 2026-10-04 EDO-0533)。角は parcels.json の多角形から小数のまま焼き、名は丸めた度。両脇は素の Castle Wall(見付 ≤1.01)なので丈 4.00。
         /// 実寸 4.59(局所 X −2.19〜2.40)× 4.00 × 4.60(Z −2.60〜2.00)・外面の張り出し 2.60。腕は素の 2.00(区間 5.45 / 12.90 に収まる)。
-        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 94.616 --h 4 --render</summary>
+        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 94.616 --h 4 --render
+        /// **100 × 4.00(出隅)** — 岡部 TW_Kado_Hokuto の返し(N39_1 の背から一間で返す折れ・#0_1 × #1_0・折れ 100.212° =
+        /// impl の線と区画 okabe の辺39 の向きから算出・2026-10-05 EDO-0502)。名は丸めた度(関数の書式は変えない ── "100" の 3 桁になる)。
+        /// 実寸 4.79(局所 X −2.39〜2.40)× 4.00 × 4.87(Z −2.87〜2.00)・外面の張り出し 2.87(−Y に 2 枚積んで切った)。腕は素の 2.00。
+        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 100.212 --h 4 --render</summary>
         public static string IshigakiKado(float deg, float h)
         {
             return "Assets/Edo/Models/Kado/Ishigaki_Kado_"

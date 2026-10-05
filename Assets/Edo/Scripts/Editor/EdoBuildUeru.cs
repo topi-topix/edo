@@ -106,6 +106,26 @@ public static partial class EdoBuild
         return res;
     }
 
+    /// <summary>**据えた植木の根元を、後から描き直された地表へ据え直す**(2026-10-05 EDO-0533 第11巡 ── 土井の植栽 19 本の根元が最大 0.209 浮いた。
+    /// S6 庭・S8 植栽で着けた後に S9 排水・S4b 縁の皮が地表を描き直し、根元が古い高さに残った)。
+    /// 根元の帯(<see cref="RootBandGap"/> ── 検査と同じ測り)の最も浮いた所が <paramref name="tol"/> を超える木だけを、その隙ぶん鉛直に沈める(硬い: 根元の浮き 0)。
+    /// 沈めた後の最も低い当たりの埋まり(<see cref="LowestGap"/>)が <paramref name="buryMax"/> を超えるなら動かさず false(呼び手が名指す ── ⛔ 浮かせて辻褄を合わせない)。
+    /// 浮いていない木は触らない(冪等)。⛔ 持ち上げはしない(埋まりは据えの余地)。<paramref name="sunk"/> = 沈めた量[m](0 = 触らない)・<paramref name="flt"/> = 据え直した後の根元の浮き。
+    /// 当たる先: 植木を据えた後に地表を描き直す邸(土井 Stage8b ── 植栽・庭の木・刈込・下草)。岡部・山王も皮を後から起こし直すなら同じ手で据え直せる。</summary>
+    public static bool ReseatRootBand(GameObject go, System.Func<float, float, float> bedAt, float buryMax, out float sunk, out float flt, float tol = 0.01f)
+    {
+        sunk = 0f; flt = float.NaN;
+        var r = RootBandGap(go, bedAt);
+        if (float.IsNaN(r.hi)) return false;
+        flt = r.hi;
+        if (r.hi <= tol) return true;
+        float low = LowestGap(go, bedAt);
+        if (!float.IsNaN(low) && low - r.hi < -buryMax - 1e-4f) return false;
+        go.transform.position -= new Vector3(0f, r.hi, 0f);
+        sunk = r.hi; flt = 0f;
+        return true;
+    }
+
     /// <summary>**最も低い当たりの隙**[m](負 = 埋まり)── 当たり = 格子ごとの最下点(<see cref="GroundCandidates"/>・幹・根張り・枝葉の全部)の 下端 − <paramref name="bedAt"/> の最小。
     /// ⭐ 完成の表の「植栽の埋没」と同じ測り(普請検査は全ての当たりの最小の隙で数える ── 根元の帯だけでは帯の外の幹の芯・山側の枝葉の埋まりを見落とす)。
     /// 床が NaN の当たりは数えない。当たりが無ければ NaN。当たる先: <see cref="NiwaField"/>.Put・<see cref="NiwaLeanTree"/> の埋まりの上限(NiwaSet.PLANT_BURY_MAX)。</summary>

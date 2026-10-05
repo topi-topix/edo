@@ -238,7 +238,7 @@ public static partial class EdoDoiBuilder
     [MenuItem(MENU + "5棟b 廊下の柱の足を据え直す(4b・9 の後)")]
     public static void Stage5bRokaAshiMenu() { Debug.Log("[Doi] " + Stage5b_RokaAshi()); }
 
-    /// <summary>**廊下の柱の足を、今の描かれた地表で据え直す**(EDO-0533 第9巡)。S5 の後に S9 排水・S4b 縁の皮を流すと地表が変わり、
+    /// <summary>**廊下の柱の足と御殿の棟の床下の足元を、今の描かれた地表で据え直す**(EDO-0533 第9巡・棟の足元は第11巡)。S5 の後に S9 排水・S4b 縁の皮を流すと地表が変わり、
     /// S5 で下ろした柱の足が皮の古い高さに残って浮く(L_OkuNagatsubone 0.176/0.155)。⇒ 地表を最後に触る巡(4b)の後にこれを流す。
     /// 浮いた柱だけを伸ばす(<see cref="EdoGotenKit.RokaFeetToGround"/>・冪等)。⛔ 置き方はここに書かない(規則21)。</summary>
     public static string Stage5b_RokaAshi()
@@ -255,6 +255,29 @@ public static partial class EdoDoiBuilder
             if (nf > 0) sb.AppendLine("  廊下 " + l.name + ": 柱の足を下ろした " + nf + " 本(最大 " + st.ToString("F3") + "m)");
         }
         sb.AppendLine("  廊下 " + links + " 本・下ろした柱 " + cols + " 本(最大 " + worst.ToString("F3") + "m)");
+        // 御殿の棟の床下の足元(縁桁の束石・縁束・礎石)── S5 で着けた後に S9 排水・S4b 縁の皮が地表を描き直すと、足が皮の新しい高さの上に
+        // 残って浮く(Hiroma 0.335 / 描かれた地表から 0.426 ── 第11巡 EDO-0533)。廊下の柱と同じ相手(描かれた地表・地形・設計の地盤の低い方)まで下ろす。
+        // 硬い: 浮き ≤ 0.01(据えたのと同じ相手で測る)。⛔ 置き方はここに書かない ── EdoGotenKit.AshimotoReach/AshimotoGap の地盤つきの版へ渡すだけ。
+        var dg = EdoBuild.Drawn(); var pr = EdoBuild.Probe();
+        Func<float, float, float> bed = (x, z) =>
+        {
+            float m = float.NaN;
+            foreach (var v in new[] { dg.At(x, z), pr.At(x, z), ImplY(x, z) }) if (!float.IsNaN(v) && (float.IsNaN(m) || v < m)) m = v;
+            return m;
+        };
+        int munes = 0, feet = 0, bad = 0; float mworst = 0f;
+        foreach (Transform m in grp)
+        {
+            if (m.name.StartsWith("L_")) continue;
+            float st; int nf = EdoGotenKit.AshimotoReach(m.gameObject, 0.05f, bed, out st);
+            int an, af; string aw; float ag = EdoGotenKit.AshimotoGap(m.gameObject, bed, out an, out af, out aw);
+            if (an == 0) continue;
+            munes++; feet += nf; mworst = Mathf.Max(mworst, st); if (af > 0) bad++;
+            if (nf > 0 || af > 0)
+                sb.AppendLine("  " + (af > 0 ? "✗" : "⭕") + " 棟 " + m.name + ": 床下の足元を下ろした " + nf + " 駒(最大 " + st.ToString("F3") + "m)・最も浮いた当たり "
+                              + ag.ToString("+0.000;-0.000") + "m @" + aw + (af > 0 ? "(浮き " + af + " 駒)" : ""));
+        }
+        sb.AppendLine("  棟 " + munes + " 棟・下ろした床下の足元 " + feet + " 駒(最大 " + mworst.ToString("F3") + "m)" + (bad > 0 ? "・✗ 浮きの残る棟 " + bad : ""));
         return sb.ToString();
     }
 

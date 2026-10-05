@@ -127,6 +127,12 @@ public static class EdoGotenKit
     /// 返り値 = 最も浮いた量[m](正 = 浮き・負 = 全部が埋まり、その中で最も浅い根入れ)。n = 測った駒の数・floating = 浮き &gt; 0.01m の数。
     /// 硬い: 浮き ≤ +0.01m(docs/oki-kata.md §4)。埋まりは根入れ(余地 <see cref="ASHIMOTO_NEIRI"/>)なので数えない。</summary>
     public static float AshimotoGap(GameObject mune, out int n, out int floating, out string worstName)
+    { return AshimotoGap(mune, null, out n, out floating, out worstName); }
+
+    /// <summary><see cref="AshimotoGap(GameObject, out int, out int, out string)"/> を、相手の地盤 <paramref name="bedAt"/> で測る版
+    /// (null = 従来どおり地形 = <see cref="EdoBuild.Contact(GameObject, out Vector3, out int, float, int)"/>)。
+    /// 縁の皮の後に据え直す巡(土井 S5b)は、据えたのと同じ地盤で測る ── 測る相手と据える相手を揃える(docs/oki-kata.md §0a-3)。</summary>
+    public static float AshimotoGap(GameObject mune, System.Func<float, float, float> bedAt, out int n, out int floating, out string worstName)
     {
         n = 0; floating = 0; worstName = null; float worst = float.NegativeInfinity;
         foreach (Transform c in mune.transform)
@@ -134,7 +140,7 @@ public static class EdoGotenKit
             string nm = c.name;
             if (!(nm.StartsWith("Goten_EnKeta") || nm.StartsWith("Goten_EnTsuka") || nm.StartsWith("Goten_Soseki"))) continue;
             Vector3 at; int cnt;
-            float gap = EdoBuild.Contact(c.gameObject, out at, out cnt);
+            float gap = bedAt != null ? EdoBuild.ContactOn(c.gameObject, bedAt, out at, out cnt) : EdoBuild.Contact(c.gameObject, out at, out cnt);
             if (float.IsNaN(gap)) continue;
             n++; if (gap > 0.01f) floating++;
             if (gap > worst) { worst = gap; worstName = nm + "@" + at.x.ToString("F1") + "," + at.z.ToString("F1"); }
@@ -147,6 +153,15 @@ public static class EdoGotenKit
     /// 上の縁桁・床との取り合いは開かない。当たる先: 面の縁の法の上へ濡縁の隅が張り出す棟(土井の奥・岡部の御殿も同じ型)。
     /// ⟶ 返す: 伸ばした駒の数(最も大きく伸ばした量[m] は out)。硬い: 伸ばした後の浮き ≤ 0.01m は呼び手が AshimotoGap で測る。</summary>
     public static int AshimotoReach(GameObject mune, float root, out float maxStretch)
+    { return AshimotoReach(mune, root, null, out maxStretch); }
+
+    /// <summary><see cref="AshimotoReach(GameObject, float, out float)"/> を、相手の地盤 <paramref name="bedAt"/> まで下ろす版
+    /// (null = 従来どおり地形)。⭐ 縁の皮・排水の後に流す据え直し(土井 <c>EdoDoiBuilder.Stage5b_RokaAshi</c>)は、
+    /// <see cref="RokaFeetToGround"/> と同じく「描かれた地表・地形・設計の地盤」の低い方を渡す ── S5 の後に S9・S4b が地表を
+    /// 描き直すと、S5 で着けた床下の足元が皮の新しい高さの上に残って浮いた(土井 Hiroma 0.335〜0.426・第11巡 EDO-0533)。
+    /// 冪等(届いている駒は触らない)。頭(縁桁・床の側)は動かさず足だけを伸ばす ── 伸ばした後に頭を元の高さへ戻す
+    /// (⛔ ピボットが頭とは限らない)。当たる先: 御殿の棟を建てて後から地表を描き直す邸(土井の7棟。岡部は既定の版のまま)。</summary>
+    public static int AshimotoReach(GameObject mune, float root, System.Func<float, float, float> bedAt, out float maxStretch)
     {
         int n = 0; maxStretch = 0f;
         foreach (Transform c in mune.transform)
@@ -154,12 +169,23 @@ public static class EdoGotenKit
             string nm = c.name;
             if (!(nm.StartsWith("Goten_EnKeta") || nm.StartsWith("Goten_EnTsuka") || nm.StartsWith("Goten_Soseki"))) continue;
             Vector3 at; int cnt;
-            float gap = EdoBuild.Contact(c.gameObject, out at, out cnt);
+            float gap = bedAt != null ? EdoBuild.ContactOn(c.gameObject, bedAt, out at, out cnt) : EdoBuild.Contact(c.gameObject, out at, out cnt);
             if (float.IsNaN(gap) || gap <= 0f) continue;          // 届いている(根入れ済み)
-            float bottom = EdoBuild.RB(c.gameObject).min.y, top = c.position.y;
-            float h = top - bottom; if (h < 0.01f) continue;
-            float s = (h + gap + root) / h;
-            var ls = c.localScale; c.localScale = new Vector3(ls.x, ls.y * s, ls.z);
+            if (bedAt == null)
+            {
+                float bottom = EdoBuild.RB(c.gameObject).min.y, top = c.position.y;
+                float h = top - bottom; if (h < 0.01f) continue;
+                float s = (h + gap + root) / h;
+                var ls = c.localScale; c.localScale = new Vector3(ls.x, ls.y * s, ls.z);
+            }
+            else
+            {
+                // 頭(実メッシュの上端)を保ったまま足を下ろす ── 伸ばしてから頭を元の高さへ平行移動(RokaFeetToGround と同じ手)
+                var b0 = EdoBuild.RB(c.gameObject); float top = b0.max.y, h = b0.size.y; if (h < 0.01f) continue;
+                float k = (h + gap + root) / h;
+                var ls = c.localScale; c.localScale = new Vector3(ls.x, ls.y * k, ls.z);
+                c.position += new Vector3(0f, top - EdoBuild.RB(c.gameObject).max.y, 0f);
+            }
             n++; maxStretch = Mathf.Max(maxStretch, gap + root);
         }
         return n;

@@ -1645,20 +1645,38 @@ public static partial class EdoBuild
                                                 float waterY, float bedSink, SeiyakuTally tally, out NiwaIshiRep rep, out int usedSpot, out float bestTop,
                                                 Vector2 tiltTo = default(Vector2), float tiltDeg = 0f)
     {
+        float bta;
+        return NiwaIshiSueruAbove(parent, name, spots, yaw, bury, waterY, bedSink, tally, false, out rep, out usedSpot, out bestTop, out bta, tiltTo, tiltDeg);
+    }
+
+    /// <summary><see cref="NiwaIshiSueruAbove(Transform, string, IList{NiwaIshiSpot}, float, float, float, float, SeiyakuTally, out NiwaIshiRep, out int, out float, Vector2, float)"/> に、
+    /// <paramref name="topOverGround"/> = true で**天端が地表より上**(<see cref="NiwaIshiRep.topAbove"/> &gt; 0 ── 検査の「天端まで埋没」と同じ測り)も硬い制約に足す版
+    /// (2026-10-05 EDO-0533 第11巡 ── 汀の石 6 個が天端まで埋まったまま建った: NiwaIshiSueru は余地の内でしか持ち上げず、帯の他の置き場を試さなかった)。
+    /// 帯の内の候補(寄せ・大きさ・個体)を同じ順で試し、どれも埋まるなら建てない。<paramref name="bestTopAbove"/> = 試した中の最も大きい topAbove[m](名指しに使う)。
+    /// 当たる先: 土井の泉水の護岸・押さえ石・州浜の玉石(EdoDoiBuilder.Niwa が true で呼ぶ)。他邸は既定の版のまま。</summary>
+    public static GameObject NiwaIshiSueruAbove(Transform parent, string name, IList<NiwaIshiSpot> spots, float yaw, float bury,
+                                                float waterY, float bedSink, SeiyakuTally tally, bool topOverGround,
+                                                out NiwaIshiRep rep, out int usedSpot, out float bestTop, out float bestTopAbove,
+                                                Vector2 tiltTo = default(Vector2), float tiltDeg = 0f)
+    {
         var reps = new NiwaIshiRep[spots.Count];
-        float bt = float.NegativeInfinity; int cur = -1;
+        float bt = float.NegativeInfinity, bta = float.NegativeInfinity; int cur = -1;
         var idx = new List<int>(); for (int i = 0; i < spots.Count; i++) idx.Add(i);
         var hard = new List<Hard> { new Hard("汀の石の天端が水面より上", g => { float lo, hi; return NiwaSpanY(g, out lo, out hi) && hi >= waterY + NIWA_TOP_OVER_WATER; }) };
+        if (topOverGround)
+            hard.Add(new Hard("汀の石の天端が地表より上", g => cur < 0 || float.IsNaN(reps[cur].topAbove) || reps[cur].topAbove > 0f));
         var go = PlaceBest<int>(idx, idx.Count, i =>
         {
             cur = i; var s = spots[i];
             var g = NiwaIshiSueru(parent, name, s.path, s.xz, yaw, s.scale, bury, waterY, bedSink, out reps[i], s.aimTop, false, tiltTo, tiltDeg);
             float lo, hi; if (g != null && NiwaSpanY(g, out lo, out hi)) bt = Mathf.Max(bt, hi);
+            if (g != null && !float.IsNaN(reps[i].topAbove)) bta = Mathf.Max(bta, reps[i].topAbove);
             return g;
         }, hard, new List<Soft>(), tally);
         usedSpot = go != null ? cur : -1;
         rep = go != null ? reps[cur] : (spots.Count > 0 ? reps[0] : default(NiwaIshiRep));
         bestTop = float.IsNegativeInfinity(bt) ? float.NaN : bt;
+        bestTopAbove = float.IsNegativeInfinity(bta) ? float.NaN : bta;
         return go;
     }
 
@@ -2097,14 +2115,26 @@ public static partial class EdoBuild
         //   cover = 受ける範囲のうち石が下にある割合・yawDeg = 選んだ向き(広い面を橋軸に直交した向きからの回し)・flip = 表裏を返した・
         //   atariMet = 当たりの狙い(面が版の下面から atariLo〜atariHi)を満たした・reliefOver = 起伏が reliefMax を超えた(石の版を替える指示)。
         public bool seated, atariMet, flip, reliefOver; public float relief, umeDeep, atariGap, sukiMax, sukiVis, sukiOver, cover, yawDeg;
+        // ↓ 起伏の手当て(NiwaAbutSeatSpec.alts / neiriMax)── pathGot = 据えた石の版(替えたなら替えた先)・swapped = 版を替えた・
+        //   reliefFirst = 名指しの版の最良の起伏[m]・sinkScale = 起伏を下げるため石を大きくして沈めた縮尺(1 = しない)・sinkDeep = それで増した根入れ[m]。
+        public string pathGot; public bool swapped; public float reliefFirst, sinkScale, sinkDeep;
     }
 
     /// <summary>**石橋の版と橋台石の据えの作法**(指図 `hashi[].abutSeat` ── 邸ビルダーが欄を読んで埋める。⛔ ここに既定の値を持たない)。
     /// kakari・inner = 石が受けるのは版の端から inner〜kakari の帯(橋軸の向き)・umeMax = 版の下面へ石が入る深さの上限(硬い)・
     /// atariFrac = 当たりの面(受ける範囲の内の天端の高い方からの面積の割合)・atariLo〜atariHi = その面を入れる版の下面からの高さ(柔らかい)・
     /// sukiMax = これを超える隙は飼石と土で塞いだ扱い(刷るだけ)・reliefMax = 天端の起伏がこれを超えたら石の版を替える(刷るだけ)・
-    /// turns = 向きの候補の数(360/turns 度ずつ)・flips = 表裏を返す候補も試す。</summary>
-    public class NiwaAbutSeatSpec { public float kakari, inner, umeMax, atariFrac, atariLo, atariHi, sukiMax, reliefMax; public int turns; public bool flips; }
+    /// turns = 向きの候補の数(360/turns 度ずつ)・flips = 表裏を返す候補も試す。
+    /// ⭐ 起伏の手当て(指図「起伏 &gt; reliefMax なら石の版を替え、なお合わなければ石を沈めて根入れを深く」の後ろ2手 ── 2026-10-05 第11巡 EDO-0533):
+    /// alts = 替えの版(部材のパス・邸ビルダーが欄から解く。空 = 替えない)── 名指しの版の最良の起伏が reliefMax を超えたときだけ、同じ向き×表裏で試し、
+    /// 起伏 ≤ reliefMax のうち受ける範囲を最も広く覆う版(無ければ起伏の最小)を採る(受ける範囲の 5 割を覆わない版は採らない)。
+    /// neiriMax = 石を大きくして沈め、根入れを深くしてよい量の上限[m](0 = しない)── なお起伏が reliefMax を超えるとき、石を等方に大きくして
+    /// (天端の丸みが受ける範囲の内で緩む)天端は版の下面のまま足を深く沈める。増す根入れ ≤ neiriMax(硬い)。</summary>
+    public class NiwaAbutSeatSpec
+    {
+        public float kakari, inner, umeMax, atariFrac, atariLo, atariHi, sukiMax, reliefMax; public int turns; public bool flips;
+        public List<string> alts = new List<string>(); public float neiriMax;
+    }
 
     /// <summary>点 (x, z) の鉛直線と駒の三角形の交わりのうち**最も高い高さ** = その点の天端。交わらなければ NaN(LowestSurfaceAt の対)。</summary>
     public static float HighestSurfaceAt(SurfaceSet s, Vector2 q)
@@ -2176,7 +2206,7 @@ public static partial class EdoBuild
         float yaw = NiwaBroadFaceYaw(path, pos, pos + dir);
         float sc = NiwaScaleForLong(path, longM);
         if (float.IsNaN(sc)) { rep.why = "部材の実寸が測れない"; return null; }
-        if (seat != null) return NiwaAbutSeatPlace(parent, name, path, deck, aXZ, dir, perp, atA, s0, s1, sPos, tc, ut0, ut1, under, g0, need, yaw, sc, seat, ref rep);
+        if (seat != null) return NiwaAbutSeatPlace(parent, name, path, deck, aXZ, dir, perp, atA, s0, s1, sPos, tc, ut0, ut1, under, g0, need, yaw, sc, longM, seat, ref rep);
         GameObject go = null;
         // 石の平面を版の下面の範囲の内へ寄せ、範囲の内の最も高い頂点を版の下面へ。返り値 = 範囲に収まったか
         Func<GameObject, bool> fit = g =>
@@ -2259,7 +2289,7 @@ public static partial class EdoBuild
     /// ⛔ 版の topY は動かさない ── 合わせるのは石の側。
     /// 当たる先: 土井の石橋 Hashi_Ishi の橋台石。以後、版を面で受ける石の全て(土橋の橋台・縁束の束石の受け)が同じ欄の形で使える。</summary>
     static GameObject NiwaAbutSeatPlace(Transform parent, string name, string path, GameObject deck, Vector2 aXZ, Vector2 dir, Vector2 perp, bool atA,
-                                        float s0, float s1, float sPos, float tc, float ut0, float ut1, float under, float g0, float need, float yaw0, float sc0,
+                                        float s0, float s1, float sPos, float tc, float ut0, float ut1, float under, float g0, float need, float yaw0, float sc0, float longM,
                                         NiwaAbutSeatSpec seat, ref NiwaAbutRep rep)
     {
         Func<Vector3, float> S = w => Vector2.Dot(new Vector2(w.x, w.z) - aXZ, dir);
@@ -2305,14 +2335,15 @@ public static partial class EdoBuild
         };
         Func<List<KeyValuePair<float, bool>>, int> k30 = d => Mathf.Clamp(Mathf.CeilToInt(seat.atariFrac * d.Count) - 1, 0, Mathf.Max(0, d.Count - 1));
         // 置く(向き・表裏・縮尺)── 石の幅が版の下面の幅を越えるなら縮める(柔らかい)。返り値の sc は縮めた後
+        string curPath = path; float curYaw0 = yaw0;                         // 試している版(替えの版を試すときに入れ替える)
         Func<int, bool, float, bool, KeyValuePair<GameObject, float>> put = (turn, flip, scIn, mayShrink) =>
         {
-            float yw = yaw0 + 360f / turns * turn, s2 = scIn;
+            float yw = curYaw0 + 360f / turns * turn, s2 = scIn;
             GameObject g = null;
             for (int pass = 0; pass < 2; pass++)
             {
                 if (g != null) UnityEngine.Object.DestroyImmediate(g);
-                g = Place(path, new Vector3(pos.x, g0, pos.y), yw, Vector3.one * s2, parent, name);
+                g = Place(curPath, new Vector3(pos.x, g0, pos.y), yw, Vector3.one * s2, parent, name);
                 if (g == null) return new KeyValuePair<GameObject, float>(null, s2);
                 if (flip) g.transform.rotation = Quaternion.Euler(0f, yw, 0f) * Quaternion.Euler(0f, 0f, 180f);
                 if (!mayShrink || pass == 1) break;
@@ -2323,8 +2354,11 @@ public static partial class EdoBuild
             }
             return new KeyValuePair<GameObject, float>(g, s2);
         };
-        // ② 天端の選び
+        // ② 天端の選び(版 = curPath の向き×表裏)
         int bestTurn = -1; bool bestFlip = false; float bestRelief = float.MaxValue, bestCover = 0f, bestSc = sc0;
+        Action chooseFace = () =>
+        {
+        bestTurn = -1; bestFlip = false; bestRelief = float.MaxValue; bestCover = 0f;
         for (int f = 0; f < (seat.flips ? 2 : 1); f++)
             for (int turn = 0; turn < turns; turn++)
             {
@@ -2341,8 +2375,55 @@ public static partial class EdoBuild
                 else better = cover > bestCover + 0.05f || (cover >= bestCover - 0.05f && relief < bestRelief);
                 if (better) { bestTurn = turn; bestFlip = f == 1; bestRelief = relief; bestCover = cover; bestSc = pr.Value; }
             }
+        };
+        float scPath0 = sc0;
+        chooseFace();
         if (bestTurn < 0) { rep.why = "どの向きでも受ける範囲の下に石が来ない"; return null; }
-        rep.yawDeg = 360f / turns * bestTurn; rep.flip = bestFlip; rep.shrunk = bestSc < sc0 - 1e-6f;
+        rep.reliefFirst = bestRelief; rep.pathGot = path; rep.sinkScale = 1f; rep.sinkDeep = 0f;
+        // ②' 版の替え(指図「起伏 > reliefMax なら石の版を替え」)── 名指しの版で起伏が収まらないときだけ。
+        //     起伏 ≤ reliefMax のうち覆いの最も広い版、無ければ起伏の最小の版。覆いが 5 割に満たない版は採らない(細い稜で受けない)
+        if (bestRelief > seat.reliefMax + 1e-4f && seat.alts != null && seat.alts.Count > 0)
+        {
+            string kPath = path; float kYaw = yaw0, kSc0 = sc0; int kTurn = bestTurn; bool kFlip = bestFlip; float kRel = bestRelief, kCov = bestCover, kSc = bestSc;
+            foreach (var ap in seat.alts)
+            {
+                if (string.IsNullOrEmpty(ap) || ap == path) continue;
+                float aSc = NiwaScaleForLong(ap, longM); if (float.IsNaN(aSc)) continue;
+                curPath = ap; curYaw0 = NiwaBroadFaceYaw(ap, pos, pos + dir); sc0 = aSc;
+                chooseFace();
+                if (bestTurn < 0 || bestCover < 0.5f) continue;
+                bool okNew = bestRelief <= seat.reliefMax + 1e-4f, okOld = kRel <= seat.reliefMax + 1e-4f;
+                bool take = okNew && okOld ? bestCover > kCov + 1e-3f : okNew || (!okOld && bestRelief < kRel - 1e-4f);
+                if (take) { kPath = ap; kYaw = curYaw0; kSc0 = aSc; kTurn = bestTurn; kFlip = bestFlip; kRel = bestRelief; kCov = bestCover; kSc = bestSc; }
+            }
+            curPath = kPath; curYaw0 = kYaw; sc0 = kSc0; bestTurn = kTurn; bestFlip = kFlip; bestRelief = kRel; bestCover = kCov; bestSc = kSc;
+            rep.swapped = kPath != path; rep.pathGot = kPath;
+        }
+        // ②'' なお合わなければ石を沈めて根入れを深く(指図の後ろの手)── 石を等方に大きくすると受ける範囲の内の天端の丸みが緩む。
+        //     天端は ③ で版の下面へ着けるので、大きくした分だけ足が沈む(増す根入れ ≈ 丈の増し ≤ neiriMax・硬い)。版の幅に収める縮めはしない(柔らかい inside に刷る)
+        if (bestRelief > seat.reliefMax + 1e-4f && seat.neiriMax > 1e-4f)
+        {
+            var g1 = put(bestTurn, bestFlip, bestSc, false).Key;
+            float lo1 = 0f, hi1 = 0f; bool okSpan = g1 != null && NiwaSpanY(g1, out lo1, out hi1);
+            if (g1 != null) UnityEngine.Object.DestroyImmediate(g1);
+            float h1 = hi1 - lo1;
+            if (okSpan && h1 > 1e-3f)
+            {
+                float kMax = 1f + seat.neiriMax / h1, kGot = 1f, rGot = bestRelief, cGot = bestCover;
+                for (int st = 1; st <= 8; st++)
+                {
+                    float k = 1f + (kMax - 1f) * st / 8f;
+                    var g2 = put(bestTurn, bestFlip, bestSc * k, false).Key; if (g2 == null) break;
+                    var d2 = eval(g2); UnityEngine.Object.DestroyImmediate(g2);
+                    if (d2.Count == 0) continue;
+                    float r2 = d2[k30(d2)].Key - d2[0].Key;
+                    if (r2 < rGot - 1e-4f) { kGot = k; rGot = r2; cGot = (float)d2.Count / gq.Count; }
+                    if (r2 <= seat.reliefMax + 1e-4f) break;
+                }
+                if (kGot > 1f + 1e-4f) { bestSc *= kGot; bestRelief = rGot; bestCover = cGot; rep.sinkScale = kGot; rep.sinkDeep = (kGot - 1f) * h1; }
+            }
+        }
+        rep.yawDeg = 360f / turns * bestTurn; rep.flip = bestFlip; rep.shrunk = bestSc < scPath0 - 1e-6f && !rep.swapped;
         // ③④ 高さ・足(足が届かなければ丈を増してやり直す)
         GameObject go = null; float sc = bestSc; List<KeyValuePair<float, bool>> dd = null; float dz = 0f;
         for (int it = 0; it < 6; it++)

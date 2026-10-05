@@ -558,6 +558,40 @@ public static class EdoSashizuExport
                     if (D(s2, "yose") != null) { seen.Add(Str(s2, "name")); note(secOf("主郭", Str(s2, "name")), "附属屋 " + Str(s2, "name") + " は背を囲いの面へ寄せる(yose)── 芯では比べない"); continue; }
                     // 背を相手の面から離す硬い取り合い(`back`・土井の供待 ── 表長屋の背から 0.5間)も、置き場は取り合いが決めるので芯では比べない(2026-10-05 EDO-0533)
                     if (D(s2, "back") != null) { seen.Add(Str(s2, "name")); note(secOf("主郭", Str(s2, "name")), "附属屋 " + Str(s2, "name") + " は背を相手の面から離す取り合い(back)で据わる ── 芯では比べない"); continue; }
+                    // 塀の欄 `clear`「芯は棟の面から N間 以上」(硬い取り合い・EdoBuild.KeepClearOfLine)の線に矩形が N間 + 0.25間 より近い附属屋は、
+                    //   ビルダーが躯体の最寄りの点から線の離れる向きへ動かす(線の折れ点の近くでは斜めにも動く)── 置き場は取り合いが決めるので芯では比べない
+                    //   (back・yose と同じ型。土井の家中長屋 K1 0.55m・土蔵 1/2 0.22m が Oku_Hei から離されて「ずれ」に数えられた ── 2026-10-05 第11巡 EDO-0533)。
+                    //   離れ ≥ N間 そのものは建てる側が硬い条件で測って ✗ を刷る(EdoDoiBuilder.PlaceServiceA)。
+                    //   +0.25間 は札の躯体の足形と欄の矩形の差(片側 0.13〜0.22m)を含める余り。poly で書いた附属屋はこの見方をしない(矩形が無い)。
+                    string clearRun = null; float clearNeed = 0f;
+                    if (!(s2.ContainsKey("poly") && s2["poly"] != null))
+                    {
+                        float ru0 = F(s2, "u0"), rv0 = F(s2, "v0"), ru1 = F(s2, "u1"), rv1 = F(s2, "v1"), bestD = float.MaxValue;
+                        foreach (var ro in Get2(doc, "runs"))
+                        {
+                            var r2 = ro as Dictionary<string, object>; var cl2 = D(r2, "clear"); if (cl2 == null) continue;
+                            var cm2 = System.Text.RegularExpressions.Regex.Match(Str(cl2, "rule") ?? "", @"芯は棟の面から\s*([0-9.]+)\s*間\s*以上");
+                            if (!cm2.Success) continue;
+                            float need2 = float.Parse(cm2.Groups[1].Value, IC);
+                            var pts2 = new List<Vector2>();
+                            foreach (var q in Get2(r2, "pts")) { var qa = q as List<object>; if (qa != null && qa.Count >= 2) pts2.Add(new Vector2(System.Convert.ToSingle(qa[0], IC), System.Convert.ToSingle(qa[1], IC))); }
+                            for (int k = 0; k + 1 < pts2.Count; k++)
+                            {
+                                Vector2 a2 = pts2[k], b2 = pts2[k + 1]; float len2 = (b2 - a2).magnitude; if (len2 < 1e-4f) continue;
+                                int n2 = Mathf.Max(1, Mathf.CeilToInt(len2 / 0.05f));
+                                for (int j = 0; j <= n2; j++)
+                                {
+                                    var q2 = Vector2.Lerp(a2, b2, j / (float)n2);
+                                    float du2 = Mathf.Max(0f, Mathf.Max(ru0 - q2.x, q2.x - ru1)), dv2 = Mathf.Max(0f, Mathf.Max(rv0 - q2.y, q2.y - rv1));
+                                    float d2 = Mathf.Sqrt(du2 * du2 + dv2 * dv2);
+                                    if (d2 < need2 + 0.25f && d2 < bestD)
+                                    {
+                                        bestD = d2; clearRun = Str(r2, "name"); clearNeed = need2;
+                                    }
+                                }
+                            }
+                        }
+                    }
                     var seat = D(s2, "seat"); var buhin = D(s2, "buhin");
                     var zl = buhin == null ? null : A(buhin, "zLocal");
                     if (seat != null && zl != null && zl.Length == 2 && ken > 0f)
@@ -583,6 +617,11 @@ public static class EdoSashizuExport
                         var wp2 = st2.TransformPoint(new Vector3(bcW.x, 0f, bcW.y));
                         float dd2 = Vector2.Distance(new Vector2(wp2.x, wp2.z), W(su, sv));
                         float dp2 = Vector2.Distance(new Vector2(st2.position.x, st2.position.z), W(su, sv));
+                        if (clearRun != null)
+                        {
+                            note(secOf("主郭", Str(s2, "name")), "附属屋 " + Str(s2, "name") + " は " + clearRun + " の clear(芯は棟の面から " + clearNeed.ToString("0.##") + "間 以上)で線から離す取り合いで据わる ── 芯では比べない(芯の差 " + dd2.ToString("F2") + "m)");
+                            continue;
+                        }
                         if (dd2 > 0.02f && dp2 > 0.02f) bad(secOf("主郭", Str(s2, "name")), "附属屋 " + Str(s2, "name") + " の躯体の芯が " + dd2.ToString("F2") + "m(ピボット " + dp2.ToString("F2") + "m)ずれている");
                         continue;
                     }

@@ -103,4 +103,35 @@ public static partial class EdoDoiBuilder
         sb.Append(WaitReport());
         return sb.ToString();
     }
+
+    [MenuItem(MENU + "8b 植栽・庭の木の根元を据え直す(9・4b の後)")]
+    public static void Stage8bSuenaoshiMenu() { Debug.Log("[Doi] " + Stage8b_RootReseat()); }
+
+    /// <summary>**植栽・庭の木・刈込・下草の根元を、今の描かれた地表で据え直す**(EDO-0533 第11巡 ── 根元の浮き 19・最大 0.209)。
+    /// S6 庭(6h)・S8 植栽で据えた後に S9 排水・S4b 縁の皮が地表を描き直すと、根元が古い高さに残って浮く。⇒ 地表を最後に触る巡(4b)の後にこれを流す。
+    /// 相手 = 描かれた地表(皮の無い所は地形)── 検査(普請検査の根元の浮き)と同じ床。浮いた木だけを沈める(EdoBuild.ReseatRootBand・冪等)。
+    /// 硬い: 根元の浮き 0・最も低い当たりの埋まり ≤ NiwaSet.PLANT_BURY_MAX。満たせない木は動かさず名指す。⛔ 置き方はここに書かない(規則21)。</summary>
+    public static string Stage8b_RootReseat()
+    {
+        { var gate0 = EdoSashizuExport.ReviewGate("doi"); if (gate0 != null) return gate0; }
+        var sb = new System.Text.StringBuilder("S8b 植栽の根元(9・4b の後):\n");
+        var dg = EdoBuild.Drawn(); var pr = EdoBuild.Probe();
+        Func<float, float, float> bed = (x, z) => { float d = dg.At(x, z); return float.IsNaN(d) ? pr.At(x, z) : d; };
+        int n = 0, sunkN = 0, bad = 0; float worst = 0f; var badLog = new List<string>();
+        foreach (var gn in new[] { "Shokusai", "Niwa/Shokusai", "Niwa/Karikomi", "Niwa/Shitakusa" })
+        {
+            var g = Group(gn); if (g == null) continue;
+            foreach (Transform c in g)
+            {
+                if (!c.gameObject.activeInHierarchy) continue;
+                float sk, fl; n++;
+                bool ok = EdoBuild.ReseatRootBand(c.gameObject, bed, EdoBuild.NiwaSet.PLANT_BURY_MAX, out sk, out fl);
+                if (sk > 0f) { sunkN++; worst = Mathf.Max(worst, sk); }
+                if (!ok) { bad++; if (badLog.Count < 10) badLog.Add(gn + "/" + c.name + " 浮き " + (float.IsNaN(fl) ? "測れない" : fl.ToString("F3"))); }
+            }
+        }
+        sb.AppendLine("  " + (bad > 0 ? "✗" : "⭕") + " " + n + " 本を測り、根元の浮きを沈めた " + sunkN + " 本(最大 " + worst.ToString("F3") + "m)"
+                      + (bad > 0 ? "・沈めると埋まりが " + EdoBuild.NiwaSet.PLANT_BURY_MAX.ToString("F1") + " を超える/測れないので動かさなかった " + bad + " 本(硬い ── 名指す): " + string.Join(" / ", badLog.ToArray()) : ""));
+        return sb.ToString();
+    }
 }

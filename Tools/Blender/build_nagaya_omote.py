@@ -612,6 +612,35 @@ def win_extent(koshi):
     return hw, z0, z1, cz[-1][-1]
 
 
+def seal_tsuma(gl, gr, e_l, e_r):
+    """妻の面を土台から二階の漆喰まで外面(e = namako2 の表)の一枚に揃える(EDO-0533)。
+    手は隅長屋の `build_nagaya_kado.seal_gable` と同じ(⛔ import しない: あちらは読むだけで main() が走る)。
+    ① `n_wall`(水切りの帯ごと)と `n_dodai` の妻の端を外面 e へ ② `n_namako` の端を浮き彫りの殻の中(e から 0.013 obj)まで
+    ③ その端の面を複製して殻の中に残し、元の端の面を外面まで押し出して蓋だけ消す(長手の面が外面まで届き、目地の窪みは見えたまま)。"""
+    for g, e, sg in ((gl, e_l, +1), (gr, e_r, -1)):
+        for name, to in (("n_namako", e - sg * 0.013), ("n_wall", e), ("n_dodai", e)):
+            me = g[name].data
+            for v in me.vertices:
+                if sg * (v.co.x - e) > -0.025:
+                    v.co.x = to
+            me.update()
+        me = g["n_namako"].data
+        bm = bmesh.new(); bm.from_mesh(me)
+        bm.normal_update()
+        x_cap = e - sg * 0.013
+        caps = [f for f in bm.faces if sg * f.normal.x > 0.99 and all(abs(v.co.x - x_cap) < 1e-5 for v in f.verts)]
+        if len(caps) != 1:
+            raise SystemExit("[nagaya] ⛔ seal_tsuma: n_namako の端の面が %d 枚(1 枚の筈)" % len(caps))
+        bmesh.ops.duplicate(bm, geom=[caps[0]])
+        ext = bmesh.ops.extrude_face_region(bm, geom=[caps[0]])
+        for v in ext["geom"]:
+            if isinstance(v, bmesh.types.BMVert):
+                v.co.x = e
+        bmesh.ops.delete(bm, geom=[f for f in ext["geom"] if isinstance(f, bmesh.types.BMFace)], context='FACES_ONLY')
+        bmesh.ops.delete(bm, geom=[caps[0]], context='FACES_ONLY')
+        bm.to_mesh(me); bm.free(); me.update()
+
+
 # ---------------------------------------------------------------- 割付を解く
 def solve_body(Lo_full, cap_w, bw):
     """`--body` の割付。中の窓割りは bw(= 1.5間)で固定し、**端数は両端の間(妻寄りの無地の壁)で受ける。**
@@ -695,6 +724,13 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
     l_n2 = max(v.co.x for v in gl["namako2"].data.vertices)
     r_n2 = min(v.co.x for v in gr["namako2"].data.vertices)
     to_l, to_r = l_gab - l_n2, r_n2 - r_gab
+    if body:
+        # ⭐ 妻の面を一枚に揃える(EDO-0533 2026-10-05)。素の妻は土台が浮き彫りの表より 0.030・白壁(漆喰)が
+        #   0.0335 内へ引っ込み、海鼠の地の箱は浮き彫りの殻の 0.036 手前で終わる ⇒ 妻どうし突き付けて座が
+        #   0.6〜1.5m 違うと、上の棟の土台と下の棟の漆喰の高さに 0.030〜0.036 の素通しの隙が開いた(土井 E13_N09 ほか)。
+        #   ⇒ 土台・白壁の妻の端を外面(namako2 の表)へ出し、海鼠の地の箱を殻の中まで延ばす(隅長屋の seal_gable と同じ手)。
+        #   破風・鬼・瓦・外面の位置・長さは変えない。--body だけ(既定の出力は変えない)。
+        seal_tsuma(gl, gr, l_n2, r_n2)
     l_dd = l_n2 - max(v.co.x for v in gl["n_dodai"].data.vertices)     # 土台の小口の引き(躯体の端から)
     dd_y0 = min(v.co.y for v in gc["n_dodai"].data.vertices)           # 土台の奥(素の −Y)
     dd_y1 = max(v.co.y for v in gc["n_dodai"].data.vertices)           # 土台の表
@@ -967,7 +1003,8 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
             foot = [((cx(math.copysign(h2 + 1.0, x), z) if miter_cut[0 if x < 0 else 1] > 0 else x), z) for x, z in foot]
         spec = dict(prefab="Assets/Edo/Models/Nagaya/" + nm + ".fbx",
                     source="blender:build_nagaya_omote.py(%g --body%s%s%s%s%s)"
-                           % (Lm, " --floors %d" % floors if floors > 1 else "",
+                           % (Lm, (" --floors %d" % floors if floors > 1 else "")
+                              + (" --ridge %g" % ridge if ridge is not None else ""),
                               " --gate %g %g %g" % gate if gate else "",
                               " --gate-drop %g" % gate_drop if (gate and gate_drop) else "",
                               (" --bansho %d" % bansho if bansho else "")

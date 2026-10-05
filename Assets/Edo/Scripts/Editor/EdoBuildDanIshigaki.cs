@@ -244,14 +244,17 @@ public static partial class EdoBuild
                     Vector2 pA = a + dir * c.x + off, pB = a + dir * c.y + off;
                     Vector2 lo = Vector2.Dot(pA, ux) <= Vector2.Dot(pB, ux) ? pA : pB, hi = lo == pA ? pB : pA;
                     float L = Vector2.Distance(pA, pB);
-                    int m = Mathf.FloorToInt(L / pw + 1e-3f); if (m < 1) continue;
+                    int m = Mathf.FloorToInt(L / pw + 1e-3f);
+                    // ⭐ 1 間より短い区間(段違いの返しの run・EDO-0502 第25巡)は 1 枚を走りへ縮めて据える ── ⛔ 2026-10-05 まで建てず、
+                    //   岡部 TW_Minami_Koshi の東の返し(run 1.42/1.82/1.82 を重ねて段違い)の垣が 0 間だった。0.3m 未満の切れ端は建てない。
+                    float sxS = 1f; if (m < 1) { if (L < 0.3f) continue; m = 1; sxS = L / pw; pw = L; }
                     float target = Vector2.Dot(lo, ux) + (L - m * pw) * 0.5f;
                     Vector2 runU = (hi - lo).normalized;
                     GameObject last = null;
                     for (int i = 0; i < m; i++)
                     {
                         Vector2 p = lo + runU * ((L - m * pw) * 0.5f + pw * (i + 0.5f));
-                        var go = Place(span, new Vector3(p.x, 0f, p.y), psi, Vector3.one, parent, prefix + "_" + k + "_" + n.ToString("000"));
+                        var go = Place(span, new Vector3(p.x, 0f, p.y), psi, new Vector3(sxS, 1f, 1f), parent, prefix + "_" + k + "_" + n.ToString("000"));
                         if (go == null) continue;
                         float mn = float.MaxValue; foreach (var v in Body(go.transform, 4000)) mn = Mathf.Min(mn, Vector2.Dot(new Vector2(v.x, v.z), ux));
                         go.transform.position += new Vector3(ux.x, 0f, ux.y) * (target - mn);

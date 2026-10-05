@@ -365,7 +365,19 @@ public static partial class EdoBuild
     /// bf = 小段の先の盛土の法 1:bf・maxFill = 盛りの上限(硬い)・parcel = 触ってよい範囲(区画)。</summary>
     public class BackBench { public string name; public Vector2 a, b, back; public float top, drop, w, drain, bf, maxFill; public Vector2[] parcel;
         /// <summary>盛りの上限を測る元の地盤(造成の設計面)。null なら今の地盤 ── 流し直しで盛りが積もらないよう設計面を渡す。</summary>
-        public Func<Vector2, float> baseAt; }
+        public Func<Vector2, float> baseAt;
+        /// <summary>盛らない所(他の土留めの見え面の前 ── 小段の端の法が隣の袖の前へ回り込まない・EDO-0502 第25巡)。null なら無し。</summary>
+        public Func<Vector2, bool> keepOut; }
+
+    /// <summary>**土留めの見え面の前の帯**(線 a→b・背 back の逆の側へ depth まで・走りの両端は線の内)に点 p が入るか。
+    /// 当たる先: <see cref="BackBench.keepOut"/> ── 小段の裏込めの端の法(1:bf)が、隣の土留めの見え面の前へ回り込んで土の箱を立てない
+    /// (2026-10-05 岡部 門の内: TW_Kado_Sode_0 の小段の端の法が TW_Kado_Sode_1_0/3_0 の前へ 2.5m 回り込み、地盤 16.50 の上に 17.50 の土の箱を立てた)。</summary>
+    public static bool InFrontOfFace(Vector2 a, Vector2 b, Vector2 back, Vector2 p, float depth)
+    {
+        Vector2 ab = b - a; float L = ab.magnitude; if (L < 1e-4f) return false;
+        float s = Vector2.Dot(p - a, ab / L), d = Vector2.Dot(p - a, back);
+        return s >= 0f && s <= L && d < 0f && d > -depth;
+    }
 
     /// <summary>**背の小段の裏込めが節点 p に与える高さ**(2026-10-04 EDO-0502 第13巡・岡部 TW_Kado_Sode.backfill)。
     /// 前の線より前(門の内の側)は触らない。小段 = 前の線から背へ w まで、天端 − drop から石垣を離れる向きへ drain で下る面。
@@ -374,6 +386,7 @@ public static partial class EdoBuild
     public static float BackBenchAt(BackBench k, Vector2 p, float cur)
     {
         if (k.parcel != null && !EdoGeom.PIP(k.parcel, p)) return cur;
+        if (k.keepOut != null && k.keepOut(p)) return cur;
         Vector2 ab = k.b - k.a; float L = ab.magnitude; if (L < 1e-4f) return cur;
         Vector2 t = ab / L;
         float sAl = Vector2.Dot(p - k.a, t), dn = Vector2.Dot(p - k.a, k.back);

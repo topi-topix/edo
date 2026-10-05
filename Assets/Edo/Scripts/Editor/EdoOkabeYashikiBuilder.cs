@@ -2524,7 +2524,8 @@ public static class EdoOkabeYashikiBuilder
                 string rn = kvR.Key.Substring(6); int ri = -1;
                 for (int k = 0; k < Runs.Length; k++) if (Runs[k].name == rn) ri = k;
                 var nbT = rootR == null ? null : rootR.transform.Find("Kakoi/" + rn);
-                if (ri < 0 || nbT == null) { if (sb != null) sb.AppendLine("  " + nm + " × " + rn + ": ⚠ 長屋が無い ── 返さない"); continue; }
+                if (ri < 0) continue;   // return<欄>(returnTop・returnFoot ほか ── 端の返しの欄)は長屋の名でない(第25巡)
+                if (nbT == null) { if (sb != null) sb.AppendLine("  " + nm + " × " + rn + ": ⚠ 長屋が無い ── 返さない"); continue; }
                 int e = Runs[ri].edge; Vector2 ea = EdgePt(e, 0f), ax = (EdgePt(e, 1f) - ea).normalized, yard = -OutNormal(e);
                 float seatY = nbT.position.y;
                 float back = EdoBuild.FaceOut(nbT.gameObject, ea, yard, seatY + 0.1f, seatY + 1.2f);
@@ -2933,6 +2934,21 @@ public static class EdoOkabeYashikiBuilder
             }
             if (list.Count > 0) res[nm + "#ret"] = list;
         }
+        // ⭐ 小段の端の法は、別の土留め(袖・返し)の見え面の前の帯(3m)へ盛らない(EdoBuild.InFrontOfFace・EDO-0502 第25巡 ──
+        //   TW_Kado_Sode_0 の小段の端の法が門の内の TW_Kado_Sode_1_0/3_0 の前へ回り込み 17.50 の土の箱を立てていた)。帯 = 各 run の線と背。
+        {
+            var fr = new List<KeyValuePair<string, EdoBuild.BackBench>>();
+            foreach (var kv in res) foreach (var bk in kv.Value) fr.Add(new KeyValuePair<string, EdoBuild.BackBench>(kv.Key.Split('#')[0], bk.Value));
+            foreach (var kv in res)
+            {
+                string own = kv.Key.Split('#')[0];
+                foreach (var bk in kv.Value)
+                {
+                    var me = bk.Value;
+                    me.keepOut = p => { foreach (var o in fr) if (o.Value != me && EdoBuild.InFrontOfFace(o.Value.a, o.Value.b, o.Value.back, p, 3f)) return true; return false; };
+                }
+            }
+        }
         return res;
     }
 
@@ -3000,6 +3016,42 @@ public static class EdoOkabeYashikiBuilder
             faces.Add(new EdoBuild.SkinFace("Mizo_" + tr.run, new[] { p0, p1, p2, p3 }, tr.y));
             if (sb != null) sb.AppendLine("  面 溝 " + tr.run + "(" + tr.y.ToString("F2") + "): 返しと背の間 " + L.ToString("F2") + "×" + (tr.off + 0.30f).ToString("F2") + "m");
         }
+        // ⭐ 両端の返しで三方が閉じた長屋の背の一間(指図 terraceWalls[].stripDrain・EDO-0502 第25巡)も平らな面 ── 溝の底は算出物 graded の
+        //   溝の芯の中ほど(両端の返しから離れた所)の中央値。⛔ 2026-10-05 まで面が無く、graded の 1m 格子が返しの見え面の前 1〜1.5m で
+        //   溝の底 19.20 から 20.5〜20.9 へ一次で上がり、皮が溝の両端に土の尾根を描いた(「溝に土を入れない」【硬】に反する)。
+        //   帯 = 腰石垣の線(出隅 pg)と長屋の背(返しの終わり pb)の間・両端の返しの線の間。⚠ 1/100 の落としは graded に無い ── 平らのまま。
+        //   ⛔ 再入: 返しの決め(EndDecisions)は SkinGround → FlatFaces を呼ぶ ⇒ 溝の帯を作る間は内側の呼び出しで帯を足さない。
+        //   当たる先: stripDrain を持つ欄(いまは岡部 TW_Minami_Koshi)。
+        if (!_inStrip)
+        {
+            _inStrip = true;
+            try
+            {
+                foreach (var o in A(Get(IMPL, "terraceWalls")) ?? new List<object>())
+                {
+                    var w = O(o); if (w == null) continue; string nm = S(Get(w, "name"));
+                    Dictionary<string, object> sw = null;
+                    foreach (var o2 in A(Get(D, "terraceWalls")) ?? new List<object>()) { var w2 = O(o2); if (w2 != null && S(Get(w2, "name")) == nm) sw = w2; }
+                    if (sw == null || Get(sw, "stripDrain") == null) continue;
+                    var ln = A(Get(w, "line")); if (ln == null || ln.Count < 2) continue;
+                    var nodes = new List<Vector2>(); foreach (var q in ln) { var p = A(q); nodes.Add(new Vector2(F(p[0]), F(p[1]))); }
+                    var tops = new List<float>(); var tl = A(Get(w, "tops")); for (int i = 0; i < nodes.Count; i++) tops.Add(tl != null && i < tl.Count ? F(tl[i]) : F(Get(w, "top")));
+                    List<EndReturn> rets; EndDecisions(nm, w, nodes, tops, null, out rets);
+                    EndReturn r0 = rets.Find(r => r.end == 0), r1 = rets.Find(r => r.end == 1);
+                    if (r0 == null || r1 == null) { if (sb != null) sb.AppendLine("  面 一間の溝 " + nm + ": ⚠ 両端の返しが揃わない ── 面にしない"); continue; }
+                    var ys = new List<float>();
+                    for (float u = 0.25f; u <= 0.75f + 1e-4f; u += 0.05f)
+                    {
+                        Vector2 q = Vector2.Lerp((r0.pg + r0.pb) * 0.5f, (r1.pg + r1.pb) * 0.5f, u);
+                        float g = DesignY(q); if (!float.IsNaN(g)) ys.Add(g);
+                    }
+                    if (ys.Count == 0) continue; ys.Sort(); float yS = ys[ys.Count / 2];
+                    faces.Add(new EdoBuild.SkinFace("Mizo_" + nm, new[] { r0.pg, r1.pg, r1.pb, r0.pb }, yS));
+                    if (sb != null) sb.AppendLine("  面 一間の溝 " + nm + "(" + yS.ToString("F2") + "・graded の溝の芯の中ほどの中央値): 両端の返しの間 " + Vector2.Distance(r0.pg, r1.pg).ToString("F2") + "m ⚠ 1/100 の落としは graded に無い");
+                }
+            }
+            finally { _inStrip = false; }
+        }
         return faces;
     }
 
@@ -3034,6 +3086,7 @@ public static class EdoOkabeYashikiBuilder
         return float.IsNaN(d) ? g : Mathf.Min(d, g);
     }
     static List<EdoBuild.SkinFace> _flat;
+    static bool _inStrip;   // FlatFaces が一間の溝の帯を作る間(EndDecisions → SkinGround → FlatFaces の再入を止める)
 
     // ---------------------------------------------------------------- 棟
     /// <summary>御殿の棟。**部材キットで一間の柱割りから組む**(Village Kit の一軒家プレハブでは

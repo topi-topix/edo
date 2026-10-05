@@ -382,7 +382,9 @@ public static partial class EdoBuild
         }
         /// <summary>**光線を部材の三角形へ打つ**(<paramref name="o"/> から <paramref name="d"/> へ <paramref name="maxDist"/> 以内の最初の当たりの距離・無ければ NaN)。
         /// 升の索引で引くので短い光線は速い(2026-09-26・EDO-0437 第5巡 ── 皮の辺が見え面の前へ出るかを測る)。<paramref name="only"/> ≥ 0 ならその駒だけ。</summary>
-        public float Ray(Vector3 o, Vector3 d, float maxDist, int only = -1)
+        public float Ray(Vector3 o, Vector3 d, float maxDist, int only = -1) { return Ray(o, d, maxDist, only, null); }
+        /// <summary><paramref name="okOwner"/> が false を返す駒の三角形は当たりに数えない(3b: 入隅の向かいの壁を「石の後ろ」と読まない・第25巡)。</summary>
+        public float Ray(Vector3 o, Vector3 d, float maxDist, int only, Func<int, bool> okOwner)
         {
             d.Normalize(); Vector3 e = o + d * maxDist; float best = float.NaN;
             int i0 = Mathf.FloorToInt(Mathf.Min(o.x, e.x) / B), i1 = Mathf.FloorToInt(Mathf.Max(o.x, e.x) / B);
@@ -395,6 +397,7 @@ public static partial class EdoBuild
                     foreach (var id in l)
                     {
                         if ((only >= 0 && owner[id] != only) || (seen != null && !seen.Add(id))) continue;
+                        if (okOwner != null && !okOwner(owner[id])) continue;
                         var t = tris[id];
                         Vector3 e1 = t[1] - t[0], e2 = t[2] - t[0];
                         Vector3 pv = Vector3.Cross(d, e2); float det = Vector3.Dot(e1, pv); if (Mathf.Abs(det) < 1e-9f) continue;
@@ -1411,17 +1414,27 @@ public static partial class EdoBuild
             //   ⭐ 法の面の上の点(天端の帯の外 = faceTop)は点そのもの(t = 0)も測る ── 面の多角形が見え面の前まで張り出していると、
             //   皮は面の高さ(Floor)で法の石の上に被り(前庭の東の縁の北端 z≈863: 石の頭 14.37 の上に皮 14.44)、辺の途中の点は石の中に入る。
             //   ⛔ 天端の帯の点では t = 0 を測らない(天端の背の面の点が天端の石の上を抜けて「見える」と読まれ、背に溝を掘る)。
+            // ⭐ 当たりに数えるのは、見え面が測る向きと逆を向かない駒だけ(2026-10-05 EDO-0502 第25巡): 入隅(門の内の袖 TW_Kado_Sode_3_0 の
+            //   積み × TW_Kado_Shumen_0_0)では、袖の積みの法の前に張った皮から見え面の向きへ打つ光線が 0.6m の内で向かいの城の石垣の
+            //   見え面に当たり「石の後ろ」と読まれ、皮が積みの天端の下 16.79 で平らに残って箱形の土の盛りが立った。向かいの壁(見え面が
+            //   こちらを向く・内積 < −0.3)は前の空の向こうの物で、石の後ろではない。当たる先: CutEdgeSkin を通る全邸の入隅の 3b。
+            Func<Vector2, Func<int, bool>> notFacing = fv0 => k =>
+            {
+                Vector2 f; if (!faceOf.TryGetValue(k, out f)) { f = Vector2.zero; try { f = WallFace(idx.gos[k]); } catch (Exception) { } faceOf[k] = f; }
+                return f.sqrMagnitude < 0.5f || Vector2.Dot(f, fv0) >= -0.3f;
+            };
             Func<long, float, long, Vector2, bool> Exposed = (kk, hk, k2, fv) =>
             {
+                var okF = notFacing(fv);
                 var P = PosOf(kk); P.y = hk; var Q = PosOf(k2); if (hk - Q.y <= 0.02f) return false;
                 Vector3 f3 = new Vector3(fv.x, 0f, fv.y);
                 int gi0 = (int)(kk >> 32), gj0 = (int)(uint)(kk & 0xffffffff);
                 bool onFace = !float.IsNaN(TopL(gi0, gj0)) && faceTop.Contains(kk);
-                if (onFace && float.IsNaN(idx.Ray(P, f3, 0.6f))) return true;
+                if (onFace && float.IsNaN(idx.Ray(P, f3, 0.6f, -1, okF))) return true;
                 foreach (float tt in new[] { 0.1f, 0.3f, 0.5f, 0.7f, 0.9f })
                 {
                     var q = Vector3.Lerp(P, Q, tt); if (q.y <= Q.y + 0.01f) continue;
-                    if (float.IsNaN(idx.Ray(q, f3, 0.6f))) return true;
+                    if (float.IsNaN(idx.Ray(q, f3, 0.6f, -1, okF))) return true;
                 }
                 return false;
             };

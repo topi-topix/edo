@@ -651,6 +651,196 @@ public static partial class EdoBuild
         return go;
     }
 
+    // ---------------------------------------------------------------- 暗渠(溝が据わった駒の足元の下を抜ける所)
+    /// <summary><see cref="LayAnkyoUnder"/> の答え。</summary>
+    public class AnkyoRep
+    {
+        /// <summary>据えた蓋石の数・蓋を掛けた(駒, 溝)の組・地面に掛からず据えなかった蓋の数。</summary>
+        public int lids, pairs, refused;
+        /// <summary>据えた蓋の天端と相手の足元の差の最悪[m](作りの上では 0)。</summary>
+        public float worstTop;
+        public List<string> notes = new List<string>();
+        public List<string> refusedWhy = new List<string>();
+        public string Summary() { return "暗渠の蓋 " + lids + " 枚(駒と溝の組 " + pairs + ")" + (refused > 0 ? "・据えない " + refused : ""); }
+    }
+
+    /// <summary>XZ の点の凸包(反時計回り・Andrew の単調連鎖)。2 点以下はそのまま返す。</summary>
+    public static List<Vector2> ConvexHull2(List<Vector2> pts)
+    {
+        var p = new List<Vector2>(pts); p.Sort((a, b) => a.x != b.x ? a.x.CompareTo(b.x) : a.y.CompareTo(b.y));
+        if (p.Count < 3) return p;
+        Func<Vector2, Vector2, Vector2, float> cr = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+        var h = new List<Vector2>();
+        for (int i = 0; i < p.Count; i++) { while (h.Count >= 2 && cr(h[h.Count - 2], h[h.Count - 1], p[i]) <= 0f) h.RemoveAt(h.Count - 1); h.Add(p[i]); }
+        int lo = h.Count + 1;
+        for (int i = p.Count - 2; i >= 0; i--) { while (h.Count >= lo && cr(h[h.Count - 2], h[h.Count - 1], p[i]) <= 0f) h.RemoveAt(h.Count - 1); h.Add(p[i]); }
+        h.RemoveAt(h.Count - 1);
+        return h;
+    }
+
+    /// <summary>二つの凸多角形(XZ)が <paramref name="eps"/> を超えて重なるか(分離軸)。辺が触れるだけの組は重ならないと読む。</summary>
+    public static bool ConvexOverlap(List<Vector2> a, List<Vector2> b, float eps = 0.005f)
+    {
+        if (a == null || b == null || a.Count < 3 || b.Count < 3) return false;
+        foreach (var poly in new[] { a, b })
+            for (int i = 0; i < poly.Count; i++)
+            {
+                var e = poly[(i + 1) % poly.Count] - poly[i]; var ax = new Vector2(-e.y, e.x); float m = ax.magnitude; if (m < 1e-6f) continue; ax /= m;
+                float a0 = float.MaxValue, a1 = float.MinValue, b0 = float.MaxValue, b1 = float.MinValue;
+                foreach (var q in a) { float t = Vector2.Dot(q, ax); a0 = Mathf.Min(a0, t); a1 = Mathf.Max(a1, t); }
+                foreach (var q in b) { float t = Vector2.Dot(q, ax); b0 = Mathf.Min(b0, t); b1 = Mathf.Max(b1, t); }
+                if (a1 < b0 + eps || b1 < a0 + eps) return false;
+            }
+        return true;
+    }
+
+    /// <summary>駒の実メッシュ(屋根を除く・世界)の三角形と平面の外形(全頂点の凸包)。<see cref="LowestSurfaceAt"/> の下ごしらえ。</summary>
+    public class SurfaceSet { public GameObject go; public List<Vector3[]> tris = new List<Vector3[]>(); public List<Vector2> hull; }
+    public static SurfaceSet SurfaceOf(GameObject go)
+    {
+        if (go == null) return null;
+        var r = new SurfaceSet { go = go }; var xz = new List<Vector2>();
+        foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null || !mf.gameObject.activeInHierarchy) continue;
+            var rr = mf.GetComponent<Renderer>(); if (rr == null || !rr.enabled) continue;
+            if (IsRoofLabel(mf.name)) continue;
+            var M = mf.transform.localToWorldMatrix; var vs = mf.sharedMesh.vertices; var tr = mf.sharedMesh.triangles;
+            var W = new Vector3[vs.Length]; for (int i = 0; i < vs.Length; i++) { W[i] = M.MultiplyPoint3x4(vs[i]); xz.Add(new Vector2(W[i].x, W[i].z)); }
+            for (int t = 0; t + 2 < tr.Length; t += 3) r.tris.Add(new[] { W[tr[t]], W[tr[t + 1]], W[tr[t + 2]] });
+        }
+        if (r.tris.Count == 0) return null;
+        r.hull = ConvexHull2(xz); return r.hull.Count >= 3 ? r : null;
+    }
+
+    /// <summary>点 (x, z) の鉛直線と駒の三角形の交わりのうち**最も低い高さ** = その点の足元(駒の下面)。交わらなければ NaN。
+    /// ⭐ 帯(最下点から 0.05)で足元を採ると、段に据わる布石のように下面が段違いの駒では最も低い所しか拾えない ── 点ごとに下面を引く。</summary>
+    public static float LowestSurfaceAt(SurfaceSet s, Vector2 q)
+    {
+        float best = float.MaxValue;
+        foreach (var t in s.tris)
+        {
+            Vector3 a = t[0], b = t[1], c = t[2];
+            if (q.x < Mathf.Min(a.x, Mathf.Min(b.x, c.x)) || q.x > Mathf.Max(a.x, Mathf.Max(b.x, c.x)) || q.y < Mathf.Min(a.z, Mathf.Min(b.z, c.z)) || q.y > Mathf.Max(a.z, Mathf.Max(b.z, c.z))) continue;
+            float d = (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z); if (Mathf.Abs(d) < 1e-9f) continue;
+            float u = ((b.z - c.z) * (q.x - c.x) + (c.x - b.x) * (q.y - c.z)) / d, v = ((c.z - a.z) * (q.x - c.x) + (a.x - c.x) * (q.y - c.z)) / d, w = 1f - u - v;
+            if (u < -1e-5f || v < -1e-5f || w < -1e-5f) continue;
+            best = Mathf.Min(best, u * a.y + v * b.y + w * c.y);
+        }
+        return best == float.MaxValue ? float.NaN : best;
+    }
+
+    /// <summary>**暗渠**(硬い・許容0 ── 足元の浮き)。溝の駒 <paramref name="channel"/> が、地面に据わった駒 <paramref name="over"/>(塀・布石・石段)の
+    /// 足元の下を抜ける所に、蓋石を溝の向きに並べて**蓋の天端を駒の足元に合わせる**(溝の中の水は蓋の下を通る ── 江戸の作りの、塀の下を石の蓋で抜ける形)。
+    /// <para>当たり: 蓋の天端 × 駒の下面(蓋の天端の面の中ほどと四隅で、鉛直に引いた駒の三角形の最も低い交わり ── 塀が布石に載る所は布石の下面が最も低いので、そこへ合わせる)/
+    /// 蓋の両端の下面 × 溝の脇の地面(蓋は溝の縁ではなく脇の地面に掛かる ── 天端の沈んだ溝の上に浮かせない)。</para>
+    /// <para>据える条件: 蓋の位置で駒の足元が溝の天端より 0.01 を超えて高い(= 溝の上で足元が浮いている)。
+    /// 厚み <paramref name="tChoices"/> は大きい順に、蓋の下端が溝の天端を割らない最も厚い物(割るなら最も薄い物 ── 溝の縁へ埋まるのは部材どうしで数えない)。
+    /// 蓋の両端の地面より下端が 0.01 を超えて高い所は**据えない**(硬い ── 蓋が宙に浮く)。それは溝ではなく駒の足元の側の欠陥(段の継ぎ目で布石が届かない等)なので、
+    /// <see cref="AnkyoRep.refusedWhy"/> に駒の名と差を名乗る。</para>
+    /// 当たる先: 溝が塀・布石・石段の足元の下を通る所の全部(いまは土井 S9 だけが呼ぶ ── 奥の塀・奥の塀の廊下際・蔵の石段)。</summary>
+    public static List<GameObject> LayAnkyoUnder(Transform parent, string prefix, IList<GameObject> channel, IList<GameObject> over,
+                                                 Func<float, string> lidPathForT, float[] tChoices, Func<float, float, float> groundAt, out AnkyoRep rep)
+    {
+        rep = new AnkyoRep(); var made = new List<GameObject>();
+        if (channel == null || over == null || tChoices == null || tChoices.Length == 0) return made;
+        var ts = new List<float>(tChoices); ts.Sort((x, y) => y.CompareTo(x));
+        var mps = new Dictionary<float, MizoPiece>(); var paths = new Dictionary<float, string>();
+        foreach (var t in ts) { string p = lidPathForT(t); var mp = MizoPieceOf(p); if (p != null && mp.ok) { mps[t] = mp; paths[t] = p; } }
+        if (mps.Count == 0) { rep.notes.Add("蓋石の部材が測れない"); return made; }
+        var mp0 = mps[ts.Find(t => mps.ContainsKey(t))];
+        float lidLen = mp0.zMax - mp0.zMin, lidHalfW = 0.5f * (mp0.xMax - mp0.xMin);
+        if (lidLen < 0.05f) { rep.notes.Add("蓋石の長さが測れない"); return made; }
+        // 相手の下面
+        var feet = new List<SurfaceSet>();
+        foreach (var g in over) { if (g == null || !g.activeInHierarchy) continue; var ss = SurfaceOf(g); if (ss != null) feet.Add(ss); }
+        // 溝の駒の外形と頂点
+        var chHull = new List<List<Vector2>>(); var chPts = new List<List<Vector3>>(); var chGo = new List<GameObject>();
+        foreach (var c in channel)
+        {
+            if (c == null || !c.activeInHierarchy) continue;
+            var pts = Body(c.transform, 999999, true); if (pts.Count == 0) continue;
+            var xz = new List<Vector2>(); foreach (var p in pts) xz.Add(new Vector2(p.x, p.z));
+            var h = ConvexHull2(xz); if (h.Count < 3) continue;
+            chHull.Add(h); chPts.Add(pts); chGo.Add(c);
+        }
+        Func<Vector2, float> crestAt = q =>
+        {
+            float best = float.MinValue;
+            for (int i = 0; i < chGo.Count; i++) foreach (var p in chPts[i]) if ((new Vector2(p.x, p.z) - q).sqrMagnitude <= 0.35f * 0.35f) best = Mathf.Max(best, p.y);
+            return best == float.MinValue ? float.NaN : best;
+        };
+        var lidAt = new List<Vector2>(); var pairSeen = new HashSet<string>();
+        for (int ci = 0; ci < chGo.Count; ci++)
+        {
+            var hp = chHull[ci];
+            var hits = feet.FindAll(f => ConvexOverlap(hp, f.hull));
+            if (hits.Count == 0) continue;
+            // 溝の駒の軸(局所 +Z = 流れ)と、軸に沿う外形の範囲・軸に直交する芯
+            var fw = chGo[ci].transform.forward; var d = new Vector2(fw.x, fw.z); if (d.sqrMagnitude < 1e-6f) continue; d.Normalize();
+            var nrm = new Vector2(-d.y, d.x);
+            float s0 = float.MaxValue, s1 = float.MinValue, n0 = float.MaxValue, n1 = float.MinValue;
+            foreach (var q in hp) { float s = Vector2.Dot(q, d), n = Vector2.Dot(q, nrm); s0 = Mathf.Min(s0, s); s1 = Mathf.Max(s1, s); n0 = Mathf.Min(n0, n); n1 = Mathf.Max(n1, n); }
+            float nc = 0.5f * (n0 + n1);
+            for (float sc = s0 + 0.5f * lidLen; sc - 0.5f * lidLen < s1 - 1e-3f; sc += lidLen)
+            {
+                var c = d * sc + nrm * nc;
+                var rect = new List<Vector2> { c - d * 0.5f * lidLen - nrm * lidHalfW, c + d * 0.5f * lidLen - nrm * lidHalfW, c + d * 0.5f * lidLen + nrm * lidHalfW, c - d * 0.5f * lidLen + nrm * lidHalfW };
+                if (lidAt.Exists(q => (q - c).sqrMagnitude < 0.25f * lidLen * lidLen)) continue;
+                // 足元 = 蓋の天端の面(中ほどと四隅の内 0.8)の上にある駒の下面の最も低い所(塀が布石に載る所は布石の下面)
+                float foot = float.MaxValue; string who = null; var on = new List<SurfaceSet>();
+                foreach (var f in hits)
+                {
+                    if (!ConvexOverlap(rect, f.hull)) continue;
+                    float fm = float.MaxValue;
+                    foreach (var q in new[] { c, c + 0.8f * (rect[0] - c), c + 0.8f * (rect[1] - c), c + 0.8f * (rect[2] - c), c + 0.8f * (rect[3] - c) })
+                    { float y = LowestSurfaceAt(f, q); if (!float.IsNaN(y)) fm = Mathf.Min(fm, y); }
+                    if (fm == float.MaxValue) continue;
+                    on.Add(f); if (fm < foot) { foot = fm; who = f.go.name; }
+                }
+                if (on.Count == 0) continue;
+                float crest = crestAt(c); if (float.IsNaN(crest)) continue;
+                if (foot - crest <= 0.01f) continue;   // 足元は溝の天端より高くない(溝が足元を割る所 ── 部材どうしの重なり)
+                float t = ts.Find(x => mps.ContainsKey(x) && foot - x >= crest - 1e-3f);
+                if (t <= 0f) { t = ts[ts.Count - 1]; while (!mps.ContainsKey(t)) t = ts[ts.IndexOf(t) - 1]; }
+                var mp = mps[t]; float bottom = foot - (mp.top - mp.bottom);
+                float gEnd = float.MaxValue;
+                foreach (float sg in new[] { 1f, -1f }) { var e = c + nrm * sg * (lidHalfW - 0.05f); float g = groundAt(e.x, e.y); if (!float.IsNaN(g)) gEnd = Mathf.Min(gEnd, g); }
+                if (gEnd == float.MaxValue) continue;
+                if (bottom > gEnd + 0.01f)
+                {
+                    rep.refused++;
+                    rep.refusedWhy.Add(who + ": 足元 " + foot.ToString("F3") + " が溝の脇の地面 " + gEnd.ToString("F3") + " より " + (foot - gEnd).ToString("F3") + "m 高い @(" + c.x.ToString("F1") + ", " + c.y.ToString("F1") + ")── 蓋が宙に浮く(溝でなく足元の側)");
+                    lidAt.Add(c); continue;
+                }
+                var go = Place(paths[t], new Vector3(c.x, 0f, c.y), Mathf.Atan2(d.x, d.y) * Mathf.Rad2Deg, Vector3.one, parent, prefix + "_" + rep.lids.ToString("000"));
+                if (go == null) continue;
+                // 平面 = 蓋の実メッシュの中ほどを c へ・高さ = 実メッシュの天端を足元へ(⛔ ピボットで決めない)
+                var w = go.transform.TransformPoint(new Vector3(0.5f * (mp.xMin + mp.xMax), mp.top, 0.5f * (mp.zMin + mp.zMax)));
+                go.transform.position += new Vector3(c.x - w.x, foot - w.y, c.y - w.z);
+                float topNow = go.transform.TransformPoint(new Vector3(0f, mp.top, 0f)).y;
+                rep.worstTop = Mathf.Max(rep.worstTop, Mathf.Abs(topNow - foot));
+                made.Add(go); lidAt.Add(c); rep.lids++;
+                foreach (var f in on) if (pairSeen.Add(f.go.name + "|" + chGo[ci].name)) rep.pairs++;
+                rep.notes.Add(go.name + " → " + who + "(足元 " + foot.ToString("F3") + "・溝の天端 " + crest.ToString("F3") + "・t " + t.ToString("0.00") + "・脇の地面 " + gEnd.ToString("F3") + ")");
+            }
+        }
+        return made;
+    }
+
+    /// <summary>線を、点 <paramref name="c"/> から半径 <paramref name="r"/> の円に初めて入る所で切る(桝へ入る溝の尻を桝の外の面で止める ──
+    /// 溝の駒が桝の窪みの上へ張り出さない)。円は桝の外形に内接するので、どの向きから入っても尻は桝の壁の中に止まり、隙は開かない。
+    /// 切った長さが <paramref name="minLen"/> に満たなければ元の線を返す。当たる先: 桝へ入る溝の全部(土井 S9 の D1・D2・D11)。</summary>
+    public static List<Vector2> TrimLineAtCircle(List<Vector2> pl, Vector2 c, float r, float minLen, out float cut)
+    {
+        cut = 0f; float L = PolylineLength(pl); if (L < 1e-3f || r <= 0f) return pl;
+        float sIn = float.NaN;
+        for (float s = 0f; s <= L + 1e-4f; s += 0.02f) { Vector2 d; var q = PointAt(pl, Mathf.Min(s, L), out d); if ((q - c).magnitude <= r) { sIn = Mathf.Min(s, L); break; } }
+        if (float.IsNaN(sIn) || sIn < minLen) return pl;
+        cut = L - sIn;
+        return cut > 1e-3f ? SubPolyline(pl, 0f, sIn) : pl;
+    }
+
     /// <summary>坂の頭へ水切り石を据える。平面 = 坂の頭の縁から下へ <paramref name="inset"/> の線の中ほど・坂の軸に対して skew 度振る
     /// (振る向き = 坂の脇のうち地盤の低い側)。高さ = 石の**下端**を足元の地盤の最低 − 埋め(石の丈 − topAbove)。
     /// 当たる先: 型 O(D8 の R_Tsuyomon・R_Tomomachi の頭)。</summary>

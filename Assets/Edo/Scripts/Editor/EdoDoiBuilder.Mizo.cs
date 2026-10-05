@@ -761,6 +761,34 @@ public static partial class EdoDoiBuilder
             for (int li = 0; li < g.lines.Count; li++)
             {
                 var pl = g.lines[li];
+                Vector2 endOrig = pl[pl.Count - 1];   // 尻(桝の芯・受ける区間の頭の引き当てはこの点 ── 切る前)
+                if (ms != null)
+                {
+                    // 桝へ入る尻は桝の外の面で止める(EdoBuild.TrimLineAtCircle)── 尻の駒が桝の窪みの上へ張り出して浮く(D1 seg3 ── EDO-0533 第10巡)
+                    var mpm = EdoBuild.MizoPieceOf(EdoBuild.AssetByName("Own", "DoiMasu", Sk(ms.raw, "kata")));
+                    if (mpm.ok)
+                    {
+                        // 桝の仮の芯 = この尻と、同じ桝へ入る他の区間の線の端(この尻に近い方)の平均 ── 桝の芯の引き方(入る尻の平均)と同じ
+                        Vector2 sum = endOrig; int nE = 1; bool far = false;
+                        foreach (var h in segs)
+                        {
+                            if (h == g || masuOf(h) != ms || h.rawLines == null) continue;
+                            foreach (var rl in h.rawLines)
+                            {
+                                if (rl.Count < 2) continue;
+                                var e = (rl[0] - endOrig).sqrMagnitude < (rl[rl.Count - 1] - endOrig).sqrMagnitude ? rl[0] : rl[rl.Count - 1];
+                                if ((e - endOrig).magnitude > 2f * mpm.halfW + 0.6f) far = true;
+                                sum += e; nE++;
+                            }
+                        }
+                        if (!far)
+                        {
+                            float cut; var trm = EdoBuild.TrimLineAtCircle(pl, sum / nE, mpm.halfW, 0.5f, out cut);
+                            if (cut > 1e-3f) { pl = trm; g.lines[li] = trm; hl.Add("線" + (li + 1) + " 尻を桝の外の面(芯から " + mpm.halfW.ToString("F2") + ")で " + cut.ToString("F2") + "m 止めた"); }
+                        }
+                        else hl.Add("⚠ 線" + (li + 1) + " 桝へ入る他の尻が散らばり、桝の芯が引けない ── 尻を切らない");
+                    }
+                }
                 var sp = new EdoBuild.MizoSpec
                 {
                     name = g.id, kata = g.kata, line = pl, groundAt = groundMizo, topAbove = topAbove(g.kata),
@@ -799,8 +827,8 @@ public static partial class EdoDoiBuilder
                 hl.Add("線" + (li + 1) + " " + pr.length.ToString("F1") + "m 底 " + pr.Head.ToString("F3") + "→" + pr.Tail.ToString("F3")
                        + "(落差 " + (pr.Head - pr.Tail).ToString("F3") + "・平均勾配 " + ((pr.Head - pr.Tail) / Mathf.Max(0.01f, pr.length)).ToString("0.0000")
                        + (pr.steps > 0 ? "・段 " + pr.steps + " 区・1段 最大 " + pr.worstRise.ToString("F3") : "") + ")");
-                solvedEnds.Add(new KeyValuePair<MzSeg, Vector3>(g, new Vector3(pl[pl.Count - 1].x, pl[pl.Count - 1].y, pr.Tail)));
-                if (ms != null) { ms.inEnds.Add(pl[pl.Count - 1]); ms.inBottoms.Add(pr.Tail); }
+                solvedEnds.Add(new KeyValuePair<MzSeg, Vector3>(g, new Vector3(endOrig.x, endOrig.y, pr.Tail)));
+                if (ms != null) { ms.inEnds.Add(endOrig); ms.inBottoms.Add(pr.Tail); }
             }
             g.built = laid > 0;
             string head2 = g.id + "(型 " + g.kata + "・" + EdoBuild.AssetByName("Own", "DoiMizo", g.kata) + "): ";
@@ -841,6 +869,18 @@ public static partial class EdoDoiBuilder
             var go = EdoBuild.PlaceMasu(grp, mz.id.Replace(" ", "_").Replace("[", "").Replace("]", ""), path, c, outDir, topWant, floorMax, out floor, out sink);
             if (go == null) { line(2, mz.id + ": 桝が測れない " + path); continue; }
             masuAt[mz.id] = c;
+            // 硬: 欄 at「軒先の線の外」── 桝の外形(実測の幅・長さ)が棟の軒先の外周に掛からない(掛かると床下の束石・礎石が桝の窪みの上に載る ── 土井 書院 第10巡)
+            if ((Sk(m, "at") ?? "").Contains("軒先の線の外"))
+            {
+                var nr = new Vector2(-outDir.y, outDir.x); float hz = 0.5f * (mp.zMax - mp.zMin);
+                var box = new List<Vector2> { c - outDir * hz - nr * mp.halfW, c + outDir * hz - nr * mp.halfW, c + outDir * hz + nr * mp.halfW, c - outDir * hz + nr * mp.halfW };
+                foreach (var kv2 in eave)
+                    if (EdoBuild.ConvexOverlap(box, new List<Vector2>(kv2.Value)))
+                    {
+                        line(2, mz.id + ": 桝が " + kv2.Key + " の軒先の外周に掛かる(欄「軒先の線の外」【硬 ✗】)── 入る溝の尻の平均に置いた。軒先の外へ出すと入る溝(軒先の鉛直下)が桝へ届かず、曲げて入れる取り合いが欄に無い");
+                        Wait(mz.id + ": 欄「軒先の線の外」を満たす置き場と、軒先の鉛直下の溝をそこへ曲げて入れる取り合い(曲げの所・桝の向き)が欄に無い ── 普請方へ");
+                    }
+            }
             bool hardOk = floor < inMin - 1e-4f;
             line(hardOk ? (sink > 0.005f ? 1 : 0) : 2, mz.id + "(" + kt + "): 底 " + floor.ToString("F3") + " < 入る溝の底の最低 " + inMin.ToString("F3") + (hardOk ? "【硬 ⭕】" : "【硬 ✗】")
                 + "・天端 " + (floor + mp.Depth).ToString("F3") + "(狙い " + topWant.ToString("F3") + (sink > 0.005f ? "・沈み " + sink.ToString("F3") + "m【柔 ⚠】" : "") + ")・入る溝 " + mz.inEnds.Count + " 本");
@@ -944,6 +984,34 @@ public static partial class EdoDoiBuilder
                 }
                 else if (!string.IsNullOrEmpty(kt))
                 { line(1, dn + " 吐口(型 " + kt + "「" + (Sk(obd, "at") ?? "") + "」): 置き場が建った物から引けない ── 据えない"); Wait(dn + " 吐口(型 " + kt + "): " + (Sk(obd, "at") ?? Sk(obd, "to") ?? "") + " ── 線が無い"); }
+            }
+        }
+
+        // ---- 暗渠(溝が塀・布石・石段の足元の下を抜ける所)── 蓋石 L を溝の向きに並べ、蓋の天端を足元へ(EdoBuild.LayAnkyoUnder・硬い)
+        //   ⭐ 塀は S2、溝は S9 で据わる ── 後から据えた溝の駒が塀の足元の下を掘り、縁の皮(4b)が溝の天端へ下がって塀が浮いた(奥の塀 Oku_Hei_Roka 0.16〜0.20・
+        //   蔵の石段 Danishi_01 0.705 ── EDO-0533 第10巡)。江戸の作りは、塀の下を石の蓋で抜ける。⚠ 流した後に 4b 縁の皮を流し直す(蓋は群 Mizo)
+        {
+            var over = new List<GameObject>();
+            foreach (var root in new[] { Group("OkuHei"), Group("Kakoi") })
+                foreach (Transform c in root)
+                    if (c.gameObject.activeInHierarchy && (root.name == "OkuHei" || c.name.Contains("_Hei") || c.name.EndsWith("_ishi"))) over.Add(c.gameObject);   // 塀と布石(表長屋の躯体は軒が溝の上に掛かるので入れない)
+            foreach (Transform k in Group("Fuzoku/Kaidan"))
+            {
+                if (!k.gameObject.activeInHierarchy) continue;
+                if (k.GetComponent<MeshFilter>() != null || PrefabUtility.IsAnyPrefabInstanceRoot(k.gameObject)) over.Add(k.gameObject);
+                else foreach (Transform kk in k) if (kk.gameObject.activeInHierarchy) over.Add(kk.gameObject);
+            }
+            var katas = new List<string>(); foreach (var g in segs) if (g.built && !katas.Contains(g.kata)) katas.Add(g.kata);
+            foreach (var kt in katas)
+            {
+                var chans = new List<GameObject>(); foreach (var g in segs) if (g.built && g.kata == kt) foreach (var pc in g.pieces) if (pc != null) chans.Add(pc);
+                string kk = kt;
+                EdoBuild.AnkyoRep ar;
+                var lids = EdoBuild.LayAnkyoUnder(grp, "Ankyo_" + kt, chans, over, tt => EdoBuild.AssetByName("Own", "DoiFutaishiFor", kk, tt), new[] { 0.20f, 0.15f }, EdoBuild.Ground, out ar);
+                if (ar.lids == 0 && ar.refused == 0) { if (ar.notes.Count > 0 && chans.Count > 0) line(1, "暗渠(型 " + kt + "): " + string.Join(" / ", ar.notes.ToArray())); continue; }
+                line(ar.refused > 0 ? 2 : 0, "暗渠(型 " + kt + "): " + ar.Summary() + "・蓋の天端 − 足元 最悪 " + ar.worstTop.ToString("F3") + "m【硬 " + (ar.refused > 0 ? "✗" : "⭕") + " 足元が溝の上で浮かない】"
+                     + (ar.notes.Count > 0 ? "\n      " + string.Join("\n      ", ar.notes.ToArray()) : ""));
+                foreach (var w in ar.refusedWhy) { line(2, "  暗渠(型 " + kt + ") 据えない: " + w); Wait("暗渠: " + w); }
             }
         }
 

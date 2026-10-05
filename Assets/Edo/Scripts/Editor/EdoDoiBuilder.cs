@@ -1389,7 +1389,9 @@ public static partial class EdoDoiBuilder
             }
             secs.Add(sec); rows.Add(r);
         }
-        var cr = EdoBuild.PlaceCastleRun(secs, P, EdoBuild.Ground, ig, log);
+        // 段の継ぎ目の掛け 0.03m: 表長屋の足(札の foot)は躯体の端 = run の s まで来る ── 高い段の天端の面を継ぎ目の面より先へ届かせ、足の端を下の段の天端の上に浮かせない
+        //   (EDO-0533 第10巡: 札の foot が ±L/2 − 0.030 から ±L/2 へ伸び、E13_N02・N04・N05 の足の端が 0.6 浮いた。掛けの 0.03 は第9巡まで足が天端の内に収まっていた控えと同じ)
+        var cr = EdoBuild.PlaceCastleRun(secs, P, EdoBuild.Ground, ig, log, stepLap: 0.03f);
         var kcs = new List<GameObject>();
         int kn = EdoBuild.PlaceRunCorners(cr.ends, cr.segs, EdoAssets.Own.IshigakiKado, EdoBuild.Ground, ig, 0.02f, log, kcs);
         sb.AppendLine("  基壇(城の石垣): " + cr.pieces.Count + " 駒・出隅の駒 " + kn + (cr.buried > 0 ? "・全体が埋まり退けた " + cr.buried : "")

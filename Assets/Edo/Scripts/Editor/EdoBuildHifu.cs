@@ -101,6 +101,10 @@ public static partial class EdoBuild
         public int coverTerrain;
         /// <summary>coverTerrain のうち、地形の木・植栽の点が立つので穴を開けなかった升の物(駒の側 ── 木・植栽が溝・受けの升に立つ)と、その相手の部材。</summary>
         public int coverPlantCell; public string coverPlantBy;
+        /// <summary>溝の脇の守り(<c>keepGradeBeside</c> を渡したとき・2026-10-05 EDO-0533 第14巡): 溝の駒の外形の外で、溝・蓋の天端で下げる cap を造成の面で止めた点 /
+        /// 外形の縁で閉じる(3c)の下げを造成の面で止めた点。<see cref="coverSunk"/> = 被りのうち、溝・蓋の天端が造成の面より低い所の物(溝の側 ──
+        /// 深さの版が足りず天端が地盤の下へ沈んだ溝・地盤の下に据わった蓋。皮は造成の面より下げない)。</summary>
+        public int keepHeld, keepRimHeld, coverSunk; public string coverSunkBy;
         public override string ToString()
         {
             return (string.IsNullOrEmpty(floors) ? "" : "床を覆う部材:" + floors + "(面の下へ納めた皮 " + gateUnder + " 点) / ") + "穴 " + holesCut + " 升(部材 " + cellsParts + "・面の縁 " + cellsFace + "(うち縁の線の帯 " + cellsBand + ")・裏込め " + cellsFill +
@@ -121,6 +125,8 @@ public static partial class EdoBuild
                    " / 皮が部材の天端に被る " + coverN + " / " + coverPts + " 点" + (coverN > 0 ? "(最大 " + coverMax.ToString("F3") + "m @(" + coverAt.x.ToString("F2") + ", " + coverAt.z.ToString("F2") + ")〔" + coverBy + "〕)" : "") +
                    (coverTerrain > 0 ? "(うち皮でなく穴を開けなかった地形の升が被る " + coverTerrain +
                                        (coverPlantCell > 0 ? "・そのうち地形の木・植栽の点が立つ升 " + coverPlantCell + "〔" + coverPlantBy + "〕── 駒の側" : "") + ")" : "") +
+                   (coverSunk > 0 ? "(うち溝・蓋の天端が造成の面より低い所 " + coverSunk + "〔" + coverSunkBy + "〕── 溝の側・皮は造成の面より下げない)" : "") +
+                   (keepHeld + keepRimHeld > 0 ? " / 溝の脇の皮を造成の面で止めた " + keepHeld + " 点・外形の縁で閉じる下げを止めた " + keepRimHeld + " 点" : "") +
                    " / メッシュ " + mesh +
                    (seatGuard ? "\n    硬い(許容0): 据わりの守り ── 駒 " + seatPieces + "(部材に載るので外した " + seatOnPart + ")・地面に触れていた点 " + seatContacts +
                                 " / 皮を上げた頂点 " + seatRaised + "(うち周りへ法で下ろした " + seatMound + ")" + (seatRaised > 0 ? "・最大 " + seatRaiseMax.ToString("F3") + "m @(" + seatRaiseAt.x.ToString("F1") + ", " + seatRaiseAt.z.ToString("F1") + ")〔" + seatRaiseBy + "〕" : "") +
@@ -520,13 +526,20 @@ public static partial class EdoBuild
     /// 上げた所は周りへ盛土の法で下ろす(鉛直の板を立てない)。上げる頂点は、その頂点に触れる三角形のどこでも**部材の天端を越えない**所で止め
     /// (天端に譲る・自分の駒も含む)、譲って届かない触れる点は駒の側として名乗る(<see cref="SkinReport.seatUnmet"/>)。⛔ 升を外して元の地形へ戻さない。
     /// 渡さなければ守りは掛からない。</para>
+    /// <para>⭐ <paramref name="keepGradeBeside"/>(溝の脇の守り ── 硬い・許容0。2026-10-05 EDO-0533 第14巡): 掘る部材のうち**窪みを持つ溝の駒**(蓋石は入れない)。
+    /// 渡すと、この駒たちの外形の**外**の点では、掘る部材(溝・蓋)の天端で皮を下げる cap(真下・隣の点とも)と 3c の縁で閉じる下げを、その点の
+    /// **造成の面**(cap を掛ける前の高さ = 面・設計の地盤)で止める ⇒ 溝の外の地表は溝を掘る前の造成の面より下がらない。下げてよいのは溝の駒の外形の内だけ。
+    /// 溝・蓋の天端が造成の面より低い所では皮がその縁に被る ── 被りのうち該当する物は <see cref="SkinReport.coverSunk"/>(溝の側)として名乗る。
+    /// ⛔ 2026-10-05 第13巡まで、溝 D2 の天端が地盤の 0.5〜0.64m 下にある所(深さの版の上限 0.30 を超える区間)で、溝の外形の外 0.5m の皮を天端 26.06 まで
+    /// 下げ(地盤 26.6)、幅 0.84 の蓋石の両端・蔵の石段の脇が 0.16〜0.5m の窪みの上に出ていた。渡さなければ従来どおり。</para>
     public static SkinReport CutEdgeSkin(string name, Transform parent, IList<GameObject> parts, IList<SkinFace> faces,
                                          float faceTol, float step = 0.25f, float margin = 0.5f, float eps = 0f, float under = 0.15f,
                                          SkinDesign design = null, float drawTol = 0.10f, float backfill = 0f, bool sealFace = false,
                                          IList<GameObject> digParts = null, float digUnder = 0.05f, float digBatter = 1f,
                                          IList<GameObject> crestBandParts = null, IList<Vector2> plantPoints = null,
                                          IList<GameObject> floorParts = null, IList<Vector2[]> faceKeepOut = null,
-                                         IList<GameObject> hollowParts = null, IList<GameObject> seated = null)
+                                         IList<GameObject> hollowParts = null, IList<GameObject> seated = null,
+                                         IList<GameObject> keepGradeBeside = null)
     {
         var r = new SkinReport();
         var t = T(); var td = t.terrainData; var org = t.transform.position;
@@ -565,6 +578,22 @@ public static partial class EdoBuild
         // 掘る部材(hollowParts)の外形の番号
         var hollowSet = hollowParts != null ? new HashSet<GameObject>(hollowParts) : null;
         Func<int, bool> IsHollow = w => hollowSet != null && w >= 0 && w < idx.gos.Count && hollowSet.Contains(idx.gos[w]);
+        // 溝の脇の守り(keepGradeBeside): 溝の駒の外形の番号と、点がそのどれかの外形の内か
+        var keepSet = keepGradeBeside != null ? new HashSet<GameObject>(keepGradeBeside) : null;
+        var keepHulls = new List<int>();
+        if (keepSet != null) for (int k = 0; k < idx.gos.Count; k++) if (keepSet.Contains(idx.gos[k])) keepHulls.Add(k);
+        Func<Vector2, bool> InKeepHull = q =>
+        {
+            foreach (var k in keepHulls)
+            {
+                var hb = idx.bounds[k];
+                if (q.x < hb.x || q.x > hb.z || q.y < hb.y || q.y > hb.w) continue;
+                if (EdoGeom.PIP(idx.hulls[k], q)) return true;
+            }
+            return false;
+        };
+        // 点 → その点の造成の面(溝の外形の外で、掘る部材の cap が当たった点だけ)── 3c の下げもここで止める
+        var keepFloor = keepSet != null ? new Dictionary<long, float>() : null;
 
         // ---- 2 穴の升
         var cells = new HashSet<long>();
@@ -1218,15 +1247,24 @@ public static partial class EdoBuild
                             if (!float.IsNaN(cr) && hgt0 < cr - 2f * CREST_BAND && hgt0 > tq) return hgt0;
                             return tq;
                         };
-                        if (!float.IsNaN(self)) { cap = self - under; if (faceTop.Contains(CK(gi, gj))) cap = Floor(cap, gi, gj); }
+                        // ⭐ 溝の脇の守り(keepGradeBeside・硬い): この点が溝の駒の外形の外なら、掘る部材(溝・蓋)の天端で下げる cap を造成の面 hgt0 で止める
+                        //   (cap を掛ける前の高さ = 面・設計の地盤)。外形の内か(keepY = NaN)は掘る部材の cap に当たったときだけ引く。
+                        float keepY = float.NaN; bool keepAsked = false, keepHit = false;
+                        Func<float> KeepY = () => { if (!keepAsked) { keepAsked = true; if (keepSet != null && !InKeepHull(p)) keepY = hgt0; } return keepY; };
+                        if (!float.IsNaN(self))
+                        {
+                            cap = self - under; if (faceTop.Contains(CK(gi, gj))) cap = Floor(cap, gi, gj);
+                            int sw; if (keepSet != null && topWho.TryGetValue(CK(gi, gj), out sw) && IsHollow(sw)) { float ky = KeepY(); if (!float.IsNaN(ky)) { keepHit = true; if (cap < ky) cap = ky; } }
+                        }
                         for (int di = -CAPR; di <= CAPR; di++)
                             for (int dj = -CAPR; dj <= CAPR; dj++)
                             {
                                 if (di == 0 && dj == 0) continue;
                                 float tq = TopL(gi + di, gj + dj); if (float.IsNaN(tq)) continue;
+                                int hw = -1;
                                 if (hollowSet != null)
                                 {
-                                    int hw; topWho.TryGetValue(CK(gi + di, gj + dj), out hw);
+                                    topWho.TryGetValue(CK(gi + di, gj + dj), out hw);
                                     // 掘る部材の窪みの上の隣: この点がその駒の外形の外なら、窪みの底でなく縁の天端で取る(外形の中は従来どおり)
                                     if (IsHollow(hw) && !EdoGeom.PIP(idx.hulls[hw], p)) { float rm = RimL(gi + di, gj + dj); if (!float.IsNaN(rm) && rm > tq) tq = rm; }
                                 }
@@ -1236,6 +1274,7 @@ public static partial class EdoBuild
                                 //   前庭 14.50 の皮が隅石の背と袖の背の際で 0.37 窪んだ)。石の頭が面の下へ入るのは土留めが面を受ける正しい納め。
                                 //   頭が面より帯 2 つ(0.30)を超えて低い所(打ち切りの先・低い見付)は従来どおり天端の下へ。
                                 else if (faced && near < 2 && crestTop.Contains(CK(gi + di, gj + dj)) && tq < hgt0 && hgt0 - tq <= 2f * CREST_BAND) tq = hgt0;
+                                if (keepSet != null && IsHollow(hw)) { float ky = KeepY(); if (!float.IsNaN(ky)) { keepHit = true; if (tq < ky) tq = ky; } }   // 溝の外の点は造成の面より下げない
                                 if (float.IsNaN(cap) || tq < cap) cap = tq;
                                 if (Mathf.Abs(di) <= 1 && Mathf.Abs(dj) <= 1 && (float.IsNaN(capN1) || tq < capN1)) capN1 = tq;
                             }
@@ -1246,6 +1285,7 @@ public static partial class EdoBuild
                         if (!float.IsNaN(self)) { float sc = self - (FillSeeded(gi, gj) ? FILL_UNDER : under); capF = float.IsNaN(capF) ? sc : Mathf.Min(capF, sc); }
                         float pre = hgt;
                         if (!float.IsNaN(cap) && hgt > cap) { hgt = cap; r.clamped++; if (!float.IsNaN(self)) r.under++; }
+                        if (keepHit) { keepFloor[k] = keepY; if (hgt >= keepY - 1e-4f && !float.IsNaN(cap)) r.keepHeld++; }
                         // ⭐ 裏込め(backfill > 0): 部材の底より下にある所は底まで盛る。外形の中では(縁の FLAT の帯を除き)
                         //   その点の部材の底より上げない(駒の面から皮を出さない)。天端の下へ納める cap は守る。
                         float fv = FillAt(gi, gj);
@@ -1481,7 +1521,7 @@ public static partial class EdoBuild
             }
         }
         // ---- 3c 外形の縁で閉じる(硬い・許容0 ── 2026-09-26 EDO-0437 第7巡)
-        CloseRimAtHull(idx, H, PIN, CK, org, step, FaceY, faceTol, ref r);   // ⚠ ref ── 2026-10-05 まで値渡しで rimRaised/rimLowered が報告で常に 0 だった
+        CloseRimAtHull(idx, H, PIN, CK, org, step, FaceY, faceTol, ref r, keepSet != null ? IsHollow : null, keepFloor);   // ⚠ ref ── 2026-10-05 まで値渡しで rimRaised/rimLowered が報告で常に 0 だった
         // ---- 3d 据わりの守り(硬い・許容0 ── 2026-10-05 EDO-0533 土井 全項目の検査: 駒の浮き 27・一部の浮き 88・植栽 35・溝 171)
         //   皮は 3〜3c で面・設計の地盤・部材の天端・石段の足へ寄せて**元の地形より下げる**ことがある。その升に先に据わっていた駒
         //   (外周の長屋・棟・植栽・溝)は元の地形で据えてあるので、下げた分だけ当たりが全部そろって浮く。⇒ 最後に、駒が地面に触れていた
@@ -1606,7 +1646,16 @@ public static partial class EdoBuild
         EditorUtility.SetDirty(td);
 
         // ---- 7 検め(硬い・許容0)── 皮を描かれた地表として測る
-        MeasureSkin(idx, ref r, null, (px, pz) => treeCells.Contains(CK(CI(px), CJ(pz))));
+        // 溝の脇の守り: 被りのうち、掘る部材の天端が外形の外 0.05 の造成の面より低い所は溝の側(皮は造成の面より下げない)
+        Func<int, Vector2, float, bool> sunk = null;
+        if (keepSet != null)
+            sunk = (k, q, top) =>
+            {
+                if (!IsHollow(k)) return false;
+                float g = FaceY(q); if (float.IsNaN(g)) g = OutsideY(q, null);
+                return !float.IsNaN(g) && g > top + 1e-3f;
+            };
+        MeasureSkin(idx, ref r, null, (px, pz) => treeCells.Contains(CK(CI(px), CJ(pz))), sunk);
         return r;
     }
 
@@ -1631,8 +1680,11 @@ public static partial class EdoBuild
     /// を超える底(それは駒が浮く ── 駒の側の話)と、頂点の真上の駒の天端(天端を越えて上げない)。当たる先: CutEdgeSkin を通る全邸の
     /// 部材(石段・袖・土留め・踏石)の外形の縁すべて。</para></summary>
     static void CloseRimAtHull(TopIndex idx, Dictionary<long, float> H, HashSet<long> PIN, Func<int, int, long> CK, Vector3 org, float step,
-                               Func<Vector2, float> FaceY, float faceTol, ref SkinReport r)
+                               Func<Vector2, float> FaceY, float faceTol, ref SkinReport r,
+                               Func<int, bool> keepFor = null, Dictionary<long, float> keepFloor = null)
     {
+        // keepFor(k) の駒(掘る部材)の縁で天端に被らないよう下げるとき、keepFloor に造成の面を持つ頂点(溝の外形の外)はそこより下げない
+        //   (溝の脇の守り・CutEdgeSkin の keepGradeBeside ── 被りは溝の側として残る)
         // 点 q を含む三角形の頂点と重み
         Func<Vector2, long[], float[], bool> Tri = (q, ks, ws) =>
         {
@@ -1676,6 +1728,8 @@ public static partial class EdoBuild
                                 {
                                     if (need <= 0f || ws[i] < 0.05f || PIN.Contains(ks[i]) || H[ks[i]] <= top) continue;
                                     float dv = Mathf.Min(need / ws[i], H[ks[i]] - (top - 0.003f));
+                                    float kf; if (keepFor != null && keepFloor != null && keepFor(k) && keepFloor.TryGetValue(ks[i], out kf))
+                                    { if (H[ks[i]] - dv < kf) { if (pass == 0) r.keepRimHeld++; dv = H[ks[i]] - kf; } if (dv <= 1e-5f) continue; }
                                     H[ks[i]] -= dv; need -= dv * ws[i]; r.rimLowered++; r.rimLowerMax = Mathf.Max(r.rimLowerMax, dv); moved++;
                                 }
                             }
@@ -2069,9 +2123,10 @@ public static partial class EdoBuild
     static GameObject FindPart(IList<GameObject> parts, string name)
     { foreach (var g in parts) if (g != null && g.name == name) return g; return null; }
 
-    static void MeasureSkin(TopIndex idx, ref SkinReport r, List<string> samples, Func<float, float, bool> plantCell = null)
+    static void MeasureSkin(TopIndex idx, ref SkinReport r, List<string> samples, Func<float, float, bool> plantCell = null,
+                            Func<int, Vector2, float, bool> sunkHollow = null)
     {
-        var plantBy = new Dictionary<string, int>();
+        var plantBy = new Dictionary<string, int>(); var sunkBy = new Dictionary<string, int>();
         var probe = Probe();
         var dg = Drawn();
         var gapBy = new Dictionary<string, int>(); var covBy = new Dictionary<string, int>();
@@ -2106,6 +2161,7 @@ public static partial class EdoBuild
                         if (gin > top + 1e-3f)
                         {
                             r.coverN++; int c0; covBy.TryGetValue(idx.names[k], out c0); covBy[idx.names[k]] = c0 + 1;
+                            if (sunkHollow != null && sunkHollow(k, pout, top)) { r.coverSunk++; int s0; sunkBy.TryGetValue(idx.names[k], out s0); sunkBy[idx.names[k]] = s0 + 1; }
                             if (!dg.InHole(pin.x, pin.y))
                             {
                                 r.coverTerrain++;   // 皮でなく地形の升(穴を開けなかった升)が被る
@@ -2135,7 +2191,7 @@ public static partial class EdoBuild
                 }
             }
         }
-        r.gapBy = TopN(gapBy, 6); r.coverBy = TopN(covBy, 6); r.coverPlantBy = TopN(plantBy, 6);
+        r.gapBy = TopN(gapBy, 6); r.coverBy = TopN(covBy, 6); r.coverPlantBy = TopN(plantBy, 6); r.coverSunkBy = TopN(sunkBy, 6);
     }
 
     static string TopN(Dictionary<string, int> d, int n)

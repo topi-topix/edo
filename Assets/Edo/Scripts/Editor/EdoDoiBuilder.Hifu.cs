@@ -27,8 +27,9 @@ public static partial class EdoDoiBuilder
         int stairN = 0;
         foreach (var r in Group("Fuzoku/Kaidan").GetComponentsInChildren<MeshRenderer>()) { parts.Add(r.gameObject); stairN++; }
         // 溝・桝・蓋石・水切り(S9 排水・群 Mizo)── 天端を地盤に据えて地形の下へ潜るので、升に穴を開けて皮で描く(⚠ S9 の後にこれを流し直す)
-        int mizoN = 0; var hollow = new List<GameObject>();
-        foreach (Transform c in Group("Mizo")) if (c.gameObject.activeInHierarchy) { parts.Add(c.gameObject); hollow.Add(c.gameObject); mizoN++; }
+        int mizoN = 0; var hollow = new List<GameObject>(); var channel = new List<GameObject>();
+        foreach (Transform c in Group("Mizo")) if (c.gameObject.activeInHierarchy) { parts.Add(c.gameObject); hollow.Add(c.gameObject); mizoN++; if (!c.name.StartsWith("Ankyo", StringComparison.Ordinal)) channel.Add(c.gameObject); }
+        // ⭐ 溝の脇の守り(硬い・2026-10-05 EDO-0533 第14巡): 溝の駒(蓋石 Ankyo* は窪みを持たないので除く)の外形の外の皮は造成の面より下げない(EdoBuild.CutEdgeSkin の keepGradeBeside)
         // 面 = 指図 terraces のうち設計の地盤が面の高さに収まる物(勾配の面は graded のまま描く)
         var faces = new List<EdoBuild.SkinFace>(); var f = Grid; var G = Graded;
         foreach (var o in A(D["terraces"]) ?? new List<object>())
@@ -81,7 +82,7 @@ public static partial class EdoDoiBuilder
         var seated = EdoBuild.SeatedUnder(rootGo != null ? rootGo.transform : null, grp);
         var rep = EdoBuild.CutEdgeSkin("Doi", grp, parts, faces, tol, design: design, backfill: 0f, sealFace: true,
                                        crestBandParts: band, plantPoints: plant, faceKeepOut: keep,
-                                       hollowParts: hollow, seated: seated);
+                                       hollowParts: hollow, seated: seated, keepGradeBeside: channel);
         AssetDatabase.SaveAssetIfDirty(EdoBuild.T().terrainData);
         sb.AppendLine("  庭の土工の矩形 " + keep.Count + " を面の縁から外した");
         sb.AppendLine("  古い皮を外して塞いだ升 " + filled + " / 部材 " + rep.parts + "(土留め " + band.Count + "・石段 " + stairN + "・溝 " + mizoN + ")/ 面 " + faces.Count + " / 守った点 " + plant.Count + " / 据わりを守るメッシュ " + seated.Count);

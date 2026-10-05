@@ -1628,6 +1628,8 @@ public static partial class EdoDoiBuilder
         // 地中に入る深さの合計の上限(丈に対する割合)── 欄 neiriNote「…丈の 0.6 まで」から読む。読めなければ沈めない(EdoBuild 側で NaN = 沈めない)
         var mn = System.Text.RegularExpressions.Regex.Match(norm(Sk(o, "neiriNote")), @"丈の\s*([0-9.]+)");
         sp.neiriFrac = mn.Success ? float.Parse(mn.Groups[1].Value, inv) : float.NaN;
+        // 帯より長い石の余りは陸の側へ(EdoBuild.NiwaAbutSeatSpec.landward)── 石が受けるのは版の端から inner〜kakari(kakariFrom)で、その先は水(汀の点 a・b は版の端から (L − spanM)/2)
+        sp.landward = true;
         if (sp.neiriMax > 0f && float.IsNaN(sp.neiriFrac)) Wait("橋台石の据え(" + nm + "): neiriMax はあるが neiriNote から「丈の N」(地中に入る深さの合計の上限)が読めない ── 沈めない(指図へ)");
         return sp;
     }

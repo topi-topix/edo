@@ -2184,6 +2184,11 @@ public static partial class EdoBuild
         /// (天端は ③ で版の下面のまま・増した分は足が地中へ沈む)下限へ届かせる。地中に入る深さの合計 ≤ neiriFrac × 丈(硬い)は守る ──
         /// 越える所は届く限りで止めて ⚠(hMinMet = false)。2026-10-05 EDO-0533 庭方: 汀の保証で袂が掘られ、丈の短い石では足が届かなかった。</summary>
         public float hMin = float.NaN;
+        /// <summary>石が受ける帯(版の端から inner〜kakari)より長い石の余りを**陸の側へ**出す(2026-10-05 EDO-0533 第14巡)。帯の径間の側の縁
+        /// (a 端 = 版の端 + kakari・b 端 = 版の端 − kakari)に石の径間の側の面を揃え、余りは版の端の外(袂の地盤の上)へ。⛔ false(従来)は帯の中ほどに
+        /// 置き、丈を増して大きくした石の足が汀の先(池床が下がる側)へ出て、増すほど足元が下がり届かなかった(a 端 浮き 0.39→0.10・座 26.07)。
+        /// 天端の当たり(受ける範囲の内)は変わらない。当たる先: 袂が陸で石が受ける帯の先が水の石橋(土井 Hashi_Ishi)。</summary>
+        public bool landward;
     }
 
     // ──────────────────────────────────────────────── 石橋の袂(汀の保証を掛けない・座を盛る ── 6a の地形の段・2026-10-05 EDO-0533)
@@ -2444,7 +2449,9 @@ public static partial class EdoBuild
             float a0 = float.MaxValue, a1 = float.MinValue, b0 = float.MaxValue, b1 = float.MinValue;
             foreach (var w in sp) { float s = S(w), t = T(w); a0 = Mathf.Min(a0, s); a1 = Mathf.Max(a1, s); b0 = Mathf.Min(b0, t); b1 = Mathf.Max(b1, t); }
             float hd = 0.5f * (a1 - a0);
-            float cs = (r1 - r0) >= 2f * hd ? Mathf.Clamp(sPos, r0 + hd, r1 - hd) : rc;
+            float cs = (r1 - r0) >= 2f * hd ? Mathf.Clamp(sPos, r0 + hd, r1 - hd)
+                     : seat.landward ? (atA ? r1 - hd : r0 + hd)   // 帯より長い石: 径間の側の面を帯の径間の側の縁へ・余りは陸の側(landward)
+                     : rc;
             var sh = dir * (cs - 0.5f * (a0 + a1)) + perp * (tc - 0.5f * (b0 + b1));
             g.transform.position += new Vector3(sh.x, 0f, sh.y);
             var ss = SurfaceOf(g); var res = new List<KeyValuePair<float, bool>>();

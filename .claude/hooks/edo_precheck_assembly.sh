@@ -8,6 +8,9 @@
 # 同じ修正を繰り返す(2026-08-14 に2回踏んだ)。
 # dll の mtime が Assets/Edo/Scripts 配下の最新 .cs より古ければ、実行前に知らせる。
 #
+# 止め方は deny(2026-10-06 施主): ask だと毎回「一度だけ許可」の確認になり常時許可にできない。
+# deny なら理由が Claude へ返り、compile_wait.py で作り直してから自分でやり直す。
+#
 # 誤検知を避けるため: 猶予 2 秒。Library が無い(Unity 未起動)なら黙って通す。
 
 input="$(cat)"
@@ -60,7 +63,7 @@ EOF
 jq -n --arg m "$msg" '{
   hookSpecificOutput: {
     hookEventName: "PreToolUse",
-    permissionDecision: "ask",
+    permissionDecision: "deny",
     permissionDecisionReason: "Unity のアセンブリがソースより古い(コンパイル未完/停止)。このまま実行すると誤診します。",
     additionalContext: $m
   }

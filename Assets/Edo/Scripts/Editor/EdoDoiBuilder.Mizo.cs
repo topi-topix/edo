@@ -877,8 +877,17 @@ public static partial class EdoDoiBuilder
                         else hl.Add("⚠ 線" + (li + 1) + " 桝へ入る他の尻が散らばり、桝の芯が引けない ── 尻を切らない");
                     }
                 }
+                // 頭が別の系統の既に据わった溝の駒の外形の中から出るなら、外形の外で止める(EdoBuild.TrimHeadOutOfHulls ── 頭の駒が他の溝の窪みの上に張り出して浮く・
+                //   D2 seg1 線3 × D3 seg1 線3 の奥の隅 0.28・小口の下の隙 0.24 ── EDO-0533 第11巡)。同じ系統の線(二手に分けた線の頭)は外す
+                {
+                    var oth = new List<Vector2[]>();
+                    foreach (var h in segs) if (h != g && h.drain != g.drain) foreach (var pc in h.pieces) if (pc != null) { var hx = EdoBuild.HullXZ(pc); if (hx != null && hx.Count >= 3) oth.Add(hx.ToArray()); }
+                    float hcut; var trh = EdoBuild.TrimHeadOutOfHulls(pl, oth, Mathf.Max(Mathf.Abs(mp0.xMin), Mathf.Abs(mp0.xMax)), 1.2f, 0.5f, out hcut);
+                    if (hcut > 1e-3f) { pl = trh; g.lines[li] = trh; hl.Add("線" + (li + 1) + " 頭を他の系統の溝の駒の外形の外で " + hcut.ToString("F2") + "m 止めた"); }
+                }
                 var sp = new EdoBuild.MizoSpec
                 {
+                    chord = true,   // 駒を弦に据える(折れの先・桝の窪みの上へ真っ直ぐ張り出さない ── D1 seg2・seg4 の尻 0.33〜0.53・EDO-0533 第11巡)
                     name = g.id, kata = g.kata, line = pl, groundAt = groundMizo, topAbove = topAbove(g.kata),
                     pieceDepth = fixedD ? mp0.Depth : float.NaN, depthMin = kf(g.kata, "depthMin"), depthMax = kf(g.kata, "depthMax"),
                     slopeMin = slopeMin, headBottom = head, tailMax = tail, stepPitch = stepPitch, stepRiseMax = stepRise
@@ -1100,7 +1109,8 @@ public static partial class EdoDoiBuilder
                 var chans = new List<GameObject>(); foreach (var g in segs) if (g.built && g.kata == kt) foreach (var pc in g.pieces) if (pc != null) chans.Add(pc);
                 string kk = kt;
                 EdoBuild.AnkyoRep ar;
-                var lids = EdoBuild.LayAnkyoUnder(grp, "Ankyo_" + kt, chans, over, tt => EdoBuild.AssetByName("Own", "DoiFutaishiFor", kk, tt), new[] { 0.20f, 0.15f }, EdoBuild.Ground, out ar);
+                var lids = EdoBuild.LayAnkyoUnder(grp, "Ankyo_" + kt, chans, over, tt => EdoBuild.AssetByName("Own", "DoiFutaishiFor", kk, tt), new[] { 0.20f, 0.15f }, EdoBuild.Ground, out ar,
+                                                  coverHollow: true);   // 布石の下端が溝の縁と同じ高さで窪みを跨ぐ所にも蓋(奥の塀 Oku_Hei_0_0〜0_4_ishi が D2 の窪みの上で 0.13〜0.18 浮いた・EDO-0533 第11巡)
                 if (ar.lids == 0 && ar.refused == 0) { if (ar.notes.Count > 0 && chans.Count > 0) line(1, "暗渠(型 " + kt + "): " + string.Join(" / ", ar.notes.ToArray())); continue; }
                 line(ar.refused > 0 ? 2 : 0, "暗渠(型 " + kt + "): " + ar.Summary() + "・蓋の天端 − 足元 最悪 " + ar.worstTop.ToString("F3") + "m【硬 " + (ar.refused > 0 ? "✗" : "⭕") + " 足元が溝の上で浮かない】"
                      + (ar.notes.Count > 0 ? "\n      " + string.Join("\n      ", ar.notes.ToArray()) : ""));

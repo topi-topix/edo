@@ -730,6 +730,37 @@ public static partial class EdoBuild
         return best == float.MaxValue ? float.NaN : best;
     }
 
+    /// <summary>点 (x, z) の鉛直線上で、**上に <paramref name="minSolid"/> 以上の実体が続く下面**のうち最も低い高さ = 駒が立つ足元。無ければ NaN。
+    /// 交わりを低い順に並べ、偶奇で入る面(下面)と出る面(上面)を組にし、組の厚みが minSolid 未満の物(塀の笠・水切り・軒の張り出しの裏)は足元と数えない。最も低い交わりが上向きの面なら(底の開いた駒)点の近くの頂点の最も低い所。
+    /// ⭐ <see cref="LowestSurfaceAt"/> は最も低い交わりを返すので、溝が塀の脇を走って笠の張り出しの下を通るだけの所でも笠の裏(地面から 2m 上)を足元と読み、
+    /// 蓋が宙に浮くと偽って退けた(土井 S9 奥の塀 Oku_Hei_Roka・Oku_Hei_0_4 ほか 18 点 ── EDO-0533 第11巡)。
+    /// 当たる先: <see cref="LayAnkyoUnder"/>(土井 S9)。張り出しを持つ駒(練塀・築地・長屋の軒)の足元を点で引く所すべて。</summary>
+    public static float LowestFootAt(SurfaceSet s, Vector2 q, float minSolid = 0.3f)
+    {
+        var hs = new List<Vector2>();   // x = 高さ・y = 面の法線の y
+        foreach (var t in s.tris)
+        {
+            Vector3 a = t[0], b = t[1], c = t[2];
+            if (q.x < Mathf.Min(a.x, Mathf.Min(b.x, c.x)) || q.x > Mathf.Max(a.x, Mathf.Max(b.x, c.x)) || q.y < Mathf.Min(a.z, Mathf.Min(b.z, c.z)) || q.y > Mathf.Max(a.z, Mathf.Max(b.z, c.z))) continue;
+            float d = (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z); if (Mathf.Abs(d) < 1e-9f) continue;
+            float u = ((b.z - c.z) * (q.x - c.x) + (c.x - b.x) * (q.y - c.z)) / d, v = ((c.z - a.z) * (q.x - c.x) + (a.x - c.x) * (q.y - c.z)) / d, w = 1f - u - v;
+            if (u < -1e-5f || v < -1e-5f || w < -1e-5f) continue;
+            hs.Add(new Vector2(u * a.y + v * b.y + w * c.y, Vector3.Cross(b - a, c - a).normalized.y));
+        }
+        if (hs.Count == 0) return float.NaN;
+        hs.Sort((x, y) => x.x.CompareTo(y.x));
+        var uq = new List<Vector2>(); foreach (var h in hs) if (uq.Count == 0 || h.x - uq[uq.Count - 1].x > 1e-4f) uq.Add(h);   // 稜で二つの三角形に当たった重複を落とす
+        // 底の面を持たない駒(下の開いた練塀の腰 ── 最も低い交わりが上向きの面)は、点が実体の中にある。足元は点の近く(0.3m)の頂点の最も低い所
+        if (uq[0].y > 0.1f)
+        {
+            float lo = float.MaxValue;
+            foreach (var t in s.tris) foreach (var v in t) if ((new Vector2(v.x, v.z) - q).sqrMagnitude <= 0.09f) lo = Mathf.Min(lo, v.y);
+            return lo < uq[0].x ? lo : float.NaN;
+        }
+        for (int i = 0; i + 1 < uq.Count; i += 2) if (uq[i + 1].x - uq[i].x >= minSolid) return uq[i].x;
+        return float.NaN;
+    }
+
     /// <summary>**暗渠**(硬い・許容0 ── 足元の浮き)。溝の駒 <paramref name="channel"/> が、地面に据わった駒 <paramref name="over"/>(塀・布石・石段)の
     /// 足元の下を抜ける所に、蓋石を溝の向きに並べて**蓋の天端を駒の足元に合わせる**(溝の中の水は蓋の下を通る ── 江戸の作りの、塀の下を石の蓋で抜ける形)。
     /// <para>当たり: 蓋の天端 × 駒の下面(蓋の天端の面の中ほどと四隅で、鉛直に引いた駒の三角形の最も低い交わり ── 塀が布石に載る所は布石の下面が最も低いので、そこへ合わせる)/
@@ -746,7 +777,9 @@ public static partial class EdoBuild
         if (channel == null || over == null || tChoices == null || tChoices.Length == 0) return made;
         var ts = new List<float>(tChoices); ts.Sort((x, y) => y.CompareTo(x));
         var mps = new Dictionary<float, MizoPiece>(); var paths = new Dictionary<float, string>();
-        foreach (var t in ts) { string p = lidPathForT(t); var mp = MizoPieceOf(p); if (p != null && mp.ok) { mps[t] = mp; paths[t] = p; } }
+        // 蓋石は低ポリの板で芯の帯に頂点も上向きの面の重心も無く、溝の底(floor)が解けず mp.ok が偽になる(EDO-0533 第11巡 ── 暗渠が全型で「測れない」)。
+        // 蓋に要るのは外形(長さ・幅・丈)だけなので、ok ではなく外形が取れたかで採る。
+        foreach (var t in ts) { string p = lidPathForT(t); var mp = MizoPieceOf(p); if (p != null && mp.len > 1e-3f && mp.top > mp.bottom) { mps[t] = mp; paths[t] = p; } }
         if (mps.Count == 0) { rep.notes.Add("蓋石の部材が測れない"); return made; }
         var mp0 = mps[ts.Find(t => mps.ContainsKey(t))];
         float lidLen = mp0.zMax - mp0.zMin, lidHalfW = 0.5f * (mp0.xMax - mp0.xMin);
@@ -794,7 +827,7 @@ public static partial class EdoBuild
                     if (!ConvexOverlap(rect, f.hull)) continue;
                     float fm = float.MaxValue;
                     foreach (var q in new[] { c, c + 0.8f * (rect[0] - c), c + 0.8f * (rect[1] - c), c + 0.8f * (rect[2] - c), c + 0.8f * (rect[3] - c) })
-                    { float y = LowestSurfaceAt(f, q); if (!float.IsNaN(y)) fm = Mathf.Min(fm, y); }
+                    { float y = LowestFootAt(f, q); if (!float.IsNaN(y)) fm = Mathf.Min(fm, y); }   // 笠・水切りの張り出しの裏は足元でない
                     if (fm == float.MaxValue) continue;
                     on.Add(f); if (fm < foot) { foot = fm; who = f.go.name; }
                 }

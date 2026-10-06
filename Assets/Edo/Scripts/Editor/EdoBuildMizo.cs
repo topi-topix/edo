@@ -782,9 +782,12 @@ public static partial class EdoBuild
             if (i > 0) { var dp = line[i] - line[i - 1]; if (dp.sqrMagnitude > 1e-8f && d.sqrMagnitude > 1e-8f && Vector2.Angle(dp, d) < 1f) { run[i] = run[i - 1]; continue; } }
             run[i] = nr++;
         }
-        for (int rI = 0; rI < nr; rI++)
+        // 一続きで寄せられない列(足が両側に在る・寄せ過ぎ)は、辺ごとに寄せ直す(2026-10-06 第22巡: 列にまとめて D3 seg1 の柱・束の上の 2 辺を寄せられなかった)
+        var jobs = new List<int[]>();
+        for (int rI = 0; rI < nr; rI++) { int s0 = -1, s1 = -1; for (int i = 0; i < n; i++) if (run[i] == rI) { if (s0 < 0) s0 = i; s1 = i; } jobs.Add(new[] { s0, s1, 1 }); }
+        for (int ji = 0; ji < jobs.Count; ji++)
         {
-            int s0 = -1, s1 = -1; for (int i = 0; i < n; i++) if (run[i] == rI) { if (s0 < 0) s0 = i; s1 = i; }
+            int s0 = jobs[ji][0], s1 = jobs[ji][1]; bool asRun = jobs[ji][2] == 1 && s1 > s0;
             Vector2 a = line[s0], b = line[s1 + 1]; float len = Vector2.Distance(a, b); if (len < 1e-4f) continue;
             var d = (b - a) / len; var nv = new Vector2(-d.y, d.x);
             float sum = 0f; var hits = new List<float>();
@@ -804,7 +807,7 @@ public static partial class EdoBuild
                     float t = Vector2.Dot(f - a, d); if (t < -0.1f || t > len + 0.1f) continue;
                     float lat = Vector2.Dot(f - a, nv) - sg * o; if (Mathf.Abs(lat) < need - 1e-4f) { bad = true; break; }
                 }
-            if (bad) { stuck++; continue; }
+            if (bad) { if (asRun) { for (int i = s0; i <= s1; i++) jobs.Add(new[] { i, i, 0 }); } else stuck++; continue; }
             for (int i = s0; i <= s1; i++) { off[i] = sg * o; nrm[i] = nv; }
             pushedSegs++; pushedMax = Mathf.Max(pushedMax, o);
         }

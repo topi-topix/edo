@@ -395,7 +395,11 @@ public static partial class EdoBuild
         /// <summary>盛りの上限を測る元の地盤(造成の設計面)。null なら今の地盤 ── 流し直しで盛りが積もらないよう設計面を渡す。</summary>
         public Func<Vector2, float> baseAt;
         /// <summary>盛らない所(他の土留めの見え面の前 ── 小段の端の法が隣の袖の前へ回り込まない・EDO-0502 第25巡)。null なら無し。</summary>
-        public Func<Vector2, bool> keepOut; }
+        public Func<Vector2, bool> keepOut;
+        /// <summary>小段を走りに沿って落とす勾配(b の端が高く a の側へ下がる・指図 endRaise.drain の 1/20)。0 なら走りには落とさない(2026-10-06 EDO-0502 第37巡)。</summary>
+        public float drainAlong;
+        /// <summary>真なら run の両端の先(走りの外)へは盛らない【硬】── 端の側の天端を越えて表へ土を落とさない(指図 endRaise.drain)。</summary>
+        public bool noEndSpill; }
 
     /// <summary>**土留めの見え面の前の帯**(線 a→b・背 back の逆の側へ depth まで・走りの両端は線の内)に点 p が入るか。
     /// 当たる先: <see cref="BackBench.keepOut"/> ── 小段の裏込めの端の法(1:bf)が、隣の土留めの見え面の前へ回り込んで土の箱を立てない
@@ -419,13 +423,30 @@ public static partial class EdoBuild
         Vector2 t = ab / L;
         float sAl = Vector2.Dot(p - k.a, t), dn = Vector2.Dot(p - k.a, k.back);
         if (dn < 0f) return cur;                                       // 前(門の内)は触らない
+        if (k.noEndSpill && (sAl < 0f || sAl > L)) return cur;          // 走りの外へは盛らない(硬い)
         float dEnd = sAl < 0f ? -sAl : (sAl > L ? sAl - L : 0f);
-        float benchY = k.top - k.drop - k.drain * Mathf.Min(dn, k.w);
+        float benchY = k.top - k.drop - k.drain * Mathf.Min(dn, k.w) - k.drainAlong * (L - Mathf.Clamp(sAl, 0f, L));
         float hh = Mathf.Sqrt(Mathf.Pow(Mathf.Max(0f, dn - k.w), 2f) + dEnd * dEnd);
         float target = benchY - hh / k.bf;
         if (target <= cur) return cur;
         float b0 = k.baseAt != null ? k.baseAt(p) : cur; if (float.IsNaN(b0)) b0 = cur;
         return Mathf.Max(cur, Mathf.Min(target, b0 + k.maxFill));
+    }
+
+    /// <summary>**土留めの端の一部を高い天端の別の run に割る長さ**(指図 terraceWalls[].endRaise・2026-10-06 EDO-0502 第37巡 岡部 TW_Kita_Koshi)。
+    /// <paramref name="backFromEnd"/>(s) = 端から内へ s の背の地盤。端から内へ測って背が <paramref name="thr"/> を超え始める所 <paramref name="sCross"/> までを狙いとし、
+    /// 【柔】長さの狙い [<paramref name="lo"/>, <paramref name="hi"/>](一間〜二間)の中で sCross に最も近い長さを採る(狙いを外せば <paramref name="softMiss"/>)。
+    /// 【硬】段違いの継ぎ目は端から <paramref name="minIn"/>(1 駒)以上内・残る低い run も <paramref name="minIn"/> 以上 ── 取れなければ NaN(上げない)。
+    /// 当たる先: 背の地盤が端へ向かって上がる腰の土留めの端(見切り石の頭を背の土より上げる)。測るだけ。</summary>
+    public static float RaiseEndLen(Func<float, float> backFromEnd, float thr, float L, float minIn, float lo, float hi, out float sCross, out bool softMiss, float ds = 0.1f)
+    {
+        sCross = float.NaN; softMiss = false;
+        for (float s = 0f; s <= L + 1e-4f; s += ds) { float h = backFromEnd(s); if (!float.IsNaN(h) && h > thr) { sCross = s; break; } }
+        float want = float.IsNaN(sCross) ? lo : sCross;
+        float len = Mathf.Clamp(want, Mathf.Max(lo, minIn), Mathf.Max(hi, minIn));
+        softMiss = float.IsNaN(sCross) || sCross < lo - 1e-3f || sCross > hi + 1e-3f;
+        if (len < minIn - 1e-4f || L - len < minIn - 1e-4f) return float.NaN;
+        return len;
     }
 
     /// <summary>**段違いの run を背の法の等高線で割る**(指図 TW_Kado_Sode.runSplit・EDO-0502 第32巡)。道のり [0, <paramref name="L"/>](折れ線を跨いでよい ──

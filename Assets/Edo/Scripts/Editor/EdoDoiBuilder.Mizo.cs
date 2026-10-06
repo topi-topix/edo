@@ -890,6 +890,27 @@ public static partial class EdoDoiBuilder
                 if ((Sk(s, "masuAt") ?? "").Contains("出隅")) { splitCorners = eaveCorners(g); if (splitCorners.Count == 0) Wait(g.id + ": 欄 masuAt「出隅」の棟の軒の矩形が引けない ── 出隅の狙いを外して割る"); }
                 splitDepthHard = kf(g.kata, "depthMax");
             }
+            // 軒先の鉛直下に引く線(雨落ち)は、据わった駒の足(縁の束・柱・塀)から溝(桝で割る区間は桝)の外の面 + 0.05 だけ外へ逃がす
+            //   (狙い = 軒先の鉛直下・硬 = 溝の外形が足に掛からない ── EdoBuild.PushLineOffFeet)
+            if (g.line.Contains("軒") && raw.Count > 0)
+            {
+                float hwF = halfWOf(g);
+                if (splitPath != null) { var mpF = EdoBuild.MizoPieceOf(splitPath); if (mpF.ok) hwF = Mathf.Max(float.IsNaN(hwF) ? 0f : hwF, Mathf.Max(mpF.halfW, 0.5f * (mpF.zMax - mpF.zMin))); }
+                if (!float.IsNaN(hwF))
+                {
+                    float bx0 = float.MaxValue, bx1 = float.MinValue, bz0 = float.MaxValue, bz1 = float.MinValue;
+                    foreach (var pl in raw) foreach (var q in pl) { bx0 = Mathf.Min(bx0, q.x); bx1 = Mathf.Max(bx1, q.x); bz0 = Mathf.Min(bz0, q.y); bz1 = Mathf.Max(bz1, q.y); }
+                    var feetL = EdoBuild.StandingFeetXZ(grp.parent, groundMizo, skip: new HashSet<string> { grp.name }, near: new Vector4(bx0 - 2f, bz0 - 2f, bx1 + 2f, bz1 + 2f));
+                    int pushedN = 0, stuckN = 0; float pushedMx = 0f;
+                    for (int ri = 0; ri < raw.Count; ri++)
+                    {
+                        float pm; int ps, st; raw[ri] = EdoBuild.PushLineOffFeet(raw[ri], feetL, hwF + 0.05f, 1.0f, out pm, out ps, out st);
+                        pushedN += ps; stuckN += st; pushedMx = Mathf.Max(pushedMx, pm);
+                    }
+                    if (pushedN > 0) line(1, g.id + ": 雨落ちの線を据わった駒の足から外へ寄せた辺 " + pushedN + "(最大 " + pushedMx.ToString("F2") + "m ── 狙いの軒先の鉛直下から外れた・柔)");
+                    if (stuckN > 0) line(1, g.id + ": 足が線の両側に在るか 1.0m を超えて寄せる辺 " + stuckN + " は寄せなかった(桝・溝の置き場の硬い条件で測る)");
+                }
+            }
             g.lines = new List<List<Vector2>>();
             foreach (var pl in raw) { if (g.fixedDir) g.lines.Add(new List<Vector2>(pl)); else g.lines.AddRange(orient(pl, tls, g.flow.Contains("二手"))); }
             // 段・勾配・頭と尻の高さ(欄)

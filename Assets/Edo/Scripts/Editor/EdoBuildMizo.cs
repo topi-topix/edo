@@ -763,6 +763,59 @@ public static partial class EdoBuild
         return rep;
     }
 
+    /// <summary>**溝の線を据わった駒の足から逃がす**(雨落ちの線 ── 狙いは軒先の鉛直下・硬は「溝の外形が足に掛からない」・2026-10-06 EDO-0533 第18巡)。
+    /// 線の辺ごとに、辺の範囲の内で辺から <paramref name="need"/>(溝・桝の芯から外の面 + 離れ)より近い足 <paramref name="feet"/> を拾い、足の多い側と
+    /// 逆の向きへ、最も近い足が need 離れるまで辺を平行に寄せる(寄せ ≤ <paramref name="maxPush"/>)。隣の辺の寄せた線の交点で継ぎ直す(平行で寄せが違えば段を入れる)。
+    /// 寄せた側にも足が残る・maxPush を超える辺は寄せず <paramref name="stuck"/> に数える。⛔ 第18巡まで、土井 D2 seg1 の軒先の鉛直下が縁の束(EnTsuka・NureenCorner)の
+    /// 列に重なり、束石が溝の側石の上に載り、桝を束から外すと置き場が無くなった(線3 が建たない)。
+    /// 当たる先: 軒先の鉛直下に引く溝(いまは土井 D2 seg1 の軒の外周と軒先の鉛直下の部)── 縁・柱の足が軒の内に立つ棟のすべて。</summary>
+    public static List<Vector2> PushLineOffFeet(List<Vector2> line, IList<Vector2> feet, float need, float maxPush, out float pushedMax, out int pushedSegs, out int stuck)
+    {
+        pushedMax = 0f; pushedSegs = 0; stuck = 0;
+        if (line == null || line.Count < 2 || feet == null || feet.Count == 0) return line;
+        int n = line.Count - 1; var off = new float[n]; var nrm = new Vector2[n];
+        for (int i = 0; i < n; i++)
+        {
+            Vector2 a = line[i], b = line[i + 1]; float len = Vector2.Distance(a, b); if (len < 1e-4f) continue;
+            var d = (b - a) / len; var nv = new Vector2(-d.y, d.x); nrm[i] = nv;
+            float sum = 0f; var hits = new List<float>();
+            foreach (var f in feet)
+            {
+                float t = Vector2.Dot(f - a, d); if (t < -0.1f || t > len + 0.1f) continue;
+                float lat = Vector2.Dot(f - a, nv); if (Mathf.Abs(lat) >= need) continue;
+                hits.Add(lat); sum += lat;
+            }
+            if (hits.Count == 0) continue;
+            float sg = sum > 0f ? -1f : 1f, o = 0f;
+            foreach (var lat in hits) if (lat * sg <= 0f) o = Mathf.Max(o, need - Mathf.Abs(lat));
+            bool bad = o > maxPush;
+            if (!bad)
+                foreach (var f in feet)
+                {
+                    float t = Vector2.Dot(f - a, d); if (t < -0.1f || t > len + 0.1f) continue;
+                    float lat = Vector2.Dot(f - a, nv) - sg * o; if (Mathf.Abs(lat) < need - 1e-4f) { bad = true; break; }
+                }
+            if (bad) { stuck++; continue; }
+            off[i] = sg * o; pushedSegs++; pushedMax = Mathf.Max(pushedMax, o);
+        }
+        if (pushedSegs == 0) return line;
+        var res = new List<Vector2> { line[0] + nrm[0] * off[0] };
+        for (int i = 1; i < n; i++)
+        {
+            Vector2 p0 = line[i - 1] + nrm[i - 1] * off[i - 1], d0 = line[i] - line[i - 1];
+            Vector2 p1 = line[i] + nrm[i] * off[i], d1 = line[i + 1] - line[i];
+            float cr = d0.x * d1.y - d0.y * d1.x;
+            if (Mathf.Abs(cr) < 1e-6f * d0.magnitude * d1.magnitude + 1e-9f)
+            {
+                var e0 = line[i] + nrm[i - 1] * off[i - 1];
+                res.Add(e0); if (Vector2.Distance(e0, p1) > 1e-3f) res.Add(p1);
+            }
+            else { var w = p1 - p0; float u = (w.x * d1.y - w.y * d1.x) / cr; res.Add(p0 + d0 * u); }
+        }
+        res.Add(line[n] + nrm[n - 1] * off[n - 1]);
+        return res;
+    }
+
     /// <summary>桝の外形と駒の足の離れ[m](<see cref="MasuOverFoot"/> ── 外形の縁からこの内に足が在れば掛かる)。</summary>
     const float MASU_FOOT_CLEAR = 0.05f;
     /// <summary>桝 <paramref name="masu"/> の実メッシュの平面の凸包が、足の点 <paramref name="feet"/> のどれかに掛かるか(凸包の中・縁から <see cref="MASU_FOOT_CLEAR"/> 以内)。</summary>
@@ -790,9 +843,9 @@ public static partial class EdoBuild
     /// <summary>**地面に立つ駒の足の平面の点**(<see cref="SplitMizoAtMasu"/> の feet)。<paramref name="root"/> の下の駒ごとに、実メッシュの最も低い頂点から
     /// ROOT_TOUCH 以内の頂点(=足)を拾い、その足が地面 <paramref name="groundAt"/> から <paramref name="touch"/> 以内(接する・埋まる)で、駒の丈が
     /// <paramref name="minTall"/> 以上(束・柱・塀・幹 ── 床・桁の平らな下面は丈が低いか地面から離れている)の物だけ返す。
-    /// <paramref name="skip"/> の名の枝(溝・皮)は見ない。<paramref name="near"/> を渡せば、その矩形 [x0,z0,x1,z1] に掛かる描画の箱の駒だけ測る(篩いだけ ── 置き場は実メッシュ)。</summary>
+    /// 足の広がりが駒の局所の軸のどちらにも <paramref name="maxThin"/> を超える駒(台・座・躯体)は拾わない。<paramref name="skip"/> の名の枝(溝・皮)は見ない。<paramref name="near"/> を渡せば、その矩形 [x0,z0,x1,z1] に掛かる描画の箱の駒だけ測る(篩いだけ ── 置き場は実メッシュ)。</summary>
     public static List<Vector2> StandingFeetXZ(Transform root, Func<float, float, float> groundAt, float touch = 0.15f, float minTall = 0.3f,
-                                               ICollection<string> skip = null, Vector4? near = null)
+                                               ICollection<string> skip = null, Vector4? near = null, float maxThin = 0.6f)
     {
         var res = new List<Vector2>();
         if (root == null) return res;
@@ -810,6 +863,12 @@ public static partial class EdoBuild
             var vs = mf.sharedMesh.vertices; var ws = new Vector3[vs.Length]; float y0 = float.MaxValue, y1 = float.MinValue;
             for (int i = 0; i < vs.Length; i++) { ws[i] = mf.transform.TransformPoint(vs[i]); y0 = Mathf.Min(y0, ws[i].y); y1 = Mathf.Max(y1, ws[i].y); }
             if (y1 - y0 < minTall) continue;
+            //   足の広がりを駒の局所の軸で測り、どちらの向きにも maxThin を超える駒(台・座・棟の躯体 ── 束・柱・塀・幹でない)は拾わない
+            {
+                var sc = mf.transform.lossyScale; float lx0 = float.MaxValue, lx1 = float.MinValue, lz0 = float.MaxValue, lz1 = float.MinValue;
+                for (int i = 0; i < vs.Length; i++) { if (ws[i].y > y0 + ROOT_TOUCH) continue; float lx = vs[i].x * Mathf.Abs(sc.x), lz = vs[i].z * Mathf.Abs(sc.z); lx0 = Mathf.Min(lx0, lx); lx1 = Mathf.Max(lx1, lx); lz0 = Mathf.Min(lz0, lz); lz1 = Mathf.Max(lz1, lz); }
+                if (lx1 - lx0 > maxThin && lz1 - lz0 > maxThin) continue;
+            }
             foreach (var w in ws)
             {
                 if (w.y > y0 + ROOT_TOUCH) continue;

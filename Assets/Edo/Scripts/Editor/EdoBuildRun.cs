@@ -2138,6 +2138,9 @@ public static partial class EdoBuild
         //    (観理院の護摩堂 0.018m ── 縁も壁も 0.000)。
         var res = new Scribe { lo = float.NaN, hi = float.NaN };
         Transform gt = go.transform; float yb = float.MaxValue;
+        // ⭐ 上下が世界と揃わない駒(表裏を返した石など)は世界の下端で測る(2026-10-06 EDO-0533 第18巡)。⛔ それまで局所の最も低い y を下端と読み、
+        //   表裏を返した橋台石では天端(26.295)を足と測って「浮き 0.13」で退けた(石の下端 25.09 は地面の 1m 下に埋まっていた)。立っている駒は従来どおり。
+        if (Vector3.Dot(gt.up, Vector3.up) < 0.999f) return RootToBedWorld(go, bedAt, step, only);
         var boxes = new List<float[]>();   // 駒ごとの局所 [x0,x1,z0,z1,y0]
         foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
         {
@@ -2169,6 +2172,49 @@ public static partial class EdoBuild
                     float d = w.y - b; res.atariN++;
                     if (float.IsNaN(res.lo) || d < res.lo) res.lo = d;
                     if (float.IsNaN(res.hi) || d > res.hi) { res.hi = d; res.hiAt = new Vector3(w.x, b, w.z); }
+                    if (d > 0.01f) res.shortN++;
+                }
+        }
+        return res;
+    }
+
+    /// <summary><see cref="RootToBed"/> の世界の下端版(上下が世界と揃わない駒)── 駒ごとに世界の最も低い頂点から ROOT_TOUCH 以内の頂点で足跡を作り、
+    /// 駒の向き(前の向きを水平へ投げた軸)の箱を <paramref name="step"/> 刻みに引いて、下端 − 相手 を返す。測る物と返す物は RootToBed と同じ。</summary>
+    static Scribe RootToBedWorld(GameObject go, Func<float, float, float> bedAt, float step, Func<MeshFilter, bool> only)
+    {
+        var res = new Scribe { lo = float.NaN, hi = float.NaN };
+        var fw = go.transform.forward; var ax = new Vector2(fw.x, fw.z);
+        if (ax.sqrMagnitude < 1e-6f) { var rt = go.transform.right; ax = new Vector2(rt.x, rt.z); }
+        ax.Normalize(); var az = new Vector2(-ax.y, ax.x);
+        var feet = new List<KeyValuePair<float, float[]>>(); float yb = float.MaxValue;   // (下端, [a0,a1,b0,b1])
+        foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null || (only != null && !only(mf))) continue;
+            var vs = mf.sharedMesh.vertices; var ws = new Vector3[vs.Length]; float y0 = float.MaxValue;
+            for (int i = 0; i < vs.Length; i++) { ws[i] = mf.transform.TransformPoint(vs[i]); y0 = Mathf.Min(y0, ws[i].y); }
+            if (y0 == float.MaxValue) continue;
+            float a0 = float.MaxValue, a1 = float.MinValue, b0 = float.MaxValue, b1 = float.MinValue;
+            foreach (var w in ws)
+            {
+                if (w.y > y0 + ROOT_TOUCH) continue; var q = new Vector2(w.x, w.z);
+                float a = Vector2.Dot(q, ax), b = Vector2.Dot(q, az); a0 = Mathf.Min(a0, a); a1 = Mathf.Max(a1, a); b0 = Mathf.Min(b0, b); b1 = Mathf.Max(b1, b);
+            }
+            feet.Add(new KeyValuePair<float, float[]>(y0, new[] { a0, a1, b0, b1 })); yb = Mathf.Min(yb, y0);
+        }
+        if (yb == float.MaxValue) return res;
+        foreach (var kv in feet)
+        {
+            if (kv.Key - yb > ROOT_TOUCH) continue;
+            var bx = kv.Value;
+            int na = Mathf.Max(1, Mathf.CeilToInt((bx[1] - bx[0]) / step)), nb = Mathf.Max(1, Mathf.CeilToInt((bx[3] - bx[2]) / step));
+            for (int i = 0; i <= na; i++)
+                for (int j = 0; j <= nb; j++)
+                {
+                    var q = ax * (bx[0] + (bx[1] - bx[0]) * i / na) + az * (bx[2] + (bx[3] - bx[2]) * j / nb);
+                    float b = bedAt(q.x, q.y); if (float.IsNaN(b)) { res.spanN++; continue; }
+                    float d = kv.Key - b; res.atariN++;
+                    if (float.IsNaN(res.lo) || d < res.lo) res.lo = d;
+                    if (float.IsNaN(res.hi) || d > res.hi) { res.hi = d; res.hiAt = new Vector3(q.x, b, q.y); }
                     if (d > 0.01f) res.shortN++;
                 }
         }

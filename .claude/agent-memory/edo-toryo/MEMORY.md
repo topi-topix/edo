@@ -144,6 +144,7 @@
 - [段の土留めの3つの罠](dan-ishigaki-r3-traps.md) — BedTopAt は 8m まで・指図の文言の上書きで正規表現が 0・語だけの直しでも指紋で止まる
 - [野面の端の納めは背の土で退く](nozura-end-rule-blocked-by-back-soil.md) — 端の見付は駒の走りで測る・背>天端の端は延ばしも見切り石も埋没で退く(普請方へ)
 - [stepJoint は勾配の上限で解けない・隅の返しの腕は armBlock で](stepjoint-and-kado-return-traps.md) — 袖の run 1.4m に段 0.5。否定文の見切り石・Stage は ~call で予約
+- [坂の袖は出隅で天端が飛ぶ・継ぎ目が段に化ける・平らな斜交の隅](slope-sode-flat-kado-and-end-specs.md) — PAV で単調に・flow・端の型は EndSpec
 - [腰の端の小段は 1:1 の法で切りが 1.0 を超える・石段の a/b は従属値](koshi-end-cut-exceeds-on-1to1-slope.md) — koshiEnd は5端とも退く。KaidanAB が atS から解く
 - [野面の段の境の駒は H1.50 だけ・継ぎ目の下が抜ける](nozura-dan-piece-fixed-height.md) — 直線は H4.8 まで選ぶ。StackDownAtNozuraSteps で積み下ろす
 

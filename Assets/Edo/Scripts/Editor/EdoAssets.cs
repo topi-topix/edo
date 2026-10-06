@@ -1540,7 +1540,7 @@ public static class EdoAssets
         /// 裏石は 0.006〜0.018 下で点ごとに不揃い(背の土 = 天端 −0.02 を被せても上面が顔を出す)。
         /// 裏 0.12 と天端の目地の奥 0.30 に目地を塞ぐ板・裏石の目地の底(天端の 0.20 下)に板。芝の肩は地形側で被せる前提。
         /// **接する面**: 天端の線(隣と揃える)・床(地盤に沈める)・継ぎ目の切り口 X = ±0.909(隣の駒の切り口と一致)。
-        /// ⛔ ピボットで並べない — 隣の切り口と天端の線を測って寄せる。焼けている勾配は 0・前庭の天端を流す ±0.12(H1.80 を除く 8 段・2026-09-26)・打ち切りの ±0.18(H0.15)・段の境の ±0.22(H1.50)・岡部の外周の端を下げ打つ ±0.275(H0.60〜H2.40 の 7 段・2026-10-06 EDO-0502)。⭐ <paramref name="grade"/> は**その見付で焼いてある勾配のうち最も近いもの**へ寄せて引く(<see cref="SannoNozuraNearestGrade"/>)⇒ 呼ぶ側は駒の +X へ測った天端の勾配をそのまま渡す(他の勾配は下の命令に --grade=)。
+        /// ⛔ ピボットで並べない — 隣の切り口と天端の線を測って寄せる。焼けている勾配は 0・前庭の天端を流す ±0.12(H1.80 を除く 8 段・2026-09-26)・打ち切りの ±0.18(H0.15)・段の境の ±0.22(H1.50)・岡部の外周の端を下げ打つ ±0.275(H0.60〜H2.40 の 7 段・2026-10-06 EDO-0502)・袖の坂と端の沈めの ±0.45(H0.60〜H2.40 の 7 段・継ぎ目の小口を石ごとに塞いだ cut_each_ends・2026-10-07 EDO-0502)。⭐ <paramref name="grade"/> は**その見付で焼いてある勾配のうち最も近いもの**へ寄せて引く(<see cref="SannoNozuraNearestGrade"/>)⇒ 呼ぶ側は駒の +X へ測った天端の勾配をそのまま渡す(他の勾配は下の命令に --grade=)。
         /// 実寸(G0): W 1.818 × H 見付+0.22(根入れ 0.22・天端の線より上は無い)× D 1.21(H0.15)〜1.88(H2.4)(天端の奥行 = 面から裏石の奥の端まで 0.73〜1.05・石ごとに出入り)。三角形 5,900(H0.15)〜14,200(H2.4)。
         /// 背の天端の検査: blender --background --python Tools/Blender/build_sanno_nozura.py -- crest(全駒で背の下がり ≤ 0.03)
         /// 天端の穴の検査: blender --background --python Tools/Blender/build_sanno_nozura.py -- holes(真上から光線で裏・下の覗く穴 0。2026-09-26 内向きに焼けた天端の石 77 を直した)
@@ -1550,7 +1550,18 @@ public static class EdoAssets
         {
             int hmm = (int)System.Math.Round(h * 1000.0);
             string v = "abcd"[((i % 4) + 4) % 4].ToString();
-            int gm = SannoNozuraNearestGrade(hmm, (int)System.Math.Round(grade * 1000.0), v);
+            int req = (int)System.Math.Round(grade * 1000.0);
+            int gm = SannoNozuraNearestGrade(hmm, req, v);
+            // ⭐ 急な勾配(|勾配| ≥ 0.2)がその見付で焼けていなければ、焼けている一つ上の見付へ上げる(高い段は沈める ── 根入れ)。
+            //   勾配の駒 ±0.275・±0.45 は H0600〜H2400 だけ ⇒ 低い端(見付 0.3)で ±0.12 へ寄せると天端が段に折れた(2026-10-07 EDO-0502 第41巡 袖の坂の低い端)。
+            //   当たる先: 急な勾配を求める野面の駒すべて(岡部 袖の坂・端の下げ打ち・沈め)。山王の H0150 ±0.18・H1500 ±0.22 は焼けているので変わらない
+            if (System.Math.Abs(req) >= 200 && System.Math.Abs(gm - req) > 60)
+                foreach (int hh in new[] { 600, 900, 1200, 1500, 1800, 2100, 2400 })
+                {
+                    if (hh <= hmm) continue;
+                    int g2 = SannoNozuraNearestGrade(hh, req, v);
+                    if (System.Math.Abs(g2 - req) + 1 < System.Math.Abs(gm - req)) { hmm = hh; gm = g2; break; }
+                }
             return SannoNozuraDir + "/Sanno_Nozura_H" + hmm.ToString("0000") + "_G"
                  + (gm >= 0 ? "+" : "-") + System.Math.Abs(gm).ToString("000") + "_" + v + ".fbx";
         }
@@ -1559,9 +1570,9 @@ public static class EdoAssets
 
         /// <summary><see cref="SannoNozura"/> の勾配を**その見付・その個体で焼いてある勾配のうち最も近いもの**へ寄せる [‰]
         /// (2026-09-26 EDO-0437)。焼けている勾配: 全段 0 / H1800 を除く 8 段 ±120(前庭の天端を流す)/ H0150 ±180(打ち切り)/
-        /// H1500 ±220(段の境)/ H0600〜H2400 ±275(岡部 外周の端の下げ打ち・EDO-0502)。刻み 0.12 ⇒ 天端の勾配 0〜0.18 のどこでも 1間(伸縮 1.2 まで)の端の天端の差 ≤ 0.065
+        /// H1500 ±220(段の境)/ H0600〜H2400 ±275(岡部 外周の端の下げ打ち・EDO-0502)/ H0600〜H2400 ±450(袖の坂・端の沈め・EDO-0502 第41巡)。刻み 0.12 ⇒ 天端の勾配 0〜0.18 のどこでも 1間(伸縮 1.2 まで)の端の天端の差 ≤ 0.065
         /// (裁定の頭の不揃い ±0.08 の内)。同じ見付の駒が一つも無ければ求めた勾配のまま返す(呼ぶ側が「焼いていない」と刷る)。
-        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=set(±275: -- wall --grade=0.275,-0.275 --h=0.6,0.9,1.2,1.5,1.8,2.1,2.4)</summary>
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=set(±275: -- wall --grade=0.275,-0.275 --h=0.6,0.9,1.2,1.5,1.8,2.1,2.4 / ±450: -- wall --grade=0.45,-0.45 --h=0.6,0.9,1.2,1.5,1.8,2.1,2.4)</summary>
         static int SannoNozuraNearestGrade(int hmm, int gm, string v)
         {
             if (!System.IO.Directory.Exists(SannoNozuraDir)) return gm;

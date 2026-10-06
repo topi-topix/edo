@@ -1377,7 +1377,11 @@ public static partial class EdoBuild
                                     int wS; bool dn; float fb = idx.FootBottom(x + dv.x * rr, z + dv.y * rr, NEAR + 0.1f, out wS, out dn);
                                     if (float.IsNaN(fb)) continue;
                                     //   石段の脇(stairApronFrontOnly・StairSide)の底からも法で受けない ── 上の段の側面は斜面に埋まる(蔵の石段 K_Kura1 の最上段の北の脇に深さ 0.4 の溝・2026-10-06 第17巡)
-                                    if (wS >= 0 && !idx.banded[wS] && !IsHollow(wS) && (!stairApronFrontOnly || !StairSide(x + dv.x * rr, z + dv.y * rr, fb, hgt))) { float l2 = fb + rr * kF; if (float.IsNaN(lim) || l2 < lim) lim = l2; }   // 掘る部材(溝)の底から法で受けない ── 溝の脇を底まで掘った(EDO-0533)
+                                    // ⭐ 駒の天端の高さに居る点(石段の上がり口の段石の背 = 上の面の側)は、その駒の底から法で受けない(2026-10-07 EDO-0502 第41巡 施主指摘 D):
+                                    //   上の面の地盤(天端 −0.02)が段石の底から 1:1.5 の法で 0〜0.4m の帯だけ引き下げられ、段石の背に窪みが出た(岡部 K_Dan1 の上がり口)。
+                                    //   段石の前・脇(地盤が天端より下)は従前どおり。当たる先: CutEdgeSkin に石段を渡す全邸の、上の面へ上がる石段の最上段の背。
+                                    bool atTop = wS >= 0 && wS < idx.gos.Count && idx.gos[wS] != null && hgt >= RB(idx.gos[wS]).max.y - 0.1f;
+                                    if (wS >= 0 && !idx.banded[wS] && !IsHollow(wS) && !atTop && (!stairApronFrontOnly || !StairSide(x + dv.x * rr, z + dv.y * rr, fb, hgt))) { float l2 = fb + rr * kF; if (float.IsNaN(lim) || l2 < lim) lim = l2; }   // 掘る部材(溝)の底から法で受けない ── 溝の脇を底まで掘った(EDO-0533)
                                     break;   // その向きの最初の駒で止める
                                 }
                             }

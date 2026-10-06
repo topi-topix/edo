@@ -2410,7 +2410,7 @@ public static partial class EdoBuild
     /// <summary>**橋台石の根石**の作法(指図 `hashi[].abutStone[].rootStone` ── 邸ビルダーが欄を読んで埋める。⛔ ここに既定の値を持たない)。
     /// paths = 根石の部材(個体の族)・n = 数(隙の弧が arcMax を超えたら n + 1)・scLo〜scHi = 橋台石の縮尺に対する根石の縮尺の割合・
     /// faceLo〜faceHi = 橋台石の外周より前へ出す量[m]・topLo〜topHi = 根石の天端を橋台石の下面に当てる高さ[m](柔)・
-    /// bedLo = 根石の底を池床(地面)より下げる最小[m](硬 ── 底は池床より上に置かない)・sukiMax = 水面より上の橋台石の下の隙の上限[m](硬)。</summary>
+    /// bedLo = 根石の底を池床(地面)より下げる狙い[m](柔 ── 硬は「底 ≤ 池床」だけ)・sukiMax = 水面より上の橋台石の下の隙の上限[m](硬)。</summary>
     public class NiwaRootSpec
     {
         public List<string> paths = new List<string>(); public int n; public float arcMax, scLo, scHi, faceLo, faceHi, topLo, topHi, bedLo, sukiMax;
@@ -2493,6 +2493,7 @@ public static partial class EdoBuild
                 float bottom = ymin;
                 if (float.IsNaN(gmin)) break;
                 if (bottom <= gmin - sp.bedLo + 1e-4f) { ok = true; break; }
+                if (it == 3 && bottom <= gmin + 1e-4f) { ok = true; rep.why = "根石 " + kk + " の底は池床に届いたが狙いの池床 − " + sp.bedLo.ToString("F2") + " には届かない(柔)"; break; }   // 硬は「底 ≤ 池床」だけ
                 float needH = (ymax - ymin) + (bottom - (gmin - sp.bedLo)), sc2 = sc * needH / Mathf.Max(1e-4f, ymax - ymin) * 1.02f;
                 if (sc2 > baseSc * 2f) { sc = baseSc * 2f; if (it == 3) break; } else sc = sc2;
             }

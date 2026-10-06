@@ -1247,6 +1247,13 @@ public static partial class EdoDoiBuilder
             foreach (var root in new[] { Group("OkuHei"), Group("Kakoi") })
                 foreach (Transform c in root)
                     if (c.gameObject.activeInHierarchy && (root.name == "OkuHei" || c.name.Contains("_Hei") || c.name.EndsWith("_ishi"))) over.Add(c.gameObject);   // 塀と布石(表長屋の躯体は軒が溝の上に掛かるので入れない)
+            // 渡廊下の柱と縁の束も(溝が廊下・縁の下をくぐる所は蓋石で抜ける ── 第27巡: 廊下 L_OkuNagatsubone の柱 0.252/0.124・長局の束 0.159 が溝 D3 seg1 の上で浮いた)
+            foreach (Transform top in Group("Mizo").parent)
+            {
+                if (!top.gameObject.activeInHierarchy || !(top.name.StartsWith("L_") || top.name == "Buildings")) continue;
+                foreach (var t in top.GetComponentsInChildren<Transform>())
+                    if (t.gameObject.activeInHierarchy && (t.name == "Goten_Column" || t.name.StartsWith("Goten_EnTsuka")) && t.GetComponent<MeshFilter>() != null) over.Add(t.gameObject);
+            }
             foreach (Transform k in Group("Fuzoku/Kaidan"))
             {
                 if (!k.gameObject.activeInHierarchy) continue;

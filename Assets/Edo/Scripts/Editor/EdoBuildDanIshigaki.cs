@@ -218,6 +218,7 @@ public static partial class EdoBuild
         if (depths.Count == 0) note += "天端の控えが測れず 0.45m ";
         float worst = float.NegativeInfinity;
         var beds = new List<GameObject>(); foreach (Transform c in stones) if (c.gameObject.activeInHierarchy) beds.Add(c.gameObject);
+        var ptops = new PartTops(beds);   // 天端の索引(区間を天端の段・端で切る ── SplitCutsByCrest)
         {
             for (int k = 0; k + 1 < nodes.Count; k++)
             {
@@ -233,6 +234,7 @@ public static partial class EdoBuild
                     cuts = nx;
                 }
                 float psi = Mathf.Atan2(lowN.x, lowN.y) * Mathf.Rad2Deg;   // 局所 +Z = lowN
+                cuts = SplitCutsByCrest(cuts, a, dir, off, ptops);
                 foreach (var c in cuts)
                 {
                     var probe = Place(span, Vector3.zero, psi, Vector3.one, parent, "_probe");
@@ -283,6 +285,39 @@ public static partial class EdoBuild
         return n;
     }
 
+    /// <summary>**垣の区間を天端の段と端で切る**(2026-10-06 EDO-0502 第36巡 ── 南の腰の西の返し Kaki_TW_Minami_Koshi#ret0_1_001 が
+    /// 上の run の天端(+0.5)と返しの端の先(−0.47)を一枚で跨ぎ、最も高い当たりへ据わって根元が 0.489 浮いた)。
+    /// 線(<paramref name="a"/> + <paramref name="dir"/>·s + <paramref name="off"/>)を 0.1m 刻みで天端の索引(<paramref name="tops"/>)に当て、
+    /// 隣り合う点の天端が 0.3 を超えて違う所(段違い)で区間を切り、区間の頭と尻の天端の無い所(土留めの端の先)を落とす。
+    /// 区間の半分以上が天端に載らない区間は触らない(線が天端の外を通る垣 ── 測りが当てにならない)。0.3m 未満の切れ端は呼び手が建てない。
+    /// 硬い: 垣は一つの天端の上だけ(⛔ 段・端を一枚で跨がない)。当たる先: 天端の垣を据える全邸(岡部 fenceOnTop 4 欄・段違いの返し)。</summary>
+    static List<Vector2> SplitCutsByCrest(List<Vector2> cuts, Vector2 a, Vector2 dir, Vector2 off, PartTops tops)
+    {
+        if (tops == null) return cuts;
+        const float STEP = 0.1f, JUMP = 0.3f;
+        var res = new List<Vector2>();
+        foreach (var c in cuts)
+        {
+            var ss = new List<float>(); var ts = new List<float>();
+            for (float s = c.x; s <= c.y + 1e-4f; s += STEP) { var q = a + dir * s + off; string who; ss.Add(s); ts.Add(tops.Top(q.x, q.y, out who)); }
+            int on = 0; foreach (var t in ts) if (!float.IsNaN(t)) on++;
+            if (ts.Count < 3 || on * 2 < ts.Count) { res.Add(c); continue; }
+            int i0 = 0, i1 = ts.Count - 1;
+            while (i0 < ts.Count && float.IsNaN(ts[i0])) i0++;
+            while (i1 >= 0 && float.IsNaN(ts[i1])) i1--;
+            if (i0 > i1) continue;
+            float segS = i0 == 0 ? c.x : ss[i0], last = ts[i0];
+            for (int i = i0 + 1; i <= i1; i++)
+            {
+                if (float.IsNaN(ts[i])) continue;                       // 継ぎ目の目地(区間の中の天端の抜け)は跨ぐ
+                if (Mathf.Abs(ts[i] - last) > JUMP) { res.Add(new Vector2(segS, (ss[i - 1] + ss[i]) * 0.5f)); segS = (ss[i - 1] + ss[i]) * 0.5f; }
+                last = ts[i];
+            }
+            res.Add(new Vector2(segS, i1 == ts.Count - 1 ? c.y : ss[i1]));
+        }
+        return res;
+    }
+
     /// <summary>垣の駒の足(走りの両端と中ほど・局所 +X の向き <paramref name="ux"/> の実メッシュの範囲)の真下の当たり =
     /// 土留めの駒の上向きの面(<see cref="BedTopAt"/>)と描かれた地表の高い方、を測り、**最も高い当たり**へ床(底 + 根入れ 0.15)を据える。
     /// <paramref name="spread"/> = 最も高い当たり − 最も低い当たり(その分だけ床の下が空く所がある ── 根入れ 0.15 の内なら見えない)。</summary>
@@ -294,11 +329,23 @@ public static partial class EdoBuild
         if (nv == 0) return false; c /= nv;
         float cu = Vector2.Dot(c, ux);
         float hi = float.MinValue, lo = float.MaxValue;
-        foreach (float u in new[] { mn + 0.03f, (mn + mx) * 0.5f, mx - 0.03f })
+        // ⭐ 床の索引(bedAt)を渡されたら、足の三点でなく**足あと全体**(走り 0.1m 刻み × 見込みの前・芯・後)を測る(2026-10-06 EDO-0502 第36巡)。
+        //   三点だと駒の端が天端の縁・継ぎ目の面取りから外へ出た所を見落とし、根元が 0.04 浮いた(南の腰・東の北東の 14 駒)。
+        var us = new List<float>(); var ws = new List<float> { 0f };
+        if (bedAt != null)
         {
-            Vector2 p = c + ux * (u - cu);
+            Vector2 uz = new Vector2(-ux.y, ux.x); float wmn = float.MaxValue, wmx = float.MinValue;
+            foreach (var v in Body(go.transform, 4000)) { float w = Vector2.Dot(new Vector2(v.x, v.z) - c, uz); wmn = Mathf.Min(wmn, w); wmx = Mathf.Max(wmx, w); }
+            for (float u = mn + 0.02f; u <= mx - 0.02f + 1e-4f; u += 0.1f) us.Add(u); us.Add(mx - 0.02f);
+            ws = new List<float> { wmn + 0.01f, (wmn + wmx) * 0.5f, wmx - 0.01f };
+        }
+        else us.AddRange(new[] { mn + 0.03f, (mn + mx) * 0.5f, mx - 0.03f });
+        Vector2 uzz = new Vector2(-ux.y, ux.x);
+        foreach (float u in us) foreach (float wv in ws)
+        {
+            Vector2 p = c + ux * (u - cu) + uzz * wv;
             float y;
-            if (bedAt != null) y = bedAt(p.x, p.y);   // 据わる床(描かれた地表と土留めの上向きの面の高い方 ── EdoBuild.Bed)
+            if (bedAt != null) { y = bedAt(p.x, p.y); if (float.IsNaN(y)) y = Ground(p.x, p.y); }   // 据わる床(描かれた地表と土留めの上向きの面の高い方 ── EdoBuild.Bed)。皮も天端も無い所は地形(⛔ 測れない点を飛ばすと、端が地形の上へ出た駒が 0.045 浮いた・第36巡)
             else
             {
                 float g = Ground(p.x, p.y), b = BedTopAt(p, beds, g + 6f);   // 光線は 8m まで ⇒ 地表の 6m 上から(⛔ 据える前の駒の頭からでは天端に届かない)
@@ -308,7 +355,9 @@ public static partial class EdoBuild
             hi = Mathf.Max(hi, y); lo = Mathf.Min(lo, y);
         }
         if (hi == float.MinValue) return false;
-        go.transform.position += Vector3.up * (hi - 0.15f - bot);
+        // 床 = 最も高い当たり − 根入れ 0.15。ただし最も低い当たりから根元の帯(ROOT_TOUCH)の分は下へ ── 硬い・根元の浮き 0(埋めて隠す・docs/oki-kata.md §4)
+        float floorY = bedAt != null ? Mathf.Min(hi - 0.15f, lo - ROOT_TOUCH) : hi - 0.15f;
+        go.transform.position += Vector3.up * (floorY - bot);
         spread = hi - lo;
         return true;
     }

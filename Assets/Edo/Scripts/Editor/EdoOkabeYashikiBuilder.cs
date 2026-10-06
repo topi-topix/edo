@@ -1100,6 +1100,14 @@ public static class EdoOkabeYashikiBuilder
         }
         float deg = degOf(nbd);
         if (deg < 1f || deg > 89.5f) return none;
+        // ⭐ 入隅(区画の内から見て 180° を超える角 ── 隣の辺が外へ折れる)は切らない(2026-10-06 EDO-0502 第36巡)。
+        //   隣の辺の線を角の手前へ延ばした線で外面を切ると、外面が角の 0.61m 手前で止まり、角から先の木柵との間に口が開いた(辺24 の終わり・Kiri_S_Hei_21)。
+        //   入隅では外面の線は角まで区画の内に在る ⇒ 直角の端のまま走りの端(角)まで通す。当たる先: 辺の端の練塀を切った駒で納める全邸の入隅。
+        if (cutBy == "隣の辺の線" && (atStart ? Vector2.Dot(nbd, outw) < -0.05f : Vector2.Dot(nbd, outw) > 0.05f))
+        {
+            _kiriNotes.Add(r.name + (atStart ? " の始め" : " の終わり") + ": 入隅(隣の辺が外へ " + deg.ToString("F1") + "° 折れる)── 切らずに直角の端で角まで通す");
+            return none;
+        }
         // 外面の線 F(t) = a0 − outw·INUBASHIRI + dir·t と切る線の交点
         Vector2 f0 = a0 - outw * INUBASHIRI;
         float det = dir.x * (-nbd.y) - dir.y * (-nbd.x); if (Mathf.Abs(det) < 1e-5f) return none;
@@ -3888,6 +3896,16 @@ public static class EdoOkabeYashikiBuilder
                                    + "(指図 yAt)と食い違う ⇒ 底を足元の中央値 " + padY.ToString("F2") + " へ据え、棟の下を均した(EdoBuild.LevelPad 節点 " + nn
                                    + "・切 " + cm.ToString("F2") + " / 盛 " + fm.ToString("F2") + "m)" + (Mathf.Abs(padY - padSy) > 0.25f ? " ⚠ 指図の yAt " + padSy.ToString("F2") + " と " + (padY - padSy).ToString("+0.00;-0.00") + "m(±0.25 を超える ── 欄の上書きは普請奉行)" : ""));
                         }));
+                    }
+                    else
+                    {
+                        // ⭐ 食い違わない棟も、今の底の高さで棟の下を均す組に入れる(2026-10-06 EDO-0502 第36巡)。⛔ 食い違う棟だけ均すと、
+                        //   隣の棟(薪蔵 15.62 と米蔵 15.77・離れ 1.8m)が 2m 格子の同じ節点を分け合い、薪蔵の均しが米蔵の縁の節点を切って米蔵が 0.147 浮いた。
+                        //   全棟を低い順に均せば、分け合う節点は高い棟が勝つ(浮き 0・低い棟の縁は埋めて隠す)。冪等(既に平らなら書く節点は 0)。
+                        //   当たる先: LevelPad で棟の下を均す全邸の、離れが 2m 格子より狭い隣り合う棟。
+                        var padPoly2 = TerracePolyAt((foot[0] + foot[2]) * 0.5f); var padFoot2 = foot; float padY2 = bot;
+                        pads.Add(new KeyValuePair<float, System.Action>(bot, () =>
+                        { float cm, fm; EdoBuild.LevelPad(padPoly2, padFoot2, padY2, C("batterFill"), C("batterCut"), out cm, out fm); }));
                     }
                 }
             }

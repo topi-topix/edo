@@ -318,7 +318,35 @@ public static partial class EdoBuild
         // LevelPad の窓(足あとの外接 ± reach を一升に丸めた範囲)の外は触らない
         if (p.x < mnx - reach - cell || p.x > mxx + reach + cell || p.y < mnz - reach - cell || p.y > mxz + reach + cell) return cur;
         float d = EdoGeom.PIP(foot, p) ? 0f : DistPolyLine(foot, p);
-        return d <= cell ? y : BatterTo(y, d - cell, bf, bc, cur);
+        // ⭐ 平らに取る節点は「その節点を角に持つ升(4升)のどれかが足あとに掛かる」節点(2026-10-06 EDO-0502 第36巡)。
+        //   ⛔ 水平距離 ≤ 一升で取ると、回った足あとの隅の対角の節点(距離 ≤ √2 升)が法のまま残り、隅の升が勾配の上手へ描かれて
+        //   厩の隅が 0.117・薪蔵の隅が 0.123 埋まった。升の範囲(節点 ± 一升の正方形)と足あとの交わりで見る。
+        //   当たる先: LevelPad を呼ぶ全邸の棟の下の均し(岡部の附属屋・家臣長屋)と、同じ式で均しの跡を測る造成QA。
+        return (d <= cell || SquareHitsPoly(foot, p, cell)) ? y : BatterTo(y, d - cell, bf, bc, cur);
+    }
+
+    /// <summary>軸に沿う正方形(芯 <paramref name="c"/>・半辺 <paramref name="h"/>)と多角形 <paramref name="poly"/> が交わるか
+    /// (多角形の頂点が正方形の内・正方形の芯が多角形の内・辺が正方形を横切る ── Liang–Barsky)。測るだけ。</summary>
+    public static bool SquareHitsPoly(Vector2[] poly, Vector2 c, float h)
+    {
+        if (poly == null || poly.Length < 3) return false;
+        if (EdoGeom.PIP(poly, c)) return true;
+        float x0 = c.x - h, x1 = c.x + h, z0 = c.y - h, z1 = c.y + h;
+        for (int i = 0; i < poly.Length; i++)
+        {
+            Vector2 a = poly[i], b = poly[(i + 1) % poly.Length];
+            float t0 = 0f, t1 = 1f, dx = b.x - a.x, dz = b.y - a.y; bool ok = true;
+            float[] pp = { -dx, dx, -dz, dz }, qq = { a.x - x0, x1 - a.x, a.y - z0, z1 - a.y };
+            for (int k = 0; k < 4 && ok; k++)
+            {
+                if (Mathf.Abs(pp[k]) < 1e-9f) { if (qq[k] < 0f) ok = false; continue; }
+                float r = qq[k] / pp[k];
+                if (pp[k] < 0f) { if (r > t1) ok = false; else if (r > t0) t0 = r; }
+                else { if (r < t0) ok = false; else if (r < t1) t1 = r; }
+            }
+            if (ok) return true;
+        }
+        return false;
     }
 
     /// <summary>**据わった棟の躯体の足あと**(世界 xz の四隅)。躯体の断面(BodyFootprintLocal)を駒の今の姿勢で世界へ写す。

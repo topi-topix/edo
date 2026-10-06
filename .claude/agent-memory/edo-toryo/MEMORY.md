@@ -129,6 +129,7 @@
 
 - [門の背の突き付けは札で・2m格子の坂の石段・印の名は共有](gate-back-abut-through-passage-and-steps-on-graded-ramp.md) — 光線は門の口を抜けて扉まで伸びた。踏面の坂上の端を地表へ(SlopeStepsAt)
 - [城の石垣の口が二つ近いと間に 2m の駒が芯で据わる](castle-run-narrow-pier-between-gaps.md) — 土井の扉口と潜戸の間 0.459m。部材か指図へ差し戻す
+- [棟の下の均しを直しても埋没が動かないのは皮・垣の残る浮きは目地](levelpad-rim-and-skin-hides-terrain.md) — Drawn と地形の両方で測る。計測は組み立て1回で全駒
 - [光付けは2次元で上げる・remap 済みでも材 null](scribe-2d-and-stale-fbx-material.md) — 列の窓の最大は法肩で浮き目地で食い込む。桃色は ForceUpdate で再 import(長屋12本も 10-03)
 
 - [長屋は全幅で並べると躯体が開く・御殿は縁の下に当たり無し・棟門は札で・描かれた法尻](nagaya-body-vs-gable-and-rendered-toe.md) — FitBodyToSpan/PlaceGamae/toeRender

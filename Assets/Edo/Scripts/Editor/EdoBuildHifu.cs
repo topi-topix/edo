@@ -626,7 +626,7 @@ public static partial class EdoBuild
         };
         // 点 → その点の造成の面(溝の外形の外で、掘る部材の cap が当たった点だけ)── 3c の下げもここで止める
         var keepFloor = keepSet != null ? new Dictionary<long, float>() : null;
-        // 溝の脇の法(keepBatter > 0): 外形の外の点 q の床 = 溝の駒ごとに「天端の外の辺の高さ − KEEP_RIM_TUCK + 外形の縁からの距離 ÷ keepBatter」の最小
+        // 溝の脇の法(keepBatter > 0): 外形の外の点 q の床 = 溝の駒ごとに「天端の外の辺の高さ − KEEP_RIM_TUCK + max(0, 外形の縁からの距離 − step) ÷ keepBatter」の最小
         //   (q を含む外形は呼び手が除く)。天端の外の辺の高さ = 外形の縁の最寄りの点から内へ 0.03・0.08m の、その駒の上向きの面の最高。無ければ NaN。
         //   min を取る関数はどれも位置について連続 ⇒ 床は連続(頂点ごとの二値で止めない ── 歯形を立てない)。
         Func<Vector2, float> BatterFloor = q =>
@@ -646,7 +646,10 @@ public static partial class EdoBuild
                     if (who == k && !float.IsNaN(tp) && (float.IsNaN(rim) || tp > rim)) rim = tp;
                 }
                 if (float.IsNaN(rim)) continue;
-                float f = rim - KEEP_RIM_TUCK + d / keepBatter;
+                //   ⭐ 外形の縁から一格子(step)までは平ら(天端 − KEEP_RIM_TUCK)── 法をそこから始める(2026-10-06 EDO-0533 第21巡)。
+                //   ⛔ 第20巡まで縁から法を始め、縁の外 0.02m より先の格子点が天端より高くなり得て、その点と外形の内の点の三角形が縁石を斜めに横切り、
+                //   溝 D2 seg1 の外の縁石の天端に皮が波打って被った(溝はまっすぐ並んでいるのに、ぎざぎざに見えた)。
+                float f = rim - KEEP_RIM_TUCK + Mathf.Max(0f, d - step) / keepBatter;
                 if (float.IsNaN(best) || f < best) best = f;
             }
             return best;

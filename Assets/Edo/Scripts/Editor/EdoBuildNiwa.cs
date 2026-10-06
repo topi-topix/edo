@@ -2422,7 +2422,7 @@ public static partial class EdoBuild
     /// (下面が水面以下なら 0)を測る。隙 &gt; sukiMax の最も長い弧を n + 1 等分した点(弧長の ±8% 揺らす)に根石を置く:
     /// 平面 = 根石の外の面が橋台石の外周より face 前へ出る所(実メッシュの向き o の張り出しで寄せる)・高さ = 根石の天端(実メッシュの最高)を下面 + top へ・
     /// 底が足跡の最も低い地面 − bedLo より上なら等方に大きくして下げる(橋台石の縮尺の 2 倍まで ── 届かなければその根石は置かない)。
-    /// 据えた後に弧の点を測り直し、根石の天端(点の 0.15m 以内)が下面 − sukiMax に届いた点は塞がったと数える。返す: 据えた根石。
+    /// 据えた後に弧の点を測り直し、外周の点から外へ face + 0.10m の線の近く(0.08m)の根石の最高が下面 − sukiMax に届いた点は塞がった(外から隠れる)と数える。返す: 据えた根石。
     /// 当たる先: rootStone を書いた橋台石(いまは土井 Hashi_Ishi の b)── 池に面して下が浮く石の据え全般へ広げられる。</summary>
     public static List<GameObject> NiwaAbutRootStones(Transform parent, string name, GameObject stone, float waterY, NiwaRootSpec sp, System.Random rnd, out NiwaRootRep rep)
     {
@@ -2494,7 +2494,14 @@ public static partial class EdoBuild
         for (int i = 0; i < N; i++)
         {
             if (Gp[i] <= sp.sukiMax) continue;
-            float rt = float.NaN; foreach (var w in rp) if ((new Vector2(w.x, w.z) - P[i]).sqrMagnitude <= 0.0225f && (float.IsNaN(rt) || w.y > rt)) rt = w.y;
+            //   外から見て隙を隠すか: 外周の点から外へ 0〜(faceHi + 0.10)m の線の 0.08m 以内の根石の頂点の最高(根石は外周より前に立つ)
+            var oi = P[i] - c; if (oi.sqrMagnitude > 1e-8f) oi.Normalize();
+            float rt = float.NaN;
+            for (float t = 0f; t <= sp.faceHi + 0.10f + 1e-4f; t += 0.04f)
+            {
+                var qq = P[i] + oi * t;
+                foreach (var w in rp) if ((new Vector2(w.x, w.z) - qq).sqrMagnitude <= 0.0064f && (float.IsNaN(rt) || w.y > rt)) rt = w.y;
+            }
             float left = float.IsNaN(rt) ? Gp[i] : Mathf.Max(0f, Mathf.Min(Gp[i], U[i] - rt));
             rep.gapAfter = Mathf.Max(rep.gapAfter, left);
         }

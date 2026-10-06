@@ -46,7 +46,6 @@ public static partial class EdoDoiBuilder
 
         // ---- 建った棟の軒先の外周(御殿 Buildings・附属屋 Fuzoku/Service)
         var eave = new Dictionary<string, Vector2[]>(); var names = new Dictionary<string, string>();
-        var eaveOwners = new List<Transform>();   // 軒の主の棟(雨落ちの線を逃がす足に、広い躯体の足も数える)
         Action<string, string> alias = (k, nm) => { k = k.Trim(); if (k.Length > 0 && !names.ContainsKey(k)) names[k] = nm; };
         foreach (var key in new[] { "munes", "service" })
             foreach (var o in A(D[key]) ?? new List<object>())
@@ -56,7 +55,6 @@ public static partial class EdoDoiBuilder
                 foreach (var piece in lb.Split('・', '(', ')', '(', ')', ' ')) if (piece.Length >= 1) alias(piece, nm);
                 var tr = FindDeep(Group(key == "munes" ? "Buildings" : "Fuzoku/Service"), nm);
                 if (tr == null) continue;
-                eaveOwners.Add(tr);
                 Vector2[] rect; float ey; string how;
                 if (EdoBuild.EaveRect(tr, uW, out rect, out ey, out how)) { eave[nm] = rect; if (how != "屋根の実メッシュ") Wait("軒先の外周 " + nm + ": " + how); }
             }
@@ -904,16 +902,14 @@ public static partial class EdoDoiBuilder
                     foreach (var pl in raw) foreach (var q in pl) { bx0 = Mathf.Min(bx0, q.x); bx1 = Mathf.Max(bx1, q.x); bz0 = Mathf.Min(bz0, q.y); bz1 = Mathf.Max(bz1, q.y); }
                     var nearL = new Vector4(bx0 - 2f, bz0 - 2f, bx1 + 2f, bz1 + 2f);
                     var feetL = EdoBuild.StandingFeetXZ(grp.parent, groundMizo, skip: new HashSet<string> { grp.name }, near: nearL);
-                    //   軒の主の棟の躯体の足は広くても数える(第23巡 ── 蔵 Kura1 の足元に溝 D2 seg2 が掛かり 0.184 浮いた)。台・座は棟の枝でないので入らない
-                    foreach (var ow in eaveOwners) feetL.AddRange(EdoBuild.StandingFeetXZ(ow, groundMizo, near: nearL, maxThin: float.MaxValue));
-                    int pushedN = 0, stuckN = 0; float pushedMx = 0f;
+                    int pushedN = 0, stuckN = 0; float pushedMx = 0f; var stuckWhy = new List<string>();
                     for (int ri = 0; ri < raw.Count; ri++)
                     {
-                        float pm; int ps, st; raw[ri] = EdoBuild.PushLineOffFeet(raw[ri], feetL, hwF + 0.05f, 1.0f, out pm, out ps, out st);
+                        float pm; int ps, st; raw[ri] = EdoBuild.PushLineOffFeet(raw[ri], feetL, hwF + 0.05f, 1.0f, out pm, out ps, out st, stuckWhy);
                         pushedN += ps; stuckN += st; pushedMx = Mathf.Max(pushedMx, pm);
                     }
                     if (pushedN > 0) line(1, g.id + ": 雨落ちの線を据わった駒の足から外へ寄せた辺 " + pushedN + "(最大 " + pushedMx.ToString("F2") + "m ── 狙いの軒先の鉛直下から外れた・柔)");
-                    if (stuckN > 0) line(1, g.id + ": 足が線の両側に在るか 1.0m を超えて寄せる辺 " + stuckN + " は寄せなかった(桝・溝の置き場の硬い条件で測る)");
+                    if (stuckN > 0) line(1, g.id + ": 足が線の両側に在るか 1.0m を超えて寄せる辺 " + stuckN + " は寄せなかった(桝・溝の置き場の硬い条件で測る)── " + string.Join(" / ", stuckWhy));
                 }
             }
             g.lines = new List<List<Vector2>>();

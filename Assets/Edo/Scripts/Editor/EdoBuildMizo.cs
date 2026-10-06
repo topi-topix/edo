@@ -769,7 +769,8 @@ public static partial class EdoBuild
     /// 寄せた側にも足が残る・maxPush を超える辺は寄せず <paramref name="stuck"/> に数える。⛔ 第18巡まで、土井 D2 seg1 の軒先の鉛直下が縁の束(EnTsuka・NureenCorner)の
     /// 列に重なり、束石が溝の側石の上に載り、桝を束から外すと置き場が無くなった(線3 が建たない)。
     /// 当たる先: 軒先の鉛直下に引く溝(いまは土井 D2 seg1 の軒の外周と軒先の鉛直下の部)── 縁・柱の足が軒の内に立つ棟のすべて。</summary>
-    public static List<Vector2> PushLineOffFeet(List<Vector2> line, IList<Vector2> feet, float need, float maxPush, out float pushedMax, out int pushedSegs, out int stuck)
+    public static List<Vector2> PushLineOffFeet(List<Vector2> line, IList<Vector2> feet, float need, float maxPush, out float pushedMax, out int pushedSegs, out int stuck,
+                                                List<string> stuckWhy = null)
     {
         pushedMax = 0f; pushedSegs = 0; stuck = 0;
         if (line == null || line.Count < 2 || feet == null || feet.Count == 0) return line;
@@ -813,7 +814,19 @@ public static partial class EdoBuild
                     float t = Vector2.Dot(f - a, d); if (t < -0.1f || t > len + 0.1f) continue;
                     float lat = Vector2.Dot(f - a, nv) - sg * o; if (Mathf.Abs(lat) < need - 1e-4f) { bad = true; break; }
                 }
-            if (bad) { if (asRun) { for (int i = s0; i <= s1; i++) jobs.Add(new[] { i, i, 0 }); } else stuck++; continue; }
+            if (bad)
+            {
+                if (asRun) { for (int i = s0; i <= s1; i++) jobs.Add(new[] { i, i, 0 }); continue; }
+                stuck++;
+                if (stuckWhy != null)
+                {
+                    float lmin = float.MaxValue, lmax = float.MinValue; foreach (var lat in hits) { lmin = Mathf.Min(lmin, lat); lmax = Mathf.Max(lmax, lat); }
+                    var mid = 0.5f * (a + b);
+                    stuckWhy.Add("辺 (" + mid.x.ToString("F1") + "," + mid.y.ToString("F1") + ") 長 " + len.ToString("F1") + "m・掛かる足 " + hits.Count + "(横 " + lmin.ToString("+0.00;-0.00") + "〜" + lmax.ToString("+0.00;-0.00")
+                                 + ")・要る寄せ " + o.ToString("F2") + "m" + (o > maxPush ? "(上限 " + maxPush.ToString("F1") + " 超)" : "(寄せた先に別の足)"));
+                }
+                continue;
+            }
             for (int i = s0; i <= s1; i++) { off[i] = sg * o; nrm[i] = nv; }
             pushedSegs++; pushedMax = Mathf.Max(pushedMax, o);
         }

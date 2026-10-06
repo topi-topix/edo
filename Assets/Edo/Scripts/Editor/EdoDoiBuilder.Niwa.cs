@@ -1769,6 +1769,13 @@ public static partial class EdoDoiBuilder
                                 if (rs != null)
                                 {
                                     EdoBuild.NiwaRootRep rr; var roots = EdoBuild.NiwaAbutRootStones(grp, nm + "_Abut_" + end, sgo, wy, rs, rnd, out rr);
+                                    // 庭方「2個で隙が閉じないときは3個に増やす」── 閉じなければ n + 1 で置き直す(一度だけ)
+                                    if (!rr.met && roots.Count > 0)
+                                    {
+                                        foreach (var r0 in roots) UnityEngine.Object.DestroyImmediate(r0);
+                                        rs.n += 1; roots = EdoBuild.NiwaAbutRootStones(grp, nm + "_Abut_" + end, sgo, wy, rs, rnd, out rr); rs.n -= 1;
+                                        hashiRep += "\n    根石(" + nm + " " + end + "): " + rs.n + " 個で隙が閉じず " + (rs.n + 1) + " 個で置き直した";
+                                    }
                                     stones.AddRange(roots); abutRoot += roots.Count;
                                     hashiRep += "\n    根石(" + nm + " " + end + "): 水面より上の隙 " + rr.gapBefore.ToString("F3") + " の弧 " + rr.arcLen.ToString("F2") + "m に " + rr.placed + " 個 ⇒ 残る隙 "
                                               + (float.IsNaN(rr.gapAfter) ? "?" : rr.gapAfter.ToString("F3")) + (rr.met ? "【硬 ≤ " + rs.sukiMax.ToString("F2") + " ✔】" : "【硬 ≤ " + rs.sukiMax.ToString("F2") + " ✗】") + (rr.why != null ? "(" + rr.why + ")" : "");

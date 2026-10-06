@@ -875,9 +875,9 @@ public static partial class EdoBuild
     /// <summary>**地面に立つ駒の足の平面の点**(<see cref="SplitMizoAtMasu"/> の feet)。<paramref name="root"/> の下の駒ごとに、実メッシュの最も低い頂点から
     /// ROOT_TOUCH 以内の頂点(=足)を拾い、その足が地面 <paramref name="groundAt"/> から <paramref name="touch"/> 以内(接する・埋まる)で、駒の丈が
     /// <paramref name="minTall"/> 以上(束・柱・塀・幹 ── 床・桁の平らな下面は丈が低いか地面から離れている)の物だけ返す。
-    /// 足の広がりが駒の局所の軸のどちらにも <paramref name="maxThin"/> を超える駒(台・座・躯体)は拾わない。<paramref name="skip"/> の名の枝(溝・皮)は見ない。<paramref name="near"/> を渡せば、その矩形 [x0,z0,x1,z1] に掛かる描画の箱の駒だけ測る(篩いだけ ── 置き場は実メッシュ)。</summary>
+    /// 足の広がりが駒の局所の軸のどちらにも <paramref name="maxThin"/> を超える駒(台・座・躯体)は拾わない。<paramref name="compact"/> なら片方でも超える駒(塀・桁)も拾わない。<paramref name="skip"/> の名の枝(溝・皮)は見ない。<paramref name="near"/> を渡せば、その矩形 [x0,z0,x1,z1] に掛かる描画の箱の駒だけ測る(篩いだけ ── 置き場は実メッシュ)。</summary>
     public static List<Vector2> StandingFeetXZ(Transform root, Func<float, float, float> groundAt, float touch = 0.15f, float minTall = 0.3f,
-                                               ICollection<string> skip = null, Vector4? near = null, float maxThin = 0.6f)
+                                               ICollection<string> skip = null, Vector4? near = null, float maxThin = 0.6f, bool compact = false)
     {
         var res = new List<Vector2>();
         if (root == null) return res;
@@ -900,6 +900,7 @@ public static partial class EdoBuild
                 var sc = mf.transform.lossyScale; float lx0 = float.MaxValue, lx1 = float.MinValue, lz0 = float.MaxValue, lz1 = float.MinValue;
                 for (int i = 0; i < vs.Length; i++) { if (ws[i].y > y0 + ROOT_TOUCH) continue; float lx = vs[i].x * Mathf.Abs(sc.x), lz = vs[i].z * Mathf.Abs(sc.z); lx0 = Mathf.Min(lx0, lx); lx1 = Mathf.Max(lx1, lx); lz0 = Mathf.Min(lz0, lz); lz1 = Mathf.Max(lz1, lz); }
                 if (lx1 - lx0 > maxThin && lz1 - lz0 > maxThin) continue;
+                if (compact && (lx1 - lx0 > maxThin || lz1 - lz0 > maxThin)) continue;   // compact: 両向きとも細い駒(束・柱・幹)だけ ── 塀・桁は拾わない
             }
             foreach (var w in ws)
             {

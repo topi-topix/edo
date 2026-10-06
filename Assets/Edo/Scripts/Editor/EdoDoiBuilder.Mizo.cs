@@ -901,7 +901,8 @@ public static partial class EdoDoiBuilder
                     float bx0 = float.MaxValue, bx1 = float.MinValue, bz0 = float.MaxValue, bz1 = float.MinValue;
                     foreach (var pl in raw) foreach (var q in pl) { bx0 = Mathf.Min(bx0, q.x); bx1 = Mathf.Max(bx1, q.x); bz0 = Mathf.Min(bz0, q.y); bz1 = Mathf.Max(bz1, q.y); }
                     var nearL = new Vector4(bx0 - 2f, bz0 - 2f, bx1 + 2f, bz1 + 2f);
-                    var feetL = EdoBuild.StandingFeetXZ(grp.parent, groundMizo, skip: new HashSet<string> { grp.name }, near: nearL);
+                    //   線を寄せる足は束・柱・幹だけ(compact)── 塀の脇を通る溝は設計どおり(第24巡: D3 seg1 の 17.6m・22.1m の辺は塀の足 1354・357 点を数えて寄らなかった)
+                    var feetL = EdoBuild.StandingFeetXZ(grp.parent, groundMizo, skip: new HashSet<string> { grp.name }, near: nearL, compact: true);
                     int pushedN = 0, stuckN = 0; float pushedMx = 0f; var stuckWhy = new List<string>();
                     for (int ri = 0; ri < raw.Count; ri++)
                     {

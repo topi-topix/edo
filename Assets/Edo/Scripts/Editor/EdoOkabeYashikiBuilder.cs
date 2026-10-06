@@ -2320,7 +2320,8 @@ public static class EdoOkabeYashikiBuilder
                         int ci0; cnt.TryGetValue(kv.Key, out ci0); cnt[kv.Key] = ci0 + 1;
                         var bk = kv.Value; float yt = bk.top;
                         benchAll.Add(bk);
-                        if (Vector2.Distance(bk.a, bk.b) < 0.5f) { sb.AppendLine("    袖 " + key + "_" + kv.Key + ": 長さ " + Vector2.Distance(bk.a, bk.b).ToString("F2") + "m < 0.5 ── 駒を据えない(隣の駒と隅が覆う・前と同じ)"); continue; }
+                        bool cont = sbk.Exists(o2 => o2.Value != bk && Mathf.Abs(o2.Value.top - bk.top) < 1e-3f && (Vector2.Distance(o2.Value.a, bk.b) < 0.05f || Vector2.Distance(o2.Value.b, bk.a) < 0.05f));
+                        if (Vector2.Distance(bk.a, bk.b) < 0.5f && !cont) { sb.AppendLine("    袖 " + key + "_" + kv.Key + ": 長さ " + Vector2.Distance(bk.a, bk.b).ToString("F2") + "m < 0.5 ── 駒を据えない(隣の駒と隅が覆う・前と同じ)"); continue; }
                         nozSegs.Add(new EdoBuild.NozuraSeg { name = key + "_" + kv.Key + "_" + ci0, a = bk.a, b = bk.b, crestAt = sl => yt });
                         sb.AppendLine("    袖 " + key + "_" + kv.Key + "_" + ci0 + ": 長さ " + Vector2.Distance(bk.a, bk.b).ToString("F2") + "m 天端 " + yt.ToString("F2") + "(背の法を刻みで切り上げ・算出物の tops[" + kv.Key + "] = " + tops[kv.Key].ToString("F2") + ")");
                     }
@@ -2345,7 +2346,8 @@ public static class EdoOkabeYashikiBuilder
                             Vector2 pB; bool lap = prevB.TryGetValue(kv.Key, out pB) && Vector2.Dot(pB - bk.a, (bk.b - bk.a).normalized) > 0.05f;
                             prevB[kv.Key] = bk.b;
                             var ns = new EdoBuild.NozuraSeg { name = rk + "_" + ci0, a = bk.a, b = bk.b, crestAt = sl => yt };
-                            if (lap) { ns.noAbut[0] = true; ns.noAbut[1] = true; }
+                            // 重ねた run の上手の端(高い run の駒の裏に埋まる)だけ突き付けない。下手の端は段の境か返しの終わり(見切り石・returnEnd)── 第32巡
+                            if (lap) { ns.noAbut[0] = true; }
                             nozSegs.Add(ns);
                             if (!lineOf.ContainsKey(rk)) { wallOf[rk] = w; lineOf[rk] = new List<Vector2> { bk.a, bk.b }; topOf[rk] = yt; }
                             else lineOf[rk].Add(bk.b);
@@ -2474,6 +2476,11 @@ public static class EdoOkabeYashikiBuilder
             //   数は指図の文の値(型の既定と同じ)── 型は EdoBuild.NozuraEndRule・CutKoshiBench
             endRule.koshi = nm0 => nm0.StartsWith("TW_Kita_Koshi") || nm0.StartsWith("TW_Higashi_Minami") || nm0.StartsWith("TW_Nishi_Kado");
             endRule.parcel = Poly; endRule.tallMin = 2.4f; endRule.tallReturnDiff = 0.6f;
+            // 指図 nozuraEndRule 追記2(2026-10-06・第32巡): ④差し込み = 天端のまま延ばし地盤が天端 +0.1 に届く所から半駒(0.9)先で終える・上限 2 駒(3.6)/
+            //   koshiEnd の改め = 小段の奥行の下限は駒の控えの後端 +0.3・狙い一間・背が切土なら const.batterCut の法・小段は端の先へ 1/20 で落とす(型は EdoBuild.CutKoshiBench)
+            endRule.insertMax = 3.6f; endRule.insertReach = 0.1f; endRule.insertTail = 0.9f;
+            endRule.koshiBenchBack = 0.3f; endRule.koshiBatterCut = C("batterCut"); endRule.koshiDrain = 20f;
+            { var bd = EdoBuild.BaseDem(); endRule.koshiIsCut = q => { float b0 = bd(q.x, q.y), g0 = DesignY(q); return !float.IsNaN(b0) && !float.IsNaN(g0) && g0 < b0 - 0.05f; }; }
             {
                 endRule.koshiKeep = new List<GameObject>();
                 var rk = GameObject.Find(GN); var kk0 = rk == null ? null : rk.transform.Find("Kakoi");
@@ -2656,7 +2663,8 @@ public static class EdoOkabeYashikiBuilder
             {
                 Vector2 pg = pe + dE * Mathf.Max(0f, tG);
                 float dG = Vector2.Dot(pg - eaG, yardG); Vector2 pb = pg - yardG * (dG - backD);
-                if (tG > 0.01f) { if (ei == 0) { nodes.Insert(0, pg); tops.Insert(0, yT); } else { nodes.Add(pg); tops.Add(yT); } }
+                // 延長は端の区間と一直線(dE = 端の外向き)── 節点を足さず端の節点を動かす(第32巡: 0.31m の区間が < 0.5 で駒を据えず、主と返しの間が切れていた)
+                if (tG > 0.01f) { if (ei == 0) nodes[0] = pg; else nodes[nodes.Count - 1] = pg; }
                 rets.Add(new EndReturn { end = ei, pg = pg, pb = pb, back = dE, nagaya = nagN });
                 if (sb != null) sb.AppendLine("    両端の決め " + nm + " 端" + ei + ": 妻の線まで落差 0.6 未満にならない ── " + nagN + " の妻の線で長屋の側へ返す(延長 " + Mathf.Max(0f, tG).ToString("F2") + "m・返し " + (dG - backD).ToString("F2") + "m で背の線に止める)");
             }
@@ -2921,13 +2929,46 @@ public static class EdoOkabeYashikiBuilder
             var ln = A(Get(w, "line")); if (ln == null || ln.Count < 2) continue;
             var nodes = new List<Vector2>(); foreach (var q in ln) { var p = A(q); nodes.Add(new Vector2(F(p[0]), F(p[1]))); }
             var list = new List<KeyValuePair<int, EdoBuild.BackBench>>();
+            // 区間ごとの線・背の向き(背 = 設計面の高い側)
+            var segA = new List<Vector2>(); var segT = new List<Vector2>(); var segBack = new List<Vector2>(); var segL = new List<float>();
+            for (int i = 0; i + 1 < nodes.Count; i++)
+            {
+                Vector2 a = nodes[i], b = nodes[i + 1]; float L = Vector2.Distance(a, b);
+                Vector2 t = L > 1e-4f ? (b - a) / L : Vector2.right, nrm = new Vector2(-t.y, t.x), mid = (a + b) * 0.5f;
+                float yp = DesignY(mid + nrm * 3f), ym = DesignY(mid - nrm * 3f);
+                segA.Add(a); segT.Add(t); segL.Add(L); segBack.Add((!float.IsNaN(yp) && (float.IsNaN(ym) || yp >= ym)) ? nrm : -nrm);
+            }
+            float offS = depth + 0.25f;
+            string rsT = S(Get(sw, "runSplit"));
+            if (!string.IsNullOrEmpty(rsT) && rsT.Contains("等高線"))
+            {
+                // ⭐ runSplit(指図 2026-10-06・第32巡): run の境は背の法が 0.5 刻みの等高線を横切る所(⛔ 節点で切らない)・天端は刻みの倍数だけ・
+                //   0.5 未満の run は高い側へ含める(EdoBuild.RunsByContour)。run を節点の区間で切り分けて同じ天端の区間として渡す(出隅・一直線で継ぐ)
+                float Ltot = 0f; foreach (var l0 in segL) Ltot += l0;
+                Func<float, int> segOf = s1 => { float acc = 0f; for (int i = 0; i < segL.Count; i++) { if (s1 <= acc + segL[i] + 1e-4f) return i; acc += segL[i]; } return segL.Count - 1; };
+                Func<int, float> segS0 = i1 => { float acc = 0f; for (int i = 0; i < i1; i++) acc += segL[i]; return acc; };
+                Func<float, float> backAtS = s1 => { int i = segOf(s1); float u = s1 - segS0(i); return DesignY(segA[i] + segT[i] * u + segBack[i] * offS); };
+                var runsC = EdoBuild.RunsByContour(Ltot, backAtS, step, 0.5f);
+                if (note != null) { var tx = new List<string>(); foreach (var r in runsC) tx.Add(r.x.ToString("F2") + "〜" + r.y.ToString("F2") + "@" + r.z.ToString("F1")); note.AppendLine("    runSplit " + nm + ": 等高線で " + runsC.Count + " run(" + string.Join(" / ", tx.ToArray()) + ")"); }
+                foreach (var r in runsC)
+                    for (int i = 0; i < segL.Count; i++)
+                    {
+                        float s0 = segS0(i), x0 = Mathf.Max(r.x, s0), x1 = Mathf.Min(r.y, s0 + segL[i]);
+                        if (x1 - x0 < 0.05f) continue;
+                        list.Add(new KeyValuePair<int, EdoBuild.BackBench>(i, new EdoBuild.BackBench
+                        {
+                            name = nm + "_" + i, a = segA[i] + segT[i] * (x0 - s0), b = segA[i] + segT[i] * (x1 - s0), back = segBack[i], top = r.z, drop = drop, w = wKen * C("ken"),
+                            drain = 1f / drn, bf = bf, maxFill = maxFill, parcel = Poly, baseAt = DesignY
+                        }));
+                    }
+                res[nm] = list;
+                continue;
+            }
             for (int i = 0; i + 1 < nodes.Count; i++)
             {
                 Vector2 a = nodes[i], b = nodes[i + 1]; float L = Vector2.Distance(a, b); if (L < 0.3f) continue;
-                Vector2 t = (b - a) / L, nrm = new Vector2(-t.y, t.x), mid = (a + b) * 0.5f;
-                float yp = DesignY(mid + nrm * 3f), ym = DesignY(mid - nrm * 3f);
-                Vector2 back = (!float.IsNaN(yp) && (float.IsNaN(ym) || yp >= ym)) ? nrm : -nrm;   // 背 = 設計面の高い側(前 = 門の内)
-                float off = depth + 0.25f;
+                Vector2 t = segT[i], back = segBack[i];
+                float off = offS;
                 var runs = EdoBuild.RunsByBackSlope(L, sl => DesignY(a + t * sl + back * off), step, maxDrop, 0.5f);
                 foreach (var r in runs)
                     list.Add(new KeyValuePair<int, EdoBuild.BackBench>(i, new EdoBuild.BackBench
@@ -2955,7 +2996,10 @@ public static class EdoOkabeYashikiBuilder
             float drn = rx(drT, @"1\s*/\s*([0-9.]+)");
             var miss = new List<string>();
             if (float.IsNaN(step)) miss.Add("returnTop の刻み"); if (float.IsNaN(maxDrop)) miss.Add("returnTop の天端と背の差"); if (float.IsNaN(endDiff)) miss.Add("returnTop の終える落差");
-            if (float.IsNaN(bfEnd)) miss.Add("returnEnd の土羽の法"); if (float.IsNaN(drop)) miss.Add("returnBackfill の天端からの下げ");
+            // returnEnd は 2 書式(EDO-0502 第32巡): 旧「土羽で止める・法 1:x」/ 新(8a332b02)「見切り石で止める」── 見切り石なら土羽の法は要らず、
+            //   返しは落差 0.6 未満の所で終え、終わりの端は nozuraEndRule の②(PlaceNozuraNet の endRule)が見切り石で止める
+            bool retMikiri = enT != null && enT.Contains("見切り石");
+            if (float.IsNaN(bfEnd) && !retMikiri) miss.Add("returnEnd の土羽の法"); if (float.IsNaN(drop)) miss.Add("returnBackfill の天端からの下げ");
             if (float.IsNaN(wKen)) miss.Add("returnBackfill の幅"); if (float.IsNaN(bf)) miss.Add("returnBackfill の法"); if (float.IsNaN(maxFill)) miss.Add("returnBackfill の盛りの上限");
             if (float.IsNaN(drn)) miss.Add("returnBackDrain の勾配"); if (float.IsNaN(depth)) miss.Add("avoid.dodomeCrestDepthM[野面の乱積み]");
             if (miss.Count > 0) { if (note != null) note.AppendLine("  ★ " + nm + " の返し: 指図から読めない(" + string.Join("・", miss.ToArray()) + ")── 返しの割りと裏込めをしない"); continue; }
@@ -2973,7 +3017,9 @@ public static class EdoOkabeYashikiBuilder
                 float yMain = tops[0], sEnd;
                 var runs = EdoBuild.RunsByCrestGap(L, backAt, frontAt, yMain, step, maxDrop, endDiff, pieceL, out sEnd);
                 string endNote;
-                if (sEnd < L - 1e-3f)
+                if (sEnd < L - 1e-3f && retMikiri)
+                    endNote = "落差 " + endDiff.ToString("F1") + " 未満で終える(" + sEnd.ToString("F2") + "m)── 終わりは見切り石(returnEnd・nozuraEndRule ②)";
+                else if (sEnd < L - 1e-3f)
                 {
                     // 返しの終わりから妻までは土羽(法 1:bfEnd・法尻は返しの線の上)。法尻が長屋の背から 1 間の外に取れなければ妻まで延ばす【硬】
                     float dh = Mathf.Abs(backAt(sEnd) - frontAt(sEnd)), toe = sEnd + bfEnd * dh;

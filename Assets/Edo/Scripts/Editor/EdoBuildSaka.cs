@@ -400,6 +400,45 @@ public static partial class EdoBuild
         return Mathf.Max(cur, Mathf.Min(target, b0 + k.maxFill));
     }
 
+    /// <summary>**段違いの run を背の法の等高線で割る**(指図 TW_Kado_Sode.runSplit・EDO-0502 第32巡)。道のり [0, <paramref name="L"/>](折れ線を跨いでよい ──
+    /// ⛔ 節点で切らない)で背の高さ <paramref name="backAt"/> を <paramref name="ds"/> 刻みに測り、各点の天端 = 背を <paramref name="step"/> 刻みで切り上げた値。
+    /// run の境 = 天端の値が変わる所(背の法が刻みの等高線を横切る所)。長さ <paramref name="minLen"/> 未満の run は作らず、隣の高い側の run に含める【硬】。
+    /// 返り値 = (始まり, 終わり, 天端) を道のりの順に。天端は刻みの倍数だけ(中間値は出さない)。
+    /// 当たる先: 法なりの段違いの土留め(岡部 TW_Kado_Sode)。返しの割り(RunsByCrestGap)・節点ごとの割り(RunsByBackSlope)とは別の規則。</summary>
+    public static List<Vector3> RunsByContour(float L, Func<float, float> backAt, float step, float minLen, float ds = 0.1f)
+    {
+        var res = new List<Vector3>();
+        int n = Mathf.Max(1, Mathf.CeilToInt(L / ds));
+        float prevTop = float.NaN, s0 = 0f;
+        for (int i = 0; i <= n; i++)
+        {
+            float s = L * i / n, h = backAt(s);
+            float top = float.IsNaN(h) ? prevTop : Mathf.Ceil(h / step - 1e-4f) * step;
+            if (float.IsNaN(prevTop)) { prevTop = top; continue; }
+            if (Mathf.Abs(top - prevTop) > 1e-4f)
+            {   // 境は前の点と今の点の間の等高線(一次で内挿)
+                float hp = backAt(L * (i - 1) / n), lv = Mathf.Min(top, prevTop);
+                float u = float.IsNaN(hp) || float.IsNaN(h) || Mathf.Abs(h - hp) < 1e-5f ? 0.5f : Mathf.Clamp01((lv - hp) / (h - hp));
+                float sb = L * (i - 1 + u) / n;
+                res.Add(new Vector3(s0, sb, prevTop)); s0 = sb; prevTop = top;
+            }
+        }
+        if (!float.IsNaN(prevTop)) res.Add(new Vector3(s0, L, prevTop));
+        // 短い run は隣の高い側へ(短い順に一つずつ)
+        while (res.Count > 1)
+        {
+            int k = -1; float best = minLen;
+            for (int i = 0; i < res.Count; i++) { float len = res[i].y - res[i].x; if (len < best - 1e-4f) { best = len; k = i; } }
+            if (k < 0) break;
+            int nb = k == 0 ? 1 : k == res.Count - 1 ? k - 1 : (res[k - 1].z >= res[k + 1].z ? k - 1 : k + 1);
+            if (nb < k) res[nb] = new Vector3(res[nb].x, res[k].y, res[nb].z); else res[nb] = new Vector3(res[k].x, res[nb].y, res[nb].z);
+            res.RemoveAt(k);
+        }
+        for (int i = res.Count - 1; i > 0; i--)
+            if (Mathf.Abs(res[i].z - res[i - 1].z) < 1e-4f) { res[i - 1] = new Vector3(res[i - 1].x, res[i].y, res[i].z); res.RemoveAt(i); }
+        return res;
+    }
+
     /// <summary>run の線 a→b を、**背の法の高さ**(<paramref name="backAt"/>(s) = 道のり s の背の地盤)で天端の割りへ分ける
     /// (指図 TW_Kado_Sode.top: 天端 = run の上手の端の背の高さを <paramref name="step"/> 刻みで切り上げ・run の中で背が下がる量 ≤ <paramref name="maxDrop"/>・超えたら切る)。
     /// 返す: (s0, s1, 天端) の並び(道のりの順)。<paramref name="minLen"/> 未満の切れ端は隣へ寄せる。測るだけ。</summary>

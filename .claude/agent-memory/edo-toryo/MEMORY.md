@@ -27,6 +27,7 @@
 
 ## 部材の据え方
 
+- [欄の書式が変わると Stage が「読めない」で黙って退く](return-lost-when-sashizu-text-format-changes.md) — 腰石垣の返しが returnEnd の書き換えで消えた。★読めない を grep
 - [起こし直した指図の欄の形と旧い隅](redrawn-sashizu-shapes-and-stale-joints.md) — poly/pts/place文字列で KeyNotFound・谷底に旧い kado・DanPlan の段上限は柔らかい
 
 - [綴りで部材を選ぶ器は似た新部材で倒れる](part-pick-by-spelling-breaks-on-new-sibling.md) — 小鳥居が焼けた途端に一ノ・二ノ鳥居が消えた。名指しの行を先に外す

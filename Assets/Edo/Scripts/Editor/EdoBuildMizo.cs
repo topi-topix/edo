@@ -798,8 +798,14 @@ public static partial class EdoBuild
                 hits.Add(lat); sum += lat;
             }
             if (hits.Count == 0) continue;
-            float sg = sum > 0f ? -1f : 1f, o = 0f;
-            foreach (var lat in hits) if (lat * sg <= 0f) o = Mathf.Max(o, need - Mathf.Abs(lat));
+            //   向きごとに、掛かる足すべてを need 離すのに要る寄せ = max(need + sg × lat)(寄せる側の足は越えて反対側へ・反対側の足は離すだけ)。
+            //   少なくて済む向きを採る(2026-10-06 第23巡: 柱の列が線の真上に乗る D3 seg1 の 2 辺は、足の多い側の逆へ寄せるだけでは両側に残って寄せられなかった)
+            float sg = 1f, o = float.MaxValue;
+            foreach (float sgT in new[] { sum > 0f ? -1f : 1f, sum > 0f ? 1f : -1f })
+            {
+                float oT = 0f; foreach (var lat in hits) oT = Mathf.Max(oT, need + sgT * lat);
+                if (oT < o - 1e-4f) { o = oT; sg = sgT; }
+            }
             bool bad = o > maxPush;
             if (!bad)
                 foreach (var f in feet)

@@ -1659,6 +1659,28 @@ public static partial class EdoDoiBuilder
         return "・天端が地表の下(最も出た候補でも " + bestTopAbove.ToString("+0.000;-0.000") + "m)── 帯の内に丈の足りる石が無い";
     }
 
+    /// <summary>指図 `abutStone[].rootStone` を根石の作法へ読む(言い方の照合はここ・据えは EdoBuild.NiwaAbutRootStones)。読めなければ Wait して null。</summary>
+    static EdoBuild.NiwaRootSpec ReadRootStone(Dictionary<string, object> r, string tag, float sukiMax)
+    {
+        if (r == null) { Wait("根石(" + tag + "): rootStone が読めない ── 据えない"); return null; }
+        AuditKeys(r, "根石(" + tag + ")", "asset", "n", "scale", "at", "faceOut", "top", "bottom", "hard", "soft", "acc", "src", "arcMax");
+        var sp = new EdoBuild.NiwaRootSpec { sukiMax = sukiMax, arcMax = Has(r, "arcMax") ? F(r["arcMax"]) : 1.2f };
+        var am = System.Text.RegularExpressions.Regex.Match(Sk(r, "asset") ?? "", @"^([A-Za-z.]+)\(([0-9|]+)\)$");
+        if (!am.Success) { Wait("根石(" + tag + "): asset「" + Sk(r, "asset") + "」が「Own.Ishigumi(1|2)」の形で読めない ── 据えない"); return null; }
+        foreach (var k in am.Groups[2].Value.Split('|')) { string ap = ResolveNiwaApi(am.Groups[1].Value + "(" + k + ")", 1); if (ap != null && Exists(ap)) sp.paths.Add(ap); }
+        if (sp.paths.Count == 0) { Wait("根石(" + tag + "): 部材が引けない " + Sk(r, "asset")); return null; }
+        sp.n = Has(r, "n") ? Mathf.RoundToInt(F(r["n"])) : 0;
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        System.Func<string, float[]> nums = t => { var ms = System.Text.RegularExpressions.Regex.Matches(t ?? "", @"[−-]?[0-9]+(?:\.[0-9]+)?"); var v = new float[ms.Count]; for (int i = 0; i < ms.Count; i++) v[i] = float.Parse(ms[i].Value.Replace("−", "-"), inv); return v; };
+        var scv = nums(Sk(r, "scale")); var fov = nums(Sk(r, "faceOut")); var tpv = nums(Sk(r, "top")); var btv = nums(Sk(r, "bottom"));
+        if (sp.n <= 0 || scv.Length < 2 || fov.Length < 2 || tpv.Length < 2 || btv.Length < 1)
+        { Wait("根石(" + tag + "): n / scale / faceOut / top / bottom の数が読めない ── 据えない(指図へ)"); return null; }
+        sp.scLo = scv[0]; sp.scHi = scv[1]; sp.faceLo = fov[0]; sp.faceHi = fov[1];
+        sp.topLo = Mathf.Min(tpv[0], tpv[1]); sp.topHi = Mathf.Max(tpv[0], tpv[1]);
+        float b0 = Mathf.Abs(btv[0]); for (int i = 1; i < btv.Length; i++) b0 = Mathf.Min(b0, Mathf.Abs(btv[i])); sp.bedLo = b0;   // 「池床−0.10〜−0.15」の浅い方 = 硬い最小
+        return sp;
+    }
+
     /// <summary>橋台石の「石の版を替える」先(指図 abutSeat.tenba)── 名指しの部材が個体の族(Own.Ishigumi(i))なら同じ族の他の個体。
     /// 族を持たない部材は替えない(空)。⛔ 族の外の石を発明しない。</summary>
     static List<string> AbutAlts(string api)
@@ -1680,7 +1702,7 @@ public static partial class EdoDoiBuilder
         var n = NiwaModel; if (n == null) return "園路: 汀線を持つ庭が無い";
         var grp = Group("Niwa/Enro"); Clear(grp);
         var gs = Garden("G_Sensui"); var go2 = Garden("G_Okuniwa");
-        int hashi = 0, abutN = 0, hasamiN = 0; float wy = n.waterY, bs = EdoBuild.SEAT_TO_BED_LO;
+        int hashi = 0, abutN = 0, abutRoot = 0, hasamiN = 0; float wy = n.waterY, bs = EdoBuild.SEAT_TO_BED_LO;
         var rnd = new System.Random(20261006); var tl = new IshiTally(); string hashiRep = "", nobeRep = "";
         if (gs != null && Has(gs, "enroShu"))
             Wait("園路の主路(" + S(O(gs["enroShu"])["layer"]) + "・幅 " + F(O(gs["enroShu"])["w"]).ToString("F1") + "m)は**地表のスプラット**で部材では表せない — 地表仕上げの工程が要る(小端の縁は置かない P)");
@@ -1717,7 +1739,7 @@ public static partial class EdoDoiBuilder
                         if (ok) foreach (var e0 in A(h["abutStone"]))
                         {
                             var e = O(e0); string end = Sk(e, "end");
-                            AuditKeys(e, "橋台石(" + nm + " " + end + ")", "end", "asset", "long", "top", "inFromEnd", "at", "yaw", "seat", "same", "note", "hMin", "hMinSoft");
+                            AuditKeys(e, "橋台石(" + nm + " " + end + ")", "end", "asset", "long", "top", "inFromEnd", "at", "yaw", "seat", "same", "note", "hMin", "hMinSoft", "rootStone");
                             var src = (Has(e, "same") && e["same"] is bool && (bool)e["same"]) ? first : e;
                             if (first == null) first = e;
                             if (src == null || !Has(src, "asset") || !Has(src, "long") || !Has(src, "inFromEnd") || (end != "a" && end != "b"))
@@ -1740,6 +1762,19 @@ public static partial class EdoDoiBuilder
                             if (sgo == null && ar.buried) { hashiRep += "\n    橋台石(" + nm + " " + end + "): " + ar.why + " ── 埋めて可(据えない)"; continue; }
                             if (sgo == null) { Wait("✗ 橋台石(" + nm + " " + end + "): " + ar.why + " ── 版の下面に接する石が据わらないので橋を据えない(硬い)"); ok = false; break; }
                             stones.Add(sgo);
+                            // 根石(指図 abutStone[].rootStone ── 庭方 2026-10-06 EDO-0533): 池に面して下が浮く所を塞ぐ(EdoBuild.NiwaAbutRootStones)
+                            if (Has(e, "rootStone") && seat != null)
+                            {
+                                var rs = ReadRootStone(O(e["rootStone"]), nm + " " + end, seat.sukiMax);
+                                if (rs != null)
+                                {
+                                    EdoBuild.NiwaRootRep rr; var roots = EdoBuild.NiwaAbutRootStones(grp, nm + "_Abut_" + end, sgo, wy, rs, rnd, out rr);
+                                    stones.AddRange(roots); abutRoot += roots.Count;
+                                    hashiRep += "\n    根石(" + nm + " " + end + "): 水面より上の隙 " + rr.gapBefore.ToString("F3") + " の弧 " + rr.arcLen.ToString("F2") + "m に " + rr.placed + " 個 ⇒ 残る隙 "
+                                              + (float.IsNaN(rr.gapAfter) ? "?" : rr.gapAfter.ToString("F3")) + (rr.met ? "【硬 ≤ " + rs.sukiMax.ToString("F2") + " ✔】" : "【硬 ≤ " + rs.sukiMax.ToString("F2") + " ✗】") + (rr.why != null ? "(" + rr.why + ")" : "");
+                                    if (!rr.met) Wait("✗ 根石(" + nm + " " + end + "): 水面より上の橋台石の下の隙 " + (float.IsNaN(rr.gapAfter) ? "?" : rr.gapAfter.ToString("F3")) + " が sukiMax " + rs.sukiMax.ToString("F2") + " を超える" + (rr.why != null ? " ── " + rr.why : ""));
+                                }
+                            }
                             hashiRep += "\n    橋台石(" + nm + " " + end + "): 版の下面 " + ar.deckUnder.ToString("F3") + " = 石の天端 " + ar.stoneTop.ToString("F3")
                                       + "・地表から版の下面まで " + ar.gapGround.ToString("F2") + "m・" + (ar.wet ? "水中" : "陸") + "・足の当たり " + ar.footFloat.ToString("+0.00;-0.00")
                                       + "m・長さ " + ar.longGot.ToString("F2") + "m(狙い " + F(src["long"]).ToString("F2") + (ar.grew ? " ⚠ 足が届かず丈を増した ── 柔らかい" : "")
@@ -1836,7 +1871,7 @@ public static partial class EdoDoiBuilder
                        + "m ずつ残る(⛔ 駒を伸縮しない・柔らかい)");
             }
         }
-        return "園路: 橋 " + hashi + "(橋台石 " + abutN + "・橋挟み石 " + hasamiN + ")/ 丸太段 " + danN + " / 延段 " + nobeN + "(主路は地表の仕上げで控え)"
+        return "園路: 橋 " + hashi + "(橋台石 " + (abutN - abutRoot) + (abutRoot > 0 ? "・根石 " + abutRoot : "") + "・橋挟み石 " + hasamiN + ")/ 丸太段 " + danN + " / 延段 " + nobeN + "(主路は地表の仕上げで控え)"
              + (tl.n > 0 ? " / 石 " + tl.Line() : "") + hashiRep + danRep + nobeRep;
     }
 

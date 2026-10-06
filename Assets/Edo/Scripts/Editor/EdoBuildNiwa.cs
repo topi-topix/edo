@@ -2407,6 +2407,101 @@ public static partial class EdoBuild
         return go;
     }
 
+    /// <summary>**橋台石の根石**の作法(指図 `hashi[].abutStone[].rootStone` ── 邸ビルダーが欄を読んで埋める。⛔ ここに既定の値を持たない)。
+    /// paths = 根石の部材(個体の族)・n = 数(隙の弧が arcMax を超えたら n + 1)・scLo〜scHi = 橋台石の縮尺に対する根石の縮尺の割合・
+    /// faceLo〜faceHi = 橋台石の外周より前へ出す量[m]・topLo〜topHi = 根石の天端を橋台石の下面に当てる高さ[m](柔)・
+    /// bedLo = 根石の底を池床(地面)より下げる最小[m](硬 ── 底は池床より上に置かない)・sukiMax = 水面より上の橋台石の下の隙の上限[m](硬)。</summary>
+    public class NiwaRootSpec
+    {
+        public List<string> paths = new List<string>(); public int n; public float arcMax, scLo, scHi, faceLo, faceHi, topLo, topHi, bedLo, sukiMax;
+    }
+    public class NiwaRootRep { public int arcSamples, placed; public float arcLen, gapBefore, gapAfter = float.NaN; public bool met; public string why; }
+
+    /// <summary>**橋台石の根石を据える**(2026-10-06 EDO-0533 第23巡・庭方の設計)。橋台石 <paramref name="stone"/> の実メッシュの平面の外周を 0.05m 刻みに引き、
+    /// 各点の石の下面(外周の 0.08m 以内の頂点の最も低い y)と地面・水面 <paramref name="waterY"/> から**水面より上に見える隙** = 下面 − max(地面, 水面)
+    /// (下面が水面以下なら 0)を測る。隙 &gt; sukiMax の最も長い弧を n + 1 等分した点(弧長の ±8% 揺らす)に根石を置く:
+    /// 平面 = 根石の外の面が橋台石の外周より face 前へ出る所(実メッシュの向き o の張り出しで寄せる)・高さ = 根石の天端(実メッシュの最高)を下面 + top へ・
+    /// 底が足跡の最も低い地面 − bedLo より上なら等方に大きくして下げる(橋台石の縮尺の 2 倍まで ── 届かなければその根石は置かない)。
+    /// 据えた後に弧の点を測り直し、根石の天端(点の 0.15m 以内)が下面 − sukiMax に届いた点は塞がったと数える。返す: 据えた根石。
+    /// 当たる先: rootStone を書いた橋台石(いまは土井 Hashi_Ishi の b)── 池に面して下が浮く石の据え全般へ広げられる。</summary>
+    public static List<GameObject> NiwaAbutRootStones(Transform parent, string name, GameObject stone, float waterY, NiwaRootSpec sp, System.Random rnd, out NiwaRootRep rep)
+    {
+        rep = new NiwaRootRep(); var made = new List<GameObject>();
+        if (stone == null || sp == null || sp.paths.Count == 0) { rep.why = "橋台石か根石の部材が無い"; return made; }
+        var sv = MeshPointsW(stone); if (sv.Count < 4) { rep.why = "橋台石の実メッシュが測れない"; return made; }
+        var xz = new Vector2[sv.Count]; Vector2 c = Vector2.zero; for (int i = 0; i < sv.Count; i++) { xz[i] = new Vector2(sv[i].x, sv[i].z); c += xz[i]; } c /= sv.Count;
+        var hi = EdoGeom.HullXZ(xz); var hull = new Vector2[hi.Length]; for (int i = 0; i < hi.Length; i++) hull[i] = xz[hi[i]];
+        Func<Vector2, float> under = q => { float m = float.NaN; for (int i = 0; i < sv.Count; i++) if ((xz[i] - q).sqrMagnitude <= 0.0064f && (float.IsNaN(m) || sv[i].y < m)) m = sv[i].y; return m; };
+        Func<Vector2, float, float> vis = (q, u) => { if (float.IsNaN(u) || u <= waterY) return 0f; float g = Ground(q.x, q.y); return float.IsNaN(g) ? 0f : u - Mathf.Max(g, waterY); };
+        // 外周の点
+        var P = new List<Vector2>(); var U = new List<float>(); var Gp = new List<float>();
+        for (int e = 0; e < hull.Length; e++)
+        {
+            Vector2 a = hull[e], b = hull[(e + 1) % hull.Length]; int k = Mathf.Max(1, Mathf.CeilToInt(Vector2.Distance(a, b) / 0.05f));
+            for (int j = 0; j < k; j++) { var q = Vector2.Lerp(a, b, (float)j / k); float u = under(q); P.Add(q); U.Add(u); Gp.Add(vis(q, u)); }
+        }
+        int N = P.Count; if (N == 0) { rep.why = "外周が引けない"; return made; }
+        foreach (var g in Gp) rep.gapBefore = Mathf.Max(rep.gapBefore, g);
+        // 隙 > sukiMax の最も長い弧(輪なので二周で探す)
+        int bs = -1, bl = 0;
+        for (int i = 0; i < N; i++)
+        {
+            if (Gp[i] <= sp.sukiMax || Gp[(i - 1 + N) % N] > sp.sukiMax) continue;
+            int l = 0; while (l < N && Gp[(i + l) % N] > sp.sukiMax) l++;
+            if (l > bl) { bl = l; bs = i; }
+        }
+        if (bs < 0 && rep.gapBefore > sp.sukiMax) { bs = 0; bl = N; }
+        if (bs < 0) { rep.met = true; rep.gapAfter = rep.gapBefore; rep.why = "水面より上の隙が sukiMax 以内 ── 根石は要らない"; return made; }
+        rep.arcSamples = bl; for (int j = 1; j < bl; j++) rep.arcLen += Vector2.Distance(P[(bs + j - 1) % N], P[(bs + j) % N]);
+        int n = sp.n + (rep.arcLen > sp.arcMax ? 1 : 0);
+        float baseSc = stone.transform.lossyScale.x;
+        for (int kk = 0; kk < n; kk++)
+        {
+            float f = (kk + 1f) / (n + 1f) + (float)(rnd.NextDouble() * 0.16 - 0.08); f = Mathf.Clamp(f, 0.05f, 0.95f);
+            int idx = (bs + Mathf.Clamp(Mathf.RoundToInt(f * (bl - 1)), 0, bl - 1)) % N;
+            var q = P[idx]; float u = U[idx]; if (float.IsNaN(u)) continue;
+            var o = q - c; if (o.sqrMagnitude < 1e-6f) continue; o.Normalize();
+            string path = sp.paths[rnd.Next(sp.paths.Count)];
+            var pf = AssetDatabase.LoadAssetAtPath<GameObject>(path); if (pf == null) { rep.why = "根石の部材が引けない " + path; continue; }
+            float sc = baseSc * Mathf.Lerp(sp.scLo, sp.scHi, (float)rnd.NextDouble()), face = Mathf.Lerp(sp.faceLo, sp.faceHi, (float)rnd.NextDouble()), top = Mathf.Lerp(sp.topLo, sp.topHi, 0.5f);
+            float yaw = (float)(rnd.NextDouble() * 360.0);
+            GameObject go = null; bool ok = false;
+            for (int it = 0; it < 4; it++)
+            {
+                if (go != null) UnityEngine.Object.DestroyImmediate(go);
+                go = (GameObject)PrefabUtility.InstantiatePrefab(pf, parent); go.name = name + "_Ne" + kk;
+                go.transform.rotation = Quaternion.Euler(0f, yaw, 0f); go.transform.localScale = Vector3.one * sc; go.transform.position = Vector3.zero;
+                var rv = MeshPointsW(go); if (rv.Count < 4) break;
+                Vector2 rc = Vector2.zero; float ext = float.MinValue, ymax = float.MinValue, ymin = float.MaxValue;
+                foreach (var w in rv) rc += new Vector2(w.x, w.z); rc /= rv.Count;
+                foreach (var w in rv) { ext = Mathf.Max(ext, Vector2.Dot(new Vector2(w.x, w.z) - rc, o)); ymax = Mathf.Max(ymax, w.y); ymin = Mathf.Min(ymin, w.y); }
+                var want = q + o * (face - ext);                                     // 外の面 = 外周 + face
+                go.transform.position = new Vector3(want.x - rc.x, (u + top) - ymax, want.y - rc.y);   // 天端 = 下面 + top
+                // 足跡の最も低い地面
+                float gmin = float.NaN; foreach (var w in MeshPointsW(go)) { float g = Ground(w.x, w.z); if (!float.IsNaN(g) && (float.IsNaN(gmin) || g < gmin)) gmin = g; }
+                float bottom = (u + top) - (ymax - ymin);
+                if (float.IsNaN(gmin)) break;
+                if (bottom <= gmin - sp.bedLo + 1e-4f) { ok = true; break; }
+                float needH = (u + top) - (gmin - sp.bedLo), sc2 = sc * needH / Mathf.Max(1e-4f, ymax - ymin) * 1.02f;
+                if (sc2 > baseSc * 2f) { sc = baseSc * 2f; if (it == 3) break; } else sc = sc2;
+            }
+            if (!ok) { if (go != null) UnityEngine.Object.DestroyImmediate(go); rep.why = "根石 " + kk + " の底が池床 − " + sp.bedLo.ToString("F2") + " に届かない(橋台石の縮尺の 2 倍まで)"; continue; }
+            made.Add(go); rep.placed++;
+        }
+        // 測り直し: 弧の点ごとに、根石の天端(点の 0.15m 以内)が下面 − sukiMax に届けば塞がった
+        var rp = new List<Vector3>(); foreach (var g in made) rp.AddRange(MeshPointsW(g));
+        rep.gapAfter = 0f;
+        for (int i = 0; i < N; i++)
+        {
+            if (Gp[i] <= sp.sukiMax) continue;
+            float rt = float.NaN; foreach (var w in rp) if ((new Vector2(w.x, w.z) - P[i]).sqrMagnitude <= 0.0225f && (float.IsNaN(rt) || w.y > rt)) rt = w.y;
+            float left = float.IsNaN(rt) ? Gp[i] : Mathf.Max(0f, Mathf.Min(Gp[i], U[i] - rt));
+            rep.gapAfter = Mathf.Max(rep.gapAfter, left);
+        }
+        rep.met = rep.gapAfter <= sp.sukiMax + 1e-4f;
+        return made;
+    }
+
     /// <summary>**橋台石を据えの作法どおりに据える**(<see cref="NiwaAbutStone"/> に <see cref="NiwaAbutSeatSpec"/> を渡したとき ── 指図 `hashi[].abutSeat`)。
     /// <para>当たり = **版の下面 × 受ける範囲の内の石の天端の高い方から面積 atariFrac の面**(面で受ける ── ⛔ 最も高い一点に当てない)。
     /// 跨ぎ = 範囲の内のそれより低い天端(隙は飼石と土で塞いだ扱い ── sukiMax を超える点の割合と、範囲の縁 = 見える側の隙の最大を刷る)。</para>

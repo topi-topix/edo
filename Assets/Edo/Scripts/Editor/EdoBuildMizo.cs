@@ -902,10 +902,13 @@ public static partial class EdoBuild
                 if (lx1 - lx0 > maxThin && lz1 - lz0 > maxThin) continue;
                 if (compact && (lx1 - lx0 > maxThin || lz1 - lz0 > maxThin)) continue;   // compact: 両向きとも細い駒(束・柱・幹)だけ ── 塀・桁は拾わない
             }
+            //   compact(束・柱・幹)は地面から 0.8m 以内まで拾う ── 溝を引く段では廊下の柱がまだ地面へ下りていない(5棟b で下ろす)。
+            //   第25巡: 廊下の柱の底 26.62〜26.70 が地面から 0.15m を超えて拾われず、溝 D3 seg1 の上に柱が残った
+            float touchM = compact ? Mathf.Max(touch, 0.8f) : touch;
             foreach (var w in ws)
             {
                 if (w.y > y0 + ROOT_TOUCH) continue;
-                float g = groundAt(w.x, w.z); if (float.IsNaN(g) || y0 - g > touch) continue;
+                float g = groundAt(w.x, w.z); if (float.IsNaN(g) || y0 - g > touchM) continue;
                 res.Add(new Vector2(w.x, w.z));
             }
         }

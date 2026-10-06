@@ -2476,13 +2476,24 @@ public static partial class EdoBuild
                 foreach (var w in rv) rc += new Vector2(w.x, w.z); rc /= rv.Count;
                 foreach (var w in rv) { ext = Mathf.Max(ext, Vector2.Dot(new Vector2(w.x, w.z) - rc, o)); ymax = Mathf.Max(ymax, w.y); ymin = Mathf.Min(ymin, w.y); }
                 var want = q + o * (face - ext);                                     // 外の面 = 外周 + face
-                go.transform.position = new Vector3(want.x - rc.x, (u + top) - ymax, want.y - rc.y);   // 天端 = 下面 + top
+                // ⭐ 高さは**外周の所の根石の高さ**(外周の点から外へ 0〜face の帯の 0.08m 以内の頂点の最高)を下面 + top へ(第26巡)。⛔ 第25巡まで根石の最高(丸い頂 ──
+                //   b の真下に入る)を下面へ当て、外周より外の肩が水面より下に沈んで隙を一つも隠さなかった。上へ出た頂は b の中に埋まる(めり込みは数えない)
+                var off = new Vector2(want.x - rc.x, want.y - rc.y); float yHide = float.NaN;
+                foreach (var w in rv)
+                {
+                    var wq = new Vector2(w.x, w.z) + off; float tt = Vector2.Dot(wq - q, o); if (tt < -0.02f || tt > face + 0.02f) continue;
+                    float lat = Mathf.Abs(Vector2.Dot(wq - q, new Vector2(-o.y, o.x))); if (lat > 0.08f) continue;
+                    if (float.IsNaN(yHide) || w.y > yHide) yHide = w.y;
+                }
+                if (float.IsNaN(yHide)) yHide = ymax;
+                go.transform.position = new Vector3(off.x, (u + top) - yHide, off.y);   // 外周の所の高さ = 下面 + top
+                ymax += (u + top) - yHide; ymin += (u + top) - yHide;
                 // 足跡の最も低い地面
                 float gmin = float.NaN; foreach (var w in MeshPointsW(go)) { float g = Ground(w.x, w.z); if (!float.IsNaN(g) && (float.IsNaN(gmin) || g < gmin)) gmin = g; }
-                float bottom = (u + top) - (ymax - ymin);
+                float bottom = ymin;
                 if (float.IsNaN(gmin)) break;
                 if (bottom <= gmin - sp.bedLo + 1e-4f) { ok = true; break; }
-                float needH = (u + top) - (gmin - sp.bedLo), sc2 = sc * needH / Mathf.Max(1e-4f, ymax - ymin) * 1.02f;
+                float needH = (ymax - ymin) + (bottom - (gmin - sp.bedLo)), sc2 = sc * needH / Mathf.Max(1e-4f, ymax - ymin) * 1.02f;
                 if (sc2 > baseSc * 2f) { sc = baseSc * 2f; if (it == 3) break; } else sc = sc2;
             }
             if (!ok) { if (go != null) UnityEngine.Object.DestroyImmediate(go); rep.why = "根石 " + kk + " の底が池床 − " + sp.bedLo.ToString("F2") + " に届かない(橋台石の縮尺の 2 倍まで)"; continue; }

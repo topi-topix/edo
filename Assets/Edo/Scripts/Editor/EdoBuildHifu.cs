@@ -215,6 +215,8 @@ public static partial class EdoBuild
     /// <summary>溝の脇の法(<see cref="CutEdgeSkin"/> の keepBatter): 法の足を溝の駒の天端の外の辺より下げる量[m](縁石の外の面へ皮を納める ──
     /// 天端に被らない)と、法を引く外形からの範囲の上限[m](沈み 1.5m まで・法 1:1 で)。</summary>
     const float KEEP_RIM_TUCK = 0.02f, KEEP_BATTER_R = 1.5f;
+    /// <summary>面の縁のどちらの側に溝が在るかを測る離れ[m](<see cref="CutEdgeSkin"/> の OutsideY ── 縁から外へこの距離の点のこの距離以内に掘る部材が在れば「法の側に溝」)。</summary>
+    const float DITCH_SIDE_R = 0.35f;
     /// <summary>凸な外形の縁上で点 <paramref name="p"/> に最も近い点と、その距離。</summary>
     static Vector2 HullNearest(Vector2[] poly, Vector2 p, out float dist)
     {
@@ -566,7 +568,7 @@ public static partial class EdoBuild
                                          IList<GameObject> crestBandParts = null, IList<Vector2> plantPoints = null,
                                          IList<GameObject> floorParts = null, IList<Vector2[]> faceKeepOut = null,
                                          IList<GameObject> hollowParts = null, IList<GameObject> seated = null,
-                                         IList<GameObject> keepGradeBeside = null, float keepBatter = 0f)
+                                         IList<GameObject> keepGradeBeside = null, float keepBatter = 0f, bool stairApronFrontOnly = false)
     {
         var r = new SkinReport();
         var t = T(); var td = t.terrainData; var org = t.transform.position;
@@ -832,6 +834,25 @@ public static partial class EdoBuild
         //   切土の側(設計の地盤 &gt; 面)だけ ── 下げるだけで面の高さより下げない ⇒ 被りは増えない・隙は面の点(既に面の高さ)より悪くならない。
         //   当たる先: keepBatter を渡す邸(いまは土井 Stage4b)の、面の縁に沿う溝・蓋の脇のすべて。渡さない邸は従来どおり(溝も囲いに数える)。
         bool ditchOpen = keepBatter > 1e-3f && hollowSet != null;
+        // 石段の脇か(stairApronFrontOnly): 当たった石段の駒の位置 (hx,hz) の足 fb と天端の中ほどより点の高さ h が高い ⇒ 点は段の**前**(足元の面の側)でなく
+        //   段の側面に沿う斜面(上の段の側面は斜面に埋まる)。天端が無ければ脇と読まない。
+        Func<float, float, float, float, bool> StairSide = (hx, hz, fb, h) =>
+        {
+            int wT; float tS = idx.TopRaw(hx, hz, out wT);
+            return !float.IsNaN(tS) && h > 0.5f * (fb + tS);
+        };
+        // 点 q から r 以内に掘る部材(溝・桝・受け・蓋)の外形が在るか(外形の中も含む)
+        Func<Vector2, float, bool> HollowNear = (q, rr) =>
+        {
+            for (int h = 0; h < idx.hulls.Count; h++)
+            {
+                if (!IsHollow(h)) continue;
+                var hb = idx.bounds[h];
+                if (q.x < hb.x - rr || q.x > hb.z + rr || q.y < hb.y - rr || q.y > hb.w + rr) continue;
+                if (EdoGeom.PIP(idx.hulls[h], q) || EdgeDist(idx.hulls[h], q) < rr) return true;
+            }
+            return false;
+        };
         Func<Vector2, bool> WalledAt = q =>
         {
             if (!ditchOpen) return NearAt(q, WALLED) != 0;
@@ -856,7 +877,11 @@ public static partial class EdoBuild
             if (!found || WalledAt(bq)) return s;
             //   溝だけが縁に立つ所は切土の側(設計の地盤が面より高い ⇒ 下げるだけ・面の高さより下げない)にだけ法を当てる ──
             //   盛土の側で溝の脇を上げると溝の天端に被り得るので従来どおり(皮の被りを増やさない)
-            if (ditchOpen && s <= bf.y && NearAt(bq, WALLED) != 0) return s;
+            //   ⭐ ただし溝が面の**内の側**だけに在る縁(溝の外の辺と面の縁の間の細い帯の先 ── 法は溝から離れる向きに下りる)は法で受ける
+            //   (2026-10-06 EDO-0533 第17巡): 溝に被り得るのは法の側(縁の外)に溝が在るときだけ。⛔ 第16巡まで、蔵の座(27.50)の縁が溝 D2 seg2 の
+            //   外の辺の 0.1〜0.2m 先に在り、縁の外の点が設計の地盤(27.16)のまま残って縁で 0.34m の崖が立ち、溝に沿う斜めの縁の線が 0.25m 格子を
+            //   横切る列ごとに三角の山が並ぶ鋸になった。当たる先: keepBatter を渡す邸(いまは土井 Stage4b)の、面の縁の内に沿う溝・蓋のすべて。
+            if (ditchOpen && s <= bf.y && NearAt(bq, WALLED) != 0 && (bd < 1e-4f || HollowNear(bq + (q - bq) / bd * DITCH_SIDE_R, DITCH_SIDE_R))) return s;
             float t = s > bf.y ? Mathf.Min(s, bf.y + bd / Mathf.Max(design.batterCut, 1e-3f))
                                : Mathf.Max(s, bf.y - bd / Mathf.Max(design.batterFill, 1e-3f));
             if (sloped != null && Mathf.Abs(t - s) > 1e-3f) sloped[0] = true;
@@ -1276,7 +1301,11 @@ public static partial class EdoBuild
                                     {
                                         int wS; bool dn; float fb = idx.FootBottom(x + dv.x * rr, z + dv.y * rr, NEAR + 0.1f, out wS, out dn);
                                         if (float.IsNaN(fb)) continue;
-                                        if (wS >= 0 && !idx.banded[wS] && !IsHollow(wS) && Mathf.Abs(fb - fyA) <= faceTol - 0.02f && (float.IsNaN(fbA) || fb < fbA)) fbA = fb;   // 掘る部材の底は石段の足でない
+                                        // ⭐ stairApronFrontOnly(土井 Stage4b・2026-10-06 EDO-0533 第17巡): 石段の**脇**(StairSide)は揃えない。⛔ 2026-10-06 まで、蔵の石段
+                                        //   K_Kura1 の北の脇で 8 方向の光線のどれかが上の段の側面に当たった頂点だけが面 26.42 へ落ち、斜面 27.1〜27.3 の中に深さ 0.7〜0.8 の穴が
+                                        //   斜めに並ぶ鋸になった。当たる先: stairApronFrontOnly を渡す邸(いまは土井 Stage4b)の、面の外に立つ石段の脇すべて。渡さない邸(岡部・山王)は不変。
+                                        bool frontOk = !stairApronFrontOnly || !StairSide(x + dv.x * rr, z + dv.y * rr, fb, hgt);
+                                        if (wS >= 0 && !idx.banded[wS] && !IsHollow(wS) && frontOk && Mathf.Abs(fb - fyA) <= faceTol - 0.02f && (float.IsNaN(fbA) || fb < fbA)) fbA = fb;   // 掘る部材の底は石段の足でない
                                         break;
                                     }
                                 }
@@ -1292,7 +1321,8 @@ public static partial class EdoBuild
                                 {
                                     int wS; bool dn; float fb = idx.FootBottom(x + dv.x * rr, z + dv.y * rr, NEAR + 0.1f, out wS, out dn);
                                     if (float.IsNaN(fb)) continue;
-                                    if (wS >= 0 && !idx.banded[wS] && !IsHollow(wS)) { float l2 = fb + rr * kF; if (float.IsNaN(lim) || l2 < lim) lim = l2; }   // 掘る部材(溝)の底から法で受けない ── 溝の脇を底まで掘った(EDO-0533)
+                                    //   石段の脇(stairApronFrontOnly・StairSide)の底からも法で受けない ── 上の段の側面は斜面に埋まる(蔵の石段 K_Kura1 の最上段の北の脇に深さ 0.4 の溝・2026-10-06 第17巡)
+                                    if (wS >= 0 && !idx.banded[wS] && !IsHollow(wS) && (!stairApronFrontOnly || !StairSide(x + dv.x * rr, z + dv.y * rr, fb, hgt))) { float l2 = fb + rr * kF; if (float.IsNaN(lim) || l2 < lim) lim = l2; }   // 掘る部材(溝)の底から法で受けない ── 溝の脇を底まで掘った(EDO-0533)
                                     break;   // その向きの最初の駒で止める
                                 }
                             }
@@ -1620,7 +1650,9 @@ public static partial class EdoBuild
             }
         }
         // ---- 3c 外形の縁で閉じる(硬い・許容0 ── 2026-09-26 EDO-0437 第7巡)
+
         CloseRimAtHull(idx, H, PIN, CK, org, step, FaceY, faceTol, ref r, keepSet != null ? IsHollow : null, keepFloor);   // ⚠ ref ── 2026-10-05 まで値渡しで rimRaised/rimLowered が報告で常に 0 だった
+
         // ---- 3d 据わりの守り(硬い・許容0 ── 2026-10-05 EDO-0533 土井 全項目の検査: 駒の浮き 27・一部の浮き 88・植栽 35・溝 171)
         //   皮は 3〜3c で面・設計の地盤・部材の天端・石段の足へ寄せて**元の地形より下げる**ことがある。その升に先に据わっていた駒
         //   (外周の長屋・棟・植栽・溝)は元の地形で据えてあるので、下げた分だけ当たりが全部そろって浮く。⇒ 最後に、駒が地面に触れていた
@@ -1631,6 +1663,7 @@ public static partial class EdoBuild
             SeatGuard(idx, parts, seated, H, O, PIN, In, ci0, cj0, ci1, cj1, N, step, org, probe, CK,
                       design != null && design.batterFill > 1e-3f ? design.batterFill : SEAT_BATTER, ref r, hollowSet);
         r.pinned = PIN.Count;
+
 
         // ---- 4 メッシュ
         var go = new GameObject(SKIN_PREFIX + name);

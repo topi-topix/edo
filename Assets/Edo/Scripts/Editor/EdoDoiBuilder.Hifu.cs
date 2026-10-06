@@ -84,7 +84,7 @@ public static partial class EdoDoiBuilder
         var rep = EdoBuild.CutEdgeSkin("Doi", grp, parts, faces, tol, design: design, backfill: 0f, sealFace: true,
                                        crestBandParts: band, plantPoints: plant, faceKeepOut: keep,
                                        hollowParts: hollow, seated: seated, keepGradeBeside: channel,
-                                       keepBatter: design.batterCut > 1e-3f ? design.batterCut : 1f);
+                                       keepBatter: design.batterCut > 1e-3f ? design.batterCut : 1f, stairApronFrontOnly: true);
         AssetDatabase.SaveAssetIfDirty(EdoBuild.T().terrainData);
         sb.AppendLine("  庭の土工の矩形 " + keep.Count + " を面の縁から外した");
         sb.AppendLine("  古い皮を外して塞いだ升 " + filled + " / 部材 " + rep.parts + "(土留め " + band.Count + "・石段 " + stairN + "・溝 " + mizoN + ")/ 面 " + faces.Count + " / 守った点 " + plant.Count + " / 据わりを守るメッシュ " + seated.Count);

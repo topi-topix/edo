@@ -173,6 +173,31 @@ class Obj(object):
         return "Obj(%s)" % self.__dict__.get("name")
 
 
+
+def kaidan_ab_on_route(d, k, K):
+    """坂の上の石段(`atRoute`・`atS`[m]・`planeLen`[m])の平面の両端 a・b(uv)を、坂の芯 `ramps[].pts` の道のり
+    atS ± planeLen/2 から解く(EDO-0502 第31巡)。⭐ a・b は従属値 ── 欄に残る a・b は読まない。解けなければ None。
+    同じ解き方を C# `EdoOkabeYashikiBuilder.KaidanAB` が持つ(両方を同時に直す)。"""
+    nm, s, pl = k.get("atRoute"), k.get("atS"), k.get("planeLen")
+    if nm is None or s is None or pl is None:
+        return None
+    r = next((x for x in d.get("ramps", []) or [] if x.get("name") == nm), None)
+    P = [tuple(q[:2]) for q in (r or {}).get("pts") or []]
+    if len(P) < 2:
+        return None
+
+    def at(sm):
+        sk = sm / K
+        for (u0, v0), (u1, v1) in zip(P, P[1:]):
+            L = math.hypot(u1 - u0, v1 - v0)
+            if sk <= L or (u1, v1) == P[-1]:
+                t = sk / L if L > 1e-9 else 0.0
+                return [u0 + (u1 - u0) * t, v0 + (v1 - v0) * t]
+            sk -= L
+
+    return at(s - pl / 2.0), at(s + pl / 2.0)
+
+
 class Model(object):
     """邸の json を、共通の形へ読む。読めなかった欄は self.notes に残す(図の末尾に刷る)。"""
 
@@ -529,8 +554,9 @@ class Model(object):
             run = k.get("run") or k.get("planeLen")
             w = k.get("w") or (k.get("wKen", 0) * K if k.get("wKen") else None)
             wk = (w or 1.8) / K
-            if isinstance(k.get("a"), (list, tuple)) and isinstance(k.get("b"), (list, tuple)):   # 山王: a→b(uv)・幅 wKen
-                a, b = k["a"], k["b"]
+            ab9 = kaidan_ab_on_route(d, k, K)
+            if ab9 is not None or (isinstance(k.get("a"), (list, tuple)) and isinstance(k.get("b"), (list, tuple))):   # 山王: a→b(uv)・幅 wKen
+                a, b = ab9 if ab9 is not None else (k["a"], k["b"])
                 du, dv = b[0] - a[0], b[1] - a[1]
                 n = math.hypot(du, dv) or 1e-9
                 ox, oy = -dv / n * wk / 2, du / n * wk / 2

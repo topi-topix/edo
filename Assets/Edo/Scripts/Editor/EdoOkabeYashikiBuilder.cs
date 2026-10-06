@@ -498,9 +498,9 @@ public static class EdoOkabeYashikiBuilder
         var st = new List<Vector2>();   // 石段の平面の道のり [s0, s1]
         foreach (var ko in A(Get(D, "kaidans")) ?? new List<object>())
         {
-            var k = O(ko); if (k == null || S(Get(k, "atRoute")) != nm || !Has(k, "a") || !Has(k, "b")) continue;
-            var av = A(k["a"]); var bv = A(k["b"]);
-            float sa = EdoBuild.ArcOf(line, f.W(F(av[0]), F(av[1]))).x, sbb = EdoBuild.ArcOf(line, f.W(F(bv[0]), F(bv[1]))).x;
+            var k = O(ko); if (k == null || S(Get(k, "atRoute")) != nm) continue;
+            Vector2 ka, kb; if (!KaidanAB(k, out ka, out kb)) continue;
+            float sa = EdoBuild.ArcOf(line, ka).x, sbb = EdoBuild.ArcOf(line, kb).x;
             st.Add(new Vector2(Mathf.Min(sa, sbb), Mathf.Max(sa, sbb)));
         }
         var ss = new List<float>(); var yy = new List<float>();
@@ -2215,8 +2215,8 @@ public static class EdoOkabeYashikiBuilder
                         ng.Add(g1);
                         sb.AppendLine("    口 " + key + " × " + by + ": " + gnote);
                         // 返し(口の端の小口を直角に折り返す短い run)── 軸 = 石段の a→b(高い側へ向ける・測る)
-                        var av = A(kd["a"]); var bv = A(kd["b"]);
-                        Vector2 ax = (Grid.W(F(bv[0]), F(bv[1])) - Grid.W(F(av[0]), F(av[1]))).normalized;
+                        Vector2 ka2, kb2; KaidanAB(kd, out ka2, out kb2);
+                        Vector2 ax = (kb2 - ka2).normalized;
                         Vector2 dirL; Vector2 mid = EdoBuild.ArcPoint(nodes, (g1.x + g1.y) * 0.5f, out dirL);
                         float hp = SkinGround(mid.x + ax.x * 3f, mid.y + ax.y * 3f), hm = SkinGround(mid.x - ax.x * 3f, mid.y - ax.y * 3f);
                         if (!float.IsNaN(hp) && !float.IsNaN(hm) && hm > hp) ax = -ax;
@@ -2469,6 +2469,16 @@ public static class EdoOkabeYashikiBuilder
             //   ⚠ ①(延ばして打ち切り)は止めた(maxExtend 0・第30巡): 袖 TW_Kado_Sode_0_0 の始まりを 4.0m 延ばすと段の境の駒と 018f が
             //   門の内の面から 0.71〜1.19m 浮いた(許容0)。延ばす区間の足元の面と段の境の駒の取り合いを型で解くまで ②/③ だけ。
             var endRule = new EdoBuild.NozuraEndRule { mikiri = EdoAssets.Own.SannoNozuraMikiriH, maxExtend = 0f };
+            // 指図 nozuraEndRule 追記(2026-10-06・第31巡): koshiEnd = 背が法の腰の土留め(TW_Kita_Koshi・TW_Higashi_Minami・TW_Nishi_Kado)の端の背を
+            //   天端 −0.05 の小段一間+法 1:1.5(切り ≤1.0・練塀の犬走り 0.3 を割らない)/ tallEnd = 見付が見切り石の最高段 2.4 を超える端は背の側へ返す(差 0.6 未満で終える)。
+            //   数は指図の文の値(型の既定と同じ)── 型は EdoBuild.NozuraEndRule・CutKoshiBench
+            endRule.koshi = nm0 => nm0.StartsWith("TW_Kita_Koshi") || nm0.StartsWith("TW_Higashi_Minami") || nm0.StartsWith("TW_Nishi_Kado");
+            endRule.parcel = Poly; endRule.tallMin = 2.4f; endRule.tallReturnDiff = 0.6f;
+            {
+                endRule.koshiKeep = new List<GameObject>();
+                var rk = GameObject.Find(GN); var kk0 = rk == null ? null : rk.transform.Find("Kakoi");
+                if (kk0 != null) foreach (Transform c in kk0) if (c.gameObject.activeInHierarchy && !c.name.StartsWith("N")) endRule.koshiKeep.Add(c.gameObject);
+            }
             {
                 var cells = new Dictionary<long, List<KeyValuePair<Vector2, float>>>();
                 System.Action<GameObject, float> addObs = (go, r) =>
@@ -3994,6 +4004,32 @@ public static class EdoOkabeYashikiBuilder
         return false;
     }
 
+    /// <summary>石段の平面の両端(世界 xz)。坂の上の石段(`atRoute`・`atS`[m]・`planeLen`[m])は**坂の芯の道のり atS ± planeLen/2 から解く**
+    /// (EDO-0502 第31巡 ── 欄の a・b は従属値で、atS・planeLen を上書きしても古いまま残り、8 段の石段が 1.8m に詰まる)。
+    /// 坂を名指さない石段は欄の a・b。同じ解き方を python `build_sashizu.kaidan_ab_on_route` が持つ。
+    /// 硬い/柔らかい: どちらでもない(読み)── 解けなければ false(a・b も無い)。</summary>
+    static bool KaidanAB(Dictionary<string, object> k, out Vector2 a, out Vector2 b)
+    {
+        a = b = Vector2.zero; var f = Grid;
+        string rn = S(Get(k, "atRoute"));
+        if (rn != null && Has(k, "atS") && Has(k, "planeLen"))
+        {
+            foreach (var ro in A(Get(D, "ramps")) ?? new List<object>())
+            {
+                var r = O(ro); if (r == null || S(Get(r, "name")) != rn) continue;
+                var line = new List<Vector2>(); foreach (var q in A(Get(r, "pts")) ?? new List<object>()) { var v = A(q); line.Add(f.W(F(v[0]), F(v[1]))); }
+                if (line.Count < 2) break;
+                float s = F(k["atS"]), pl = F(k["planeLen"]); Vector2 d;
+                a = EdoBuild.ArcPoint(line, s - pl * 0.5f, out d); b = EdoBuild.ArcPoint(line, s + pl * 0.5f, out d);
+                return true;
+            }
+        }
+        if (!Has(k, "a") || !Has(k, "b")) return false;
+        var av = A(k["a"]); var bv = A(k["b"]);
+        a = f.W(F(av[0]), F(av[1])); b = f.W(F(bv[0]), F(bv[1]));
+        return true;
+    }
+
     /// <summary>案1の石段の書式 `{a, b, yBot, yTop, steps, flights?, landingKen?, fumi, wKen, planeLen}`(EDO-0502)。
     /// ⭐ **a・b のどちらが足元かは指図に無い**(K_Tsuyo は a が下、K_Kuruwa は a が上)── 造成後の地盤を
     ///   両端の 0.5m 外で測り、低い方を足元に取る(測って決める・規則21)。
@@ -4004,8 +4040,7 @@ public static class EdoOkabeYashikiBuilder
     {
         var f = Grid; float ken = C("ken");
         string nm = S(k["name"]);
-        var av = A(k["a"]); var bv = A(k["b"]);
-        Vector2 A0 = f.W(F(av[0]), F(av[1])), B0 = f.W(F(bv[0]), F(bv[1]));
+        Vector2 A0, B0; KaidanAB(k, out A0, out B0);
         float L = (B0 - A0).magnitude; if (L < 0.3f) { wait.Add("石段 " + nm + ": a と b が近すぎる"); return 0; }
         Vector2 dir = (B0 - A0) / L;
         float ya = Graded.At((A0 - dir * 0.5f).x, (A0 - dir * 0.5f).y), yb = Graded.At((B0 + dir * 0.5f).x, (B0 + dir * 0.5f).y);

@@ -959,6 +959,20 @@ public static partial class EdoBuild
         public List<string> record = new List<string>();
         /// <summary>③ に落ちた端の数(直線の駒で終えた端)。</summary>
         public int unresolved;
+        // ---- koshiEnd(指図 nozuraEndRule 追記 2026-10-06・EDO-0502 第31巡)── 背が法の腰の土留めの端の背を小段に切る ----
+        /// <summary>区間の名 → 背が法の腰の土留めか(koshiEnd を当てる)。null なら当てない。</summary>
+        public Func<string, bool> koshi;
+        /// <summary>小段の高さ = 端の天端 − koshiDrop(指図 0.05)・小段の奥行 = 見え面の線から koshiBench(指図 一間 ── 石の控えを含めて読む・第31巡)・その先の法 1:koshiBatter(指図 1.5)・切りの上限 koshiCutMax(指図 1.0)。</summary>
+        public float koshiDrop = 0.05f, koshiBench = 1.818f, koshiBatter = 1.5f, koshiCutMax = 1.0f;
+        /// <summary>小段と法が割ってはならない駒(練塀)と離れ(指図 犬走り 0.3)。</summary>
+        public List<GameObject> koshiKeep; public float koshiKeepGap = 0.3f;
+        /// <summary>区画(⛔ 外の節点は切らない)。</summary>
+        public Vector2[] parcel;
+        // ---- tallEnd(同 追記)── 見付が見切り石の最高段を超える端は背の側へ折り返す ----
+        /// <summary>見切り石の最高段の見付(指図 2.4)。これを超える端を折り返す。0 なら当てない。</summary>
+        public float tallMin = 0f;
+        /// <summary>返しを終える「表の地表と背の地盤の差」(指図 0.6)と、返しの長さの上限 [m]。</summary>
+        public float tallReturnDiff = 0.6f, tallReturnMax = 12f;
     }
 
     /// <summary>**野面の土留めの網を据える**(2026-09-26・EDO-0437)。区間どうしの取り合いを**描かれた地表で測った見え面**から解き、
@@ -998,6 +1012,70 @@ public static partial class EdoBuild
             if (lo == Vector2.zero) lo = LowSide(sg.a, sg.b, fg, probe, 0.05f, null, out vn, out vx);
             return lo;
         };
+        // 端の見付 = 端の駒が受け持つ走り(端から内へ 1.2W)で PlaceNozuraRun の needH と同じに測る(天端は走りの各点・足元は線の前 0.25/0.7 の最小の逆 = 最大の見付)
+        Func<NozuraSeg, int, Vector2, float> endExpose = (sg, e, fN0) =>
+        {
+            Vector2 ep0 = endPt(sg, e), aw = e == 1 ? sg.Dir : -sg.Dir; float h = float.MinValue;
+            for (float s2 = 0f; s2 <= 1.2f * W + 1e-3f; s2 += 0.25f)
+            {
+                Vector2 q2 = ep0 - aw * Mathf.Min(s2, sg.Len); float cq = sg.crestAt(e == 0 ? Mathf.Min(s2, sg.Len) : Mathf.Max(0f, sg.Len - s2));
+                foreach (float off in new[] { 0.25f, 0.7f })
+                {
+                    Vector2 q3 = q2 + fN0 * off; float fy = sg.footAt != null ? sg.footAt(q3.x, q3.y) : float.NaN;
+                    if (float.IsNaN(fy)) fy = groundAt(q3.x, q3.y); if (!float.IsNaN(fy)) h = Mathf.Max(h, cq - fy);
+                }
+            }
+            return h == float.MinValue ? float.NaN : h;
+        };
+        // ---- tallEnd(指図 nozuraEndRule 追記・EDO-0502 第31巡)── 相手の居ない端で見付が見切り石の最高段(tallMin)を超える端は、
+        //   背の側へ天端の揃った返しの区間を足す(出隅の隅の駒は鎖が kado で据える)。返しは表の地表(返しの見え面の前)と背の地盤の差が
+        //   tallReturnDiff 未満になった所で終える(TW_Minami_Koshi.returnTop と同じ切り方)。塞ぐ物(blocked)に当たればそこで止める。
+        //   硬い: 終わる所が見つからなければ返さない(③ で刷る)。当たる先: endRule.tallMin を渡す邸(岡部 Stage2b)の野面の端すべて。
+        if (endRule != null && endRule.tallMin > 0f)
+        {
+            int n0 = segs.Count;
+            for (int k = 0; k < n0; k++) for (int e = 0; e < 2; e++)
+            {
+                Vector2 ep = endPt(segs[k], e); bool joined = false;
+                for (int j = 0; j < segs.Count && !joined; j++) for (int f = 0; f < 2; f++) if (j != k && Vector2.Distance(ep, endPt(segs[j], f)) <= TOL) joined = true;
+                if (joined || segs[k].mikiriTo[e] != null || segs[k].noAbut[e]) continue;
+                bool near = false;
+                foreach (var g in pool) if (g != null && !near) foreach (var v in Body(g.transform, 400)) if (Vector2.Distance(new Vector2(v.x, v.z), ep) < 1.5f) { near = true; break; }
+                if (near) continue;
+                Vector2 fN = faceNear(segs[k], e); if (fN == Vector2.zero) continue;
+                float h0 = endExpose(segs[k], e, fN);
+                if (float.IsNaN(h0) || h0 <= endRule.tallMin + 1e-3f) continue;
+                Vector2 away = e == 1 ? segs[k].Dir : -segs[k].Dir;
+                float c0 = segs[k].crestAt(e == 0 ? 0f : segs[k].Len);
+                float Lr = float.NaN; string stop = null;
+                for (float t = 0.5f; t <= endRule.tallReturnMax + 1e-3f; t += 0.25f)
+                {
+                    Vector2 q = ep - fN * t;
+                    if (endRule.blocked != null) { stop = endRule.blocked(q); if (stop != null) { Lr = t - 0.25f; break; } }
+                    float fr = groundAt(q.x + away.x * 0.5f, q.y + away.y * 0.5f), bk = groundAt(q.x - away.x * probe, q.y - away.y * probe);
+                    if (!float.IsNaN(fr) && !float.IsNaN(bk) && Mathf.Abs(bk - fr) < endRule.tallReturnDiff) { Lr = t; break; }
+                }
+                string tag = segs[k].name + " 端" + e;
+                if (!float.IsNaN(Lr) && Lr <= 0.5f + 1e-3f && stop == null)
+                { endRule.record.Add(tag + ": tallEnd ⛔ 見付 " + h0.ToString("F2") + " > " + endRule.tallMin.ToString("F1") + " ── 返しの初め(0.5m)で既に表と背の差 < " + endRule.tallReturnDiff.ToString("F1") + "(端の先も背も天端並みで返す土が無い・見付は見え面の前の地表の低さ)── 返さない(普請方へ)"); continue; }
+                if (float.IsNaN(Lr) || Lr < 0.5f)
+                { endRule.record.Add(tag + ": tallEnd ⛔ 見付 " + h0.ToString("F2") + " > " + endRule.tallMin.ToString("F1") + " ── 返しの終わる所が " + endRule.tallReturnMax.ToString("F0") + "m 以内に無い" + (stop != null ? "(" + stop + ")" : "")); continue; }
+                float cc = c0;
+                var ret = new NozuraSeg { name = segs[k].name + "_Kaeshi" + e, a = ep, b = ep - fN * Lr, crestAt = sl => cc };
+                // 硬い: 返しの見え面は端の先(away)を向く出隅でなければならない・返しの終わりの見付は見切り石で受かる(≤ tallMin)こと ── どちらか外れれば返さない
+                Vector2 rf = faceNear(ret, 0); float hr = endExpose(ret, 1, away);
+                if (rf == Vector2.zero || Vector2.Dot(rf, away) < 0.5f || float.IsNaN(hr) || hr > endRule.tallMin + 1e-3f)
+                {
+                    endRule.record.Add(tag + ": tallEnd ⛔ 見付 " + h0.ToString("F2") + " > " + endRule.tallMin.ToString("F1") + " ── 返し " + Lr.ToString("F2") + "m は"
+                        + (rf == Vector2.zero || Vector2.Dot(rf, away) < 0.5f ? "見え面が端の先を向かない(低い側が背 ── 出隅にならない)" : "")
+                        + (float.IsNaN(hr) || hr > endRule.tallMin + 1e-3f ? "終わりの見付 " + hr.ToString("F2") + " が見切り石で受からない" : "") + " ── 返さない(普請方へ)");
+                    continue;
+                }
+                segs.Add(ret);
+                endRule.record.Add(tag + ": tallEnd 見付 " + h0.ToString("F2") + " > " + endRule.tallMin.ToString("F1") + " ⇒ 背の側へ返し " + Lr.ToString("F2") + "m(天端 " + c0.ToString("F2") + "・" + (stop != null ? "塞ぐ物 " + stop + " の手前" : "表と背の差 < " + endRule.tallReturnDiff.ToString("F1")) + ")");
+            }
+            n = segs.Count;
+        }
         // ---- 端どうしの取り合い ----
         var link = new int[n, 2, 2]; for (int k = 0; k < n; k++) for (int e = 0; e < 2; e++) { link[k, e, 0] = -1; link[k, e, 1] = -1; }
         var concave = new int[n, 2, 2]; for (int k = 0; k < n; k++) for (int e = 0; e < 2; e++) { concave[k, e, 0] = -1; concave[k, e, 1] = -1; }
@@ -1031,7 +1109,7 @@ public static partial class EdoBuild
             if (concave[j, f, 0] < 0) { concave[j, f, 0] = k; concave[j, f, 1] = e; }
         }
         // ---- 端の納め(endRule・指図 nozuraEndRule)── 相手の居ない端を ① 延ばして打ち切り / ② 見切り石 へ(鎖を組む前に区間を延ばす) ----
-        var endPlan = new string[n, 2];
+        var endPlan = new string[n, 2]; var koshiOk = new bool[n, 2];
         if (endRule != null)
         {
             float kiriH = heights[0];
@@ -1050,12 +1128,12 @@ public static partial class EdoBuild
                                                      return float.IsNaN(fy) ? groundAt(q.x + fN.x * 0.5f, q.y + fN.y * 0.5f) : fy; };
                 // 端の見付は端の駒が受け持つ走り(端から内へ 1.2W)で PlaceNozuraRun の needH と同じに測る ── 端の一点だと坂の端で −0.18 と読み、
                 //   打ち切りへ回した端が駒の奥で 1.20 の見付を残して直線の駒へ逃げた(第30巡)
-                float h0 = float.MinValue;
-                for (float s2 = 0f; s2 <= 1.2f * W + 1e-3f; s2 += 0.25f)
-                { Vector2 q2 = ep - away * Mathf.Min(s2, segs[k].Len); float cq = segs[k].crestAt(e == 0 ? Mathf.Min(s2, segs[k].Len) : Mathf.Max(0f, segs[k].Len - s2));
-                  foreach (float off in new[] { 0.25f, 0.7f }) { Vector2 q3 = q2 + fN * (off - 0.5f); float fy = footOf(q3); if (!float.IsNaN(fy)) h0 = Mathf.Max(h0, cq - fy); } }
-                if (h0 == float.MinValue) h0 = float.NaN;
-                if (float.IsNaN(h0) || h0 <= kiriH + 1e-3f) { endRule.record.Add(segs[k].name + " 端" + e + ": 打ち切り(見付 " + h0.ToString("F2") + ")"); continue; }
+                float h0 = endExpose(segs[k], e, fN);
+                // 背の地盤 − 天端(天端の列の控えの奥)と、端の先の見え面の線の上の地盤 − 天端(一間まで・最大)を刷る(第31巡)
+                float backD = groundAt(ep.x - fN.x * probe, ep.y - fN.y * probe) - c0, aheadD = float.MinValue;
+                for (float sa = 0.25f; sa <= W + 1e-3f; sa += 0.25f) { float ga = groundAt(ep.x + away.x * sa, ep.y + away.y * sa); if (!float.IsNaN(ga)) aheadD = Mathf.Max(aheadD, ga - c0); }
+                string meas = "[背−天端 " + backD.ToString("+0.00;-0.00") + "・先−天端 " + (aheadD == float.MinValue ? "-" : aheadD.ToString("+0.00;-0.00")) + "]";
+                if (float.IsNaN(h0) || h0 <= kiriH + 1e-3f) { endRule.record.Add(segs[k].name + " 端" + e + ": 打ち切り(見付 " + h0.ToString("F2") + ") " + meas); continue; }
                 // ① 延ばす: 天端 = max(背の地盤, 端の天端 − 勾配 × 道のり)。見付 ≤ 打ち切りの駒の見付になったら、そこから半駒先で終える
                 string why = endRule.maxExtend <= 0f ? "①を止めた邸(maxExtend 0)" : null; float E = float.NaN; var tab = new List<Vector2>();
                 for (float sx = 0.25f; sx <= endRule.maxExtend + 1e-3f; sx += 0.25f)
@@ -1094,10 +1172,20 @@ public static partial class EdoBuild
                 {
                     string mp = endRule.mikiri == null ? null : endRule.mikiri(h0);
                     bool baked = !string.IsNullOrEmpty(mp) && System.IO.File.Exists(System.IO.Path.Combine(System.IO.Directory.GetParent(Application.dataPath).FullName, mp));
-                    if (baked) { segs[k].mikiriTo[e] = new List<GameObject>(); endPlan[k, e] = "②見切り石(" + (why ?? "延ばしても見付が下がらない") + "・見付 " + h0.ToString("F2") + ")"; }
+                    if (baked)
+                    {
+                        segs[k].mikiriTo[e] = new List<GameObject>(); endPlan[k, e] = "②見切り石(" + (why ?? "延ばしても見付が下がらない") + "・見付 " + h0.ToString("F2") + ")";
+                        // koshiEnd(指図 nozuraEndRule 追記・第31巡): 背が法の腰の端は、見切り石が背の土に埋まって退けられたときだけ背を小段に切って据え直す(下の据えの所)。
+                        //   硬い: 端の先の見え面の線の上の地盤が天端より高い端は切らない(普請方へ)
+                        if (endRule.koshi != null && endRule.koshi(segs[k].name))
+                        {
+                            if (aheadD > 0f) endPlan[k, e] += " ・koshiEnd ⛔ 端の先の地盤が天端より " + aheadD.ToString("F2") + "m 高い ── 小段を切らない(普請方へ)";
+                            else koshiOk[k, e] = true;
+                        }
+                    }
                     else endPlan[k, e] = "③⛔ 延ばせず(" + (why ?? "延ばしても見付が下がらない") + ")・見付 " + h0.ToString("F2") + " の見切り石が焼いていない";
                 }
-                endRule.record.Add(segs[k].name + " 端" + e + ": " + endPlan[k, e]);
+                endRule.record.Add(segs[k].name + " 端" + e + ": " + endPlan[k, e] + " " + meas);
             }
         }
         // 入隅の可動側
@@ -1200,6 +1288,13 @@ public static partial class EdoBuild
                     if (float.IsNaN(fy)) fy = groundAt(ep.x + fN.x * 0.5f, ep.y + fN.y * 0.5f);
                     float cy = segs[k].crestAt(e == 0 ? 0f : segs[k].Len);
                     var mk = PlaceNozuraMikiri(mikiriPath, ep, away, fN, fy, cy, segs[k].mikiriTo[e], parent, segs[k].name + "_mikiri" + e, log, faceGroundAt);
+                    if (mk == null && endRule != null && koshiOk[k, e] && segs[k].mikiriTo[e].Count == 0)
+                    {   // koshiEnd: 背を小段に切って(切るだけ・切り ≤ koshiCutMax・練塀の犬走りを割らない)見切り石を据え直す
+                        string kn; bool cut = CutKoshiBench(ep, away, fN, cy - endRule.koshiDrop, W, endRule.koshiBench, endRule.koshiBatter, endRule.koshiCutMax,
+                                                            endRule.parcel, endRule.koshiKeep, endRule.koshiKeepGap, out kn);
+                        endRule.record.Add(segs[k].name + " 端" + e + ": koshiEnd " + (cut ? "小段を切った " : "⛔ ") + kn);
+                        if (cut) mk = PlaceNozuraMikiri(mikiriPath, ep, away, fN, fy, cy, segs[k].mikiriTo[e], parent, segs[k].name + "_mikiri" + e, log, faceGroundAt);
+                    }
                     if (mk != null) { to.Add(mk); res.Add(new KeyValuePair<GameObject, Vector2>(mk, fN)); segPieces[k].Add(mk); pool.Add(mk); endDesc[side] = "口の縁 → 見切り石"; }
                     else
                     {   // 見切り石を退けた ⇒ 口の相手(城の石垣・袖)の実面へ直に突き付ける
@@ -1235,6 +1330,73 @@ public static partial class EdoBuild
             chainPieces[c] = mine;
         }
         return res;
+    }
+
+    /// <summary>**腰の土留めの端の背を小段に切る**(koshiEnd・指図 nozuraEndRule 追記 2026-10-06・EDO-0502 第31巡)。端 <paramref name="ep"/> から内へ一間
+    /// (<paramref name="along"/>・端の駒と見切り石が座る区間)、見え面の線から背へ <paramref name="depth"/>(一間 ── 石の控えを含む)の帯を高さ <paramref name="y"/>
+    /// (端の天端 − 0.05)の平らな小段にし、その外は切土 1:<paramref name="bc"/> の法で今の地盤へ擦り付ける。⭐ 2m 格子は節点の間を一次で描く ⇒ 帯 + 一升の節点まで平らに取る
+    /// (<see cref="LevelPadAt"/> と同じ取り方)。硬い: **切るだけ**(盛らない)・区画の外の節点は触らない・切りの最大 > <paramref name="cutMax"/> なら切らない・
+    /// 練塀(<paramref name="keep"/>)の実メッシュの足元から <paramref name="keepGap"/> 以内に切りが掛かれば切らない(犬走りを割る)。冪等(今の地盤を法で挟むだけ)。
+    /// 当たる先: 背が法の腰の野面の土留めの相手の居ない端(岡部 TW_Kita_Koshi・TW_Higashi_Minami・TW_Nishi_Kado)。⟶ 返す: 切ったか(note に節点数・切りの最大・退けた理由)</summary>
+    public static bool CutKoshiBench(Vector2 ep, Vector2 away, Vector2 face, float y, float along, float depth, float bc, float cutMax,
+                                     Vector2[] parcel, IList<GameObject> keep, float keepGap, out string note)
+    {
+        var t = T(); var td = t.terrainData;
+        int hres = td.heightmapResolution; Vector3 tp = t.transform.position, ts = td.size;
+        float cell = ts.x / (hres - 1);
+        // 帯(世界 xz の四隅): 走りは [端 − along, 端]・奥行は見え面の線 → 背へ depth
+        var foot = new[] { ep, ep - away * along, ep - away * along - face * depth, ep - face * depth };
+        Func<Vector2, float, float> target = (p, cur) =>
+        {
+            if (parcel != null && !EdoGeom.PIP(parcel, p)) return cur;
+            float d = EdoGeom.PIP(foot, p) ? 0f : DistPolyLine(foot, p);
+            float tgt = d <= cell ? y : y + (d - cell) / bc;
+            return Mathf.Min(cur, tgt);
+        };
+        float reach = cell + 6f * bc + cell;
+        float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
+        foreach (var q in foot) { mnx = Mathf.Min(mnx, q.x); mxx = Mathf.Max(mxx, q.x); mnz = Mathf.Min(mnz, q.y); mxz = Mathf.Max(mxz, q.y); }
+        int x0 = Mathf.Clamp(Mathf.FloorToInt((mnx - reach - tp.x) / cell), 0, hres - 1), z0 = Mathf.Clamp(Mathf.FloorToInt((mnz - reach - tp.z) / cell), 0, hres - 1);
+        int x1 = Mathf.Clamp(Mathf.CeilToInt((mxx + reach - tp.x) / cell), 0, hres - 1), z1 = Mathf.Clamp(Mathf.CeilToInt((mxz + reach - tp.z) / cell), 0, hres - 1);
+        int w = x1 - x0 + 1, h = z1 - z0 + 1;
+        var H = td.GetHeights(x0, z0, w, h);
+        float cm = 0f, cmB = 0f, dAt = 0f; int n = 0;
+        for (int iz = 0; iz < h; iz++) for (int ix = 0; ix < w; ix++)
+        {
+            var p = new Vector2(tp.x + (x0 + ix) * cell, tp.z + (z0 + iz) * cell);
+            float cur = H[iz, ix] * ts.y + tp.y, nw = target(p, cur);
+            if (cur - nw > 1e-4f)
+            {
+                n++; float dd = EdoGeom.PIP(foot, p) ? 0f : DistPolyLine(foot, p);
+                if (cur - nw > cm) { cm = cur - nw; dAt = dd; }
+                if (dd <= cell) cmB = Mathf.Max(cmB, cur - nw);
+            }
+        }
+        if (n == 0) { note = "切る節点なし(背の土は既に小段より低い)"; return false; }
+        if (cm > cutMax + 1e-3f) { note = "切りの最大 " + cm.ToString("F2") + "m > " + cutMax.ToString("F1") + "(小段の帯の中の最大 " + cmB.ToString("F2") + "・最大は小段の縁から " + dAt.ToString("F1") + "m の法)── 切らない"; return false; }
+        // 練塀の犬走り: 練塀の実メッシュの足元(最下から 0.3m の帯)の点で、切りの面(帯 + 離れ)が今の地盤より下がるなら割る
+        if (keep != null)
+            foreach (var g in keep) if (g != null)
+            {
+                var vs = Body(g.transform, 600); float lo = float.MaxValue; foreach (var v in vs) lo = Mathf.Min(lo, v.y);
+                foreach (var v in vs)
+                {
+                    if (v.y > lo + 0.3f) continue; var p = new Vector2(v.x, v.z);
+                    if (p.x < mnx - reach || p.x > mxx + reach || p.y < mnz - reach || p.y > mxz + reach) continue;
+                    float d = EdoGeom.PIP(foot, p) ? 0f : DistPolyLine(foot, p);
+                    float tgt = y + Mathf.Max(0f, d - cell - keepGap) / bc, g0 = Ground(p.x, p.y);
+                    if (!float.IsNaN(g0) && tgt < g0 - 0.01f) { note = "練塀 " + g.name + " の犬走り " + keepGap.ToString("F1") + " を割る(" + p.x.ToString("F1") + ", " + p.y.ToString("F1") + ")── 切らない"; return false; }
+                }
+            }
+        for (int iz = 0; iz < h; iz++) for (int ix = 0; ix < w; ix++)
+        {
+            var p = new Vector2(tp.x + (x0 + ix) * cell, tp.z + (z0 + iz) * cell);
+            float cur = H[iz, ix] * ts.y + tp.y, nw = target(p, cur);
+            if (cur - nw > 1e-4f) H[iz, ix] = (nw - tp.y) / ts.y;
+        }
+        td.SetHeightsDelayLOD(x0, z0, H); td.SyncHeightmap();
+        note = "(高さ " + y.ToString("F2") + "・節点 " + n + "・切りの最大 " + cm.ToString("F2") + "m)";
+        return true;
     }
 
     /// <summary>**口の縁の見切り石を据える**(2026-09-26・EDO-0437)。野面の土留めの線の端 <paramref name="edge"/> に、見え面 <paramref name="face"/>

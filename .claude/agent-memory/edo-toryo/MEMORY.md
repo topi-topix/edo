@@ -21,6 +21,7 @@
 - [delayCall は他窓の reload で消える・指図の同時書き](delaycall-lost-and-shared-sashizu.md) — Stage は直に呼ぶ。流す前に指図の sha と impl の src を見る・着手前に kansei の reopen を見る
 - [別セッションの赤い .cs で Editor アセンブリが焼けない](editor-dll-blocked-by-other-session.md) — dll の mtime が止まり CPU も静か。⛔refresh を繰り返さず console の error を読む
 
+- [外周の石垣の見え面は区画の外・隣の棟の均しが節点を奪う](outer-wall-face-outside-parcel-and-shared-pads.md) — 皮の own が 2m 格子のまま描く。LevelPad は低い順
 - [欄の上書きの直後は算出物の指紋で Stage1 が止まる](impl-fingerprint-after-yat-overwrite.md) — 食い違い0なら bake_impl --write。長い流しは印+txt で待つ
 - [作業場が前の窓の邸で dirty・旧い退避は前の案の造成前](koba-left-dirty-by-other-window.md) — UnwrittenIn を最初に見る。他邸の書き戻しは分類器が止める→返す
 
@@ -138,8 +139,11 @@
 - [壁の口から張り出す石段は浮く・yAt が地盤と違う](stair-out-of-wall-and-yat-mismatch.md) — StackDownToGround・LevelPad で中央値へ
 - [面の中の細い溝は小さい面として足す](trench-behind-nagaya-needs-face.md) — 地形を切っても設計の地盤を下げても皮が面の高さで埋め戻す。返しの低い側は lowHint で
 - [段の土留めの3つの罠](dan-ishigaki-r3-traps.md) — BedTopAt は 8m まで・指図の文言の上書きで正規表現が 0・語だけの直しでも指紋で止まる
+- [野面の端の納めは背の土で退く](nozura-end-rule-blocked-by-back-soil.md) — 端の見付は駒の走りで測る・背>天端の端は延ばしも見切り石も埋没で退く(普請方へ)
+- [腰の端の小段は 1:1 の法で切りが 1.0 を超える・石段の a/b は従属値](koshi-end-cut-exceeds-on-1to1-slope.md) — koshiEnd は5端とも退く。KaidanAB が atS から解く
 - [野面の段の境の駒は H1.50 だけ・継ぎ目の下が抜ける](nozura-dan-piece-fixed-height.md) — 直線は H4.8 まで選ぶ。StackDownAtNozuraSteps で積み下ろす
 
+- [地形の前後の差は資産の写しから採れる](terrain-diff-from-asset-copy.md) — int16 の塊を行で探して位置合わせ。長さが 256 byte 違う
 - [検証レンダの構図は残らない](render-camera-poses-not-kept.md) — 同じ構図で撮るには cams.txt。皮の裏は灰色の平面に見える
 
 ## 測り方・関門

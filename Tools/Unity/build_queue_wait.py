@@ -48,7 +48,7 @@ def age(beat):
 def summary(d, ids):
     rows = []
     for i in ids:
-        t = read(os.path.join(d, i + ".txt"))
+        t = read(os.path.join(d, i.replace(":", "_") + ".txt"))  # ~call:<型>.<関数> は : を _ にした名
         if t is None:
             rows.append((i, "—", "(未着手)"))
             continue

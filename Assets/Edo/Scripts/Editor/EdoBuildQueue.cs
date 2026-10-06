@@ -151,7 +151,7 @@ public static class EdoBuildQueue
         string r; var sw = System.Diagnostics.Stopwatch.StartNew();
         _busy = true;
         EditorApplication.LockReloadAssemblies();
-        try { r = id.StartsWith(DryPrefix) ? Dry(id) : EdoTypologyBuilder.BuildParcel(id, true); }
+        try { r = id.StartsWith(DryPrefix) ? Dry(id) : id.StartsWith(CallPrefix) ? Call(id) : EdoTypologyBuilder.BuildParcel(id, true); }
         catch (Exception ex) { r = "EXC " + ex; }
         finally { EditorApplication.UnlockReloadAssemblies(); _busy = false; }
         if (_s == null) return;
@@ -215,7 +215,7 @@ public static class EdoBuildQueue
 
     static void WriteLog(string id, string body, double sec)
     {
-        File.WriteAllText(Path.Combine(_s.dir, id + ".txt"), body + "\nsec=" + sec.ToString("F1"));
+        File.WriteAllText(Path.Combine(_s.dir, id.Replace(':', '_') + ".txt"), body + "\nsec=" + sec.ToString("F1"));
     }
 
     static void AttachProgress()
@@ -235,6 +235,22 @@ public static class EdoBuildQueue
         float sec; float.TryParse(id.Substring(DryPrefix.Length), out sec);
         System.Threading.Thread.Sleep((int)(Mathf.Clamp(sec, 0f, 60f) * 1000));
         return "dry " + sec + "s";
+    }
+
+    // 邸ビルダーの Stage: "~call:<型>.<関数>" は引数なしの static string 関数を呼ぶ(指図ビルダーの Stage を区画と同じ予約で流す・EDO-0502 2026-10-06)。
+    //   返りの文字列が区画の結果と同じく <置き場>/~call_<型>.<関数>.txt へ書かれる。
+    const string CallPrefix = "~call:";
+    static string Call(string id)
+    {
+        string spec = id.Substring(CallPrefix.Length); int dot = spec.LastIndexOf('.');
+        if (dot <= 0) return "⛔ ~call の書式は ~call:<型>.<関数>";
+        Type t = null;
+        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies()) { t = asm.GetType(spec.Substring(0, dot)); if (t != null) break; }
+        if (t == null) return "⛔ 型が無い: " + spec.Substring(0, dot);
+        var m = t.GetMethod(spec.Substring(dot + 1), System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic, null, Type.EmptyTypes, null);
+        if (m == null) return "⛔ 関数が無い: " + spec;
+        var o = m.Invoke(null, null);
+        return o == null ? "(null)" : o.ToString();
     }
 
     static void Nudge() { try { EditorApplication.QueuePlayerLoopUpdate(); } catch { } }

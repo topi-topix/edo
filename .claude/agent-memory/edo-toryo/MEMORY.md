@@ -5,7 +5,7 @@
 ## Unity MCP の罠
 
 - [書き戻しは必ずタイムアウトする](pitfall-writeback-mcp-timeout.md) — 大きい邸のプレハブ。⛔再送せず mtime で判定
-- [domain reload 後に bridge が消える](pitfall-bridge-drops-after-domain-reload.md) — 約2分。status ファイルと Logs/Editor.log で見る
+- [domain reload 後に bridge が消える](pitfall-bridge-drops-after-domain-reload.md) — 約2分。status と Editor.log で見る・古い port で「instances なし」が一回おき
 - [再生中に建てるとシーンは消える](playmode-discards-scene-edits.md) — isPlaying を先に聞く。資産(プレハブ・地形)への書き込みだけ残る
 - [30秒を超える execute_code は6回走る](akasaka-open-resent-six-times.md) — 赤坂・作業場を開く・重い計測。menu の赤坂へ戻すも6回開く・計測は割ってファイルへ
 - [execute_code の replay は履歴の番号](execute-code-replay-index-is-history.md) — index=0 で前の Stage が再び走った。⛔replay せず送り直す
@@ -14,7 +14,6 @@
 - [長い Stage は印のファイルで再送を止める・狙いだけの Converge は2巡](long-run-guard-and-soft-only-converge.md) — delayCall は発火せず。active scene を先に聞く
 - [隅部材の remap の menu は Kado 89 本を再 import して何巡も回る](remap-menu-reimports-all-kado.md) — 新しい FBX が少なければ1本ずつ remap
 
-- [古い port 登録で「instances なし」が一回おき](pitfall-bridge-drops-after-domain-reload.md) — 6400→6401 退避 + 別プロジェクトの残骸。待たずに再送
 - [start --unity が通っても claim が付いていないことがある](pitfall-unity-claim-not-verified.md) — status で「資源: unity」を見るまで MCP を叩かない・渡された直後の引き取り(compile_wait 前に読み直す)
 - [claim が無い巡は .cs も保存しない](cs-edit-is-not-claim-free.md) — 1行で他人の bridge が2分落ちる。用意は scratchpad の OLD/NEW 指示書へ
 - [[MenuItem] の直下に関数を差すとメニューが化ける・子の印は親と動く](menuitem-drift-and-child-mark-moves.md) — 「4 囲い」が柵を建てていなかった。印 _axis が 0.117 ずれた
@@ -144,6 +143,7 @@
 - [面の中の細い溝は小さい面として足す](trench-behind-nagaya-needs-face.md) — 地形を切っても設計の地盤を下げても皮が面の高さで埋め戻す。返しの低い側は lowHint で
 - [段の土留めの3つの罠](dan-ishigaki-r3-traps.md) — BedTopAt は 8m まで・指図の文言の上書きで正規表現が 0・語だけの直しでも指紋で止まる
 - [野面の端の納めは背の土で退く](nozura-end-rule-blocked-by-back-soil.md) — 端の見付は駒の走りで測る・背>天端の端は延ばしも見切り石も埋没で退く(普請方へ)
+- [stepJoint は勾配の上限で解けない・隅の返しの腕は armBlock で](stepjoint-and-kado-return-traps.md) — 袖の run 1.4m に段 0.5。否定文の見切り石・Stage は ~call で予約
 - [腰の端の小段は 1:1 の法で切りが 1.0 を超える・石段の a/b は従属値](koshi-end-cut-exceeds-on-1to1-slope.md) — koshiEnd は5端とも退く。KaidanAB が atS から解く
 - [野面の段の境の駒は H1.50 だけ・継ぎ目の下が抜ける](nozura-dan-piece-fixed-height.md) — 直線は H4.8 まで選ぶ。StackDownAtNozuraSteps で積み下ろす
 
@@ -187,13 +187,13 @@
 - [山王 Stage7 は縁の地形の木11本を毎回重ねる](sanno-stage7-edge-trees-duplicate.md) — 矩形の等号が float 往復で外れる。a07d0d1b で解消(取り残し0を確認 2026-09-23)
 - [社叢QAのカメラ②は赤坂では宝蔵院の門の中](sanno-shaso-qa-camera2-inside-gate.md) — 撮る間だけ門+十坊の板塀 3_4f/4b ほか計52個を消す。カメラは動かさない
 - [山王 Stage6 は Clear の後に指紋を検める](sanno-stage6-clears-before-fingerprint.md) — 落ちると社殿が空。並行の指図書きが済むまで bake を見張る
-- [地形の detail/holes の塊は寸法の名札が逆](terrain-detail-array-dims-lie.md) — GetDetailLayer/GetHoles の配列は行優先。非正方の塊は組み直してから触る(EDO-0274)
 - [法の足元の土の縁は底の読み違い](batter-toe-read-as-bottom.md) — 駒の底は根入れ済みだった。皮の塞ぎが法の途中を底と読む。段ごとの値で追う
 - [法の途中を底と読む歯・石段の前の土・外周の石垣を皮へ渡す](foot-bottom-batter-and-stair-front.md) — TopIndex.FootBottom。点の Bottom/WallBottom を reflection で刷る
 - [見え面の足元の山形は外形の中の節点](wall-foot-ridge-from-nodes-under-hull.md) — 皮が近くの点を地形のまま描いた。CleanAt・差で混ぜる・Stage9 は6回走る
 - [盛土の床・基壇の向き・設計面の縁の溝](fill-only-floor-and-base-facing.md) — fillOnly を皮の面にしない・BlockOutward・DesignOut は地形で埋める
 - [総当たりの計測は Unity を1時間ふさぐ](brute-force-measure-hangs-unity.md) — 升の索引+印で打つ。RayToBodies は1呼び出し100本まで・mesh.vertices を輪の中で呼ばない(四度目 10-05)
 - [落とした後の Stage9 は空の皮を焼く](unity-kill-leaves-holes-without-skin.md) — 穴は地形・皮はシーン。null の皮には最新の資産を差してから流す
+- [皮の段プレハブのメッシュが消えると S1 が穴を塞がず 4b が空の皮](skin-mesh-missing-leaves-holes-open.md) — S1 の塞いだ升が前の巡の穴の数と違えば 4b の前に止まる
 - [線の上の基壇・柵は区画外に出る](line-sitting-pieces-pivot-out.md) — float 0.25mm・端の控え・芯置き。材 null の一体駒は屋根を躯体と数える
 - [区画の辺に沿う城の石垣・長屋の4つの罠](castle-run-along-parcel-edge-traps.md) — s の丸めは VTX_TOL・90°超の出隅は PullAlongInside・駒の実長>送り・疎な駒は筋 1.0
 - [隅の腕は短辺を越えて区画外へ出る](kado-arm-overruns-short-edge.md) — 岡部 P2〜P4 が 0.7〜1.3m 外。閉じの検査は見ない・駒の頂点を PIP

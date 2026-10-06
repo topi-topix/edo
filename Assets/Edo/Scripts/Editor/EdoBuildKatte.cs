@@ -213,6 +213,35 @@ public static partial class EdoBuild
         return made;
     }
 
+    /// <summary>**切石の段石を一段据える**(EDO-0502 2026-10-06 夕・指図 danStone)。段石は <see cref="EdoAssets.Own.SannoDan"/> の綴り(札 = 蹴上・踏面・幅)。
+    /// 幅を <paramref name="width"/>・踏面を <paramref name="tread"/> へ札の値から伸縮し、+Z(見え面)を坂下(−<paramref name="up"/>)へ向ける。
+    /// 触れる所を実メッシュで測って寄せる: **踏面の帯(上面から 0.02 の頂点)の最も坂下の線 = 段鼻**を <paramref name="noseMid"/> の線へ・
+    /// **両の小口の中ほど**を <paramref name="noseMid"/> へ・**上面**を <paramref name="top"/> へ(⛔ ピボット・bounds の中心で決めない)。
+    /// 硬い/柔らかい: どちらでもない(据え)── 札が読めなければ null。当たる先: 屋敷の中の石段すべて(岡部 kaidans・今後の各邸の邸内の石段)。</summary>
+    public static GameObject PlaceDanStone(string path, Transform parent, string name, Vector2 noseMid, Vector2 up, float top, float width, float tread)
+    {
+        float k0, f0, w0; if (!EdoAssets.Own.SannoDanSpec(path, out k0, out f0, out w0)) return null;
+        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path); if (prefab == null) return null;
+        var go = (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent);
+        go.name = name;
+        float yaw = Mathf.Atan2(-up.x, -up.y) * Mathf.Rad2Deg;   // +Z = 坂下
+        go.transform.SetPositionAndRotation(new Vector3(noseMid.x, top, noseMid.y), Quaternion.Euler(0f, yaw, 0f));
+        go.transform.localScale = new Vector3(width / w0, 1f, tread / f0);
+        var side = new Vector2(up.y, -up.x);
+        var vs = Body(go.transform, 999999);
+        float yTop = float.MinValue; foreach (var v in vs) yTop = Mathf.Max(yTop, v.y);
+        float nose = float.MaxValue, s0 = float.MaxValue, s1 = float.MinValue;
+        foreach (var v in vs)
+        {
+            var d = new Vector2(v.x, v.z) - noseMid;
+            if (v.y >= yTop - 0.02f) nose = Mathf.Min(nose, Vector2.Dot(d, up));
+            float sd = Vector2.Dot(d, side); s0 = Mathf.Min(s0, sd); s1 = Mathf.Max(s1, sd);
+        }
+        var mv = up * -nose + side * -(0.5f * (s0 + s1));
+        go.transform.position += new Vector3(mv.x, top - yTop, mv.y);
+        return go;
+    }
+
     /// <summary>棟の壁体(屋根を外した実メッシュ)の頂点の重心(XZ)。⛔ ピボットではない。</summary>
     public static Vector2 BodyCentreXZ(Transform t)
     {

@@ -918,6 +918,74 @@ public static partial class EdoBuild
     /// <summary>背の帯の奥行[m]。皮は周り 0.5m(CAPR 2 × 0.25)の天端で下げるので、同じだけ見る。</summary>
     public const float SOIL_SIDE = 0.5f;
 
+    /// <summary>**段違いの継ぎ目を勾配の駒で斜めに流す**(指図 TW_Kado_Sode.stepJoint・EDO-0502 2026-10-06 夕「袖の表が段々のまま」)。
+    /// 天端が一直線の区間 <paramref name="runs"/>(天端は crestAt(0) で読む)のうち、端が一点で会い天端の違う二本の組ごとに、**高い側の区間の継ぎ目の側の端**を
+    /// <paramref name="choices"/>(x = 流しの走り・y = 勾配。指図の「2 間の ±0.12」「1 間の ±0.275」を先の物から)の最初に取れる走りで切り、
+    /// その区間の天端を高い天端 → 低い天端へ一次で下ろす(=継ぎ目で天端が連続・段の駒も積み下ろしも要らない)。走りの勾配は「落差 ÷ 走り」で、駒は焼いた勾配の最も近い物
+    /// (<see cref="EdoAssets.Own.SannoNozura"/>)── 落差と「走り × 勾配」の差が <paramref name="headTol"/>(頭の不揃い)を超える組は取らない。
+    /// 取れる = 高い側の区間の長さ ≥ 走り で、残る平らな所が 0 か <paramref name="minFlat"/> 以上。
+    /// 硬い: 取れない継ぎ目は流さず <paramref name="unresolved"/> へ(呼ぶ側が退けて ⚠)。⟶ 返す: 切り直した区間の並び(流しの区間は flow = true・名は元の名 + "_nagare")。
+    /// 当たる先: 段違いの run で天端を割る野面の土留めすべて(岡部 TW_Kado_Sode の袖・TW_Minami_Koshi の返し、今後の各邸の袖石垣)。</summary>
+    public static List<NozuraSeg> FlowStepJoints(List<NozuraSeg> runs, IList<Vector2> choices, float minFlat, float headTol,
+                                                 List<string> unresolved, System.Text.StringBuilder log)
+    {
+        const float TOL = 0.05f;
+        int n = runs.Count;
+        var cut = new float[n, 2]; var drop = new float[n, 2]; var lowC = new float[n, 2];   // 端 e の流しの走り(0 = 流さない)
+        for (int k = 0; k < n; k++) for (int e = 0; e < 2; e++)
+        {
+            var sk = runs[k]; if (sk.crestAt == null) continue;
+            Vector2 ep = e == 0 ? sk.a : sk.b; float ck = sk.crestAt(0f);
+            for (int j = 0; j < n; j++)
+            {
+                if (j == k || runs[j].crestAt == null) continue;
+                int f = Vector2.Distance(ep, runs[j].a) <= TOL ? 0 : Vector2.Distance(ep, runs[j].b) <= TOL ? 1 : -1; if (f < 0) continue;
+                float cj = runs[j].crestAt(0f), d = ck - cj; if (d <= 0.05f) continue;    // こちらが高い側の組だけ
+                float other = cut[k, 1 - e];
+                float got = 0f;
+                foreach (var c in choices)
+                {
+                    float rest = sk.Len - other - c.x;
+                    if (rest < -1e-3f || (rest > 0.01f && rest < minFlat)) continue;
+                    if (Mathf.Abs(c.x * c.y - d) > headTol + 1e-3f) continue;
+                    got = c.x; break;
+                }
+                string tag = sk.name + " 端" + e + " → " + runs[j].name + "(段 " + d.ToString("F2") + "・高い側の長さ " + sk.Len.ToString("F2") + ")";
+                if (got <= 0f) { unresolved.Add(tag); if (log != null) log.AppendLine("    ⚠ stepJoint 取れない: " + tag); }
+                else { cut[k, e] = got; drop[k, e] = d; lowC[k, e] = cj; if (log != null) log.AppendLine("    stepJoint 流し: " + tag + " ── 走り " + got.ToString("F2") + "・勾配 " + (d / got).ToString("F3")); }
+                break;
+            }
+        }
+        var res = new List<NozuraSeg>();
+        for (int k = 0; k < n; k++)
+        {
+            var sk = runs[k]; float L = sk.Len;
+            if (cut[k, 0] <= 0f && cut[k, 1] <= 0f) { res.Add(sk); continue; }
+            Vector2 d = sk.Dir; float c0 = sk.crestAt(0f);
+            float s0 = cut[k, 0], s1 = L - cut[k, 1];
+            if (cut[k, 0] > 0f)
+            {
+                float lc = lowC[k, 0], Lc = cut[k, 0];
+                var f0 = new NozuraSeg { name = sk.name + "_nagare0", a = sk.a, b = sk.a + d * Lc, crestAt = sl => Mathf.Lerp(lc, c0, Mathf.Clamp01(sl / Lc)), footAt = sk.footAt, sidesAt = null, movesAtConcave = sk.movesAtConcave, flow = true };
+                f0.noAbut[0] = sk.noAbut[0]; f0.mikiriTo[0] = sk.mikiriTo[0]; res.Add(f0);
+            }
+            if (s1 - s0 > 0.01f)
+            {
+                var m = new NozuraSeg { name = sk.name, a = sk.a + d * s0, b = sk.a + d * s1, crestAt = sk.crestAt, footAt = sk.footAt, movesAtConcave = sk.movesAtConcave };
+                if (cut[k, 0] <= 0f) { m.noAbut[0] = sk.noAbut[0]; m.mikiriTo[0] = sk.mikiriTo[0]; }
+                if (cut[k, 1] <= 0f) { m.noAbut[1] = sk.noAbut[1]; m.mikiriTo[1] = sk.mikiriTo[1]; }
+                res.Add(m);
+            }
+            if (cut[k, 1] > 0f)
+            {
+                float lc = lowC[k, 1], Lc = cut[k, 1];
+                var f1 = new NozuraSeg { name = sk.name + "_nagare1", a = sk.a + d * s1, b = sk.b, crestAt = sl => Mathf.Lerp(c0, lc, Mathf.Clamp01(sl / Lc)), footAt = sk.footAt, movesAtConcave = sk.movesAtConcave, flow = true };
+                f1.noAbut[1] = sk.noAbut[1]; f1.mikiriTo[1] = sk.mikiriTo[1]; res.Add(f1);
+            }
+        }
+        return res;
+    }
+
     // ============================================================ 野面の土留めの網(2026-09-26・EDO-0437)
     /// <summary>野面の土留めの一区間(直線)。指図の run を口(石段の口)で割った一本ずつ。</summary>
     public class NozuraSeg
@@ -936,6 +1004,8 @@ public static partial class EdoBuild
         /// <summary>端(0 = a / 1 = b)を近くの駒へ突き付けず打ち切りで終える ── 1 駒より短い run を上手の run の駒の裏へ重ねて埋める所
         /// (<see cref="RunsByCrestGap"/>・EDO-0502 第24巡)。突き付けると重ねた分だけ縮んで駒が 0 になった。</summary>
         public bool[] noAbut = new bool[2];
+        /// <summary>段の境を勾配の駒で斜めに流す区間(<see cref="FlowStepJoints"/>)── 前後の区間との天端の折れを段の境(段の駒・積み下ろし)に数えない。</summary>
+        public bool flow;
         public float Len { get { return Vector2.Distance(a, b); } }
         public Vector2 Dir { get { return (b - a).normalized; } }
     }
@@ -1029,6 +1099,57 @@ public static partial class EdoBuild
         public float koshiDrain = 20f;
         /// <summary>④ で差し込んだ端(xy = 元の端・zw = 延ばした量のベクトル)。呼び出し元が前の地表の水の向きを確かめる。</summary>
         public List<Vector4> insertDone = new List<Vector4>();
+        // ---- ② 隅の駒の返し(指図 nozuraEndRule 2026-10-06 夕 ── 見切り石を野面の端に使わない)----
+        /// <summary>② を見切り石でなく野面の出隅の隅の駒で背の側へ折り返す。返しの腕は retMin〜retMax、背の地盤が天端 − retBackDiff 以内に届いた所で終える【硬】。
+        /// ②' 返せない端は端から一間を lowerGrade(下げ打ちの駒)で下げ、見付 ≤ lowerToExpose なら低い隅の駒(腕 retMin)で根を沈めて終える【硬】。どちらも取れなければ ③。</summary>
+        public bool kadoReturn;
+        /// <summary>隅の返しの腕が入ってはならない所(点・腕の向き → 理由)。指図「腕は塞ぐ物の実面・長屋の背の一間・犬走り 0.3 に入れない」── 延ばす向きの塞ぐ物(長屋の躯体から一間の全周)より狭い。
+        /// null なら <see cref="Block"/>。</summary>
+        public Func<Vector2, Vector2, string> armBlock;
+        public string ArmBlock(Vector2 q, Vector2 dir) { return armBlock != null ? armBlock(q, dir) : Block(q, dir); }
+        public float retMin = 0.909f, retMax = 1.818f, retBackDiff = 0.3f, lowerGrade = 0.275f, lowerToExpose = 0.9f;
+    }
+
+    /// <summary>野面の端の ② / ②'(指図 nozuraEndRule 2026-10-06 夕)── 塞がる端を野面の出隅の隅の駒で背の側へ折り返す返しの区間を <paramref name="add"/> へ足す
+    /// (隅の駒は鎖が出隅として据える・返しの終わりは打ち切り)。② = 返しの腕 retMin〜retMax で背の地盤(返しの見え面の裏 probe)が天端 − retBackDiff 以内に届く所まで。
+    /// ②' = 届かない・塞がる端は、端から一間 <paramref name="W"/> を下げ打ち(lowerGrade)で下げ、見付 ≤ lowerToExpose なら腕 retMin の低い隅で終える(根は沈める)。
+    /// 腕が塞ぐ物(endRule.Block = 長屋の背の一間・横切る実面・区画線)に入る端は取らない ⇒ ③(⛔ 見切り石・直線の駒で黙って終えない)。⟶ 返す: 端の型の記録。
+    /// 当たる先: endRule.kadoReturn を渡す邸(岡部 Stage2b)の野面の端すべて。</summary>
+    static string KadoReturnEnd(NozuraEndRule r, NozuraSeg sg, int e, Vector2 ep, Vector2 away, Vector2 fN, float c0, float h0, string why,
+                                Func<float, float, float> groundAt, float probe, float W, List<NozuraSeg> add)
+    {
+        // 腕の候補を測る: 腕の線 q = ep − fN·t の上で、塞ぐ物と背の地盤(返しの見え面 away の裏)
+        Func<float, float, float> armLen = (crest, need) =>
+        {
+            for (float t = 0.1f; t <= r.retMax + 1e-3f; t += 0.1f)
+            {
+                Vector2 q = ep - fN * t;
+                if (r.ArmBlock(q, -fN) != null) return t < need ? -1f : float.NaN;   // 腕が塞ぐ物に入る(最短の腕にも足りない = −1)
+                if (t + 1e-3f < need) continue;
+                float bk = groundAt(q.x - away.x * probe, q.y - away.y * probe);
+                if (!float.IsNaN(bk) && bk >= crest - r.retBackDiff) return t;
+            }
+            return float.NaN;
+        };
+        string head = "(" + (why ?? "延ばしても見付が下がらない") + "・見付 " + h0.ToString("F2") + ")";
+        float Lr = armLen(c0, r.retMin);
+        if (!float.IsNaN(Lr) && Lr > 0f)
+        {
+            float cc = c0; var ret = new NozuraSeg { name = sg.name + "_Kado" + e, a = ep, b = ep - fN * Lr, crestAt = sl => cc };
+            ret.noAbut[1] = true; add.Add(ret);
+            return "②隅の駒で背へ返し(腕 " + Lr.ToString("F2") + "・天端 " + c0.ToString("F2") + "・背の地盤が天端−" + r.retBackDiff.ToString("F1") + " に届く)" + head;
+        }
+        // ②' 下げ打ち: 端から一間を lowerGrade で下げ、低い隅の駒(腕 retMin)で根を沈めて終える
+        float dz = r.lowerGrade * W, c1 = c0 - dz;
+        if (sg.Len < W + 0.5f) return "③⛔ ②返せず(" + (Lr < 0f ? "腕が塞ぐ物に入る: " + r.ArmBlock(ep - fN * 0.1f, -fN) : "背の地盤が腕 " + r.retMax.ToString("F1") + " 以内で天端−" + r.retBackDiff.ToString("F1") + " に届かない") + ")・②' 区間が一間に足りない" + head;
+        if (h0 - dz > r.lowerToExpose + 1e-3f) return "③⛔ ②返せず・②' 下げても見付 " + (h0 - dz).ToString("F2") + " > " + r.lowerToExpose.ToString("F1") + head;
+        { for (float t = 0.1f; t <= r.retMin + 1e-3f; t += 0.1f) { string bw = r.ArmBlock(ep - fN * t, -fN); if (bw != null) return "③⛔ ②返せず・②' 低い隅の腕も塞ぐ物に入る(" + bw + ")" + head; } }
+        var old = sg.crestAt; float L = sg.Len;
+        if (e == 1) sg.crestAt = sl => sl <= L - W ? old(sl) : old(L - W) - r.lowerGrade * (sl - (L - W));
+        else sg.crestAt = sl => sl >= W ? old(sl) : old(W) - r.lowerGrade * (W - sl);
+        var ret2 = new NozuraSeg { name = sg.name + "_Kado" + e, a = ep, b = ep - fN * r.retMin, crestAt = sl => c1 };
+        ret2.noAbut[1] = true; add.Add(ret2);
+        return "②'下げ打ち(一間で " + c0.ToString("F2") + "→" + c1.ToString("F2") + "・見付 " + (h0 - dz).ToString("F2") + ")+ 低い隅の駒(腕 " + r.retMin.ToString("F2") + "・根を沈める)" + head;
     }
 
     /// <summary>**野面の土留めの網を据える**(2026-09-26・EDO-0437)。区間どうしの取り合いを**描かれた地表で測った見え面**から解き、
@@ -1133,9 +1254,12 @@ public static partial class EdoBuild
             }
             n = segs.Count;
         }
-        // ---- 端どうしの取り合い ----
-        var link = new int[n, 2, 2]; for (int k = 0; k < n; k++) for (int e = 0; e < 2; e++) { link[k, e, 0] = -1; link[k, e, 1] = -1; }
-        var concave = new int[n, 2, 2]; for (int k = 0; k < n; k++) for (int e = 0; e < 2; e++) { concave[k, e, 0] = -1; concave[k, e, 1] = -1; }
+        // ---- 端どうしの取り合い ----(②の隅の返しを足したら組み直す ── Links)
+        int[,,] link = null, concave = null;
+        void Links()
+        {
+        link = new int[n, 2, 2]; for (int k = 0; k < n; k++) for (int e = 0; e < 2; e++) { link[k, e, 0] = -1; link[k, e, 1] = -1; }
+        concave = new int[n, 2, 2]; for (int k = 0; k < n; k++) for (int e = 0; e < 2; e++) { concave[k, e, 0] = -1; concave[k, e, 1] = -1; }
         for (int k = 0; k < n; k++) for (int e = 0; e < 2; e++)
             for (int j = 0; j < n; j++) for (int f = 0; f < 2; f++)
             {
@@ -1165,8 +1289,11 @@ public static partial class EdoBuild
             link[k, e, 0] = -1; concave[k, e, 0] = j; concave[k, e, 1] = f;
             if (concave[j, f, 0] < 0) { concave[j, f, 0] = k; concave[j, f, 1] = e; }
         }
+        }
+        Links();
         // ---- 端の納め(endRule・指図 nozuraEndRule)── 相手の居ない端を ① 延ばして打ち切り / ② 見切り石 へ(鎖を組む前に区間を延ばす) ----
         var endPlan = new string[n, 2]; var koshiOk = new bool[n, 2];
+        var kadoRet = new List<NozuraSeg>();   // ② 隅の駒の返し(endRule.kadoReturn)── 鎖を組む前に足して Links を組み直す
         if (endRule != null)
         {
             float kiriH = heights[0];
@@ -1270,6 +1397,8 @@ public static partial class EdoBuild
                     else { sg.a = ep + away * E; sg.crestAt = sl => sl >= E ? old0(sl - E) : ext(E - sl); }
                     endPlan[k, e] = "①延ばして打ち切り(" + E.ToString("F2") + "m・見付 " + h0.ToString("F2") + " → 天端 " + c0.ToString("F2") + "→" + tb[tb.Count - 1].y.ToString("F2") + ")";
                 }
+                else if (endRule.kadoReturn)
+                    endPlan[k, e] = KadoReturnEnd(endRule, segs[k], e, ep, away, fN, c0, h0, why, groundAt, probe, W, kadoRet);
                 else
                 {
                     string mp = endRule.mikiri == null ? null : endRule.mikiri(h0);
@@ -1289,6 +1418,14 @@ public static partial class EdoBuild
                 }
                 endRule.record.Add(segs[k].name + " 端" + e + ": " + endPlan[k, e] + " " + meas);
             }
+        }
+        if (kadoRet.Count > 0)
+        {
+            segs.AddRange(kadoRet); int n0 = n; n = segs.Count;
+            var ep2 = new string[n, 2]; var ko2 = new bool[n, 2];
+            for (int k = 0; k < n0; k++) for (int e = 0; e < 2; e++) { ep2[k, e] = endPlan[k, e]; ko2[k, e] = koshiOk[k, e]; }
+            endPlan = ep2; koshiOk = ko2;
+            Links();
         }
         // 入隅の可動側
         Func<int, int, bool> moves = (k, e) =>
@@ -1358,7 +1495,10 @@ public static partial class EdoBuild
                 return sg.sidesAt(chL[i].Value ? sg.Len - ls : ls);
             };
             for (int i = 1; i < ch.Count; i++)
-            { float st = cum[i]; if (Mathf.Abs(w.crestAt(st - 0.5f) - w.crestAt(st + 0.5f)) > 0.05f) w.steps.Add(st); }
+            {
+                if (segs[ch[i - 1].Key].flow || segs[ch[i].Key].flow) continue;   // 流しの区間の両端は段でない(FlowStepJoints)
+                float st = cum[i]; if (Mathf.Abs(w.crestAt(st - 0.5f) - w.crestAt(st + 0.5f)) > 0.05f) w.steps.Add(st);
+            }
             foreach (var kv in ch) if (segs[kv.Key].footAt != null) { w.footAt = segs[kv.Key].footAt; break; }
             w.straight = straight; w.kado = kado; w.dan = dan; w.kiri = kiri; w.heights = heights; w.faceGroundAt = faceGroundAt; w.kiriEnd = kiriEnd; w.noriEnd = noriEnd;
             string nm = segs[ch[0].Key].name; var names = new List<string>(); foreach (var kv in ch) if (!names.Contains(segs[kv.Key].name)) names.Add(segs[kv.Key].name);

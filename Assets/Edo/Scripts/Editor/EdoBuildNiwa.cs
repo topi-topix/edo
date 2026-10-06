@@ -2609,7 +2609,7 @@ public static partial class EdoBuild
         }
         rep.yawDeg = 360f / turns * bestTurn; rep.flip = bestFlip; rep.shrunk = bestSc < scPath0 - 1e-6f && !rep.swapped;
         // ③④ 高さ・足(足が届かなければ丈を増してやり直す)
-        GameObject go = null; float sc = bestSc; List<KeyValuePair<float, bool>> dd = null; float dz = 0f;
+        GameObject go = null; float sc = bestSc; List<KeyValuePair<float, bool>> dd = null; float dz = 0f; Vector3 floatAt = Vector3.zero; float footLo = float.NaN;
         for (int it = 0; it < 6; it++)
         {
             if (go != null) UnityEngine.Object.DestroyImmediate(go);
@@ -2623,7 +2623,7 @@ public static partial class EdoBuild
             go.transform.position += new Vector3(0f, dz, 0f);
             var rt = RootToBed(go, Ground, 0.05f);
             if (float.IsNaN(rt.hi)) { UnityEngine.Object.DestroyImmediate(go); rep.why = "当たりが測れない"; return null; }
-            rep.footFloat = rt.hi;
+            rep.footFloat = rt.hi; floatAt = rt.hiAt; footLo = rt.lo;
             if (rt.hi <= need + 0.005f) break;
             float lo, hi; NiwaSpanY(go, out lo, out hi);
             float H = (hi - lo) + (rt.hi - need) + 0.02f;
@@ -2631,7 +2631,17 @@ public static partial class EdoBuild
             if (sc2 <= sc * 1.0001f) break;
             sc = sc2; rep.grew = true;
         }
-        if (rep.footFloat > need + 0.005f) { UnityEngine.Object.DestroyImmediate(go); rep.why = "丈を増しても足が届かない(浮き " + rep.footFloat.ToString("F2") + "m)"; return null; }
+        //   退けるときは、最も浮いた当たりの位置と地面の高さ・版の端からの橋軸の向きの距離(+ = 径間の側)・最も深い当たりも刷る
+        //   (どの向きへ足が逃げたかが分かる ── 2026-10-06 EDO-0533 第17巡: 土井 Hashi_Ishi の a 端 浮き 0.13 の元を測る)
+        if (rep.footFloat > need + 0.005f)
+        {
+            UnityEngine.Object.DestroyImmediate(go);
+            var fa = new Vector2(floatAt.x, floatAt.z) - aXZ;
+            rep.why = "丈を増しても足が届かない(浮き " + rep.footFloat.ToString("F2") + "m・その当たり (" + floatAt.x.ToString("F2") + "," + floatAt.z.ToString("F2")
+                    + ") 地面 " + floatAt.y.ToString("F3") + "・橋軸 " + Vector2.Dot(fa, dir).ToString("+0.00;-0.00") + "m・横 " + Vector2.Dot(fa, perp).ToString("+0.00;-0.00")
+                    + "m・最も深い当たり " + footLo.ToString("+0.00;-0.00") + "m・縮尺 " + sc.ToString("F2") + ")";
+            return null;
+        }
         // 刷る値(据えた後の隙 d' = d − dz)
         { float lo4, hi4; Vector3 ft4; if (NiwaSpanY(go, out lo4, out hi4) && hi4 - lo4 > 1e-4f) { rep.hGot = hi4 - lo4; if (!float.IsNaN(seat.hMin)) rep.hMinMet = rep.hGot >= seat.hMin - 1e-3f; if (NiwaFootPoint(go, out ft4)) { float gy4 = Ground(ft4.x, ft4.z); if (!float.IsNaN(gy4)) rep.embedFrac = Mathf.Max(0f, gy4 - lo4) / (hi4 - lo4); } } }
         float dmin2 = dd[0].Key - dz, d302 = dd[k30(dd)].Key - dz;

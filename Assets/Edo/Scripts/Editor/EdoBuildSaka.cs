@@ -560,10 +560,13 @@ public static partial class EdoBuild
         float s0 = float.MaxValue, s1 = float.MinValue, dMin = float.MaxValue, dMax = float.MinValue;
         foreach (var v in vs) { var q = new Vector2(v.x, v.z) - a; float s = Vector2.Dot(q, t), d = Vector2.Dot(q, back); s0 = Mathf.Min(s0, s); s1 = Mathf.Max(s1, s); dMin = Mathf.Min(dMin, d); dMax = Mathf.Max(dMax, d); }
         int n = Mathf.Max(1, Mathf.CeilToInt((s1 - s0) / ds)) + 1; var cr = new float[n]; for (int i = 0; i < n; i++) cr[i] = float.NaN;
-        foreach (var v in vs) { var q = new Vector2(v.x, v.z) - a; int i = Mathf.Clamp(Mathf.RoundToInt((Vector2.Dot(q, t) - s0) / ds), 0, n - 1); if (float.IsNaN(cr[i]) || v.y > cr[i]) cr[i] = v.y; }
+        // ⭐ 天端は**背の縁の石の上面**(控えの後端から 0.5m の帯の頂点の最上点)で帯ごとに取り、隣の帯と最小を取る(EDO-0502 第34巡):
+        //   帯の全頂点の最上点で引くと、run の継ぎ目(辺24 の 098f/099f)で背の縁の石が 0.14 低く、小段の土が石の上面に 0.09〜0.2 被った
+        foreach (var v in vs) { var q = new Vector2(v.x, v.z) - a; if (Vector2.Dot(q, back) < dMax - 0.5f) continue; int i = Mathf.Clamp(Mathf.RoundToInt((Vector2.Dot(q, t) - s0) / ds), 0, n - 1); if (float.IsNaN(cr[i]) || v.y > cr[i]) cr[i] = v.y; }
         // 穴(頂点の落ちない帯)は隣から埋める
         for (int i = 1; i < n; i++) if (float.IsNaN(cr[i])) cr[i] = cr[i - 1];
         for (int i = n - 2; i >= 0; i--) if (float.IsNaN(cr[i])) cr[i] = cr[i + 1];
+        { var c2 = (float[])cr.Clone(); for (int i = 0; i < n; i++) { if (i > 0) cr[i] = Mathf.Min(cr[i], c2[i - 1]); if (i + 1 < n) cr[i] = Mathf.Min(cr[i], c2[i + 1]); } }
         var k = new ToeBench { name = name, a = a, t = t, back = back, s0 = s0, ds = ds, crest = cr, dFront = dMin, w = dMax + behind, drop = drop, bf = bf, parcel = parcel, bench0 = s0, bench1 = s1 };
         // 差し込んだ端: 端の先 0.3m・奥行の中ほどの地盤が端の天端 + reach を超える
         if (groundAt != null)
@@ -577,6 +580,26 @@ public static partial class EdoBuild
                                           + "・小段の奥行 " + k.w.ToString("F2") + "・天端 " + cr[0].ToString("F2") + "→" + cr[n - 1].ToString("F2")
                                           + (k.ins0 ? "・始まりは差し込み(半駒 " + tail.ToString("F1") + " 手前で止める)" : "") + (k.ins1 ? "・終わりは差し込み(半駒 " + tail.ToString("F1") + " 手前で止める)" : ""));
         return k;
+    }
+
+    /// <summary>**駒を据える前の法尻の背の小段**(指図 nozuraEndRule 追記3 toeEnd・EDO-0502 第34巡): 区間の線(見え面の線)・設計の天端(crestAt)と、
+    /// 駒の控えの後端(呼び手が焼いた駒の全頂点から測った値)+ 指図の奥行で <see cref="ToeBench"/> を起こす。走りは区間の全長に、端の先へ ext0/ext1
+    /// (見切り石の外形の最大の寸)を足す。据えた後は <see cref="ToeBenchOf"/>(実メッシュ)で引き直す。当たる先: <see cref="ToeBenchOf"/> と同じ。</summary>
+    public static ToeBench ToeBenchOnSeg(NozuraSeg sg, Vector2 back, float w, float drop, float bf, Vector2[] parcel, float ext0, float ext1)
+    {
+        float L = sg.Len; const float ds = 0.25f; int n = Mathf.Max(1, Mathf.CeilToInt((L + ext0 + ext1) / ds)) + 1;
+        var cr = new float[n];
+        // 端の見切り石は頭を端の天端に揃えて端から走りの内へも入る ⇒ 端から外形の寸(ext)の内は天端を端の値で頭打ち(勾配の run で小段が石の頭を越えない)
+        float c0 = sg.crestAt(0f), c1 = sg.crestAt(L);
+        for (int i = 0; i < n; i++)
+        {
+            float s = -ext0 + i * ds; float c = sg.crestAt(Mathf.Clamp(s, 0f, L));
+            if (ext0 > 0f && s <= ext0) c = Mathf.Min(c, c0);
+            if (ext1 > 0f && s >= L - ext1) c = Mathf.Min(c, c1);
+            cr[i] = c;
+        }
+        return new ToeBench { name = sg.name + "#toeEnd", a = sg.a, t = sg.Dir, back = back.normalized, s0 = -ext0, ds = ds, crest = cr, dFront = 0f, w = w, drop = drop, bf = bf,
+                              parcel = parcel, bench0 = -ext0, bench1 = L + ext1 };
     }
 
     /// <summary>**法尻の土留めの背の小段が節点 p に与える高さ**(切るだけ ── 今の地盤 cur より低い所だけ下げる・⛔ 盛らない)。
@@ -595,9 +618,12 @@ public static partial class EdoBuild
         return target < cur ? target : cur;
     }
 
+    /// <summary>地形の高さの格子の一升 [m](heightmap の節点の間隔)。当たる先: 地形を書く関数の守りの幅(床の升を切らない)。</summary>
+    public static float HeightCell() { var td = T().terrainData; return td.size.x / (td.heightmapResolution - 1); }
+
     /// <summary>法尻の土留めの背の小段を地形へ切る(<see cref="ToeBenchAt"/> を節点ごとに)。硬い: 切るだけ・区画の外は触らない・
-    /// <paramref name="keep"/>(建物・塀の足あとの中の節点)は触らない。⟶ 返す: 切った節点の数(切りの最大と位置は out)。</summary>
-    public static int ToeBenchWrite(IList<ToeBench> ks, Func<Vector2, bool> keep, out float cutMax, out Vector2 cutAt)
+    /// <paramref name="keep"/>(点・切った後の高さ → 守るか ── 建物の足あと・塀の床の升)は触らない。⟶ 返す: 切った節点の数(切りの最大と位置は out)。</summary>
+    public static int ToeBenchWrite(IList<ToeBench> ks, Func<Vector2, float, bool> keep, out float cutMax, out Vector2 cutAt)
     {
         cutMax = 0f; cutAt = Vector2.zero; if (ks == null || ks.Count == 0) return 0;
         var t = T(); var td = t.terrainData;
@@ -622,7 +648,7 @@ public static partial class EdoBuild
                 float cur = H[iz, ix] * ts.y + tp.y, nw = cur;
                 foreach (var k in ks) nw = Mathf.Min(nw, ToeBenchAt(k, p, cur));
                 if (cur - nw < 1e-4f) continue;
-                if (keep != null && keep(p)) continue;   // 切る所だけ問う(数えるのは守った節点だけ)
+                if (keep != null && keep(p, nw)) continue;   // 切る所だけ問う(点と切った後の高さ ── 数えるのは守った節点だけ)
                 if (cur - nw > cutMax) { cutMax = cur - nw; cutAt = p; }
                 H[iz, ix] = (nw - tp.y) / ts.y; n++;
             }

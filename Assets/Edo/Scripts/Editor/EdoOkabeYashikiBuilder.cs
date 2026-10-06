@@ -747,6 +747,7 @@ public static class EdoOkabeYashikiBuilder
         var pads = ServicePads();
         var benches = new List<EdoBuild.BackBench>(); foreach (var kv in SodeBenches(null)) foreach (var bk in kv.Value) benches.Add(bk.Value);
         int benchN = 0; float benchMx = 0f;
+        var toesQ = ToeBenches(null); int toeN = 0; float toeMx = 0f;
         var ramps = new List<RampAx>();
         foreach (var o in A(Get(D, "ramps")) ?? new List<object>())
         {
@@ -799,6 +800,8 @@ public static class EdoOkabeYashikiBuilder
                     if (inRamp) { rampN++; rampMx = Mathf.Max(rampMx, d); continue; }
                     float eB = y; foreach (var bk in benches) eB = Mathf.Max(eB, EdoBuild.BackBenchAt(bk, p, y));
                     if (eB > y + 1e-3f && Mathf.Abs(gy - eB) <= TOL) { benchN++; benchMx = Mathf.Max(benchMx, d); continue; }
+                    float eT = y; foreach (var tk in toesQ) eT = EdoBuild.ToeBenchAt(tk, p, eT);
+                    if (eT < y - 1e-3f && Mathf.Abs(gy - eT) <= TOL) { toeN++; toeMx = Mathf.Max(toeMx, d); continue; }
                 }
                 if (d > TOL) { bad++; if (badAt != null) badAt.Add(new Vector3(p.x, p.y, (H[z, x] * ts.y + tp.y) - y)); }
                 if (d > mx) { mx = d; worst = p; }
@@ -809,6 +812,7 @@ public static class EdoOkabeYashikiBuilder
             + (padN > 0 ? string.Format(" ｜ 棟の下の均し(指図 service.yAt・LevelPad {0} 棟・超過に数えない) {1} セル 最大 {2:F2}m", pads.Count, padN, padMx) : "")
             + (rampN > 0 ? string.Format(" ｜ 坂の路盤と法(指図 ramps・GradeSaka・超過に数えない) {0} セル 最大 {1:F2}m", rampN, rampMx) : "")
             + (benchN > 0 ? string.Format(" ｜ 袖の背の小段の裏込め(指図 terraceWalls[].backfill・BackBenchAt・超過に数えない) {0} セル 最大 {1:F2}m", benchN, benchMx) : "")
+            + (toeN > 0 ? string.Format(" ｜ 法尻の背の小段(指図 terraceWalls[].toeBench・ToeBenchAt・超過に数えない) {0} セル 最大 {1:F2}m", toeN, toeMx) : "")
             + (skin > 0 ? " ｜ 皮が描く升の内(数えない) " + skin + " 節点" : "") + (edge > 0 ? string.Format(" ｜ 段の縁(石垣・土留めが描く・超過に数えない) {0} セル 最大 {1:F2}m", edge, edgeMx) : ""),
             bad > 0 ? "✗" : "✔");
     }
@@ -2533,6 +2537,23 @@ public static class EdoOkabeYashikiBuilder
                             + (float.IsNegativeInfinity(wa) ? "-" : wa.ToString("+0.000;-0.000")) + "m(欄 dropJoint: " + string.Join("・", withField.ToArray()) + ")" + (wa > 0.005f ? " ⛔" : ""));
             }
         }
+        // 法尻の土留めの背の小段(指図 terraceWalls[].toeBench・EDO-0502 第33巡)── 据えた駒の実メッシュから解き、地形を切る(切るだけ・建物と塀の足あとは触らない)。
+        //   皮の設計の地盤(Stage3b)と GradeQA が同じ ToeBenches を読む。【硬】天端に土を載せない(差し込んだ端の半駒は根入れ)
+        {
+            var tnote = new System.Text.StringBuilder(); var toes = ToeBenches(tnote);
+            if (toes.Count > 0)
+            {
+                var keepB = new List<Bounds>(); var rootT = GameObject.Find(GN);
+                foreach (var gname in new[] { "Kakoi", "Buildings", "Service_v3", "KachuNagaya_v3", "Ishigaki" })
+                { var gt = rootT == null ? null : rootT.transform.Find(gname); if (gt != null) foreach (var mr in gt.GetComponentsInChildren<MeshRenderer>()) if (mr.gameObject.activeInHierarchy) keepB.Add(mr.bounds); }   // 部材ごとの外接(群の外接は広すぎて法を丸ごと守った ── 第33巡 1182 節点)
+                int kept = 0;
+                Func<Vector2, bool> keep = q => { foreach (var bb in keepB) if (q.x >= bb.min.x && q.x <= bb.max.x && q.y >= bb.min.z && q.y <= bb.max.z) { kept++; return true; } return false; };
+                float cm; Vector2 ca; int cn = EdoBuild.ToeBenchWrite(toes, keep, out cm, out ca);
+                AssetDatabase.SaveAssetIfDirty(EdoBuild.T().terrainData);
+                sb.AppendLine("  法尻の背の小段(toeBench): " + toes.Count + " 区間・切った節点 " + cn + "・切りの最大 " + cm.ToString("F2") + "m @(" + ca.x.ToString("F1") + ", " + ca.y.ToString("F1") + ")・建物/塀の足あとで切らなかった節点 " + kept);
+            }
+            sb.Append(tnote.ToString());
+        }
         // 硬い・区域: 駒の実メッシュが区画の外へ出ないか(壁体)
         {
             float worst = 0f; string wn = null;
@@ -2551,6 +2572,57 @@ public static class EdoOkabeYashikiBuilder
         return sb.ToString();
     }
 
+
+    /// <summary>**法尻の土留めの背の小段**(指図 terraceWalls[].toeBench を持つ欄 ── TW_Nishi_Kado・TW_Higashi_Minami・EDO-0502 第33巡)を、
+    /// 据えた駒(Dan の「名_part_」の駒)の実メッシュから解く(型は <see cref="EdoBuild.ToeBenchOf"/>)。数は指図の文から読む(⛔ 読めなければ ★ を刷って取らない)。
+    /// 背 = 設計面の高い側。差し込んだ端の判定(天端 + 届く量)と半駒は指図 nozuraEndRule ④の文の値。Stage2b(地形を切る)・Stage3b(皮の設計の地盤)・GradeQA が同じこれを読む。</summary>
+    static List<EdoBuild.ToeBench> ToeBenches(System.Text.StringBuilder note)
+    {
+        var res = new List<EdoBuild.ToeBench>();
+        System.Func<string, string, float> rx = (txt, pat) =>
+        {
+            var m = System.Text.RegularExpressions.Regex.Match(txt ?? "", pat);
+            return m.Success ? float.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) : float.NaN;
+        };
+        string er = S(Get(D, "nozuraEndRule"));
+        float reach = rx(er, @"天端\s*\+\s*([0-9.]+)\s*に届く"), tail = rx(er, @"半駒\s*[\(（]\s*([0-9.]+)");
+        var root = GameObject.Find(GN); var dan = root == null ? null : root.transform.Find("Dan");
+        foreach (var o in A(Get(IMPL, "terraceWalls")) ?? new List<object>())
+        {
+            var w = O(o); if (w == null) continue; string nm = S(Get(w, "name")), part = S(Get(w, "part"));
+            Dictionary<string, object> sw = null;
+            foreach (var o2 in A(Get(D, "terraceWalls")) ?? new List<object>()) { var w2 = O(o2); if (w2 != null && S(Get(w2, "name")) == nm) sw = w2; }
+            string tb = sw == null ? null : S(Get(sw, "toeBench")); if (string.IsNullOrEmpty(tb)) continue;
+            var ln = A(Get(w, "line")); if (ln == null || ln.Count < 2) continue;
+            float drop = rx(tb, @"天端\s*[−\-]\s*([0-9.]+)"), behind = rx(tb, @"控えの後端\s*\+\s*([0-9.]+)"), bf = rx(tb, @"1\s*:\s*([0-9.]+)");
+            var miss = new List<string>();
+            if (float.IsNaN(drop)) miss.Add("toeBench の天端からの下げ"); if (float.IsNaN(behind)) miss.Add("toeBench の控えの後端からの奥行"); if (float.IsNaN(bf)) miss.Add("toeBench の法");
+            if (float.IsNaN(reach)) miss.Add("nozuraEndRule ④の届く量"); if (float.IsNaN(tail)) miss.Add("nozuraEndRule ④の半駒");
+            string key = nm + (part != null ? "_" + part : "");
+            if (miss.Count > 0) { if (note != null) note.AppendLine("    ★ " + key + ": 指図から読めない(" + string.Join("・", miss.ToArray()) + ")── 法尻の小段を取らない"); continue; }
+            var nodes = new List<Vector2>(); foreach (var q in ln) { var p = A(q); nodes.Add(new Vector2(F(p[0]), F(p[1]))); }
+            var pcs = new List<GameObject>();
+            if (dan != null) foreach (Transform c in dan) if (c.gameObject.activeInHierarchy && c.name.StartsWith(key + "_")) pcs.Add(c.gameObject);
+            // 区間ごと(折れた線は区間に割る)── 駒は芯の射影が区間の内に入る物
+            for (int i = 0; i + 1 < nodes.Count; i++)
+            {
+                Vector2 a = nodes[i], b = nodes[i + 1]; float L = Vector2.Distance(a, b); if (L < 0.3f) continue;
+                Vector2 t = (b - a) / L, nrm = new Vector2(-t.y, t.x), mid = (a + b) * 0.5f;
+                float yp = DesignY(mid + nrm * 3f), ym = DesignY(mid - nrm * 3f);
+                Vector2 back = (!float.IsNaN(yp) && (float.IsNaN(ym) || yp >= ym)) ? nrm : -nrm;
+                var mine = new List<GameObject>();
+                foreach (var g in pcs)
+                {
+                    var c = EdoBuild.RB(g).center; float s = Vector2.Dot(new Vector2(c.x, c.z) - a, t);
+                    bool first = i == 0, last = i + 2 == nodes.Count;
+                    if ((s >= 0f || first) && (s <= L || last)) mine.Add(g);
+                }
+                var k = EdoBuild.ToeBenchOf(key + "#" + i, mine, a, b, back, drop, behind, bf, Poly, DesignY, reach, tail, note);
+                if (k != null) res.Add(k);
+            }
+        }
+        return res;
+    }
 
     /// <summary>段の土留めの線が長屋の背へ入り込む所の返しと溝(指図 terraceWalls[].return<run> を持つ欄・EDO-0502 第19巡)。</summary>
     public class BackTrench { public string wall, run; public List<Vector2> nodes; public Vector2 stop, far, yard, along; public float off, y; }
@@ -2834,6 +2906,20 @@ public static class EdoOkabeYashikiBuilder
                         if (!float.IsNaN(ty) && ty < gh[k] - 1e-4f) { gh[k] = ty; nt++; }
                     }
             if (trs.Count > 0) sb.AppendLine("  返しと長屋の背の間の溝を設計の地盤へ写した節点 " + nt + "(溝 " + trs.Count + ")");
+        }
+        // ⭐ 法尻の土留めの背の小段(Stage2b が地形を切る・指図 toeBench)も設計の地盤へ ── 同じ式(EdoBuild.ToeBenchAt)。⛔ 上げない
+        {
+            var toes = ToeBenches(null); int ntb = 0;
+            if (toes.Count > 0)
+                for (int j = 0; j < dnz; j++)
+                    for (int i = 0; i < dnx; i++)
+                    {
+                        int k = j * dnx + i; if (!ok[k]) continue;
+                        var q = new Vector2(dx0 + i * dstep, dz0 + j * dstep); float nw = gh[k];
+                        foreach (var tk in toes) nw = EdoBuild.ToeBenchAt(tk, q, nw);
+                        if (nw < gh[k] - 1e-4f) { gh[k] = nw; ntb++; }
+                    }
+            if (toes.Count > 0) sb.AppendLine("  法尻の土留めの背の小段を設計の地盤へ写した節点 " + ntb + "(" + toes.Count + " 区間)");
         }
         var design = new EdoBuild.SkinDesign
         {

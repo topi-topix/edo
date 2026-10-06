@@ -538,6 +538,98 @@ public static partial class EdoBuild
         return n;
     }
 
+    /// <summary>**法尻の土留めの背の小段**(切り)の一本(指図 terraceWalls[].toeBench・EDO-0502 第33巡)。a + t·s = 線・back = 背へ向く水平の単位・
+    /// crest[i] = 道のり s = s0 + i·ds の駒の天端(実メッシュの最上点)・bench0..bench1 = 小段を取る道のり(差し込んだ端は届いた所まで)・
+    /// dFront = 駒の見え面の前の縁(これより前は触らない)・w = 小段の奥行(駒の控えの後端 + behind)・drop = 天端からの下げ・bf = 小段の先の盛の法 1:bf。</summary>
+    public class ToeBench { public string name; public Vector2 a, t, back; public float s0, ds, bench0, bench1, dFront, w, drop, bf; public float[] crest; public Vector2[] parcel;
+        public bool ins0, ins1; }
+
+    /// <summary>**法尻の土留めの背の小段を、据えた駒の実メッシュから解く**(指図 toeBench: 天端 − drop の小段を控えの後端 + behind までとり、その先 1:bf で
+    /// 平場の縁まで盛の法を描き直す【硬: 天端に土を載せない】)。⛔ 駒の基準点で測らない ── 全頂点の線への射影で、走り(s)・控えの後端(d の最大)・
+    /// 見え面の前の縁(d の最小)・天端(s の帯ごとの y の最大)を取る。差し込んだ端(端の先の地盤 <paramref name="groundAt"/> が天端 + <paramref name="reach"/> を
+    /// 超える端・指図 nozuraEndRule ④)は、小段を端から <paramref name="tail"/>(半駒)手前で止める ── その先は根入れとして土が載ってよい区間。
+    /// 当たる先: 盛の法の法尻に立つ野面の土留め(岡部 TW_Nishi_Kado・TW_Higashi_Minami)── 背が法で土が天端を越える土留め全般。⟶ 返す: 解けなければ null(理由は note)。</summary>
+    public static ToeBench ToeBenchOf(string name, IList<GameObject> pieces, Vector2 a, Vector2 b, Vector2 back, float drop, float behind, float bf,
+                                      Vector2[] parcel, Func<Vector2, float> groundAt, float reach, float tail, System.Text.StringBuilder note)
+    {
+        Vector2 ab = b - a; float L = ab.magnitude; if (L < 1e-3f || pieces == null || pieces.Count == 0) { if (note != null) note.AppendLine("    " + name + ": 駒が無い ── 小段を取らない"); return null; }
+        Vector2 t = ab / L; const float ds = 0.25f;
+        var vs = new List<Vector3>();
+        foreach (var g in pieces) if (g != null) vs.AddRange(Body(g.transform, 6000));
+        if (vs.Count == 0) { if (note != null) note.AppendLine("    " + name + ": 駒の頂点が無い"); return null; }
+        float s0 = float.MaxValue, s1 = float.MinValue, dMin = float.MaxValue, dMax = float.MinValue;
+        foreach (var v in vs) { var q = new Vector2(v.x, v.z) - a; float s = Vector2.Dot(q, t), d = Vector2.Dot(q, back); s0 = Mathf.Min(s0, s); s1 = Mathf.Max(s1, s); dMin = Mathf.Min(dMin, d); dMax = Mathf.Max(dMax, d); }
+        int n = Mathf.Max(1, Mathf.CeilToInt((s1 - s0) / ds)) + 1; var cr = new float[n]; for (int i = 0; i < n; i++) cr[i] = float.NaN;
+        foreach (var v in vs) { var q = new Vector2(v.x, v.z) - a; int i = Mathf.Clamp(Mathf.RoundToInt((Vector2.Dot(q, t) - s0) / ds), 0, n - 1); if (float.IsNaN(cr[i]) || v.y > cr[i]) cr[i] = v.y; }
+        // 穴(頂点の落ちない帯)は隣から埋める
+        for (int i = 1; i < n; i++) if (float.IsNaN(cr[i])) cr[i] = cr[i - 1];
+        for (int i = n - 2; i >= 0; i--) if (float.IsNaN(cr[i])) cr[i] = cr[i + 1];
+        var k = new ToeBench { name = name, a = a, t = t, back = back, s0 = s0, ds = ds, crest = cr, dFront = dMin, w = dMax + behind, drop = drop, bf = bf, parcel = parcel, bench0 = s0, bench1 = s1 };
+        // 差し込んだ端: 端の先 0.3m・奥行の中ほどの地盤が端の天端 + reach を超える
+        if (groundAt != null)
+        {
+            float dm = (dMin + dMax) * 0.5f;
+            float g0 = groundAt(a + t * (s0 - 0.3f) + back * dm), g1 = groundAt(a + t * (s1 + 0.3f) + back * dm);
+            if (!float.IsNaN(g0) && g0 > cr[0] + reach) { k.ins0 = true; k.bench0 = s0 + tail; }
+            if (!float.IsNaN(g1) && g1 > cr[n - 1] + reach) { k.ins1 = true; k.bench1 = s1 - tail; }
+        }
+        if (note != null) note.AppendLine("    " + name + ": 走り " + (s1 - s0).ToString("F2") + "m・控えの後端 " + dMax.ToString("F2") + "(線から)・見え面の前の縁 " + dMin.ToString("F2")
+                                          + "・小段の奥行 " + k.w.ToString("F2") + "・天端 " + cr[0].ToString("F2") + "→" + cr[n - 1].ToString("F2")
+                                          + (k.ins0 ? "・始まりは差し込み(半駒 " + tail.ToString("F1") + " 手前で止める)" : "") + (k.ins1 ? "・終わりは差し込み(半駒 " + tail.ToString("F1") + " 手前で止める)" : ""));
+        return k;
+    }
+
+    /// <summary>**法尻の土留めの背の小段が節点 p に与える高さ**(切るだけ ── 今の地盤 cur より低い所だけ下げる・⛔ 盛らない)。
+    /// 見え面の前の縁より前は触らない。小段 = 天端(その道のりの駒の最上点)− drop の水平な面を奥行 w まで、その先と小段の両端の先は 1:bf で上がる面。
+    /// 地形を切る(<see cref="ToeBenchWrite"/>)・皮の設計の地盤・GradeQA が**同じこの関数**を使う。当たる先: <see cref="ToeBenchOf"/> と同じ。</summary>
+    public static float ToeBenchAt(ToeBench k, Vector2 p, float cur)
+    {
+        if (k == null || float.IsNaN(cur)) return cur;
+        if (k.parcel != null && !EdoGeom.PIP(k.parcel, p)) return cur;
+        var q = p - k.a; float s = Vector2.Dot(q, k.t), d = Vector2.Dot(q, k.back);
+        if (d < k.dFront) return cur;
+        float sc = Mathf.Clamp(s, k.bench0, k.bench1), dEnd = Mathf.Abs(s - sc);
+        int i = Mathf.Clamp(Mathf.RoundToInt((sc - k.s0) / k.ds), 0, k.crest.Length - 1);
+        float hh = Mathf.Sqrt(Mathf.Pow(Mathf.Max(0f, d - k.w), 2f) + dEnd * dEnd);
+        float target = k.crest[i] - k.drop + hh / k.bf;
+        return target < cur ? target : cur;
+    }
+
+    /// <summary>法尻の土留めの背の小段を地形へ切る(<see cref="ToeBenchAt"/> を節点ごとに)。硬い: 切るだけ・区画の外は触らない・
+    /// <paramref name="keep"/>(建物・塀の足あとの中の節点)は触らない。⟶ 返す: 切った節点の数(切りの最大と位置は out)。</summary>
+    public static int ToeBenchWrite(IList<ToeBench> ks, Func<Vector2, bool> keep, out float cutMax, out Vector2 cutAt)
+    {
+        cutMax = 0f; cutAt = Vector2.zero; if (ks == null || ks.Count == 0) return 0;
+        var t = T(); var td = t.terrainData;
+        int hres = td.heightmapResolution; Vector3 tp = t.transform.position, ts = td.size;
+        float cell = ts.x / (hres - 1);
+        float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
+        foreach (var k in ks)
+        {
+            float reach = k.w + k.bf * 6f + 2f * cell;
+            foreach (var s in new[] { k.s0 - k.bf * 6f, k.s0 + k.crest.Length * k.ds + k.bf * 6f })
+                foreach (var d in new[] { k.dFront, reach })
+                { var q = k.a + k.t * s + k.back * d; mnx = Mathf.Min(mnx, q.x); mxx = Mathf.Max(mxx, q.x); mnz = Mathf.Min(mnz, q.y); mxz = Mathf.Max(mxz, q.y); }
+        }
+        int x0 = Mathf.Clamp(Mathf.FloorToInt((mnx - tp.x) / cell), 0, hres - 1), z0 = Mathf.Clamp(Mathf.FloorToInt((mnz - tp.z) / cell), 0, hres - 1);
+        int x1 = Mathf.Clamp(Mathf.CeilToInt((mxx - tp.x) / cell), 0, hres - 1), z1 = Mathf.Clamp(Mathf.CeilToInt((mxz - tp.z) / cell), 0, hres - 1);
+        int w = x1 - x0 + 1, h = z1 - z0 + 1;
+        var H = td.GetHeights(x0, z0, w, h); int n = 0;
+        for (int iz = 0; iz < h; iz++)
+            for (int ix = 0; ix < w; ix++)
+            {
+                var p = new Vector2(tp.x + (x0 + ix) * cell, tp.z + (z0 + iz) * cell);
+                float cur = H[iz, ix] * ts.y + tp.y, nw = cur;
+                foreach (var k in ks) nw = Mathf.Min(nw, ToeBenchAt(k, p, cur));
+                if (cur - nw < 1e-4f) continue;
+                if (keep != null && keep(p)) continue;   // 切る所だけ問う(数えるのは守った節点だけ)
+                if (cur - nw > cutMax) { cutMax = cur - nw; cutAt = p; }
+                H[iz, ix] = (nw - tp.y) / ts.y; n++;
+            }
+        if (n > 0) { td.SetHeightsDelayLOD(x0, z0, H); td.SyncHeightmap(); }
+        return n;
+    }
+
     /// <summary>**棟の下の均し**(2026-10-03 EDO-0502 第4巡・岡部の厩と蔵1 が勾配の面の上手へ 0.78m 埋まった)。
     /// 指図の `yAt`(棟の芯での面の高さ)で足あと <paramref name="foot"/>(呼び手が据えた駒の躯体から測る・世界 xz)の下を平らにし、
     /// その外は盛土 1:<paramref name="bf"/>・切土 1:<paramref name="bc"/> の法で今の地盤へ擦り付ける。

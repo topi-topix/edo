@@ -1057,7 +1057,7 @@ public static partial class EdoBuild
                 if (h0 == float.MinValue) h0 = float.NaN;
                 if (float.IsNaN(h0) || h0 <= kiriH + 1e-3f) { endRule.record.Add(segs[k].name + " 端" + e + ": 打ち切り(見付 " + h0.ToString("F2") + ")"); continue; }
                 // ① 延ばす: 天端 = max(背の地盤, 端の天端 − 勾配 × 道のり)。見付 ≤ 打ち切りの駒の見付になったら、そこから半駒先で終える
-                string why = null; float E = float.NaN; var tab = new List<Vector2>();
+                string why = endRule.maxExtend <= 0f ? "①を止めた邸(maxExtend 0)" : null; float E = float.NaN; var tab = new List<Vector2>();
                 for (float sx = 0.25f; sx <= endRule.maxExtend + 1e-3f; sx += 0.25f)
                 {
                     Vector2 q = ep + away * sx;

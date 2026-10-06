@@ -2466,7 +2466,9 @@ public static class EdoOkabeYashikiBuilder
             }
             // 端の納め(指図 nozuraEndRule・EDO-0502 第30巡)── 塞ぐ物を読んで渡すだけ(延ばす・見切り石の型は EdoBuild.NozuraEndRule)。
             //   塞ぐ物: 区画線・長屋の背から一間(指図 TW_Minami_Koshi.ends)・据わった城の石垣と建物の実メッシュ(0.3m)
-            var endRule = new EdoBuild.NozuraEndRule { mikiri = EdoAssets.Own.SannoNozuraMikiriH };
+            //   ⚠ ①(延ばして打ち切り)は止めた(maxExtend 0・第30巡): 袖 TW_Kado_Sode_0_0 の始まりを 4.0m 延ばすと段の境の駒と 018f が
+            //   門の内の面から 0.71〜1.19m 浮いた(許容0)。延ばす区間の足元の面と段の境の駒の取り合いを型で解くまで ②/③ だけ。
+            var endRule = new EdoBuild.NozuraEndRule { mikiri = EdoAssets.Own.SannoNozuraMikiriH, maxExtend = 0f };
             {
                 var cells = new Dictionary<long, List<KeyValuePair<Vector2, float>>>();
                 System.Action<GameObject, float> addObs = (go, r) =>

@@ -698,7 +698,8 @@ public static partial class EdoBuild
     /// ⛔ 溝の駒はここでは据えない(呼び手が cuts[k].pr を <see cref="LayMizo"/> へ渡す)。
     /// 当たる先: 土井 D2 seg1(型 A・G1)── 他の邸・系統は欄 masuPitchMaxM を書いた区間だけ。</summary>
     public static MasuSplitRep SplitMizoAtMasu(Transform parent, string prefix, MizoSpec tmpl, string masuPath, float pitchMax, float depthHard,
-                                                float masuTopAbove, float sump, IList<Vector2> corners, float cornerTol = 0.6f, float step = 1f)
+                                                float masuTopAbove, float sump, IList<Vector2> corners, float cornerTol = 0.6f, float step = 1f,
+                                                IList<Vector2> feet = null)
     {
         var rep = new MasuSplitRep();
         var mp = MizoPieceOf(masuPath);
@@ -746,7 +747,12 @@ public static partial class EdoBuild
             {
                 new Hard("区間の底が解ける(逆勾配0・尻 < 頭・地盤が引ける)", go => info[go].pr.ok),
                 new Hard("型 " + tmpl.kata + " の深さ ≤ " + depthHard.ToString("F2") + "(天端 = 地盤 + " + tmpl.topAbove.ToString("F2") + ")", go => info[go].needDepth <= depthHard + 1e-4f),
-                new Hard("桝の底 < 区間の尻の底", go => info[go].floor < info[go].pr.Tail - 1e-4f)
+                new Hard("桝の底 < 区間の尻の底", go => info[go].floor < info[go].pr.Tail - 1e-4f),
+                // ⭐ 硬: 桝の外形(実メッシュの平面の凸包 + MASU_FOOT_CLEAR)が、先に据わった駒の足(StandingFeetXZ)に掛からない(2026-10-06 EDO-0533 第17巡)。
+                //   ⛔ 第17巡まで、狙い「桝は軒の矩形の出隅」で桝が縁の隅の束(EnTsuka・NureenCorner)の真下へ寄り、5棟b で束を地面へ下ろすと
+                //   桝の口の上に立って 0.44〜0.73 浮いた(玄関・広間・台所・奥)・塀 Oku_Hei_Roka の足も桝 Masu3 の口の上で 0.824 浮いた。
+                //   当たる先: 欄 masuPitchMaxM で溝を桝で割る邸(いまは土井 D2 seg1)── feet を渡さなければ従来どおり。
+                new Hard("桝の外形が据わった駒の足に掛からない", go => !MasuOverFoot(go, feet))
             };
             var softs = new List<Soft> { new Soft("区間の長さ ≤ " + pitchMax.ToString("F0") + "m(超えた m の負)", 0f, go => Mathf.Min(0f, pitchMax - info[go].len)) };
             if (useCorner) softs.Add(new Soft("桝は軒の矩形の出隅(距離の負)", -cornerTol, go => info[go].atEnd ? 0f : -info[go].cornerDist));
@@ -755,6 +761,63 @@ public static partial class EdoBuild
             var cut = info[got]; rep.cuts.Add(cut); sA = cut.s; k++;
         }
         return rep;
+    }
+
+    /// <summary>桝の外形と駒の足の離れ[m](<see cref="MasuOverFoot"/> ── 外形の縁からこの内に足が在れば掛かる)。</summary>
+    const float MASU_FOOT_CLEAR = 0.05f;
+    /// <summary>桝 <paramref name="masu"/> の実メッシュの平面の凸包が、足の点 <paramref name="feet"/> のどれかに掛かるか(凸包の中・縁から <see cref="MASU_FOOT_CLEAR"/> 以内)。</summary>
+    static bool MasuOverFoot(GameObject masu, IList<Vector2> feet)
+    {
+        if (masu == null || feet == null || feet.Count == 0) return false;
+        var pts = new List<Vector2>();
+        foreach (var mf in masu.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            foreach (var v in mf.sharedMesh.vertices) { var w = mf.transform.TransformPoint(v); pts.Add(new Vector2(w.x, w.z)); }
+        }
+        if (pts.Count < 3) return false;
+        var arr = pts.ToArray(); var hi = EdoGeom.HullXZ(arr); var hull = new Vector2[hi.Length]; for (int i = 0; i < hi.Length; i++) hull[i] = arr[hi[i]];
+        float x0 = float.MaxValue, x1 = float.MinValue, z0 = float.MaxValue, z1 = float.MinValue;
+        foreach (var q in hull) { x0 = Mathf.Min(x0, q.x); x1 = Mathf.Max(x1, q.x); z0 = Mathf.Min(z0, q.y); z1 = Mathf.Max(z1, q.y); }
+        foreach (var f in feet)
+        {
+            if (f.x < x0 - MASU_FOOT_CLEAR || f.x > x1 + MASU_FOOT_CLEAR || f.y < z0 - MASU_FOOT_CLEAR || f.y > z1 + MASU_FOOT_CLEAR) continue;
+            if (EdoGeom.PIP(hull, f) || EdgeDist(hull, f) < MASU_FOOT_CLEAR) return true;
+        }
+        return false;
+    }
+
+    /// <summary>**地面に立つ駒の足の平面の点**(<see cref="SplitMizoAtMasu"/> の feet)。<paramref name="root"/> の下の駒ごとに、実メッシュの最も低い頂点から
+    /// ROOT_TOUCH 以内の頂点(=足)を拾い、その足が地面 <paramref name="groundAt"/> から <paramref name="touch"/> 以内(接する・埋まる)で、駒の丈が
+    /// <paramref name="minTall"/> 以上(束・柱・塀・幹 ── 床・桁の平らな下面は丈が低いか地面から離れている)の物だけ返す。
+    /// <paramref name="skip"/> の名の枝(溝・皮)は見ない。<paramref name="near"/> を渡せば、その矩形 [x0,z0,x1,z1] に掛かる描画の箱の駒だけ測る(篩いだけ ── 置き場は実メッシュ)。</summary>
+    public static List<Vector2> StandingFeetXZ(Transform root, Func<float, float, float> groundAt, float touch = 0.15f, float minTall = 0.3f,
+                                               ICollection<string> skip = null, Vector4? near = null)
+    {
+        var res = new List<Vector2>();
+        if (root == null) return res;
+        foreach (var mf in root.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            bool sk = false; if (skip != null) for (var t = mf.transform; t != null && t != root; t = t.parent) if (skip.Contains(t.name) || t.name.StartsWith(SKIN_PREFIX)) { sk = true; break; }
+            if (sk) continue;
+            if (near.HasValue)
+            {
+                var rd = mf.GetComponent<Renderer>(); if (rd == null) continue;
+                var b = rd.bounds; var n = near.Value;
+                if (b.max.x < n.x || b.min.x > n.z || b.max.z < n.y || b.min.z > n.w) continue;
+            }
+            var vs = mf.sharedMesh.vertices; var ws = new Vector3[vs.Length]; float y0 = float.MaxValue, y1 = float.MinValue;
+            for (int i = 0; i < vs.Length; i++) { ws[i] = mf.transform.TransformPoint(vs[i]); y0 = Mathf.Min(y0, ws[i].y); y1 = Mathf.Max(y1, ws[i].y); }
+            if (y1 - y0 < minTall) continue;
+            foreach (var w in ws)
+            {
+                if (w.y > y0 + ROOT_TOUCH) continue;
+                float g = groundAt(w.x, w.z); if (float.IsNaN(g) || y0 - g > touch) continue;
+                res.Add(new Vector2(w.x, w.z));
+            }
+        }
+        return res;
     }
 
     /// <summary>**埋樋(焼かない)の口の所**: 桝の出口(底 <paramref name="outBottom"/>)から受ける溝の底の点へ真っ直ぐ勾配 <paramref name="slopeMin"/> で下ろし、

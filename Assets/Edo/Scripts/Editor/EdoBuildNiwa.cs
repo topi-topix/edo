@@ -2635,11 +2635,13 @@ public static partial class EdoBuild
         //   (どの向きへ足が逃げたかが分かる ── 2026-10-06 EDO-0533 第17巡: 土井 Hashi_Ishi の a 端 浮き 0.13 の元を測る)
         if (rep.footFloat > need + 0.005f)
         {
+            float loF, hiF; bool spanF = NiwaSpanY(go, out loF, out hiF);
             UnityEngine.Object.DestroyImmediate(go);
             var fa = new Vector2(floatAt.x, floatAt.z) - aXZ;
             rep.why = "丈を増しても足が届かない(浮き " + rep.footFloat.ToString("F2") + "m・その当たり (" + floatAt.x.ToString("F2") + "," + floatAt.z.ToString("F2")
                     + ") 地面 " + floatAt.y.ToString("F3") + "・橋軸 " + Vector2.Dot(fa, dir).ToString("+0.00;-0.00") + "m・横 " + Vector2.Dot(fa, perp).ToString("+0.00;-0.00")
-                    + "m・最も深い当たり " + footLo.ToString("+0.00;-0.00") + "m・縮尺 " + sc.ToString("F2") + ")";
+                    + "m・最も深い当たり " + footLo.ToString("+0.00;-0.00") + "m・縮尺 " + sc.ToString("F2") + "・版の下面 " + under.ToString("F3")
+                    + (spanF ? "・石の下端 " + loF.ToString("F3") + "・天端 " + hiF.ToString("F3") : "") + "・版の端の芯の地面 " + g0.ToString("F3") + ")";
             return null;
         }
         // 刷る値(据えた後の隙 d' = d − dz)

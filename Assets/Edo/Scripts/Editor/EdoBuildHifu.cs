@@ -108,6 +108,8 @@ public static partial class EdoBuild
         /// <summary>溝の脇の法(<c>keepBatter</c> &gt; 0 を渡したとき・2026-10-06 EDO-0533 第15巡): 溝の天端が造成の面より沈んだ所で、外形の外の皮を
         /// 天端の外の辺から切土の法(1:keepBatter)で造成の面まで上げた点(= 造成の面より下げた点)と、その下げの最大・場所。</summary>
         public int keepBatterCut; public float keepBatterMax; public Vector3 keepBatterAt;
+        /// <summary>面の縁の内に沿う溝の外の帯を溝の天端 − KEEP_RIM_TUCK へ下げた点の数(第18巡)。</summary>
+        public int rimStrip;
         public override string ToString()
         {
             return (string.IsNullOrEmpty(floors) ? "" : "床を覆う部材:" + floors + "(面の下へ納めた皮 " + gateUnder + " 点) / ") + "穴 " + holesCut + " 升(部材 " + cellsParts + "・面の縁 " + cellsFace + "(うち縁の線の帯 " + cellsBand + ")・裏込め " + cellsFill +
@@ -130,6 +132,7 @@ public static partial class EdoBuild
                                        (coverPlantCell > 0 ? "・そのうち地形の木・植栽の点が立つ升 " + coverPlantCell + "〔" + coverPlantBy + "〕── 駒の側" : "") + ")" : "") +
                    (coverSunk > 0 ? "(うち溝・蓋の天端が造成の面より低い所 " + coverSunk + "〔" + coverSunkBy + "〕── 溝の側・皮は造成の面より下げない)" : "") +
                    (keepHeld + keepRimHeld > 0 ? " / 溝の脇の皮を造成の面で止めた " + keepHeld + " 点・外形の縁で閉じる下げを止めた " + keepRimHeld + " 点" : "") +
+                   (rimStrip > 0 ? " / 面の縁の内に沿う溝の外の帯を溝の天端 − 0.02 へ下げた " + rimStrip + " 点" : "") +
                    (keepBatterCut > 0 ? " / 溝の天端が沈んだ脇を天端の外の辺から法で上げた " + keepBatterCut + " 点(造成の面から最大 " + keepBatterMax.ToString("F2") + "m 下げ @(" + keepBatterAt.x.ToString("F1") + ", " + keepBatterAt.z.ToString("F1") + ")── 溝の側: 天端の沈み)" : "") +
                    " / メッシュ " + mesh +
                    (seatGuard ? "\n    硬い(許容0): 据わりの守り ── 駒 " + seatPieces + "(部材に載るので外した " + seatOnPart + ")・地面に触れていた点 " + seatContacts +
@@ -649,6 +652,33 @@ public static partial class EdoBuild
             return best;
         };
 
+        // 面の縁の内に沿う溝の天端(溝の外の帯の皮を溝の天端より上に残さない ── 2026-10-06 EDO-0533 第18巡)。
+        //   点 q が溝の外形の外で、q から rr 以内の溝の駒の最寄りの点 c が向き o(面の縁へ出る向き)と逆の側(= 面の内の側)に在れば、
+        //   その駒の天端の外の辺の高さ(BatterFloor と同じ測り)を返す。無ければ NaN。
+        Func<Vector2, Vector2, float, float> RimInward = (q, o, rr) =>
+        {
+            if (keepSet == null || keepBatter <= 1e-3f) return float.NaN;
+            float best = float.NaN, bestD = float.MaxValue;
+            foreach (var k in keepHulls)
+            {
+                var hb = idx.bounds[k];
+                if (q.x < hb.x - rr || q.x > hb.z + rr || q.y < hb.y - rr || q.y > hb.w + rr) continue;
+                if (EdoGeom.PIP(idx.hulls[k], q)) return float.NaN;
+                float d; var c = HullNearest(idx.hulls[k], q, out d);
+                if (d > rr || d < 1e-5f || d >= bestD) continue;
+                if (Vector2.Dot(c - q, o) > 0f) continue;   // 溝が縁の側(外)に在る ── 帯でない
+                var inw = (c - q) / d; float rim = float.NaN;
+                foreach (float s2 in new[] { 0.03f, 0.08f })
+                {
+                    int who; var sp = c + inw * s2; float tp = idx.TopRaw(sp.x, sp.y, out who);
+                    if (who == k && !float.IsNaN(tp) && (float.IsNaN(rim) || tp > rim)) rim = tp;
+                }
+                if (float.IsNaN(rim)) continue;
+                best = rim; bestD = d;
+            }
+            return best;
+        };
+
         // ---- 2 穴の升
         var cells = new HashSet<long>();
         Func<int, int, long> CK = (i, j) => ((long)i << 32) ^ (uint)j;
@@ -882,8 +912,16 @@ public static partial class EdoBuild
             //   外の辺の 0.1〜0.2m 先に在り、縁の外の点が設計の地盤(27.16)のまま残って縁で 0.34m の崖が立ち、溝に沿う斜めの縁の線が 0.25m 格子を
             //   横切る列ごとに三角の山が並ぶ鋸になった。当たる先: keepBatter を渡す邸(いまは土井 Stage4b)の、面の縁の内に沿う溝・蓋のすべて。
             if (ditchOpen && s <= bf.y && NearAt(bq, WALLED) != 0 && (bd < 1e-4f || HollowNear(bq + (q - bq) / bd * DITCH_SIDE_R, DITCH_SIDE_R))) return s;
+            //   ⭐ 縁の内に沿う溝の外の帯は溝の天端 − KEEP_RIM_TUCK まで下げてある(面の点の側・第18巡)⇒ 盛土の側の法も、縁の高さでなくその高さから下ろす
+            //   (縁で 27.50 から下ろすと、溝の外の帯の先に畝が残る ── 第17巡 蔵の石段の脇 D2 seg2 の外 0.06〜0.21m に 27.50 の山 9 点)
+            float top = bf.y;
+            if (ditchOpen && s <= bf.y && bd > 1e-4f)
+            {
+                float rim = RimInward(bq, (q - bq) / bd, DITCH_SIDE_R);
+                if (!float.IsNaN(rim)) top = Mathf.Min(top, rim - KEEP_RIM_TUCK);
+            }
             float t = s > bf.y ? Mathf.Min(s, bf.y + bd / Mathf.Max(design.batterCut, 1e-3f))
-                               : Mathf.Max(s, bf.y - bd / Mathf.Max(design.batterFill, 1e-3f));
+                               : Mathf.Max(s, top - bd / Mathf.Max(design.batterFill, 1e-3f));
             if (sloped != null && Mathf.Abs(t - s) > 1e-3f) sloped[0] = true;
             return t;
         };
@@ -1176,6 +1214,20 @@ public static partial class EdoBuild
                         if (near < 2)
                         {
                             foreach (var f in fl) if (EdoGeom.PIP(f.poly, p)) { hgt = f.y; faced = true; break; }
+                            // ⭐ 面の縁の内に沿う溝の、縁の側の帯(溝の外の辺〜面の縁)は、溝の天端 − KEEP_RIM_TUCK より上に残さない(柔らかい ── 見た目の畝を消す・
+                            //   2026-10-06 EDO-0533 第18巡)。⛔ 第17巡まで、蔵の座(27.50)の縁が溝 D2 seg2 の外の辺の 0.06〜0.21m 先に在り、帯が 27.50 のまま
+                            //   溝の天端(27.40〜27.45)より 0.05〜0.1 高く残って、その先の法との間に畝(周りより 0.19〜0.31 高い山 9 点)が立った。
+                            //   当たる先: keepBatter を渡す邸(いまは土井 Stage4b)の、面の縁の内に沿う溝のすべて。
+                            if (faced && ditchOpen && design != null)
+                                foreach (var f in fl)
+                                {
+                                    if (!EdoGeom.PIP(f.poly, p)) continue;
+                                    Vector2 cq; float de = ClosestOnPoly(f.poly, p, out cq);
+                                    if (de < 1e-4f || de > DITCH_SIDE_R) break;
+                                    float rim = RimInward(p, (cq - p) / de, DITCH_SIDE_R);
+                                    if (!float.IsNaN(rim) && hgt > rim - KEEP_RIM_TUCK) { hgt = rim - KEEP_RIM_TUCK; r.rimStrip++; }
+                                    break;
+                                }
                             // ⭐ 設計があれば部材から NEAR 以内の外の点も設計の地盤で描く(2026-09-25・EDO-0430)── 地形のままにすると
                             //   駒の下の節点(天端の側の高さ)が見え面の足元へ山形を立てる。面の縁の延長(設計の無い枝)は従来どおり離れた点だけ。
                             if (!faced && (near == 0 || design != null))

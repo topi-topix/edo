@@ -983,7 +983,11 @@ public static partial class EdoDoiBuilder
                 }
                 if (!float.IsNaN(splitPitch))
                 {
-                    var srep = EdoBuild.SplitMizoAtMasu(grp, pfx + "_" + li, sp, splitPath, splitPitch, float.IsNaN(splitDepthHard) ? sp.depthMax : splitDepthHard, splitTopA, splitSump, splitCorners);
+                    // 桝は先に据わった駒(縁の束・柱・塀・幹)の足に掛けない(硬)── 足は線の周り 2m の駒の実メッシュから拾う
+                    float fx0 = float.MaxValue, fx1 = float.MinValue, fz0 = float.MaxValue, fz1 = float.MinValue;
+                    foreach (var q in pl) { fx0 = Mathf.Min(fx0, q.x); fx1 = Mathf.Max(fx1, q.x); fz0 = Mathf.Min(fz0, q.y); fz1 = Mathf.Max(fz1, q.y); }
+                    var feet = EdoBuild.StandingFeetXZ(grp.parent, sp.groundAt, skip: new HashSet<string> { grp.name }, near: new Vector4(fx0 - 2f, fz0 - 2f, fx1 + 2f, fz1 + 2f));
+                    var srep = EdoBuild.SplitMizoAtMasu(grp, pfx + "_" + li, sp, splitPath, splitPitch, float.IsNaN(splitDepthHard) ? sp.depthMax : splitDepthHard, splitTopA, splitSump, splitCorners, feet: feet);
                     for (int ck = 0; ck < srep.cuts.Count; ck++)
                     {
                         var cut = srep.cuts[ck]; g.prof.Add(cut.pr);

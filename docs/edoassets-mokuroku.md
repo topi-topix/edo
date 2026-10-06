@@ -250,7 +250,7 @@
 | `Own.SannoNozuraKadoCut(h, i, axis, at, arm)` | 関数 | SannoNozuraKadoCut の切った側の腕を arm に詰めた版(EDO-0437 2026-09-27 r16)。 | SannoSha(Nozura) |
 | `Own.SannoNozuraDan(risesToPlusX, i)` | 関数 | 野面の乱積みの段の境の駒(2026-09-25・帯 `SukibeiSoto` 29.65 → `SukibeiSoto_Chu` 29.25 の差 0.40 を 1間で流す) = SannoNozura(1.50, ±… | OkabeYashiki(PlaceCurb・Stage2b_Dan), DoiBuilder.Dan(Stage4a_Dodome), MatsudairaDewa(NozuraLines), SannoSha(Nozura) ほか1 |
 | `Own.SannoNozuraMikiri` | string | `Sanno_Nozura_Mikiri.fbx` — 見切りの大きな野面石(男坂の下で城の石垣と野面の乱積みを継ぐ1点)。 | — |
-| `Own.SannoNozuraMikiriH(h)` | 関数 | 丈を合わせた見切り石(2026-09-26 EDO-0437・男坂の口の両脇 TW_Zentei_W の端 2 か所)。 | SannoSha(Nozura) |
+| `Own.SannoNozuraMikiriH(h)` | 関数 | 丈を合わせた見切り石(2026-09-26 EDO-0437・男坂の口の両脇 TW_Zentei_W の端 2 か所)。 | OkabeYashiki(Stage2b_Dan), SannoSha(Nozura) |
 | `Own.SannoNozuraKiriEnd(deg, atPlusX, faceLonger, h, i)` | 関数 | 片端を斜めの鉛直面で切った野面の乱積みの駒(2026-09-26 EDO-0437・前庭の南の土留め TW_Zentei_SW の東端 / SE の西端を女坂の袖の外面へ当てる)。 | BuildNozura, SannoSha(Nozura) |
 | `Own.SannoNozuraNori` | float | 小口を相手の法で切った野面の短い駒(2026-09-26 EDO-0437 第3巡・前庭の W の南の区間 ── 入隅の可動側の端が 通す側 TW_Zentei_SW の見え面の法の楔に入る所)。 | SannoSha(AbutStairsToWalls) |
 | `Own.SannoNozuraNoriEnd(len, atPlusX, h)` | 関数 | — | BuildNozura, OkabeYashiki(Stage2b_Dan), SannoSha(Nozura) |

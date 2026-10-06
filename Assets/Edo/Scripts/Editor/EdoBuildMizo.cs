@@ -764,7 +764,7 @@ public static partial class EdoBuild
     }
 
     /// <summary>**溝の線を据わった駒の足から逃がす**(雨落ちの線 ── 狙いは軒先の鉛直下・硬は「溝の外形が足に掛からない」・2026-10-06 EDO-0533 第18巡)。
-    /// 線の辺ごとに、辺の範囲の内で辺から <paramref name="need"/>(溝・桝の芯から外の面 + 離れ)より近い足 <paramref name="feet"/> を拾い、足の多い側と
+    /// 線の一直線に続く辺の列ごとに、その範囲の内で列から <paramref name="need"/>(溝・桝の芯から外の面 + 離れ)より近い足 <paramref name="feet"/> を拾い、足の多い側と
     /// 逆の向きへ、最も近い足が need 離れるまで辺を平行に寄せる(寄せ ≤ <paramref name="maxPush"/>)。隣の辺の寄せた線の交点で継ぎ直す(平行で寄せが違えば段を入れる)。
     /// 寄せた側にも足が残る・maxPush を超える辺は寄せず <paramref name="stuck"/> に数える。⛔ 第18巡まで、土井 D2 seg1 の軒先の鉛直下が縁の束(EnTsuka・NureenCorner)の
     /// 列に重なり、束石が溝の側石の上に載り、桝を束から外すと置き場が無くなった(線3 が建たない)。
@@ -774,10 +774,19 @@ public static partial class EdoBuild
         pushedMax = 0f; pushedSegs = 0; stuck = 0;
         if (line == null || line.Count < 2 || feet == null || feet.Count == 0) return line;
         int n = line.Count - 1; var off = new float[n]; var nrm = new Vector2[n];
+        // ⭐ 一直線に続く辺(向きの差 < 1°)は一続きとして同じだけ寄せる(2026-10-06 第19巡: 辺ごとに寄せて、溝が束の列に沿ってぎざぎざに折れた)
+        var run = new int[n]; int nr = 0;
         for (int i = 0; i < n; i++)
         {
-            Vector2 a = line[i], b = line[i + 1]; float len = Vector2.Distance(a, b); if (len < 1e-4f) continue;
-            var d = (b - a) / len; var nv = new Vector2(-d.y, d.x); nrm[i] = nv;
+            var d = line[i + 1] - line[i]; nrm[i] = d.sqrMagnitude > 1e-8f ? new Vector2(-d.y, d.x).normalized : Vector2.zero;
+            if (i > 0) { var dp = line[i] - line[i - 1]; if (dp.sqrMagnitude > 1e-8f && d.sqrMagnitude > 1e-8f && Vector2.Angle(dp, d) < 1f) { run[i] = run[i - 1]; continue; } }
+            run[i] = nr++;
+        }
+        for (int rI = 0; rI < nr; rI++)
+        {
+            int s0 = -1, s1 = -1; for (int i = 0; i < n; i++) if (run[i] == rI) { if (s0 < 0) s0 = i; s1 = i; }
+            Vector2 a = line[s0], b = line[s1 + 1]; float len = Vector2.Distance(a, b); if (len < 1e-4f) continue;
+            var d = (b - a) / len; var nv = new Vector2(-d.y, d.x);
             float sum = 0f; var hits = new List<float>();
             foreach (var f in feet)
             {
@@ -796,7 +805,8 @@ public static partial class EdoBuild
                     float lat = Vector2.Dot(f - a, nv) - sg * o; if (Mathf.Abs(lat) < need - 1e-4f) { bad = true; break; }
                 }
             if (bad) { stuck++; continue; }
-            off[i] = sg * o; pushedSegs++; pushedMax = Mathf.Max(pushedMax, o);
+            for (int i = s0; i <= s1; i++) { off[i] = sg * o; nrm[i] = nv; }
+            pushedSegs++; pushedMax = Mathf.Max(pushedMax, o);
         }
         if (pushedSegs == 0) return line;
         var res = new List<Vector2> { line[0] + nrm[0] * off[0] };

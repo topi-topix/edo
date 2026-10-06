@@ -19,6 +19,7 @@
     blender --background --python Tools/Blender/build_sanno_nozura.py -- grade --render [--h=0.9]   # 勾配の駒の並べ焼き
     blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=0.275,-0.275 --h=0.6,0.9,1.2,1.5,1.8,2.1,2.4  # 岡部 外周の土留めの端を下げ打つ勾配の駒 ±0.275(EDO-0502・2026-10-06)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- grade --grade=0.275 --render [--h=1.2]   # 同・並べ焼き
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=0.45,-0.45 --h=0.6,0.9,1.2,1.5,1.8,2.1,2.4  # 岡部 袖石垣の天端を背の法なりに下げる勾配の駒 ±0.45(EDO-0502・2026-10-07・TW_Kado_Sode.sodeSlope)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- crest [--dir=…] [--json=…]  # 全駒の背の天端の下がり(≤ 0.03)・頭の出(≤ 0)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- holes [--dir=…] [--json=…]  # 全駒を真上から見て天端に穴(裏・下の見える所)が 0 か
     blender --background --python Tools/Blender/build_sanno_nozura.py -- back --render         # 背の側(土の側)から撮る
@@ -41,7 +42,11 @@
 【勾配】駒を鉛直に剪断して天端を勾配に載せる(石段の袖と同じ・段に折らない)。G = 天端が Unity +X へ
   1m あたり上がる量(‰)。焼いてあるのは G0・根石の打ち切り(H0150 の G±180)・段の境(H1500 の G±220)・
   前庭の天端を流す G±120(H1800 を除く 8 段・2026-09-26 EDO-0437)・岡部の外周の端を下げ打つ G±275(H0600〜H2400 の 7 段・
-  2026-10-06 EDO-0502)。他の勾配は `--grade=` で足す。
+  2026-10-06 EDO-0502)・岡部の袖石垣の天端を背の法なりに下げる G±450(同 7 段・2026-10-07 EDO-0502)。他の勾配は `--grade=` で足す。
+  ⭐ 剪断のまま ±0.45(24°)まで焼いた: 竪目地は鉛直のまま・横目地が勾配に沿うだけで、継ぎ目の切り口は天端から測って G0 と
+  同じ形(傾けた積みにすると竪目地も法も傾き、G0 の駒と継げない)。並べ焼き sanno_nozura_g450_*.png で石の崩れは見えない。
+  ⭐ 継ぎ目の切り口は**石ごとに**切って塞ぐ(`cut_each_ends`・2026-10-07)── 旧駒(G0〜G±275)は join の後に一度に切り、
+  食い込んだ石どうしの輪が交わって小口の塞ぎが内向き・欠けになり、端に出た所(袖の低い端)で黒い穴に見えた。
 【軸(Unity)】幅 = X / 高さ = Y / 厚み = Z、**見え面 = +Z**。面は 3分(0.3)の法 — **天端の線から測る**
   (段の違う駒どうしで面が食い違わないように)。
 【ピボット】1間の中心(X=0)・**床レベル = 中心での天端 − 見付**(Y=0)・Z=0 は**天端の線での面**。
@@ -1069,9 +1074,18 @@ def bisect_keep(o, co, no):
     bpy.ops.mesh.bisect(plane_co=co, plane_no=no, use_fill=True, clear_outer=True)
     bpy.ops.object.mode_set(mode='OBJECT')
     me = o.data
-    uvl = me.uv_layers.active.data
     n = Vector(no).normalized()
     c = Vector(co)
+    # ⭐ 塞いだ口は外(+no)へ向ける(2026-10-07 EDO-0502): use_fill の小口は石によって内向きに張られ、Unity の裏面カリングで
+    # 消えて石の中が覗いた(施主「段差の部分が石が切り取られたよう」・袖の低い端の小口の黒い穴)。G0〜G±275 の旧駒は
+    # 片端 0.04〜0.13 m² が内向きのまま。
+    bm = bmesh.new(); bm.from_mesh(me)
+    flip = [f for f in bm.faces if abs((f.calc_center_median() - c).dot(n)) < 1e-4 and f.normal.dot(n) < -0.99]
+    if flip:
+        bmesh.ops.reverse_faces(bm, faces=flip)
+        bm.to_mesh(me); me.update()
+    bm.free()
+    uvl = me.uv_layers.active.data
     ax = max(range(3), key=lambda k: abs(n[k]))
     a_, b_ = [k for k in range(3) if k != ax]
     for p in me.polygons:
@@ -1150,11 +1164,35 @@ def make_wall(h, g, v):
     objs.append(backing("back", h, g, mats[1]))
     objs.append(backing("back2", h, g, mats[1], *BACK2))
     name = wall_name(h, g, v)
+    objs = cut_each_ends(objs)
     o = V.join(objs, name)
-    bisect_keep(o, (-L / 2, 0, 0), (-1, 0, 0))        # Unity X ≤ +L/2 ⇔ Blender X ≥ −L/2
-    bisect_keep(o, (L / 2, 0, 0), (1, 0, 0))
     V.set_origin(o, (0, 0, 0))
     return o, name, len(cells)
+
+
+def cut_each_ends(objs, ends=((-L / 2, -1), (L / 2, 1))):
+    """継ぎ目の切り口(Blender X = ±L/2)で**石ごとに**切って塞ぐ(2026-10-07 EDO-0502)。
+    ⛔ join の後に一度に bisect(use_fill)すると、食い込ませた石どうし(表の石・裏石・間詰め)の切り口の輪が交わり、
+    塞ぎが石を跨いで張られたり内向きになったりして、端に出た小口(袖の低い端など)に黒い穴が開いた
+    (施主「段差の部分が石が切り取られたよう」)。石は一つずつなら閉じた塊 ⇒ 輪が一つずつ塞がる。板は切るだけ。"""
+    keep = []
+    for o in objs:
+        for x, sgn in ends:
+            if not o.data.polygons:
+                break
+            bm_cut_keep(o, (x, 0, 0), (sgn, 0, 0), chip=0.0)
+        if o.data.polygons:
+            # 塞いだ面の輪に一直線に並ぶ点が残ると、書き出しの三角分割で面積 0 の三角が出る ⇒ 切り口の面だけ三角に割り、潰れた辺を畳む
+            bm = bmesh.new(); bm.from_mesh(o.data)
+            capf = [f for f in bm.faces if any(abs(abs(f.normal.x) - 1) < 1e-3 and abs(f.calc_center_median().x - x) < 1e-4 for x, _ in ends)]
+            if capf:
+                bmesh.ops.triangulate(bm, faces=capf, quad_method='BEAUTY', ngon_method='BEAUTY')
+            bmesh.ops.dissolve_degenerate(bm, dist=1e-4, edges=bm.edges[:])
+            bm.to_mesh(o.data); bm.free(); o.data.update()
+            keep.append(o)
+        else:
+            bpy.data.objects.remove(o, do_unlink=True)
+    return keep
 
 
 # ------------------------------------------------------------------ 出隅 90° の隅の駒

@@ -1507,7 +1507,7 @@ public static class EdoAssets
         /// 裏石は 0.006〜0.018 下で点ごとに不揃い(背の土 = 天端 −0.02 を被せても上面が顔を出す)。
         /// 裏 0.12 と天端の目地の奥 0.30 に目地を塞ぐ板・裏石の目地の底(天端の 0.20 下)に板。芝の肩は地形側で被せる前提。
         /// **接する面**: 天端の線(隣と揃える)・床(地盤に沈める)・継ぎ目の切り口 X = ±0.909(隣の駒の切り口と一致)。
-        /// ⛔ ピボットで並べない — 隣の切り口と天端の線を測って寄せる。焼けている勾配は 0・前庭の天端を流す ±0.12(H1.80 を除く 8 段・2026-09-26)・打ち切りの ±0.18(H0.15)・段の境の ±0.22(H1.50)。⭐ <paramref name="grade"/> は**その見付で焼いてある勾配のうち最も近いもの**へ寄せて引く(<see cref="SannoNozuraNearestGrade"/>)⇒ 呼ぶ側は駒の +X へ測った天端の勾配をそのまま渡す(他の勾配は下の命令に --grade=)。
+        /// ⛔ ピボットで並べない — 隣の切り口と天端の線を測って寄せる。焼けている勾配は 0・前庭の天端を流す ±0.12(H1.80 を除く 8 段・2026-09-26)・打ち切りの ±0.18(H0.15)・段の境の ±0.22(H1.50)・岡部の外周の端を下げ打つ ±0.275(H0.60〜H2.40 の 7 段・2026-10-06 EDO-0502)。⭐ <paramref name="grade"/> は**その見付で焼いてある勾配のうち最も近いもの**へ寄せて引く(<see cref="SannoNozuraNearestGrade"/>)⇒ 呼ぶ側は駒の +X へ測った天端の勾配をそのまま渡す(他の勾配は下の命令に --grade=)。
         /// 実寸(G0): W 1.818 × H 見付+0.22(根入れ 0.22・天端の線より上は無い)× D 1.21(H0.15)〜1.88(H2.4)(天端の奥行 = 面から裏石の奥の端まで 0.73〜1.05・石ごとに出入り)。三角形 5,900(H0.15)〜14,200(H2.4)。
         /// 背の天端の検査: blender --background --python Tools/Blender/build_sanno_nozura.py -- crest(全駒で背の下がり ≤ 0.03)
         /// 天端の穴の検査: blender --background --python Tools/Blender/build_sanno_nozura.py -- holes(真上から光線で裏・下の覗く穴 0。2026-09-26 内向きに焼けた天端の石 77 を直した)
@@ -1526,9 +1526,9 @@ public static class EdoAssets
 
         /// <summary><see cref="SannoNozura"/> の勾配を**その見付・その個体で焼いてある勾配のうち最も近いもの**へ寄せる [‰]
         /// (2026-09-26 EDO-0437)。焼けている勾配: 全段 0 / H1800 を除く 8 段 ±120(前庭の天端を流す)/ H0150 ±180(打ち切り)/
-        /// H1500 ±220(段の境)。刻み 0.12 ⇒ 天端の勾配 0〜0.18 のどこでも 1間(伸縮 1.2 まで)の端の天端の差 ≤ 0.065
+        /// H1500 ±220(段の境)/ H0600〜H2400 ±275(岡部 外周の端の下げ打ち・EDO-0502)。刻み 0.12 ⇒ 天端の勾配 0〜0.18 のどこでも 1間(伸縮 1.2 まで)の端の天端の差 ≤ 0.065
         /// (裁定の頭の不揃い ±0.08 の内)。同じ見付の駒が一つも無ければ求めた勾配のまま返す(呼ぶ側が「焼いていない」と刷る)。
-        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=set</summary>
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=set(±275: -- wall --grade=0.275,-0.275 --h=0.6,0.9,1.2,1.5,1.8,2.1,2.4)</summary>
         static int SannoNozuraNearestGrade(int hmm, int gm, string v)
         {
             if (!System.IO.Directory.Exists(SannoNozuraDir)) return gm;
@@ -1629,12 +1629,12 @@ public static class EdoAssets
         public const string SannoNozuraMikiri = "Assets/Edo/Models/Sanno/Sanno_Nozura_Mikiri.fbx";
 
         /// <summary>**丈を合わせた見切り石**(2026-09-26 EDO-0437・男坂の口の両脇 TW_Zentei_W の端 2 か所)。見付 <paramref name="h"/> 以上で
-        /// **焼いてある段のうち最も低いもの**を返す(焼いてある段: 1.20 / 1.50 / 1.80 / 2.10。どれも足りなければ ceil(h/0.3)·0.3 の名を返す ⇒ 呼ぶ側が「焼いていない」と刷る)。
+        /// **焼いてある段のうち最も低いもの**を返す(焼いてある段: 1.20 / 1.50 / 1.80 / 2.10 / 2.40(2.40 は 2026-10-06 EDO-0502 岡部 外周の塞がる端)。どれも足りなければ ceil(h/0.3)·0.3 の名を返す ⇒ 呼ぶ側が「焼いていない」と刷る)。
         /// 大きな野面石 2 石(H ≤ 1.50)/ 3 石を不揃いの横目地で積んだ柱。面 0.83〜0.84 × 控え 0.89。**最高 = 天端の線(床 + 段)で、背の上面が天端に揃う**
         /// (頭の前は天端から下へ 0〜0.1 の円弧)。軸・ピボットは <see cref="SannoNozura"/> と同じ(中心・床レベル = 天端 − 段・Z=0 は天端の線での面・見え面 +Z・3分の法・根入れ 0.20)。
         /// ⭐ 据えは**床ではなく天端で**: 最高を土留めの天端へ合わせ、段が見付より高い分は下へ沈める(駒と同じ「見付 2.3 は 2.40 を沈める」)。
         /// 実寸: X ±0.42 × Y −0.20〜段 × Z −0.89〜+0.3·(段+0.2)。三角形 530〜900。材 `Kirishi` / `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
-        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- mikiri_h [--h=1.5,1.8] --render</summary>
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- mikiri_h [--h=1.5,1.8,2.4] --render</summary>
         public static string SannoNozuraMikiriH(float h)
         {
             int want = (int)System.Math.Ceiling(h * 1000.0 - 0.5);

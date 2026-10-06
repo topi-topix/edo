@@ -2464,10 +2464,43 @@ public static class EdoOkabeYashikiBuilder
                 }
                 else if (ne != null) sb.AppendLine("  返しの石垣: ⚠ 引けず ── 建てない(土留め " + (twName ?? "-") + "・区間 " + (seg0 != null) + "・台の run " + (run0 ?? "-") + "・基壇 " + (igN != null) + "・座 " + (seatT != null) + ")");
             }
+            // 端の納め(指図 nozuraEndRule・EDO-0502 第30巡)── 塞ぐ物を読んで渡すだけ(延ばす・見切り石の型は EdoBuild.NozuraEndRule)。
+            //   塞ぐ物: 区画線・長屋の背から一間(指図 TW_Minami_Koshi.ends)・据わった城の石垣と建物の実メッシュ(0.3m)
+            var endRule = new EdoBuild.NozuraEndRule { mikiri = EdoAssets.Own.SannoNozuraMikiriH };
+            {
+                var cells = new Dictionary<long, List<KeyValuePair<Vector2, float>>>();
+                System.Action<GameObject, float> addObs = (go, r) =>
+                {
+                    foreach (var v in EdoBuild.Body(go.transform, 600))
+                    { long key = ((long)Mathf.FloorToInt(v.x) << 32) ^ (uint)Mathf.FloorToInt(v.z); List<KeyValuePair<Vector2, float>> l;
+                      if (!cells.TryGetValue(key, out l)) cells[key] = l = new List<KeyValuePair<Vector2, float>>(); l.Add(new KeyValuePair<Vector2, float>(new Vector2(v.x, v.z), r)); }
+                };
+                var rootE = GameObject.Find(GN);
+                var kk = rootE == null ? null : rootE.transform.Find("Kakoi");
+                if (kk != null) foreach (Transform c in kk) if (c.gameObject.activeInHierarchy) addObs(c.gameObject, c.name.StartsWith("N") ? C("ken") : 0.3f);
+                foreach (var gname in new[] { "Buildings", "Service_v3", "KachuNagaya_v3" })
+                { var gt = rootE == null ? null : rootE.transform.Find(gname); if (gt != null) foreach (Transform c in gt) if (c.gameObject.activeInHierarchy) addObs(c.gameObject, 1.0f); }
+                foreach (var g in castle) if (g != null) addObs(g, 0.3f);
+                var polyE = Poly;
+                endRule.blocked = q =>
+                {
+                    if (!EdoGeom.PIP(polyE, q)) return "区画線";
+                    int cx = Mathf.FloorToInt(q.x), cz = Mathf.FloorToInt(q.y);
+                    for (int dx = -2; dx <= 2; dx++) for (int dz = -2; dz <= 2; dz++)
+                    {
+                        List<KeyValuePair<Vector2, float>> l; if (!cells.TryGetValue(((long)(cx + dx) << 32) ^ (uint)(cz + dz), out l)) continue;
+                        foreach (var pv in l) if ((pv.Key - q).sqrMagnitude < pv.Value * pv.Value) return pv.Value >= C("ken") - 1e-3f ? "長屋の背から一間" : "据わった駒・建物";
+                    }
+                    return null;
+                };
+            }
             var got = EdoBuild.PlaceNozuraNet(nozSegs, SkinGround, SkinGround, 1.2f, grp,
                 (h, g, i) => EdoAssets.Own.SannoNozura(h, g, i), (h, i) => EdoAssets.Own.SannoNozuraKado(h, i),
                 (up, i) => EdoAssets.Own.SannoNozuraDan(up, i), (up, i) => EdoAssets.Own.SannoNozuraKiri(up, i),
-                null, heights, poolN, log, null, EdoAssets.Own.SannoNozuraNoriEnd);   // 入隅の可動側の端は小口を相手の法で切った駒(型は EdoBuild・EDO-0502 第16巡)
+                EdoAssets.Own.SannoNozuraMikiriH, heights, poolN, log, null, EdoAssets.Own.SannoNozuraNoriEnd,   // 入隅の可動側の端は小口を相手の法で切った駒(型は EdoBuild・EDO-0502 第16巡)
+                null, endRule);
+            sb.AppendLine("  野面の端の納め(nozuraEndRule): " + endRule.record.Count + " 端");
+            foreach (var r0 in endRule.record) sb.AppendLine("    " + r0);
             var per = new Dictionary<string, int>();
             foreach (var kv in got) { string k = kv.Key.name; foreach (var w in wallOf.Keys) if (k.StartsWith(w + "_")) { int c0; per.TryGetValue(w, out c0); per[w] = c0 + 1; } }
             foreach (var kv in per) sb.AppendLine("  " + kv.Key + "(" + S(Get(wallOf[kv.Key], "kind")) + "・" + S(Get(wallOf[kv.Key], "mode")) + "): 野面の乱積み " + kv.Value + " 駒");

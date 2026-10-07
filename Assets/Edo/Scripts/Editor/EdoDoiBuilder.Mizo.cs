@@ -424,6 +424,24 @@ public static partial class EdoDoiBuilder
             bool rev = hasT ? distTo(tls, p0) < distTo(tls, p1) : GroundY(p0.x, p0.y) < GroundY(p1.x, p1.y);
             var cp = new List<Vector2>(pl); if (rev) cp.Reverse(); outL.Add(cp); return outL;
         };
+        // 欄 flow「辺N の側へ」は設計の向きそのもの ── 開いた線の尻は辺N に近い端(受ける側の線より先に効かせる・第37巡 D2 seg3 が逆に解かれた)
+        //   線が辺N に沿っていて両端の遠さの差が 1m 未満なら向きを言っていないので、受ける側の線で決める
+        Func<List<Vector2>, MzSeg, bool, List<List<Vector2>>> orientG = (pl, g, split2) =>
+        {
+            var mf = Regex.Match(g.flow ?? "", @"辺(\d+)\s*の側");
+            bool closedL = pl.Count > 3 && (pl[0] - pl[pl.Count - 1]).sqrMagnitude < 1e-6f;
+            if (mf.Success && !split2 && !closedL)
+            {
+                int ei = int.Parse(mf.Groups[1].Value); var P = Poly;
+                if (edgeChk(ei) == null)
+                {
+                    var el = new List<List<Vector2>> { new List<Vector2> { P[ei], P[(ei + 1) % P.Length] } };
+                    float d0 = distTo(el, pl[0]), d1 = distTo(el, pl[pl.Count - 1]);
+                    if (Mathf.Abs(d0 - d1) >= 1f) { var cp = new List<Vector2>(pl); if (d0 < d1) cp.Reverse(); return new List<List<Vector2>> { cp }; }
+                }
+            }
+            return orient(pl, targetLines(g), split2);
+        };
 
         // ---- 線の言い方を解く(⛔ 座標を発明しない)
         // 区間の線を遅れて引く(N3・N6・N7・N9 は他の区間の線を相手に取る)── 循環は null(呼び手が Wait に名乗る)
@@ -439,7 +457,7 @@ public static partial class EdoDoiBuilder
         Func<MzSeg, bool, List<Vector2>> segEnd = (h, tail) =>
         {
             var rl = lineOf(h); if (rl == null || rl.Count == 0) return null;
-            var ol = h.fixedDir ? rl[0] : orient(rl[0], targetLines(h), false)[0];
+            var ol = h.fixedDir ? rl[0] : orientG(rl[0], h, false)[0];
             return new List<Vector2> { tail ? ol[ol.Count - 1] : ol[0] };
         };
         // N9 の端: 区間の尻・頭/区間の線(垂線の足)/井戸の駒の外形/塀・長屋の内面
@@ -928,7 +946,7 @@ public static partial class EdoDoiBuilder
                 }
             }
             g.lines = new List<List<Vector2>>();
-            foreach (var pl in raw) { if (g.fixedDir) g.lines.Add(new List<Vector2>(pl)); else g.lines.AddRange(orient(pl, tls, g.flow.Contains("二手"))); }
+            foreach (var pl in raw) { if (g.fixedDir) g.lines.Add(new List<Vector2>(pl)); else g.lines.AddRange(orientG(pl, g, g.flow.Contains("二手"))); }
             // 段・勾配・頭と尻の高さ(欄)
             float slopeMin = Has(s, "slopeMin") ? F(s["slopeMin"]) : (Has(s, "slope") && !(s["slope"] is string) ? F(s["slope"]) : 0f);
             float stepPitch = Has(s, "stepPitchKen") ? F(s["stepPitchKen"]) * ken : 0f, stepRise = Has(s, "stepRiseMax") ? F(s["stepRiseMax"]) : 0f;

@@ -9,7 +9,7 @@ using UnityEngine;
 //     EdoBuild.SlopeSteps へ渡して、据わった駒の実メッシュで測った値を刷るだけ。
 //  硬い(許容0 = ✗): 見付 ≤ 欄の hard(1.50)・天端 = 欄の coping・端の突き付けの隙・底の浮き・区域侵犯・石段の段数。
 //  柔らかい(狙い = ⚠): 天端の背の地表の窪み(2m 格子の造成が段の縁を均す ── 皮の巡)・段石の天端と造成後の地盤の差。
-//  建てない: 北の境の長屋の下の城の石垣(EDO-0535 待ち)・坂(土の坂 ── 地形が graded で持つ)。
+//  建てない: 欄 builtAs を持つ石垣(北の境の長屋の下 ── S3 の背の基壇が建てる)・坂(土の坂 ── 地形が graded で持つ)。
 // ══════════════════════════════════════════════════════════════════════
 public static partial class EdoDoiBuilder
 {
@@ -67,8 +67,9 @@ public static partial class EdoDoiBuilder
         {
             var tw = O(o); string nm = S(tw["name"]);
             string part = Has(tw, "part") ? S(tw["part"]) : null;
+            if (Has(tw, "builtAs")) { sb.AppendLine("  " + nm + ": ここでは建てない ── " + S(tw["builtAs"])); continue; }
             if (part == null || !part.Contains("SannoNozura") || !Has(tw, "a") || !Has(tw, "b") || !Has(tw, "coping"))
-            { sb.AppendLine("  " + nm + ": 建てない(" + (S(tw["masonry"]) ?? "") + " ── 野面の欄でない・線か天端が無い。北の境の長屋の下は EDO-0535 待ち)"); continue; }
+            { sb.AppendLine("  " + nm + ": 建てない(" + (S(tw["masonry"]) ?? "") + " ── 野面の欄でない・線か天端が無い)"); continue; }
             var av = A(tw["a"]); var bv = A(tw["b"]);
             Vector2 a = Grid.W(F(av[0]), F(av[1])), b = Grid.W(F(bv[0]), F(bv[1]));
             float cop = F(tw["coping"]);

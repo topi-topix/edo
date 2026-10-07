@@ -1,11 +1,11 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 d6bf72391eac -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 9ada5206cfcb -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
 
-- 公開関数 519 本(注釈なし 32)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
+- 公開関数 521 本(注釈なし 32)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
 - 同じ道具が刷る目録: 邸ビルダーのメニュー → Stage と中の関数 `docs/builder-mokuroku.md` / 部材の名 `docs/edoassets-mokuroku.md`。
 - 札: **硬** = 注釈に「硬い/許容0」・**柔** = 「柔らかい/狙い」がある(判定ではなく注釈の語)。相手の札(地面・駒どうし・天端・床・断面・面・隅・区域)も注釈の語を拾っただけ。
 - 呼んでいる所 = 定義のファイルの外で `EdoBuild.<名>(` と書いている C# ファイル(`Edo` と `Builder/Rebuild` を落とした名)と、その中の呼んでいる関数(Stage)。同じ名の多重定義はまとめて数える。`EdoBuild` の中どうしの呼び出しは載せない。
@@ -32,7 +32,7 @@
 | [EdoBuildKatte.cs](#edobuildkattecs) | 勝手まわり(菜園の畝・自然の斜面に据える踏み段)の置き方 — EdoBuild の partial(2026-10-03・EDO-0532 施主裁定A) | — | 8 |
 | [EdoBuildMachiya.cs](#edobuildmachiyacs) | 町屋の表店の run — EdoBuild の一部(規則21「置く・測る・突き付ける・据えるは EdoBuild の関数だけ」)。 | — | 12 |
 | [EdoBuildMichi.cs](#edobuildmichics) | EdoBuild — 道の造成(縦断を設計して道の面を均す)。2026-09-30・EDO-0495(施主裁定②「小道を造成する」)。 | 指図の道の欄に `zosei` を持つ道(今は山王の麓の道 南西区間 = 十坊の小道だけ)。 | 4 |
-| [EdoBuildMizo.cs](#edobuildmizocs) | 排水(雨落ち・溝・桝・蓋石・水切り・水抜き)の置き方 ── 線を建った物から引き、底の高さを式で解き、1m の駒を並べる。 | 】土井 S9 排水(EdoDoiBuilder.Mizo.cs)。 | 70 |
+| [EdoBuildMizo.cs](#edobuildmizocs) | 排水(雨落ち・溝・桝・蓋石・水切り・水抜き)の置き方 ── 線を建った物から引き、底の高さを式で解き、1m の駒を並べる。 | 】土井 S9 排水(EdoDoiBuilder.Mizo.cs)。 | 72 |
 | [EdoBuildMuki.cs](#edobuildmukics) | 向き(正面)の解き — EdoBuild の partial (2026-09-22・EDO-0261 ③) | — | 7 |
 | [EdoBuildNiwa.cs](#edobuildniwacs) | 庭の置き方 — 類型の庭(Stage 5・EDO-0323)が使う「置く・測る・据える」だけ。 | — | 58 |
 | [EdoBuildNozura.cs](#edobuildnozuracs) | 野面の乱積みの土留めを一本の折れ線へ据える — EdoBuild の partial(2026-09-25・EDO-0430) | — | 15 |
@@ -231,7 +231,7 @@ EdoBuild — 段の土留め(石垣・野面)を天端の折れ線へ据える(2
 | `EdoBuild.SkinGapTable(parts, faces, faceTol)` | `string` | 地面・駒どうし | 皮と部材の隙を三つに分けて刷る(2026-09-25 普請奉行の決め・EDO-0430): A 面の高さで塞がる(外が面の中・部材の底 ≤ 面 + 許容)/ B 駒が浮く(外が面の中・底 &gt; 面 + 許容 ── 駒… | SannoSha(HifuGapTable・Stage9_Hifu), DoiBuilder.Hifu(Stage4b_Hifu), OkabeYashiki(Stage3b_Hifu) |
 | `EdoBuild.ClearEdgeSkins(parent)` | `int` |  | ⚠ 注釈なし | OkabeYashiki(Stage1_Grade・Stage3b_Hifu), SannoSha(Stage9_Hifu・UnSkin), Doi(Stage1_Grade), DoiBuilder.Hifu(Stage4b_Hifu) |
 | `DrawnGround`(class) | — | | 描かれた地表を引く掴み。穴の升では皮の高さ(皮が無ければ NaN = 何も描かれていない)、 それ以外は地形(SampleHeight)。 | |
-| `EdoBuild.Drawn()` | `DrawnGround` | 地面 | 描かれた地表の掴みを作る(DrawnGround)。 | SannoSha(AbutStairsToWalls・HifuMeasure・RetractRunEndsFromWalls…), OkabeYashiki(PlantFromImpl・SeatMonOnSkin・StackCurbOnSkin…), DoiBuilder.Shokusai(Stage8_Shokusai・Stage8b_RootReseat), GotenKit(AshimotoReach・RokaFeetToGround), DoiBuilder.Mune(Stage5b_RokaAshi) ほか3 |
+| `EdoBuild.Drawn()` | `DrawnGround` | 地面 | 描かれた地表の掴みを作る(DrawnGround)。 | OkabeYashiki(PlantFromImpl・SeatMonOnSkin・StackCurbOnSkin…), SannoSha(AbutStairsToWalls・HifuMeasure・RetractRunEndsFromWalls…), DoiBuilder.Shokusai(Stage8_Shokusai・Stage8b_RootReseat), GotenKit(AshimotoReach・RokaFeetToGround), DoiBuilder.Mune(Stage5b_RokaAshi) ほか3 |
 | `EdoBuild.DrawnExpected()` | `DrawnGround` | 地面 | 皮を外している間も、外す前の皮を描かれた地表として読む掴み(2026-09-26・EDO-0437 第11巡)。 | SannoSha(AbutStairsToWalls) |
 | `PartTops`(class) | — | | 部材の上を向いた面の最も高い所を引く掴み(駒が他の駒の下に入っているかを見る)。 | |
 | `AtariBed`(class) | — | | 当たりの床 = 下端が接すると決めた相手の面だけを返す床。 | |
@@ -531,6 +531,8 @@ EdoBuild — 道の造成(縦断を設計して道の面を均す)。2026-09-30�
 | `Band`(class) | — | | 帯(土の坂)の測り。center = 芯の折れ線(世界)・hi/lo = 地盤の高い側・低い側の縁・poly = 帯の多角形・headAtEnd = 芯の終わりの端が頭(地盤の高い端)。 | |
 | `EdoBuild.BandOf(center, halfW, groundAt)` | `Band` |  | 帯(坂): 芯と半幅から両縁と多角形を引き、地盤の高い側(縁の外 1.5m の地盤を全長で平均)と頭(芯の地盤の高い端)を測る。 | DoiBuilder.Mizo(Stage9_Mizo) |
 | `EdoBuild.BandHighEdgeToPieces(b, pieces, why)` | `List<Vector2>` | 駒どうし | N5 坂の帯の高い側の縁 ── 頭から相手の駒の端まで: 帯の高い側の縁を、頭(地盤の高い端)から、相手の駒(実メッシュ)を縁へ写した区間の 頭に近い端まで切る(相手は縁から 6m 内の頂点だけを数える)。 | DoiBuilder.Mizo(Stage9_Mizo) |
+| `EdoBuild.BandHeadCross(b, offOther, toLines, maxReach, why)` | `List<Vector2>` |  | N10 坂の頭の横断: 帯の芯の頭の端(Band.headAtEnd)で帯に直交に横切る線。 | DoiBuilder.Mizo(Stage9_Mizo) |
+| `EdoBuild.CutChainAtLine(chain, cut, reach, why)` | `List<Vector2>` |  | 折れ線 chain を、相手の線 cut(両端を reach だけ延ばした直線の区間)との最初の交点で割り、長い方を返す (交点が割った線の端になる)。 | DoiBuilder.Mizo(Stage9_Mizo) |
 | `EdoBuild.BandFootCross(b, groundAt, faceY, tol, hiTo, maxReach, why)` | `List<Vector2>` |  | N6 坂の足の横断: 芯を足(低い端)から辿り、芯の地盤が面の高さ faceY(± tol)に載った後に離れる点で、帯に直交に横切る線(低い側の縁 → 高い側)。 | DoiBuilder.Mizo(Stage9_Mizo) |
 | `EdoBuild.GateDoorJambBansho(gate, leafW, jamb, outward, why)` | `bool` | 断面 | N7 長屋門の扉口の番所側の脇柱: 札の通り口(passage・潜戸まで一つの札なら潜戸の反対の端から扉の幅 leafW)の、潜戸の側(= 片番所の側)の端の世界の点と、 そこから外(番所の側)へ向く単位ベクトル。 | DoiBuilder.Mizo(Stage9_Mizo) |
 | `EdoBuild.GateBackLine(gate, inward, off, from, to, maxExt, extUsed, why)` | `List<Vector2>` |  | N7 門の躯体の背の面からの溝の線: 門の駒の実メッシュの背の面(足元から [0.1, 1.2] の帯で内の側へ最も出た所・FaceStraight)を off だけ内へずらし、from・to を線へ写した間を返す(fr… | DoiBuilder.Mizo(Stage9_Mizo) |
@@ -1057,7 +1059,7 @@ EdoBuild — 造成(平場を採る)。2026-09-27・EDO-0477 P1(山王 Stage1_Gr
 | `EdoParcels.IsDirty` | `bool` |  | ⚠ 注釈なし | — |
 | `EdoParcels.Save()` | `void` |  | ⚠ 注釈なし | ParcelTool(AutoSave・DrawHud・FinishDrawing…), ParcelWindow(FrameOn・Refresh) |
 | `EdoParcels.Find(id)` | `Parcel` |  | ⚠ 注釈なし | ParcelTool(PopUndo), Typology(Edges) |
-| `EdoParcels.Get(id)` | `Vector2[]` | 区域 | 区画のポリゴンを引く。無ければ 例外を投げずに null を返し、警告を出す (LoadAssetAtPath と同じ作法。 | SannoSha(InUngradedParcel・Stage1_Grade・Stage7_Shaso…), Typology(BuildParcel・Edges・MichiInsideBy…), Doi(In・KomonIshigakiQA), OkabeYashiki(C), SurfacePaint(Paint・Verify) ほか6 |
+| `EdoParcels.Get(id)` | `Vector2[]` | 区域 | 区画のポリゴンを引く。無ければ 例外を投げずに null を返し、警告を出す (LoadAssetAtPath と同じ作法。 | SannoSha(InUngradedParcel・Stage1_Grade・Stage7_Shaso…), Typology(BuildParcel・Edges・MichiInsideBy…), Doi(JoinsSay・KomonIshigakiQA), OkabeYashiki(C), SurfacePaint(Paint・Verify) ほか6 |
 | `EdoParcels.GetByPrefix(prefix)` | `List<Vector2[]>` | 区域 | json に無ければ fallback を返す。 | SannoSha(Stage6_Splat_Retired・Stage7_Keidairin) |
 | `EdoParcels.GetOr(id, fallback)` | `Vector2[]` |  | ⚠ 注釈なし | — |
 | `EdoParcels.Add(id, label, category, color, pts)` | `Parcel` |  | ⚠ 注釈なし | ParcelTool(FinishDrawing), ParcelWindow(FrameOn) |

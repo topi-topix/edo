@@ -194,12 +194,14 @@ public static partial class EdoBuild
                                          lowHint = (p, q) => o, lowForce = true };
                 float wf; int bs;
                 var segOut = new Dictionary<string, List<GameObject>>();
-                // 境の外が隣の造成で下がる区間: 線の外の点の地面を 天端 − outsideCap で頭打ちにして組む(内の点は今の地面のまま)
+                // 境の外が隣の造成で下がる区間: 線の外の点の地面を 天端 − outsideCap で頭打ちにして組む。
+                //   内の点も天端で頭打ち ── 内は長屋の床の下で、背の基壇の切り(S3 丙)が後から天端まで下げる。今の高い地面で測ると
+                //   駒が全部埋まったと見なされ退けられ、切った後に基壇の抜けが残った(土井 辺15 の 3 か所・第37・38巡)
                 Func<float, float, float> gS = groundAt;
                 if (!float.IsNaN(s.outsideCap))
                 {
-                    Vector2 a0e = A(e); float capY = s.crest - s.outsideCap;
-                    gS = (x, z) => { float g = groundAt(x, z); return Vector2.Dot(new Vector2(x, z) - a0e, o) > 1e-3f && !float.IsNaN(g) ? Mathf.Min(g, capY) : g; };
+                    Vector2 a0e = A(e); float capY = s.crest - s.outsideCap, capIn = s.crest;
+                    gS = (x, z) => { float g = groundAt(x, z); if (float.IsNaN(g)) return g; return Vector2.Dot(new Vector2(x, z) - a0e, o) > 1e-3f ? Mathf.Min(g, capY) : Mathf.Min(g, capIn); };
                 }
                 var got = PlaceCrestWall(cw, gS, parent, final ? res.ends : null, segOut, final ? log : new System.Text.StringBuilder(), out wf, out bs);
                 made.AddRange(got);
@@ -521,7 +523,11 @@ public static partial class EdoBuild
             foreach (var w in subs)
             {
                 var nbLo = lowerAt(w, false); var nbHi = lowerAt(w, true);
-                if (nbLo == null && nbHi == null) continue;
+                // 隣の無い端(同じ辺で端に触れる区間が一つも無い)も、天端の面を元の端(棟の躯体の端)まで届かせる ── 掛けは足さない。
+                //   土井 E14_N1 の東の端は隣が別の辺の表門(天端 22.7)で、天端の面が端に届かず棟の隅が 1.5m 浮いた(第37・38巡)
+                bool freeLo = nbLo == null && !subs.Exists(x => x != w && sameLine(x, w) && x.s1 >= w.s0 - 0.05f && x.s0 < w.s0 - 0.05f);
+                bool freeHi = nbHi == null && !subs.Exists(x => x != w && sameLine(x, w) && x.s0 <= w.s1 + 0.05f && x.s1 > w.s1 + 0.05f);
+                if (nbLo == null && nbHi == null && !freeLo && !freeHi) continue;
                 Vector2 a = w.origin + w.along * w.s0 + w.inward * w.t, b = w.origin + w.along * w.s1 + w.inward * w.t;
                 var inw = w.inward;
                 var pcw = new CrestWall { name = prefix + "Probe_" + w.members[0].name + w.key, nodes = new List<Vector2> { a, b }, nodeTops = new List<float> { w.crest, w.crest }, gaps = new List<Vector2>(),
@@ -531,8 +537,10 @@ public static partial class EdoBuild
                 var sp = crestSpan(probe, w);
                 foreach (var go in probe) if (go != null) UnityEngine.Object.DestroyImmediate(go);
                 if (sp.x > sp.y) continue;
-                float s0n = nbLo != null ? w.s0 - (Mathf.Max(0f, sp.x - w.s0) + stepLap) : w.s0;
-                float s1n = nbHi != null ? w.s1 + (Mathf.Max(0f, w.s1 - sp.y) + stepLap) : w.s1;
+                float s0n = nbLo != null ? w.s0 - (Mathf.Max(0f, sp.x - w.s0) + stepLap) : freeLo ? w.s0 - Mathf.Max(0f, sp.x - w.s0) : w.s0;
+                float s1n = nbHi != null ? w.s1 + (Mathf.Max(0f, w.s1 - sp.y) + stepLap) : freeHi ? w.s1 + Mathf.Max(0f, w.s1 - sp.y) : w.s1;
+                if (nbLo == null && nbHi == null && Mathf.Abs(s0n - w.s0) < 1e-3f && Mathf.Abs(s1n - w.s1) < 1e-3f) continue;
+                if (nbLo == null && nbHi == null) log?.AppendLine("  背の基壇 " + w.members[0].name + w.key + ": 隣の無い端へ天端の面を届かせた(s " + w.s0.ToString("F2") + "→" + s0n.ToString("F2") + " / " + w.s1.ToString("F2") + "→" + s1n.ToString("F2") + ")");
                 newS[w] = new Vector2(s0n, s1n);
                 lapLog.Add(new KeyValuePair<BackWall, Vector2>(w, new Vector2(nbLo != null ? w.s0 : float.NaN, nbHi != null ? w.s1 : float.NaN)));
             }

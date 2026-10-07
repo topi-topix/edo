@@ -209,6 +209,16 @@ public static partial class EdoDoiBuilder
         public bool nikai, build = true; public string after, kind, opening;
         public List<Vector2> pts;
     }
+    /// <summary>runs[r].joins のどれかの値が相手の名 <paramref name="other"/> と語 <paramref name="word"/> を共に含むか(欄の取り合いの言い方を読むだけ)。</summary>
+    static bool JoinsSay(Run r, string other, string word)
+    {
+        foreach (var o in A(D["runs"]))
+        {
+            var j = O(o); if (S(j["name"]) != r.name || !Has(j, "joins")) continue;
+            foreach (var kv in O(j["joins"])) { var v = kv.Value as string; if (v != null && v.Contains(other) && v.Contains(word)) return true; }
+        }
+        return false;
+    }
     static Run[] _runs;
     public static Run[] Runs
     {
@@ -1602,7 +1612,7 @@ public static partial class EdoDoiBuilder
         {
             var last = chains.Count > 0 ? chains[chains.Count - 1] : null;
             var lr = last != null ? last[last.Count - 1] : null;
-            if (lr != null && lr.edge == (r.edge - 1 + nP) % nP && lr.s1 >= EdgeLen(lr.edge) - EdoBuild.VTX_TOL && r.s0 <= EdoBuild.VTX_TOL && float.IsNaN(lr.seat) == float.IsNaN(r.seat)) last.Add(r);
+            if (lr != null && lr.edge == (r.edge - 1 + nP) % nP && lr.s1 >= EdgeLen(lr.edge) - EdoBuild.VTX_TOL && r.s0 <= EdoBuild.VTX_TOL && (float.IsNaN(lr.seat) == float.IsNaN(r.seat) || JoinsSay(r, lr.name, "一続き"))) last.Add(r);   // 座のある区間と地形なりの区間も、欄 joins が「一続き」と言えば一本の L 字に組む
             else chains.Add(new List<Run> { r });
         }
         int heiN = 0;
@@ -1642,7 +1652,23 @@ public static partial class EdoDoiBuilder
             pts.Add(EdgePt(rN.edge, sB) - OutNormal(rN.edge) * c);
             List<EdoBuild.DanSec> plan; string dn;
             float stepQ = 0f; foreach (var x in ch) stepQ = Mathf.Max(stepQ, DanStepQOf(x.name));
-            if (float.IsNaN(r0.seat)) plan = EdoBuild.DanPlan(pts, out dn, null, stepQ);
+            int kSeat = ch.FindIndex(x => !float.IsNaN(x.seat)), kFree = ch.FindIndex(x => float.IsNaN(x.seat));
+            if (kSeat >= 0 && kFree >= 0)
+            {
+                // 混ざった鎖: 座のある区間 = 足の下の基壇の天端一本(実測)/ 残り = 地形なりの段塀(DanPlan)── 座の区間は鎖の頭か尻の一続き
+                bool seatHead = kSeat == 0; int kc = seatHead ? kFree : kSeat;   // 割れ目の区間の番号(pts[kc] が出隅)
+                var ptsS = seatHead ? pts.GetRange(0, kc + 1) : pts.GetRange(kc, pts.Count - kc);
+                var ptsF = seatHead ? pts.GetRange(kc, pts.Count - kc) : pts.GetRange(0, kc + 1);
+                var rs0 = ch[kSeat]; var midS = (ptsS[0] + ptsS[ptsS.Count - 1]) * 0.5f;
+                float crestS = EdoBuild.CrestY(ig, midS + OutNormal(rs0.edge) * (T * 0.5f), 0.1f); if (float.IsNaN(crestS)) crestS = rs0.seat;
+                float lenS = 0f; for (int i = 0; i + 1 < ptsS.Count; i++) lenS += Vector2.Distance(ptsS[i], ptsS[i + 1]);
+                string dnF; var pf = EdoBuild.DanPlan(ptsF, out dnF, null, stepQ);
+                plan = new List<EdoBuild.DanSec>();
+                if (seatHead) { plan.Add(new EdoBuild.DanSec { a = 0f, b = lenS, W = crestS }); foreach (var x in pf) plan.Add(new EdoBuild.DanSec { a = x.a + lenS, b = x.b + lenS, W = x.W }); }
+                else { float lenF = 0f; for (int i = 0; i + 1 < ptsF.Count; i++) lenF += Vector2.Distance(ptsF[i], ptsF[i + 1]); plan.AddRange(pf); plan.Add(new EdoBuild.DanSec { a = lenF, b = lenF + lenS, W = crestS }); }
+                dn = "L 字の鎖: " + rs0.name + " は座 = 基壇の天端 " + crestS.ToString("F3") + "(欄 " + rs0.seat.ToString("F1") + ")/ 残りは " + dnF;
+            }
+            else if (float.IsNaN(r0.seat)) plan = EdoBuild.DanPlan(pts, out dn, null, stepQ);
             else
             {
                 // 天端に載る練塀(基壇の天端一本): 座 = 足の下の基壇の天端(実測)

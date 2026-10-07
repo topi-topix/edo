@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 92・関数 824(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 92・関数 825(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -22,7 +22,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoDoiBuilder.Niwa.cs](#edodoibuilderniwacs) | 土井大隅守上屋敷 — 奥庭(Stage6)。 | 4 | 82 |
 | [EdoDoiBuilder.Saku.cs](#edodoibuildersakucs) | 土井 S6 柵・垣(案A・EDO-0533)── 指図 fences[] を読み、EdoBuild.GakiRun で敷く。 | 1 | 3 |
 | [EdoDoiBuilder.Shokusai.cs](#edodoibuildershokusaics) | 土井 S8 植栽(案A・EDO-0533)── 林方の設計(指図 planting)を生成器が撒いた点 `doi_impl.json` の planting.points を据える。 | 2 | 4 |
-| [EdoDoiBuilder.cs](#edodoibuildercs) | 土井大隅守上屋敷(三河刈谷藩2万3千石・譜代・雁間)ビルダー。 | 15 | 88 |
+| [EdoDoiBuilder.cs](#edodoibuildercs) | 土井大隅守上屋敷(三河刈谷藩2万3千石・譜代・雁間)ビルダー。 | 15 | 89 |
 | [EdoMatsudairaDewaBuilder.Niwa.cs](#edomatsudairadewabuilderniwacs) | 松平出羽守上屋敷 — 庭の工程(池・築山・水の系・石組・点景・滝見口)。 | 9 | 30 |
 | [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 16 | 120 |
 | [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 19 | 143 |
@@ -286,6 +286,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `S(o)` | `string` |  | — |
 | `Has(o, k)` | `bool` |  | — |
 | `C(k)` | `float` |  | — |
+| `JoinsSay(r, other, word)` | `bool` |  | runs[r].joins のどれかの値が相手の名 other と語 word を共に含むか(欄の取り合いの言い方を読むだけ)。 |
 | `EdgePt(edge, s)` | `Vector2` | 公 | 辺 edge の走り s[m] の世界座標。 |
 | `EdgeLen(edge)` | `float` | 公 | — |
 | `PointInPoly(p)` | `bool` |  | — |

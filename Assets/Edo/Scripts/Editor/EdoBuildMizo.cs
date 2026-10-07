@@ -1902,6 +1902,55 @@ public static partial class EdoBuild
         return SubPolyline(b.hi, sHead, sEnd);
     }
 
+    /// <summary>**N10 坂の頭の横断**: 帯の芯の頭の端(<see cref="Band.headAtEnd"/>)で帯に直交に横切る線。片側は相手の線(<paramref name="toLines"/>)に当たるまで
+    /// (maxReach まで・両側を試し近い方)、反対側は帯の縁の外 <paramref name="offOther"/> まで。返す線は 反対側の端 → 相手との出合い(この向きで流す)。
+    /// 当たる先: 土井 D2 seg4(R_OmoteSaka の頭 ── 台地の水を坂へ入れない横断・長屋の側は北の境の長屋の内の軒先の線まで)。</summary>
+    public static List<Vector2> BandHeadCross(Band b, float offOther, List<List<Vector2>> toLines, float maxReach, out string why)
+    {
+        why = null;
+        if (b == null || b.center == null || b.center.Count < 2) { why = "帯の芯が無い"; return null; }
+        if (!b.sideKnown) { why = b.why ?? "帯の頭が測れない"; return null; }
+        float L = PolylineLength(b.center); Vector2 dir; var c = PointAt(b.center, b.headAtEnd ? L : 0f, out dir);
+        var nrm = new Vector2(-dir.y, dir.x).normalized;
+        float bestT = float.MaxValue; float bestSign = 0f;
+        foreach (float sg in new[] { 1f, -1f })
+        {
+            var nn = nrm * sg;
+            foreach (var tl in toLines ?? new List<List<Vector2>>())
+                for (int i = 0; tl != null && i + 1 < tl.Count; i++)
+                {
+                    Vector2 q = tl[i], sv = tl[i + 1] - tl[i]; float den = nn.x * sv.y - nn.y * sv.x; if (Mathf.Abs(den) < 1e-6f) continue;
+                    Vector2 qp = q - c; float t = (qp.x * sv.y - qp.y * sv.x) / den, u = (qp.x * nn.y - qp.y * nn.x) / den;
+                    if (u < -1e-4f || u > 1f + 1e-4f || t <= 0f || t > maxReach) continue;
+                    if (t < bestT) { bestT = t; bestSign = sg; }
+                }
+        }
+        if (bestSign == 0f) { why = "頭の横断の線が相手の線に " + maxReach.ToString("F0") + "m 内で当たらない"; return null; }
+        var n2 = nrm * bestSign;
+        return new List<Vector2> { c - n2 * (b.halfW + offOther), c + n2 * bestT };
+    }
+
+    /// <summary>折れ線 <paramref name="chain"/> を、相手の線 <paramref name="cut"/>(両端を <paramref name="reach"/> だけ延ばした直線の区間)との最初の交点で割り、長い方を返す
+    /// (交点が割った線の端になる)。当たらなければ null。当たる先: 土井 D2 seg3(尻は D2 seg4 の線との出合いで止める)。</summary>
+    public static List<Vector2> CutChainAtLine(List<Vector2> chain, List<Vector2> cut, float reach, out string why)
+    {
+        why = null;
+        if (chain == null || chain.Count < 2 || cut == null || cut.Count < 2) { why = "線が無い"; return null; }
+        Vector2 a = cut[0], b = cut[cut.Count - 1], d = (b - a).normalized; a -= d * reach; b += d * reach; var sv = b - a;
+        for (int i = 0; i + 1 < chain.Count; i++)
+        {
+            Vector2 p = chain[i], r = chain[i + 1] - chain[i]; float den = r.x * sv.y - r.y * sv.x; if (Mathf.Abs(den) < 1e-6f) continue;
+            Vector2 ap = a - p; float t = (ap.x * sv.y - ap.y * sv.x) / den, u = (ap.x * r.y - ap.y * r.x) / den;
+            if (t < -1e-4f || t > 1f + 1e-4f || u < -1e-4f || u > 1f + 1e-4f) continue;
+            var x = p + r * Mathf.Clamp01(t);
+            var head = new List<Vector2>(); for (int k = 0; k <= i; k++) head.Add(chain[k]); head.Add(x);
+            var tail = new List<Vector2> { x }; for (int k = i + 1; k < chain.Count; k++) tail.Add(chain[k]);
+            return PolylineLength(head) >= PolylineLength(tail) ? head : tail;
+        }
+        why = "相手の線と交わらない(延ばし " + reach.ToString("F1") + "m)";
+        return null;
+    }
+
     /// <summary>**N6 坂の足の横断**: 芯を足(低い端)から辿り、芯の地盤が面の高さ <paramref name="faceY"/>(± tol)に載った後に離れる点で、帯に直交に横切る線(低い側の縁 → 高い側)。
     /// 高い側は相手の線(<paramref name="hiTo"/>)に当たるまで(maxReach まで)・低い側は帯の縁まで。当たる先: 土井 D2 seg6(R_OmoteSaka の足 ↔ 面 MonNoUchi・高い側は D2 seg5)。</summary>
     public static List<Vector2> BandFootCross(Band b, Func<float, float, float> groundAt, float faceY, float tol, List<List<Vector2>> hiTo, float maxReach, out string why)

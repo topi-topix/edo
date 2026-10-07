@@ -12,6 +12,7 @@
     blender --background --python Tools/Blender/build_sanno_buzai.py -- sode 0.300 1.199 6.363 --depth=3.20 --render   # 丈の深い袖
     blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_miter_list Tools/Blender/sanno_onna_miter_set_D320.txt 0.300 1.199 6.363 --depth=3.20 --steps=38,39,40 --render
         # 切通しで背の地盤まで上げる袖(上げの上限 = 丈 − 0.78)。綴りに `_D3.20` が入る(EDO-0430)
+    blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_uchikomi 0.283 0.450 [--depth=3.20] --render   # 打込接ぎの肌・厚み 0.30 の袖(岡部 K_Kuruwa・EDO-0502)
     blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_flat [--depth=3.20] --render   # 天端が水平な袖(EDO-0459)
     blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_flat --only=参道の階 --render   # 同・走り = 踏面 0.542(EDO-0437)
     blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_flat --only=参道の階 --len=0.642 --render   # 同・走り = 段4 の踏面の見え 0.642(EDO-0437)
@@ -568,12 +569,13 @@ def _on_joint(s, joints, P, eps=1e-6):
     return any(abs(s - j) < eps or abs(abs(s - j) - P) < eps for j in joints)
 
 
-def _sode_stone(ya, yb, v0, v1, cham_a, cham_b, keri, fumi, mat, uvkey, s0, name):
+def _sode_stone(ya, yb, v0, v1, cham_a, cham_b, keri, fumi, mat, uvkey, s0, name, T=None):
     """袖の石1枚。Blender: x=厚み(±SODE_T/2)/ y=走り(+y 坂上)/ z=高さ。
     まず (x, y, 天端の線からの鉛直の下がり) の箱で面を取り、そのあと**鉛直に剪断**して勾配へ載せる
     (z += HT + (y + 踏面/2)·蹴上/踏面)。⇒ 竪目地・側面は平面のまま、横目地と天端が勾配に平行。
-    cham_a / cham_b … 走りの端(ya / yb)が目地か。目地でない端の4辺は面を取らない。"""
-    T = SODE_T
+    cham_a / cham_b … 走りの端(ya / yb)が目地か。目地でない端の4辺は面を取らない。
+    T … 厚み(既定 SODE_T。打込接ぎの袖 `sode_uchikomi` は 0.30 を渡す)。"""
+    T = SODE_T if T is None else T
     bm = bmesh.new()
     res = bmesh.ops.create_cube(bm, size=1.0)
     vs = res["verts"]
@@ -1645,6 +1647,324 @@ def build_sode_set(specs, do_render):
                 print("[sanno] 検証レンダ " + pth)
 
 
+# ---------------------------------------------------------------- 1b''. 打込接ぎの石段の袖(岡部 K_Kuruwa・EDO-0502 2026-10-07)
+# 指図 okabe `kaidans[K_Kuruwa].sode`【硬】: 袖の型は本線 TW_Kado_Hokuto と同じ**打込接ぎ**・天端は**切石の耳石(幅 0.3)**・
+#   外幅 = 段の幅 + 0.6 ⇒ **袖の厚み 0.30**。⇒ `sode` と同じ形・ピボット・局所座標・天端の線(HT 0.30)・丈(_D<丈>)のまま、
+#   ・耳石(笠石 0〜0.24)は `sode` と同じ切石 `Danishi`(厚み 0.30 で切るだけ)。
+#   ・その下の躯体は**石を割らない一枚の箱**に、本線の城の石垣 `JC.CastleWall` の材 `stone wall` を**同じ縮尺**で貼る
+#     (Castle Wall の実測 UV: 1m = 0.25。石積みの帯は u 0.25〜0.75 が周期 0.5・v 0〜0.5 が周期 0.5 ⇒ 2.0m 角で継ぎ目なく繰り返す。
+#      v 0.5〜0.75 は天端の一段だけの柄・0.758 から上は天端の平らな砂 ⇒ 使わない)。
+# ⭐ **駒の周期を N にする(a/b でない)。** 段ごとの駒は (踏面, 蹴上) ずつずれて並ぶので、柄を駒の継ぎ目で切らないには
+#   N 駒ぶんのずれ (N·踏面, N·蹴上) がテクスチャの格子 (2.0m) に載らねばならない。N=2(0.90, 0.566)はどう伸ばしても載らず、
+#   継ぎ目ごとに石が切れた偽の竪目地が立つ。⇒ 走りの縮尺 su と、横の層の傾き α(石段の勾配より緩い)で格子へ載せる N を探す
+#   (蹴上 0.283・踏面 0.450 ⇒ N=9・su 0.988・α 0.135 = 7.7°)。⛔ 全面を石段の勾配(32°)で剪断すると石が斜めに倒れて見え、
+#   水平に層を通す本線と肌が合わない。名の末尾は a, b, c … (段 i に i%N で振る)。
+SODE_U_T = 0.30          # 袖の厚み = 耳石の幅(指図 K_Kuruwa.sode の外幅 = 段の幅 + 0.6)
+SODE_U_TEX = 2.0         # stone wall の石積みの帯の周期[m](u 0.5・v 0.5 = 2.0m・Castle Wall の実測)
+CASTLE_SRC = "Exterior/Castle Wall.fbx"
+CASTLE_MAT = "stone wall"
+_U_LETTERS = "abcdefghijklmnop"
+
+
+def uchikomi_cycle(keri, fumi, nmax=14):
+    """(N, su, α) ── N 駒ぶんのずれが stone wall の 2.0m の格子に載る最小のずれ。
+    走りは su(0.9〜1.1)で伸縮、高さは α·走り を引いて層を傾ける(|α| 最小・≤ 0.25)。"""
+    best = None
+    for n in range(2, nmax + 1):
+        run, rise = n * fumi, n * keri
+        k = max(1, int(round(run / SODE_U_TEX)))
+        su = k * SODE_U_TEX / run
+        if not (0.9 <= su <= 1.1):
+            continue
+        m = int(round(rise / SODE_U_TEX))
+        alpha = (rise - m * SODE_U_TEX) / run
+        if abs(alpha) > 0.25:
+            continue
+        cost = abs(alpha) + 2.0 * abs(su - 1.0) + 0.03 * n      # 駒の種類は少ないほど良い
+        if best is None or cost < best[0]:
+            best = (cost, n, su, alpha)
+    if best is None:
+        raise SystemExit("[sanno] ⛔ 蹴上 %.3f 踏面 %.3f で stone wall の格子に載る周期が無い" % (keri, fumi))
+    return best[1], best[2], best[3]
+
+
+def sode_uchikomi_name(keri, fumi, variant):
+    return "IshidanSodeUchikomi_%s_%s%s_%s" % (cs_f3(keri), cs_f3(fumi), _dtag(), variant)
+
+
+def _castle_material():
+    m = bpy.data.materials.get(CASTLE_MAT)
+    if m:
+        return m
+    keep = V.MESH
+    V.MESH = os.path.join(V.REPO, "Assets", "Japanese Castle", "Meshes")
+    try:
+        m = V.borrow_material(CASTLE_SRC, CASTLE_MAT)
+    finally:
+        V.MESH = keep
+    if m is None:
+        raise SystemExit("[sanno] ⛔ 材 '%s' が %s に無い" % (CASTLE_MAT, CASTLE_SRC))
+    return m
+
+
+def _uchikomi_body(k, keri, fumi, N, su, alpha, mat, name):
+    """躯体(耳石の下)。Blender: x=厚み ±T/2 / y=走り(+y 坂上)/ z=高さ。天端の線 = HT + (y+f/2)·蹴上/踏面。
+    躯体は天端の線 −CT 〜 −DEPTH(`sode` の積みと同じ帯)。閉じた箱を、柄の格子の継ぎ目の面で切ってから UV を貼る。"""
+    T, f, sl = SODE_U_T, fumi, keri / fumi
+    top = lambda y: SODE_HT + (y + f / 2.0) * sl
+    bm = bmesh.new()
+    vs = {}
+    for ix, x in ((0, -T / 2.0), (1, T / 2.0)):
+        for iy, y in ((0, -f / 2.0), (1, f / 2.0)):
+            vs[(ix, iy, 1)] = bm.verts.new((x, y, top(y) - SODE_CT))
+            vs[(ix, iy, 0)] = bm.verts.new((x, y, top(y) - SODE_DEPTH))
+    q = lambda *ks: bm.faces.new([vs[t] for t in ks])
+    q((0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0))
+    q((0, 0, 1), (0, 1, 1), (1, 1, 1), (1, 0, 1))
+    q((0, 0, 0), (0, 0, 1), (1, 0, 1), (1, 0, 0))
+    q((0, 1, 0), (1, 1, 0), (1, 1, 1), (0, 1, 1))
+    q((0, 0, 0), (0, 1, 0), (0, 1, 1), (0, 0, 1))
+    q((1, 0, 0), (1, 0, 1), (1, 1, 1), (1, 1, 0))
+    # 周期の中の座標: 走り s = k·f + y + f/2 / 高さ h = z + k·蹴上 ⇒ 柄の座標 S = su·s, Vm = h − α·s
+    S_of = lambda y: su * (k * f + y + f / 2.0)
+    Vm_of = lambda y, z: z + k * keri - alpha * (k * f + y + f / 2.0)
+    P = SODE_U_TEX
+
+    def cut(co, no):
+        geom = list(bm.verts) + list(bm.edges) + list(bm.faces)
+        bmesh.ops.bisect_plane(bm, geom=geom, plane_co=co, plane_no=no, dist=1e-6)
+    # 竪の継ぎ目(S = P·j)
+    s0, s1 = S_of(-f / 2.0), S_of(f / 2.0)
+    j = math.floor(s0 / P) + 1
+    while P * j < s1 - 1e-6:
+        y = P * j / su - k * f - f / 2.0
+        if -f / 2.0 + 1e-5 < y < f / 2.0 - 1e-5:
+            cut((0.0, y, 0.0), (0.0, 1.0, 0.0))
+        j += 1
+    # 横の継ぎ目(Vm = P·j)── 面 z − α·y = P·j − k·蹴上 + α·(k·f + f/2)
+    vals = [Vm_of(v.co.y, v.co.z) for v in bm.verts]
+    j = math.floor(min(vals) / P) + 1
+    while P * j < max(vals) - 1e-6:
+        c = P * j - k * keri + alpha * (k * f + f / 2.0)
+        cut((0.0, 0.0, c), (0.0, -alpha, 1.0))
+        j += 1
+    bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=1e-5)
+    # ⚠ bisect の補間は ±x の辺で別々に解くので y・z が 1e-9 の桁でずれ、左右対称の検算(0.1mm に丸めて比べる)が
+    #   丸めの境で落ちた(D3.20 の e)⇒ 1e-6 の格子へ寄せて左右を同じ値にする
+    for v in bm.verts:
+        v.co.y = round(v.co.y * 1e6) / 1e6
+        v.co.z = round(v.co.z * 1e6) / 1e6
+    BT.ensure_outward(bm)
+    bm.normal_update()
+    uvl = bm.loops.layers.uv.new("UVMap")
+    for fc in bm.faces:
+        n = fc.normal
+        ax = max(range(3), key=lambda a: abs(n[a]))
+        c = fc.calc_center_median()
+        cS = math.floor(S_of(c.y) / P)
+        cV = math.floor(Vm_of(c.y, c.z) / P)
+        for loop in fc.loops:
+            co = loop.vert.co
+            Sv = S_of(co.y) - cS * P                      # 0..P(この面の格子の中)
+            Vv = Vm_of(co.y, co.z) - cV * P
+            if ax == 0:      # 見え面(左右とも)── 走り×高さ
+                u, v = Sv, Vv
+            elif ax == 1:    # 小口 ── 厚み×高さ
+                u, v = (co.x + T / 2.0) + 0.5, Vv
+            else:            # 上(耳石の下)・底 ── 厚み×走り
+                u, v = (co.x + T / 2.0) + 0.5, Sv
+            loop[uvl].uv = (0.25 + 0.25 * u, 0.25 * v)
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me); bm.free(); me.update()
+    me.materials.append(mat)
+    o = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(o)
+    return o
+
+
+def sode_uchikomi(keri, fumi, k, name=None):
+    """**打込接ぎの石段の袖の 1 段ぶんの駒**(周期の中の番号 k = 段 i % N)。形・ピボット・天端の線・丈は `sode` と同じで、
+    厚みだけ 0.30。Unity: X=厚み(±0.15)/ Y=高さ / **+Z = 坂下**。ピボット = 段 i の段石と同じ点(走りの中心・踏面の高さ)。"""
+    N, su, alpha = uchikomi_cycle(keri, fumi)
+    variant = _U_LETTERS[k]
+    name = name or sode_uchikomi_name(keri, fumi, variant)
+    f = fumi
+    P = N * f
+    s0 = k * f
+    dmat = danishi_material()
+    cmat = _castle_material()
+    objs = []
+    # 耳石: 周期 N·踏面 の中を SODE_KASA_L 目安で割る。⭐ 周期の境(s=0)に必ず目地を置く(周期を跨ぐ石の柄が切れないように)
+    joints, m = _sode_joints(P, SODE_KASA_L, 0.0)
+    step = P / m
+    cuts = sorted(set([s0, s0 + f] + [jj for jj in joints if s0 + 1e-6 < jj < s0 + f - 1e-6]))
+    for pi in range(len(cuts) - 1):
+        sa, sb = cuts[pi], cuts[pi + 1]
+        ya, yb = sa - s0 - f / 2.0, sb - s0 - f / 2.0
+        sid = int((((sa + sb) / 2.0 - joints[0]) % P) // step)
+        uvkey = "U|%.3f|%.3f|kasa|%d" % (keri, fumi, sid)
+        objs.append(_sode_stone(ya, yb, 0.0, SODE_CT, _on_joint(sa, joints, P), _on_joint(sb, joints, P),
+                                keri, fumi, dmat, uvkey, s0, "%s_kasa_%d" % (name, pi), T=SODE_U_T))
+    objs.append(_uchikomi_body(k, keri, fumi, N, su, alpha, cmat, name + "_body"))
+    V.dedup_materials()
+    o = V.join(objs, name)
+    V.set_origin(o, (0.0, 0.0, 0.0))
+    return o, name
+
+
+def open_edge_count(o):
+    bm = bmesh.new(); bm.from_mesh(o.data)
+    n = sum(1 for e in bm.edges if e.is_boundary)
+    nm = sum(1 for e in bm.edges if not e.is_manifold)
+    bm.free()
+    return n, nm
+
+
+def sode_uchikomi_check(o, keri, fumi):
+    ok = []
+    uv = unity_verts(o)
+    xs = [t[0] for t in uv]; ys = [t[1] for t in uv]; zs = [t[2] for t in uv]
+    T = SODE_U_T
+    ok.append(("左右対称(左右の袖が同じ FBX で済む)", check_mirror_x(o), ""))
+    ok.append(("厚み 0.30(X=±0.15 の平面)", abs(max(xs) - T / 2) < 1e-4 and abs(min(xs) + T / 2) < 1e-4,
+               "X %.4f..%.4f" % (min(xs), max(xs))))
+    ok.append(("走りが Z ±踏面/2(`sode` と同じ)",
+               abs(max(zs) - fumi / 2) < 1e-4 and abs(min(zs) + fumi / 2) < 1e-4, "Z %.4f..%.4f" % (min(zs), max(zs))))
+    top = lambda z: SODE_HT + (fumi / 2.0 - z) * keri / fumi
+    over = max(t[1] - top(t[2]) for t in uv)
+    ok.append(("天端が段鼻の線 +HT の斜めの一直線を越えない", over < 1e-4, "超過 %.5f" % over))
+    under = min(t[1] - (top(t[2]) - SODE_DEPTH) for t in uv)
+    ok.append(("下端が天端 −%.2f の平行線" % SODE_DEPTH, abs(under) < 1e-4, "%.5f" % under))
+    nb, nm = open_edge_count(o)
+    ok.append(("開いた辺 0(holes 0)", nb == 0, "開いた辺 %d・非多様体 %d" % (nb, nm)))
+    mats = sorted(m.name for m in o.data.materials)
+    ok.append(("材が Danishi と stone wall だけ", mats == sorted([DANISHI, CASTLE_MAT]), str(mats)))
+    # UV が石積みの帯(u 0.25..0.75, v 0..0.5)を出ない(城の材の面だけ)
+    me = o.data; uvd = me.uv_layers.active.data
+    ci = [i for i, m in enumerate(me.materials) if m.name == CASTLE_MAT][0]
+    bad = 0
+    for p in me.polygons:
+        if p.material_index != ci:
+            continue
+        for li in p.loop_indices:
+            u, v = uvd[li].uv
+            if not (0.25 - 1e-4 <= u <= 0.75 + 1e-4 and -1e-4 <= v <= 0.5 + 1e-4):
+                bad += 1
+    ok.append(("stone wall の UV が石積みの帯の中(天端の砂・隅石を踏まない)", bad == 0, "外れ %d" % bad))
+    for (label, good, note) in ok:
+        print("      %s %s %s" % ("⭕" if good else "⛔", label, note))
+    badl = [t for t in ok if not t[1]]
+    if badl:
+        raise SystemExit("[sanno] ⛔ 打込接ぎの袖の検算が落ちた: %s" % ", ".join(t[0] for t in badl))
+    return nb
+
+
+def uchikomi_seam(keri, fumi):
+    """駒の継ぎ目で柄が続くか: 駒 k の坂上の端と駒 k+1 の坂下の端で、同じ点の UV を比べる(周期の境 N-1→0 も)。"""
+    N, su, alpha = uchikomi_cycle(keri, fumi)
+    worst = 0.0
+    for k in range(N):
+        a, _ = sode_uchikomi(keri, fumi, k, name="seamA%d" % k)
+        b, _ = sode_uchikomi(keri, fumi, (k + 1) % N, name="seamB%d" % k)
+        def side(o, yplane, dy, dz):
+            out = {}
+            uvd = o.data.uv_layers.active.data
+            for p in o.data.polygons:
+                if o.data.materials[p.material_index].name != CASTLE_MAT or abs(p.normal.x) < 0.9:
+                    continue
+                for li in p.loop_indices:
+                    co = o.data.vertices[o.data.loops[li].vertex_index].co
+                    if abs(co.y - yplane) < 1e-5:
+                        key = (round(co.x, 3), round(co.z + dz, 3))
+                        out.setdefault(key, []).append(tuple(uvd[li].uv))
+            return out
+        A = side(a, fumi / 2.0, 0, 0)
+        B = side(b, -fumi / 2.0, 0, keri)
+        for key, ua in A.items():
+            if key in B:
+                w5 = lambda t: abs(t - 0.5 * round(t / 0.5))      # 帯は u・v とも 0.5 で繰り返す(0.25≡0.75・0≡0.5)
+                d = min(w5(x[0] - y[0]) + w5(x[1] - y[1]) for x in ua for y in B[key])
+                worst = max(worst, d)
+        bpy.data.objects.remove(a, do_unlink=True); bpy.data.objects.remove(b, do_unlink=True)
+    print("      %s 駒の継ぎ目の柄の食い違い(UV)最大 %.5f(N=%d・su %.4f・α %.4f)"
+          % ("⭕" if worst < 1e-3 else "⛔", worst, N, su, alpha))
+    return worst
+
+
+def shots_sode_uchikomi(keri, fumi, w, key, nstep=12):
+    V.reset()
+    N, su, alpha = uchikomi_cycle(keri, fumi)
+    T = SODE_U_T
+    for i in range(nstep):
+        oo, _ = dan(keri, fumi, w, "ab"[i % 2], name="d%d" % i)
+        oo.data.transform(Matrix.Translation((0, i * fumi, (i + 1) * keri))); oo.data.update()
+        for sx in (-1, 1):
+            ss, _ = sode_uchikomi(keri, fumi, i % N, name="s%d_%d" % (i, sx))
+            ss.data.transform(Matrix.Translation((sx * (w / 2.0 + T / 2.0), i * fumi, (i + 1) * keri)))
+            ss.data.update()
+    # 本線の城の石垣(肌の見比べ用・書き出さない): 坂上の端の背に、見え面を坂下(−y)へ向けて 3 枚
+    V.MESH = os.path.join(V.REPO, "Assets", "Japanese Castle", "Meshes")
+    V.TEX = os.path.join(V.REPO, "Assets", "Japanese Castle", "Textures")
+    ytop = (nstep - 0.5) * fumi
+    ztop = nstep * keri + SODE_HT
+    for j in range(3):
+        cw = V.imp(CASTLE_SRC)[0]
+        me = cw.data
+        me.transform(cw.matrix_world); cw.matrix_world = Matrix.Identity(4)
+        me.transform(Matrix.Rotation(-math.pi / 2.0, 4, 'Z'))          # 見え面 +x → −y
+        me.transform(Matrix.Translation((-3.0 + 2.0 * j - (0.0), ytop + 1.4, ztop - 4.0)))
+        me.update()
+    V.dedup_materials()
+    V.hook_textures()
+    bpy.ops.mesh.primitive_plane_add(size=1.0, location=(0, nstep * fumi * 0.5 - 2.0, 0.0))
+    g = bpy.context.active_object
+    g.scale = (w + 14.0, nstep * fumi + 14.0, 1.0)
+    gm = bpy.data.materials.new("render_ground"); gm.use_nodes = True
+    gb = next(n for n in gm.node_tree.nodes if n.type == 'BSDF_PRINCIPLED')
+    gb.inputs['Base Color'].default_value = (0.20, 0.17, 0.12, 1.0)
+    g.data.materials.append(gm)
+    os.makedirs(SHOT, exist_ok=True)
+    L = nstep * fumi
+    H = nstep * keri
+    out = []
+    shots = [
+        ("3d", (w * 1.6 + 3.0, -4.5 - L * 0.2, H * 0.6 + 2.6), (w / 2.0, L * 0.5, H * 0.45), None),
+        ("side", (w / 2.0 + T + 14.0, L * 0.5, H * 0.5 + 0.6), (w / 2.0, L * 0.5, H * 0.5 + 0.2), max(L, H) * 1.35),
+        ("near", (w / 2.0 + 2.2, L * 0.25, H * 0.25 + 1.0), (w / 2.0, L * 0.55, H * 0.5), None),
+        ("magenta", (w * 1.6 + 3.0, -4.5 - L * 0.2, H * 0.6 + 2.6), (w / 2.0, L * 0.5, H * 0.45), None),
+    ]
+    for (tag, cam, at, orth) in shots:
+        V.studio(cam, at, ortho_scale=orth, res=(1600, 1100))
+        if tag == "magenta":
+            bpy.context.scene.world.node_tree.nodes["Background"].inputs[0].default_value = (1, 0, 1, 1)
+            g.hide_render = True
+        else:
+            g.hide_render = False
+        _hook_cut_stone()
+        pth = os.path.join(SHOT, "okabe_sode_uchikomi_%s%s_%s.png" % (key, _dtag(), tag))
+        V.render(pth); out.append(pth)
+    return out
+
+
+def build_sode_uchikomi_set(specs, do_render):
+    for (label, keri, fumi, w) in specs:
+        N, su, alpha = uchikomi_cycle(keri, fumi)
+        print("[sanno] 打込接ぎの袖 蹴上 %.3f 踏面 %.3f ⇒ 周期 N=%d(%s)・走りの縮尺 %.4f・層の傾き α %.4f(%.1f°)"
+              % (keri, fumi, N, _U_LETTERS[:N], su, alpha, math.degrees(math.atan(alpha))))
+        for k in range(N):
+            V.reset()
+            o, name = sode_uchikomi(keri, fumi, k)
+            report(o, name, "← %s の打込接ぎの袖" % label)
+            sode_uchikomi_check(o, keri, fumi)
+            V.export_fbx([o], os.path.join(OUT_DAN, name + ".fbx"))
+            print("[sanno] 書き出し " + os.path.join(OUT_DAN, name + ".fbx"))
+        V.reset()
+        uchikomi_seam(keri, fumi)
+        if do_render:
+            for pth in shots_sode_uchikomi(keri, fumi, w, "k%s_%s" % (cs_f3(keri), cs_f3(fumi))):
+                print("[sanno] 検証レンダ " + pth)
+
+
 # ---------------------------------------------------------------- 1b'. 天端が水平な石段の袖(EDO-0459 施主裁定A・2026-09-26)
 # 男坂の最上段の袖石を水平にする(裁定図 https://claude.ai/artifact/DVxnLaEnDYnYr6Uwk6tv1J)。
 # ⭐ 断面・材・面取り・積みの段の割り・局所座標は平らな袖 `sode` と同じで、**天端の傾きだけ 0**(剪断しない)。
@@ -2202,6 +2522,12 @@ def main():
         else:
             specs = kaidan_specs(only)
         build_sode_set(specs, do_render)
+    if what == "sode_uchikomi":
+        # sode_uchikomi <蹴上> <踏面> [<幅>] [--depth=3.20] [--render]  打込接ぎの肌・厚み 0.30 の袖(岡部 K_Kuruwa・EDO-0502)
+        if len(rest) < 2:
+            raise SystemExit("[sanno] sode_uchikomi <蹴上> <踏面> [<幅>]")
+        build_sode_uchikomi_set([("手引き", float(rest[0]), float(rest[1]),
+                                  float(rest[2]) if len(rest) >= 3 else 1.818)], do_render)
     if what == "sode_flat":
         # sode_flat [--len=1.25] [--depth=3.20] [--render]  天端が水平な袖(最上段の踊り場の脇・EDO-0459)
         # sode_flat --only=参道の階 [--render]  走り = その段の踏面の版(参道の階の段4 ── 0.542・EDO-0437)。蹴上・踏面・幅は指図 kaidans から

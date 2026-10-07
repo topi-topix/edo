@@ -90,3 +90,4 @@
 - [野面の勾配 ±0.275 と staging の meta](nozura-steep-grade-275-and-staged-meta.md) — crest/holes は通る・継ぎ目は最近点で ≤6mm・--render は G0 の駒を同じ dir に置く(2026-10-06)
 - [野面の小口は石ごとに塞ぐ・G±450](nozura-end-caps-per-stone.md) — join 後の一括 bisect は小口が内向き・旧駒は全部持つ・剪断 0.45 は崩れない(2026-10-07)
 - [野面の積み止めの駒は Kado90 を二つ突き合わせる](nozura-tome-two-kado.md) — 小口の奥行は 1.818 に縛られる・H2400 の端の石の裏面 3 本は既存の欠陥(2026-10-07)
+- [打込接ぎの袖は駒の周期を N に](sode-uchikomi-texture-lattice-cycle.md) — 城の肌は 2.0m 格子・a/b では切れる・0.283/0.450 は N=9(2026-10-07)

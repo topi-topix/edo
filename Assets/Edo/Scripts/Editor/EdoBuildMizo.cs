@@ -763,6 +763,40 @@ public static partial class EdoBuild
         return rep;
     }
 
+    /// <summary>**軒の矩形の辺を、躯体の足の外形から <paramref name="clear"/> 離れるまで外へ寄せる**(硬 ── 雨落ちの溝の縁石を躯体の足の下に入れない・2026-10-07 EDO-0533 第30巡・普請方の設計)。
+    /// 足 = 躯体の実メッシュの最下点から 0.15 以内の頂点(屋根の名の駒は除く)。矩形の各辺の外向きの法線 n で、足の最も外の投影 + clear が辺の投影を超えた分だけ辺を平行に出し、
+    /// 隅は隣り合う二辺の出し量の和で動かす(矩形のまま)。軒の出が溝の半幅より浅い棟(土蔵)では、軒先の鉛直下に芯を置くと溝の内の半分が躯体の足の下に入り、
+    /// 隅が溝の上で浮いた(土井 Kura1 の西の隅 0.177 ── 溝 D2 seg2)。<paramref name="pushedMax"/> = 出した量の最大。
+    /// 当たる先: 附属屋(土蔵ほか)の軒先の鉛直下に引く溝(いまは土井 S9 の service の棟)。御殿の棟は縁の束・柱を PushLineOffFeet で避ける。</summary>
+    public static Vector2[] RectClearOfFoot(Vector2[] rect, Transform body, float clear, out float pushedMax)
+    {
+        pushedMax = 0f;
+        if (rect == null || rect.Length < 4 || body == null) return rect;
+        var pts = new List<Vector3>(); float lo = float.MaxValue;
+        foreach (var mf in body.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null || !mf.gameObject.activeInHierarchy || IsRoofLabel(mf.name)) continue;
+            var M = mf.transform.localToWorldMatrix;
+            foreach (var v in mf.sharedMesh.vertices) { var w = M.MultiplyPoint3x4(v); pts.Add(w); lo = Mathf.Min(lo, w.y); }
+        }
+        if (pts.Count == 0) return rect;
+        var c = 0.25f * (rect[0] + rect[1] + rect[2] + rect[3]);
+        var n = new Vector2[4]; var d = new float[4];
+        for (int i = 0; i < 4; i++)
+        {
+            var a = rect[i]; var b = rect[(i + 1) % 4]; var e = b - a; var nn = new Vector2(-e.y, e.x).normalized;
+            if (Vector2.Dot(nn, 0.5f * (a + b) - c) < 0f) nn = -nn;
+            float side = Vector2.Dot(a, nn), foot = float.MinValue;
+            foreach (var w in pts) if (w.y <= lo + 0.15f) foot = Mathf.Max(foot, Vector2.Dot(new Vector2(w.x, w.z), nn));
+            n[i] = nn; d[i] = foot == float.MinValue ? 0f : Mathf.Max(0f, foot + clear - side);
+            pushedMax = Mathf.Max(pushedMax, d[i]);
+        }
+        if (pushedMax <= 1e-4f) return rect;
+        var r = new Vector2[4];
+        for (int j = 0; j < 4; j++) { int pi = (j + 3) % 4; r[j] = rect[j] + n[pi] * d[pi] + n[j] * d[j]; }
+        return r;
+    }
+
     /// <summary>**溝の線を据わった駒の足から逃がす**(雨落ちの線 ── 狙いは軒先の鉛直下・硬は「溝の外形が足に掛からない」・2026-10-06 EDO-0533 第18巡)。
     /// 線の一直線に続く辺の列ごとに、その範囲の内で列から <paramref name="need"/>(溝・桝の芯から外の面 + 離れ)より近い足 <paramref name="feet"/> を拾い、足の多い側と
     /// 逆の向きへ、最も近い足が need 離れるまで辺を平行に寄せる(寄せ ≤ <paramref name="maxPush"/>)。隣の辺の寄せた線の交点で継ぎ直す(平行で寄せが違えば段を入れる)。

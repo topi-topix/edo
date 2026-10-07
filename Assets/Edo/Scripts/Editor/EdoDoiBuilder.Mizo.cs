@@ -822,7 +822,18 @@ public static partial class EdoDoiBuilder
                 {
                     var bn = bldNames(mm.Groups[1].Value);
                     if (bn == null || bn.Count == 0) { why = "棟「" + mm.Groups[1].Value + "」が引けない"; return null; }
-                    foreach (var b in bn) { if (!eave.ContainsKey(b)) { why = "棟 " + b + " が建っていない(軒先が測れない)"; return null; } res.Add(loop(eave[b])); }
+                    foreach (var b in bn)
+                    {
+                        if (!eave.ContainsKey(b)) { why = "棟 " + b + " が建っていない(軒先が測れない)"; return null; }
+                        // 附属屋(土蔵ほか)は軒が浅い ── 溝の内の縁石の背を躯体の足の外形から 0.05 離す(硬・EdoBuild.RectClearOfFoot・普請方の設計 2026-10-07)
+                        var rc = eave[b]; var svc = FindDeep(Group("Fuzoku/Service"), b); float hwE = halfWOf(g);
+                        if (svc != null && !float.IsNaN(hwE))
+                        {
+                            float pm; rc = EdoBuild.RectClearOfFoot(rc, svc, hwE + 0.05f, out pm);
+                            if (pm > 1e-3f) line(1, g.id + ": " + b + " の軒先の鉛直下を躯体の足の外形 + 溝の半幅 + 0.05 まで外へ " + pm.ToString("F2") + "m 寄せた(柔: 狙いの軒先の鉛直下から外れた)");
+                        }
+                        res.Add(loop(rc));
+                    }
                     continue;
                 }
                 why = "言い方「" + p + "」を建った物へ解けない"; return null;

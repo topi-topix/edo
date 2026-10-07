@@ -1666,6 +1666,35 @@ public static class EdoAssets
             return SannoNozura(1.50f, risesToPlusX ? 0.22f : -0.22f, i);
         }
 
+        /// <summary>**野面の積み止めの駒**(2026-10-07・EDO-0502 第43巡・指図 nozuraEndRule 追記b・TW_Minami_Koshi.returnEnd・TW_Nishi_Kado.endKado)。
+        /// 相手の居ない端(③)を直線の駒の小口で終えず、小口の面にも面石を積み両角を隅の稜にした端の駒で終える。見付 <paramref name="h"/> ∈ 0.60 / 1.20 / 2.40。
+        /// <paramref name="koguchiPlusX"/> = true は小口の面が局所 +X(継ぎ手の切り口が −X = 0.909)の P、false は逆の M。走りは天端の線で 0.909・見え面 +Z。
+        /// ピボット = **見え面の天端の線と小口の面の天端の線の交点・床レベル(天端 − 見付)**(<see cref="SannoNozuraKado"/> と同じ取り方)。
+        /// 継ぎ手の切り口は直線の駒の G0 と同じ形 ⇒ 天端の線を揃えて直線の駒へ突き付ける。小口の面の奥行 1.818 は背の土に埋まる。
+        /// 実寸(H1.20 P): X −0.909〜+0.48 × Y −0.23〜+1.20 × Z −2.29〜+0.47(面と小口は法で下ほど前へ)。三角形 12,050(H0.6)〜。個体 i%2 で a/b。
+        /// 材 `Kirishi` / `Danishi`(直線の駒の map を写した)。⛔ ピボットで並べない ── 継ぎ手と天端は実メッシュを測って隣の駒へ寄せる(EdoBuild.PlaceNozuraTome)。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- tome --h=0.6,1.2,2.4 --render</summary>
+        public static string SannoNozuraTome(float h, bool koguchiPlusX, int i)
+        {
+            int hmm = (int)System.Math.Round(h * 1000.0);
+            return SannoNozuraDir + "/Sanno_Nozura_H" + hmm.ToString("0000") + "_Tome" + (koguchiPlusX ? "P" : "M") + "_" + (((i % 2) + 2) % 2 == 0 ? "a" : "b") + ".fbx";
+        }
+
+        /// <summary><see cref="SannoNozuraTome"/> の見付のうち **<paramref name="need"/> 以上で焼いてある最も低い段** [m]。無ければ NaN(呼ぶ側が ③ のまま刷る)。</summary>
+        public static float SannoNozuraTomeH(float need)
+        {
+            int want = (int)System.Math.Ceiling(need * 1000.0 - 0.5), best = int.MaxValue;
+            if (System.IO.Directory.Exists(SannoNozuraDir))
+                foreach (var f in System.IO.Directory.GetFiles(SannoNozuraDir, "Sanno_Nozura_H*_TomeP_a.fbx"))
+                {
+                    var m = System.Text.RegularExpressions.Regex.Match(f.Replace('\\', '/'), @"_H(\d{4})_TomeP_a\.fbx$");
+                    if (!m.Success) continue;
+                    int hmm = int.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+                    if (hmm >= want && hmm < best) best = hmm;
+                }
+            return best == int.MaxValue ? float.NaN : best / 1000f;
+        }
+
         /// <summary>**見切りの大きな野面石**(男坂の下で城の石垣と野面の乱積みを継ぐ1点)。面 0.86 × 見え 0.60(+根入れ 0.20)・控え 0.90。
         /// 軸・ピボットは <see cref="SannoNozura"/> と同じ取り方(中心・床レベル・Z=0 は天端での面・見え面 +Z)。三角形 274。
         /// 材 `Kirishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。

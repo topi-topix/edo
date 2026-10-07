@@ -2569,6 +2569,18 @@ public static class EdoOkabeYashikiBuilder
                     }
                     else sb.AppendLine("  ★ nozuraEndRule ②の隅の返しの数が指図から読めない(腕 " + mA.Success + "・背 " + mB.Success + "・下げ " + mG.Success + "・見付 " + mE.Success + ")── 従前の見切り石");
                 }
+                // ③ を積み止めの駒で終える(指図 nozuraEndRule 追記 2026-10-07b「③になる端は積み止めの駒で終える(高さは見付+根入れ0.3以上の最も低い段)」・EDO-0502 第43巡)
+                //   型は EdoBuild.PlaceNozuraTome。⛔ 根入れが読めなければ ★ を刷って当てない(③ のまま)
+                if (er.Contains("積み止め"))
+                {
+                    var mN = System.Text.RegularExpressions.Regex.Match(er, @"見付\s*\+\s*根入れ\s*([0-9.]+)\s*以上");
+                    if (mN.Success)
+                    {
+                        endRule.tome = EdoAssets.Own.SannoNozuraTome; endRule.tomeH = EdoAssets.Own.SannoNozuraTomeH; endRule.tomeNeiri = float.Parse(mN.Groups[1].Value, inv);
+                        sb.AppendLine("  端の③: 積み止めの駒で終える(段は見付 + 根入れ " + endRule.tomeNeiri.ToString("F2") + " 以上の最も低い焼いた段)");
+                    }
+                    else sb.AppendLine("  ★ nozuraEndRule 追記b: 積み止めの根入れが指図から読めない ── ③ のまま");
+                }
             }
             // 指図 nozuraEndRule 追記(2026-10-06・第31巡): koshiEnd = 背が法の腰の土留め(TW_Kita_Koshi・TW_Higashi_Minami・TW_Nishi_Kado)の端の背を
             //   天端 −0.05 の小段一間+法 1:1.5(切り ≤1.0・練塀の犬走り 0.3 を割らない)/ tallEnd = 見付が見切り石の最高段 2.4 を超える端は背の側へ返す(差 0.6 未満で終える)。
@@ -2698,7 +2710,13 @@ public static class EdoOkabeYashikiBuilder
                     {
                         var tw = O(o); if (tw == null) continue; string twn = S(Get(tw, "name"));
                         string reT = S(Get(tw, "returnEnd"));
-                        if (reT != null && reT.Contains("遠ざかる側"))
+                        if (reT != null && reT.Contains("積み止め"))
+                        {   // 指図 returnEnd(2026-10-07): 返しの終わりは今の位置のまま積み止めで終える(段は見付 + 根入れの規則)
+                            var sp = new EdoBuild.EndSpec { label = twn + ".returnEnd", tome = true };
+                            string pre = twn + "#ret"; specs.Add(new KeyValuePair<Func<EdoBuild.NozuraSeg, int, bool>, EdoBuild.EndSpec>((sg, e) => sg.name.StartsWith(pre), sp));
+                            sb.AppendLine("  端の型 " + sp.label + ": 今の位置のまま積み止めで終える(段は見付 + 根入れ " + endRule.tomeNeiri.ToString("F2") + " 以上)" + (endRule.tome == null ? " ★ 積み止めの口が無い(③ のまま)" : ""));
+                        }
+                        else if (reT != null && reT.Contains("遠ざかる側"))
                         {
                             float aMin = rxv(reT, @"腕\s*([0-9.]+)\s*〜\s*([0-9.]+)", 1), gG = rxv(reT, @"G\s*[−\-]\s*([0-9]+)", 1), sx = rxv(reT, @"見付\s*([0-9.]+)\s*で沈め", 1);
                             if (float.IsNaN(aMin) || float.IsNaN(gG) || float.IsNaN(sx)) sb.AppendLine("  ★ " + twn + ".returnEnd: 腕の下限・沈めの勾配・見付が読めない ── 既定の②");
@@ -2710,7 +2728,20 @@ public static class EdoOkabeYashikiBuilder
                             }
                         }
                         string ekT = S(Get(tw, "endKado"));
-                        if (ekT != null)
+                        if (ekT != null && ekT.Contains("積み止め"))
+                        {   // 指図 endKado(2026-10-07): 「<区間> の端<e>: 積み止めの H2400 で終える(0.07 沈め)」── 段は名指し
+                            var mE = System.Text.RegularExpressions.Regex.Match(ekT, @"^(\S+?)\s*の端\s*([01])");
+                            float hT = rxv(ekT, @"積み止めの\s*H\s*([0-9]{4})", 1);
+                            if (!mE.Success || float.IsNaN(hT)) sb.AppendLine("  ★ " + twn + ".endKado: 積み止めの端・段が読めない ── 既定");
+                            else
+                            {
+                                string segN = twn + "_" + mE.Groups[1].Value; int eN = int.Parse(mE.Groups[2].Value);
+                                var sp = new EdoBuild.EndSpec { label = twn + ".endKado", tome = true, tomeH = hT / 1000f };
+                                specs.Add(new KeyValuePair<Func<EdoBuild.NozuraSeg, int, bool>, EdoBuild.EndSpec>((sg, e) => sg.name == segN && e == eN, sp));
+                                sb.AppendLine("  端の型 " + sp.label + "(" + segN + " 端" + eN + "): 積み止め H" + sp.tomeH.ToString("F2") + " で終える" + (endRule.tome == null ? " ★ 積み止めの口が無い(③ のまま)" : ""));
+                            }
+                        }
+                        else if (ekT != null)
                         {
                             var mE = System.Text.RegularExpressions.Regex.Match(ekT, @"^(\S+?)\s*の端\s*([01])");
                             float gG = rxv(ekT, @"G\s*[−\-]\s*([0-9]+)", 1);
@@ -2877,7 +2908,9 @@ public static class EdoOkabeYashikiBuilder
             if (miss.Count > 0) { if (note != null) note.AppendLine("    ★ " + key + ": 指図から読めない(" + string.Join("・", miss.ToArray()) + ")── 法尻の小段を取らない"); continue; }
             var nodes = new List<Vector2>(); foreach (var q in ln) { var p = A(q); nodes.Add(new Vector2(F(p[0]), F(p[1]))); }
             var pcs = new List<GameObject>();
-            if (dan != null) foreach (Transform c in dan) if (c.gameObject.activeInHierarchy && c.name.StartsWith(key + "_")) pcs.Add(c.gameObject);
+            // ⛔ 積み止めの駒(名に "_tome")は数えない ── 小口の面の奥行 1.818 は背の土に埋まる駒で、数えると控えの後端が 1.16→2.76 に伸び、
+            //   背の縁の石の帯が積み止めだけを拾って天端を 1.5 低く読み、盛を最大 2.55 切った(第43巡・TW_Nishi_Kado 辺24)
+            if (dan != null) foreach (Transform c in dan) if (c.gameObject.activeInHierarchy && c.name.StartsWith(key + "_") && !c.name.Contains("_tome")) pcs.Add(c.gameObject);
             // 区間ごと(折れた線は区間に割る)── 駒は芯の射影が区間の内に入る物
             for (int i = 0; i + 1 < nodes.Count; i++)
             {

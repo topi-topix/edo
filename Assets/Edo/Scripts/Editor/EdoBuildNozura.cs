@@ -1105,9 +1105,13 @@ public static partial class EdoBuild
         /// <summary>記録: 端ごとの納め(打ち切り/見切り石/隅の駒/相手の面/⛔)。</summary>
         public List<string> record = new List<string>();
         /// <summary>**積み止めの駒を受ける口**(指図 TW_Minami_Koshi.returnEnd・TW_Nishi_Kado.endKado「③は積み止めで終える」・EDO-0502 第42巡)。
-        /// 見付 → 積み止めの駒のパス(焼けていなければ null)。null(既定)か駒が無い間は ③ のまま直線の駒で終える。
-        /// ⚠ 駒の向き(積み止めの小口が局所のどちら)と据え方は駒が焼けてから組む ── いまは ③ の端で駒の有無を記録するだけ。</summary>
-        public Func<float, string> tome;
+        /// (見付 H, 小口の面が局所 +X か, 個体) → 積み止めの駒のパス(<see cref="EdoAssets.Own.SannoNozuraTome"/>)。null(既定)なら ③ のまま直線の駒で終える。
+        /// ③ の端は走りを <see cref="tomeRun"/> だけ縮めて直線の駒を並べ、その先へ積み止めの駒を据える(<see cref="PlaceNozuraTome"/>・第43巡)。</summary>
+        public Func<float, bool, int, string> tome;
+        /// <summary>要る見付(端の見付 + <see cref="tomeNeiri"/>)→ 焼いてある積み止めの段のうち最も低いもの(無ければ NaN ⇒ ③⛔)。</summary>
+        public Func<float, float> tomeH;
+        /// <summary>積み止めの根入れの下限(指図 追記b「見付+根入れ0.3以上の最も低い段」)と、駒の走り(天端の線で 0.909)。</summary>
+        public float tomeNeiri = 0.3f, tomeRun = 0.909f;
         /// <summary>③ に落ちた端の数(直線の駒で終えた端)。</summary>
         public int unresolved;
         // ---- koshiEnd(指図 nozuraEndRule 追記 2026-10-06・EDO-0502 第31巡)── 背が法の腰の土留めの端の背を小段に切る ----
@@ -1174,7 +1178,13 @@ public static partial class EdoBuild
         public float armMin = float.NaN, armFixed = float.NaN; public bool uniformH;
         public bool noLower; public float lowerGrade = float.NaN, lowerToExpose = float.NaN; public int lowerMaxPieces = 1;
         public bool sinkIfShort; public float sinkGrade = float.NaN, sinkExpose = float.NaN; public int sinkMaxPieces = 1;
+        /// <summary>名指しの積み止め(指図 returnEnd「端は積み止めで終える」・endKado「積み止めの H2400 で終える」)── ②〜④ を当てずに積み止めで終える。
+        /// <see cref="tomeH"/> が NaN なら見付 + 根入れの規則で段を選ぶ。</summary>
+        public bool tome; public float tomeH = float.NaN;
     }
+
+    /// <summary>積み止めで終える端の段取り(PlaceNozuraNet の内)。</summary>
+    class TomeEnd { public float H, crest, hT; public Vector2 ep, fN, away; public string label; }
 
     /// <summary>野面の端の ② / ②'(指図 nozuraEndRule 2026-10-06 夕)── 塞がる端を野面の出隅の隅の駒で背の側へ折り返す返しの区間を <paramref name="add"/> へ足す
     /// (隅の駒は鎖が出隅として据える・返しの終わりは打ち切り)。② = 返しの腕 retMin〜retMax で背の地盤(返しの見え面の裏 probe)が天端 − retBackDiff 以内に届く所まで。
@@ -1409,6 +1419,41 @@ public static partial class EdoBuild
         Links();
         // ---- 端の納め(endRule・指図 nozuraEndRule)── 相手の居ない端を ① 延ばして打ち切り / ② 見切り石 へ(鎖を組む前に区間を延ばす) ----
         var endPlan = new string[n, 2]; var koshiOk = new bool[n, 2];
+        // 積み止め(endRule.tome・指図 nozuraEndRule 追記b・EDO-0502 第43巡)【硬】: ③ の端は直線の駒の小口で終えず、走りを駒の走り(0.909)だけ縮めて
+        //   直線の駒を並べ、その先に積み止めの駒(小口にも面石・両角が稜)を据える。段は端の駒の走りの見付 + 根入れ以上の最も低い焼いた段(名指しがあればその段)。
+        //   当たる先: endRule.tome を渡す邸(岡部 Stage2b)の野面の ③ の端すべて。
+        var tomeAt = new Dictionary<NozuraSeg, TomeEnd[]>();
+        Func<NozuraSeg, int, TomeEnd> tomeOf = (sg, e) => { TomeEnd[] t; return tomeAt.TryGetValue(sg, out t) ? t[e] : null; };
+        Func<NozuraSeg, int, Vector2, EndSpec, string> planTome = (sg, e, fN, sp) =>
+        {
+            if (endRule == null || endRule.tome == null) return "";
+            float T = endRule.tomeRun; Vector2 ep = endPt(sg, e), away = e == 1 ? sg.Dir : -sg.Dir;
+            if (sg.Len < T + 0.2f) return "・積み止め ⛔ 区間 " + sg.Len.ToString("F2") + "m が駒の走り " + T.ToString("F3") + " + 0.2 に足りない(③ のまま)";
+            float hT = float.MinValue;   // 積み止めの駒が受け持つ走り(端から内へ T)の見付の最大(足元は線の前 0.25/0.7 ── PlaceNozuraRun の needH と同じ測り)
+            for (float s2 = 0f; s2 <= T + 1e-3f; s2 += 0.15f)
+            {
+                Vector2 q2 = ep - away * s2; float cq = sg.crestAt(e == 0 ? s2 : sg.Len - s2);
+                foreach (float off in new[] { 0.25f, 0.7f })
+                { Vector2 q3 = q2 + fN * off; float fy = sg.footAt != null ? sg.footAt(q3.x, q3.y) : float.NaN; if (float.IsNaN(fy)) fy = groundAt(q3.x, q3.y); if (!float.IsNaN(fy)) hT = Mathf.Max(hT, cq - fy); }
+            }
+            if (hT == float.MinValue) return "・積み止め ⛔ 端の見付が測れない(③ のまま)";
+            float need = hT + endRule.tomeNeiri;
+            float H = sp != null && !float.IsNaN(sp.tomeH) ? sp.tomeH : (endRule.tomeH != null ? endRule.tomeH(need) : float.NaN);
+            if (float.IsNaN(H)) return "・積み止め ⛔ 見付 " + hT.ToString("F2") + " + 根入れ " + endRule.tomeNeiri.ToString("F2") + " = " + need.ToString("F2") + " を受ける段が焼けていない(③ のまま)";
+            string p0 = endRule.tome(H, true, 0);
+            if (string.IsNullOrEmpty(p0) || UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(p0) == null) return "・積み止め ⛔ 駒が読めない " + p0 + "(③ のまま)";
+            float cJ = sg.crestAt(e == 0 ? T : sg.Len - T);   // 継ぎ手(縮めた端)の天端 ── 隣の直線の駒と同じ天端の線
+            if (e == 1) sg.b = ep - away * T;
+            else
+            {
+                var oc = sg.crestAt; sg.crestAt = sl => oc(sl + T);
+                if (sg.sidesAt != null) { var os = sg.sidesAt; sg.sidesAt = sl => os(sl + T); }
+                sg.a = ep - away * T;
+            }
+            TomeEnd[] arr; if (!tomeAt.TryGetValue(sg, out arr)) tomeAt[sg] = arr = new TomeEnd[2];
+            arr[e] = new TomeEnd { H = H, crest = cJ, hT = hT, ep = ep, fN = fN, away = away, label = sp != null ? sp.label : null };
+            return "・積み止め H" + H.ToString("F2") + "(端の見付 " + hT.ToString("F2") + " + 根入れ ≥ " + endRule.tomeNeiri.ToString("F2") + (sp != null && !float.IsNaN(sp.tomeH) ? "・段は名指し" : "") + ")── 走りを " + T.ToString("F3") + " 縮めて直線の駒を並べ、その先へ据える";
+        };
         var kadoRet = new List<NozuraSeg>();   // ② 隅の駒の返し(endRule.kadoReturn)── 鎖を組む前に足して Links を組み直す
         if (endRule != null)
         {
@@ -1457,6 +1502,17 @@ public static partial class EdoBuild
                 float backD = groundAt(ep.x - fN.x * probe, ep.y - fN.y * probe) - c0, aheadD = float.MinValue;
                 for (float sa = 0.25f; sa <= W + 1e-3f; sa += 0.25f) { float ga = groundAt(ep.x + away.x * sa, ep.y + away.y * sa); if (!float.IsNaN(ga)) aheadD = Mathf.Max(aheadD, ga - c0); }
                 string meas = "[背−天端 " + backD.ToString("+0.00;-0.00") + "・先−天端 " + (aheadD == float.MinValue ? "-" : aheadD.ToString("+0.00;-0.00")) + "]";
+                // 名指しの積み止め(指図 returnEnd・endKado「積み止めで終える」)── ②〜④ を当てない
+                {
+                    var spT = endRule.spec != null ? endRule.spec(segs[k], e) : null;
+                    if (spT != null && spT.tome)
+                    {
+                        endPlan[k, e] = "③名指しの積み止め〔" + spT.label + "〕" + planTome(segs[k], e, fN, spT);
+                        if (tomeOf(segs[k], e) == null) endRule.unresolved++;
+                        endRule.record.Add(segs[k].name + " 端" + e + ": " + endPlan[k, e] + " " + meas);
+                        continue;
+                    }
+                }
                 // ④ 差し込み(指図 nozuraEndRule 追記2・①②より先・①を止めた邸でも当てる)【硬】: 端の先の見え面の線上の地盤が天端より高い端は、
                 //   天端 c0 のまま線を延ばし、線上の地盤が c0 + insertReach に届く所から insertTail 先で終える(端の小口は地中)。上限 insertMax。
                 //   延ばす先が塞がる(区画線・長屋の背から一間・据わった駒)か上限内で届かなければ ③。届いた所から先の区間の天端の土は根入れ(埋没に数えない)
@@ -1487,7 +1543,8 @@ public static partial class EdoBuild
                     else
                     {
                         endPlan[k, e] = "③⛔ ④差し込みが取れない(" + (stopI != null ? "延ばす先が塞がる: " + stopI : "地盤が天端+" + endRule.insertReach.ToString("F1") + " に " + endRule.insertMax.ToString("F1") + "m 以内で届かない") + ")── 直線の駒で終える";
-                        endRule.unresolved++;
+                        endPlan[k, e] += planTome(segs[k], e, fN, null);
+                        if (tomeOf(segs[k], e) == null) endRule.unresolved++;
                     }
                     endRule.record.Add(segs[k].name + " 端" + e + ": " + endPlan[k, e] + " " + meas);
                     continue;
@@ -1546,12 +1603,9 @@ public static partial class EdoBuild
                     }
                     else endPlan[k, e] = "③⛔ 延ばせず(" + (why ?? "延ばしても見付が下がらない") + ")・見付 " + h0.ToString("F2") + " の見切り石が焼いていない";
                 }
-                // 積み止めの口(endRule.tome): ③ の端で駒の有無を記録する(駒が焼けるまでは ③ のまま)
-                if (endRule.tome != null && endPlan[k, e] != null && endPlan[k, e].StartsWith("③"))
-                {
-                    string tp = endRule.tome(h0);
-                    endPlan[k, e] += tp != null && System.IO.File.Exists(tp) ? "・積み止めの駒 " + System.IO.Path.GetFileNameWithoutExtension(tp) + " は焼けた ⚠ 据え方は未組(③ のまま)" : "・積み止めの駒が焼けていない(③ のまま)";
-                }
+                // 積み止め(endRule.tome): ③ の端は積み止めの駒で終える(指図 nozuraEndRule 追記b)
+                if (endRule.tome != null && endPlan[k, e] != null && endPlan[k, e].StartsWith("③") && tomeOf(segs[k], e) == null)
+                    endPlan[k, e] += planTome(segs[k], e, fN, endRule.spec != null ? endRule.spec(segs[k], e) : null);
                 endRule.record.Add(segs[k].name + " 端" + e + ": " + endPlan[k, e] + " " + meas);
             }
         }
@@ -1664,7 +1718,12 @@ public static partial class EdoBuild
                 int k = kv.Key; int e = side == 0 ? (kv.Value ? 1 : 0) : (kv.Value ? 0 : 1);
                 Vector2 ep = endPt(segs[k], e);
                 var to = side == 0 ? w.startTo : w.endTo;
-                if (concave[k, e, 0] >= 0)
+                if (tomeOf(segs[k], e) != null)
+                {   // 積み止めの端: 縮めた線の端で直線の駒を止め(打ち切りの駒・近くの駒への突き付けを使わない)、その先へ積み止めの駒(下で据える)
+                    if (side == 0) w.startThrough = true; else w.endThrough = true;
+                    endDesc[side] = "積み止めの駒へ(走りを " + endRule.tomeRun.ToString("F3") + " 縮めた端)";
+                }
+                else if (concave[k, e, 0] >= 0)
                 {
                     int j = concave[k, e, 0];
                     if (moves(k, e))
@@ -1739,6 +1798,23 @@ public static partial class EdoBuild
                 pool.Add(kv.Key);
             }
             chainPieces[c] = mine;
+            // 積み止めの駒を据える(縮めた端の直線の駒の継ぎ目へ突き付ける)
+            for (int side = 0; side < 2; side++)
+            {
+                var kv = side == 0 ? ch[0] : ch[ch.Count - 1]; int k = kv.Key; int e = side == 0 ? (kv.Value ? 1 : 0) : (kv.Value ? 0 : 1);
+                var te = tomeOf(segs[k], e); if (te == null) continue;
+                // 相手 = この鎖の駒だけ(端の点から 5m 以内)── 重ねて埋める上手の run(返しの #ret*_0)の駒は数えない: 天端の高い駒の裏へ入る所は
+                //   埋めて隠す(部材どうしのめり込みは数えない)。数えると上の run の背の石に押されて端が 0.2〜0.3 先へ出た(第43巡・指図「今の位置のまま」)
+                var mates = new List<GameObject>();
+                foreach (var g in mine) if (g != null && !mates.Contains(g)) mates.Add(g);
+                mates.RemoveAll(g => { var bb = RB(g); return bb.SqrDistance(new Vector3(te.ep.x, bb.center.y, te.ep.y)) > 25f; });
+                string trec;
+                var tg = PlaceNozuraTome(endRule.tome, te.H, te.ep, te.away, te.fN, te.crest, mates, endRule.tomeRun, groundAt, parent, segs[k].name + "_tome" + e, seq++, out trec);
+                string rec = segs[k].name + " 端" + e + ": 積み止め " + trec + (te.label != null ? "〔" + te.label + "〕" : "");
+                log.AppendLine("    " + rec); endRule.record.Add(rec);
+                if (tg == null) { endRule.unresolved++; continue; }
+                mine.Add(tg); res.Add(new KeyValuePair<GameObject, Vector2>(tg, te.fN)); segPieces[k].Add(tg); pool.Add(tg);
+            }
             // 端の小口の沈み(NozuraSeg.endSink ── 指図 sodeSlope「小口を前の地表から 0.3 以上下へ」【硬】)── 端の駒の走りの最も外 0.15 の頂点の最高を
             //   見え面の前 0.5 の地表と比べて刷る(⛔ 寄せない ── 足りなければ ⛔ で記録)。当たる先: endSink を渡す区間(岡部 TW_Kado_Sode の低い端)
             for (int side = 0; side < 2; side++)
@@ -1758,6 +1834,76 @@ public static partial class EdoBuild
             }
         }
         return res;
+    }
+
+    /// <summary>**野面の積み止めの駒を端へ据える**(2026-10-07・EDO-0502 第43巡・指図 nozuraEndRule 追記b・TW_Minami_Koshi.returnEnd・TW_Nishi_Kado.endKado)。
+    /// ③ の端を直線の駒の小口で終えず、小口にも面石を積み両角を稜にした駒(<see cref="EdoAssets.Own.SannoNozuraTome"/>)で終える。
+    /// 置き方の4手: 固定側 = 走りを <paramref name="run"/> 縮めて並べた直線の駒(<paramref name="mates"/>)/ 可動側 = この駒。
+    /// ① 見え面: 天端の前の縁を線へ(<see cref="FaceWallToLine"/>)② 高さ: 継ぎ手の側の天端の帯(小口の稜の 0.2 を除く)を天端の線 <paramref name="crest"/> へ
+    /// ③ 走り: 継ぎ手の面を隣の駒の切り口へ**触れている所**で突き付ける(<see cref="ContactPts"/> ── 走りの向きの筋ごとの隙の最小を 0 に)。
+    /// ⛔ ピボット(稜・床)で位置を決めない ── 初めの置き場だけに使い、全部測って寄せる。硬い: 見え面が駒の +Z と逆に測れたら退ける(小口が逆の端へ行く)。
+    /// ⟶ 返す: 据えた駒(退けたら null)・<paramref name="rec"/> に段と向き・継ぎ手の隙・小口の出(端の点から)・天端の差・前の地表から床までの根入れ。
+    /// 当たる先: 野面の土留めの ③ の端すべて(岡部 Stage2b ── PlaceNozuraNet に endRule.tome を渡す邸)。</summary>
+    public static GameObject PlaceNozuraTome(Func<float, bool, int, string> pathOf, float H, Vector2 ep, Vector2 away, Vector2 fN, float crest,
+        IList<GameObject> mates, float run, Func<float, float, float> groundAt, Transform parent, string name, int i, out string rec)
+    {
+        Vector2 X = new Vector2(fN.y, -fN.x); bool plus = Vector2.Dot(X, away) > 0f;
+        string path = pathOf(H, plus, i);
+        if (string.IsNullOrEmpty(path) || UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(path) == null) { rec = "⛔ 駒が読めない " + path; return null; }
+        float yaw = Mathf.Atan2(-X.y, X.x) * Mathf.Rad2Deg;
+        var g = Place(path, new Vector3(ep.x, crest - H, ep.y), yaw, Vector3.one, parent, name);
+        string tag = "H" + H.ToString("F2") + " " + (plus ? "P" : "M") + "(" + System.IO.Path.GetFileNameWithoutExtension(path) + ")";
+        // ① 見え面: 天端の帯(最上点 − 0.15)の見え面の向きへの射影の最大 = 天端の前の縁を線へ。
+        //   ⛔ FaceWallToLine は使わない ── 奥行(小口の面 1.818)が走り(0.909)より長い駒は FaceSide が向きを取り違えて 180° 回す(第43巡: M の 2 駒が裏を向いた)
+        {
+            var vs0 = Body(g.transform, 999999); float top0 = float.MinValue; foreach (var v in vs0) top0 = Mathf.Max(top0, v.y);
+            float edge = float.MinValue; foreach (var v in vs0) if (v.y >= top0 - 0.15f) edge = Mathf.Max(edge, (v.x - ep.x) * fN.x + (v.z - ep.y) * fN.y);
+            if (edge > float.MinValue) g.transform.position -= new Vector3(fN.x, 0f, fN.y) * edge;
+        }
+        // ② 天端(継ぎ手の側の帯)
+        Func<float> crestOf = () =>
+        {
+            var cells = new Dictionary<long, float>();
+            foreach (var v in Body(g.transform, 999999))
+            {
+                float u = (v.x - ep.x) * away.x + (v.z - ep.y) * away.y; if (u > -0.2f || u < -run + 0.1f) continue;
+                long key = ((long)Mathf.FloorToInt(v.x / 0.2f) << 32) ^ (uint)Mathf.FloorToInt(v.z / 0.2f);
+                float y; if (!cells.TryGetValue(key, out y) || v.y > y) cells[key] = v.y;
+            }
+            var ys = new List<float>(cells.Values); if (ys.Count == 0) return float.NaN; ys.Sort();
+            int k0 = (int)(ys.Count * 0.6f); var top = ys.GetRange(k0, ys.Count - k0); return top[top.Count / 2];
+        };
+        float c1 = crestOf(); if (!float.IsNaN(c1)) g.transform.position += Vector3.up * (crest - c1);
+        float c2 = crestOf();
+        // ③ 継ぎ手: 隣の駒の切り口(端の点から run より内の頂点だけ)へ触れている所で突き付ける
+        var away3 = new Vector3(away.x, 0f, away.y);
+        float moved0 = 0f;
+        var mv = new List<Vector3>();
+        foreach (var m in mates) if (m != null && m != g && m.activeInHierarchy)
+            foreach (var v in Body(m.transform, 999999))
+            {
+                float u = (v.x - ep.x) * away.x + (v.z - ep.y) * away.y, lat = -((v.x - ep.x) * fN.x + (v.z - ep.y) * fN.y);
+                if (u <= -run + 0.3f && u >= -run - 3f && lat >= -0.8f && lat <= 3f && v.y >= crest - H - 0.6f) mv.Add(v);
+            }
+        // 積み止めの駒は継ぎ手の側(端の点から run − 0.3 より内)だけで測る ── 小口の面の裏(奥行 1.818 の背の石)は隣の駒の背の石と筋が重なり、
+        //   継ぎ手でない所を「めり込み」と読んで 0.2 外へ押し出した(第43巡)
+        Func<List<Vector3>> tomeVs = () => { var l = new List<Vector3>(); foreach (var v in Body(g.transform, 999999)) if ((v.x - ep.x) * away.x + (v.z - ep.y) * away.y <= -run + 0.3f + moved0) l.Add(v); return l; };
+        Vector3 at; int cnt; float gap = mv.Count == 0 ? float.NaN : ContactPts(mv, tomeVs(), away3, out at, out cnt);
+        float moved = 0f, gap2 = float.NaN; int cnt2 = 0;
+        if (!float.IsNaN(gap))
+        {
+            moved = -gap; g.transform.position += away3 * moved; moved0 = moved;
+            gap2 = ContactPts(mv, tomeVs(), away3, out at, out cnt2);
+        }
+        // 刷る: 小口の出(天端の帯の端の点から away へ)・根入れ(小口の前 0.5 の地表 − 床)
+        float topY = float.MinValue; var all = Body(g.transform, 999999); foreach (var v in all) topY = Mathf.Max(topY, v.y);
+        float kU = float.MinValue; foreach (var v in all) if (v.y >= topY - 0.15f) kU = Mathf.Max(kU, (v.x - ep.x) * away.x + (v.z - ep.y) * away.y);
+        Vector2 fq = ep + away * Mathf.Min(0f, kU) - away * 0.3f + fN * 0.5f; float gF = groundAt(fq.x, fq.y);
+        float floorY = crest - H;   // 床 = 天端 − 段(駒の床レベル)
+        rec = tag + "・継ぎ手 " + (float.IsNaN(gap2) ? "⚠ 相手の切り口が測れない(寄せず)" : gap2.ToString("+0.000;-0.000") + "m(筋 " + cnt2 + "・寄せ " + moved.ToString("+0.000;-0.000") + ")")
+            + "・小口の出(端の点から)" + kU.ToString("+0.00;-0.00") + "m・天端の差 " + (float.IsNaN(c2) ? "-" : (c2 - crest).ToString("+0.000;-0.000"))
+            + "・前の地表 " + gF.ToString("F2") + " − 床 " + floorY.ToString("F2") + " = 根入れ " + (gF - floorY).ToString("F2");
+        return g;
     }
 
     /// <summary>**腰の土留めの端の背を小段に切る**(koshiEnd・指図 nozuraEndRule 追記 2026-10-06・EDO-0502 第31巡)。端 <paramref name="ep"/> から内へ一間

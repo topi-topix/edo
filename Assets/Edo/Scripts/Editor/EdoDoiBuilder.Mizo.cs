@@ -134,6 +134,19 @@ public static partial class EdoDoiBuilder
             }
             return l;
         };
+        // 土留め・石垣の駒: Dodome・Ishigaki の名の頭 / 欄 builtAs「背の基壇 X」= S3 の背の基壇(IGB_X の見え面の駒)として建っている石垣
+        Func<string, List<GameObject>> wallPieces = wn =>
+        {
+            var pcs = piecesByPrefix(wn, Group("Dodome")); if (pcs.Count == 0) pcs = piecesByPrefix(wn, Group("Ishigaki"));
+            if (pcs.Count == 0)
+                foreach (var o in A(D["terraceWalls"]))
+                {
+                    var tw = O(o); if (S(tw["name"]) != wn || !Has(tw, "builtAs")) continue;
+                    var mb = Regex.Match(S(tw["builtAs"]), @"背の基壇\s*([A-Za-z][A-Za-z0-9_]*)");
+                    if (mb.Success) pcs = piecesByPrefix("IGB_" + mb.Groups[1].Value, Group("Ishigaki"));
+                }
+            return pcs;
+        };
         Vector2 parcelC = Vector2.zero; { var P = Poly; foreach (var p in P) parcelC += p; parcelC /= P.Length; }
 
         // ---- 型ごとの断面(drainKata)
@@ -578,7 +591,7 @@ public static partial class EdoDoiBuilder
             if ((m = Regex.Match(core, @"^坂\s*(R_[A-Za-z0-9_]+)\s*の帯の縁のうち地盤の高い側\s*──\s*頭から\s*(?:石垣|土留め)?\s*([A-Za-z][A-Za-z0-9_]*)\s*の端まで")).Success)
             {
                 var bd = rampBand(m.Groups[1].Value, true); if (bd == null || bd.center == null) { why = "坂 " + m.Groups[1].Value + " の帯(芯の線と幅)が欄に無い"; return null; }
-                string wn = m.Groups[2].Value; var pcs = piecesByPrefix(wn, Group("Dodome")); if (pcs.Count == 0) pcs = piecesByPrefix(wn, Group("Ishigaki"));
+                string wn = m.Groups[2].Value; var pcs = wallPieces(wn);
                 if (pcs.Count == 0) { why = wn + " の駒が建っていない ── 区間の端が決まらない"; return null; }
                 string w2; var el = EdoBuild.BandHighEdgeToPieces(bd, pcs, out w2);
                 if (el == null) { why = "坂の高い側の縁: " + w2; return null; }
@@ -769,15 +782,7 @@ public static partial class EdoDoiBuilder
                 float off = 0f;
                 if (m.Groups[3].Value.Length > 0) off = float.Parse(m.Groups[3].Value, System.Globalization.CultureInfo.InvariantCulture) * (m.Groups[4].Value == "間" ? ken : 1f);
                 else foreach (var o in A(Gk(g.dr, "toriai")) ?? new List<object>()) { var t = O(o); if ((Sk(t, "with") ?? "").Contains(wn) && Has(t, "offM")) off = F(t["offM"]); }
-                var pcs = piecesByPrefix(wn, Group("Dodome")); if (pcs.Count == 0) pcs = piecesByPrefix(wn, Group("Ishigaki"));
-                // 欄 builtAs「背の基壇 X」= その石垣は S3 の背の基壇(IGB_X の見え面の駒)として建っている
-                if (pcs.Count == 0)
-                    foreach (var o in A(D["terraceWalls"]))
-                    {
-                        var tw = O(o); if (S(tw["name"]) != wn || !Has(tw, "builtAs")) continue;
-                        var mb = Regex.Match(S(tw["builtAs"]), @"背の基壇\s*([A-Za-z][A-Za-z0-9_]*)");
-                        if (mb.Success) pcs = piecesByPrefix("IGB_" + mb.Groups[1].Value, Group("Ishigaki"));
-                    }
+                var pcs = wallPieces(wn);
                 if (pcs.Count == 0) { why = "土留め・石垣 " + wn + " の駒が建っていない"; return null; }
                 // 天端の側 = 足元より地盤の高い側(背)・根石の前 = 低い側(見え面)
                 Vector2 nrm; string w2; var mid0 = EdoBuild.WallMidLine(pcs, 0f, 0.3f, out nrm, out w2);

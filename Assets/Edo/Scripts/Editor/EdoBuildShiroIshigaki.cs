@@ -200,7 +200,9 @@ public static partial class EdoBuild
                 Func<float, float, float> gS = groundAt;
                 if (!float.IsNaN(s.outsideCap))
                 {
-                    Vector2 a0e = A(e); float capY = s.crest - s.outsideCap, capIn = s.crest;
+                    //   外と内の境は石垣の面の線(区画の線から de 控えた線)── 区画の線で割ると、控えた面の前の測り点(面 + 0.3)が内に入って
+                    //   天端で頭打ちになり、駒が埋まったと退けられた(第39巡 辺15 の抜けが残った)
+                    Vector2 a0e = A(e) - o * de; float capY = s.crest - s.outsideCap, capIn = s.crest;
                     gS = (x, z) => { float g = groundAt(x, z); if (float.IsNaN(g)) return g; return Vector2.Dot(new Vector2(x, z) - a0e, o) > 1e-3f ? Mathf.Min(g, capY) : Mathf.Min(g, capIn); };
                 }
                 var got = PlaceCrestWall(cw, gS, parent, final ? res.ends : null, segOut, final ? log : new System.Text.StringBuilder(), out wf, out bs);
@@ -537,8 +539,16 @@ public static partial class EdoBuild
                 var sp = crestSpan(probe, w);
                 foreach (var go in probe) if (go != null) UnityEngine.Object.DestroyImmediate(go);
                 if (sp.x > sp.y) continue;
-                float s0n = nbLo != null ? w.s0 - (Mathf.Max(0f, sp.x - w.s0) + stepLap) : freeLo ? w.s0 - Mathf.Max(0f, sp.x - w.s0) : w.s0;
-                float s1n = nbHi != null ? w.s1 + (Mathf.Max(0f, w.s1 - sp.y) + stepLap) : freeHi ? w.s1 + Mathf.Max(0f, w.s1 - sp.y) : w.s1;
+                // 隣の無い端の届かせ先 = 棟の底(最下点 + 0.05 以内)の頂点の走りの端 ── 札の躯体の端(jamb)より土台の木口が外へ出る(土井 E14_N1 の東の隅・第39巡)
+                float fLo = w.s0, fHi = w.s1;
+                if (freeLo || freeHi)
+                    foreach (var m in w.members)
+                    {
+                        var bv = Body(m.body.transform, 999999); float ymin = float.MaxValue; foreach (var v in bv) ymin = Mathf.Min(ymin, v.y);
+                        foreach (var v in bv) { if (v.y > ymin + 0.05f) continue; float sv = Vector2.Dot(new Vector2(v.x, v.z) - w.origin, w.along); if (sv < w.s0 + 1f) fLo = Mathf.Min(fLo, sv); if (sv > w.s1 - 1f) fHi = Mathf.Max(fHi, sv); }
+                    }
+                float s0n = nbLo != null ? w.s0 - (Mathf.Max(0f, sp.x - w.s0) + stepLap) : freeLo ? w.s0 - Mathf.Max(0f, sp.x - fLo) : w.s0;
+                float s1n = nbHi != null ? w.s1 + (Mathf.Max(0f, w.s1 - sp.y) + stepLap) : freeHi ? w.s1 + Mathf.Max(0f, fHi - sp.y) : w.s1;
                 if (nbLo == null && nbHi == null && Mathf.Abs(s0n - w.s0) < 1e-3f && Mathf.Abs(s1n - w.s1) < 1e-3f) continue;
                 if (nbLo == null && nbHi == null) log?.AppendLine("  背の基壇 " + w.members[0].name + w.key + ": 隣の無い端へ天端の面を届かせた(s " + w.s0.ToString("F2") + "→" + s0n.ToString("F2") + " / " + w.s1.ToString("F2") + "→" + s1n.ToString("F2") + ")");
                 newS[w] = new Vector2(s0n, s1n);

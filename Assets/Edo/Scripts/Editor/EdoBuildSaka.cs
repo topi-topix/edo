@@ -402,7 +402,11 @@ public static partial class EdoBuild
         public bool noEndSpill;
         /// <summary>切りの上限(設計面 baseAt から)。0 なら切らない(盛るだけ・従前)。> 0 なら小段より高い今の地盤を小段と 1:bf の法まで切る
         /// (指図 sodeSlope 追記 2026-10-07「出隅の踊り場の背を天端 −0.15 の水平に描き直し、上手の切り ≤0.35・下手の盛り ≤0.35」【硬】・EDO-0502 第42巡)。</summary>
-        public float maxCut; }
+        public float maxCut;
+        /// <summary>真なら b の端の先(走りの外)へ盛らず、端の手前で 1:bf で回して下ろす ── 盛りの法尻が b の端の線に来る【硬】(指図 TW_Minami_Koshi.returnEnd 追記
+        /// 2026-10-07「端の手前で妻の外の法へ 1:1.5 で回して下ろし、法尻は長屋の背と妻から一間の外・口へ入れない」・EDO-0502 第45巡)。
+        /// 当たる先: 返しの終わりを積み止めで終える run(岡部 TW_Minami_Koshi#ret)。</summary>
+        public bool tuckB; }
 
     /// <summary>**土留めの見え面の前の帯**(線 a→b・背 back の逆の側へ depth まで・走りの両端は線の内)に点 p が入るか。
     /// 当たる先: <see cref="BackBench.keepOut"/> ── 小段の裏込めの端の法(1:bf)が、隣の土留めの見え面の前へ回り込んで土の箱を立てない
@@ -427,6 +431,7 @@ public static partial class EdoBuild
         float sAl = Vector2.Dot(p - k.a, t), dn = Vector2.Dot(p - k.a, k.back);
         if (dn < 0f) return cur;                                       // 前(門の内)は触らない
         if (k.noEndSpill && (sAl < 0f || sAl > L)) return cur;          // 走りの外へは盛らない(硬い)
+        if (k.tuckB && sAl > L) return cur;                             // b の端の先へは盛らない(端の手前で回して下ろす)
         float dEnd = sAl < 0f ? -sAl : (sAl > L ? sAl - L : 0f);
         float benchY = k.top - k.drop - k.drain * Mathf.Min(dn, k.w) - k.drainAlong * (L - Mathf.Clamp(sAl, 0f, L));
         float hh = Mathf.Sqrt(Mathf.Pow(Mathf.Max(0f, dn - k.w), 2f) + dEnd * dEnd);
@@ -437,6 +442,7 @@ public static partial class EdoBuild
             float hi = benchY + hh / k.bf;
             if (cur > hi) return Mathf.Min(cur, Mathf.Max(hi, b0 - k.maxCut));
         }
+        if (k.tuckB) target = Mathf.Min(target, b0 + (L - sAl) / k.bf);   // 法尻 = b の端の線(設計面から 1:bf で上がる)
         if (target <= cur) return cur;
         return Mathf.Max(cur, Mathf.Min(target, b0 + k.maxFill));
     }
@@ -546,8 +552,12 @@ public static partial class EdoBuild
     /// ⭐ run の長さに下限は無い ── <paramref name="minLen"/>(1 駒)より短い run は、駒の端を**下手の端**に合わせ、始まりを上手へ延ばして
     /// 余りを上手の run の駒の裏へ重ねて埋める(返す a が前の run の b より手前になる)。返す: (a, b, 天端)。測るだけ。
     /// 当たる先: 段違いの天端で割る返し・袖(RunsByBackSlope の「下がる量」でなく「天端との差」で切る欄 ── いまは岡部の腰石垣の返し)。</summary>
+    /// <para>⭐ <paramref name="dropHidden"/> を渡すと(指図 TW_Minami_Koshi.returnEnd 追記 2026-10-07「返しの最後の run が 1 駒より短く上の run の裏に隠れるときは
+    /// その run を作らない」・EDO-0502 第45巡)、最後の run が 1 駒より短く上手の run の後に続く(延ばせば上の run の駒の裏へ重なる)とき、延ばさずに外して
+    /// <paramref name="dropHidden"/> へ入れ、<paramref name="sEnd"/> を上手の run の終わりへ戻す ── 返しはその run の端で終わる(端の納めは呼び手 ── 積み止め)。
+    /// 当たる先: 返しの割り(岡部 TW_Minami_Koshi の両端の返し)。</para></summary>
     public static List<Vector3> RunsByCrestGap(float L, Func<float, float> backAt, Func<float, float> frontAt, float firstTop, float step, float maxGap,
-                                               float endDiff, float minLen, out float sEnd, float ds = 0.25f)
+                                               float endDiff, float minLen, out float sEnd, float ds = 0.25f, List<Vector3> dropHidden = null)
     {
         var res = new List<Vector3>(); sEnd = L;
         int n = Mathf.Max(1, Mathf.CeilToInt(L / ds));
@@ -568,6 +578,8 @@ public static partial class EdoBuild
             }
         }
         if (sEnd - a > 1e-3f) res.Add(new Vector3(a, sEnd, top));
+        if (dropHidden != null && res.Count >= 2 && res[res.Count - 1].y - res[res.Count - 1].x < minLen)
+        { dropHidden.Add(res[res.Count - 1]); res.RemoveAt(res.Count - 1); sEnd = res[res.Count - 1].y; }
         for (int i = 0; i < res.Count; i++)
             if (res[i].y - res[i].x < minLen) res[i] = new Vector3(Mathf.Max(0f, res[i].y - minLen), res[i].y, res[i].z);
         return res;

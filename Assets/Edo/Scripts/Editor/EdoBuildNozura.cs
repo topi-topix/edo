@@ -1181,6 +1181,58 @@ public static partial class EdoBuild
         /// <summary>名指しの積み止め(指図 returnEnd「端は積み止めで終える」・endKado「積み止めの H2400 で終える」)── ②〜④ を当てずに積み止めで終える。
         /// <see cref="tomeH"/> が NaN なら見付 + 根入れの規則で段を選ぶ。</summary>
         public bool tome; public float tomeH = float.NaN;
+        /// <summary>**積み止めの行く手の塀からの離れ**【硬】(指図 TW_Nishi_Kado.endKado 追記 2026-10-07「積み止めの駒は埋まる控えまで含めて区画の線の外へ 0・
+        /// 駒の最も外の点を塀の内面から 0.3 以上内 ── 端を run に沿って内へ引く(目安 0.9・PlaceBest)」・EDO-0502 第45巡)。NaN なら当てない。
+        /// 引き = 端を走りに沿って内へ戻す量。候補 0〜<see cref="tomePullMax"/>(0.1 刻み)を <see cref="tomePullAim"/>【柔】に近い順に試し、
+        /// <see cref="TomeClearShort"/>(区画の外 0・行く手の辺の塀 <see cref="tomeWalls"/> の内面 + 離れ)を通る所を <see cref="PlaceBest{T}"/> で選ぶ。</summary>
+        public float tomeClear = float.NaN, tomePullAim = float.NaN, tomePullMax = 2.7f;
+        public List<GameObject> tomeWalls; public Vector2[] tomeParcel;
+    }
+
+    /// <summary>**積み止めの駒が行く手の塀へ足りない離れ**(<see cref="EndSpec.tomeClear"/>・EDO-0502 第45巡)── 0 以下なら通る。
+    /// ① 区画の外 0【硬】: 駒の実メッシュの頂点(埋まる控えまで)のうち区画の外の最も遠いもの。
+    /// ② 行く手の辺(内向きの法線が走りの向き <paramref name="away"/> と向き合う辺 ── cos &lt; −0.7)ごとに、塀の内面 = 塀の駒の実メッシュの頂点のうち
+    /// その辺が最も近く・駒の走りの範囲 ±1m・駒の天端 + 0.5 より下(駒が当たり得る高さ)の、辺からの内への最大。要る離れ = 内面 + <paramref name="clear"/>、
+    /// 駒の最も外の点(辺からの内への最小)との差。⛔ ピボット・bounds で測らない。⛔ 走りに並ぶ辺(塀が駒の脇を走る)は数えない ── 引いても変わらない。
+    /// 当たる先: 区画の線際の塀へ向かって終わる野面の積み止め(岡部 TW_Nishi_Kado_辺24_1_0)。⟶ 返す: 不足の最大(why に辺と内面)。</summary>
+    public static float TomeClearShort(GameObject g, Vector2 away, IList<GameObject> walls, Vector2[] parcel, float clear, out string why)
+    {
+        why = ""; float worst = float.NegativeInfinity;
+        var vs = Body(g.transform, 999999); if (vs.Count == 0) { why = "駒の頂点が無い"; return float.PositiveInfinity; }
+        float topY = float.MinValue; foreach (var v in vs) topY = Mathf.Max(topY, v.y);
+        if (parcel == null || parcel.Length < 3) { why = "区画が無い"; return float.PositiveInfinity; }
+        foreach (var v in vs) { var q = new Vector2(v.x, v.z); if (!EdoGeom.PIP(parcel, q)) { float d = EdoGeom.DistToPolyEdge(parcel, q); if (d > worst) { worst = d; why = "区画の外 " + d.ToString("F3"); } } }
+        if (worst == float.NegativeInfinity) { worst = 0f; why = "区画の内"; }
+        int n = parcel.Length;
+        Vector2 gc = Vector2.zero; foreach (var v in vs) gc += new Vector2(v.x, v.z); gc /= vs.Count;
+        Func<Vector2, int> nearestEdge = q => { int bi = -1; float bd = float.MaxValue; for (int j = 0; j < n; j++) { Vector2 A = parcel[j], B = parcel[(j + 1) % n], ab = B - A; float u = Mathf.Clamp01(Vector2.Dot(q - A, ab) / Mathf.Max(ab.sqrMagnitude, 1e-9f)); float d = (A + ab * u - q).sqrMagnitude; if (d < bd) { bd = d; bi = j; } } return bi; };
+        for (int i = 0; i < n; i++)
+        {
+            Vector2 A = parcel[i], B = parcel[(i + 1) % n]; float len = Vector2.Distance(A, B); if (len < 1e-3f) continue;
+            Vector2 d = (B - A) / len, inw = new Vector2(-d.y, d.x); if (!EdoGeom.PIP(parcel, (A + B) * 0.5f + inw * 0.05f)) inw = -inw;
+            if (Vector2.Dot(inw, away) > -0.7f) continue;
+            float s0 = float.MaxValue, s1 = float.MinValue, tMin = float.MaxValue;
+            foreach (var v in vs) { var q = new Vector2(v.x, v.z); float s = Vector2.Dot(q - A, d); s0 = Mathf.Min(s0, s); s1 = Mathf.Max(s1, s); if (s >= -0.05f && s <= len + 0.05f) tMin = Mathf.Min(tMin, Vector2.Dot(q - A, inw)); }
+            if (s1 < -0.05f || s0 > len + 0.05f || tMin > 4f) continue;   // 駒がこの辺の脇に無い・遠い
+            float wIn = float.NegativeInfinity; string wn = null;
+            if (walls != null) foreach (var w in walls)
+            {
+                if (w == null || !w.activeInHierarchy) continue;
+                var bb = RB(w); if (bb.SqrDistance(new Vector3(gc.x, bb.center.y, gc.y)) > 36f) continue;
+                foreach (var v in Body(w.transform, 999999))
+                {
+                    if (v.y > topY + 0.5f) continue; var q = new Vector2(v.x, v.z); float s = Vector2.Dot(q - A, d);
+                    if (s < s0 - 1f || s > s1 + 1f || s < 0f || s > len) continue; float t = Vector2.Dot(q - A, inw); if (t < -1f || t > 3f) continue;
+                    if (nearestEdge(q) != i) continue;
+                    if (t > wIn) { wIn = t; wn = w.name; }
+                }
+            }
+            if (wIn == float.NegativeInfinity) continue;
+            float sh = wIn + clear - tMin;
+            if (sh > worst) { worst = sh; why = "辺" + i + " の塀の内面 " + wIn.ToString("F2") + "(" + wn + ")+ " + clear.ToString("F2") + " に対し駒の最も外 " + tMin.ToString("F2"); }
+            else if (why == "区画の内") why = "辺" + i + " の塀の内面 " + wIn.ToString("F2") + "(" + wn + ")+ " + clear.ToString("F2") + " ≤ 駒の最も外 " + tMin.ToString("F2");
+        }
+        return worst;
     }
 
     /// <summary>積み止めで終える端の段取り(PlaceNozuraNet の内)。</summary>
@@ -1453,17 +1505,40 @@ public static partial class EdoBuild
             if (float.IsNaN(H)) return "・積み止め ⛔ 見付 " + hT.ToString("F2") + " + 根入れ " + endRule.tomeNeiri.ToString("F2") + " = " + need.ToString("F2") + " を受ける段が焼けていない(③ のまま)";
             string p0 = endRule.tome(H, true, 0);
             if (string.IsNullOrEmpty(p0) || UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(p0) == null) return "・積み止め ⛔ 駒が読めない " + p0 + "(③ のまま)";
-            float cJ = sg.crestAt(e == 0 ? T : sg.Len - T);   // 継ぎ手(縮めた端)の天端 ── 隣の直線の駒と同じ天端の線
+            // 行く手の塀からの離れ(EndSpec.tomeClear【硬】・EDO-0502 第45巡)── 端を走りに沿って内へ引く量を PlaceBest で選ぶ(試しに据えて実メッシュで測り、消す)
+            float pull = 0f; string pullNote = "";
+            if (sp != null && !float.IsNaN(sp.tomeClear))
+            {
+                float aim = float.IsNaN(sp.tomePullAim) ? 0f : sp.tomePullAim;
+                var pulls = new List<float>(); for (int pi = 0; pi * 0.1f <= sp.tomePullMax + 1e-4f; pi++) { float pv = pi * 0.1f; if (sg.Len - pv >= T + 0.2f) pulls.Add(pv); }
+                pulls.Sort((x, y) => Mathf.Abs(x - aim).CompareTo(Mathf.Abs(y - aim)));
+                var pOf = new Dictionary<GameObject, float>(); string lastWhy = null; float lastSh = float.NaN, sh0 = float.NaN; string why0 = null;
+                Func<float, GameObject> placeP = pv =>
+                {
+                    Vector2 e2 = ep - away * pv; float cj = sg.crestAt(e == 0 ? pv + T : sg.Len - pv - T); string r0;
+                    var gp = PlaceNozuraTome(endRule.tome, H, e2, away, fN, cj, new List<GameObject>(), T, groundAt, null, "__tome_probe__", 0, out r0);
+                    if (gp != null) pOf[gp] = pv; return gp;
+                };
+                { var g0 = placeP(0f); if (g0 != null) { sh0 = TomeClearShort(g0, away, sp.tomeWalls, sp.tomeParcel, sp.tomeClear, out why0); UnityEngine.Object.DestroyImmediate(g0); } }
+                var hards = new List<Hard> { new Hard("積み止めの塀の内面からの離れ", g => { lastSh = TomeClearShort(g, away, sp.tomeWalls, sp.tomeParcel, sp.tomeClear, out lastWhy); return lastSh <= 1e-3f; }) };
+                var softs = new List<Soft> { new Soft("引きの狙い", -0.05f, g => { float pv; return pOf.TryGetValue(g, out pv) ? -Mathf.Abs(pv - aim) : -99f; }) };
+                var best = PlaceBest<float>(pulls, pulls.Count, placeP, hards, softs, new SeiyakuTally());
+                if (best == null) return "・積み止め ⛔ 塀の内面から " + sp.tomeClear.ToString("F2") + " を取れる引きが 0〜" + sp.tomePullMax.ToString("F1") + " に無い(引き 0 で不足 " + sh0.ToString("F3") + "・" + why0 + ")(③ のまま)";
+                pull = pOf[best]; float shB = TomeClearShort(best, away, sp.tomeWalls, sp.tomeParcel, sp.tomeClear, out lastWhy); UnityEngine.Object.DestroyImmediate(best);
+                pullNote = "・端を走りに沿って内へ " + pull.ToString("F1") + " 引く(狙い " + aim.ToString("F1") + "【柔】" + (Mathf.Abs(pull - aim) > 0.05f ? " ⚠ 狙い未達" : "") + "・引き 0 では不足 " + sh0.ToString("F3") + "〔" + why0 + "〕→ 不足 " + shB.ToString("F3") + "〔" + lastWhy + "〕)";
+                ep = ep - away * pull;
+            }
+            float cJ = sg.crestAt(e == 0 ? T + pull : sg.Len - T - pull);   // 継ぎ手(縮めた端)の天端 ── 隣の直線の駒と同じ天端の線
             if (e == 1) sg.b = ep - away * T;
             else
             {
-                var oc = sg.crestAt; sg.crestAt = sl => oc(sl + T);
-                if (sg.sidesAt != null) { var os = sg.sidesAt; sg.sidesAt = sl => os(sl + T); }
+                var oc = sg.crestAt; float sh = T + pull; sg.crestAt = sl => oc(sl + sh);
+                if (sg.sidesAt != null) { var os = sg.sidesAt; sg.sidesAt = sl => os(sl + sh); }
                 sg.a = ep - away * T;
             }
             TomeEnd[] arr; if (!tomeAt.TryGetValue(sg, out arr)) tomeAt[sg] = arr = new TomeEnd[2];
             arr[e] = new TomeEnd { H = H, crest = cJ, hT = hT, ep = ep, fN = fN, away = away, label = sp != null ? sp.label : null };
-            return "・積み止め H" + H.ToString("F2") + "(端の見付 " + hT.ToString("F2") + " + 根入れ ≥ " + endRule.tomeNeiri.ToString("F2") + (sp != null && !float.IsNaN(sp.tomeH) ? "・段は名指し" : "") + ")── 走りを " + T.ToString("F3") + " 縮めて直線の駒を並べ、その先へ据える";
+            return "・積み止め H" + H.ToString("F2") + "(端の見付 " + hT.ToString("F2") + " + 根入れ ≥ " + endRule.tomeNeiri.ToString("F2") + (sp != null && !float.IsNaN(sp.tomeH) ? "・段は名指し" : "") + ")── 走りを " + T.ToString("F3") + " 縮めて直線の駒を並べ、その先へ据える" + pullNote;
         };
         var kadoRet = new List<NozuraSeg>();   // ② 隅の駒の返し(endRule.kadoReturn)── 鎖を組む前に足して Links を組み直す
         if (endRule != null)
@@ -1911,8 +1986,27 @@ public static partial class EdoBuild
         float kU = float.MinValue; foreach (var v in all) if (v.y >= topY - 0.15f) kU = Mathf.Max(kU, (v.x - ep.x) * away.x + (v.z - ep.y) * away.y);
         Vector2 fq = ep + away * Mathf.Min(0f, kU) - away * 0.3f + fN * 0.5f; float gF = groundAt(fq.x, fq.y);
         float floorY = crest - H;   // 床 = 天端 − 段(駒の床レベル)
+        // 見え面の天端の実面で、積み止めと隣の見えている駒の天端を比べる(指図 TW_Minami_Koshi.returnEnd 追記「隠れた駒と比べない」・EDO-0502 第45巡)──
+        //   見え面の線から背へ 0.4・前へ 0.3 の帯の天端(0.2 の升ごとの最高の上 4 割の中央値)。隣 = 継ぎ手の手前 0.1〜0.9 の mates の頂点(この鎖の駒だけ)
+        Func<IEnumerable<Vector3>, float, float, float> faceTop = (src, uLo, uHi) =>
+        {
+            var cells = new Dictionary<long, float>();
+            foreach (var v in src)
+            {
+                float u = (v.x - ep.x) * away.x + (v.z - ep.y) * away.y, lat = (v.x - ep.x) * fN.x + (v.z - ep.y) * fN.y;
+                if (u < uLo || u > uHi || lat < -0.4f || lat > 0.3f) continue;
+                long key = ((long)Mathf.FloorToInt(v.x / 0.2f) << 32) ^ (uint)Mathf.FloorToInt(v.z / 0.2f);
+                float y; if (!cells.TryGetValue(key, out y) || v.y > y) cells[key] = v.y;
+            }
+            var ys = new List<float>(cells.Values); if (ys.Count == 0) return float.NaN; ys.Sort();
+            int k0 = (int)(ys.Count * 0.6f); var top = ys.GetRange(k0, ys.Count - k0); return top[top.Count / 2];
+        };
+        float fT = faceTop(Body(g.transform, 999999), -run + moved + 0.1f, -0.2f);
+        var mAll = new List<Vector3>(); foreach (var m in mates) if (m != null && m != g && m.activeInHierarchy) mAll.AddRange(Body(m.transform, 999999));
+        float fM = faceTop(mAll, -run + moved - 0.9f, -run + moved - 0.1f);
         rec = tag + "・継ぎ手 " + (float.IsNaN(gap2) ? "⚠ 相手の切り口が測れない(寄せず)" : gap2.ToString("+0.000;-0.000") + "m(筋 " + cnt2 + "・寄せ " + moved.ToString("+0.000;-0.000") + ")")
             + "・小口の出(端の点から)" + kU.ToString("+0.00;-0.00") + "m・天端の差 " + (float.IsNaN(c2) ? "-" : (c2 - crest).ToString("+0.000;-0.000"))
+            + "・見え面の天端 積み止め " + (float.IsNaN(fT) ? "-" : fT.ToString("F2")) + " − 隣の見えている駒 " + (float.IsNaN(fM) ? "-(隣が無い)" : fM.ToString("F2") + " = " + (fT - fM).ToString("+0.00;-0.00"))
             + "・前の地表 " + gF.ToString("F2") + " − 床 " + floorY.ToString("F2") + " = 根入れ " + (gF - floorY).ToString("F2");
         return g;
     }

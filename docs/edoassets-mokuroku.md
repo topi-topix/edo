@@ -244,7 +244,7 @@
 | `Own.DanKiriEnd(d, deg, nori)` | 関数 | SannoDanKiri の端: 平面で斜めに切る。 | BuildIshidan(CutStairEndsToBatter・MeasureStepEndOnBatter) |
 | `Own.NearestBaked(path, tol)` | 関数 | 綴りの数だけが違う焼いてある兄弟を引く(EDO-0430 2026-09-26)。 | BuildIshidan(CutStairEndsToBatter) |
 | `Own.IsSannoNozura(meshAssetPath)` | 関数 | メッシュの資産パスが山王の野面の乱積みの駒(1間・隅・切り・法切り・見切り ── `Sanno_Nozura_*`)か。 | SannoSha(AbutStairsToWalls) |
-| `Own.SannoNozura(h, grade, i)` | 関数 | 野面の乱積みの土留め — 1間の駒(山王社の前庭の縁。 | BuildNozura(PlaceNozuraRun・SoilSideCrestShort), BuildRim(BridgeCorner), OkabeYashiki(PlaceCurb・Stage2b_Dan), DoiBuilder.Dan(Stage4a_Dodome) ほか3 |
+| `Own.SannoNozura(h, grade, i)` | 関数 | 野面の乱積みの土留め — 1間の駒(山王社の前庭の縁。 | BuildNozura(PlaceNozuraRun・SoilSideCrestShort), OkabeYashiki(PlaceCurb・SodeSlopeSegs・Stage2b_Dan), BuildRim(BridgeCorner), DoiBuilder.Dan(Stage4a_Dodome) ほか3 |
 | `Own.SannoNozuraKiri(risesToPlusX, i)` | 関数 | 野面の乱積みの打ち切り — 根石一段が地中へ沈む駒(見付 0.2 未満で壁を終える所)。 | OkabeYashiki(PlaceCurb・Stage2b_Dan), DoiBuilder.Dan(Stage4a_Dodome), MatsudairaDewa(NozuraLines), SannoSha(Nozura) ほか1 |
 | `Own.SannoNozuraKado(h, i)` | 関数 | 野面の乱積みの出隅 90° の隅の駒(2026-09-25・山王 本殿の西の土留め `TW_Nozura_ShadenW` の帯の北西・南西の隅。 | OkabeYashiki(PlaceCurb・Stage2b_Dan), DoiBuilder.Dan(Stage4a_Dodome), MatsudairaDewa(NozuraLines), SannoSha(Nozura) ほか1 |
 | `Own.SannoNozuraKadoDeg(deg, h, i)` | 関数 | 野面の出隅の駒・折れ deg°(走りの向きの変わり。 | BuildNozura |

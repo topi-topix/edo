@@ -1,11 +1,11 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 c150d3c8984b -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 223a43bbbf1d -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
 
-- 公開関数 512 本(注釈なし 31)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
+- 公開関数 513 本(注釈なし 31)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
 - 同じ道具が刷る目録: 邸ビルダーのメニュー → Stage と中の関数 `docs/builder-mokuroku.md` / 部材の名 `docs/edoassets-mokuroku.md`。
 - 札: **硬** = 注釈に「硬い/許容0」・**柔** = 「柔らかい/狙い」がある(判定ではなく注釈の語)。相手の札(地面・駒どうし・天端・床・断面・面・隅・区域)も注釈の語を拾っただけ。
 - 呼んでいる所 = 定義のファイルの外で `EdoBuild.<名>(` と書いている C# ファイル(`Edo` と `Builder/Rebuild` を落とした名)と、その中の呼んでいる関数(Stage)。同じ名の多重定義はまとめて数える。`EdoBuild` の中どうしの呼び出しは載せない。
@@ -35,7 +35,7 @@
 | [EdoBuildMizo.cs](#edobuildmizocs) | 排水(雨落ち・溝・桝・蓋石・水切り・水抜き)の置き方 ── 線を建った物から引き、底の高さを式で解き、1m の駒を並べる。 | 】土井 S9 排水(EdoDoiBuilder.Mizo.cs)。 | 69 |
 | [EdoBuildMuki.cs](#edobuildmukics) | 向き(正面)の解き — EdoBuild の partial (2026-09-22・EDO-0261 ③) | — | 7 |
 | [EdoBuildNiwa.cs](#edobuildniwacs) | 庭の置き方 — 類型の庭(Stage 5・EDO-0323)が使う「置く・測る・据える」だけ。 | — | 58 |
-| [EdoBuildNozura.cs](#edobuildnozuracs) | 野面の乱積みの土留めを一本の折れ線へ据える — EdoBuild の partial(2026-09-25・EDO-0430) | — | 14 |
+| [EdoBuildNozura.cs](#edobuildnozuracs) | 野面の乱積みの土留めを一本の折れ線へ据える — EdoBuild の partial(2026-09-25・EDO-0430) | — | 15 |
 | [EdoBuildOsameru.cs](#edobuildosamerucs) | 寄せて測るを収まるまで回す (EdoBuild の partial・2026-09-26・EDO-0454) | 類型ビルダーの番所→門(EdoTypologyBuilder Stage 1・2b)。 | 2 |
 | [EdoBuildQueue.cs](#edobuildqueuecs) | EdoBuildQueue.cs — 長い建て直しを MCP の 1 回の呼び出しの中で回さず、エディタの中で順に予約して即座に返す(EDO-0503)。 | — | 0 |
 | [EdoBuildRim.cs](#edobuildrimcs) | 崖の縁の土留め — 区画の線の上に立つ塀の真下を削って野面の石垣を積み、塀を天端に載せる (EdoBuild の partial・2026-09-28・EDO-0477) | 類型の全区画で、区画の縁の外が平場より高い所(崖の縁の寺社・武家の山際)。 | 6 |
@@ -113,7 +113,7 @@
 | `EdoBuild.SectionAt(prefabPath, pos, yaw, y, withRoof=…)` | `List<Vector3>` | 天端・床・断面 | 部材を据えたときの、高さ y の水平断面(世界座標・実体化しない)。 | TypologyBuilder.Rim(Rim) |
 | `EdoBuild.IsRoofLabel(name)` | `bool` |  | 材やサブメッシュの名で屋根を見分ける。IsRoofName(和名)に 英名の roof / 屋根 を足したもの。 | — |
 | `EdoBuild.BodyBelowRoofAt(prefabPath, pos, yaw)` | `List<Vector3>` |  | 一体メッシュの駒の「一層目の躯体」の世界頂点(実体化しない)。 | — |
-| `EdoBuild.BodyExRoofAt(prefabPath, pos, yaw, bodyParts=…, roofParts=…)` | `List<Vector3>` | 区域 | 一体メッシュの駒の「躯体」全部(屋根の材を除いたすべての材)の世界頂点(実体化しない)。 | MatsudairaDewa(YaguraSeat) |
+| `EdoBuild.BodyExRoofAt(prefabPath, pos, yaw, bodyParts=…, roofParts=…)` | `List<Vector3>` | 区域 | 一体メッシュの駒の「躯体」全部(屋根の材を除いたすべての材)の世界頂点(実体化しない)。 | MatsudairaDewa(YaguraSeat), OkabeYashiki(SodeSlopeSegs) |
 | `EdoBuild.BodyFootprintLocal(prefabPath, center, w, d)` | `bool` | 硬・柔 断面 | 躯体の足跡(屋根の材を除いた頂点の外接)を、駒のローカル・無回転で測る。 | DoiBuilder.Mune(PlaceServiceA), OkabeYashiki(PlaceBox), SashizuExport(CheckScene) |
 | `EdoBuild.BodyExRoof(tr, maxSamples=…)` | `List<Vector3>` |  | Body 相当だが、単一メッシュに焼かれた駒(庫裏・墓地・鐘楼・山門など、 Blender 側で屋根まで join した部材)も材(サブメッシュ)の名で屋根を見分けて落とす (BodyExRoofAt の、実体化済み T… | Typology(OutsideBy), TypologyBuilder.Jisha(JExt), TypologyBuilder.Keidai(NiwaKeidai) |
 | `EdoBuild.CorridorSpan(pts, A, B, perpDir, perpLo, perpHi, yLo, yHi, s0, s1)` | `bool` | 地面・断面・隅 | 塀の通り道(回廊)を、その駒がどこからどこまで塞いでいるか。 | MatsudairaDewa(YaguraKeepout) |
@@ -230,7 +230,7 @@ EdoBuild — 段の土留め(石垣・野面)を天端の折れ線へ据える(2
 | `EdoBuild.SkinGapTable(parts, faces, faceTol)` | `string` | 地面・駒どうし | 皮と部材の隙を三つに分けて刷る(2026-09-25 普請奉行の決め・EDO-0430): A 面の高さで塞がる(外が面の中・部材の底 ≤ 面 + 許容)/ B 駒が浮く(外が面の中・底 &gt; 面 + 許容 ── 駒… | SannoSha(HifuGapTable・Stage9_Hifu), DoiBuilder.Hifu(Stage4b_Hifu), OkabeYashiki(Stage3b_Hifu) |
 | `EdoBuild.ClearEdgeSkins(parent)` | `int` |  | ⚠ 注釈なし | OkabeYashiki(Stage1_Grade・Stage3b_Hifu), SannoSha(Stage9_Hifu・UnSkin), Doi(Stage1_Grade), DoiBuilder.Hifu(Stage4b_Hifu) |
 | `DrawnGround`(class) | — | | 描かれた地表を引く掴み。穴の升では皮の高さ(皮が無ければ NaN = 何も描かれていない)、 それ以外は地形(SampleHeight)。 | |
-| `EdoBuild.Drawn()` | `DrawnGround` | 地面 | 描かれた地表の掴みを作る(DrawnGround)。 | SannoSha(AbutStairsToWalls・HifuMeasure・RetractRunEndsFromWalls…), DoiBuilder.Shokusai(Stage8_Shokusai・Stage8b_RootReseat), OkabeYashiki(PlantFromImpl・StackCurbOnSkin), DoiBuilder.Mune(Stage5b_RokaAshi), DoiBuilder.Niwa(Niwa_H_Shokusai) ほか3 |
+| `EdoBuild.Drawn()` | `DrawnGround` | 地面 | 描かれた地表の掴みを作る(DrawnGround)。 | SannoSha(AbutStairsToWalls・HifuMeasure・RetractRunEndsFromWalls…), OkabeYashiki(PlantFromImpl・StackCurbOnSkin・Stage3c_SodeSlopeCheck), DoiBuilder.Shokusai(Stage8_Shokusai・Stage8b_RootReseat), DoiBuilder.Mune(Stage5b_RokaAshi), DoiBuilder.Niwa(Niwa_H_Shokusai) ほか3 |
 | `EdoBuild.DrawnExpected()` | `DrawnGround` | 地面 | 皮を外している間も、外す前の皮を描かれた地表として読む掴み(2026-09-26・EDO-0437 第11巡)。 | SannoSha(AbutStairsToWalls) |
 | `PartTops`(class) | — | | 部材の上を向いた面の最も高い所を引く掴み(駒が他の駒の下に入っているかを見る)。 | |
 | `AtariBed`(class) | — | | 当たりの床 = 下端が接すると決めた相手の面だけを返す床。 | |
@@ -670,6 +670,7 @@ EdoBuild — 道の造成(縦断を設計して道の面を均す)。2026-09-30�
 | `EdoBuild.RunAxis(g)` | `Vector2` |  | 駒の走りの向き(実メッシュの頂点の水平の主軸・単位)。 | OkabeYashiki(Stage2b_Dan) |
 | `NozuraEndRule`(class) | — | | 野面の土留めの端の納め(2026-10-06・EDO-0502 第30巡・指図 nozuraEndRule)。 | |
 | `EndSpec`(class) | — | | 名指された端の型(NozuraEndRule.spec・EDO-0502 第41巡)。 | |
+| `EdoBuild.TomeClearShort(g, away, walls, parcel, clear, why)` | `float` | 天端・区域 | 積み止めの駒が行く手の塀へ足りない離れ(EndSpec.tomeClear・EDO-0502 第45巡)── 0 以下なら通る。 ⟶ 返す: 不足の最大(why に辺と内面) | — |
 | `TomeEnd`(class) | — | | 積み止めで終える端の段取り(PlaceNozuraNet の内)。 | |
 | `EdoBuild.PlaceNozuraNet(segs, groundAt, faceGroundAt, probe, parent, straight, kado, dan, kiri, mikiriPath, heights, pool, log, kiriEnd=…, noriEnd=…, kadoAbut=…, endRule=…)` | `List<KeyValuePair<GameObject, Vector2>>` | 地面・駒どうし・面・隅 | 野面の土留めの網を据える(2026-09-26・EDO-0437)。 ⟶ 返す: 据えた駒と見え面の向き(駒の名は据わった区間の名) | OkabeYashiki(PlaceCurb・Stage2b_Dan), DoiBuilder.Dan(Stage4a_Dodome), MatsudairaDewa(NozuraLines), SannoSha(Nozura), TypologyBuilder.Rim(Rim) |
 | `EdoBuild.PlaceNozuraTome(pathOf, H, ep, away, fN, crest, mates, run, groundAt, parent, name, i, rec)` | `GameObject` | 硬 地面・駒どうし・天端・床・面 | 野面の積み止めの駒を端へ据える(2026-10-07・EDO-0502 第43巡・指図 nozuraEndRule 追記b・TW_Minami_Koshi.returnEnd・TW_Nishi_Kado.endKado)… ⟶ 返す: 据えた駒(退けたら null)・rec に段と向き・継ぎ手の隙・小口の出(端の点から)・天端の差・前の地表から床までの根入れ | — |
@@ -823,7 +824,7 @@ EdoBuild — 坂の路盤(折れ線の芯と縦断で道の面を均し、盛土
 | `EdoBuild.RaiseEndLen(backFromEnd, thr, L, minIn, lo, hi, sCross, softMiss, ds=…)` | `float` | 柔 天端 | 土留めの端の一部を高い天端の別の run に割る長さ(指図 terraceWalls[].endRaise・2026-10-06 EDO-0502 第37巡 岡部 TW_Kita_Koshi)。 | OkabeYashiki(SodeSlopeSegs) |
 | `EdoBuild.RunsByContour(L, backAt, step, minLen, ds=…)` | `List<Vector3>` | 天端 | 段違いの run を背の法の等高線で割る(指図 TW_Kado_Sode.runSplit・EDO-0502 第32巡)。 ⟶ 返す: (始まり, 終わり, 天端) を道のりの順に | OkabeYashiki(SodeSlopeSegs) |
 | `EdoBuild.RunsByBackSlope(L, backAt, step, maxDrop, minLen, ds=…)` | `List<Vector3>` | 天端 | run の線 a→b を、背の法の高さ(backAt(s) = 道のり s の背の地盤)で天端の割りへ分ける (指図 TW_Kado_Sode.top: 天端 = run の上手の端の背の高さを step 刻みで切り上げ… ⟶ 返す: (s0, s1, 天端) の並び(道のりの順) | OkabeYashiki(SodeSlopeSegs) |
-| `EdoBuild.RunsByCrestGap(L, backAt, frontAt, firstTop, step, maxGap, endDiff, minLen, sEnd, ds=…)` | `List<Vector3>` | 地面・天端・隅 | 天端と背の地盤の差で run を切る割り(指図 TW_Minami_Koshi.returnTop・EDO-0502 第24巡 ── 普請方の設計)。 ⟶ 返す: (a, b, 天端) | OkabeYashiki(SodeSlopeSegs) |
+| `EdoBuild.RunsByCrestGap(L, backAt, frontAt, firstTop, step, maxGap, endDiff, minLen, sEnd, ds=…, dropHidden=…)` | `List<Vector3>` | 地面・天端・隅 | 天端と背の地盤の差で run を切る割り(指図 TW_Minami_Koshi.returnTop・EDO-0502 第24巡 ── 普請方の設計)。 ⟶ 返す: (a, b, 天端) | OkabeYashiki(SodeSlopeSegs) |
 | `EdoBuild.BackBenchWrite(ks, fillMax)` | `int` | 硬 地面・区域 | 背の小段の裏込めを地形へ書く(BackBenchAt を節点ごとに・run を順に重ねる)。 ⟶ 返す: 書いた節点の数(盛りの最大は out) | OkabeYashiki(Stage2b_Dan) |
 | `EdoBuild.BackBenchWrite(ks, fillMax, cutMax)` | `int` |  | ⚠ 注釈なし | OkabeYashiki(Stage2b_Dan) |
 | `ToeBench`(class) | — | | 法尻の土留めの背の小段(切り)の一本(指図 terraceWalls[].toeBench・EDO-0502 第33巡)。 | |

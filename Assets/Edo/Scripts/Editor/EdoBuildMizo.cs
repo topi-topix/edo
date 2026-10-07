@@ -1195,7 +1195,7 @@ public static partial class EdoBuild
                 {
                     if (!ConvexOverlap(rect, f.hull)) continue;
                     float fm = float.MaxValue; Vector2 fq = c;
-                    foreach (var q in new[] { c, c + 0.8f * (rect[0] - c), c + 0.8f * (rect[1] - c), c + 0.8f * (rect[2] - c), c + 0.8f * (rect[3] - c) })
+                    foreach (var q in FootProbes(c, rect, f.hull))
                     {
                         float y = LowestFootAt(f, q, minSolid); if (float.IsNaN(y)) continue;   // 笠・水切りの張り出しの裏は足元でない
                         // coverHollow(土井): 他の駒の天端に載る足元(布石に載る塀の下端)は地面の足元でない ── 数えると布石の天端 27.10 を足元と読み「蓋が宙に浮く」と退けた
@@ -1245,6 +1245,33 @@ public static partial class EdoBuild
             }
         }
         return made;
+    }
+
+    /// <summary>蓋の天端の面で足元を引く点 = 蓋の中ほどと四隅の内 0.8 ** と、駒の外形のうち蓋の上に入る所**(外形の重心・頂点を重心へ 0.7 寄せた点 ── 蓋の矩形の内の物だけ)。
+    /// ⭐ 蓋の 5 点だけで引くと、蓋より細い駒(廊下の柱 0.15 角・縁の束)は 5 点のどれにも掛からず「足元が無い」と読まれ、蓋が一枚も据わらなかった
+    /// (土井 S9 廊下 L_OkuNagatsubone の柱 0.252/0.124・長局の束 0.159 が溝 D3 seg1 の上で浮いたまま・組 0 ── EDO-0533 第27巡)。
+    /// 当たる先: <see cref="LayAnkyoUnder"/> の相手のうち蓋より細い駒すべて(柱・束・沓脱・小さな飛石)。</summary>
+    static List<Vector2> FootProbes(Vector2 c, List<Vector2> rect, List<Vector2> hull)
+    {
+        var r = new List<Vector2> { c };
+        for (int i = 0; i < 4; i++) r.Add(c + 0.8f * (rect[i] - c));
+        if (hull == null || hull.Count < 3) return r;
+        var g = Vector2.zero; foreach (var h in hull) g += h; g /= hull.Count;
+        var cand = new List<Vector2> { g }; foreach (var h in hull) cand.Add(g + 0.7f * (h - g));
+        foreach (var q in cand) if (InConvex(rect, q)) r.Add(q);
+        return r;
+    }
+    static bool InConvex(List<Vector2> poly, Vector2 q)
+    {
+        float sgn = 0f;
+        for (int i = 0; i < poly.Count; i++)
+        {
+            var a = poly[i]; var b = poly[(i + 1) % poly.Count];
+            float cr = (b.x - a.x) * (q.y - a.y) - (b.y - a.y) * (q.x - a.x);
+            if (Mathf.Abs(cr) < 1e-9f) continue;
+            if (sgn == 0f) sgn = Mathf.Sign(cr); else if (Mathf.Sign(cr) != sgn) return false;
+        }
+        return true;
     }
 
     /// <summary>駒 <paramref name="f"/> の点 q の足元 <paramref name="y"/> が、<paramref name="others"/> の別の駒の**上を向く面**(天端)に ±<paramref name="tol"/> で載っているか

@@ -442,6 +442,13 @@ public static class EdoSashizuExport
                     if (g2 != null) for (int i = 0; i < g2.childCount; i++) outp.Add(g2.GetChild(i).name);
                     return outp;
                 };
+                // 袖を持つ石段(指図 kaidans[].sode)── 袖の駒はその石段の持ち物として数える
+                var sodeOwners = new HashSet<string>();
+                foreach (var o in Get2(doc, "kaidans"))
+                {
+                    var kd = o as Dictionary<string, object>;
+                    if (kd != null && kd.ContainsKey("sode") && kd["sode"] != null && Str(kd, "name") != null) sodeOwners.Add(Str(kd, "name"));
+                }
                 Action<string, List<string>, string, string> want = (sub, names, kind, defSec) =>
                 {
                     var h = kids(sub);
@@ -455,7 +462,10 @@ public static class EdoSashizuExport
                     foreach (var q in h)
                     {
                         bool known = false;
-                        foreach (var nm in names) if (nm != null && (q == nm || q.StartsWith(nm + "_"))) { known = true; break; }
+                        // ⭐ 袖の駒 `Sode_<名>_L/R_*` は親の持ち物(指図 kaidans[].sode を持つ石段だけ・EdoBuild.PlaceIshidanSodeRow が据える)。
+                        //   ⛔ 教えないと曲輪の石段の袖 28 駒を「孤児の石段」と数える(岡部 2026-10-08 第51巡・EDO-0502)。
+                        foreach (var nm in names) if (nm != null && (q == nm || q.StartsWith(nm + "_")
+                            || (sodeOwners.Contains(nm) && (q.StartsWith("Sode_" + nm + "_L") || q.StartsWith("Sode_" + nm + "_R"))))) { known = true; break; }
                         if (!known) bad(defSec, "孤児の" + kind + ": " + q);
                     }
                 };

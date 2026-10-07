@@ -279,7 +279,7 @@ public static partial class EdoDoiBuilder
         }
         sb.AppendLine("  棟 " + munes + " 棟・下ろした床下の足元 " + feet + " 駒(最大 " + mworst.ToString("F3") + "m)" + (bad > 0 ? "・✗ 浮きの残る棟 " + bad : ""));
         // 附属屋の布石の基壇を、今の描かれた地表で敷き直す(EDO-0533 第32巡): 基壇は S5(③)で敷くので、後の S9 排水・S4b 縁の皮が地表を下げた辺は布石が無いまま
-        //   足の下が見えた(土蔵 Kura1 の西の辺 0.150 ── 基壇は東の 2 区画だけ)。浮いた附属屋だけ、その棟の基壇を外して EdoBuild.BuildingKidan で敷き直す(棟は動かさない)。
+        //   足の下が見えた(土蔵 Kura1 の西の辺 0.150 ── 基壇は東の 2 区画だけ)。附属屋ごとに基壇を外して EdoBuild.BuildingKidan で敷き直す(棟は動かさない)。
         //   ⛔ 置き方はここに書かない(規則21)。当たる先: 土井の附属屋 12 棟。地表を後から描き直す邸の、布石の基壇で受ける棟すべて。
         {
             var kiso = Group("Fuzoku/Kiso"); int redo = 0, still = 0; float sworst = 0f;
@@ -290,9 +290,12 @@ public static partial class EdoDoiBuilder
                 var bedK = mine.Count > 0 ? EdoBuild.GroundOrBed(new EdoBuild.BedIndex(mine)) : null;
                 Func<float, float, float> bedS = (x, z) => { float a = bed(x, z); if (bedK == null) return a; float k = bedK(x, z); return float.IsNaN(k) ? a : (float.IsNaN(a) ? k : Mathf.Max(a, k)); };
                 var rt0 = EdoBuild.RootToBed(sv.gameObject, bedS, 0.1f);
-                if (float.IsNaN(rt0.hi) || rt0.hi <= MUNE_GROUND_TOL) continue;
+                //   ⭐ 浮きの判定で選ばない ── 第33巡、Kura1 は RootToBed の浮き ≤ 0.01 と読まれ(東の基壇に載る)、西の区画の足の下が見えたまま残った。
+                //   全ての附属屋で敷き直す(BuildingKidan は地面が足より下がった区画にだけ布石を置くので、要らない棟には置かない)
+                int had = mine.Count;
                 foreach (var g in mine) UnityEngine.Object.DestroyImmediate(g);
                 string kn; var ks = EdoBuild.BuildingKidan(sv.gameObject, kiso, bed, out kn);
+                if (had == 0 && ks.Count == 0) continue;
                 var bed2 = ks.Count > 0 ? EdoBuild.GroundOrBed(new EdoBuild.BedIndex(ks)) : null;
                 Func<float, float, float> bedS2 = (x, z) => { float a = bed(x, z); if (bed2 == null) return a; float k = bed2(x, z); return float.IsNaN(k) ? a : (float.IsNaN(a) ? k : Mathf.Max(a, k)); };
                 var rt1 = EdoBuild.RootToBed(sv.gameObject, bedS2, 0.1f);

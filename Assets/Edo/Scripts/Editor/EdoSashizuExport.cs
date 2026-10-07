@@ -310,7 +310,16 @@ public static class EdoSashizuExport
                         }
                 }
                 var names = new List<string>();
-                foreach (var o in Get2(doc, "runs")) names.Add(Str(o as Dictionary<string, object>, "name"));
+                // ⭐ 欄 build: false の run(隣の邸が持つ境の囲い ── 土井の辺15 の西・辺16〜26 は松平持ち)は当家に部材を期待しない。
+                //   ⛔ 期待すると「囲い W16_Hei の部材が実装に一つも無い」と 12 件の嘘を数えた(土井 第32巡・EDO-0535 は済み)。覆いは境界・閉じの検査が隣の駒ごと測る
+                var notOurs = new List<string>();
+                foreach (var o in Get2(doc, "runs"))
+                {
+                    var r = o as Dictionary<string, object>;
+                    if (r != null && r.ContainsKey("build") && r["build"] is bool && !(bool)r["build"]) { notOurs.Add(Str(r, "name")); continue; }
+                    names.Add(Str(r, "name"));
+                }
+                foreach (var nn in notOurs) note("外周", "囲い " + nn + " は欄 build: false(" + (nn ?? "") + " は隣の邸が持つ ── 当家の部材を期待しない)");
                 // ⚠ 辺の端を隣の辺の線で切った練塀の駒は `Kiri_<run>` の名で据わる(岡部 EDO-0502・端の切りの駒)。
                 //   ⛔ 教えないと据えた切りの駒が「孤児の囲い」に数えられる(2026-10-04 第6巡の突き合わせ)。
                 //   切りの駒は**有っても無くてもよい**(端が斜めに当たる辺の端だけ)ので、孤児の判定にだけ使い、在る無しは問わない。

@@ -158,6 +158,20 @@ public static partial class EdoBuild
         return new[] { mn - sp.jambL.x > 0.05f, sp.jambR.x - mx > 0.05f };
     }
 
+    /// <summary>**留めた端の札 jamb の外面の点(局所 x = jamb.x・z = front)を外隅 <paramref name="q"/> へ平面で寄せる**(硬い・高さは動かさない)。
+    /// 走りと外面の線へ別々に寄せる(<see cref="AbutBodyAlong"/> と札の front)だけだと、二棟の留めの点どうしに 0.0013m 残った
+    /// (土井 頂点13 E12_N03 × E13_N01・第43巡)── 最後に点そのものを Q へ置く。返り値 = 動かした距離[m](札が無ければ NaN)。
+    /// 当たる先: 出隅を留めて納める表長屋の全部(土井 頂点13・岡部・松江松平の留め)。</summary>
+    public static float SnapMiterJambTo(GameObject go, bool right, Vector2 q)
+    {
+        var path = UnityEditor.PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(go);
+        var sp = string.IsNullOrEmpty(path) ? null : EdoPartSpec.Get(path);
+        if (sp == null || sp.jambL == null || sp.jambR == null) return float.NaN;
+        Vector2 w = EdoPartSpec.W(go.transform, right ? sp.jambR.x : sp.jambL.x, sp.front), dv = q - w;
+        go.transform.position += new Vector3(dv.x, 0f, dv.y);
+        return dv.magnitude;
+    }
+
     /// <summary>出隅で出会う二棟の**留めた端の札 jamb の外面の点**(局所 x = jamb.x・z = front)どうしの距離[m](0 = 外隅 Q で閉じている)。
     /// <paramref name="aRight"/> = a の留めた端が +X 端か。札が無ければ NaN。</summary>
     public static float MiterCornerGap(GameObject a, bool aRight, GameObject b, bool bRight)

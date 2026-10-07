@@ -1528,6 +1528,9 @@ public static partial class EdoDoiBuilder
             else EdoBuild.AbutBodyAlong(go, org, d, r.s0, true);
             if (mitered)
             {
+                // 留めた端の札の点そのものを Q へ(硬い ── 走りと外面へ別々に寄せただけでは 0.0013 残った)
+                if (mLo != null) EdoBuild.SnapMiterJambTo(go, !plusXisHi, miterQ[r.edge]);
+                else EdoBuild.SnapMiterJambTo(go, plusXisHi, miterQ[(r.edge + 1) % nP]);
                 miterRuns.Add(r.name);
                 foreach (var hv in new[] { false, true })
                 {

@@ -1219,17 +1219,25 @@ public static partial class EdoBuild
         float hUni = float.NaN;
         if (sp != null && sp.uniformH && heights != null) { foreach (var hh in heights) if (hh >= h0 - 1e-3f) { hUni = hh; break; } if (float.IsNaN(hUni)) hUni = heights[heights.Length - 1]; }
         float Lr;
+        // ⭐ 定尺一本の腕の区間は「隅の駒の腕(半駒 W/2)+ 定尺の直線の駒 armFixed」(2026-10-07 EDO-0502 第44巡)。
+        //   旧は区間を armFixed にしていた ⇒ 隅の腕 0.909 を引いた残り 0.91 に直線の駒を ×0.45 に縮めて押し込み、石が潰れて隅の組みが乱れた
+        //   (岡部 TW_Kita_Koshi_0_0_Kado0_124f sc 0.447)。余り(定尺 − 要る腕)は区間の先 = 背の土の側へ出して埋める。
+        //   当たる先: endRule の EndSpec.armFixed を渡す端すべて(岡部 TW_Kita_Koshi.kadoReturnUniform の2端)。
+        float armSeg = sp != null && !float.IsNaN(sp.armFixed) ? sp.armFixed + W * 0.5f : float.NaN;
         if (sp != null && !float.IsNaN(sp.armFixed))
         {   // 定尺一本(指図 kadoReturnUniform「腕は 1.8 の定尺一本で据えて余りは背の土へ埋める」)── 塞がれば測った腕へ(⚠)
-            Lr = sp.armFixed; for (float t = 0.1f; t <= sp.armFixed + 1e-3f; t += 0.1f) if (r.ArmBlock(ep + armD * t, armD) != null) { Lr = armLen(c0, aMin); break; }
+            Lr = armSeg; for (float t = 0.1f; t <= armSeg + 1e-3f; t += 0.1f) if (r.ArmBlock(ep + armD * t, armD) != null) { Lr = armLen(c0, aMin); break; }
         }
         else Lr = armLen(c0, aMin);
         if (!float.IsNaN(Lr) && Lr >= aMin - 1e-3f)
         {
             float cc = c0; var ret = new NozuraSeg { name = sg.name + "_Kado" + e, a = ep, b = ep + armD * Lr, crestAt = sl => cc };
+            // ⭐ 返しの見え面は端の外向き away(2026-10-07 第44巡)── 地表の低い側の票に任せると、背の側へ折れる短い腕は表の土の側を
+            //   見え面に取り、隅を入隅と見立てて隅の駒を据えなかった(岡部 TW_Kita_Koshi_3_0_raise_Kaeshi1 端1)。
+            ret.face = away.normalized;
             ret.noAbut[1] = true; if (!float.IsNaN(hUni)) { ret.minH = hUni; sg.minHEnd[e] = hUni; } add.Add(ret);
             return "②隅の駒で返し(腕 " + Lr.ToString("F2") + (Vector2.Dot(armD, -fN) > 0.5f ? "・背の側" : "・前の側") + "・天端 " + c0.ToString("F2")
-                 + (sp != null && !float.IsNaN(sp.armFixed) ? (Mathf.Abs(Lr - sp.armFixed) < 1e-3f ? "・定尺一本" : "・⚠ 定尺 " + sp.armFixed.ToString("F2") + " が塞がり測った腕") : "")
+                 + (sp != null && !float.IsNaN(sp.armFixed) ? (Mathf.Abs(Lr - armSeg) < 1e-3f ? "・隅の腕+定尺一本" : "・⚠ 定尺 " + sp.armFixed.ToString("F2") + " が塞がり測った腕") : "")
                  + (!float.IsNaN(hUni) ? "・隅と返しと際の H を " + hUni.ToString("F2") + " に揃える" : "") + ")" + head;
         }
         string armWhy = Lr < 0f || (!float.IsNaN(Lr) && Lr < aMin) ? "腕が塞ぐ物に入る: " + r.ArmBlock(ep + armD * Mathf.Max(0.1f, (float.IsNaN(Lr) ? 0f : Lr) + 0.1f), armD) + "(取れる腕 " + (float.IsNaN(Lr) || Lr < 0f ? "0.00" : Lr.ToString("F2")) + " < " + aMin.ToString("F2") + ")"
@@ -1256,7 +1264,7 @@ public static partial class EdoBuild
                 if (e == 1) sg.crestAt = sl => sl <= L - Lz ? old(sl) : old(L - Lz) - lg * (sl - (L - Lz));
                 else sg.crestAt = sl => sl >= Lz ? old(sl) : old(Lz) - lg * (Lz - sl);
                 var ret2 = new NozuraSeg { name = sg.name + "_Kado" + e, a = ep, b = ep + armD * armLow, crestAt = sl => c1 };
-                ret2.noAbut[1] = true; add.Add(ret2);
+                ret2.face = away.normalized; ret2.noAbut[1] = true; add.Add(ret2);
                 return "②'下げ打ち(" + kUse + " 駒で " + c0.ToString("F2") + "→" + c1.ToString("F2") + "・勾配 " + lg.ToString("F3") + "・見付 " + (h0 - dz).ToString("F2") + ")+ 低い隅の駒(腕 " + armLow.ToString("F2")
                      + (armLow < r.retMin - 1e-3f ? " ⚠ 隅の駒の腕 0.91 より短い ── 腕を詰めた隅は焼いていない" : "") + "・根を沈める)" + head;
             }
@@ -1309,6 +1317,9 @@ public static partial class EdoBuild
         // 区間の端の際(1間)の見え面
         Func<NozuraSeg, int, Vector2> faceNear = (sg, e) =>
         {
+            // 名指した見え面(NozuraSeg.face)が在れば先に採る ── 駒の向き(PlaceNozuraRun の faceAt)と継ぎの見立てを同じ向きで解く
+            //   (2026-10-07 EDO-0502 第44巡: 隅の返しの腕の見え面を地表で測ると入隅と見立て、隅の駒が据わらなかった)
+            if (sg.face.sqrMagnitude > 0.5f) return sg.face;
             float l = sg.Len, t = Mathf.Min(W, l);
             Vector2 pa = e == 0 ? sg.a : sg.b - sg.Dir * t, pb = e == 0 ? sg.a + sg.Dir * t : sg.b;
             var fg = faceGroundAt ?? groundAt;

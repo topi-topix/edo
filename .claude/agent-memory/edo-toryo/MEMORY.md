@@ -106,7 +106,7 @@
 
 - [土留めの端を袖の外面で止める](run-end-at-sode-face.md) — RunEndAtFace は9箇所に当たる。一直線の袖は外す・43°は切った駒・隅の腕が袖へ入る
 - [法で切った段石・袖の差し替えの罠](batter-cut-parts-measure-and-check.md) — 突き合わせの幅は縮尺を見ない・袖の目地が偽の口・女坂の足は斜交で切れない
-- [積み止めの駒は FaceWallToLine で裏返る・継ぎ手は端の帯で測る](tome-piece-facing-and-joint.md) — 奥行>走りで FaceSide が誤る。小口の裏の石で偽のめり込み 0.2
+- [積み止めの駒は FaceWallToLine で裏返る・継ぎ手は端の帯で・隅の返しの腕の向きと定尺](tome-piece-facing-and-joint.md) — 天端の差0は隠れた隣と比べた値。faceNear は seg.face を先に・armFixed+W/2
 - [二重折れの出隅は一つの駒](double-fold-kado-one-piece.md) — 中の区間の1駒が消え折れ2が黙って飛ぶ。PlaceRunKado2
 - [短い返しは票が割れて裏返る・袖は run の走る段だけ・別 run の出隅を芯で測ると入隅と誤る](short-return-tie-and-sode-extent.md) — RunLowHand/OverlapAlong/ShortSegConvexEnd。段の小口は中ほどで突き付け(跨ぐ段は解けない)
 - [野面 第3巡の測りの罠](nozura-round3-measure-traps.md) — 最も離れる向きの Contact は段石×隅 0.17 を見落とす・外形の中の面の無い点で皮が溝・法切り駒の見付は足元の面で
@@ -148,8 +148,7 @@
 - [腰の端の小段は 1:1 の法で切りが 1.0 を超える・石段の a/b は従属値](koshi-end-cut-exceeds-on-1to1-slope.md) — koshiEnd は5端とも退く。KaidanAB が atS から解く
 - [野面の段の境の駒は H1.50 だけ・継ぎ目の下が抜ける](nozura-dan-piece-fixed-height.md) — 直線は H4.8 まで選ぶ。StackDownAtNozuraSteps で積み下ろす
 
-- [地形の前後の差は資産の写しから採れる](terrain-diff-from-asset-copy.md) — int16 の塊を行で探して位置合わせ。長さが 256 byte 違う
-- [検証レンダの構図は残らない](render-camera-poses-not-kept.md) — 同じ構図で撮るには cams.txt。皮の裏は灰色の平面に見える
+- [地形の前後の差は資産の写しから採れる](terrain-diff-from-asset-copy.md)・[検証レンダの構図は残らない](render-camera-poses-not-kept.md) — int16 の塊を行で探す・構図は cams.txt
 
 ## 測り方・関門
 

@@ -1281,7 +1281,7 @@ public static class EdoAssets
         /// 笠石の丈 0.24・下端は天端の線の 2.20 下の平行線(最大見付 1.74 + 根入れ 0.46)。走りは Z ±踏面/2 ちょうど(段の境で隣の駒と面一)。
         /// 据え方: 段 i の段石の踏面(天端)と段鼻・小口を測り、駒の天端の線を段鼻の線 +0.30 に、側面を小口に合わせる(⛔ ピボットや bounds 中心で合わせない)。
         /// 寸法の設計値(厚み・天端の高さ・笠石・根入れ)は【U 部材方 2026-09-23】。焼けている組: (0.260, 0.650) / (0.300, 1.199) / (0.250, 0.542) /
-        /// 郭の階 (0.238, 0.450) / 中門の内の階 (0.200, 0.450)(2026-09-24・EDO-0430)/ 中門の内の階の二段 (0.175, 0.450)(2026-09-25・EDO-0430・丈 2.20 のみ・
+        /// 郭の階 (0.238, 0.450) / 中門の内の階 (0.200, 0.450)(2026-09-24・EDO-0430)/ 岡部の曲輪の石段 (0.283, 0.450)(2026-10-07・EDO-0502・丈 2.20 / 3.20 / 4.20 ── `IshidanSodeDepthsDeep`)/ 中門の内の階の二段 (0.175, 0.450)(2026-09-25・EDO-0430・丈 2.20 のみ・
         /// blender --background --python Tools/Blender/build_sanno_buzai.py -- sode 0.175 0.450 2.540 --render ⇒ W 0.600 × H 2.367〜2.375 × D 0.450)。
         /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- sode [--only=男坂 | <蹴上> <踏面>] --render</summary>
         public static string IshidanSode(float keri, float fumi, int i)
@@ -1299,6 +1299,12 @@ public static class EdoAssets
         /// blender --background --python Tools/Blender/build_sanno_buzai.py -- sode --only=男坂 --depth=3.20)だけ。
         /// ⭐ 丈は上げの上限だけでなく**根入れ**(底 ≤ 見え面の足元の設計面 − 0.05)でも選ぶ(`EdoBuild.SodeFootShort`)。</summary>
         public static readonly float[] IshidanSodeDepths = { 2.20f, 3.20f };
+        /// <summary>**屋敷の中の張り出す石段の袖の丈**(EDO-0502 2026-10-07・岡部 K_Kuruwa.sode「袖の見付は根元 3.4 → 下端 0」)。
+        /// 土留めを切って下の郭へ張り出す石段は、上端の袖の見付が土留めの丈(3.4)に届く ⇒ 4.20 まで焼いた。焼いてある組は
+        /// (0.283, 0.450) の 2.20 / 3.20 / 4.20(a/b)だけ ── 実寸 D4.20: W 0.600 × H 4.471〜4.483(−3.900〜+0.583)× D 0.450・材 `Danishi`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- sode 0.2833 0.450 1.818 --depth=4.20 --render
+        /// 使い手は `EdoBuild.PlaceIshidanSodeRow`(岡部 Stage2b)。</summary>
+        public static readonly float[] IshidanSodeDepthsDeep = { 2.20f, 3.20f, 4.20f };
 
         /// <summary>**丈の深い石段の袖**(EDO-0430 2026-09-24)。<see cref="IshidanSode(float,float,int)"/> と**同じ断面・同じ局所座標・同じピボット・
         /// 同じ接する面・同じ天端の線・同じ材**で、下端だけを天端の線の <paramref name="depth"/> 下の平行線へ下ろした物

@@ -2926,6 +2926,8 @@ public static class EdoOkabeYashikiBuilder
             }
             sb.AppendLine("  区画の外へ出る量(壁体の頂点): " + worst.ToString("F3") + "m" + (worst > 0.005f ? " ⛔ @" + wn : ""));
         }
+        // 石段の袖(指図 kaidans[].sode・2026-10-07)── 土留めを据えた後(上端の相手は石段が切った土留めの駒)
+        sb.Append(PlaceKaidanSodes(grp));
         // 天端の垣(指図 fenceOnTop)
         sb.Append(PlaceDanKaki(fgrp, grp, wallOf, lineOf, topOf));
         if (skipped > 0) sb.AppendLine("  建てない欄 " + skipped + "(line=null)");
@@ -5043,6 +5045,65 @@ public static class EdoOkabeYashikiBuilder
             }
         }
         return "石段: " + made + " 枚";
+    }
+
+    /// <summary>**石段の袖**(指図 kaidans[].sode・普請方の設計 2026-10-07・EDO-0502)── 土留めを切って張り出す石段の両脇を袖石垣で受ける。
+    /// 土留めを据えた後に呼ぶ(上端の相手 = 石段が切った土留め terraceWalls[].cuts の駒)。据えは `EdoBuild.PlaceIshidanSodeRow`
+    /// (段ごとの袖の駒を段石の小口・段鼻・踏面で測って据え、上端は土留めの見え面で入隅に止め、下端は同じ駒を継いで小口を沈める)。
+    /// 数は指図の文から読む:「段鼻を結ぶ線より x 上」(笠の上がりの狙い【柔】)・「小口を y 以上地中へ」【硬】(⛔ 読めなければ ★ を刷って建てない)。
+    /// 駒は `EdoAssets.Own.IshidanSode(蹴上, 踏面, i, 丈)`(丈は `IshidanSodeDepthsDeep`)。袖の名は "Sode_" で始める ──
+    /// 口の端を石段の駒から測る Stage2b(by + "_" の頭)に入れない。当たる先: kaidans[].sode を持つ石段(岡部 K_Kuruwa)。</summary>
+    static string PlaceKaidanSodes(Transform danGrp)
+    {
+        var sb = new System.Text.StringBuilder(); var inv = System.Globalization.CultureInfo.InvariantCulture;
+        var kai = Group("Fuzoku/Kaidan");
+        foreach (var o in A(Get(D, "kaidans")) ?? new List<object>())
+        {
+            var k = O(o); if (k == null) continue;
+            string nm = S(Get(k, "name")), txt = S(Get(k, "sode")); if (nm == null || txt == null) continue;
+            var mk = System.Text.RegularExpressions.Regex.Match(txt, @"段鼻を結ぶ線より\s*([0-9.]+)\s*上");
+            var ms = System.Text.RegularExpressions.Regex.Match(txt, @"小口を\s*([0-9.]+)\s*以上地中");
+            if (!mk.Success || !ms.Success || !Has(k, "yTop") || !Has(k, "yBot") || !Has(k, "steps"))
+            { sb.AppendLine("  ★ 石段の袖 " + nm + ": 指図から読めない(" + (mk.Success ? "" : "笠の上がり ") + (ms.Success ? "" : "小口の沈め") + ")── 建てない"); continue; }
+            float kasaT = float.Parse(mk.Groups[1].Value, inv), sink = float.Parse(ms.Groups[1].Value, inv);
+            float rise = (F(k["yTop"]) - F(k["yBot"])) / Mathf.Max(1, (int)F(k["steps"])), fumi = Has(k, "fumi") ? F(k["fumi"]) : 0.45f;
+            // 上端の相手 = この石段が切った土留めの駒
+            var walls = new List<GameObject>();
+            foreach (var to in A(Get(D, "terraceWalls")) ?? new List<object>())
+            {
+                var tw = O(to); if (tw == null || S(Get(tw, "cuts")) != nm) continue; string twn = S(Get(tw, "name"));
+                foreach (Transform c in danGrp) if (c.gameObject.activeInHierarchy && c.name.StartsWith(twn + "_")) walls.Add(c.gameObject);
+            }
+            // 段石の列(下から・据えた順)。段 = 名の最後の "_j" を除いた頭。⛔ 積み(_tsumi)は段でない
+            var rows = new List<List<GameObject>>(); var rowKey = new List<string>();
+            foreach (Transform c in kai)
+            {
+                if (!c.name.StartsWith(nm + "_") || c.name.Contains("_tsumi")) continue;
+                int u = c.name.LastIndexOf('_'); string key = c.name.Substring(0, u);
+                int ri = rowKey.IndexOf(key); if (ri < 0) { rowKey.Add(key); rows.Add(new List<GameObject>()); ri = rows.Count - 1; }
+                rows[ri].Add(c.gameObject);
+            }
+            if (rows.Count < 2) { sb.AppendLine("  ★ 石段の袖 " + nm + ": 段石が据わっていない ── 建てない"); continue; }
+            foreach (int side in new[] { 1, -1 })
+            {
+                var dans = new List<GameObject>();
+                foreach (var row in rows)
+                {   // その側の端の段石(段石の +X の向きで最も外)
+                    GameObject best = null; float bv = float.MinValue;
+                    foreach (var g in row) { float v = side * Vector3.Dot(g.transform.position, row[0].transform.right); if (v > bv) { bv = v; best = g; } }
+                    dans.Add(best);
+                }
+                var warn = new List<string>(); EdoBuild.SodeRowReport rep; float rr = rise, ff = fumi;
+                var got = EdoBuild.PlaceIshidanSodeRow(dans, side, (i, d) => EdoAssets.Own.IshidanSode(rr, ff, i, d), EdoAssets.Own.IshidanSodeDepthsDeep,
+                                                       kai, "Sode_" + nm + (side > 0 ? "_R" : "_L"), kasaT, 0f, walls, sink, SkinGround, 0.05f, warn, out rep);
+                sb.AppendLine("  石段の袖 " + nm + (side > 0 ? " 右" : " 左") + ": 段の脇 " + rep.placed + " 駒・坂下へ継いだ " + rep.ext + " 駒・退けた " + rep.refused
+                            + "・笠の上がり " + rep.kasa.ToString("F3") + "(狙い " + kasaT.ToString("F2") + ")"
+                            + (rep.faceHit ? "・入隅: 面の位置の天端 − 相手の天端 " + rep.atFace.ToString("+0.000;-0.000") + "・相手の中で越える " + rep.overCrest.ToString("F3") : "・上端の相手なし")
+                            + "・坂下の小口の沈み " + rep.endSink.ToString("F2") + (rep.sinkOk ? "" : " ⛔") + "(相手の駒 " + walls.Count + ")");
+                foreach (var w in warn) sb.AppendLine("    " + w);
+            }
+        }
+        return sb.ToString();
     }
 
     static bool RouteExists(string nm)

@@ -57,7 +57,8 @@ public static partial class EdoBuild
     public static GameObject PlaceIshidanSodeByDepth(GameObject dan, System.Func<float, string> pathOf, IList<float> depths,
                                                      int side, Transform parent, string name, bool groundHi,
                                                      out string warn, out SodeRise rise, bool lineTop = false,
-                                                     System.Func<float, float, float> footAt = null, float neiri = 0.05f)
+                                                     System.Func<float, float, float> footAt = null, float neiri = 0.05f,
+                                                     float kasa = ISHIDAN_SODE_KASA)
     {
         warn = null; rise = new SodeRise();
         string lastWarn = null; SodeRise last = new SodeRise(); float lastD = float.NaN; var unbaked = new List<string>();
@@ -68,7 +69,7 @@ public static partial class EdoBuild
             if (UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
             { unbaked.Add(d.ToString("F2")); continue; }
             string w; SodeRise r;
-            var go = PlaceIshidanSode(dan, path, side, parent, name, groundHi, out w, out r, lineTop);
+            var go = PlaceIshidanSode(dan, path, side, parent, name, groundHi, out w, out r, lineTop, kasa);
             r.depth = d;
             // ⭐ 硬い条件(許容0 の浮き・joints[69] 2026-09-25): 袖の底は見え面(段石から遠い側)の足元の設計面より neiri 下。
             //   足りなければ深い丈を試す(据える側で駒を下へ延ばす)。⛔ 皮を上げて塞がない。
@@ -110,10 +111,11 @@ public static partial class EdoBuild
     /// 天端は**上げない** ── 谷側の袖と同じく段鼻の線 + 笠の滑らかな線に置き、背の地盤が天端より高い分は
     /// <see cref="SodeRise.dig"/> に返して**背を造成で下げる**(<see cref="CutEdgeSkin"/> の digParts ── 天端 − 0.05 から法で元の地形へ)。</para>
     public static GameObject PlaceIshidanSode(GameObject dan, string sodePath, int side, Transform parent, string name,
-                                              bool groundHi, out string warn, out SodeRise rise, bool lineTop = false)
+                                              bool groundHi, out string warn, out SodeRise rise, bool lineTop = false,
+                                              float kasa = ISHIDAN_SODE_KASA)
     {
         rise = new SodeRise();
-        var go = PlaceIshidanSodeFlat(dan, sodePath, side, parent, name, out warn);
+        var go = PlaceIshidanSodeFlat(dan, sodePath, side, parent, name, out warn, kasa);
         if (go == null || !groundHi) return go;
         var t = dan.transform;
         Vector3 right = t.right * Mathf.Sign(side == 0 ? 1 : side), fwd = t.forward;
@@ -186,7 +188,7 @@ public static partial class EdoBuild
     }
 
     static GameObject PlaceIshidanSodeFlat(GameObject dan, string sodePath, int side, Transform parent, string name,
-                                           out string warn)
+                                           out string warn, float kasa = ISHIDAN_SODE_KASA)
     {
         warn = null;
         var t = dan.transform;
@@ -222,7 +224,7 @@ public static partial class EdoBuild
         foreach (var p in sp) if (Vector3.Dot(p, fwd) > sNose - 0.02f && p.y > sTop) sTop = p.y;
 
         go.transform.position += right * (koguchi - inner) + fwd * (nose - sNose)
-                               + Vector3.up * (yTread + ISHIDAN_SODE_KASA - sTop);
+                               + Vector3.up * (yTread + kasa - sTop);
 
         // ---- 検め: 小口との実際の隙(触れている箇所で測る)------------------------
         Vector3 at; int cnt;
@@ -233,6 +235,149 @@ public static partial class EdoBuild
         if (float.IsNaN(gap) || Mathf.Abs(gap) > 0.005f)
             warn = name + ": 段石の小口との隙 " + (float.IsNaN(gap) ? "測れず" : gap.ToString("F3") + "m");
         return go;
+    }
+
+    /// <summary><see cref="PlaceIshidanSodeRow"/> の検め(全て実メッシュで測った値)。</summary>
+    public struct SodeRowReport
+    {
+        public int placed, ext, refused;   // 段の脇に据えた駒・坂下へ継いだ駒・退けた段
+        public float kasa;                 // 使った笠の上がり(段鼻の線から袖の天端まで)
+        public bool faceHit;               // 上端の相手(土留めの見え面)を測れたか
+        public float crest, atFace;        // 相手の天端・面の位置での袖の天端 − 相手の天端(0 = 入隅で天端が揃う)
+        public float overCrest;            // 面より奥(相手の中)で袖の天端が相手の天端を越える量の最大(見えるのは相手の天端の上だけ)
+        public bool sinkOk; public float endSink;   // 坂下の端の小口の天端が足元の地盤より下がった量(≥ sink で合格)
+    }
+
+    /// <summary>**石段の片側の袖を一列に据える**(EDO-0502 2026-10-07・岡部 K_Kuruwa.sode「両脇を袖石垣で受ける」)。
+    /// 段石の列 <paramref name="dans"/>(下から・各段の <paramref name="side"/> 側の端の段石)の脇に、段ごとの袖の駒を
+    /// <see cref="PlaceIshidanSodeByDepth"/> で据え(丈は足元の根入れに足りる最小)、上端と下端を相手に合わせて納める:
+    /// ① 上端の相手 = 石段が切った土留めの駒 <paramref name="walls"/>。袖の線(段石の小口の外 0.15 / 0.45)で坂下から坂上へ光線を
+    ///   打ち、見え面の走りの位置を測る(天端 = 面の近くの駒の最高)。⛔ 面を紙の線で決めない。
+    /// ② 笠の上がり = min(狙い <paramref name="kasaTarget"/>【柔】, 相手の天端 − 面の位置の段鼻の線)【硬: 入隅で相手の天端を越えない】。
+    ///   ≤ <paramref name="minKasa"/> なら ⛔(段石の小口が耳石より上に出る ── 硬い条件どうしがぶつかる)を刷って minKasa で据える。
+    /// ③ 段鼻が面より坂下にある段だけ据える(面より奥の段の脇は土留めの中)。
+    /// ④ 坂下の端は、最下段の袖の坂下の端へ同じ断面の駒を「端の面・内の面・天端」の三つを実メッシュで突き付けて継ぎ、
+    ///   継いだ駒の坂下の端の天端 ≤ 足元の地盤 − <paramref name="sink"/> になったら止める【硬・小口を地上に見せない】。
+    /// ⛔ ピボット・bounds の中心で合わせない。当たる先: 土留めを切って張り出す屋敷の中の石段(岡部 K_Kuruwa)。
+    /// 山王の石段の袖(Stage2_Kaidan)は段ごとの PlaceIshidanSodeByDepth のまま(①②④ は相手が切通し・返しなので使わない)。</summary>
+    public static List<GameObject> PlaceIshidanSodeRow(IList<GameObject> dans, int side, System.Func<int, float, string> pathOf, IList<float> depths,
+                                                       Transform parent, string name, float kasaTarget, float minKasa, IList<GameObject> walls,
+                                                       float sink, System.Func<float, float, float> footAt, float neiri, List<string> warn,
+                                                       out SodeRowReport rep, int maxExt = 8)
+    {
+        rep = new SodeRowReport(); rep.atFace = float.NaN; rep.overCrest = float.NaN; rep.endSink = float.NaN;
+        var res = new List<GameObject>();
+        int n = dans == null ? 0 : dans.Count; if (n == 0) return res;
+        var top = dans[n - 1].transform;
+        Vector3 right = top.right * Mathf.Sign(side == 0 ? 1 : side), fwd = top.forward;
+        // 段石ごとの段鼻(踏面の帯の最も坂下)と踏面の高さ
+        var noseF = new float[n]; var tread = new float[n]; float kog = float.MinValue;
+        for (int i = 0; i < n; i++)
+        {
+            noseF[i] = float.NaN; tread[i] = float.NaN; if (dans[i] == null) continue;
+            var vs = Body(dans[i].transform, 4000, true); if (vs.Count == 0) continue;
+            float yt = float.MinValue; foreach (var p in vs) yt = Mathf.Max(yt, p.y);
+            float nf = float.MinValue; foreach (var p in vs) { if (p.y > yt - 0.02f) nf = Mathf.Max(nf, Vector3.Dot(p, fwd)); kog = Mathf.Max(kog, Vector3.Dot(p, right)); }
+            noseF[i] = nf; tread[i] = yt;
+        }
+        // 段鼻の線(上の二段から): f の位置の高さ
+        int i1 = n - 1, i0 = n - 2; while (i1 >= 0 && float.IsNaN(noseF[i1])) i1--; i0 = i1 - 1; while (i0 >= 0 && float.IsNaN(noseF[i0])) i0--;
+        if (i1 < 0 || i0 < 0) { warn.Add(name + ": 段石が二段無い ── 袖を据えない"); return res; }
+        float slope = (tread[i1] - tread[i0]) / Mathf.Max(1e-4f, noseF[i0] - noseF[i1]);   // 坂上(−f)へ 1m で上がる高さ
+        System.Func<float, float> noseLine = f => tread[i1] + (noseF[i1] - f) * slope;
+        // ① 上端の相手の面
+        float fFace = float.NegativeInfinity, crest = float.NaN;
+        if (walls != null && walls.Count > 0)
+        {
+            float fStart = noseF[0] + 1.0f;
+            float y0 = tread[i1];
+            float f1 = float.NegativeInfinity;
+            foreach (float lat in new[] { 0.15f, 0.45f })
+            {
+                Vector3 o = right * (kog + lat) + fwd * fStart; o.y = y0;
+                float h = RayToBodies(walls, o, -fwd, 30f); if (!float.IsNaN(h)) f1 = Mathf.Max(f1, fStart - h);
+            }
+            if (!float.IsNegativeInfinity(f1))
+            {
+                crest = float.MinValue;
+                foreach (var w in walls) foreach (var p in Body(w.transform, 20000, true))
+                {
+                    float r = Vector3.Dot(p, right), f = Vector3.Dot(p, fwd);
+                    if (r >= kog - 0.05f && r <= kog + 0.65f && f <= f1 + 0.5f && f >= f1 - 2.0f) crest = Mathf.Max(crest, p.y);
+                }
+                foreach (float lat in new[] { 0.15f, 0.45f })
+                {
+                    Vector3 o = right * (kog + lat) + fwd * fStart; o.y = crest - 0.02f;
+                    float h = RayToBodies(walls, o, -fwd, 30f); if (!float.IsNaN(h)) fFace = Mathf.Max(fFace, fStart - h);
+                }
+                rep.faceHit = !float.IsNegativeInfinity(fFace); rep.crest = crest;
+            }
+            if (!rep.faceHit) warn.Add(name + ": ⚠ 上端の相手(土留めの見え面)を光線で測れない ── 上端は最上段で止める");
+        }
+        // ② 笠の上がり
+        float kasa = kasaTarget;
+        if (rep.faceHit) kasa = Mathf.Min(kasaTarget, crest - noseLine(fFace));
+        if (kasa <= minKasa)
+        {
+            warn.Add(name + ": ⛔ 入隅で相手の天端 " + crest.ToString("F2") + " を越えない笠の上がり " + kasa.ToString("F3") + " が下限 " + minKasa.ToString("F3") +
+                     " 以下(段石の小口が耳石より上に出る)── 下限で据えた");
+            kasa = minKasa;
+        }
+        else if (kasa < kasaTarget - 1e-3f)
+            warn.Add(name + ": ⚠ 笠の上がり " + kasa.ToString("F3") + "(狙い " + kasaTarget.ToString("F2") + "【柔】── 入隅で相手の天端 " + crest.ToString("F2") + " を越えない上限【硬】)");
+        rep.kasa = kasa;
+        // ③ 段の脇に据える
+        for (int i = 0; i < n; i++)
+        {
+            if (dans[i] == null || float.IsNaN(noseF[i])) continue;
+            if (rep.faceHit && noseF[i] <= fFace) continue;              // 段鼻が面より奥 = 土留めの中
+            string w; SodeRise rz; int ic = i;
+            var sg = PlaceIshidanSodeByDepth(dans[i], d => pathOf(ic, d), depths, side, parent, name + "_" + i.ToString("00"), false,
+                                             out w, out rz, false, footAt, neiri, kasa);
+            if (w != null) warn.Add(w);
+            if (sg == null || rz.refused) { rep.refused++; continue; }
+            res.Add(sg); rep.placed++;
+        }
+        if (res.Count == 0) return res;
+        // 入隅の検め: 面の位置の袖の天端と相手の天端、面より奥で越える量
+        if (rep.faceHit)
+        {
+            float atF = float.MinValue, over = float.MinValue;
+            foreach (var p in Body(res[res.Count - 1].transform, 4000, true))
+            {
+                float f = Vector3.Dot(p, fwd);
+                if (Mathf.Abs(f - fFace) < 0.03f) atF = Mathf.Max(atF, p.y);
+                if (f < fFace) over = Mathf.Max(over, p.y - crest);
+            }
+            rep.atFace = atF == float.MinValue ? float.NaN : atF - crest;
+            rep.overCrest = over == float.MinValue ? 0f : Mathf.Max(0f, over);
+        }
+        // ④ 坂下へ継いで小口を沈める
+        var prev = res[0];
+        for (int k = 1; k <= maxExt + 1; k++)
+        {
+            var pv = Body(prev.transform, 4000, true);
+            float fMax = float.MinValue, rIn = float.MaxValue, rOut = float.MinValue;
+            foreach (var p in pv) { fMax = Mathf.Max(fMax, Vector3.Dot(p, fwd)); float r = Vector3.Dot(p, right); rIn = Mathf.Min(rIn, r); rOut = Mathf.Max(rOut, r); }
+            float endTop = float.MinValue; foreach (var p in pv) if (Vector3.Dot(p, fwd) > fMax - 0.02f) endTop = Mathf.Max(endTop, p.y);
+            float gEnd = float.MaxValue;
+            foreach (float a in new[] { 0.1f, 0.5f, 0.9f })
+            { Vector3 q = right * Mathf.Lerp(rIn, rOut, a) + fwd * (fMax + 0.02f); gEnd = Mathf.Min(gEnd, footAt(q.x, q.z)); }
+            rep.endSink = gEnd - endTop;
+            if (rep.endSink >= sink - 1e-3f) { rep.sinkOk = true; break; }
+            if (k > maxExt) break;
+            var go = Place(pathOf(-k, depths[0]), prev.transform.position, prev.transform.eulerAngles.y, Vector3.one, parent, name + "_x" + k);
+            if (go == null) { warn.Add(name + ": 坂下へ継ぐ袖の駒が無い " + pathOf(-k, depths[0])); break; }
+            var nv = Body(go.transform, 4000, true);
+            float fMin = float.MaxValue, rIn2 = float.MaxValue;
+            foreach (var p in nv) { fMin = Mathf.Min(fMin, Vector3.Dot(p, fwd)); rIn2 = Mathf.Min(rIn2, Vector3.Dot(p, right)); }
+            float stTop = float.MinValue; foreach (var p in nv) if (Vector3.Dot(p, fwd) < fMin + 0.02f) stTop = Mathf.Max(stTop, p.y);
+            go.transform.position += fwd * (fMax - fMin) + right * (rIn - rIn2) + Vector3.up * (endTop - stTop);
+            res.Add(go); rep.ext++; prev = go;
+        }
+        if (!rep.sinkOk)
+            warn.Add(name + ": ⛔ 坂下の端の小口が地盤 − " + sink.ToString("F2") + " まで沈まない(沈み " + rep.endSink.ToString("F2") + "・継いだ " + rep.ext + ")");
+        return res;
     }
 
     /// <summary>**曲がる石段の袖を留めに切る**(EDO-0415 ②)。段石を段ごとに折れ線の向きで据える石段では、

@@ -250,7 +250,16 @@ public static partial class EdoBuild
                     // ⭐ 1 間より短い区間(段違いの返しの run・EDO-0502 第25巡)は 1 枚を走りへ縮めて据える ── ⛔ 2026-10-05 まで建てず、
                     //   岡部 TW_Minami_Koshi の東の返し(run 1.42/1.82/1.82 を重ねて段違い)の垣が 0 間だった。0.3m 未満の切れ端は建てない。
                     float sxS = 1f; if (m < 1) { if (L < 0.3f) continue; m = 1; sxS = L / pw; pw = L; }
-                    float target = Vector2.Dot(lo, ux) + (L - m * pw) * 0.5f;
+                    // ⭐ 口の脇の端は口へ寄せて親柱で止める(EDO-0502 2026-10-07・指図 K_Kuruwa.sode「天端の垣は口の両脇に柱を立てて止め」【硬】)──
+                    //   ⛔ 2026-10-07 まで余りを両端へ等分し、親柱は +X の端だけ ⇒ 口の片側で垣が口の 0.5〜1.0m 手前で柱なしに切れていた。
+                    //   余りは口でない端へ寄せる(両端とも口なら等分)。当たる先: 口を持つ全ての天端の垣(岡部 fenceOnTop 4 欄)。
+                    bool openA = false, openB = false;
+                    // 許しは 0.3 ── SplitCutsByCrest が端の天端の無い所を 0.1 刻みで落とすので、口の端の区間の端は口から最大 0.1〜0.2 ずれる
+                    foreach (var g in gaps) { if (Mathf.Abs((g.y - s0) - c.x) < 0.3f) openA = true; if (Mathf.Abs((g.x - s0) - c.y) < 0.3f) openB = true; }
+                    bool openLo = lo == pA ? openA : openB, openHi = lo == pA ? openB : openA;
+                    float rem = L - m * pw;
+                    float target = Vector2.Dot(lo, ux) + (openLo && !openHi ? 0f : openHi && !openLo ? rem : rem * 0.5f);
+                    float firstMin = target;
                     Vector2 runU = (hi - lo).normalized;
                     GameObject last = null;
                     for (int i = 0; i < m; i++)
@@ -274,6 +283,16 @@ public static partial class EdoBuild
                             float mx = float.MinValue; foreach (var v in Body(pg.transform, 4000)) mx = Mathf.Max(mx, Vector2.Dot(new Vector2(v.x, v.z), ux));
                             pg.transform.position += new Vector3(ux.x, 0f, ux.y) * (target - mx);
                             float fl2; if (SeatFenceOnBeds(pg, ux, beds, out fl2)) posts++; else UnityEngine.Object.DestroyImmediate(pg);
+                        }
+                    }
+                    if (last != null && post != null && openLo)
+                    {   // 口の側(−X の端)の親柱 ── 実メッシュの −X の端を最初の間の端へ
+                        var pg = Place(post, last.transform.position, psi, Vector3.one, parent, prefix + "_" + k + "_postLo");
+                        if (pg != null)
+                        {
+                            float mn = float.MaxValue; foreach (var v in Body(pg.transform, 4000)) mn = Mathf.Min(mn, Vector2.Dot(new Vector2(v.x, v.z), ux));
+                            pg.transform.position += new Vector3(ux.x, 0f, ux.y) * (firstMin - mn);
+                            float fl3; if (SeatFenceOnBeds(pg, ux, beds, out fl3)) posts++; else UnityEngine.Object.DestroyImmediate(pg);
                         }
                     }
                 }

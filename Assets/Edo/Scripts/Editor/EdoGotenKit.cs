@@ -221,7 +221,12 @@ public static class EdoGotenKit
             if (!c.name.StartsWith("Goten_Column")) continue;
             Vector3 at; int cnt;
             float gap = EdoBuild.ContactOn(c.gameObject, bed, out at, out cnt);
-            if (float.IsNaN(gap) || gap <= 0f) continue;
+            if (float.IsNaN(gap)) continue;
+            // ⭐ 触れる所の隙(最も低い隙)だけで見ると、溝の肩の斜面に立つ柱は足の片隅が触れて 0 と読まれ、足の中ほどが 0.095 浮いたまま残った
+            //   (土井 L_OkuNagatsubone の柱 @(-559.9, 1121.9)・EDO-0533 第28巡)。柱は足の面の**最も深い所**まで伸ばす(高い側は根入れで埋まる)
+            float deep = FootDeepestGap(c.gameObject, bed);
+            if (!float.IsNaN(deep) && deep > 0.01f) gap = Mathf.Max(gap, deep);
+            if (gap <= 0f) continue;
             var b0 = EdoBuild.RB(c.gameObject); float top = b0.max.y, h = b0.size.y; if (h < 0.01f) continue;
             float k = (h + gap + root) / h;
             var ls = c.localScale; c.localScale = new Vector3(ls.x, ls.y * k, ls.z);
@@ -230,6 +235,27 @@ public static class EdoGotenKit
             n++; maxStretch = Mathf.Max(maxStretch, gap + root);
         }
         return n;
+    }
+
+    /// <summary>柱の足の面(実メッシュの最下点から 0.02 以内の頂点)のうち、床 <paramref name="bed"/> から**最も浮いた所**の隙[m]。測れなければ NaN。
+    /// 当たる先: <see cref="RokaFeetToGround"/>(斜面・溝の肩に立つ廊下の柱すべて)。</summary>
+    static float FootDeepestGap(GameObject col, System.Func<float, float, float> bed)
+    {
+        var pts = new List<Vector3>(); float lo = float.MaxValue;
+        foreach (var mf in col.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            var M = mf.transform.localToWorldMatrix;
+            foreach (var v in mf.sharedMesh.vertices) { var w = M.MultiplyPoint3x4(v); pts.Add(w); lo = Mathf.Min(lo, w.y); }
+        }
+        float best = float.NaN;
+        foreach (var w in pts)
+        {
+            if (w.y > lo + 0.02f) continue;
+            float b = bed(w.x, w.z); if (float.IsNaN(b)) continue;
+            float g = w.y - b; if (float.IsNaN(best) || g > best) best = g;
+        }
+        return best;
     }
 
     public static GameObject Mune(string name, Transform parent, Vector3 pos, float yaw,

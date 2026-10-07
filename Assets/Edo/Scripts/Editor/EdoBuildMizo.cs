@@ -1191,16 +1191,18 @@ public static partial class EdoBuild
                 if (lidAt.Exists(q => (q - c).sqrMagnitude < 0.25f * lidLen * lidLen)) continue;
                 // 足元 = 蓋の天端の面(中ほどと四隅の内 0.8)の上にある駒の下面の最も低い所(塀が布石に載る所は布石の下面)
                 float foot = float.MaxValue; string who = null; SurfaceSet whoS = null; var on = new List<SurfaceSet>(); Vector2 footQ = c;
+                var hitsQ = new List<Vector3>();   // x, y = 引いた点・z = その点の足元(窪みを跨ぐかを点ごとに見る)
                 foreach (var f in hits)
                 {
                     if (!ConvexOverlap(rect, f.hull)) continue;
                     float fm = float.MaxValue; Vector2 fq = c;
-                    foreach (var q in FootProbes(c, rect, f.hull))
+                    foreach (var q in FootProbes(c, rect, f))
                     {
                         float y = LowestFootAt(f, q, minSolid); if (float.IsNaN(y)) continue;   // 笠・水切りの張り出しの裏は足元でない
                         // coverHollow(土井): 他の駒の天端に載る足元(布石に載る塀の下端)は地面の足元でない ── 数えると布石の天端 27.10 を足元と読み「蓋が宙に浮く」と退けた
                         //   (奥の塀 Oku_Hei_0_4・1_4 ── EDO-0533 第12巡)。足元は布石(載せている駒)の側で引く
                         if (coverHollow && RestsOnOther(f, q, y, hits)) continue;
+                        hitsQ.Add(new Vector3(q.x, q.y, y));
                         if (y < fm) { fm = y; fq = q; }
                     }
                     if (fm == float.MaxValue) continue;
@@ -1216,9 +1218,15 @@ public static partial class EdoBuild
                     //   掛かる所)を全部飛ばした(奥の塀 Oku_Hei_0_0〜0_3_ishi が D2 の上で 0.15〜0.18 浮いたまま・溝の芯は布石の外 ── EDO-0533 第12巡)
                     if (!coverHollow || whoS == null) continue;
                     SurfaceSet cs; if (!chSurf.TryGetValue(ci, out cs)) { cs = SurfaceOf(chGo[ci]); chSurf[ci] = cs; }
-                    float fl = cs != null ? ChannelFloorAt(cs, footQ, crest - 0.02f) : float.NaN;
-                    if (float.IsNaN(fl) || foot - fl <= 0.01f) continue;
-                    bridge = true;
+                    // ⭐ 足元を引いた点のどれか一つでも窪みの床から浮いていれば跨ぐ(足元の最も低い点 footQ だけで見ると、底の平らな束の組では同じ高さの点の
+                    //   先頭が溝の外や床より低い所に当たり、溝の中で 0.147 浮いた束を飛ばした ── 長局 Goten_EnTsuka_f620 @(-563.8, 1132.0)・第28巡)
+                    if (cs == null) continue;
+                    foreach (var h in hitsQ)
+                    {
+                        float fl = ChannelFloorAt(cs, new Vector2(h.x, h.y), crest - 0.02f);
+                        if (!float.IsNaN(fl) && h.z - fl > 0.01f) { bridge = true; break; }
+                    }
+                    if (!bridge) continue;
                 }
                 float t = ts.Find(x => mps.ContainsKey(x) && foot - x >= crest - 1e-3f);
                 if (t <= 0f) { t = ts[ts.Count - 1]; while (!mps.ContainsKey(t)) t = ts[ts.IndexOf(t) - 1]; }
@@ -1250,14 +1258,21 @@ public static partial class EdoBuild
     /// <summary>蓋の天端の面で足元を引く点 = 蓋の中ほどと四隅の内 0.8 ** と、駒の外形のうち蓋の上に入る所**(外形の重心・頂点を重心へ 0.7 寄せた点 ── 蓋の矩形の内の物だけ)。
     /// ⭐ 蓋の 5 点だけで引くと、蓋より細い駒(廊下の柱 0.15 角・縁の束)は 5 点のどれにも掛からず「足元が無い」と読まれ、蓋が一枚も据わらなかった
     /// (土井 S9 廊下 L_OkuNagatsubone の柱 0.252/0.124・長局の束 0.159 が溝 D3 seg1 の上で浮いたまま・組 0 ── EDO-0533 第27巡)。
-    /// 当たる先: <see cref="LayAnkyoUnder"/> の相手のうち蓋より細い駒すべて(柱・束・沓脱・小さな飛石)。</summary>
-    static List<Vector2> FootProbes(Vector2 c, List<Vector2> rect, List<Vector2> hull)
+    /// ⭐ 外形の重心と角だけでは、束を一つのメッシュにまとめた駒(長局の Goten_EnTsuka_f620 ── 束 8 本の凸包)で引き点が束の間の空所に落ちた(第28巡)── 下を向く面の三角形の重心も引く。
+    /// 当たる先: <see cref="LayAnkyoUnder"/> の相手のうち蓋より細い駒すべて(柱・束・沓脱・小さな飛石・まとめた束)。</summary>
+    static List<Vector2> FootProbes(Vector2 c, List<Vector2> rect, SurfaceSet f)
     {
         var r = new List<Vector2> { c };
         for (int i = 0; i < 4; i++) r.Add(c + 0.8f * (rect[i] - c));
-        if (hull == null || hull.Count < 3) return r;
-        var g = Vector2.zero; foreach (var h in hull) g += h; g /= hull.Count;
-        var cand = new List<Vector2> { g }; foreach (var h in hull) cand.Add(g + 0.7f * (h - g));
+        if (f == null || f.hull == null || f.hull.Count < 3) return r;
+        var g = Vector2.zero; foreach (var h in f.hull) g += h; g /= f.hull.Count;
+        var cand = new List<Vector2> { g }; foreach (var h in f.hull) cand.Add(g + 0.7f * (h - g));
+        // 下を向く面の三角形の重心(面の内に必ず入る)── 束を一つのメッシュにまとめた駒(Goten_EnTsuka_*)では外形の重心も角も束の間の空所に落ちる(第28巡)
+        foreach (var t in f.tris)
+        {
+            if (Vector3.Cross(t[1] - t[0], t[2] - t[0]).normalized.y > -0.5f) continue;
+            cand.Add(new Vector2((t[0].x + t[1].x + t[2].x) / 3f, (t[0].z + t[1].z + t[2].z) / 3f));
+        }
         foreach (var q in cand) if (InConvex(rect, q)) r.Add(q);
         return r;
     }

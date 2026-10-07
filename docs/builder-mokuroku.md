@@ -612,7 +612,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `PlaceDanKaki(fgrp, walls, wallOf, lineOf, topOf)` | `string` |  | 天端の垣を、指図 terraceWalls[].fenceOnTop の型で据える(置き方は EdoBuild.PlaceCrestFence)。 |
 | `Stage3_Shukaku()` | `string` | 公 | — |
 | `Stage3b_Hifu()` | `string` | 公 | — |
-| `SodeSlopeSegs(key, nodes, txt, nozSegs, chk)` | `string` |  | 袖の坂(指図 terraceWalls[].sodeSlope・普請方の設計 2026-10-07・EDO-0502 第41巡)── 袖の天端を段にせず、背の法 + off の坂の一続きの線にする (上端 cap で頭打… |
+| `SodeSlopeSegs(key, nodes, txt, nozSegs, chk, landOut=…, coverOut=…)` | `string` |  | 袖の坂(指図 terraceWalls[].sodeSlope・普請方の設計 2026-10-07・EDO-0502 第41〜42巡)── 袖の天端を段にせず、背の法 + off の坂の一続きの線にする (上端 cap… |
 | `SodeBenches(note)` | `Dictionary<string, List<KeyValuePair<int, EdoBuild.BackBench>>>` |  | — |
 | `RampPatchedDesign(G, sb)` | `float[]` |  | — |
 | `FlatFaces(sb)` | `List<EdoBuild.SkinFace>` |  | 皮が高さを揃える平らな面(指図 terraces の poly を世界へ)。 |

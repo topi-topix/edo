@@ -399,7 +399,10 @@ public static partial class EdoBuild
         /// <summary>小段を走りに沿って落とす勾配(b の端が高く a の側へ下がる・指図 endRaise.drain の 1/20)。0 なら走りには落とさない(2026-10-06 EDO-0502 第37巡)。</summary>
         public float drainAlong;
         /// <summary>真なら run の両端の先(走りの外)へは盛らない【硬】── 端の側の天端を越えて表へ土を落とさない(指図 endRaise.drain)。</summary>
-        public bool noEndSpill; }
+        public bool noEndSpill;
+        /// <summary>切りの上限(設計面 baseAt から)。0 なら切らない(盛るだけ・従前)。> 0 なら小段より高い今の地盤を小段と 1:bf の法まで切る
+        /// (指図 sodeSlope 追記 2026-10-07「出隅の踊り場の背を天端 −0.15 の水平に描き直し、上手の切り ≤0.35・下手の盛り ≤0.35」【硬】・EDO-0502 第42巡)。</summary>
+        public float maxCut; }
 
     /// <summary>**土留めの見え面の前の帯**(線 a→b・背 back の逆の側へ depth まで・走りの両端は線の内)に点 p が入るか。
     /// 当たる先: <see cref="BackBench.keepOut"/> ── 小段の裏込めの端の法(1:bf)が、隣の土留めの見え面の前へ回り込んで土の箱を立てない
@@ -428,9 +431,23 @@ public static partial class EdoBuild
         float benchY = k.top - k.drop - k.drain * Mathf.Min(dn, k.w) - k.drainAlong * (L - Mathf.Clamp(sAl, 0f, L));
         float hh = Mathf.Sqrt(Mathf.Pow(Mathf.Max(0f, dn - k.w), 2f) + dEnd * dEnd);
         float target = benchY - hh / k.bf;
-        if (target <= cur) return cur;
         float b0 = k.baseAt != null ? k.baseAt(p) : cur; if (float.IsNaN(b0)) b0 = cur;
+        if (k.maxCut > 0f)
+        {   // 切り: 小段 + 1:bf の法(上へ)より高い今の地盤を切る ── 切りの上限は設計面から(硬)
+            float hi = benchY + hh / k.bf;
+            if (cur > hi) return Mathf.Min(cur, Mathf.Max(hi, b0 - k.maxCut));
+        }
+        if (target <= cur) return cur;
         return Mathf.Max(cur, Mathf.Min(target, b0 + k.maxFill));
+    }
+
+    /// <summary>**小段の組が節点 p に与える高さ**(盛りは最大・切りは最小 ── 盛る小段が一つでもあれば盛りが勝つ)。BackBenchWrite・皮の設計の地盤・GradeQA が
+    /// 同じこれを使う(式を二重に持たない)。当たる先: BackBench を渡すすべて(岡部 袖の小段・端の天端上げ・出隅の踊り場)。</summary>
+    public static float BackBenchesAt(IList<BackBench> ks, Vector2 p, float cur)
+    {
+        float up = cur, dn = cur;
+        foreach (var k in ks) { float v = BackBenchAt(k, p, cur); if (v > up) up = v; if (v < dn) dn = v; }
+        return up > cur + 1e-5f ? up : dn;
     }
 
     /// <summary>**土留めの端の一部を高い天端の別の run に割る長さ**(指図 terraceWalls[].endRaise・2026-10-06 EDO-0502 第37巡 岡部 TW_Kita_Koshi)。
@@ -558,16 +575,17 @@ public static partial class EdoBuild
 
     /// <summary>背の小段の裏込めを地形へ書く(<see cref="BackBenchAt"/> を節点ごとに・run を順に重ねる)。硬い: 盛るだけ・区画の外は触らない・盛り ≤ maxFill。
     /// ⟶ 返す: 書いた節点の数(盛りの最大は out)。</summary>
-    public static int BackBenchWrite(IList<BackBench> ks, out float fillMax)
+    public static int BackBenchWrite(IList<BackBench> ks, out float fillMax) { float cm; return BackBenchWrite(ks, out fillMax, out cm); }
+    public static int BackBenchWrite(IList<BackBench> ks, out float fillMax, out float cutMax)
     {
-        fillMax = 0f; if (ks == null || ks.Count == 0) return 0;
+        fillMax = 0f; cutMax = 0f; if (ks == null || ks.Count == 0) return 0;
         var t = T(); var td = t.terrainData;
         int hres = td.heightmapResolution; Vector3 tp = t.transform.position, ts = td.size;
         float cell = ts.x / (hres - 1);
         float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue, reach = 0f;
         foreach (var k in ks)
         {
-            reach = Mathf.Max(reach, k.w + k.bf * (k.maxFill + 1f) + 2f * cell);
+            reach = Mathf.Max(reach, k.w + k.bf * (Mathf.Max(k.maxFill, k.maxCut) + 1f) + 2f * cell);
             foreach (var q in new[] { k.a, k.b }) { mnx = Mathf.Min(mnx, q.x); mxx = Mathf.Max(mxx, q.x); mnz = Mathf.Min(mnz, q.y); mxz = Mathf.Max(mxz, q.y); }
         }
         int x0 = Mathf.Clamp(Mathf.FloorToInt((mnx - reach - tp.x) / cell), 0, hres - 1), z0 = Mathf.Clamp(Mathf.FloorToInt((mnz - reach - tp.z) / cell), 0, hres - 1);
@@ -579,9 +597,10 @@ public static partial class EdoBuild
             {
                 var p = new Vector2(tp.x + (x0 + ix) * cell, tp.z + (z0 + iz) * cell);
                 float cur = H[iz, ix] * ts.y + tp.y, nw = cur;
-                foreach (var k in ks) nw = Mathf.Max(nw, BackBenchAt(k, p, cur));
-                if (nw - cur < 1e-4f) continue;
-                fillMax = Mathf.Max(fillMax, nw - cur); H[iz, ix] = (nw - tp.y) / ts.y; n++;
+                nw = BackBenchesAt(ks, p, cur);
+                if (Mathf.Abs(nw - cur) < 1e-4f) continue;
+                if (nw > cur) fillMax = Mathf.Max(fillMax, nw - cur); else cutMax = Mathf.Max(cutMax, cur - nw);
+                H[iz, ix] = (nw - tp.y) / ts.y; n++;
             }
         if (n > 0) { td.SetHeightsDelayLOD(x0, z0, H); td.SyncHeightmap(); }
         return n;

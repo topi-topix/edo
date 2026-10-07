@@ -218,6 +218,8 @@ public static partial class EdoBuild
     /// <summary>溝の脇の法(<see cref="CutEdgeSkin"/> の keepBatter): 法の足を溝の駒の天端の外の辺より下げる量[m](縁石の外の面へ皮を納める ──
     /// 天端に被らない)と、法を引く外形からの範囲の上限[m](沈み 1.5m まで・法 1:1 で)。</summary>
     const float KEEP_RIM_TUCK = 0.02f, KEEP_BATTER_R = 1.5f;
+    /// <summary>段石の背の縁(StairBackRim): 天端の下へ納める深さ・外の地盤が天端に揃うと見なす差・隣の駒が同じ段石と見なす天端の差。</summary>
+    const float STAIR_RIM_TUCK = 0.02f, STAIR_RIM_LEVEL = 0.12f, STAIR_RIM_COVER = 0.10f;
     /// <summary>面の縁のどちらの側に溝が在るかを測る離れ[m](<see cref="CutEdgeSkin"/> の OutsideY ── 縁から外へこの距離の点のこの距離以内に掘る部材が在れば「法の側に溝」)。</summary>
     const float DITCH_SIDE_R = 0.35f;
     /// <summary>凸な外形の縁上で点 <paramref name="p"/> に最も近い点と、その距離。</summary>
@@ -527,6 +529,22 @@ public static partial class EdoBuild
     public const float GATE_BURY = 0.15f;
     /// <summary><see cref="FloorTris"/> が床の天端を探す、面の高さからの幅[m]。</summary>
     public const float FLOOR_REACH = 0.5f;
+
+    /// <summary>**皮の高さの追跡**(診断・2026-10-07 EDO-0502 第42巡): 点を入れると CutEdgeSkin が、その点に最も近い格子の点の高さを段ごとに
+    /// <see cref="SkinTraceLog"/> へ刷る(どの段が皮を下げ・上げたかを名指す)。null(既定)なら何もしない。当たる先: 皮の窪み・盛りの原因を測るとき(全邸)。</summary>
+    public static List<Vector2> SkinTrace;
+    public static System.Text.StringBuilder SkinTraceLog = new System.Text.StringBuilder();
+    static bool TrHit(float x, float z) { foreach (var q in SkinTrace) if (Mathf.Abs(q.x - x) <= 0.125f && Mathf.Abs(q.y - z) <= 0.125f) return true; return false; }
+    static void TrLog(float x, float z, string tag, float h) { SkinTraceLog.AppendLine("  (" + x.ToString("F2") + ", " + z.ToString("F2") + ") " + tag + ": " + h.ToString("F3")); }
+    static void TrDump(string tag, Dictionary<long, float> H, float ox, float oz, float step)
+    {
+        foreach (var q in SkinTrace)
+        {
+            int gi = Mathf.RoundToInt((q.x - ox) / step), gj = Mathf.RoundToInt((q.y - oz) / step); float v;
+            long k = ((long)gi << 32) ^ (uint)gj;
+            SkinTraceLog.AppendLine("  (" + (ox + gi * step).ToString("F2") + ", " + (oz + gj * step).ToString("F2") + ") " + tag + ": " + (H.TryGetValue(k, out v) ? v.ToString("F3") : "—"));
+        }
+    }
 
     /// <summary>**縁の皮を起こす。**<paramref name="parts"/>(石段・袖・土留め)の外形に掛かる地形の升と、
     /// <paramref name="faces"/> の縁で地形が面の高さから <paramref name="faceTol"/> を超えて外れる升に穴を開け、
@@ -1180,6 +1198,36 @@ public static partial class EdoBuild
             v = NearAt(new Vector2(org.x + gi * step, org.z + gj * step), NEAR);
             nearCache[k] = v; return v;
         };
+        // ⭐ **段石の背の縁**(2026-10-07 EDO-0502 第42巡 施主指摘 B): 天端の帯で篩わない駒(石段)の外形の中で、真上にその駒の天端が在り、
+        //   隣(1 格子)の外の点の設計の地盤が天端 − STAIR_RIM_LEVEL 以上(= 上の面が段石の背に揃う)なら、その点は天端 − STAIR_RIM_TUCK で描く。
+        //   ⛔ 2026-10-07 まで「面の外の外形の中は駒の本当の底まで下げる(見えない)」で積みの底 17.84 まで下げ、外の点 18.73 との三角形が
+        //   段石の背の縁から 0.13〜0.5m の帯で 0.85 窪んで背の面を見せた(岡部 K_Dan1 の上がり口・皮の追跡で名指した)。外形の縁の点は隣の外の点と
+        //   三角形で結ばれる ⇒ 見えないのは外形の奥の点だけ。隣の点がすべて「同じ高さの駒の下」か「天端に揃う外の地盤」の時だけ当てる(下の段の踏面・脇の低い地盤へ皮を被せない)。
+        //   当たる先: CutEdgeSkin に石段を渡す全邸(岡部 Stage3b・山王 Stage9・土井 Stage4b)の、上の面へ上がる石段の最上段の背。
+        var stairRim = new HashSet<long>(); string rimWhy = null;
+        Func<int, int, float, bool> StairBackRim = (gi, gj, top) =>
+        {
+            rimWhy = null;
+            bool outerLevel = false;
+            for (int di = -1; di <= 1; di++)
+                for (int dj = -1; dj <= 1; dj++)
+                {
+                    if (di == 0 && dj == 0) continue;
+                    int np = NearPart(gi + di, gj + dj);
+                    if (np == 2)
+                    {
+                        float tn = TopL(gi + di, gj + dj);
+                        if (!float.IsNaN(tn) && tn >= top - STAIR_RIM_COVER) continue;   // 同じ段石(か同じ高さの駒)の下 ── 見えない
+                        if (!float.IsNaN(tn)) { rimWhy = "隣 (" + di + "," + dj + ") 駒の天端 " + tn.ToString("F2"); return false; }   // 低い駒の上(下の段の踏面)── 被せない
+                        //   駒の上向きの面の無い外形の中(脇の城の石垣の法の下 ── 返しの見え面の前の路盤)は外の点と同じに地盤で見る
+                    }
+                    var q = new Vector2(org.x + (gi + di) * step, org.z + (gj + dj) * step);
+                    float fy = FaceY(q); float oy = float.IsNaN(fy) ? (design != null ? OutsideY(q, null) : float.NaN) : fy;
+                    if (float.IsNaN(oy) || oy < top - STAIR_RIM_LEVEL) { rimWhy = "隣 (" + di + "," + dj + ") 外の地盤 " + oy.ToString("F2") + " np " + np; return false; }   // 外の地盤が天端より低い(段石の前・脇)── 従前どおり
+                    outerLevel = true;
+                }
+            return outerLevel;
+        };
         for (int i = ci0; i <= ci1; i++)
             for (int j = cj0; j <= cj1; j++)
             {
@@ -1211,6 +1259,7 @@ public static partial class EdoBuild
                         }
                         float hgt = orig;
                         var p = new Vector2(x, z);
+                        bool trc = SkinTrace != null && TrHit(x, z); if (trc) TrLog(x, z, "元の地形", hgt);
                         // 面の高さ: 部材の外形の中では当てない(部材の中の地盤は部材の面が決める)。
                         //   面の縁の外へ 1.5 格子まで伸ばすのは、部材から NEAR より離れた所だけ(土留めの背へ棚を出さない)。
                         bool faced = false; int near = NearPart(gi, gj);
@@ -1245,6 +1294,7 @@ public static partial class EdoBuild
                                 else foreach (var f in fl) if (EdgeDist(f.poly, p) < step * 1.5f) { hgt = f.y; faced = true; break; }
                             }
                         }
+                        if (trc) TrLog(x, z, "面・設計(near " + near + " faced " + faced + ")", hgt);
                         // ⭐ 部材の外形の中で面の外の点も、設計があれば設計の地盤で描く(下の cap で駒の面の下へ納める)(2026-09-25・EDO-0430)。
                         //   地形のままにすると、法の足(外形の縁)の手前 0.3〜0.6m が駒の下の節点(天端の側の高さ)に引かれ、cap(法の面 − under)まで
                         //   持ち上がって見え面の足元に高さ 1m の土の尾根が立った(回廊の基壇の東の北半・犬走りの床の上)。
@@ -1266,11 +1316,13 @@ public static partial class EdoBuild
                             //   0.54m 覗かせた。底は駒のどの面より低いので天端は埋まらない(「上げない」の由来 ── 袖の天端を埋めた ── は設計の地盤へ上げた話)。
                             if (botOk && hgt < Mathf.Min(bl, dz)) hgt = Mathf.Min(bl, dz);
                         }
+                        if (trc) TrLog(x, z, "外形の中の設計", hgt);
                         // ⭐ 天端の帯で篩う駒の**法の面の下**(外形の中・天端の帯の外)は、その点の面の高さで描く ── 法の足・控えは面の土の下へ入る
                         //   (2026-09-25: 野面の背と腰石垣の間の帯 SukibeiSoto_Chu が、腰石垣の深い法の上で元の地形 28.85 のまま 0.4m の溝になった)。
                         //   上向きの面が無い点(城の石垣の急な法の真下)も同じ ── 篩う駒の外形の中に限る。
                         if (near == 2 && !faced && (faceTop.Contains(CK(gi, gj)) || (float.IsNaN(TopL(gi, gj)) && InBandedHull(p))))
                         { float fy = FaceY(p); if (!float.IsNaN(fy)) { hgt = fy; faced = true; } }
+                        if (trc) TrLog(x, z, "法の面の下", hgt);
                         // ⭐ 背の土を駒の底まで(2026-09-26・EDO-0437 第3巡)── 駒の外形の中と縁の近く(NEAR 以内)で、面の外の点は、
                         //   駒の底(その点の最も低い面 / 近くの駒の底の最大)が**周り 0.6m の外形の外の地盤以下**なら、その底まで上げる
                         //   (底 ≦ 外の地盤 = 背の土はそこまで在る。底は駒のどの面より低いので天端は埋まらない)。
@@ -1313,6 +1365,7 @@ public static partial class EdoBuild
                                 if (!float.IsNaN(og) && og >= bl2 - BACK_FILL) { hgt = Mathf.Max(hgt, bl2); r.backSealed++; }
                             }
                         }
+                        if (trc) TrLog(x, z, "背の土", hgt);
                         // ⭐ 天端の帯で篩わない駒(石段・その積み)の外形の中で面の中の点は、駒の本当の底(下を向いた面)が面 + 許容の内なら
                         //   面の高さで描く(2026-10-04 EDO-0502 第10巡)── 地形のまま(2m 格子の天端の側の高さ)を踏面の下へ納めるだけだと、
                         //   外の点(面 16.50)との三角形が段の前の 0.25m に土の斜面を立て(石段 K_Dan1 の最下段の前 16.53〜16.85)、積みの底が浮いて見えた。
@@ -1320,8 +1373,13 @@ public static partial class EdoBuild
                         //   当たる先: CutEdgeSkin に石段・段を渡す全邸(岡部 Stage3b の Kaidan・山王 Stage9 の段)。
                         if (near == 2 && !faced)
                         {
-                            float fyS = FaceY(p);
-                            if (!float.IsNaN(fyS) && hgt > fyS)
+                            float fyS = FaceY(p); float tS = TopL(gi, gj); int wR; float trR = float.NaN;
+                            if (!float.IsNaN(tS)) { trR = idx.TopRaw(x, z, out wR); if (wR < 0 || idx.banded[wR]) trR = float.NaN; }
+                            bool rimOk = !float.IsNaN(trR) && StairBackRim(gi, gj, trR);
+                            if (trc) TrLog(x, z, "段石の背の縁? top " + tS.ToString("F2") + " raw " + trR.ToString("F2") + " " + (rimOk ? "⭕" : (rimWhy ?? "—")), hgt);
+                            if (rimOk)
+                            { hgt = trR - STAIR_RIM_TUCK; faced = true; stairRim.Add(k); r.stairFaced++; }
+                            else if (!float.IsNaN(fyS) && hgt > fyS)
                             {
                                 int wS; bool dn; float fb = idx.FootBottom(x, z, NEAR + 0.1f, out wS, out dn);
                                 if (wS >= 0 && !idx.banded[wS] && fb <= fyS + faceTol - 0.02f) { hgt = fyS; faced = true; r.stairFaced++; }
@@ -1333,6 +1391,7 @@ public static partial class EdoBuild
                                 if (wS >= 0 && !idx.banded[wS] && hgt > fb) { hgt = fb; r.stairFaced++; }
                             }
                         }
+                        if (trc) TrLog(x, z, "石段の外形", hgt);
                         //   (石段の積みの駒は底の面を持たない殻 ── 底は FootBottom が見え面の足の線で取る)
                         // ⭐ 同じ駒(帯で篩わない駒)の外形の外 NEAR 以内で面の外の点は、底から盛土の法(1:batterFill)で受けた高さより
                         //   上げない(2026-10-04 EDO-0502 第10巡)── 石段 K_Dan1 は門の内の面(16.50)の縁の 1m 外に立ち、その間の設計の地盤は
@@ -1366,6 +1425,7 @@ public static partial class EdoBuild
                                 }
                             if (!float.IsNaN(fbA) && hgt > Mathf.Max(fyA, fbA)) { hgt = Mathf.Max(fyA, fbA); faced = true; r.stairFaced++; }
                         }
+                        if (trc) TrLog(x, z, "石段の前", hgt);
                         if (near == 1 && !faced && design != null && float.IsNaN(FaceY(p)))
                         {
                             float kF = 1f / Mathf.Max(design.batterFill, 1e-3f), lim = float.NaN;
@@ -1387,6 +1447,7 @@ public static partial class EdoBuild
                             }
                             if (!float.IsNaN(lim) && hgt > lim) { hgt = lim; r.stairFaced++; }
                         }
+                        if (trc) TrLog(x, z, "底から法", hgt);
                         if (faced) r.faced++;
                         float hgt0 = hgt;
                         // 部材の天端の下へ納める(真下 = 天端 − under / 周り 8 点の天端の最小 − eps)
@@ -1434,6 +1495,15 @@ public static partial class EdoBuild
                             {
                                 if (di == 0 && dj == 0) continue;
                                 float tq = TopL(gi + di, gj + dj); if (float.IsNaN(tq)) continue;
+                                // ⭐ 2 格子先の低い天端が、間の点の高い駒の天端の陰なら引かない(2026-10-07 EDO-0502 第42巡 施主指摘 B):
+                                //   皮の三角形は隣の点(1 格子)までしか渡らない ⇒ 間に高い駒(上の段石)が立つ先の低い天端(下の段の踏面)には被らない。
+                                //   ⛔ 2026-10-07 まで、上の段石の背の縁の外の点が 0.45 先の下の段の踏面 18.47 で引き下げられ、背の縁が 0.2〜0.3 窪んだ(岡部 K_Dan1)。
+                                //   当たる先: CutEdgeSkin を通る全邸の、段石・段の背の縁(上の駒の陰の下の駒の天端)。
+                                if (Mathf.Abs(di) == 2 || Mathf.Abs(dj) == 2)
+                                {
+                                    float tm = TopL(gi + (di / 2 != 0 ? di / 2 : 0), gj + (dj / 2 != 0 ? dj / 2 : 0));
+                                    if (!float.IsNaN(tm) && tm > tq + STAIR_RIM_COVER) continue;
+                                }
                                 int hw = -1;
                                 if (hollowSet != null)
                                 {
@@ -1457,7 +1527,9 @@ public static partial class EdoBuild
                         float capF = capN1;
                         if (!float.IsNaN(self)) { float sc = self - (FillSeeded(gi, gj) ? FILL_UNDER : under); capF = float.IsNaN(capF) ? sc : Mathf.Min(capF, sc); }
                         float pre = hgt;
+                        if (stairRim.Contains(k) && !float.IsNaN(self)) cap = self - STAIR_RIM_TUCK;   // 段石の背の縁: 自分の段石の天端の下だけ(下の段の天端で引き下げない)
                         if (!float.IsNaN(cap) && hgt > cap) { hgt = cap; r.clamped++; if (!float.IsNaN(self)) r.under++; }
+                        if (trc) TrLog(x, z, "天端の下(self " + self.ToString("F2") + " cap " + cap.ToString("F2") + ")", hgt);
                         // ⭐ 溝の脇の法(keepBatter > 0・硬): 天端が沈んだ溝の外形の外は、床(天端の外の辺からの法)まで下げる ── 造成の面のまま残すと
                         //   外形の内の頂点(天端 − under)との三角形が縁石に被って歯形になる。床が造成の面にある点(沈んでいない溝・法の届かない点)は触らない。
                         if (keepBatter > 1e-3f && keepSet != null)
@@ -1585,11 +1657,13 @@ public static partial class EdoBuild
                                 }
                             if (!float.IsNaN(mn) && hgt > mn - GATE_UNDER) { hgt = mn - GATE_UNDER; r.gateUnder++; }
                         }
+                        if (trc) TrLog(x, z, "格子の点の終わり", hgt);
                         H[k] = hgt;
                         if (orig - hgt > r.maxLower) { r.maxLower = orig - hgt; r.lowerAt = new Vector3(x, hgt, z); }
                         if (hgt - orig > r.maxRaise) { r.maxRaise = hgt - orig; r.raiseAt = new Vector3(x, hgt, z); }
                     }
             }
+        if (SkinTrace != null) TrDump("3b の前", H, org.x, org.z, step);
         // ---- 3b 見え面の前へ皮を出さない(硬い・許容0 ── 2026-09-26 EDO-0437 第5巡)
         //   皮の格子(0.25)の点は、土留めの外形の中では天端の下(cap)へ納まり、隣の外の点は足元の地盤 ── その間の三角形は法の見え面と
         //   ほぼ同じ傾きで張り、野面の石の出入り(±0.07〜0.2)と目地から土の帯として覗いた(前庭の東の縁 z≈854.8〜855.1 で見え面の前に
@@ -1708,10 +1782,12 @@ public static partial class EdoBuild
                 if (changed == 0) break;
             }
         }
+        if (SkinTrace != null) TrDump("3c の前", H, org.x, org.z, step);
         // ---- 3c 外形の縁で閉じる(硬い・許容0 ── 2026-09-26 EDO-0437 第7巡)
 
         CloseRimAtHull(idx, H, PIN, CK, org, step, FaceY, faceTol, ref r, keepSet != null ? IsHollow : null, keepFloor);   // ⚠ ref ── 2026-10-05 まで値渡しで rimRaised/rimLowered が報告で常に 0 だった
 
+        if (SkinTrace != null) TrDump("3d の前", H, org.x, org.z, step);
         // ---- 3d 据わりの守り(硬い・許容0 ── 2026-10-05 EDO-0533 土井 全項目の検査: 駒の浮き 27・一部の浮き 88・植栽 35・溝 171)
         //   皮は 3〜3c で面・設計の地盤・部材の天端・石段の足へ寄せて**元の地形より下げる**ことがある。その升に先に据わっていた駒
         //   (外周の長屋・棟・植栽・溝)は元の地形で据えてあるので、下げた分だけ当たりが全部そろって浮く。⇒ 最後に、駒が地面に触れていた
@@ -1724,6 +1800,7 @@ public static partial class EdoBuild
         r.pinned = PIN.Count;
 
 
+        if (SkinTrace != null) TrDump("4 の前", H, org.x, org.z, step);
         // ---- 4 メッシュ
         var go = new GameObject(SKIN_PREFIX + name);
         go.transform.SetParent(parent, false);

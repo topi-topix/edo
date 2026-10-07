@@ -52,6 +52,9 @@ public static partial class EdoBuild
         /// 設計面がどちらの地盤に揃うかで決める(2026-09-26・EDO-0437)── 離れで測ると細い裏込めの帯の外(区画の線の際で下がる地盤)を拾い、
         /// 見付 0.3 未満の所では票が許容 0.05 を割って区間の向きへ戻った(前庭の E の南 5m が外を向いた)。</summary>
         public Func<float, Vector2> sidesAt;
+        /// <summary>走り s → 名指した見え面の向き(<see cref="NozuraSeg.face"/>・無い所は zero)。在れば地表の低い側の票より先に採る
+        /// (2026-10-07 EDO-0502 第42巡: 袖の坂を前の面より先へ延ばした低い端で、背の土が前より低く票が割れ、端の駒が背へ向いた ── 裏表)。</summary>
+        public Func<float, Vector2> faceAt;
         /// <summary>小口を相手の法で切った短い駒 (天端の長さ, 切る端が局所 +X か, 見付) → パス(2026-09-26・EDO-0437 第3巡)。
         /// 入隅の可動側の端(<see cref="startConcave"/> / <see cref="endConcave"/>)で、鉛直な小口の代わりに据える(<see cref="EdoAssets.Own.SannoNozuraNoriEnd"/>)。null なら使わない。</summary>
         public Func<float, bool, float, string> noriEnd;
@@ -60,6 +63,9 @@ public static partial class EdoBuild
         /// <summary>走りの範囲 (s の始まり, s の終わり, 見付の下限) ── 端の隅の駒と返しの駒の見付を揃える所(指図 kadoReturnUniform「隅の H を揃え、H の違う駒を並べない」・
         /// EDO-0502 第41巡)。範囲に掛かる駒は見付をこの値以上の焼いた段にする(高い段は沈める)。</summary>
         public List<Vector3> minHRanges = new List<Vector3>();
+        /// <summary>走りの範囲 (s の始まり, s の終わり, 焼いた H) ── 駒の中ほどが範囲に入る駒は見付をこの H **ちょうど**にする(指図 sodeSlope 追記 2026-10-07
+        /// 「低い端は水平の H0600 を一駒」・EDO-0502 第42巡)。<see cref="NozuraSeg.fixHEnd"/> から。</summary>
+        public List<Vector3> fixHRanges = new List<Vector3>();
     }
 
     /// <summary>**野面の乱積みの土留めを据える**(2026-09-25・EDO-0430)。見え面 = 描かれた地表の低い側
@@ -85,6 +91,7 @@ public static partial class EdoBuild
             float l = Vector2.Distance(P[i], P[i + 1]); dir[i] = (P[i + 1] - P[i]) / Mathf.Max(l, 1e-6f); s0[i + 1] = s0[i] + l;
             int vn, vx; var lo = LowSide(P[i], P[i + 1], faceG, probe, 0.05f, null, out vn, out vx);
             face[i] = lo;
+            if (w.faceAt != null) { var fz = w.faceAt((s0[i] + s0[i + 1]) * 0.5f); if (fz.sqrMagnitude > 0.5f) { face[i] = fz; vx = 0; } }
             if (vx > 0) log.AppendLine("    ⚠ " + name + " 区間 " + i + " で低い側が割れた(" + vn + " 対 " + vx + ")");
         }
         for (int i = 0; i + 1 < m; i++)   // 票の無い区間は隣の区間の向きを回して借りる
@@ -112,6 +119,7 @@ public static partial class EdoBuild
                 if (!float.IsNaN(g)) gmin = Mathf.Min(gmin, g); } }
             float need = top - gmin;
             foreach (var r in w.minHRanges) if (sb2 >= r.x && sa <= r.y) need = Mathf.Max(need, r.z);   // 端の隅の組の見付を揃える(kadoReturnUniform)
+            { float midS = (sa + sb2) * 0.5f; foreach (var r in w.fixHRanges) if (midS >= r.x && midS <= r.y) return r.z; }   // 端の一駒の H を名指す(sodeSlope の低い端)
             foreach (var h in w.heights) if (h >= need - 1e-3f) return h;
             return w.heights[w.heights.Length - 1];
         };
@@ -138,6 +146,7 @@ public static partial class EdoBuild
         Func<int, float, float, Vector2> faceOn = (si, sa, sb) =>
         {
             float a0 = Mathf.Clamp(sa, s0[si], s0[si + 1]), b0 = Mathf.Clamp(sb, s0[si], s0[si + 1]);
+            if (w.faceAt != null) { var fz = w.faceAt((a0 + b0) * 0.5f); if (fz.sqrMagnitude > 0.5f) return fz; }   // 名指した見え面(袖の坂)
             if (b0 - a0 < 0.3f) return face[si];
             if (w.sidesAt != null)
             {   // 指図の縦断の低い側・高い側の地盤に、線の両脇の設計面のどちらが揃うか
@@ -607,7 +616,11 @@ public static partial class EdoBuild
         //   並べ直す(光線の当たりは線の前後 3 本だけ ── 石の出っ張りが測りの外で相手へ入った・男坂の袖 −0.02〜−0.03・2026-09-26)。
         fixedSpans.Sort((a, b) => a[0].CompareTo(b[0]));
         int idx0 = idx; int res0 = res.Count; float worstJoint = 0f; int nPieces = 0;
-        const int FILL_PASSES = 4;
+        const int FILL_PASSES = 12;
+        //   ⭐ 端の駒 × 相手は、入る位置(penS)と口の位置(gapS)を巡ごとに覚え、両方が出たら間を二分して触れる所へ寄せる(2026-10-07 EDO-0502 第42巡:
+        //   TW_Kado_Sode の上の端が −0.454 → −0.456 → +0.236 と戻し過ぎて口のまま終わった)。最後の巡の一つ前は口の側(入らない側)へ置き直す ── 硬い制約(めり込み)を守る。
+        //   当たる先: 野面の run の、相手の実面へ突き付ける端すべて(岡部 Stage2b・山王 前庭)。
+        var penS = new[] { float.NaN, float.NaN }; var penV = new[] { float.NaN, float.NaN }; var gapS = new[] { float.NaN, float.NaN }; var gapV = new[] { float.NaN, float.NaN };
         const float CONCAVE_TOUCH_BAND = 0.30f;   // 入隅の可動側の鉛直な小口が相手に触れる所を測る天端の帯(下は相手の法の中へ埋める)   // 伸縮が変わると端の石の出っ張りも変わる ⇒ 一度で収まらない(W × SW の入隅 −0.045 が残った・2026-09-26)
         for (int fillPass = 0; fillPass < FILL_PASSES; fillPass++)
         {
@@ -645,6 +658,7 @@ public static partial class EdoBuild
                 face[si] = faceSave;
                 Vector2 X = new Vector2(fN.y, -fN.x);
                 float gX = gradeX(sMid, 0.5f * W * sc, X, si);
+                foreach (var r in w.fixHRanges) if (sMid >= r.x && sMid <= r.y) gX = 0f;   // 名指した端の一駒は水平(sodeSlope の低い端 ── ⛔ 傾けて刺さない)
                 float yaw = Mathf.Atan2(-X.y, X.x) * Mathf.Rad2Deg;
                 bool kiriHere = (lastFree && k == N - 1 && !fromB) || (firstFree && k == 0 && !fromB);
                 // ⛔ 打ち切りの駒(見付 0.15 で頭が下がる)は端の見付が最も低い段で足りる所だけ ── 見付の要る端に置くと床が地表から浮く
@@ -727,14 +741,30 @@ public static partial class EdoBuild
               if (!float.IsNaN(cc) && (float.IsNaN(cmin) || cc < cmin)) { cmin = cc; cn = c1; cat = a1; } }
             if (float.IsNaN(cmin)) continue;
             log.AppendLine("    " + (side == 0 ? "始まり" : "終わり") + "の端の駒 × 相手: " + cmin.ToString("+0.000;-0.000") + "m(筋 " + cn + "・" + cat.ToString("F2") + ")" + (fillPass < FILL_PASSES - 1 && cmin < -0.005f ? " ── めり込むので端を戻して並べ直す" : ""));
-            if (fillPass < FILL_PASSES - 1 && cmin < -0.005f)
+            float sNow = side == 0 ? sStart : sStop;
+            if (cmin < -0.005f && (float.IsNaN(penV[side]) || cmin > penV[side] || float.IsNaN(gapS[side]))) { penS[side] = sNow; penV[side] = cmin; }
+            else if (cmin > 0.005f && (float.IsNaN(gapV[side]) || cmin < gapV[side])) { gapS[side] = sNow; gapV[side] = cmin; }
+            bool bracket = !float.IsNaN(penS[side]) && !float.IsNaN(gapS[side]);
+            bool penult = fillPass == FILL_PASSES - 2;
+            if (bracket && fillPass < FILL_PASSES - 1 && Mathf.Abs(cmin) > 0.005f)
+            {   // 入る位置と口の位置の間を二分(最後の一つ前は口の側へ戻して入らずに終える)
+                //   割線(入りと口の量で内分)・区間の 0.2〜0.8 に挟む(駒の出入りで当たりは滑らかでない)
+                float u = Mathf.Clamp(gapV[side] / Mathf.Max(1e-4f, gapV[side] - penV[side]), 0.2f, 0.8f);
+                float sNew = penult ? gapS[side] : gapS[side] + (penS[side] - gapS[side]) * u;
+                if (Mathf.Abs(sNew - sNow) > 1e-4f)
+                {
+                    log.AppendLine("      ── 入る " + penS[side].ToString("F3") + " / 口 " + gapS[side].ToString("F3") + "(" + gapV[side].ToString("F3") + "m)の間 ⇒ " + (penult ? "口の側へ戻す" : "二分して並べ直す"));
+                    redo = true; if (side == 0) sStart = sNew; else sStop = sNew;
+                }
+            }
+            else if (fillPass < FILL_PASSES - 1 && cmin < -0.005f)
             {   // ⭐ 戻しは測った量より一回ごとに深く(1.0 → 1.5 → 2.0 倍 + 5mm)── 伸縮が変わると端の石の出っ張りも変わり、
                 //   測った量ちょうどでは同じ筋の石が次の巡も相手へ入る(入隅 W × SW が −0.056 → −0.081 → −0.081 と収まらなかった・2026-09-26)
-                float back = cmin * (1f + 0.5f * fillPass) - 0.005f;
+                float back = cmin * (1f + 0.5f * Mathf.Min(fillPass, 2)) - 0.005f;
                 redo = true; if (side == 0) sStart -= back; else sStop += back; }
-            else if (concEnd && fillPass < FILL_PASSES - 1 && cmin > 0.005f)
-            {   // 入隅の可動側: 天端の帯が相手に触れていない(口)⇒ 測った量だけ相手へ延ばして並べ直す(触れている箇所で寄せる)
-                log.AppendLine("      ── 天端の帯に口 " + cmin.ToString("F3") + "m ⇒ 相手へ延ばして並べ直す");
+            else if (fillPass < FILL_PASSES - 1 && cmin > 0.005f && (concEnd || cmin <= 0.5f * W))
+            {   // 口(許容0)⇒ 測った量だけ相手へ延ばして並べ直す(触れている箇所で寄せる)。入隅の可動側は天端の帯で測った口
+                log.AppendLine("      ── " + (concEnd ? "天端の帯に" : "相手との") + "口 " + cmin.ToString("F3") + "m ⇒ 相手へ延ばして並べ直す");
                 redo = true; if (side == 0) sStart -= cmin; else sStop += cmin; }
             else if (cmin < -0.005f)
             {   // ⛔ 硬い制約(許容0 のめり込み): 戻しきっても入る端の駒は建てない。鉛直な小口が相手の法の足へ入る楔
@@ -1017,6 +1047,10 @@ public static partial class EdoBuild
         /// <summary>端(0 = a / 1 = b)の小口を前の地表から沈める深さ(指図 sodeSlope「小口を前の地表から 0.3 以上下へ」【硬】)。NaN なら測らない。
         /// 据えた後に端の駒の小口の頂を測り、足りなければ ⛔ を刷る(⛔ 寄せない)。</summary>
         public float[] endSink = { float.NaN, float.NaN };
+        /// <summary>端(0 = a / 1 = b)の一駒の焼いた H(見付の段)を名指す ── 指図 sodeSlope 追記 2026-10-07「低い端は水平の H0600 を一駒」。NaN なら無し。</summary>
+        public float[] fixHEnd = { float.NaN, float.NaN };
+        /// <summary>見え面の向き(水平の単位)を名指す ── 背の向きが指図・設計面で決まっている区間(袖の坂: 背 = 設計面の高い側)。zero なら地表で決める。</summary>
+        public Vector2 face;
         public float Len { get { return Vector2.Distance(a, b); } }
         public Vector2 Dir { get { return (b - a).normalized; } }
     }
@@ -1070,6 +1104,10 @@ public static partial class EdoBuild
         public float maxExtend = 14f;
         /// <summary>記録: 端ごとの納め(打ち切り/見切り石/隅の駒/相手の面/⛔)。</summary>
         public List<string> record = new List<string>();
+        /// <summary>**積み止めの駒を受ける口**(指図 TW_Minami_Koshi.returnEnd・TW_Nishi_Kado.endKado「③は積み止めで終える」・EDO-0502 第42巡)。
+        /// 見付 → 積み止めの駒のパス(焼けていなければ null)。null(既定)か駒が無い間は ③ のまま直線の駒で終える。
+        /// ⚠ 駒の向き(積み止めの小口が局所のどちら)と据え方は駒が焼けてから組む ── いまは ③ の端で駒の有無を記録するだけ。</summary>
+        public Func<float, string> tome;
         /// <summary>③ に落ちた端の数(直線の駒で終えた端)。</summary>
         public int unresolved;
         // ---- koshiEnd(指図 nozuraEndRule 追記 2026-10-06・EDO-0502 第31巡)── 背が法の腰の土留めの端の背を小段に切る ----
@@ -1508,6 +1546,12 @@ public static partial class EdoBuild
                     }
                     else endPlan[k, e] = "③⛔ 延ばせず(" + (why ?? "延ばしても見付が下がらない") + ")・見付 " + h0.ToString("F2") + " の見切り石が焼いていない";
                 }
+                // 積み止めの口(endRule.tome): ③ の端で駒の有無を記録する(駒が焼けるまでは ③ のまま)
+                if (endRule.tome != null && endPlan[k, e] != null && endPlan[k, e].StartsWith("③"))
+                {
+                    string tp = endRule.tome(h0);
+                    endPlan[k, e] += tp != null && System.IO.File.Exists(tp) ? "・積み止めの駒 " + System.IO.Path.GetFileNameWithoutExtension(tp) + " は焼けた ⚠ 据え方は未組(③ のまま)" : "・積み止めの駒が焼けていない(③ のまま)";
+                }
                 endRule.record.Add(segs[k].name + " 端" + e + ": " + endPlan[k, e] + " " + meas);
             }
         }
@@ -1579,6 +1623,11 @@ public static partial class EdoBuild
                 var sg = segs[chL[i].Key]; float ls = Mathf.Clamp(s - cumL[i], 0f, sg.Len);
                 return sg.crestAt(chL[i].Value ? sg.Len - ls : ls);
             };
+            w.faceAt = s =>
+            {
+                int i = 0; for (int q = 0; q < cumL.Count; q++) if (s >= cumL[q] - 1e-4f) i = q;
+                return segs[chL[i].Key].face;
+            };
             w.sidesAt = s =>
             {
                 int i = 0; for (int q = 0; q < cumL.Count; q++) if (s >= cumL[q] - 1e-4f) i = q;
@@ -1593,8 +1642,9 @@ public static partial class EdoBuild
                 if (!float.IsNaN(sg.minH)) w.minHRanges.Add(new Vector3(c0 - 0.909f, c1 + 0.909f, sg.minH));
                 for (int e = 0; e < 2; e++)
                 {
-                    if (float.IsNaN(sg.minHEnd[e])) continue;
                     float pe = (e == 0) != ch[i].Value ? c0 : c1;   // 裏返した区間は端が入れ替わる
+                    if (!float.IsNaN(sg.fixHEnd[e])) w.fixHRanges.Add(new Vector3(pe - W, pe + W, sg.fixHEnd[e]));
+                    if (float.IsNaN(sg.minHEnd[e])) continue;
                     w.minHRanges.Add(new Vector3(pe - W, pe + W, sg.minHEnd[e]));
                 }
             }

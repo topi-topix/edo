@@ -536,6 +536,9 @@ public static partial class EdoBuild
             for (int b = 0; b < bins; b++) lv[b] = float.MaxValue;
             for (int i = 0; i < n; i++) { int b = Mathf.Min(bins - 1, (int)(pr.s[i] / sp.stepPitch)); lv[b] = Mathf.Min(lv[b], pr.bottom[i]); }
             for (int b = 1; b < bins; b++) lv[b] = Mathf.Min(lv[b], lv[b - 1]);
+            // 下流から戻って上の段を「下の段 + stepRiseMax」まで下げる ── 地面が一間の内で急に落ちる所(法尻の窪み)の一段が上限を超えないよう、
+            //   落ちを上流の段へ割り振る(溝が深くなる分は深さの柔らかい条件で名乗る)。間隔を詰めても一段が変わらなかった(土井 D2 seg8 0.162・第41〜42巡)
+            if (sp.stepRiseMax > 0f) for (int b = bins - 1; b >= 1; b--) lv[b - 1] = Mathf.Min(lv[b - 1], lv[b] + sp.stepRiseMax);
             for (int i = 0; i < n; i++) pr.bottom[i] = lv[Mathf.Min(bins - 1, (int)(pr.s[i] / sp.stepPitch))];
             pr.steps = bins;
             for (int b = 1; b < bins; b++) pr.worstRise = Mathf.Max(pr.worstRise, lv[b - 1] - lv[b]);

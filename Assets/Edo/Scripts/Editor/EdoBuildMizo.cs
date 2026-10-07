@@ -1228,9 +1228,12 @@ public static partial class EdoBuild
                     }
                     if (!bridge) continue;
                 }
-                float t = ts.Find(x => mps.ContainsKey(x) && foot - x >= crest - 1e-3f);
+                // 蓋の天端: 足元。窪みを跨ぐ駒で足元が溝の天端より低いなら溝の天端(縁と面一の蓋 ── 駒の足は蓋に埋まる。部材どうしのめり込みは数えない)。
+                // ⭐ 足元へ合わせると蓋が溝の中へ 0.17〜0.26 沈み、縁の皮が蓋の天端に被った(長局の束・奥の塀の布石 ── 皮の被り 628→714・EDO-0533 第29巡)
+                float lidTop = bridge ? Mathf.Max(foot, crest) : foot;
+                float t = ts.Find(x => mps.ContainsKey(x) && lidTop - x >= crest - 1e-3f);
                 if (t <= 0f) { t = ts[ts.Count - 1]; while (!mps.ContainsKey(t)) t = ts[ts.IndexOf(t) - 1]; }
-                var mp = mps[t]; float bottom = foot - (mp.top - mp.bottom);
+                var mp = mps[t]; float bottom = lidTop - (mp.top - mp.bottom);
                 float gEnd = float.MaxValue;
                 foreach (float sg in new[] { 1f, -1f }) { var e = c + nrm * sg * (lidHalfW - 0.05f); float g = groundAt(e.x, e.y); if (!float.IsNaN(g)) gEnd = Mathf.Min(gEnd, g); }
                 if (gEnd == float.MaxValue) continue;
@@ -1244,12 +1247,12 @@ public static partial class EdoBuild
                 if (go == null) continue;
                 // 平面 = 蓋の実メッシュの中ほどを c へ・高さ = 実メッシュの天端を足元へ(⛔ ピボットで決めない)
                 var w = go.transform.TransformPoint(new Vector3(0.5f * (mp.xMin + mp.xMax), mp.top, 0.5f * (mp.zMin + mp.zMax)));
-                go.transform.position += new Vector3(c.x - w.x, foot - w.y, c.y - w.z);
+                go.transform.position += new Vector3(c.x - w.x, lidTop - w.y, c.y - w.z);
                 float topNow = go.transform.TransformPoint(new Vector3(0f, mp.top, 0f)).y;
-                rep.worstTop = Mathf.Max(rep.worstTop, Mathf.Abs(topNow - foot));
+                rep.worstTop = Mathf.Max(rep.worstTop, foot - topNow);   // 足元が蓋の天端より上に残った量(浮き)── 埋まり側は数えない
                 made.Add(go); lidAt.Add(c); rep.lids++;
                 foreach (var f in on) if (pairSeen.Add(f.go.name + "|" + chGo[ci].name)) rep.pairs++;
-                rep.notes.Add(go.name + " → " + who + "(足元 " + foot.ToString("F3") + "・溝の天端 " + crest.ToString("F3") + "・t " + t.ToString("0.00") + "・脇の地面 " + gEnd.ToString("F3") + (bridge ? "・窪みを跨ぐ駒" : "") + ")");
+                rep.notes.Add(go.name + " → " + who + "(足元 " + foot.ToString("F3") + "・蓋の天端 " + lidTop.ToString("F3") + "・溝の天端 " + crest.ToString("F3") + "・t " + t.ToString("0.00") + "・脇の地面 " + gEnd.ToString("F3") + (bridge ? "・窪みを跨ぐ駒" : "") + ")");
             }
         }
         return made;

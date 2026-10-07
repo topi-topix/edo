@@ -170,7 +170,17 @@ public static class EdoGotenKit
             if (!(nm.StartsWith("Goten_EnKeta") || nm.StartsWith("Goten_EnTsuka") || nm.StartsWith("Goten_Soseki"))) continue;
             Vector3 at; int cnt;
             float gap = bedAt != null ? EdoBuild.ContactOn(c.gameObject, bedAt, out at, out cnt) : EdoBuild.Contact(c.gameObject, out at, out cnt);
-            if (float.IsNaN(gap) || gap <= 0f) continue;          // 届いている(根入れ済み)
+            if (float.IsNaN(gap)) continue;
+            // ⭐ 束を一つのメッシュにまとめた駒(Goten_EnTsuka_*)は、どれか一本が届いていれば触れる所の隙が 0 以下になり、皮の低い所に立つ束が浮いたまま残った
+            //   (土井 長局 Goten_EnTsuka_f620 @(-563.8, 1132.0) +0.061・EDO-0533 第29巡)。足の面の最も浮いた所まで伸ばす(他の束は根入れで埋まる)。
+            //   測るのは描かれた地表のある所だけ(溝の穴の升は蓋が受ける ── LayAnkyoUnder)
+            if (bedAt != null && nm.StartsWith("Goten_EnTsuka"))
+            {
+                var dg = EdoBuild.Drawn();
+                float deep = FootDeepestGap(c.gameObject, (x, z) => dg.At(x, z));
+                if (!float.IsNaN(deep) && deep > 0.01f) gap = Mathf.Max(gap, deep);
+            }
+            if (gap <= 0f) continue;          // 届いている(根入れ済み)
             if (bedAt == null)
             {
                 float bottom = EdoBuild.RB(c.gameObject).min.y, top = c.position.y;
@@ -238,7 +248,7 @@ public static class EdoGotenKit
     }
 
     /// <summary>柱の足の面(実メッシュの最下点から 0.02 以内の頂点)のうち、床 <paramref name="bed"/> から**最も浮いた所**の隙[m]。測れなければ NaN。
-    /// 当たる先: <see cref="RokaFeetToGround"/>(斜面・溝の肩に立つ廊下の柱すべて)。</summary>
+    /// 当たる先: <see cref="RokaFeetToGround"/>(斜面・溝の肩に立つ廊下の柱すべて)・<see cref="AshimotoReach(GameObject, float, System.Func{float, float, float}, out float)"/> のまとめた束。</summary>
     static float FootDeepestGap(GameObject col, System.Func<float, float, float> bed)
     {
         var pts = new List<Vector3>(); float lo = float.MaxValue;

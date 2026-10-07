@@ -829,8 +829,11 @@ public static partial class EdoDoiBuilder
                         var rc = eave[b]; var svc = FindDeep(Group("Fuzoku/Service"), b); float hwE = halfWOf(g);
                         if (svc != null && !float.IsNaN(hwE))
                         {
-                            float pm; rc = EdoBuild.RectClearOfFoot(rc, svc, hwE + 0.05f, out pm);
-                            if (pm > 1e-3f) line(1, g.id + ": " + b + " の軒先の鉛直下を躯体の足の外形 + 溝の半幅 + 0.05 まで外へ " + pm.ToString("F2") + "m 寄せた(柔: 狙いの軒先の鉛直下から外れた)");
+                            float pm; var rc2 = EdoBuild.RectClearOfFoot(rc, svc, hwE + 0.05f, out pm);
+                            //   足が軒先より 0.5 を超えて外へ出る棟(基壇に載る稲荷など ── 雨は基壇に落ちる)は寄せない(第31巡: 稲荷の溝を 1.23m 寄せて玉垣 F09 の柱に掛かった)
+                            if (pm > 0.5f) line(1, g.id + ": " + b + " の躯体の足(基壇)が軒先の鉛直下より " + pm.ToString("F2") + "m 外へ出る ── 溝は軒先の鉛直下のまま(寄せない)");
+                            else rc = rc2;
+                            if (pm > 1e-3f && pm <= 0.5f) line(1, g.id + ": " + b + " の軒先の鉛直下を躯体の足の外形 + 溝の半幅 + 0.05 まで外へ " + pm.ToString("F2") + "m 寄せた(柔: 狙いの軒先の鉛直下から外れた)");
                         }
                         res.Add(loop(rc));
                     }

@@ -914,6 +914,12 @@ public static partial class EdoBuild
             }
             return false;
         };
+        // 点 q の真上に、掘る部材でない駒(躯体・塀・石段)の**足**(下面が面の高さ y + 0.3 より低い ── 軒の裏・屋根は足でない)が在るか
+        Func<Vector2, float, bool> UnderSolidFoot = (q, y) =>
+        {
+            int w; float b = idx.Bottom(q.x, q.y, out w);
+            return !float.IsNaN(b) && w >= 0 && !IsHollow(w) && b <= y + 0.3f;
+        };
         Func<Vector2, bool> WalledAt = q =>
         {
             if (!ditchOpen) return NearAt(q, WALLED) != 0;
@@ -1312,7 +1318,10 @@ public static partial class EdoBuild
                             //   2026-10-06 EDO-0533 第18巡)。⛔ 第17巡まで、蔵の座(27.50)の縁が溝 D2 seg2 の外の辺の 0.06〜0.21m 先に在り、帯が 27.50 のまま
                             //   溝の天端(27.40〜27.45)より 0.05〜0.1 高く残って、その先の法との間に畝(周りより 0.19〜0.31 高い山 9 点)が立った。
                             //   当たる先: keepBatter を渡す邸(いまは土井 Stage4b)の、面の縁の内に沿う溝のすべて。
-                            if (faced && ditchOpen && design != null)
+                            //   ⭐ 据わった駒(掘る部材でない ── 土蔵・棟の躯体)の外形の中の点は下げない(2026-10-07 EDO-0533 第31巡): 溝を躯体の足から 0.05 離すと、
+                            //   帯が蔵の足の下へ入り、足の外形の縁の点を溝の天端 − tuck(27.39)へ下げて蔵の隅が 0.100 浮いた(Kura1)。駒の下の点は下の cap が駒の面の下へ納める。
+                            //   当たる先: keepBatter を渡す邸(土井 Stage4b)の、面の縁の内に沿う溝の脇に据わった駒すべて
+                            if (faced && ditchOpen && design != null && !UnderSolidFoot(p, hgt))
                                 foreach (var f in fl)
                                 {
                                     if (!EdoGeom.PIP(f.poly, p)) continue;

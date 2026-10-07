@@ -547,8 +547,10 @@ public static partial class EdoBuild
                         var bv = Body(m.body.transform, 999999); float ymin = float.MaxValue; foreach (var v in bv) ymin = Mathf.Min(ymin, v.y);
                         foreach (var v in bv) { if (v.y > ymin + 0.05f) continue; float sv = Vector2.Dot(new Vector2(v.x, v.z) - w.origin, w.along); if (sv < w.s0 + 1f) fLo = Mathf.Min(fLo, sv); if (sv > w.s1 - 1f) fHi = Mathf.Max(fHi, sv); }
                     }
-                float s0n = nbLo != null ? w.s0 - (Mathf.Max(0f, sp.x - w.s0) + stepLap) : freeLo ? w.s0 - Mathf.Max(0f, sp.x - fLo) : w.s0;
-                float s1n = nbHi != null ? w.s1 + (Mathf.Max(0f, w.s1 - sp.y) + stepLap) : freeHi ? w.s1 + Mathf.Max(0f, fHi - sp.y) : w.s1;
+                //   掛け FREE_LAP: 底の頂点が天端の面のちょうど端の線に乗ると、測りが隣の低い石を拾う(土井 E14_N1 の背の東の隅 (-461.00, 1171.63)・第40巡)
+                const float FREE_LAP = 0.05f;
+                float s0n = nbLo != null ? w.s0 - (Mathf.Max(0f, sp.x - w.s0) + stepLap) : freeLo ? w.s0 - (Mathf.Max(0f, sp.x - fLo) + FREE_LAP) : w.s0;
+                float s1n = nbHi != null ? w.s1 + (Mathf.Max(0f, w.s1 - sp.y) + stepLap) : freeHi ? w.s1 + (Mathf.Max(0f, fHi - sp.y) + FREE_LAP) : w.s1;
                 if (nbLo == null && nbHi == null && Mathf.Abs(s0n - w.s0) < 1e-3f && Mathf.Abs(s1n - w.s1) < 1e-3f) continue;
                 if (nbLo == null && nbHi == null) log?.AppendLine("  背の基壇 " + w.members[0].name + w.key + ": 隣の無い端へ天端の面を届かせた(s " + w.s0.ToString("F2") + "→" + s0n.ToString("F2") + " / " + w.s1.ToString("F2") + "→" + s1n.ToString("F2") + ")");
                 newS[w] = new Vector2(s0n, s1n);

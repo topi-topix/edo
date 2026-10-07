@@ -227,14 +227,45 @@ public static partial class EdoBuild
                                + Vector3.up * (yTread + kasa - sTop);
 
         // ---- 検め: 小口との実際の隙(触れている箇所で測る)------------------------
-        Vector3 at; int cnt;
-        // ⚠ 筋は 0.25m(Contact の既定)。0.1m にすると段石・袖とも頂点が疎(400〜700)で、両方の頂点が同じ筋に
-        //   入らず「測れず」、または小口の面取り(深さ 2cm)の頂点だけを拾って 0.015m の偽の隙が出る(2026-09-23 実測・
-        //   男坂 30 駒。極値では全駒 0.000m で触れている)。
-        float gap = Contact(go, dan, -right, out at, out cnt, 0.01f, 0.25f, 4000, true);
+        // ⚠ 頂点の筋(Contact)で測らない。段石・袖とも頂点が疎(100〜700)で、筋 0.25m でも 0.1m でも
+        //   面取り・打込接ぎの目地(深さ 1.5〜2cm)の頂点だけが同じ筋に入り、触れている駒に 0.015〜0.020 の偽の隙が出る
+        //   (2026-09-23 男坂 30 駒・2026-10-07 岡部 K_Kuruwa の袖 R_08/L_08。光線では全駒 0.000)。⇒ 面で測る(KoguchiGap)。
+        int hit, tot;
+        float gap = KoguchiGap(dan, new[] { go }, side, out hit, out tot);
         if (float.IsNaN(gap) || Mathf.Abs(gap) > 0.005f)
-            warn = name + ": 段石の小口との隙 " + (float.IsNaN(gap) ? "測れず" : gap.ToString("F3") + "m");
+            warn = name + ": 段石の小口との隙 " + (float.IsNaN(gap) ? "測れず" : gap.ToString("F3") + "m") + "(光線 " + hit + "/" + tot + ")";
         return go;
+    }
+
+    /// <summary>**段石の小口と袖の隙を面で測る**(EDO-0502 2026-10-07)。段石の小口の面(<paramref name="side"/> 側で最も外の
+    /// 頂点 3mm 以内の範囲)を 7×7 に割り、各点の 0.05m 内から外へ光線を打って <paramref name="sodes"/> の三角形までの距離を測る。
+    /// 返り値 = 最小の隙[m](0 = 触れている・負 = めり込み・NaN = どの光線も袖に当たらない)。<paramref name="hit"/> = 当たった光線の数。
+    /// ⭐ 頂点の筋(<see cref="Contact(GameObject,GameObject,Vector3,out Vector3,out int,float,float,int,bool)"/>)は疎な駒で面取り・目地の頂点だけを
+    /// 拾い偽の隙を出す ⇒ 面と面の取り合いは光線で。当たる先: 石段の袖を持つ全ての石段(岡部 K_Kuruwa・山王の男坂・女坂・郭の階)。
+    /// 硬い条件の検め(許容0 = 5mm を超えたら ⚠)。</summary>
+    public static float KoguchiGap(GameObject dan, IList<GameObject> sodes, int side, out int hit, out int tot)
+    {
+        hit = 0; tot = 0;
+        var t = dan.transform; Vector3 right = t.right * Mathf.Sign(side == 0 ? 1 : side), fwd = t.forward;
+        var dp = Body(t, 4000, true); if (dp.Count == 0) return float.NaN;
+        float kog = float.MinValue; foreach (var p in dp) kog = Mathf.Max(kog, Vector3.Dot(p, right));
+        float f0 = float.MaxValue, f1 = float.MinValue, y0 = float.MaxValue, y1 = float.MinValue;
+        foreach (var p in dp)
+            if (Vector3.Dot(p, right) > kog - 0.003f)
+            { float f = Vector3.Dot(p, fwd); f0 = Mathf.Min(f0, f); f1 = Mathf.Max(f1, f); y0 = Mathf.Min(y0, p.y); y1 = Mathf.Max(y1, p.y); }
+        Vector3 o0 = t.position; float oR = Vector3.Dot(o0, right), oF = Vector3.Dot(o0, fwd);
+        float best = float.NaN;
+        for (int a = 0; a <= 6; a++)
+            for (int b = 0; b <= 6; b++)
+            {
+                float f = Mathf.Lerp(f0 + 0.01f, f1 - 0.01f, a / 6f), y = Mathf.Lerp(y0 + 0.01f, y1 - 0.01f, b / 6f);
+                Vector3 o = o0 + right * (kog - 0.05f - oR) + fwd * (f - oF); o.y = y; tot++;
+                float h = RayToBodies(sodes, o, right, 0.5f);
+                if (float.IsNaN(h)) continue;
+                hit++; float g = h - 0.05f;
+                if (float.IsNaN(best) || g < best) best = g;
+            }
+        return best;
     }
 
     /// <summary><see cref="PlaceIshidanSodeRow"/> の検め(全て実メッシュで測った値)。</summary>

@@ -166,6 +166,7 @@ public static partial class EdoBuild
     public const float FLAT = 0.45f;
     /// <summary>地形の上へ被せる皮(地形の木の升)で、盛らない点を地形の下へ沈める深さ[m]。</summary>
     const float OV_SINK = 0.05f;
+    const float HOLD_UNDER_TOP = 0.05f;   // 立てた節点(SkinDesign.hold)を部材の外形の中で上げる上限 = 駒の天端 − これ(第51巡・普請方の指示)
     /// <summary>裏込めが部材の天端の下へ潜る深さ(外形の縁の帯の中)[m]。天端と重ねず、縁の外で底を割らない。</summary>
     const float FILL_UNDER = 0.006f;
     /// <summary>土留めの背の外形の縁で、外の地盤(0.6m 先)が駒の底より低いときに底まで盛ってよい高さ[m](2026-09-26・EDO-0437 第3巡)。</summary>
@@ -1232,6 +1233,13 @@ public static partial class EdoBuild
             if (!float.IsNaN(v) && who >= 0 && idx.banded[who]) { int w2; if (float.IsNaN(idx.Top(x, z, out w2))) faceTop.Add(k); else crestTop.Add(k); }
             topCache[k] = v; return v;
         };
+        // 近くの駒の天端(この点と周り 1 格子の TopL の最大)── 立てた節点(SkinDesign.hold)を上げる上限に使う(第51巡)
+        Func<int, int, float> CrestNear = (gi, gj) =>
+        {
+            float m = float.NaN;
+            for (int di = -1; di <= 1; di++) for (int dj = -1; dj <= 1; dj++) { float t = TopL(gi + di, gj + dj); if (!float.IsNaN(t) && (float.IsNaN(m) || t > m)) m = t; }
+            return m;
+        };
         // ⭐ 掘る部材(hollowParts)の縁の天端(2026-10-05 EDO-0533): 隣の点が溝の窪みの上なら、その駒の外の点を窪みの底まで下げない ──
         //   溝の外の地盤は**縁の天端**の下へ納めれば被らない。⛔ 2026-10-04 まで窪みの底(TopRaw)を cap に採り、土井の溝 858 駒の脇 0.5m の
         //   皮を溝の底まで下げて、脇に据わっていた長屋・棟・植栽を 0.3〜0.8m 浮かせた。
@@ -1390,6 +1398,18 @@ public static partial class EdoBuild
                             //   (前庭の SE の背: 設計の地盤 16.65・駒の底 16.50・地形 15.8)、外形の外の設計の地盤との間の三角形が背の底の下を
                             //   0.54m 覗かせた。底は駒のどの面より低いので天端は埋まらない(「上げない」の由来 ── 袖の天端を埋めた ── は設計の地盤へ上げた話)。
                             if (botOk && hgt < Mathf.Min(bl, dz)) hgt = Mathf.Min(bl, dz);
+                            // ⭐ 立てた節点(SkinDesign.hold ── 部材の小口に被せる土)の周りは、外形の中でも上げる ── 上限は駒の天端 − HOLD_UNDER_TOP
+                            //   (2026-10-08 EDO-0502 第51巡)。⛔ 「下げるだけ」のままだと小口の際の節点が地形(16.47)に残り、外の盛った節点(16.65)との間の
+                            //   三角形で小口の前 0.02〜0.25 の描かれた地表が 0.19 低く、小口が見えた(TW_Kado_Sode_0_0_016f)。天端の下なら駒の中に隠れる。
+                            //   当たる先: SkinDesign.hold を渡す邸(岡部 Stage3b の小口の土)の、hold の節点が部材の外形に掛かる所すべて。
+                            {
+                                float hy = HoldY(p);
+                                if (!float.IsNaN(hy) && hy > hgt)
+                                {
+                                    float cN = CrestNear(gi, gj); float capT = float.IsNaN(cN) ? hy : Mathf.Min(hy, cN - HOLD_UNDER_TOP);
+                                    if (capT > hgt) { hgt = capT; if (trc) TrLog(x, z, "立てた節点(外形の中)", hgt); }
+                                }
+                            }
                         }
                         if (trc) TrLog(x, z, "外形の中の設計", hgt);
                         // ⭐ 天端の帯で篩う駒の**法の面の下**(外形の中・天端の帯の外)は、その点の面の高さで描く ── 法の足・控えは面の土の下へ入る
@@ -1603,6 +1623,15 @@ public static partial class EdoBuild
                         if (!float.IsNaN(self)) { float sc = self - (FillSeeded(gi, gj) ? FILL_UNDER : under); capF = float.IsNaN(capF) ? sc : Mathf.Min(capF, sc); }
                         float pre = hgt;
                         if (stairRim.Contains(k) && !float.IsNaN(self)) cap = self - STAIR_RIM_TUCK;   // 段石の背の縁: 自分の段石の天端の下だけ(下の段の天端で引き下げない)
+                        // ⭐ 立てた節点(SkinDesign.hold ── 小口に被せる土)の周りは、天端の下へ納める上限を「近くの駒の天端 − HOLD_UNDER_TOP」まで緩める
+                        //   (2026-10-08 EDO-0502 第51巡)。⛔ 自分の点の天端(野面の丸い肩 16.56)− under 0.15 で切ると、小口の際の点が 16.41 に下がり、
+                        //   外の盛った点(16.70)との三角形で小口の前の描かれた地表が小口の頂(16.65)より 0.16 低かった。土は石の肩に被ってよい(被せて隠す)。
+                        //   当たる先: SkinDesign.hold を渡す邸(岡部 Stage3b の小口の土)。hold の無い点は従来どおり。
+                        if (!float.IsNaN(cap) && design != null && design.hold != null)
+                        {
+                            float hyC = HoldY(p), cNC = CrestNear(gi, gj);
+                            if (!float.IsNaN(hyC) && !float.IsNaN(cNC)) { float relax = Mathf.Min(hyC, cNC - HOLD_UNDER_TOP); if (relax > cap) cap = relax; }
+                        }
                         if (!float.IsNaN(cap) && hgt > cap) { hgt = cap; r.clamped++; if (!float.IsNaN(self)) r.under++; }
                         if (trc) TrLog(x, z, "天端の下(self " + self.ToString("F2") + " cap " + cap.ToString("F2") + ")", hgt);
                         // ⭐ 溝の脇の法(keepBatter > 0・硬): 天端が沈んだ溝の外形の外は、床(天端の外の辺からの法)まで下げる ── 造成の面のまま残すと

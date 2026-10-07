@@ -3436,18 +3436,27 @@ public static class EdoOkabeYashikiBuilder
                         {
                             int k = j * dnx + i; if (!ok[k]) continue;
                             var q = new Vector2(dx0 + i * dstep, dz0 + j * dstep) - c.end; float du0 = Vector2.Dot(q, c.away) - um, dl = Vector2.Dot(q, lat);
-                            if (dl < lmn - 0.1f || dl > lmx + 0.1f || du0 < -0.6f || du0 > 1.5f) continue;
-                            int b = Mathf.Clamp(Mathf.FloorToInt((dl - lmn) / 0.1f), 0, nbn - 1); float du = du0 - fDu[b], tb = fTop[b];
+                            // ⭐ 横は駒の幅の両側へ c.side 広げる(追記 2026-10-07d【柔】)── 広げた帯は小口の面の外(du ≥ −1 格子)だけ(駒の背・脇の小段へ回さない ── 背の小段の水を堰かない)。
+                            //   広げた先は 1:bf で横へ下りる。小口の面より奥へは 1 格子だけ回り込む(背の小段へ盛りを延ばさない)。
+                            float exL = Mathf.Max(lmn - dl, dl - lmx);   // 駒の幅の外へ出た量(内は負)
+                            if (exL > c.side + Mathf.Min(1.5f, 3f * c.len) + dstep || du0 < -0.6f || du0 > c.flat + 1.5f + 3f * c.len) continue;
+                            int b = Mathf.Clamp(Mathf.FloorToInt((dl - lmn) / 0.1f), 0, nbn - 1); float du = du0 - fDu[b], tb = fTop[b] + c.rise;
+                            // 広げた帯の小口の面より奥は 1 格子だけ(小口の角を回り込んで包む ── 第51巡: 角の点が立たないと皮の双一次で角の前の土が 0.16 低い)
+                            if (exL > 1e-3f && du < -dstep) continue;
                             // ⭐ 土の頂は**その帯の小口の頂**(第49巡): 前の地盤が見付の想定(c.h)より低い所(前の面の隅 16.40)でも小口を隠し切る ── 「高さ ≤ gh + c.h」で切ると
                             //   0.10 見えた。長さは 1:bf で前の地盤に届くまで(c.len は狙い・上限は 3 倍)。小口の 1 格子奥の節点(駒の外形の中)も頂へ ── 外の点が
                             //   駒の下の低い節点と混ざって小口の際が下がらないように(駒の中の点は皮の cap が天端の下へ納める)。
-                            if (du < -dstep || du > Mathf.Min((tb - gh[k]) * c.bf, 3f * c.len) + dstep) continue;
-                            float y = tb - Mathf.Max(0f, du) / c.bf;
+                            // 頂(小口の頂 + rise)から c.flat は平ら(水 c.drn で端の外へ)・その先 1:bf。横の広げの外も 1:bf
+                            float yFlat = tb - c.flat * c.drn;
+                            if (du < -dstep || du > c.flat + Mathf.Min(Mathf.Max(0f, yFlat - gh[k]) * c.bf, 3f * c.len) + dstep) continue;
+                            float duo = Mathf.Max(0f, du);
+                            float y = duo <= c.flat ? tb - duo * c.drn : yFlat - (duo - c.flat) / c.bf;
+                            if (exL > c.side) y -= (exL - c.side) / c.bf;
                             if (y > gh[k] + 1e-4f) { if (EdoBuild.SkinTrace != null) EdoBuild.SkinTraceLog.AppendLine("  小口の土の節点 (" + (dx0 + i * dstep).ToString("F3") + ", " + (dz0 + j * dstep).ToString("F3") + ") du " + du.ToString("F3") + " " + gh[k].ToString("F3") + "→" + y.ToString("F3")); mx = Mathf.Max(mx, y - gh[k]); gh[k] = y; nc++; hold[k] = true; }
                         }
                     coverDu.Add(fDu); coverTop.Add(fTop); coverPiece.Add(eg);
                     coverFace.Add(new Vector4(c.end.x, c.end.y, top, um)); coverLat.Add(new Vector2(lmn, lmx)); covers.Add(c);
-                    sb.AppendLine("  小口の土 " + nm + ": 端の駒 " + eg.name + "・小口の頂 " + top.ToString("F2") + "・幅 " + (lmx - lmn).ToString("F2") + "m ⇒ 設計の地盤を盛った節点 " + nc + "(最大 " + mx.ToString("F2") + "・高さ ≤ " + c.h.ToString("F2") + "・1:" + c.bf.ToString("0.0") + ")");
+                    sb.AppendLine("  小口の土 " + nm + ": 端の駒 " + eg.name + "・小口の頂 " + top.ToString("F2") + "・幅 " + (lmx - lmn).ToString("F2") + "m ⇒ 設計の地盤を盛った節点 " + nc + "(最大 " + mx.ToString("F2") + "・頂 = 小口の頂 + " + c.rise.ToString("F2") + "・平ら " + c.flat.ToString("F2") + "m(水 " + (c.drn > 0f ? "1/" + (1f / c.drn).ToString("F0") : "—") + ")・横 +" + c.side.ToString("F2") + "・1:" + c.bf.ToString("0.0") + ")");
                 }
             }
         }
@@ -3541,7 +3550,7 @@ public static class EdoOkabeYashikiBuilder
     class SodeSlopeCheck { public string key; public List<Vector2> line; public List<Vector2> back; public float maxDiff, depth; public float sLo; }
     /// <summary>袖の坂の低い端の小口へ被せる土(指図 sodeSlope 追記 2026-10-07「その小口は高さ h・長さ len の土を 1:bf で被せて隠す」【硬】)。
     /// end = 線を延ばした低い端の点・away = 端の外へ向く走り。Stage3b が据えた端の駒の小口を実メッシュで測って皮の設計の地盤へ盛る(SodeEndCoverAt)。</summary>
-    class SodeEndCover { public string key; public Vector2 end, away; public float h, len, bf; }
+    class SodeEndCover { public string key; public Vector2 end, away; public float h, len, bf, rise, flat, side, drn; }
 
     /// <summary>**袖の坂**(指図 terraceWalls[].sodeSlope・普請方の設計 2026-10-07・EDO-0502 第41〜42巡)── 袖の天端を段にせず、背の法 + off の坂の一続きの線にする
     /// (上端 cap で頭打ち)。背の法 = 天端の前の線から背へ「天端の奥行(avoid.dodomeCrestDepthM[野面の乱積み])+ 0.25」の造成の設計面(SodeBenches と同じ)。
@@ -3568,6 +3577,9 @@ public static class EdoOkabeYashikiBuilder
         float reachLo = rxg(@"前の地表\s*\+\s*([0-9.]+)\s*〜\s*([0-9.]+)\s*に届いたら", 1), reachHi = rxg(@"前の地表\s*\+\s*([0-9.]+)\s*〜\s*([0-9.]+)\s*に届いたら", 2);
         float fixH = rx(@"水平の\s*H(\d{4})") / 1000f, fixExp = rx(@"見付\s*([0-9.]+)\s*・\s*根入れ");
         float cvH = rxg(@"高さ\s*([0-9.]+)\s*・\s*長さ\s*([0-9.]+)\s*の土を", 1), cvL = rxg(@"高さ\s*([0-9.]+)\s*・\s*長さ\s*([0-9.]+)\s*の土を", 2), cvBf = rx(@"の土を\s*1\s*:\s*([0-9.]+)");
+        // 追記 2026-10-07d(第51巡): 小口の土の頂 = 小口の頂 + cvRise・小口から cvFlat は平ら(水 1/cvDrn で端の外へ)・横は駒の幅の両側へ cvSide【柔】── 無ければ 0(旧の形)
+        float cvRise = rx(@"頂を小口の頂\s*\+\s*([0-9.]+)"), cvFlat = rx(@"小口から\s*([0-9.]+)\s*は平ら"), cvSide = rx(@"両側へ\s*([0-9.]+)\s*広げ"), cvDrn = rx(@"土の頂の水は\s*1\s*/\s*([0-9.]+)");
+        if (float.IsNaN(cvRise)) cvRise = 0f; if (float.IsNaN(cvFlat)) cvFlat = 0f; if (float.IsNaN(cvSide)) cvSide = 0f;
         float frontCut = flatEnd ? reachHi : rx(@"前の地表\s*\+\s*([0-9.]+)\s*以下"), sink = flatEnd ? float.NaN : rx(@"([0-9.]+)\s*以上下へ沈め");
         var gs = new List<float>(); var mg = System.Text.RegularExpressions.Regex.Match(txt ?? "", @"\{([^}]*)\}");
         if (mg.Success) foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(mg.Groups[1].Value, @"([0-9.]+)")) gs.Add(float.Parse(m.Groups[1].Value, inv));
@@ -3700,7 +3712,7 @@ public static class EdoOkabeYashikiBuilder
             }
         }
         if (flatEnd && coverOut != null && !e1Miss)
-        { var pe = pAt(sEnd0 + sgn * Ext); var pa = pAt(sEnd0); coverOut.Add(new SodeEndCover { key = key, end = pe.Key, away = (pe.Key - pa.Key).normalized * (Vector2.Distance(pe.Key, pa.Key) > 1e-3f ? 1f : 0f), h = cvH, len = cvL, bf = cvBf }); }
+        { var pe = pAt(sEnd0 + sgn * Ext); var pa = pAt(sEnd0); coverOut.Add(new SodeEndCover { key = key, end = pe.Key, away = (pe.Key - pa.Key).normalized * (Vector2.Distance(pe.Key, pa.Key) > 1e-3f ? 1f : 0f), h = cvH, len = cvL, bf = cvBf, rise = cvRise, flat = cvFlat, side = cvSide, drn = float.IsNaN(cvDrn) ? 0f : 1f / cvDrn }); }
         if (dry) { if (endBenchNote != null) sb.AppendLine("    " + endBenchNote); return sb.ToString(); }
         System.Func<float, float> crest = s1 =>
         {

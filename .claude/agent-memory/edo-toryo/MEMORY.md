@@ -13,13 +13,11 @@
 - [タイムアウト後は read_console で待つ・池の斑は水を消して切り分け](wait-on-timeout-with-cheap-mcp.md) — sleep は門番が止める。軽い MCP は main thread が空くまで返らない
 - [長い Stage は印のファイルで再送を止める・狙いだけの Converge は2巡](long-run-guard-and-soft-only-converge.md) — delayCall は発火せず。active scene を先に聞く
 - [隅部材の remap の menu は Kado 89 本を再 import して何巡も回る](remap-menu-reimports-all-kado.md) — 新しい FBX が少なければ1本ずつ remap
-
 - [start --unity が通っても claim が付いていないことがある](pitfall-unity-claim-not-verified.md) — status で「資源: unity」を見るまで MCP を叩かない・渡された直後の引き取り(compile_wait 前に読み直す)
 - [claim が無い巡は .cs も保存しない](cs-edit-is-not-claim-free.md) — 1行で他人の bridge が2分落ちる。用意は scratchpad の OLD/NEW 指示書へ
 - [[MenuItem] の直下に関数を差すとメニューが化ける・子の印は親と動く](menuitem-drift-and-child-mark-moves.md) — 「4 囲い」が柵を建てていなかった。印 _axis が 0.117 ずれた
 - [delayCall は他窓の reload で消える・指図の同時書き](delaycall-lost-and-shared-sashizu.md) — Stage は直に呼ぶ。流す前に指図の sha と impl の src を見る・着手前に kansei の reopen を見る
 - [別セッションの赤い .cs で Editor アセンブリが焼けない](editor-dll-blocked-by-other-session.md) — dll の mtime が止まり CPU も静か。⛔refresh を繰り返さず console の error を読む
-
 - [外周の石垣の見え面は区画の外・隣の棟の均しが節点を奪う](outer-wall-face-outside-parcel-and-shared-pads.md) — 皮の own が 2m 格子のまま描く。LevelPad は低い順
 - [欄の上書きの直後は算出物の指紋で Stage1 が止まる](impl-fingerprint-after-yat-overwrite.md) — 食い違い0なら bake_impl --write。長い流しは印+txt で待つ
 - [作業場が前の窓の邸で dirty・旧い退避は前の案の造成前](koba-left-dirty-by-other-window.md) — UnwrittenIn を最初に見る。他邸の書き戻しは分類器が止める→返す
@@ -28,9 +26,7 @@
 
 - [欄の書式が変わると Stage が「読めない」で黙って退く](return-lost-when-sashizu-text-format-changes.md) — 腰石垣の返しが returnEnd の書き換えで消えた。★読めない を grep
 - [起こし直した指図の欄の形と旧い隅](redrawn-sashizu-shapes-and-stale-joints.md) — poly/pts/place文字列で KeyNotFound・谷底に旧い kado・DanPlan の段上限は柔らかい
-
 - [綴りで部材を選ぶ器は似た新部材で倒れる](part-pick-by-spelling-breaks-on-new-sibling.md) — 小鳥居が焼けた途端に一ノ・二ノ鳥居が消えた。名指しの行を先に外す
-
 - [回した境内では方位も uv も枠の回りを足す](rotated-grid-directions.md) — 山王 5.5°。W() と FaceYaw が落として門が建たず社殿が元の軸に残った
 - [正面のローカル軸は部材ごとに違う](front-axis-differs-per-part.md) — 山王 社殿5棟=+X/堂宇10棟=+Z。yaw=front−axis.front(EdoBuild.FaceYaw)
 - [partFrom は2書式・フォルダを決め打ちしない](partfrom-two-spellings.md) — Own.呼び名は EdoAssets.OwnPath で解く。鐘楼鼓楼は Models/Jisha
@@ -59,18 +55,14 @@
 - [門長屋の口の芯はローカル +X で len/2−gc](nagaya-mon-gate-offset-axis.md) — 口の s から gc を出すのは据えた後の向き(sSign)で。奥の壁の抜けで測る
 - [土井の表門は旧い版・札の front は出格子を拾う](doi-omotemon-old-part-and-front-by-foot.md) — 躯体11.18/番所が右/切り下げ無し。外面は foot で寄せる・新FBXは1本ずつ remap
 - [番所はピボットが奥行の芯・部材は片手](bansho-pivot-and-protrude.md) — protrude は躯体の外面の越える量。対に振らないと袖塀へ 0.22 めり込む
-
 - [土井の附属屋は Body に軒が残る・座は格子で起伏](doi-service-eaves-in-body-and-za-not-flat.md) — 離れは帯 0.15〜1.8 の Face で。布石で座が +0.36 上がる
 - [帯割り屋根は床へ据える](banded-roof-sits-at-floor.md) — FBX が軒高を焼き込み済み。寄せ直すと 0.71m 浮く。⚠ 渡廊下と当たる
 - [小段の盛り残りは Stage1 から流せば消える](backbench-residue-cleared-by-stage1.md) — 岡部 S1 は graded へ上書き。返しの前の尾根は壁の下の節点を 2m 格子が描く物
 - [土留めに埋まった地形の木が皮の穴を止める](tree-buried-in-wall-blocks-skin-hole.md) — 尾根と背の隙の正体。RetireTreesInParts。穴の升を先に刷る
 - [皮を庭の後に流すと池を埋める・印は巡ごとに名を替える](skin-after-garden-fills-pond.md) — CutEdgeSkin faceKeepOut に庭の矩形
 - [園路の敷きはメッシュ。スプラット不可](gravel-band-mesh-not-splat.md) — alphamap 4.0 m/px。巻きは上から見て時計回り
-
 - [透塀の段の境は両側 c](sukibei-step-ends-both-c.md)・[隅は kadoFrom で run に入れない](pitfall-sanno-sukibei-kado.md) — 口 0.18m・継ぎ目は端 n・偽の芯ずれ 8 本
-
 - [山王の社叢は「数え方」が入れ物を決める](sanno-shaso-counting-and-bake-gap.md) — 低木はGameObject・名指しは群の外・旧Keidairinは群ごと退避。焼き出し7点は `{size}` のまま
-
 - [一体で焼いた駒は材(サブメッシュ)の名で躯体と屋根を分ける](one-mesh-part-split-by-submesh.md) — BodyBelowRoofAt は一層目だけ。層を問わないのは BodyExRoofAt
 - [塀と足元の石垣は同じ従属値で解く](base-and-wall-share-one-dependent-value.md) — 片方だけ実測にすると塀の下が 1.38m 途切れる
 - [水が乳白色・汀に白い縁はシェーダの既定値](water-defaults-are-for-deep-ponds.md) — 深さ4m前提の _DepthFade/_ShoreWidth。Depth/Opaque は無実
@@ -86,7 +78,6 @@
 - [斜めの隅の駒は「回廊」で測る](corner-piece-corridor-not-projection.md) — 全頂点の射影だと 1.13m の口が残る。DobeiProfile→BodyAt→CorridorSpan
 - [流したら計測より先に書き戻す](writeback-before-measuring.md) — 途中の reload の間に claim が他の窓へ移り書き戻せなくなった
 - [留めの継ぎ目は口0でも線に沿ってずれる](miter-joint-slides-along-cut.md) — 弦で据えて解消。焼く一覧は相手の居ない端を切らない(器と規則を揃える)
-
 - [袖の groundHi の上げは 1.41m で切れる](sode-groundhi-lift-limit.md) — 女坂5駒が建たず。袖が建っても踏面の端に地表が被る(EDO-0421)
 - [.meta の無い新しい FBX は「焼いていない」と出る](new-fbx-without-meta-reads-as-unbaked.md) — 部材方の直後は Refresh→remap→Stage。参照する未追跡 .meta もコミット
 - [透塀の t の端は食い込み 0 で中門へ](sukibei-t-end-bite-zero.md) — ClipRunEndsToGates の halfT は bite。0.30 入れて全駒 1725 で倒れた
@@ -105,18 +96,14 @@
 - [野面の見え面の土の帯は皮の辺](skin-edge-across-nozura-face.md) — 抜けでなく天端下の点と足元の点を結ぶ皮の三角形。光線で駒/皮/地形の先着を数える
 - [野面の土留めの罠](nozura-wall-traps.md) — 見え面は局所+Z・殻の石垣は光線で測る・足元の溝は天端の帯(CREST_BAND)で解消・背の帯の溝は据えで消えない(前が0.4〜0.75飛び出す)・Stage7 の順
 - [袖の根入れは丈で取る・埋まる隅は先に測る](sode-neiri-and-buried-crest.md) — 足元は設計面で測る(皮は嘘)。男坂も 3.20 を焼いた。25.94 の隅は古い読み
-
 - [土留めの端を袖の外面で止める](run-end-at-sode-face.md) — RunEndAtFace は9箇所に当たる。一直線の袖は外す・43°は切った駒・隅の腕が袖へ入る
 - [法で切った段石・袖の差し替えの罠](batter-cut-parts-measure-and-check.md) — 突き合わせの幅は縮尺を見ない・袖の目地が偽の口・女坂の足は斜交で切れない
 - [積み止めの駒は FaceWallToLine で裏返る・継ぎ手は端の帯で・隅の返しの腕の向きと定尺](tome-piece-facing-and-joint.md) — 天端の差0は隠れた隣と比べた値。faceNear は seg.face を先に・armFixed+W/2
 - [二重折れの出隅は一つの駒](double-fold-kado-one-piece.md) — 中の区間の1駒が消え折れ2が黙って飛ぶ。PlaceRunKado2
 - [短い返しは票が割れて裏返る・袖は run の走る段だけ・別 run の出隅を芯で測ると入隅と誤る](short-return-tie-and-sode-extent.md) — RunLowHand/OverlapAlong/ShortSegConvexEnd。段の小口は中ほどで突き付け(跨ぐ段は解けない)
 - [野面 第3巡の測りの罠](nozura-round3-measure-traps.md) — 最も離れる向きの Contact は段石×隅 0.17 を見落とす・外形の中の面の無い点で皮が溝・法切り駒の見付は足元の面で
-
 - [暗渠の蓋が測れない・足元を笠の裏と読む](ankyo-lid-and-foot-under-overhang.md) — MizoPieceOf は板で ok=偽。足元は LowestFootAt(厚み0.3・底の開いた腰)
-
 - [敷石の面取りの口・門の上向きの面の下の皮・同じ高さの重なり](fumiishi-chamfer-and-floor-cover.md) — 天端の帯で口を閉じる。門の面は深さ 0.15 で拾う。重なりは下の側を 0.01 ずつ
-
 - [板塀を天端・法肩に据える罠](panel-on-crest-and-shoulder-traps.md) — 帯は天端の最高で・法肩の下りは描かれた地表で・Itabei5 は 3m 未満に割れない
 - [水平の袖の継ぎ目は面取りの下で・鉛直な端は法の隅で楔](flat-sode-chamfer-and-batter-wedge.md) — 天端の帯では V を 0.015 の口と読む。男坂 052f × kado1 は帯の下で 0.05/0.2m 入る
 - [野面の入隅の土の楔・L字の隅の天端・段違いを継がない規則](nozura-concave-wedge-and-kado-crest.md) — 入隅は天端の帯で触れて下は埋める・crestOf は隅で 0.4〜0.6 低く読む・共有の型は前の巡のログと diff
@@ -126,16 +113,13 @@
 - [隅の腕を袖の実測で選ぶ・足元の溝は cap の掘り・空きの点の塞ぎ](kado-short-arm-and-foot-groove.md) — KadoShortArm は詰めた後の袖で測る。天端の四角い抜けは部材
 - [別の駒の天端・段に被る隅石を退ける](crest-of-other-and-step-yield.md) — 法の足が下の天端に載る所で皮が天端に張り付く。YieldWallsToSteps。MeshInside は一つずつ
 - [MidSection は世界座標・内外は MeshInside で](post-board-run-and-mesh-inside.md) — 重ねて板が 438m 飛んだ。総当たりの光線は 25 分ふさいだ(二度目)
-
+- [小口の土が描けない正体は丸い肩の cap](koguchi-cover-capped-by-rounded-shoulder.md) — 際の点が自分の天端−0.15へ下がる。hold は近くの天端−0.05まで
 - [袖の坂・小口の土の検めは SkinGround で盛りを読まない・3b はメモリで落ちる](sode-check-skinground-and-dropped-run-residue.md) — Drawn で測る・hold・2b の後に書き戻す
-
 - [袖の背に沿う返しの隅は法で袖へ入る](kado-arm-along-sode-back-batter.md) — 見える所は面一でも W0.31/E0.47 入る。解くのは返しの腕を一辺切った Kado90(部材)
-
 - [門の背の突き付けは札で・2m格子の坂の石段・印の名は共有](gate-back-abut-through-passage-and-steps-on-graded-ramp.md) — 光線は門の口を抜けて扉まで伸びた。踏面の坂上の端を地表へ(SlopeStepsAt)
 - [城の石垣の口が二つ近いと間に 2m の駒が芯で据わる](castle-run-narrow-pier-between-gaps.md) — 土井の扉口と潜戸の間 0.459m。部材か指図へ差し戻す
 - [棟の下の均しを直しても埋没が動かないのは皮・垣の残る浮きは目地](levelpad-rim-and-skin-hides-terrain.md) — Drawn と地形の両方で測る。計測は組み立て1回で全駒
 - [光付けは2次元で上げる・remap 済みでも材 null](scribe-2d-and-stale-fbx-material.md) — 列の窓の最大は法肩で浮き目地で食い込む。桃色は ForceUpdate で再 import(長屋12本も 10-03)
-
 - [長屋は全幅で並べると躯体が開く・御殿は縁の下に当たり無し・棟門は札で・描かれた法尻](nagaya-body-vs-gable-and-rendered-toe.md) — FitBodyToSpan/PlaceGamae/toeRender
 - [石垣の足元の盛りは2m格子の描き・造成では消えない](wall-toe-mound-is-grid-not-grading.md) — 足〜背 2.15m < 格子。縁の皮が要る
 - [袖の背の小段は段の境の脇だけ 0.4 余る](sode-back-bench-cap-conflict.md) — 上限でも格子でもなかった。狙いと描画を同じ点で並べてから名指す
@@ -151,23 +135,19 @@
 - [坂の袖・段石の背の窪み](slope-sode-flat-kado-and-end-specs.md) — 出隅は PAV・踊り場・低い端は face で名指す。皮の窪みは SkinTrace で段ごとに測る
 - [腰の端の小段は 1:1 の法で切りが 1.0 を超える・石段の a/b は従属値](koshi-end-cut-exceeds-on-1to1-slope.md) — koshiEnd は5端とも退く。KaidanAB が atS から解く
 - [野面の段の境の駒は H1.50 だけ・継ぎ目の下が抜ける](nozura-dan-piece-fixed-height.md) — 直線は H4.8 まで選ぶ。StackDownAtNozuraSteps で積み下ろす
-
 - [地形の前後の差は資産の写しから採れる](terrain-diff-from-asset-copy.md)・[検証レンダの構図は残らない](render-camera-poses-not-kept.md) — int16 の塊を行で探す・構図は cams.txt
 
 ## 測り方・関門
 
 - [練塀は下絵の seat で置かれ埋まる・天端の垣と S_Hei_20 の浮きは偽](dobei-seat-is-shitae-and-false-floats-r12.md) — 岡部 辺34 で 2.6m 埋没。浮きは光線の先着で確かめる・作業場の取り違え
-
 - [偶奇の多数決の内外判定は野面で偽のめり込み](parity-inside-test-false-intrusion.md) — 袖×SW の隅 0.234 は偽。当たり0の向きが在れば外
 - [悪化の申告はまず prefab を git で比べる](regression-claim-diff-prefab-first.md) — EDO-0437 の3件は駒が動いていなかった。郭の階の南の袖は EK の隅の腕の中(腕 −0.04 の隅が要る)
-
 - [Contact の筋は疎な駒で偽の隙(0.1 でも 0.25 でも)](contact-cell-too-fine-on-sparse-meshes.md) — 面どうしは光線で(KoguchiGap)。袖×段石の 0.015/0.020 は偽
 - [段石の浮きは袖に塞がれない端だけで数える](dan-float-read-behind-sode.md) — 底−地表は男坂で 0.43m 出るが袖の裏の空洞
 - [当たりは棟の外形線の上で測らない](notch-seat-has-80mm-plate-under.md) — 線上は内と外を拾い分ける。廊下の側へ張り出す三角形だけに絞る
 - [実メッシュの当たりは紙より 0.08m 低い](mesh-atari-is-lower-than-paper.md) — 葺き厚と垂れ。5点の中央値で測る
 - [C#の検図関門が kansei を見ていなかった](csharp-review-gate-ignored-kansei.md) — python が⭕でも止まる。直した
 - [bake_impl は指紋違いで焼ける欄まで書かない](bake-impl-carried-src.md) — 欄を足したら carriedSrc を残す。半分だけ焼かない
-
 - [面の輪郭ぎわの残差は物差しの話](terrace-rim-residual-is-the-ruler.md) — 失敗点が全部1セル以内なら造成の欠陥でない。均すと段が埋まり崖に盛土
 - [池が掘れていないの正体は水面の紛失と 2m 格子](pond-carved-but-water-lost.md) — ⛔掘り直さない。CreateNoCarve で水面だけ
 - [作業場の書き戻しは台帳0件で黙る](koba-writeback-ledger-empty.md) — 段別の邸は本体が台帳に載らない。Convert(自邸名)で拾う
@@ -178,9 +158,7 @@
 ## 検査の読み方
 
 - [検査の浮き・子0は測り方の読み違いのことがある](qa-misreads-stack-and-single-mesh-gate.md) — 積みを地表で測る・一体の門・皮の前の垣。相手を床に入れて測り直す
-
 - [袖の脇の入りは見える地表で割る](sode-side-bite-below-skin.md) — 女坂の北の袖×回廊の出隅は全部 皮の下。MeasureSodeSideBites・裏の面の偽の入り
-
 - [退役した Stage が残ると検査が嘘の件数を出す](retired-stage-makes-fake-counts.md) — 449=1278−829 は別の母集団の引き算
 - [退ける門と検査は同じ測りで](machiya-clash-gate-weaker-than-check.md) — 門だけ屋根を外すと検査でめり込み。揃えた犠牲は駒1個だけ
 - [CheckScene は矩形の芯で測る](checkscene-center-vs-seat.md) — `seat` で据えた部材は永久に鳴る。⛔芯へ動かして0件にしない

@@ -172,14 +172,22 @@ public static partial class EdoBuild
                     float t = (w.x * d2.y - w.y * d2.x) / den;
                     return A(e) - o * de + d * t;
                 };
+                // 頂点で天端の違う区間が浅い折れ(< 30°)で続く = 折れのある段の継ぎ目: 高い方は交点から stepLap(無ければ 0.03)だけ先へ、
+                //   低い方は交点から奥へ 1.4m 延ばして高い方の面の裏へ食い込ませる(隅の駒は置かない ── PlaceRunKado・普請方の設計 2026-10-07 土井 辺14/15)
+                float stepCornerLap = stepLap >= 0f ? stepLap : 0.03f;
+                Func<CastleSec, float> cornerExt = x => { if (x == null || Mathf.Abs(x.crest - s.crest) < 1e-3f) return 0f; return x.crest < s.crest ? stepCornerLap : -1.4f; };
                 if (s.s1 >= Len(e) - VTX_TOL)
                 {
-                    if (merged.Exists(x => x.edge == (e + 1) % n && x.s0 <= VTX_TOL)) b = meet((e + 1) % n, b);
+                    var nx = merged.Find(x => x.edge == (e + 1) % n && x.s0 <= VTX_TOL);
+                    if (nx != null && Mathf.Abs(Turn((e + 1) % n)) < 30f && Mathf.Abs(nx.crest - s.crest) > 1e-3f) { b = meet((e + 1) % n, b); float ce = cornerExt(nx); b += d * (ce > 0f ? ce : 1.4f); if (final) log?.AppendLine("  城の石垣 " + s.name + ": 頂点" + ((e + 1) % n) + " の折れのある段の継ぎ目 ── 尻を交点から " + (ce > 0f ? ce : 1.4f).ToString("F2") + "m 先へ(" + (ce > 0f ? "高い方の天端を届かせる" : "低い方を高い方の面の裏へ") + ")"); }
+                    else if (nx != null) b = meet((e + 1) % n, b);
                     else { float tr = freeTrim(e, (e + 1) % n, de); b -= d * tr; if (final && tr > 0.011f) log?.AppendLine("  城の石垣 " + s.name + ": 相手の無い出隅の端を " + tr.ToString("F2") + "m 詰めた(小口が隣の辺の線を越えない)"); }
                 }
                 if (s.s0 <= VTX_TOL)
                 {
-                    if (merged.Exists(x => (x.edge + 1) % n == e && x.s1 >= Len(x.edge) - VTX_TOL)) a = meet((e - 1 + n) % n, a);
+                    var pv = merged.Find(x => (x.edge + 1) % n == e && x.s1 >= Len(x.edge) - VTX_TOL);
+                    if (pv != null && Mathf.Abs(Turn(e)) < 30f && Mathf.Abs(pv.crest - s.crest) > 1e-3f) { a = meet((e - 1 + n) % n, a); float ce = cornerExt(pv); a -= d * (ce > 0f ? ce : 1.4f); if (final) log?.AppendLine("  城の石垣 " + s.name + ": 頂点" + e + " の折れのある段の継ぎ目 ── 頭を交点から " + (ce > 0f ? ce : 1.4f).ToString("F2") + "m 手前へ(" + (ce > 0f ? "高い方の天端を届かせる" : "低い方を高い方の面の裏へ") + ")"); }
+                    else if (pv != null) a = meet((e - 1 + n) % n, a);
                     else { float tr = freeTrim(e, e, de); a += d * tr; if (final && tr > 0.011f) log?.AppendLine("  城の石垣 " + s.name + ": 相手の無い出隅の端を " + tr.ToString("F2") + "m 詰めた(小口が隣の辺の線を越えない)"); }
                 }
                 { float lp; if (lapLo.TryGetValue(s, out lp)) a -= d * lp; if (lapHi.TryGetValue(s, out lp)) b += d * lp; }
@@ -254,11 +262,23 @@ public static partial class EdoBuild
             foreach (var s in merged)
             {
                 bool hiStep = lowerNb(s, true) != null, loStep = lowerNb(s, false) != null;
-                if (!hiStep && !loStep) continue;
+                // 隣の無い端(頂点でも口の縁でもなく、同じ辺で触れる区間が無い)も天端の面を端より 0.05 先まで届かせる ── 載る棟の隅の底が端の線に乗ると
+                //   測りが隣の低い物を拾う(土井 E14_N1 の外の東の隅 (-462.39, 1174.40) が練塀 E14_Hei_Kado の側で +0.82・第41巡 ── PlaceCastleBack の FREE_LAP と同じ)
+                Func<bool, bool> freeEnd = hi =>
+                {
+                    float se = hi ? s.s1 : s.s0;
+                    if (hi ? se >= Len(s.edge) - VTX_TOL : se <= VTX_TOL) return false;
+                    if (merged.Exists(x => x != s && x.edge == s.edge && (hi ? Mathf.Abs(x.s0 - se) < 0.05f : Mathf.Abs(x.s1 - se) < 0.05f))) return false;
+                    foreach (var sc in secs) if (sc.edge == s.edge) foreach (var g in sc.gaps) if (Mathf.Abs(hi ? g.x - se : g.y - se) < 0.05f) return false;
+                    return true;
+                };
+                bool hiFree = !hiStep && freeEnd(true), loFree = !loStep && freeEnd(false);
+                if (!hiStep && !loStep && !hiFree && !loFree) continue;
                 var mine = probe.FindAll(go => go != null && go.name.StartsWith(wallOf[s] + "_", StringComparison.Ordinal));
                 var sp = crestSpan(mine, s); if (sp.x > sp.y) continue;
-                if (hiStep) lapHi[s] = Mathf.Max(0f, s.s1 - sp.y) + stepLap;
-                if (loStep) lapLo[s] = Mathf.Max(0f, sp.x - s.s0) + stepLap;
+                const float FREE_LAP = 0.05f;
+                if (hiStep) lapHi[s] = Mathf.Max(0f, s.s1 - sp.y) + stepLap; else if (hiFree) { lapHi[s] = Mathf.Max(0f, s.s1 - sp.y) + FREE_LAP; log?.AppendLine("  城の石垣 " + s.name + ": 隣の無い端(s=" + s.s1.ToString("F2") + ")へ天端の面を " + lapHi[s].ToString("F3") + "m 延ばした"); }
+                if (loStep) lapLo[s] = Mathf.Max(0f, sp.x - s.s0) + stepLap; else if (loFree) { lapLo[s] = Mathf.Max(0f, sp.x - s.s0) + FREE_LAP; log?.AppendLine("  城の石垣 " + s.name + ": 隣の無い端(s=" + s.s0.ToString("F2") + ")へ天端の面を " + lapLo[s].ToString("F3") + "m 延ばした"); }
             }
         foreach (var go in probe) if (go != null) UnityEngine.Object.DestroyImmediate(go);
         // ② 控えた線で据え直す
@@ -270,8 +290,8 @@ public static partial class EdoBuild
                 if (!lapLo.ContainsKey(s) && !lapHi.ContainsKey(s)) continue;
                 var mine = new List<GameObject>(); foreach (var nm in members[s]) if (res.bySec.ContainsKey(nm)) mine.AddRange(res.bySec[nm]);
                 var sp = crestSpan(mine, s);
-                if (lapHi.ContainsKey(s)) log?.AppendLine("  " + (sp.y >= s.s1 - 1e-3f ? "⭕" : "★") + " 城の石垣 " + s.name + ": 段の継ぎ目(s=" + s.s1.ToString("F2") + "・下の天端 " + lowerNb(s, true).crest.ToString("F2") + ")へ天端の面を " + lapHi[s].ToString("F3") + "m 延ばした ⇒ 天端の面の端 s=" + sp.y.ToString("F3") + "(継ぎ目を " + (sp.y - s.s1).ToString("+0.000;-0.000") + "m 越える)");
-                if (lapLo.ContainsKey(s)) log?.AppendLine("  " + (sp.x <= s.s0 + 1e-3f ? "⭕" : "★") + " 城の石垣 " + s.name + ": 段の継ぎ目(s=" + s.s0.ToString("F2") + "・下の天端 " + lowerNb(s, false).crest.ToString("F2") + ")へ天端の面を " + lapLo[s].ToString("F3") + "m 延ばした ⇒ 天端の面の端 s=" + sp.x.ToString("F3") + "(継ぎ目を " + (s.s0 - sp.x).ToString("+0.000;-0.000") + "m 越える)");
+                if (lapHi.ContainsKey(s) && lowerNb(s, true) != null) log?.AppendLine("  " + (sp.y >= s.s1 - 1e-3f ? "⭕" : "★") + " 城の石垣 " + s.name + ": 段の継ぎ目(s=" + s.s1.ToString("F2") + "・下の天端 " + lowerNb(s, true).crest.ToString("F2") + ")へ天端の面を " + lapHi[s].ToString("F3") + "m 延ばした ⇒ 天端の面の端 s=" + sp.y.ToString("F3") + "(継ぎ目を " + (sp.y - s.s1).ToString("+0.000;-0.000") + "m 越える)");
+                if (lapLo.ContainsKey(s) && lowerNb(s, false) != null) log?.AppendLine("  " + (sp.x <= s.s0 + 1e-3f ? "⭕" : "★") + " 城の石垣 " + s.name + ": 段の継ぎ目(s=" + s.s0.ToString("F2") + "・下の天端 " + lowerNb(s, false).crest.ToString("F2") + ")へ天端の面を " + lapLo[s].ToString("F3") + "m 延ばした ⇒ 天端の面の端 s=" + sp.x.ToString("F3") + "(継ぎ目を " + (s.s0 - sp.x).ToString("+0.000;-0.000") + "m 越える)");
             }
         // ③a 相手の無い頂点の端の駒は、走りに沿って区画の内へ引く(駒の実長は送りの 2.00 より長く、端の駒が区間の端から出る)
         foreach (var s in merged)

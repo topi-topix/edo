@@ -253,6 +253,9 @@ public static partial class EdoBuild
             return new float[] { c, top };
         };
         var bA = back(runA, nA); var bB = back(runB, nB);
+        //   浅い折れ(< 30°)で天端が違うのは折れのある段の継ぎ目 ── 隅の駒を置かず、呼び手が高い方の天端の面を低い方の面の先まで届かせ、
+        //   低い方を高い方の面の裏へ食い込ませて閉じる(石垣の作法: 浅い折れに隅の駒を挟まない・土井 辺14/15 の 22.4° ── 普請方の設計 2026-10-07)
+        if (Mathf.Abs(bA[1] - bB[1]) > tol && deg < 30f) { note = "折れ " + deg.ToString("F1") + "° の段の継ぎ目(天端の差 " + Mathf.Abs(bA[1] - bB[1]).ToString("F3") + "m)── 隅の駒は置かない(直線の駒の重ねで閉じる)"; return null; }
         if (Mathf.Abs(bA[1] - bB[1]) > tol) { note = "⛔ 両脇の天端が " + Mathf.Abs(bA[1] - bB[1]).ToString("F3") + "m 食い違う — 建てない"; return null; }
         float crest = Mathf.Max(bA[1], bB[1]);
         float det = nA.x * nB.y - nA.y * nB.x;

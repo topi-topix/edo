@@ -278,6 +278,29 @@ public static partial class EdoDoiBuilder
                               + ag.ToString("+0.000;-0.000") + "m @" + aw + (af > 0 ? "(浮き " + af + " 駒)" : ""));
         }
         sb.AppendLine("  棟 " + munes + " 棟・下ろした床下の足元 " + feet + " 駒(最大 " + mworst.ToString("F3") + "m)" + (bad > 0 ? "・✗ 浮きの残る棟 " + bad : ""));
+        // 附属屋の布石の基壇を、今の描かれた地表で敷き直す(EDO-0533 第32巡): 基壇は S5(③)で敷くので、後の S9 排水・S4b 縁の皮が地表を下げた辺は布石が無いまま
+        //   足の下が見えた(土蔵 Kura1 の西の辺 0.150 ── 基壇は東の 2 区画だけ)。浮いた附属屋だけ、その棟の基壇を外して EdoBuild.BuildingKidan で敷き直す(棟は動かさない)。
+        //   ⛔ 置き方はここに書かない(規則21)。当たる先: 土井の附属屋 12 棟。地表を後から描き直す邸の、布石の基壇で受ける棟すべて。
+        {
+            var kiso = Group("Fuzoku/Kiso"); int redo = 0, still = 0; float sworst = 0f;
+            foreach (Transform sv in Group("Fuzoku/Service"))
+            {
+                if (!sv.gameObject.activeInHierarchy) continue;
+                var mine = new List<GameObject>(); foreach (Transform kd in kiso) if (kd.name.StartsWith(sv.name + "_kidan_")) mine.Add(kd.gameObject);
+                var bedK = mine.Count > 0 ? EdoBuild.GroundOrBed(new EdoBuild.BedIndex(mine)) : null;
+                Func<float, float, float> bedS = (x, z) => { float a = bed(x, z); if (bedK == null) return a; float k = bedK(x, z); return float.IsNaN(k) ? a : (float.IsNaN(a) ? k : Mathf.Max(a, k)); };
+                var rt0 = EdoBuild.RootToBed(sv.gameObject, bedS, 0.1f);
+                if (float.IsNaN(rt0.hi) || rt0.hi <= MUNE_GROUND_TOL) continue;
+                foreach (var g in mine) UnityEngine.Object.DestroyImmediate(g);
+                string kn; var ks = EdoBuild.BuildingKidan(sv.gameObject, kiso, bed, out kn);
+                var bed2 = ks.Count > 0 ? EdoBuild.GroundOrBed(new EdoBuild.BedIndex(ks)) : null;
+                Func<float, float, float> bedS2 = (x, z) => { float a = bed(x, z); if (bed2 == null) return a; float k = bed2(x, z); return float.IsNaN(k) ? a : (float.IsNaN(a) ? k : Mathf.Max(a, k)); };
+                var rt1 = EdoBuild.RootToBed(sv.gameObject, bedS2, 0.1f);
+                redo++; sworst = Mathf.Max(sworst, float.IsNaN(rt1.hi) ? 0f : rt1.hi); if (!float.IsNaN(rt1.hi) && rt1.hi > MUNE_GROUND_TOL) still++;
+                sb.AppendLine("  " + (!float.IsNaN(rt1.hi) && rt1.hi > MUNE_GROUND_TOL ? "✗" : "⭕") + " 附属屋 " + sv.name + ": 布石の基壇を敷き直した " + ks.Count + " 個(浮き " + rt0.hi.ToString("F3") + " → " + (float.IsNaN(rt1.hi) ? "-" : rt1.hi.ToString("F3")) + "m)" + (ks.Count == 0 ? "・" + kn : ""));
+            }
+            sb.AppendLine("  附属屋の基壇の敷き直し " + redo + " 棟(残る浮きの最大 " + sworst.ToString("F3") + "m" + (still > 0 ? "・✗ " + still + " 棟" : "") + ")");
+        }
         return sb.ToString();
     }
 

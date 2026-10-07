@@ -354,6 +354,16 @@ public static partial class EdoBuild
             if (float.IsNaN(y)) continue;
             hi = Mathf.Max(hi, y); lo = Mathf.Min(lo, y);
         }
+        // ⭐ 足の実の頂点(底から 0.05 の帯)の真下の床も測る(2026-10-07 EDO-0502 第46巡)── 0.1m 刻みの格子は親柱の足(幅 0.06)が
+        //   高さの違う天端の石の継ぎ目を跨ぐ所を見落とし、低い石の側が 0.047 浮いた(Kaki_TW_Minami_Koshi_0_007・床 20.81/20.99)。
+        //   当たる先: ReseatCrestFence で据え直す全邸の天端の垣(岡部 fenceOnTop 4 欄)。
+        if (bedAt != null)
+            foreach (var v in Body(go.transform, 4000))
+            {
+                if (v.y > bot + 0.05f) continue;
+                float y = bedAt(v.x, v.z); if (float.IsNaN(y)) y = Ground(v.x, v.z); if (float.IsNaN(y)) continue;
+                hi = Mathf.Max(hi, y); lo = Mathf.Min(lo, y);
+            }
         if (hi == float.MinValue) return false;
         // 床 = 最も高い当たり − 根入れ 0.15。ただし最も低い当たりから根元の帯(ROOT_TOUCH)の分は下へ ── 硬い・根元の浮き 0(埋めて隠す・docs/oki-kata.md §4)
         float floorY = bedAt != null ? Mathf.Min(hi - 0.15f, lo - ROOT_TOUCH) : hi - 0.15f;

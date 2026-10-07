@@ -53,6 +53,7 @@
 - [区域外を退ける群の降り方・写し戻しの罠](retire-outside-walk-and-restore.md) — 子1つの入れ物を駒と読み338本消した。写し戻しは ConvertToPrefabInstance で繋ぐ
 - [区画を引き直すと焼いていない算出物の欄が線の外に据わる](stale-impl-after-parcel-redraw.md) — 岡部の杭列 484 個が 4〜11m 外。RetireOutsidePoly で退ける
 - [区画の線を動かすと前の造成が隣に残る](prev-grade-left-in-neighbor-after-parcel-move.md) — Stage1_Grade(prev) が類型の区画も戻す。隣の塀が浮く恐れ
+- [均しの縁の節点・皮の PIN の被り・閉じの検め](pad-edge-nodes-outside-face-and-pinned-skin.md) — PadRim・PIN_TUCK・基壇を数える・積みを地表で測らない
 - [LevelPad に区画を渡すと段の土留めを越えて下の面を盛る](levelpad-crosses-terrace-wall.md) — 棟の建つ面の poly を渡す。均した後は heightmap の差を見る
 - [造成は変わった段だけ流し直す](regrade-only-the-changed-block.md) — 全面だと築山と池が平らに戻り掘り直せない
 - [門長屋の口の芯はローカル +X で len/2−gc](nagaya-mon-gate-offset-axis.md) — 口の s から gc を出すのは据えた後の向き(sSign)で。奥の壁の抜けで測る

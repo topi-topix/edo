@@ -309,9 +309,28 @@ public static partial class EdoBuild
     /// <summary>**棟の下の均し(LevelPad)が節点 <paramref name="p"/> に与える高さ**。触らない節点(区画の外・窓の外)は <paramref name="cur"/> を返す。
     /// LevelPad はこの関数で書き、造成QA はこの関数で「設計面からの差が均しの跡か」を測る(2026-10-04 EDO-0502 第13巡)。測るだけ。</summary>
     public static float LevelPadAt(Vector2[] parcel, Vector2[] foot, float y, float bf, float bc, float cell, Vector2 p, float cur)
+    { return LevelPadAt(parcel, foot, y, bf, bc, cell, p, cur, null); }
+
+    /// <summary>棟の下の均しが**棟の建つ面の外**で触ってよい節点(<see cref="LevelPadAt(Vector2[], Vector2[], float, float, float, float, Vector2, float, PadRim)"/>)。
+    /// <c>outer</c> = 触ってよい外の範囲(区画)・<c>keepOut</c> = 触らない面(ほかの段の平らな面 ── 段の土留めを越えて下の面を盛らない・第7巡)。</summary>
+    public class PadRim { public Vector2[] outer; public IList<Vector2[]> keepOut; }
+
+    /// <summary>LevelPadAt に、面の外の**縁の節点**の扱いを足したもの(2026-10-07 EDO-0502 第46巡)。⭐ 棟の隅が面の縁から一升の内に在ると、
+    /// 隅の升を描く節点が面の外(面と面の間の坂・法)に落ち、面の中だけ均すとその節点が坂の高さのまま残って隅が埋まる
+    /// (岡部の厩の NE の隅 −0.053: 節点 3 つが東の平場の外で +0.13〜+0.17)。<paramref name="rim"/> があれば、面の外でも区画(outer)の内・
+    /// ほかの平らな面(keepOut)の外で、**升が足あとに掛かる節点だけ**を均しの高さにする(法は掛けない ── 面の外の坂は描かれたまま)。
+    /// 当たる先: LevelPad を呼ぶ全邸の棟の下の均し(岡部の附属屋・家臣長屋)のうち、足あとが面の縁から一升の内に在る棟と、同じ式で均しの跡を数える造成QA。</summary>
+    public static float LevelPadAt(Vector2[] parcel, Vector2[] foot, float y, float bf, float bc, float cell, Vector2 p, float cur, PadRim rim)
     {
         if (foot == null || foot.Length < 3) return cur;
-        if (parcel != null && !EdoGeom.PIP(parcel, p)) return cur;   // ⛔ 区画の外は触らない
+        if (parcel != null && !EdoGeom.PIP(parcel, p))   // ⛔ 面の外は触らない(縁の節点だけ rim で)
+        {
+            if (rim == null) return cur;
+            if (rim.outer != null && !EdoGeom.PIP(rim.outer, p)) return cur;
+            if (rim.keepOut != null) foreach (var k in rim.keepOut) if (k != null && EdoGeom.PIP(k, p)) return cur;
+            float dr = EdoGeom.PIP(foot, p) ? 0f : DistPolyLine(foot, p);
+            return (dr <= cell || SquareHitsPoly(foot, p, cell)) ? y : cur;
+        }
         float reach = cell + 6f * Mathf.Max(bf, bc) + cell;
         float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
         foreach (var q in foot) { mnx = Mathf.Min(mnx, q.x); mxx = Mathf.Max(mxx, q.x); mnz = Mathf.Min(mnz, q.y); mxz = Mathf.Max(mxz, q.y); }
@@ -736,6 +755,20 @@ public static partial class EdoBuild
         return n;
     }
 
+    /// <summary>**一枚の均しの足あと**(指図 `service[].padGroup` ── 同じ組の棟と棟の間を一枚の平らな床面にする・2026-10-07 EDO-0502 第46巡)。
+    /// 組の各棟の足あと(<see cref="BodyFootWorld"/>)の頂点の凸包を返す。⛔ 棟ごとに均すと 2m 格子の節点を分け合い、片方の縁が浮くか埋まる
+    /// (岡部の薪蔵 −0.094・米蔵 +0.017 が 45 巡残った)。棟の間の一間も同じ高さで平らに取る。硬い: 組の yAt は等しい(呼び手が検める)。
+    /// 当たる先: padGroup を持つ全邸の附属屋(今は岡部の米蔵・薪蔵)と、同じ足あとで均しの跡を数える造成QA。測るだけ。
+    /// ⟶ 返す: 凸包(反時計回り)。足あとが無ければ null</summary>
+    public static Vector2[] PadGroupFoot(IList<Vector2[]> feet)
+    {
+        var pts = new List<Vector2>();
+        foreach (var f in feet) if (f != null) pts.AddRange(f);
+        if (pts.Count < 3) return null;
+        var h = ConvexHull2(pts);
+        return h.Count >= 3 ? h.ToArray() : null;
+    }
+
     /// <summary>**棟の下の均し**(2026-10-03 EDO-0502 第4巡・岡部の厩と蔵1 が勾配の面の上手へ 0.78m 埋まった)。
     /// 指図の `yAt`(棟の芯での面の高さ)で足あと <paramref name="foot"/>(呼び手が据えた駒の躯体から測る・世界 xz)の下を平らにし、
     /// その外は盛土 1:<paramref name="bf"/>・切土 1:<paramref name="bc"/> の法で今の地盤へ擦り付ける。
@@ -744,6 +777,10 @@ public static partial class EdoBuild
     /// 当たる先: 勾配の面(指図 `yFrom`)の上に建つ附属屋(岡部の厩・蔵・米蔵・薪蔵・家臣長屋)── 呼び手が埋まり・浮きを測って渡す。
     /// ⟶ 返す: 書いた節点の数(切 / 盛の最大は out)</summary>
     public static int LevelPad(Vector2[] parcel, Vector2[] foot, float y, float bf, float bc, out float cutMax, out float fillMax)
+    { return LevelPad(parcel, foot, y, bf, bc, out cutMax, out fillMax, null); }
+
+    /// <summary>LevelPad に面の外の縁の節点(<see cref="PadRim"/>)を足したもの。式は LevelPadAt(rim つき)だけ。</summary>
+    public static int LevelPad(Vector2[] parcel, Vector2[] foot, float y, float bf, float bc, out float cutMax, out float fillMax, PadRim rim)
     {
         cutMax = 0f; fillMax = 0f;
         if (foot == null || foot.Length < 3) return 0;
@@ -765,7 +802,7 @@ public static partial class EdoBuild
             {
                 var p = new Vector2(tp.x + (x0 + ix) * cell, tp.z + (z0 + iz) * cell);
                 float cur = H[iz, ix] * ts.y + tp.y;
-                float nw = LevelPadAt(parcel, foot, y, bf, bc, cell, p, cur);   // ⭐ 一節点の式は LevelPadAt だけ(造成QA も同じ式で均しの跡を数える)
+                float nw = LevelPadAt(parcel, foot, y, bf, bc, cell, p, cur, rim);   // ⭐ 一節点の式は LevelPadAt だけ(造成QA も同じ式で均しの跡を数える)
                 if (Mathf.Abs(nw - cur) < 1e-4f) continue;
                 if (nw > cur) fillMax = Mathf.Max(fillMax, nw - cur); else cutMax = Mathf.Max(cutMax, cur - nw);
                 H[iz, ix] = (nw - tp.y) / ts.y; n++;

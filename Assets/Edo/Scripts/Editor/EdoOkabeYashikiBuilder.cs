@@ -735,7 +735,7 @@ public static class EdoOkabeYashikiBuilder
     public static string GradeQA() { return GradeQA(null); }
 
     class RampAx { public Vector2[] pts; public float[] ys; public float half; }
-    class PadAx { public Vector2[] parcel, foot; public float y; }
+    class PadAx { public Vector2[] parcel, foot; public float y; public EdoBuild.PadRim rim; }
 
     /// <summary>勾配の面(指図 service[].yFrom)の上に据わった附属屋の**棟の下の均し**の範囲(足あと = EdoBuild.BodyFootWorld・高さ = 据わった躯体の底・
     /// 面 = TerracePolyAt)。Stage3(PlaceService)の LevelPad と同じ足あと・同じ面で造成QA が均しの跡を測る。</summary>
@@ -744,6 +744,7 @@ public static class EdoOkabeYashikiBuilder
         var res = new List<PadAx>();
         var root = GameObject.Find(GN); var grp = root == null ? null : root.transform.Find("Fuzoku/Service");
         if (grp == null) return res;
+        var groups = new Dictionary<string, List<Vector2[]>>(); var groupY = new Dictionary<string, float>();
         foreach (var o in A(Get(D, "service")) ?? new List<object>())
         {
             var s2 = O(o); if (s2 == null || !Has(s2, "yFrom")) continue;
@@ -751,8 +752,20 @@ public static class EdoOkabeYashikiBuilder
             float du = F(s2["u1"]) - F(s2["u0"]), dv = F(s2["v1"]) - F(s2["v0"]);
             string path = AssetByKey(Has(s2, "asset") ? S(s2["asset"]) : null, Mathf.Max(du, dv), Mathf.Min(du, dv));
             var foot = EdoBuild.BodyFootWorld(bt.gameObject, path); if (foot == null) continue;
+            if (Has(s2, "padGroup"))   // ⭐ 一枚の均し(Stage3 PlaceService と同じ: 凸包 EdoBuild.PadGroupFoot を組の底で)
+            {
+                string pg = S(s2["padGroup"]);
+                if (!groups.ContainsKey(pg)) { groups[pg] = new List<Vector2[]>(); groupY[pg] = EdoBuild.RB(bt.gameObject).min.y; }
+                groups[pg].Add(foot); continue;
+            }
             var cq = (foot[0] + foot[2]) * 0.5f;
-            res.Add(new PadAx { parcel = TerracePolyAt(cq), foot = foot, y = EdoBuild.RB(bt.gameObject).min.y });
+            res.Add(new PadAx { parcel = TerracePolyAt(cq), foot = foot, y = EdoBuild.RB(bt.gameObject).min.y, rim = PadRimAt(cq) });
+        }
+        foreach (var kv in groups)
+        {
+            var hull = EdoBuild.PadGroupFoot(kv.Value); if (hull == null) continue;
+            var c = Vector2.zero; foreach (var q in hull) c += q; c /= hull.Length;
+            res.Add(new PadAx { parcel = TerracePolyAt(c), foot = hull, y = groupY[kv.Key], rim = PadRimAt(c) });
         }
         return res;
     }
@@ -822,7 +835,7 @@ public static class EdoOkabeYashikiBuilder
                 if (d > TOL)
                 {
                     float gy = H[z, x] * ts.y + tp.y;
-                    float ePad = y; foreach (var pd in pads) ePad = EdoBuild.LevelPadAt(pd.parcel, pd.foot, pd.y, bfA, bcA, cell, p, ePad);
+                    float ePad = y; foreach (var pd in pads) ePad = EdoBuild.LevelPadAt(pd.parcel, pd.foot, pd.y, bfA, bcA, cell, p, ePad, pd.rim);
                     if (Mathf.Abs(ePad - y) > 1e-3f && Mathf.Abs(gy - ePad) <= TOL) { padN++; padMx = Mathf.Max(padMx, d); continue; }
                     bool inRamp = false;
                     foreach (var rp in ramps)
@@ -3348,18 +3361,21 @@ public static class EdoOkabeYashikiBuilder
             if (toes.Count > 0) sb.AppendLine("  法尻の土留めの背の小段を設計の地盤へ写した節点 " + ntb + "(" + toes.Count + " 区間)");
         }
         // ⭐ 棟の下の均し(Stage3 が地形へ LevelPad で書く・指図 service[].yFrom)も設計の地盤へ ── 同じ式(EdoBuild.LevelPadAt)・同じ足あと(ServicePads)・
-        //   低い順(共有する節点は高い棟が勝つ ── Stage3 と同じ順)。升は皮の格子(dstep)。⛔ 写さないと縁の皮が附属屋の足元を均す前の設計の地盤で描き、
+        //   低い順(共有する節点は高い棟が勝つ ── Stage3 と同じ順)。節点は皮の格子(dstep)・平らな縁の幅は地形の升。⛔ 写さないと縁の皮が附属屋の足元を均す前の設計の地盤で描き、
         //   厩 −0.133・薪蔵 −0.096・米蔵 −0.062 埋まった(第36巡: 地形の均しは効いても皮込みの測りは不変)。当たる先: 皮を起こす邸の、皮の縁に掛かる均した棟すべて
         {
             var pads3 = ServicePads(); pads3.Sort((x, y) => x.y.CompareTo(y.y)); int npd = 0;
             float bfP = C("batterFill"), bcP = C("batterCut");
+            // ⭐ 平らに取る幅は**地形の升**(Stage3 の LevelPad と同じ・2026-10-07 第46巡)。⛔ 皮の格子(dstep 0.25)で取ると平らな縁が足あと + 0.25 しか無く、
+            //   設計の格子と皮の格子のずれで縁の外の法の節点が混ざり、厩の NE の隅が皮で +0.032 埋まった(地形の節点は 0 なのに)。
+            var tdP = Terrain.activeTerrain.terrainData; float padCell = tdP.size.x / (tdP.heightmapResolution - 1);
             if (pads3.Count > 0)
                 for (int j = 0; j < dnz; j++)
                     for (int i = 0; i < dnx; i++)
                     {
                         int k = j * dnx + i; if (!ok[k]) continue;
                         var q = new Vector2(dx0 + i * dstep, dz0 + j * dstep); float nw = gh[k];
-                        foreach (var pd in pads3) nw = EdoBuild.LevelPadAt(pd.parcel, pd.foot, pd.y, bfP, bcP, dstep, q, nw);
+                        foreach (var pd in pads3) nw = EdoBuild.LevelPadAt(pd.parcel, pd.foot, pd.y, bfP, bcP, padCell, q, nw, pd.rim);
                         if (Mathf.Abs(nw - gh[k]) > 1e-4f) { gh[k] = nw; npd++; }
                     }
             if (pads3.Count > 0) sb.AppendLine("  棟の下の均しを設計の地盤へ写した節点 " + npd + "(" + pads3.Count + " 棟・升 " + dstep.ToString("F2") + "m・EdoBuild.LevelPadAt)");
@@ -4013,6 +4029,24 @@ public static class EdoOkabeYashikiBuilder
 
     /// <summary>点 <paramref name="q"/> を含む**面**(指図 terraces の poly を世界へ・勾配の面も含む)のうち最も小さい物。無ければ区画。
     /// 当たる先: 棟の下の均し(EdoBuild.LevelPad)の範囲 ── 面の外(段の土留めの向こうの下の面)の節点を触らない(EDO-0502 第7巡)。</summary>
+    /// <summary>棟の下の均しが面の外で触ってよい縁の節点(EdoBuild.PadRim): 区画の内・<paramref name="q"/> の建つ面(TerracePolyAt と同じ選び)以外の平らな面の外。</summary>
+    static EdoBuild.PadRim PadRimAt(Vector2 q)
+    {
+        var all = new List<Vector2[]>(); int own = -1; float area = float.MaxValue; var f = Grid;
+        foreach (var o in A(D["terraces"]) ?? new List<object>())
+        {
+            var t = O(o); if (t == null) continue;
+            var pl = A(Get(t, "poly")); if (pl == null || pl.Count < 3) continue;
+            var poly = new Vector2[pl.Count];
+            for (int i = 0; i < pl.Count; i++) { var p = A(pl[i]); poly[i] = f.W(F(p[0]), F(p[1])); }
+            all.Add(poly);
+            if (!EdoGeom.PIP(poly, q)) continue;
+            float a = Mathf.Abs(EdoGeom.SignedArea(poly)); if (a < area) { area = a; own = all.Count - 1; }
+        }
+        if (own >= 0) all.RemoveAt(own);
+        return new EdoBuild.PadRim { outer = Poly, keepOut = all };
+    }
+
     static Vector2[] TerracePolyAt(Vector2 q)
     {
         Vector2[] best = null; float area = float.MaxValue; var f = Grid;
@@ -4554,6 +4588,9 @@ public static class EdoOkabeYashikiBuilder
         //   低い棟の縁は埋まる(埋めて隠す・docs/oki-kata.md §4)。足元の地盤も均しの前の地形で測る(据えの順に依らない)。
         //   当たる先: 勾配の面の上で棟の下を均す全邸(LevelPad を呼ぶ附属屋・家臣長屋)。
         var pads = new List<KeyValuePair<float, System.Action>>();
+        // ⭐ 一枚の均し(指図 service[].padGroup・2026-10-07 第46巡): 同じ組の棟は棟ごとに均さず、足あとの凸包(EdoBuild.PadGroupFoot)を組の yAt で一枚に均す
+        var padGroups = new Dictionary<string, List<KeyValuePair<GameObject, Vector2[]>>>();
+        var padGroupY = new Dictionary<string, List<float>>();
         foreach (var o in A(D["service"]) ?? new List<object>())
         {
             var s2 = O(o); if (s2 == null) continue;
@@ -4624,7 +4661,13 @@ public static class EdoOkabeYashikiBuilder
                 // 硬い・埋没/浮き 0: 勾配の面(yFrom)の上の棟は、足元を測って食い違えば棟の下を yAt で均す(EdoBuild.LevelPad)
                 var bgo = grp.Find(nm).gameObject;
                 var foot = Has(s2, "yFrom") ? EdoBuild.BodyFootWorld(bgo, path) : null;   // ⭐ 造成QA(ServicePads)と同じ足あと
-                if (foot != null)
+                string pg = foot != null && Has(s2, "padGroup") ? S(s2["padGroup"]) : null;
+                if (pg != null)
+                {
+                    if (!padGroups.ContainsKey(pg)) { padGroups[pg] = new List<KeyValuePair<GameObject, Vector2[]>>(); padGroupY[pg] = new List<float>(); }
+                    padGroups[pg].Add(new KeyValuePair<GameObject, Vector2[]>(bgo, foot)); padGroupY[pg].Add(sy);
+                }
+                else if (foot != null)
                 {
                     float lo = float.MaxValue, hi = float.MinValue;
                     foreach (var q in foot) { float g = EdoBuild.Ground(q.x, q.y); lo = Mathf.Min(lo, g); hi = Mathf.Max(hi, g); }
@@ -4638,10 +4681,10 @@ public static class EdoOkabeYashikiBuilder
                         var cq = (foot[0] + foot[2]) * 0.5f; gs.Add(EdoBuild.Ground(cq.x, cq.y));
                         gs.RemoveRange(0, 2); gs.Sort(); float med = gs[gs.Count / 2];
                         bgo.transform.position += new Vector3(0f, med - bot, 0f);
-                        var padPoly = TerracePolyAt(cq); var padFoot = foot; float padY = med, padLo = lo, padHi = hi, padBot = bot, padSy = sy; string padNm = nm;
+                        var padPoly = TerracePolyAt(cq); var padRim = PadRimAt(cq); var padFoot = foot; float padY = med, padLo = lo, padHi = hi, padBot = bot, padSy = sy; string padNm = nm;
                         pads.Add(new KeyValuePair<float, System.Action>(med, () =>
                         {
-                            float cm, fm; int nn = EdoBuild.LevelPad(padPoly, padFoot, padY, C("batterFill"), C("batterCut"), out cm, out fm);   // ⭐ 均しは棟の建つ面の中だけ(⛔ 区画で切ると段の土留めを越えて下の面を 2.01m 盛った・第7巡)
+                            float cm, fm; int nn = EdoBuild.LevelPad(padPoly, padFoot, padY, C("batterFill"), C("batterCut"), out cm, out fm, padRim);   // ⭐ 均しは棟の建つ面の中だけ(⛔ 区画で切ると段の土留めを越えて下の面を 2.01m 盛った・第7巡)
                             wait.Add("附属屋 " + padNm + ": 足あとの地盤 " + padLo.ToString("F2") + "〜" + padHi.ToString("F2") + " が棟の底 " + padBot.ToString("F2")
                                    + "(指図 yAt)と食い違う ⇒ 底を足元の中央値 " + padY.ToString("F2") + " へ据え、棟の下を均した(EdoBuild.LevelPad 節点 " + nn
                                    + "・切 " + cm.ToString("F2") + " / 盛 " + fm.ToString("F2") + "m)" + (Mathf.Abs(padY - padSy) > 0.25f ? " ⚠ 指図の yAt " + padSy.ToString("F2") + " と " + (padY - padSy).ToString("+0.00;-0.00") + "m(±0.25 を超える ── 欄の上書きは普請奉行)" : ""));
@@ -4653,12 +4696,32 @@ public static class EdoOkabeYashikiBuilder
                         //   隣の棟(薪蔵 15.62 と米蔵 15.77・離れ 1.8m)が 2m 格子の同じ節点を分け合い、薪蔵の均しが米蔵の縁の節点を切って米蔵が 0.147 浮いた。
                         //   全棟を低い順に均せば、分け合う節点は高い棟が勝つ(浮き 0・低い棟の縁は埋めて隠す)。冪等(既に平らなら書く節点は 0)。
                         //   当たる先: LevelPad で棟の下を均す全邸の、離れが 2m 格子より狭い隣り合う棟。
-                        var padPoly2 = TerracePolyAt((foot[0] + foot[2]) * 0.5f); var padFoot2 = foot; float padY2 = bot;
+                        var padPoly2 = TerracePolyAt((foot[0] + foot[2]) * 0.5f); var padRim2 = PadRimAt((foot[0] + foot[2]) * 0.5f); var padFoot2 = foot; float padY2 = bot;
                         pads.Add(new KeyValuePair<float, System.Action>(bot, () =>
-                        { float cm, fm; EdoBuild.LevelPad(padPoly2, padFoot2, padY2, C("batterFill"), C("batterCut"), out cm, out fm); }));
+                        { float cm, fm; EdoBuild.LevelPad(padPoly2, padFoot2, padY2, C("batterFill"), C("batterCut"), out cm, out fm, padRim2); }));
                     }
                 }
             }
+        }
+        foreach (var kv in padGroups)
+        {
+            var ys = padGroupY[kv.Key]; float gy = ys[0], gyMax = ys[0];
+            foreach (var v in ys) { gy = Mathf.Min(gy, v); gyMax = Mathf.Max(gyMax, v); }
+            if (gyMax - gy > 1e-3f)   // 硬い: 組の yAt は等しい(指図 padCert)── 違えば一枚にしない
+            { wait.Add("⚠ 一枚の均し " + kv.Key + ": 組の yAt が " + gy.ToString("F2") + "〜" + gyMax.ToString("F2") + " で等しくない ⇒ 均さない(欄の上書きは普請奉行)"); continue; }
+            var feetG = new List<Vector2[]>(); foreach (var m in kv.Value) feetG.Add(m.Value);
+            var hull = EdoBuild.PadGroupFoot(feetG); if (hull == null) continue;
+            float lo = float.MaxValue, hi = float.MinValue;
+            foreach (var q in hull) { float g = EdoBuild.Ground(q.x, q.y); lo = Mathf.Min(lo, g); hi = Mathf.Max(hi, g); }
+            foreach (var m in kv.Value) m.Key.transform.position += new Vector3(0f, gy - EdoBuild.RB(m.Key).min.y, 0f);   // 組の棟の底を一枚の床面へ
+            var cqG = Vector2.zero; foreach (var q in hull) cqG += q; cqG /= hull.Length;
+            var polyG = TerracePolyAt(cqG); var rimG = PadRimAt(cqG); string gName = kv.Key; int gN = kv.Value.Count; float gY = gy, gLo = lo, gHi = hi;
+            pads.Add(new KeyValuePair<float, System.Action>(gy, () =>
+            {
+                float cm, fm; int nn = EdoBuild.LevelPad(polyG, hull, gY, C("batterFill"), C("batterCut"), out cm, out fm, rimG);
+                wait.Add("附属屋 一枚の均し " + gName + "(" + gN + " 棟・EdoBuild.PadGroupFoot): 凸包の地盤 " + gLo.ToString("F2") + "〜" + gHi.ToString("F2")
+                       + " を " + gY.ToString("F2") + " で均した(節点 " + nn + "・切 " + cm.ToString("F2") + " / 盛 " + fm.ToString("F2") + "m)");
+            }));
         }
         pads.Sort((x, y) => x.Key.CompareTo(y.Key));   // 低い順(共有する節点は後の高い棟が勝つ)
         foreach (var pd in pads) pd.Value();

@@ -83,6 +83,8 @@ public static partial class EdoBuild
         public int faceDropped; public float faceDropMax; public Vector3 faceDropAt;
         /// <summary>外形の縁で閉じた点(<see cref="CloseRimAtHull"/>): 底の下を閉じるため上げた / 天端に被らないよう下げた / 許容を超えて触らない。</summary>
         public int rimRaised, rimLowered, rimRefused; public float rimRaiseMax, rimLowerMax;
+        /// <summary>縁の点(皮と地形の境・地形のまま)の下の地形の節点で、天端の帯の駒の天端より高かった物を天端の下へ下げた数と最大(<see cref="PIN_TUCK_MAX"/>)。</summary>
+        public int pinTucked, pinTuckRefused; public float pinTuckMax;
         /// <summary>digParts の背を下げた点の数・下げた量の最大(天端を段の線に置いた袖 ── 施主 2026-09-25)。</summary>
         public int dug; public float digMax; public Vector3 digAt;
         public int gapPts, gapN, gapBySkin, gapBig, coverPts, coverN;
@@ -122,6 +124,7 @@ public static partial class EdoBuild
                    "・地形の木の升は穴を開けず被せた " + fillLostTree + " 升" +
                    " / 面の高さの皮で部材の底まで塞いだ " + sealed_ + " 点・背の土を駒の底まで上げた " + backSealed + " 点" +
                    " / 外形の縁で底の下を閉じた " + rimRaised + " 点(最大 " + rimRaiseMax.ToString("F3") + ")・天端の下へ納めた " + rimLowered + " 点(最大 " + rimLowerMax.ToString("F3") + ")" + (rimRefused > 0 ? "・⚠ 許容を超え触らず " + rimRefused : "") +
+                   (pinTucked + pinTuckRefused > 0 ? " / 縁の点の下の地形の節点を天端の下へ " + pinTucked + "(最大 " + pinTuckMax.ToString("F3") + ")" + (pinTuckRefused > 0 ? "・⚠ 埋没で触らず " + pinTuckRefused : "") : "") +
                    " / 見え面の前へ出る皮の辺を下げた " + faceDropped + " 点" + (faceDropped > 0 ? "・最大 " + faceDropMax.ToString("F2") + "m @(" + faceDropAt.x.ToString("F1") + ", " + faceDropAt.z.ToString("F1") + ")" : "") +
                    (dug > 0 ? " / 背を下げた(天端 − 0.05 から法)" + dug + " 点・最大 " + digMax.ToString("F2") + "m @(" + digAt.x.ToString("F1") + ", " + digAt.z.ToString("F1") + ")" : "") +
                    " / 元の地形から 下げ 最大 " + maxLower.ToString("F2") + "m @(" + lowerAt.x.ToString("F1") + ", " + lowerAt.z.ToString("F1") + ")・上げ 最大 " + maxRaise.ToString("F2") + "m @(" + raiseAt.x.ToString("F1") + ", " + raiseAt.z.ToString("F1") + ")" +
@@ -582,6 +585,9 @@ public static partial class EdoBuild
     /// ⛔ 2026-10-05 第14巡まで、守りは頂点ごとに「造成の面で止める/止めない」の二値で、外形の外の頂点は造成の面(26.30)・内の頂点は天端 − under(25.75)
     /// のまま、溝の斜めの線が 0.25m 格子を階段に横切る所で隣どうしが 0.55m 違い、三角形が溝の縁石に被る歯形(三角の山の列)が立った(溝 D2 seg1 の脇・
     /// 被り 1,481 点が「溝の側」)。0 なら第14巡の二値の守りのまま。当たる先: keepGradeBeside を渡す邸(いまは土井 Stage4b)の全ての溝の脇。</para>
+    /// <summary>縁の点の下の地形の節点を天端の下へ下げる上限(天端からの高さ)。超える節点は駒の埋没 ── 触らない(<see cref="SkinReport.pinTuckRefused"/>)。</summary>
+    const float PIN_TUCK_MAX = 0.40f;
+
     public static SkinReport CutEdgeSkin(string name, Transform parent, IList<GameObject> parts, IList<SkinFace> faces,
                                          float faceTol, float step = 0.25f, float margin = 0.5f, float eps = 0f, float under = 0.15f,
                                          SkinDesign design = null, float drawTol = 0.10f, float backfill = 0f, bool sealFace = false,
@@ -1128,6 +1134,38 @@ public static partial class EdoBuild
         }
         Func<int, int, bool> In = (i, j) => i >= ci0 && i <= ci1 && j >= cj0 && j <= cj1 && (inSet[j - cj0, i - ci0] || inOv[j - cj0, i - ci0]);
         Func<int, int, bool> Hole = (i, j) => i >= ci0 && i <= ci1 && j >= cj0 && j <= cj1 && inSet[j - cj0, i - ci0];
+        // ⭐ 縁の点の下の地形の節点を天端の下へ(2026-10-07 EDO-0502 第46巡): 皮の縁の点(穴の升と地形の升の境)は地形のまま描く(PIN)ので、
+        //   その節点が天端の帯の駒の外形の中で天端より高いと、皮も隣の地形の升も天端の上へ被る ── CloseRimAtHull は PIN を動かさないので直せない。
+        //   岡部 辺24 の野面 TW_Nishi_Kado_辺24_0_0_071f〜073f と基壇 IG_S_Hei_21_191 の天端 11.77 に、節点 (-651.88, 964.07) 11.97・(966.07) 12.10 が
+        //   0.02〜0.20 被った(7 点)。節点は駒の外形の中(石の下)なので天端 − 0.003 へ下げても見えない。硬い: 被り 0。
+        //   ⛔ 天端より PIN_TUCK_MAX を超えて高い節点は駒が土に埋まっている(埋没は別の欠陥・掘ると外の地表が凹む ── TuckUnderCrest と同じ守り)。
+        //   当たる先: CutEdgeSkin を通る全邸(岡部 3b・山王 9・土井 4b)の、穴の升の境が天端の帯の駒の外形を横切る所。
+        if (bandSet != null && bandSet.Count > 0)
+        {
+            int hR = td.heightmapResolution; float hc = td.size.x / (hR - 1);
+            if (Mathf.Abs(hc - cs) < 1e-4f)
+            {
+                bool wrote = false;
+                for (int ni = ci0; ni <= ci1 + 1; ni++)
+                    for (int nj = cj0; nj <= cj1 + 1; nj++)
+                    {
+                        if (ni < 0 || nj < 0 || ni >= hR || nj >= hR) continue;
+                        bool anyIn = false, anyOut = false;
+                        for (int ii = ni - 1; ii <= ni; ii++) for (int jj = nj - 1; jj <= nj; jj++) { if (In(ii, jj)) anyIn = true; else anyOut = true; }
+                        if (!anyIn || !anyOut) continue;   // 縁の点だけ
+                        float x = org.x + ni * cs, z = org.z + nj * cs; int who;
+                        float top = idx.Top(x, z, out who);
+                        if (float.IsNaN(top) || who < 0 || !idx.banded[who]) continue;
+                        var hh = td.GetHeights(ni, nj, 1, 1); float cur = hh[0, 0] * td.size.y + org.y;
+                        float lim = top - 0.003f;
+                        if (cur <= lim + 1e-4f) continue;
+                        if (cur > top + PIN_TUCK_MAX) { r.pinTuckRefused++; continue; }
+                        hh[0, 0] = Mathf.Clamp01((lim - org.y) / td.size.y); td.SetHeightsDelayLOD(ni, nj, hh); wrote = true;
+                        r.pinTucked++; r.pinTuckMax = Mathf.Max(r.pinTuckMax, cur - lim);
+                    }
+                if (wrote) { td.SyncHeightmap(); probe = Probe(); }
+            }
+        }
         if (FF != null)
         {
             // ③ 皮の縁(穴の升と地形の升の境の格子点 = 地形のまま)から 1:backfill で上る天井

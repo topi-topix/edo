@@ -16,6 +16,9 @@ public static partial class EdoBuild
     {
         public string name; public int edge; public float s0, s1, crest;
         public List<Vector2> gaps = new List<Vector2>();
+        /// <summary>境の外の地面の上限 = 天端 − この値(NaN = 今の地面のまま)。境の外が隣の邸の地で、隣が境に沿って犬走りと溝を切って下げる取り決めの区間
+        /// (土井の北の境 ── 普請方の設計 2026-10-07)。外の今の地面が天端より高くても、下げた後の地面で見付を組み、埋まった駒を退けない。</summary>
+        public float outsideCap = float.NaN;
     }
 
     /// <summary><see cref="PlaceCastleRun"/> の答え。</summary>
@@ -72,11 +75,11 @@ public static partial class EdoBuild
         foreach (var s in list)
         {
             var last = merged.Count > 0 ? merged[merged.Count - 1] : null;
-            if (last != null && last.edge == s.edge && Mathf.Abs(last.s1 - s.s0) < 1e-3f && Mathf.Abs(last.crest - s.crest) < 1e-3f)
+            if (last != null && last.edge == s.edge && Mathf.Abs(last.s1 - s.s0) < 1e-3f && Mathf.Abs(last.crest - s.crest) < 1e-3f && float.IsNaN(last.outsideCap) == float.IsNaN(s.outsideCap))
             {
                 last.s1 = s.s1; last.gaps.AddRange(s.gaps); members[last].Add(s.name); continue;
             }
-            var c = new CastleSec { name = s.name, edge = s.edge, s0 = s.s0, s1 = s.s1, crest = s.crest, gaps = new List<Vector2>(s.gaps) };
+            var c = new CastleSec { name = s.name, edge = s.edge, s0 = s.s0, s1 = s.s1, crest = s.crest, gaps = new List<Vector2>(s.gaps), outsideCap = s.outsideCap };
             merged.Add(c); members[c] = new List<string> { s.name };
         }
         // 口で区間を割る ── 口の脇に残る駒一枚(2.00)に満たない切れ端は、口の反対の端を隣の区間へ延ばす(天端が同じか高い隣だけ ──
@@ -108,7 +111,7 @@ public static partial class EdoBuild
                         if (a1 - a0 >= 2.0f - 1e-3f && (a1 - a0) > cuts[i].y - cuts[i].x + 1e-3f)
                             log?.AppendLine("  城の石垣 " + c.name + ": 口の脇の切れ端 " + (cuts[i].y - cuts[i].x).ToString("F2") + "m ⇒ 口の縁から駒一枚を据え、反対の端を隣の高い区間の裏へ延ばした");
                     }
-                    var sub = new CastleSec { name = c.name, edge = c.edge, s0 = a0, s1 = a1, crest = c.crest, gaps = new List<Vector2>() };
+                    var sub = new CastleSec { name = c.name, edge = c.edge, s0 = a0, s1 = a1, crest = c.crest, gaps = new List<Vector2>(), outsideCap = c.outsideCap };
                     split.Add(sub); members[sub] = members[c]; wallOf[sub] = c.name + "_k" + i;
                 }
             }
@@ -191,7 +194,14 @@ public static partial class EdoBuild
                                          lowHint = (p, q) => o, lowForce = true };
                 float wf; int bs;
                 var segOut = new Dictionary<string, List<GameObject>>();
-                var got = PlaceCrestWall(cw, groundAt, parent, final ? res.ends : null, segOut, final ? log : new System.Text.StringBuilder(), out wf, out bs);
+                // 境の外が隣の造成で下がる区間: 線の外の点の地面を 天端 − outsideCap で頭打ちにして組む(内の点は今の地面のまま)
+                Func<float, float, float> gS = groundAt;
+                if (!float.IsNaN(s.outsideCap))
+                {
+                    Vector2 a0e = A(e); float capY = s.crest - s.outsideCap;
+                    gS = (x, z) => { float g = groundAt(x, z); return Vector2.Dot(new Vector2(x, z) - a0e, o) > 1e-3f && !float.IsNaN(g) ? Mathf.Min(g, capY) : g; };
+                }
+                var got = PlaceCrestWall(cw, gS, parent, final ? res.ends : null, segOut, final ? log : new System.Text.StringBuilder(), out wf, out bs);
                 made.AddRange(got);
                 if (final)
                 {

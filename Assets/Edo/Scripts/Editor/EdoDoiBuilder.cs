@@ -1378,6 +1378,7 @@ public static partial class EdoDoiBuilder
             var op = Has(r, "opening") ? O(r["opening"]) : null;
             if (op != null && Has(op, "gate")) { sb.AppendLine("  基壇 " + run + ": 表門の下は門と一緒に S3 で据える(扉口の縁は門の実メッシュから)"); continue; }
             var sec = new EdoBuild.CastleSec { name = "IG_" + run, edge = (int)F(r["edge"]), s0 = F(r["s0"]), s1 = F(r["s1"]), crest = F(r["coping"]) };
+            if (Has(r, "outsideCap")) sec.outsideCap = F(r["outsideCap"]);   // 境の外は隣の造成で 天端 − outsideCap まで下がる(北の境 ── 普請方の設計)
             if (op != null && Has(op, "komon"))
             {
                 Dictionary<string, object> k = null;
@@ -1406,18 +1407,24 @@ public static partial class EdoDoiBuilder
             List<GameObject> pcs;
             if (!cr.bySec.TryGetValue("IG_" + run, out pcs) || pcs.Count == 0) { sb.AppendLine("  ✗ 基壇 " + run + ": 駒が無い"); bad++; continue; }
             pcs.RemoveAll(g => g == null);
-            var m = EdoBuild.CastleCrestExposure(pcs, OutNormal(e), EdoBuild.Ground);
             float cop = F(r["coping"]), road = float.MinValue;
-            for (float s = F(r["s0"]); s <= F(r["s1"]) + 1e-3f; s += 0.5f) { var q = EdgePt(e, s) + OutNormal(e) * 0.3f; road = Mathf.Max(road, EdoBuild.Ground(q.x, q.y)); }
+            bool nb = Has(r, "outsideCap");   // 境の外は隣の地 ── 隣が犬走りと溝で下げる取り決め(外の地面の硬い条件は隣の造成が入るまで未検査)
+            Func<float, float, float> gR = EdoBuild.Ground;
+            if (nb) { float capY = cop - F(r["outsideCap"]); Vector2 a0e = EdgePt(e, 0f), oe = OutNormal(e); gR = (x, z) => { float g = EdoBuild.Ground(x, z); return Vector2.Dot(new Vector2(x, z) - a0e, oe) > 1e-3f && !float.IsNaN(g) ? Mathf.Min(g, capY) : g; }; }
+            var m = EdoBuild.CastleCrestExposure(pcs, OutNormal(e), gR);
+            float roadNow = float.MinValue;
+            for (float s = F(r["s0"]); s <= F(r["s1"]) + 1e-3f; s += 0.5f) { var q = EdgePt(e, s) + OutNormal(e) * 0.3f; road = Mathf.Max(road, gR(q.x, q.y)); roadNow = Mathf.Max(roadNow, EdoBuild.Ground(q.x, q.y)); }
             var ex = A(r["exposure"]);
             bool crestOk = Mathf.Abs(m.x - cop) <= 0.001f && Mathf.Abs(m.y - cop) <= 0.001f;
             bool hard = crestOk && m.y >= road - 1e-3f && !(m.w > C("boundaryPlinthMax") + 1e-3f);
             bool soft = m.z >= 0.3f - 1e-3f && m.w <= 1.2f + 1e-3f;
             string mk = !hard ? "✗" : (soft ? "⭕" : "⚠");
-            if (!hard) bad++; else if (soft) ok++; else warn++;
+            if (nb && hard && roadNow > cop - F(r["outsideCap"]) + 1e-3f) { mk = "⚠"; soft = false; }   // 今の外の地面は下げた後の面より高い ── 隣の造成待ち(未検査)
+            if (!hard) bad++; else if (mk == "⭕") ok++; else warn++;
             sb.AppendLine("  " + mk + " 基壇 " + run + ": " + pcs.Count + " 駒・天端 " + m.x.ToString("F3") + "〜" + m.y.ToString("F3") + "(欄 " + cop.ToString("F1")
                         + ")・道の最高 " + road.ToString("F2") + "・見付 " + m.z.ToString("F2") + "〜" + m.w.ToString("F2") + "(欄 " + F(ex[0]).ToString("F2") + "〜"
-                        + F(ex[1]).ToString("F2") + "・狙い 0.3〜1.2・上限 " + C("boundaryPlinthMax").ToString("F1") + ")");
+                        + F(ex[1]).ToString("F2") + "・狙い 0.3〜1.2・上限 " + C("boundaryPlinthMax").ToString("F1") + ")"
+                        + (nb ? "・境の外は隣の地(今の最高 " + roadNow.ToString("F2") + " → 隣の犬走り ≤ " + (cop - F(r["outsideCap"])).ToString("F2") + " で組んだ" + (roadNow > cop - F(r["outsideCap"]) + 1e-3f ? " ── 隣の造成待ち・未検査" : "") + ")" : ""));
         }
 
         // ── 2 表長屋(二階・躯体 = 呼び寸法の版・札の外面を基壇の天端の前の縁から犬走りへ・躯体の端を run の s へ・底を基壇の天端へ)

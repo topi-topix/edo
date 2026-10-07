@@ -291,7 +291,8 @@ public static class EdoSashizuExport
             // 囲いは run/fence ごとに複数の部材(`S_Hei_C_0f` など)に分かれるので**前方一致**で数える
             {
                 var have = new List<string>();
-                foreach (var gname in new[] { "Kakoi", "Fences", "Omotemon", "Mon" })
+                // ⭐ 土井は奥の塀を群 OkuHei、柵を群 Fuzoku/Saku に据える(EDO-0533 第35巡: 見ていない群の Oku_Hei・Oku_Hei_Roka・柵 F04〜F11 を「一つも無い」と 7 件の嘘)
+                foreach (var gname in new[] { "Kakoi", "Fences", "Omotemon", "Mon", "OkuHei", "Fuzoku/Saku" })
                 {
                     var gg = root.transform.Find(gname);
                     if (gg != null) for (int i = 0; i < gg.childCount; i++) have.Add(gg.GetChild(i).name);
@@ -368,6 +369,8 @@ public static class EdoSashizuExport
                 //   ⛔ 教えないと、据えた門と戸が「孤児の囲い」に数えられる(2026-09-04 に実際に出た)。
                 //   門長屋(`gate.host`)の口は長屋の駒が持つので、Omotemon は据わらない(岡部 案1・EDO-0502)。
                 if (D(doc, "gate") != null && !D(doc, "gate").ContainsKey("host")) names.Add("Omotemon");
+                // ⭐ 指図の gates[](土井の広敷門 Hiroshikimon ── 奥の塀の口の棟門)も門の名で据わる。⛔ 教えないと「孤児の囲い」に数える(EDO-0533 第35巡)
+                foreach (var o in Get2(doc, "gates")) { var gt = o as Dictionary<string, object>; if (gt != null && Str(gt, "name") != null) names.Add(Str(gt, "name")); }
                 if (D(D(D(doc, "nishi"), "saku"), "kuguri") != null) names.Add("Kuguri");
                 // ⚠ 表門の両番所も名前を持たない(`gate.plan.sPos.banshoW/E` の欄)。Stage 5 は `Bansho_W/E` の名で据える。
                 //   ⛔ 教えないと据えた番所が「孤児の囲い」になる(2026-09-06 棟梁 報告4)。

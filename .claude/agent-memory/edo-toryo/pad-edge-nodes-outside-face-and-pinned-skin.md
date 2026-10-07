@@ -17,3 +17,6 @@ metadata:
 
 **How to apply:** 均した棟の埋没は先に「節点が面の内か」を測る。被りは pin の点が穴の升の境に並んでいないか見る。閉じの検めは基壇の群を入れる。
 関連: [[levelpad-crosses-terrace-wall]] [[qa-misreads-stack-and-single-mesh-gate]] [[terrain-holes-and-skin-traps]]
+
+追記: 3b を単独で流し直す(前の 3b の皮が残ったまま)と「古い皮を外して塞いだ升 1299」の道で 2166 秒掛かった(S1 から流すと 3b は 417 秒)。
+皮だけ直した巡も S1 から通す方が速い。build_queue_wait の --stall 900 は 3b 単独では偽の「固まった」を出す。

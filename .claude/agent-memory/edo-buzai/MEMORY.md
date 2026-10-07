@@ -86,3 +86,7 @@
 - [出隅の表長屋は延ばして二等分の面で切る](nagaya-miter-cut-convex-corner.md) — 94.6° は剪断で潰れる・出隅は背ほど短い・len は外隅 Q から(2026-10-04)
 - [排水の駒は口と隙から地形の下の空が抜ける](haisui-modules-holes-and-soil-scale.md) — 切り欠きは溝が付く所だけ・FJG Soil 8m・玉石 fill 1.25(2026-10-04)
 - [野面の出隅を 90° 以外の折れで焼く](nozura-kado-oblique-fold.md) — t=tan(折れ/2) で σ を一般化・裏石は腕ごとの直線の駒を留めで選ぶ・make_wall は reset(2026-10-05)
+- [返しの出隅の角は impl と区画の辺から・100° の隅](kado-obtuse-angle-from-impl-and-edge.md) — Unity 無しで角が出る・名は3桁・staging へ焼く(2026-10-05)
+- [野面の勾配 ±0.275 と staging の meta](nozura-steep-grade-275-and-staged-meta.md) — crest/holes は通る・継ぎ目は最近点で ≤6mm・--render は G0 の駒を同じ dir に置く(2026-10-06)
+- [野面の小口は石ごとに塞ぐ・G±450](nozura-end-caps-per-stone.md) — join 後の一括 bisect は小口が内向き・旧駒は全部持つ・剪断 0.45 は崩れない(2026-10-07)
+- [野面の積み止めの駒は Kado90 を二つ突き合わせる](nozura-tome-two-kado.md) — 小口の奥行は 1.818 に縛られる・H2400 の端の石の裏面 3 本は既存の欠陥(2026-10-07)

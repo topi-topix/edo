@@ -20,6 +20,7 @@
     blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=0.275,-0.275 --h=0.6,0.9,1.2,1.5,1.8,2.1,2.4  # 岡部 外周の土留めの端を下げ打つ勾配の駒 ±0.275(EDO-0502・2026-10-06)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- grade --grade=0.275 --render [--h=1.2]   # 同・並べ焼き
     blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=0.45,-0.45 --h=0.6,0.9,1.2,1.5,1.8,2.1,2.4  # 岡部 袖石垣の天端を背の法なりに下げる勾配の駒 ±0.45(EDO-0502・2026-10-07・TW_Kado_Sode.sodeSlope)
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- tome [--h=0.6,1.2,2.4] [--hand=P,M] [--render]   # 積み止めの駒(小口にも面石・両角が稜・岡部 nozuraEndRule 2026-10-07b・EDO-0502)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- crest [--dir=…] [--json=…]  # 全駒の背の天端の下がり(≤ 0.03)・頭の出(≤ 0)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- holes [--dir=…] [--json=…]  # 全駒を真上から見て天端に穴(裏・下の見える所)が 0 か
     blender --background --python Tools/Blender/build_sanno_nozura.py -- back --render         # 背の側(土の側)から撮る
@@ -3493,6 +3494,160 @@ def do_mikiri():
     export(o, name, OUT_WALL)
 
 
+
+# ------------------------------------------------------------------ 積み止めの駒(2026-10-07 EDO-0502)
+# 岡部 nozuraEndRule 追記 2026-10-07b・TW_Minami_Koshi.returnEnd(H1200)・TW_Nishi_Kado.endKado(H2400)。②②'①が取れない端を
+# 直線の駒の小口(継ぎ目の切り口)で終えず、「小口の面にも面石を積み、両角を隅の稜にした端の駒」で終える。
+# `Sanno_Nozura_H<見付mm>_Tome<P|M>_<a|b>`。P = 端(小口の面)が局所 +X・継ぎ手が −X / M = 端が −X・継ぎ手が +X。
+#   作り: 出隅 90° の隅の駒(make_kado)を二つ、小口の面で腕を突き合わせる ── 前の角 = 隅の駒(見え面 +Z と小口の面)、
+#   奥の角 = 隅の駒を回した物(小口の面と背の面 −Z)。二つの腕の先はどちらも直線の駒の切り口と同じ形 ⇒ 小口の面の中の継ぎ目は
+#   直線の駒どうしの継ぎ目と同じく一石に合わさる(竪目地を通さない)。両角の石は隅の駒の稜の石(行ごとに稜に跨る石・算木にしない)。
+#   ⇒ 走り(天端の線)0.909 = 半間・小口の面の奥行(天端の線)1.818。前の角の稜 = 天端の線の端。
+#   前の角の個体 = v、奥の角の個体 = もう一方(a↔b)。
+#   ピボット = **前の角の稜(見え面の天端の線と小口の面の天端の線の交点)・床レベル(天端 − 見付)** ── 隅の駒と同じ取り方。
+#   継ぎ手の切り口は P で X = −0.909・M で X = +0.909(G0 の駒の切り口と同じ)。天端 Y = 見付(G0 と同じ高さ)。
+TOME_TIERS = [0.60, 1.20, 2.40]
+
+
+def tome_name(h, hand, v):
+    return "Sanno_Nozura_H%04d_Tome%s_%s" % (int(round(h * 1000)), hand, v)
+
+
+def _snap(o):
+    me = o.data
+    uv = me.uv_layers.active
+    return dict(co=[o.matrix_world @ vt.co for vt in me.vertices],
+                faces=[(tuple(p.vertices), p.material_index, p.use_smooth, [tuple(uv.data[li].uv) for li in p.loop_indices])
+                       for p in me.polygons],
+                mats=[m.name.split(".")[0] for m in me.materials], uvname=uv.name)
+
+
+def _unsnap(sn, name, yaw_u, pos_u):
+    """_snap した隅の駒を Unity の yaw(+Z→+X が +90)で回し、Unity pos_u へ置いて起こし直す"""
+    M = mathutils.Matrix.Translation(Vector(_u2b(*pos_u))) @ mathutils.Matrix.Rotation(math.radians(-yaw_u), 4, 'Z')
+    md = dict(zip(("Kirishi", "Danishi"), materials()))
+    me = bpy.data.meshes.new(name)
+    me.from_pydata([M @ c for c in sn["co"]], [], [f[0] for f in sn["faces"]])
+    for nm in sn["mats"]:
+        me.materials.append(md[nm])
+    uvl = me.uv_layers.new(name=sn["uvname"])
+    for p, (_, mi, sm, uvs) in zip(me.polygons, sn["faces"]):
+        p.material_index = mi
+        p.use_smooth = sm
+        for li, u in zip(p.loop_indices, uvs):
+            uvl.data[li].uv = u
+    me.update()
+    o = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(o)
+    return o
+
+
+TOME_YAW = {"P": ((0.0, (0, 0, 0)), (90.0, (0, 0, -L))), "M": ((-90.0, (0, 0, 0)), (180.0, (0, 0, -L)))}
+
+
+def make_tome(h, hand, v):
+    w = "b" if v == "a" else "a"
+    snaps = []
+    for vv in (v, w):
+        o, _ = make_kado(h, vv)
+        snaps.append(_snap(o))
+    V.reset()
+    materials()
+    (y1, p1), (y2, p2) = TOME_YAW[hand]
+    objs = [_unsnap(snaps[0], "front", y1, p1), _unsnap(snaps[1], "rear", y2, p2)]
+    name = tome_name(h, hand, v)
+    o = V.join(objs, name)
+    nd = clean_degenerate(o)
+    V.set_origin(o, (0, 0, 0))
+    print("TOME %s 面積 0・辺 < 0.1mm の三角形 %d" % (name, nd))
+    return o, name
+
+
+def tome_rays(o, h, hand, step=0.01):
+    """表から当てた光線(真上・見え面 +Z の前・小口の面の前・背 −Z の前)のうち最初に裏の面に当たる本数(方向ごと)"""
+    from mathutils.bvhtree import BVHTree
+    me = o.data
+    bvh = BVHTree.FromPolygons([o.matrix_world @ vt.co for vt in me.vertices], [tuple(p.vertices) for p in me.polygons])
+    e = 1 if hand == "P" else -1
+    xs = [e * (-L / 2 - 0.05 + step * (i + 0.5)) for i in range(int((L / 2 + 0.6) / step))]      # 継ぎ手から端の外まで
+    zs = [0.6 - step * (i + 0.5) for i in range(int((L + 1.4) / step))]                          # 前の外から背の外まで
+    ys = [step * (k + 0.5) for k in range(int(h / step))]
+    dirs = {"上": [((x, h + 0.5, z), (0, -1, 0)) for x in xs for z in zs],
+            "前": [((x, y, 3.0), (0, 0, -1)) for x in xs for y in ys],
+            "小口": [((e * 3.0, y, z), (-e, 0, 0)) for z in zs for y in ys],
+            "背": [((x, y, -L - 3.0), (0, 0, 1)) for x in xs for y in ys]}
+    res = {}
+    for k, rays in dirs.items():
+        bad, ex = 0, []
+        for pu, du in rays:
+            d_ = Vector(_u2b(*du))
+            hit = bvh.ray_cast(Vector(_u2b(*pu)), d_, 8.0)
+            if hit[0] is not None and hit[1].dot(d_) > 0.0:
+                bad += 1
+                if len(ex) < 4:
+                    ex.append(tuple(round(c, 3) for c in _b2u(hit[0])))
+        res[k] = (bad, len(rays), ex)
+    return res
+
+
+def render_tome(h, hand, v, g0dir):
+    """積み止めの駒の継ぎ手に G0 の直線の駒を 2 駒継いで撮る。背の土は継いだ直線の駒の後ろだけ(端の小口と奥の角は見せる)。"""
+    e = 1 if hand == "P" else -1
+    V.reset()
+    _import_at(os.path.join(STAGE_TOME, tome_name(h, hand, v) + ".fbx"), 0, 0, 0)
+    for i, wv in enumerate("ab"):
+        _import_at(os.path.join(g0dir, wall_name(h, 0, wv) + ".fbx"), -e * (L / 2 + L / 2 + L * i), 0, 0)
+    hook_stone_textures()
+    ground()
+    ground(0.0, 0.5, 12, "Rear", (0.20, 0.26, 0.12))
+    tag = "%s_%s_H%04d" % (hand, v, int(round(h * 1000)))
+    mid = h * 0.5
+    shots = [("diag", (e * 4.6, h * 0.8 + 1.0, 4.4), (e * -0.4, mid, -0.6)),
+             ("end", (e * 5.0, h * 0.6 + 0.6, -0.9), (0.0, mid, -0.9)),
+             ("rear", (e * 3.6, h + 2.2, -L - 3.6), (e * -0.2, mid, -1.0)),
+             ("seam", (e * -0.9, mid + 0.4, 2.6), (e * -0.9, mid, 0.0))]
+    for nm, cam, look in shots:
+        studio_run([], _u2b(*cam), _u2b(*look), 30, os.path.join(SHOT, "sanno_nozura_tome_%s_%s.png" % (tag, nm)))
+    studio_run([], _u2b(*shots[0][1]), _u2b(*shots[0][2]), 30,
+               os.path.join(SHOT, "sanno_nozura_tome_%s_diag_magenta.png" % tag), magenta=True)
+    sc = bpy.context.scene
+    cam = sc.camera
+    sc.world.node_tree.nodes["Background"].inputs[0].default_value = (0.62, 0.70, 0.80, 1)
+    cam.data.type = 'ORTHO'; cam.data.ortho_scale = 5.5
+    cam.location = _u2b(e * -0.8, 8.0, -1.0); cam.rotation_euler = (0, 0, 0)
+    V.render(os.path.join(SHOT, "sanno_nozura_tome_%s_plan.png" % tag))
+
+
+STAGE_TOME = OUT_WALL
+
+
+def do_tome():
+    import json
+    hs = _floats("h", TOME_TIERS)
+    hands = (OPT.get("hand") or "P,M").split(",")
+    rows = []
+    for h in hs:
+        for hand in hands:
+            for v in KADO_VARIANTS:
+                o, name = make_tome(h, hand, v)
+                rays = tome_rays(o, h, hand)
+                nh, nb, nd, holes = hole_check([o], lambda x, z, h=h: h)
+                bx = unity_bounds(o)
+                print("TOME %s 裏に当たる光線 %s 穴 %d(裏の点 %d・深い点 %d)%s bounds %s" % (
+                    name, {k: r[:2] for k, r in rays.items()}, nh, nb, nd, holes[:3], [tuple(round(c, 3) for c in b) for b in bx]))
+                rows.append(dict(name=name, rays={k: r[0] for k, r in rays.items()}, ray_ex={k: r[2] for k, r in rays.items()},
+                                 holes=nh, hole_list=holes, bounds=bx, tris=tris(o)))
+                export(o, name, OUT_WALL)
+    if OPT.get("json"):
+        json.dump(rows, open(OPT["json"], "w"), ensure_ascii=False, indent=1, default=str)
+    if RENDER:
+        g0 = os.path.join(V.REPO, "Assets", "Edo", "Models", "Sanno")
+        for h in hs:
+            for hand in hands:
+                render_tome(h, hand, "a", g0)
+    return sum(1 for r in rows if r["holes"] or any(r["rays"].values()))
+
+
 if __name__ == "__main__":
     what = POS[0] if POS else "all"
     if what == "check":
@@ -3509,6 +3664,10 @@ if __name__ == "__main__":
         do_kado()
         if RENDER:
             render_kado(float(OPT.get("h") or 1.5))
+    if what == "tome":
+        # blender ... -- tome [--h=0.6,1.2,2.4] [--hand=P,M] [--json=…] [--render] ── 積み止めの駒(小口にも面石・両角が稜・EDO-0502)
+        bad_ = do_tome()
+        print("TOME 光線か穴の落ちた駒 %d" % bad_)
     if what == "kado_deg":
         # blender ... -- kado_deg --deg=49.4,51.8 --h=4.8 [--render] ── 出隅の折れが 90° でない隅の駒(EDO-0502)
         do_kado_deg()

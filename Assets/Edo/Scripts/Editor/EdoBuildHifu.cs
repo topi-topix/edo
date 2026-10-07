@@ -70,6 +70,11 @@ public static partial class EdoBuild
         /// 削る前の高さ(11〜13m)で芝を描き、観理院の崖の縁の石垣の前に横に通る板が浮いた(EDO-0477)。
         /// 当たる先: CutEdgeSkin に設計を渡す全邸(いまは山王社 Stage9)。</summary>
         public Vector2[] own;
+        /// <summary>**法で受けない節点**(null なら無し・h と同じ並び)。立てた節点の周り(双一次の 4 点のどれか)の点は、面の外でも
+        /// 最寄りの面の縁から法で受けず(OutsideY の切土の側の頭打ち)設計の地盤そのものを描く。⭐ 部材の小口に被せる土(岡部 TW_Kado_Sode の
+        /// 低い端「高さ 0.15・長さ 0.25 の土を 1:1.5 で被せる」【硬】)は面(門の内 16.50)の縁の脇で面より高い ⇒ 法の頭打ちが面の高さへ
+        /// 削り戻して小口が 0.15 見えた(2026-10-07 EDO-0502 第49巡)。当たる先: 設計の地盤を部材の脇で面より上へ盛る全ての欄(いまは岡部の小口の土)。</summary>
+        public bool[] hold;
     }
 
     /// <summary><see cref="CutEdgeSkin"/> の報告。</summary>
@@ -932,6 +937,22 @@ public static partial class EdoBuild
             }
             return false;
         };
+        // SkinDesign.hold: 立てた節点を周りに持つ点は、その升の設計の地盤の双一次(面の中の節点も混ぜる ── 面の高さで描かれる)。無ければ NaN
+        Func<Vector2, float> HoldY = (q) =>
+        {
+            if (design == null || design.hold == null) return float.NaN;
+            float fx = (q.x - design.x0) / design.step, fz = (q.y - design.z0) / design.step;
+            int i0 = Mathf.FloorToInt(fx), j0 = Mathf.FloorToInt(fz); float tx = fx - i0, tz = fz - j0; bool any = false; double sw = 0, sv = 0;
+            for (int di = 0; di <= 1; di++)
+                for (int dj = 0; dj <= 1; dj++)
+                {
+                    int ni = i0 + di, nj = j0 + dj; if (ni < 0 || nj < 0 || ni >= design.nx || nj >= design.nz) continue;
+                    int k = nj * design.nx + ni; if (!design.ok[k]) continue;
+                    if (design.hold[k]) any = true;
+                    float w = (di == 1 ? tx : 1f - tx) * (dj == 1 ? tz : 1f - tz); sw += w; sv += w * design.h[k];
+                }
+            return any && sw > 1e-6 ? (float)(sv / sw) : float.NaN;
+        };
         // 面の外の点の描く高さ: 設計の地盤(無ければ地形)を、最寄りの**囲いの無い**面の縁から法で受ける。
         //   囲い(部材)が縁に立つ所は法を当てない(土留めの前に盛土を出さない)。sloped = 法で受けたか。
         Func<Vector2, bool[], float> OutsideY = (q, sloped) =>
@@ -939,6 +960,7 @@ public static partial class EdoBuild
             if (design != null && design.own != null && !EdoGeom.PIP(design.own, q)) return probe.At(q.x, q.y);   // 区画の外は今の地形
             float s = DesignOut(q.x, q.y); if (float.IsNaN(s)) s = CleanAt(q.x, q.y);
             if (design == null) return s;
+            { float hy = HoldY(q); if (!float.IsNaN(hy)) return float.IsNaN(s) ? hy : Mathf.Max(s, hy); }   // 法で受けない節点の周り(SkinDesign.hold)
             float bd = BATTER_REACH; SkinFace bf = default(SkinFace); Vector2 bq = Vector2.zero; bool found = false;
             foreach (var f in fl) { Vector2 cq; float d = ClosestOnPoly(f.poly, q, out cq); if (d < bd) { bd = d; bf = f; bq = cq; found = true; } }
             if (!found || WalledAt(bq)) return s;
@@ -1314,6 +1336,8 @@ public static partial class EdoBuild
                         if (near < 2)
                         {
                             foreach (var f in fl) if (EdoGeom.PIP(f.poly, p)) { hgt = f.y; faced = true; break; }
+                            // ⭐ 面の中でも立てた節点(SkinDesign.hold ── 部材の小口に被せる土)の周りは面より上へ描く(⛔ 下げない・2026-10-07 EDO-0502 第49巡)
+                            if (faced) { float hy = HoldY(p); if (!float.IsNaN(hy) && hy > hgt) { hgt = hy; if (trc) TrLog(x, z, "立てた節点", hgt); } }
                             // ⭐ 面の縁の内に沿う溝の、縁の側の帯(溝の外の辺〜面の縁)は、溝の天端 − KEEP_RIM_TUCK より上に残さない(柔らかい ── 見た目の畝を消す・
                             //   2026-10-06 EDO-0533 第18巡)。⛔ 第17巡まで、蔵の座(27.50)の縁が溝 D2 seg2 の外の辺の 0.06〜0.21m 先に在り、帯が 27.50 のまま
                             //   溝の天端(27.40〜27.45)より 0.05〜0.1 高く残って、その先の法との間に畝(周りより 0.19〜0.31 高い山 9 点)が立った。

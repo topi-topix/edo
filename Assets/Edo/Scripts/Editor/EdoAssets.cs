@@ -1318,6 +1318,20 @@ public static class EdoAssets
                  + fumi.ToString("F3", inv) + SodeDepthTag(depth) + "_" + (i % 2 == 0 ? "a" : "b") + ".fbx";
         }
 
+        /// <summary>**打込接ぎの石段の袖**(EDO-0502 2026-10-07・岡部 K_Kuruwa.sode「型は本線 TW_Kado_Hokuto と同じ打込接ぎ【硬】」)。
+        /// <see cref="IshidanSode(float,float,int,float)"/> と同じ局所座標・ピボット・天端の線(段鼻の線 +0.30)・丈の綴りで、
+        /// **厚みだけ 0.30(X ±0.15・左右対称)**。材は `Danishi`(耳石)と `stone wall`(躯体・Japanese Castle の材)。
+        /// ⭐ 柄は 9 駒で続く ⇒ 末尾は **i % 9 → a〜i**(⛔ i%2 ではない)。c・f・i は坂上の端の耳石に面取りがあり天端が 0.012 低い。
+        /// 焼いてある組: (0.283, 0.450) の 2.20 / 3.20 / 4.20(<see cref="IshidanSodeDepthsDeep"/>)× a〜i = 27 本(部材方 2026-10-07)。
+        /// 生成: 部材方 buzai_sode_uchikomi(build_sanno_buzai.py sode 系の打込接ぎの版)</summary>
+        public static string IshidanSodeUchikomi(float keri, float fumi, int i, float depth)
+        {
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            int k = ((i % 9) + 9) % 9;
+            return "Assets/Edo/Models/Kaidan/IshidanSodeUchikomi_" + keri.ToString("F3", inv) + "_"
+                 + fumi.ToString("F3", inv) + SodeDepthTag(depth) + "_" + (char)('a' + k) + ".fbx";
+        }
+
         /// <summary>袖の丈の綴り(既定 2.20 は空・それ以外は `_D3.20`)。Blender 側 `build_sanno_buzai._dtag` と同じ規則。</summary>
         static string SodeDepthTag(float depth)
         {

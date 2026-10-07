@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 416(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 417(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -220,11 +220,12 @@
 | `Own.SannoDanNearest(width, i)` | 関数 | 幅が最も近い焼けた段石(SannoDan の綴りの物の中から・個体 i の偶奇で a / b)。 | MatsudairaDewa(PlaceAgari), SannoSha(Stage5b_Fumiishi) |
 | `Own.SannoDanNearestKeri(keri, fumi, width, i)` | 関数 | 蹴上が最も近い焼けた段石(SannoDan の綴りの物の中から・踏面 fumi ±0.01 に限る・個体 i の偶奇で a / b)。 | OkabeYashiki(PlaceKaidanAB) |
 | `Own.SannoDanSpec(path, keri, fumi, width)` | 関数 | SannoDan の綴りから札の寸法(蹴上・踏面・幅)を読む。 | BuildKatte(PlaceDanStone), OkabeYashiki(PlaceKaidanAB) |
-| `Own.IshidanSode(keri, fumi, i)` | 関数 | 石段の袖(袖石垣)の1段ぶんの駒 — どの石段にも使える汎用の型(寸法は蹴上 keri・踏面 fumi[m] から従属)。 | BuildIshidan(FitObliqueEnd・PlaceIshidanSode), OkabeYashiki(PlaceKaidanSodes・PlaceKaidans), SannoSha(AbutStairsToWalls・Stage2_Kaidan) |
+| `Own.IshidanSode(keri, fumi, i)` | 関数 | 石段の袖(袖石垣)の1段ぶんの駒 — どの石段にも使える汎用の型(寸法は蹴上 keri・踏面 fumi[m] から従属)。 | BuildIshidan(FitObliqueEnd・PlaceIshidanSode), SannoSha(AbutStairsToWalls・Stage2_Kaidan) |
 | `Own.ISHIDAN_SODE_DEPTH_STD` | float | 袖の丈(天端の線から下端まで)の既定 2.20 = 最大見付 1.74 + 根入れ 0.46。 | BuildIshidan(MiterIshidanSode), SannoSha(Stage2_Kaidan) |
 | `Own.IshidanSodeDepths` | float[] | 焼いてある袖の丈(浅い順)。切通しで袖を背の地盤まで上げる(`copingRise:"groundHi"`)とき、 上げの上限 = 丈 − 笠の上がり 0.30 − 段石の根入れ(実メッシュで測る。 | SannoSha(Stage2_Kaidan・Stage5b_Fumiishi), BuildIshidan(PlaceIshidanSode) |
 | `Own.IshidanSodeDepthsDeep` | float[] | 屋敷の中の張り出す石段の袖の丈(EDO-0502 2026-10-07・岡部 K_Kuruwa.sode「袖の見付は根元 3.4 → 下端 0」)。 | OkabeYashiki(PlaceKaidanSodes) |
-| `Own.IshidanSode(keri, fumi, i, depth)` | 関数 | 丈の深い石段の袖(EDO-0430 2026-09-24)。 | BuildIshidan(FitObliqueEnd・PlaceIshidanSode), OkabeYashiki(PlaceKaidanSodes・PlaceKaidans), SannoSha(AbutStairsToWalls・Stage2_Kaidan) |
+| `Own.IshidanSode(keri, fumi, i, depth)` | 関数 | 丈の深い石段の袖(EDO-0430 2026-09-24)。 | BuildIshidan(FitObliqueEnd・PlaceIshidanSode), SannoSha(AbutStairsToWalls・Stage2_Kaidan) |
+| `Own.IshidanSodeUchikomi(keri, fumi, i, depth)` | 関数 | 打込接ぎの石段の袖(EDO-0502 2026-10-07・岡部 K_Kuruwa.sode「型は本線 TW_Kado_Hokuto と同じ打込接ぎ【硬】」)。 | OkabeYashiki(PlaceKaidanSodes・PlaceKaidans) |
 | `Own.IshidanSodeFlat(depth)` | 関数 | 天端が水平な石段の袖(EDO-0459 施主裁定A 2026-09-26・男坂の最上段の袖石)。 | BuildIshidan(EndGapProfile), SannoSha(Stage2_Kaidan) |
 | `Own.IshidanSodeFlat(depth, len)` | 関数 | 走りを指定した天端が水平な石段の袖(EDO-0437 施主裁定 2026-09-27・参道の階の段4 の袖 ── 走り = その段の踏面 0.542)。 | BuildIshidan(EndGapProfile), SannoSha(Stage2_Kaidan) |
 | `Own.IshidanSodeFlatNori(depth)` | 関数 | 坂上の小口を法 1:0.25 に切った水平の袖(EDO-0459 2026-09-27・男坂の最上段 → 楼門の腰の隅 kado1 の法の面へ突き付ける)。 | SannoSha(Stage5b_Fumiishi) |

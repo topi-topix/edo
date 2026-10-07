@@ -36,7 +36,7 @@ Transform:
   - {fileID: 2036356231311273177}
   - {fileID: 3352527486508216130}
   - {fileID: 3314416780480415471}
-  - {fileID: 7986233080733511650}
+  - {fileID: 4846604542569466922}
   - {fileID: 8743122309192993634}
   - {fileID: 8683735295117385542}
   - {fileID: 5603003387334453752}
@@ -58,7 +58,7 @@ Transform:
   - {fileID: 2028342567294298541}
   - {fileID: 9000444986519408842}
   - {fileID: 7401626256985196820}
-  - {fileID: 8970892708521360842}
+  - {fileID: 42205157697215366}
   - {fileID: 5409549776894726471}
   - {fileID: 1449762795998887636}
   - {fileID: 4911211636211917209}
@@ -552,6 +552,68 @@ PrefabInstance:
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 401333761417032909}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &513208199693089901
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 2452855187026814818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -434.24292
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 16.5
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1079.797
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.7414548
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.6710029
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_Name
+      value: Kaki_TW_Kado_Hokuto_0_post
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+--- !u!4 &42205157697215366 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+  m_PrefabInstance: {fileID: 513208199693089901}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &620846754686883927
 PrefabInstance:
@@ -3045,6 +3107,68 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 4895097045426289901}
   m_PrefabAsset: {fileID: 0}
+--- !u!1001 &4956246962184170433
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 2452855187026814818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 6fb5514a5c7244fd7911883fe8d93eff, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -457.45303
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 6fb5514a5c7244fd7911883fe8d93eff, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 20.999996
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 6fb5514a5c7244fd7911883fe8d93eff, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1058.7982
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 6fb5514a5c7244fd7911883fe8d93eff, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.9987591
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 6fb5514a5c7244fd7911883fe8d93eff, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 6fb5514a5c7244fd7911883fe8d93eff, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.049803056
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 6fb5514a5c7244fd7911883fe8d93eff, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 6fb5514a5c7244fd7911883fe8d93eff, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 6fb5514a5c7244fd7911883fe8d93eff, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 6fb5514a5c7244fd7911883fe8d93eff, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 6fb5514a5c7244fd7911883fe8d93eff, type: 3}
+      propertyPath: m_Name
+      value: Kaki_TW_Kado_Shumen_1_post
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 6fb5514a5c7244fd7911883fe8d93eff, type: 3}
+--- !u!4 &4846604542569466922 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 6fb5514a5c7244fd7911883fe8d93eff, type: 3}
+  m_PrefabInstance: {fileID: 4956246962184170433}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &4977980326105465333
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -4483,68 +4607,6 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 7550493427088601938}
   m_PrefabAsset: {fileID: 0}
---- !u!1001 &7592635566330824713
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 2452855187026814818}
-    m_Modifications:
-    - target: {fileID: -8679921383154817045, guid: 6fb5514a5c7244fd7911883fe8d93eff, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -457.45303
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: 6fb5514a5c7244fd7911883fe8d93eff, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 20.999996
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: 6fb5514a5c7244fd7911883fe8d93eff, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 1058.7982
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: 6fb5514a5c7244fd7911883fe8d93eff, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 0.9987591
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: 6fb5514a5c7244fd7911883fe8d93eff, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: 6fb5514a5c7244fd7911883fe8d93eff, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: -0.049803056
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: 6fb5514a5c7244fd7911883fe8d93eff, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: 6fb5514a5c7244fd7911883fe8d93eff, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: 6fb5514a5c7244fd7911883fe8d93eff, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: 6fb5514a5c7244fd7911883fe8d93eff, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 919132149155446097, guid: 6fb5514a5c7244fd7911883fe8d93eff, type: 3}
-      propertyPath: m_Name
-      value: Kaki_TW_Kado_Shumen_1_post
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: 6fb5514a5c7244fd7911883fe8d93eff, type: 3}
---- !u!4 &7986233080733511650 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 6fb5514a5c7244fd7911883fe8d93eff, type: 3}
-  m_PrefabInstance: {fileID: 7592635566330824713}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &7628610345176379491
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -5362,68 +5424,6 @@ PrefabInstance:
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 8893786923134062076}
-  m_PrefabAsset: {fileID: 0}
---- !u!1001 &8932250074091870753
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 2452855187026814818}
-    m_Modifications:
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -434.24292
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 16.5
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 1079.797
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 0.7414548
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: 0.6710029
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 919132149155446097, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_Name
-      value: Kaki_TW_Kado_Hokuto_0_post
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
---- !u!4 &8970892708521360842 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-  m_PrefabInstance: {fileID: 8932250074091870753}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &9016378539736852045
 PrefabInstance:

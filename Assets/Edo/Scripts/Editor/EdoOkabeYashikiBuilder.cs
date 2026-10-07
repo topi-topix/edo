@@ -3336,47 +3336,6 @@ public static class EdoOkabeYashikiBuilder
             // 上がり口の段石の背の平ら(指図 kaidans[].topStep「背の地盤は天端 −0.02」【硬】)を皮の平らな面に(RampAxis が起こした物)
             foreach (var kv in _topLanding) { faces.Add(kv.Value); sb.AppendLine("  面 " + kv.Value.name + "(" + kv.Value.y.ToString("F2") + "): 上がり口の段石の背 " + TOPSTEP_BACK_FLAT.ToString("0.0#") + "m"); }
         }
-        // ⭐ 袖の坂の低い端の小口に土を被せる(指図 sodeSlope 追記 2026-10-07「小口は高さ 0.15・長さ 0.25 の土を 1:1.5 で被せて隠す」【硬】・EDO-0502 第42巡)──
-        //   据えた端の駒の小口を実メッシュで測り(走りの外へ最も出た頂点の帯 0.05)、小口の外の設計の地盤を「小口の頂(≤ 地盤 + 高さ)から 1:bf で下りる面」まで盛る。⛔ 下げない。
-        //   当たる先: sodeSlope の低い端を水平の駒で終える袖(岡部 TW_Kado_Sode)。
-        var covers = new List<SodeEndCover>(); var coverFace = new List<Vector4>(); var coverLat = new List<Vector2>();   // (端の点 x, z, 小口の頂, 走りの外の縁 u)
-        {
-            foreach (var o in A(Get(IMPL, "terraceWalls")) ?? new List<object>())
-            {
-                var w = O(o); if (w == null) continue; string nm = S(Get(w, "name"));
-                Dictionary<string, object> sw = null; foreach (var o2 in A(Get(D, "terraceWalls")) ?? new List<object>()) { var w2 = O(o2); if (w2 != null && S(Get(w2, "name")) == nm) sw = w2; }
-                string ssl = sw == null ? null : S(Get(sw, "sodeSlope")); var lnS = A(Get(w, "line"));
-                if (ssl == null || lnS == null || lnS.Count < 2) continue;
-                var nodesS = new List<Vector2>(); foreach (var q in lnS) { var pq = A(q); nodesS.Add(new Vector2(F(pq[0]), F(pq[1]))); }
-                var cv = new List<SodeEndCover>(); SodeSlopeSegs(nm, nodesS, ssl, null, null, null, cv);
-                foreach (var c in cv)
-                {
-                    // 端の駒 = 走りの外へ最も出た頂点を持つ駒(端から 3m 以内)
-                    var dan = Group("Dan"); Vector3 best = Vector3.zero; float um = float.MinValue; GameObject eg = null;
-                    foreach (Transform t in dan)
-                    {
-                        if (!t.gameObject.activeInHierarchy || !t.name.StartsWith(nm + "_")) continue;
-                        var rb = EdoBuild.RB(t.gameObject); if (Vector2.Distance(new Vector2(rb.center.x, rb.center.z), c.end) > 3f) continue;
-                        foreach (var v in EdoBuild.Body(t, 999999)) { float u = Vector2.Dot(new Vector2(v.x, v.z) - c.end, c.away); if (u > um) { um = u; eg = t.gameObject; } }
-                    }
-                    if (eg == null) { sb.AppendLine("  ★ 小口の土 " + nm + ": 低い端の駒が無い ── 盛らない"); continue; }
-                    Vector2 lat = new Vector2(-c.away.y, c.away.x); float top = float.MinValue, lmn = float.MaxValue, lmx = float.MinValue;
-                    foreach (var v in EdoBuild.Body(eg.transform, 999999)) { var r2 = new Vector2(v.x, v.z) - c.end; if (Vector2.Dot(r2, c.away) < um - 0.05f) continue; top = Mathf.Max(top, v.y); float l = Vector2.Dot(r2, lat); lmn = Mathf.Min(lmn, l); lmx = Mathf.Max(lmx, l); }
-                    int nc = 0; float mx = 0f;
-                    for (int j = 0; j < dnz; j++)
-                        for (int i = 0; i < dnx; i++)
-                        {
-                            int k = j * dnx + i; if (!ok[k]) continue;
-                            var q = new Vector2(dx0 + i * dstep, dz0 + j * dstep) - c.end; float du = Vector2.Dot(q, c.away) - um, dl = Vector2.Dot(q, lat);
-                            if (du < 0f || du > c.len + dstep || dl < lmn - 0.1f || dl > lmx + 0.1f) continue;
-                            float y = Mathf.Min(top, gh[k] + c.h) - du / c.bf;
-                            if (y > gh[k] + 1e-4f) { mx = Mathf.Max(mx, y - gh[k]); gh[k] = y; nc++; }
-                        }
-                    coverFace.Add(new Vector4(c.end.x, c.end.y, top, um)); coverLat.Add(new Vector2(lmn, lmx)); covers.Add(c);
-                    sb.AppendLine("  小口の土 " + nm + ": 端の駒 " + eg.name + "・小口の頂 " + top.ToString("F2") + "・幅 " + (lmx - lmn).ToString("F2") + "m ⇒ 設計の地盤を盛った節点 " + nc + "(最大 " + mx.ToString("F2") + "・高さ ≤ " + c.h.ToString("F2") + "・1:" + c.bf.ToString("0.0") + ")");
-                }
-            }
-        }
         // ⭐ 返しの石垣と長屋の背の間の溝(Stage2b と同じ BackTrenches)も設計の地盤へ ── 溝の中は低い側の面まで下げる(⛔ 上げない)。
         //   皮が graded(門の内の面)のまま描くと、溝を N39_1 の背まで土で埋め戻す(EDO-0502 第19巡)
         {
@@ -3425,13 +3384,82 @@ public static class EdoOkabeYashikiBuilder
                     }
             if (pads3.Count > 0) sb.AppendLine("  棟の下の均しを設計の地盤へ写した節点 " + npd + "(" + pads3.Count + " 棟・升 " + dstep.ToString("F2") + "m・EdoBuild.LevelPadAt)");
         }
+        // ⭐ 袖の坂の低い端の小口に土を被せる(⚠ 設計の地盤を書く最後の手 ── 溝・小段・棟の下の均しの後。盛った節点は SkinDesign.hold で法の頭打ちから外す・第49巡)(指図 sodeSlope 追記 2026-10-07「小口は高さ 0.15・長さ 0.25 の土を 1:1.5 で被せて隠す」【硬】・EDO-0502 第42巡)──
+        //   据えた端の駒の小口を実メッシュで測り(走りの外へ最も出た頂点の帯 0.05)、小口の外の設計の地盤を「小口の頂(≤ 地盤 + 高さ)から 1:bf で下りる面」まで盛る。⛔ 下げない。
+        //   当たる先: sodeSlope の低い端を水平の駒で終える袖(岡部 TW_Kado_Sode)。
+        var covers = new List<SodeEndCover>(); var hold = new bool[gh.Length]; var coverFace = new List<Vector4>(); var coverLat = new List<Vector2>(); var coverDu = new List<float[]>(); var coverTop = new List<float[]>(); var coverPiece = new List<GameObject>();   // (端の点 x, z, 小口の頂, 走りの外の縁 u)
+        {
+            foreach (var o in A(Get(IMPL, "terraceWalls")) ?? new List<object>())
+            {
+                var w = O(o); if (w == null) continue; string nm = S(Get(w, "name"));
+                Dictionary<string, object> sw = null; foreach (var o2 in A(Get(D, "terraceWalls")) ?? new List<object>()) { var w2 = O(o2); if (w2 != null && S(Get(w2, "name")) == nm) sw = w2; }
+                string ssl = sw == null ? null : S(Get(sw, "sodeSlope")); var lnS = A(Get(w, "line"));
+                if (ssl == null || lnS == null || lnS.Count < 2) continue;
+                var nodesS = new List<Vector2>(); foreach (var q in lnS) { var pq = A(q); nodesS.Add(new Vector2(F(pq[0]), F(pq[1]))); }
+                var cv = new List<SodeEndCover>(); SodeSlopeSegs(nm, nodesS, ssl, null, null, null, cv);
+                foreach (var c in cv)
+                {
+                    // 端の駒 = 走りの外へ最も出た頂点を持つ駒(端から 3m 以内)
+                    var dan = Group("Dan"); Vector3 best = Vector3.zero; float um = float.MinValue; GameObject eg = null;
+                    foreach (Transform t in dan)
+                    {
+                        if (!t.gameObject.activeInHierarchy || !t.name.StartsWith(nm + "_")) continue;
+                        var rb = EdoBuild.RB(t.gameObject); if (Vector2.Distance(new Vector2(rb.center.x, rb.center.z), c.end) > 3f) continue;
+                        foreach (var v in EdoBuild.Body(t, 999999)) { float u = Vector2.Dot(new Vector2(v.x, v.z) - c.end, c.away); if (u > um) { um = u; eg = t.gameObject; } }
+                    }
+                    if (eg == null) { sb.AppendLine("  ★ 小口の土 " + nm + ": 低い端の駒が無い ── 盛らない"); continue; }
+                    Vector2 lat = new Vector2(-c.away.y, c.away.x); float top = float.MinValue, lmn = float.MaxValue, lmx = float.MinValue;
+                    var ev = EdoBuild.Body(eg.transform, 999999);
+                    foreach (var v in ev) { var r2 = new Vector2(v.x, v.z) - c.end; if (Vector2.Dot(r2, c.away) < um - 0.05f) continue; top = Mathf.Max(top, v.y); float l = Vector2.Dot(r2, lat); lmn = Mathf.Min(lmn, l); lmx = Mathf.Max(lmx, l); }
+                    // ⭐ 小口の面は野面で凸凹 ⇒ **横 0.1m の帯ごとに**小口の面の位置(帯の中で走りの外へ最も出た頂点)と頂を測る(第49巡)。⛔ 最も出た 1 点(um)から
+                    //   一律に法を下ろすと、引っ込んだ帯では土が 0.1〜0.2 低く、小口が見えた。帯は小口の頂から 0.4 下までの頂点(根入れの出っ張りで面を決めない)。
+                    int nbn = Mathf.Max(1, Mathf.CeilToInt((lmx - lmn) / 0.1f)); var fDu = new float[nbn]; var fTop = new float[nbn];
+                    for (int b = 0; b < nbn; b++) { fDu[b] = float.NaN; fTop[b] = float.NaN; }
+                    foreach (var v in ev)
+                    {
+                        if (v.y < top - 0.4f) continue; var r2 = new Vector2(v.x, v.z) - c.end; float l = Vector2.Dot(r2, lat);
+                        if (l < lmn - 1e-3f || l > lmx + 1e-3f) continue; int b = Mathf.Clamp(Mathf.FloorToInt((l - lmn) / 0.1f), 0, nbn - 1);
+                        float u = Vector2.Dot(r2, c.away) - um; if (float.IsNaN(fDu[b]) || u > fDu[b]) fDu[b] = u;
+                    }
+                    for (int b = 1; b < nbn; b++) if (float.IsNaN(fDu[b])) fDu[b] = fDu[b - 1];
+                    for (int b = nbn - 2; b >= 0; b--) if (float.IsNaN(fDu[b])) fDu[b] = fDu[b + 1];
+                    foreach (var v in ev)
+                    {
+                        var r2 = new Vector2(v.x, v.z) - c.end; float l = Vector2.Dot(r2, lat); if (l < lmn - 1e-3f || l > lmx + 1e-3f) continue;
+                        int b = Mathf.Clamp(Mathf.FloorToInt((l - lmn) / 0.1f), 0, nbn - 1); float u = Vector2.Dot(r2, c.away) - um;
+                        if (u >= fDu[b] - 0.05f && (float.IsNaN(fTop[b]) || v.y > fTop[b])) fTop[b] = v.y;
+                    }
+                    for (int b = 0; b < nbn; b++) if (float.IsNaN(fTop[b])) fTop[b] = top;
+                    int nc = 0; float mx = 0f;
+                    for (int j = 0; j < dnz; j++)
+                        for (int i = 0; i < dnx; i++)
+                        {
+                            int k = j * dnx + i; if (!ok[k]) continue;
+                            var q = new Vector2(dx0 + i * dstep, dz0 + j * dstep) - c.end; float du0 = Vector2.Dot(q, c.away) - um, dl = Vector2.Dot(q, lat);
+                            if (dl < lmn - 0.1f || dl > lmx + 0.1f || du0 < -0.6f || du0 > 1.5f) continue;
+                            int b = Mathf.Clamp(Mathf.FloorToInt((dl - lmn) / 0.1f), 0, nbn - 1); float du = du0 - fDu[b], tb = fTop[b];
+                            // ⭐ 土の頂は**その帯の小口の頂**(第49巡): 前の地盤が見付の想定(c.h)より低い所(前の面の隅 16.40)でも小口を隠し切る ── 「高さ ≤ gh + c.h」で切ると
+                            //   0.10 見えた。長さは 1:bf で前の地盤に届くまで(c.len は狙い・上限は 3 倍)。小口の 1 格子奥の節点(駒の外形の中)も頂へ ── 外の点が
+                            //   駒の下の低い節点と混ざって小口の際が下がらないように(駒の中の点は皮の cap が天端の下へ納める)。
+                            if (du < -dstep || du > Mathf.Min((tb - gh[k]) * c.bf, 3f * c.len) + dstep) continue;
+                            float y = tb - Mathf.Max(0f, du) / c.bf;
+                            if (y > gh[k] + 1e-4f) { if (EdoBuild.SkinTrace != null) EdoBuild.SkinTraceLog.AppendLine("  小口の土の節点 (" + (dx0 + i * dstep).ToString("F3") + ", " + (dz0 + j * dstep).ToString("F3") + ") du " + du.ToString("F3") + " " + gh[k].ToString("F3") + "→" + y.ToString("F3")); mx = Mathf.Max(mx, y - gh[k]); gh[k] = y; nc++; hold[k] = true; }
+                        }
+                    coverDu.Add(fDu); coverTop.Add(fTop); coverPiece.Add(eg);
+                    coverFace.Add(new Vector4(c.end.x, c.end.y, top, um)); coverLat.Add(new Vector2(lmn, lmx)); covers.Add(c);
+                    sb.AppendLine("  小口の土 " + nm + ": 端の駒 " + eg.name + "・小口の頂 " + top.ToString("F2") + "・幅 " + (lmx - lmn).ToString("F2") + "m ⇒ 設計の地盤を盛った節点 " + nc + "(最大 " + mx.ToString("F2") + "・高さ ≤ " + c.h.ToString("F2") + "・1:" + c.bf.ToString("0.0") + ")");
+                }
+            }
+        }
         var design = new EdoBuild.SkinDesign
         {
             x0 = dx0, z0 = dz0, step = dstep, nx = dnx, nz = dnz, h = gh, ok = ok,
-            batterCut = C("batterCut"), batterFill = C("batterFill"), baseAt = EdoBuild.BaseDem(), own = Poly
+            batterCut = C("batterCut"), batterFill = C("batterFill"), baseAt = EdoBuild.BaseDem(), own = Poly, hold = hold
         };
         // ⭐ 区画の外の節点は区画の外の地盤(今の地形・区画の内と駒の下の節点は造成前)で持たせる(EDO-0502 第29巡)── 外周の石垣の見え面の前
         EdoBuild.DesignOutsideOwn(design, parts, sb);
+        if (EdoBuild.SkinTrace != null)
+            for (int k = 0; k < gh.Length; k++) if (hold[k]) EdoBuild.SkinTraceLog.AppendLine("  小口の土の節点 #" + k + " 皮へ渡す前 " + design.h[k].ToString("F3") + " ok " + design.ok[k]);
         // ⭐ 部材に埋まった地形の木(幹の足が土留め・石垣・石段の外形の中)は先に退ける(EdoBuild.RetireTreesInParts・硬い)──
         //   守ると穴が開かず、2m 格子が駒の下の節点を見え面の前へ描いて土の尾根が立つ(EDO-0502 第27巡 西の返し)
         {
@@ -3470,16 +3498,28 @@ public static class EdoOkabeYashikiBuilder
         sb.AppendLine("  " + rep);
         sb.Append(EdoBuild.SkinGapTable(parts, faces, tol));
         // 小口の土の検め(硬): 端の駒の小口の外 0.02 の描かれた地表が小口の頂 − 0.02 に届くか(⛔ 届かなければ小口が見える)
+        // ⭐ **描かれた地表(皮込み・EdoBuild.Drawn)で測る**(2026-10-07 EDO-0502 第49巡)。⛔ SkinGround は min(設計面, 地形) で、盛った小口の土も皮も読まず
+        //   設計面 15.95 を拾って +0.70 の偽の ⛔ を出していた(描かれた地表は 16.41〜16.49)。
+        var drawnC = EdoBuild.Drawn();
         for (int ci = 0; ci < covers.Count; ci++)
         {
-            var c = covers[ci]; var cf = coverFace[ci]; Vector2 lat = new Vector2(-c.away.y, c.away.x); float worst = float.MinValue; Vector2 wAt = Vector2.zero; int n = 0;
-            for (float l = coverLat[ci].x + 0.05f; l <= coverLat[ci].y - 0.05f + 1e-3f; l += 0.1f)
+            // 帯ごとに: 小口の面の 0.02 外(駒の張り出しの下なら外へ 0.02 ずつ ── 石に隠れた所は見えない)の描かれた地表が、その帯の小口の頂 − 0.02 に届くか
+            var c = covers[ci]; var cf = coverFace[ci]; var fDu = coverDu[ci]; var fTop = coverTop[ci]; var pc = new List<GameObject> { coverPiece[ci] };
+            Vector2 lat = new Vector2(-c.away.y, c.away.x); float worst = float.MinValue; Vector2 wAt = Vector2.zero; int n = 0;
+            for (int b = 0; b < fDu.Length; b++)
             {
-                var q = c.end + c.away * (cf.w + 0.02f) + lat * l; float g = SkinGround(q.x, q.y); if (float.IsNaN(g)) continue;
-                // 小口の頂の帯に掛かる所だけ(駒の幅の外は測らない)
-                float lim = cf.z - g; n++; if (lim > worst) { worst = lim; wAt = q; }
+                float l = coverLat[ci].x + (b + 0.5f) * 0.1f; if (l > coverLat[ci].y) break;
+                Vector2 q = Vector2.zero; bool free = false;
+                for (float e = 0.02f; e <= 0.3f; e += 0.02f)
+                {
+                    q = c.end + c.away * (cf.w + fDu[b] + e) + lat * l;
+                    if (float.IsNaN(EdoBuild.RayToBodies(pc, new Vector3(q.x, fTop[b] + 1f, q.y), Vector3.down, 3f))) { free = true; break; }
+                }
+                if (!free) continue;
+                float g = drawnC.At(q.x, q.y); if (float.IsNaN(g)) continue;
+                float lim = fTop[b] - g; n++; if (lim > worst) { worst = lim; wAt = q; }
             }
-            sb.AppendLine("  小口の土の検め " + c.key + ": 小口の頂 " + cf.z.ToString("F2") + " − 描かれた地表の最小 = " + (n == 0 ? "-" : worst.ToString("+0.00;-0.00")) + "m @(" + wAt.x.ToString("F1") + ", " + wAt.y.ToString("F1") + ")(硬 ≤ 0.02)" + (n > 0 && worst > 0.02f ? " ⛔" : " ⭕"));
+            sb.AppendLine("  小口の土の検め " + c.key + ": 帯ごとの小口の頂 − 小口の前の描かれた地表 の最大 = " + (n == 0 ? "-" : worst.ToString("+0.00;-0.00")) + "m @(" + wAt.x.ToString("F1") + ", " + wAt.y.ToString("F1") + ")・帯 " + n + "(硬 ≤ 0.02)" + (n > 0 && worst > 0.02f ? " ⛔" : " ⭕"));
         }
         if (EdoBuild.SkinTrace != null) { sb.AppendLine("  皮の追跡:"); sb.Append(EdoBuild.SkinTraceLog.ToString()); }
         // ⭐ 皮を起こし直した後に、練塀・隅を**描かれた皮の上**で据え直す(EdoBuild.SinkGroupToBed)。Stage2 の時点の床は
@@ -5051,7 +5091,7 @@ public static class EdoOkabeYashikiBuilder
     /// 土留めを据えた後に呼ぶ(上端の相手 = 石段が切った土留め terraceWalls[].cuts の駒)。据えは `EdoBuild.PlaceIshidanSodeRow`
     /// (段ごとの袖の駒を段石の小口・段鼻・踏面で測って据え、上端は土留めの見え面で入隅に止め、下端は同じ駒を継いで小口を沈める)。
     /// 数は指図の文から読む:「段鼻を結ぶ線より x 上」(笠の上がりの狙い【柔】)・「小口を y 以上地中へ」【硬】(⛔ 読めなければ ★ を刷って建てない)。
-    /// 駒は `EdoAssets.Own.IshidanSode(蹴上, 踏面, i, 丈)`(丈は `IshidanSodeDepthsDeep`)。袖の名は "Sode_" で始める ──
+    /// 駒は `EdoAssets.Own.IshidanSodeUchikomi(蹴上, 踏面, i, 丈)`(打込接ぎ・厚み 0.30・柄は i%9・丈は `IshidanSodeDepthsDeep`)。袖の名は "Sode_" で始める ──
     /// 口の端を石段の駒から測る Stage2b(by + "_" の頭)に入れない。当たる先: kaidans[].sode を持つ石段(岡部 K_Kuruwa)。</summary>
     static string PlaceKaidanSodes(Transform danGrp)
     {
@@ -5094,7 +5134,7 @@ public static class EdoOkabeYashikiBuilder
                     dans.Add(best);
                 }
                 var warn = new List<string>(); EdoBuild.SodeRowReport rep; float rr = rise, ff = fumi;
-                var got = EdoBuild.PlaceIshidanSodeRow(dans, side, (i, d) => EdoAssets.Own.IshidanSode(rr, ff, i, d), EdoAssets.Own.IshidanSodeDepthsDeep,
+                var got = EdoBuild.PlaceIshidanSodeRow(dans, side, (i, d) => EdoAssets.Own.IshidanSodeUchikomi(rr, ff, i, d), EdoAssets.Own.IshidanSodeDepthsDeep,
                                                        kai, "Sode_" + nm + (side > 0 ? "_R" : "_L"), kasaT, 0f, walls, sink, SkinGround, 0.05f, warn, out rep);
                 sb.AppendLine("  石段の袖 " + nm + (side > 0 ? " 右" : " 左") + ": 段の脇 " + rep.placed + " 駒・坂下へ継いだ " + rep.ext + " 駒・退けた " + rep.refused
                             + "・笠の上がり " + rep.kasa.ToString("F3") + "(狙い " + kasaT.ToString("F2") + ")"

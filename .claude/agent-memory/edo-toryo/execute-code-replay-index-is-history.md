@@ -11,3 +11,8 @@ metadata:
 対処: ⛔ replay を使わない。直したコードをそのまま execute で送り直す。冪等でない Stage(造成)の直後なら二重に切る。
 
 関連: [[akasaka-open-resent-six-times]]
+
+追記 2026-10-07(土井 第25巡): Unity を立ち上げ直すと execute_code の履歴は空になる(get_history 0件)。
+前の巡と同じ段の呼び方・カメラの構図を引くには、前の棟梁の transcript
+`~/.claude/projects/-Users-toshio-project-edo-unity/<窓のid>/subagents/agent-*.jsonl` から tool_use の code を
+python で抜く(scratchpad に cams.txt が無い構図もそこに在る)。

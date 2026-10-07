@@ -1,6 +1,6 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 9ada5206cfcb -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 d41f863f1416 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
@@ -658,7 +658,7 @@ EdoBuild — 道の造成(縦断を設計して道の面を均す)。2026-09-30�
 |---|---|---|---|---|
 | `NozuraWall`(class) | — | | 野面の土留めの一本(隅と段の境で折れ・継ぐ)。 | |
 | `EdoBuild.PlaceNozuraRun(w, groundAt, probe, parent, name, log)` | `List<KeyValuePair<GameObject, Vector2>>` | 地面・駒どうし・天端・床・面・隅 | 野面の乱積みの土留めを据える(2026-09-25・EDO-0430)。 ⟶ 返す: 据えた駒と見え面の向き | — |
-| `EdoBuild.RayToBodies(bodies, o, d, maxDist)` | `float` | 駒どうし・面 | 走りの端を相手の駒の実面まで延ばす(2026-09-25・EDO-0430)。 | — |
+| `EdoBuild.RayToBodies(bodies, o, d, maxDist)` | `float` | 駒どうし・面 | 走りの端を相手の駒の実面まで延ばす(2026-09-25・EDO-0430)。 | OkabeYashiki(Stage3b_Hifu) |
 | `EdoBuild.ReachToBodies(from, toward, bodies, halfT, yLo, yHi, maxReach)` | `float` |  | ⚠ 注釈なし | MatsudairaDewa(BuildPtsHei・PlaceUchiNagaya・Stage2Fences…), SannoSha(SakuRun・ShiftRunToCutShoulder) |
 | `EdoBuild.RetractEndFromBodies(end, inward, bodies, halfT, yLo, yHi, maxBack)` | `float` | 硬 駒どうし・面・隅 | 走りの端が相手の駒の中に在るなら、相手の実面まで詰める(ReachToBodies の逆向き・2026-09-26・EDO-0430)。 | SannoSha(RetractRunEndsFromWalls) |
 | `EdoBuild.RetractEndToBedEdge(end, inward, beds, halfT, yTop, maxBack, groundAt)` | `float` | 硬 地面・駒どうし・天端・床 | 受けの駒の天端の上に立つ走りの端を、受けの駒が足の下に在る所まで詰める(2026-09-26・EDO-0437 第6巡)。 | SannoSha(RetractRunEndsFromWalls) |

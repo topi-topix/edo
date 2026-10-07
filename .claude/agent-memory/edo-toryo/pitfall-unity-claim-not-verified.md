@@ -23,3 +23,8 @@ metadata:
   で明け渡しを頼む(EDO-0278 がその例)。⛔ 予約や claim を力ずくで奪わない。
 
 関連: [[pitfall-bridge-drops-after-domain-reload]]
+
+**追記 2026-10-05 EDO-0502 第18巡(役として預かった側)**: 着手時の status で窓の行に unity があっても、親の窓が 20 分 Unity を使っていなかったため
+渡された直後に他窓(土井 EDO-0533)が引き取っていた(status の窓の行に「⚠ unity は … が引き取った」が出る)。`compile_wait.py` は claim を見ずに
+refresh を打つので、他人の Unity を一度 reload させてしまった。⇒ **.cs を保存する直前・compile_wait の直前に status を読み直し、「引き取った」の行を探す**。
+見つけたら .cs は scratchpad の指示書へ逃がし、Unity を触らず呼び出し元へ返す(役は start/wait を打てない)。

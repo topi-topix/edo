@@ -20,6 +20,7 @@
     blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=0.275,-0.275 --h=0.6,0.9,1.2,1.5,1.8,2.1,2.4  # 岡部 外周の土留めの端を下げ打つ勾配の駒 ±0.275(EDO-0502・2026-10-06)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- grade --grade=0.275 --render [--h=1.2]   # 同・並べ焼き
     blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=0.45,-0.45 --h=0.6,0.9,1.2,1.5,1.8,2.1,2.4  # 岡部 袖石垣の天端を背の法なりに下げる勾配の駒 ±0.45(EDO-0502・2026-10-07・TW_Kado_Sode.sodeSlope)
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=0.12,-0.12,0.275,-0.275,0.45,-0.45 --h=3.0,3.6,4.2,4.8  # 岡部 袖石垣の高い見付の勾配の駒(EDO-0502・2026-10-07・H4800 が G0 しか無く平らな段になった)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- tome [--h=0.6,1.2,2.4] [--hand=P,M] [--render]   # 積み止めの駒(小口にも面石・両角が稜・岡部 nozuraEndRule 2026-10-07b・EDO-0502)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- crest [--dir=…] [--json=…]  # 全駒の背の天端の下がり(≤ 0.03)・頭の出(≤ 0)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- holes [--dir=…] [--json=…]  # 全駒を真上から見て天端に穴(裏・下の見える所)が 0 か
@@ -43,7 +44,7 @@
 【勾配】駒を鉛直に剪断して天端を勾配に載せる(石段の袖と同じ・段に折らない)。G = 天端が Unity +X へ
   1m あたり上がる量(‰)。焼いてあるのは G0・根石の打ち切り(H0150 の G±180)・段の境(H1500 の G±220)・
   前庭の天端を流す G±120(H1800 を除く 8 段・2026-09-26 EDO-0437)・岡部の外周の端を下げ打つ G±275(H0600〜H2400 の 7 段・
-  2026-10-06 EDO-0502)・岡部の袖石垣の天端を背の法なりに下げる G±450(同 7 段・2026-10-07 EDO-0502)。他の勾配は `--grade=` で足す。
+  2026-10-06 EDO-0502)・岡部の袖石垣の天端を背の法なりに下げる G±450(同 7 段・2026-10-07 EDO-0502)。深い見付 H3000/H3600/H4200/H4800 × G±120/±275/±450(同日・G0 が有るのは H4800 だけ)。他の勾配は `--grade=` で足す。
   ⭐ 剪断のまま ±0.45(24°)まで焼いた: 竪目地は鉛直のまま・横目地が勾配に沿うだけで、継ぎ目の切り口は天端から測って G0 と
   同じ形(傾けた積みにすると竪目地も法も傾き、G0 の駒と継げない)。並べ焼き sanno_nozura_g450_*.png で石の崩れは見えない。
   ⭐ 継ぎ目の切り口は**石ごとに**切って塞ぐ(`cut_each_ends`・2026-10-07)── 旧駒(G0〜G±275)は join の後に一度に切り、

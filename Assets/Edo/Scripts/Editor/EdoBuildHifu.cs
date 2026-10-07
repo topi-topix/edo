@@ -1475,7 +1475,23 @@ public static partial class EdoBuild
                             {
                                 // 面の外(石段が面と面の間の設計の地盤に立つ所)は駒の本当の底まで下げる(外形の中 ── 見えない)
                                 int wS; bool dn; float fb = idx.FootBottom(x, z, NEAR + 0.1f, out wS, out dn);
-                                if (wS >= 0 && !idx.banded[wS] && hgt > fb) { hgt = fb; r.stairFaced++; }
+                                if (wS >= 0 && !idx.banded[wS] && hgt > fb)
+                                {
+                                    // ⭐ 近くの面(STAIR_APRON 以内)に石段の足が面 ± 許容の内で埋まっているなら、底でなく**面の高さ**まで下げる(底より下げない)
+                                    //   (2026-10-08 EDO-0502 第52巡 施主指摘「一段目の下の縁で地面が鋸の歯」)。⛔ 底(16.33)まで下げると、段の前の点(下の「石段の前」が面 16.50 に
+                                    //   揃える)との三角形が 0.25 格子と段の向き(10.5°)の差で段石の前に 0〜0.17 の窪みを周期 1.37m の鋸の歯に並べた(岡部 K_Dan1 一段目)。
+                                    //   外形の中の点は面の高さでも駒の中(底より上・天端より下)に隠れる。足が面より上の駒(上の段の積み)は従前どおり底まで。
+                                    //   当たる先: CutEdgeSkin に石段を渡す全邸(岡部 Stage3b・山王 Stage9・土井 Stage4b)の、面の縁の外の設計の地盤に立つ石段の外形の中すべて。
+                                    float fyN = float.NaN;
+                                    for (int a8 = 0; a8 < 8 && float.IsNaN(fyN); a8++)
+                                    {
+                                        float an = a8 * Mathf.PI / 4f;
+                                        for (float rr = 0.25f; rr <= STAIR_APRON + 1e-3f; rr += 0.25f)
+                                        { float fq = FaceY(p + new Vector2(Mathf.Cos(an), Mathf.Sin(an)) * rr); if (!float.IsNaN(fq)) { fyN = fq; break; } }
+                                    }
+                                    float to = (!float.IsNaN(fyN) && !IsHollow(wS) && Mathf.Abs(fb - fyN) <= faceTol - 0.02f) ? Mathf.Max(fb, fyN) : fb;
+                                    if (hgt > to) { hgt = to; r.stairFaced++; }
+                                }
                             }
                         }
                         if (trc) TrLog(x, z, "石段の外形", hgt);
@@ -1511,6 +1527,12 @@ public static partial class EdoBuild
                                     }
                                 }
                             if (!float.IsNaN(fbA) && hgt > Mathf.Max(fyA, fbA)) { hgt = Mathf.Max(fyA, fbA); faced = true; r.stairFaced++; }
+                            // ⭐ 足が面より下に埋まる石段の前で、設計の地盤が面より低い点は面まで上げる(2026-10-08 EDO-0502 第52巡)── 下げるだけだと
+                            //   外形の中(面の高さ)と前の点(設計の地盤 16.41)の間に 0.09 の窪みが段の前に残った(岡部 K_Dan1 一段目)。上げる幅は許容(faceTol − 0.02)まで。
+                            //   当たる先: CutEdgeSkin に石段を渡す全邸の、面の縁の外に立つ石段の前(STAIR_APRON 以内・stairApronFrontOnly の邸は脇を除く)。
+                            //   ⚠ 既に面の高さ(差 1mm 以内)の点も「揃えた」印を立てる ── 立てないと次の「底から法」が段の底(16.33)から 1:1.5 で 16.41 へ下げた(同日・トレースで名指し)。
+                            else if (!float.IsNaN(fbA) && hgt >= Mathf.Max(fyA, fbA) - 1e-3f) { faced = true; }
+                            else if (!float.IsNaN(fbA) && fbA <= fyA + 1e-3f && hgt < fyA && hgt >= fyA - (faceTol - 0.02f)) { hgt = fyA; faced = true; r.stairFaced++; }
                         }
                         if (trc) TrLog(x, z, "石段の前", hgt);
                         if (near == 1 && !faced && design != null && float.IsNaN(FaceY(p)))

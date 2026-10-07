@@ -593,15 +593,29 @@ public static partial class EdoBuild
                 foreach (var v in gvs) { var q = new Vector2(v.x, v.z); if (v.y >= gtop - BAND) gf = Mathf.Max(gf, Vector2.Dot(q, fN)); float a = Vector2.Dot(q, X); ga0 = Mathf.Min(ga0, a); ga1 = Mathf.Max(ga1, a); }
                 Vector2 sh = fN * (uf - gf) + X * (0.5f * (ua0 + ua1) - 0.5f * (ga0 + ga1));
                 go.transform.position += new Vector3(sh.x, 0f, sh.y);
-                // 高さ: 筋ごとに 上の駒の底 − 積む駒の頭 の最大だけ上げる(どの筋にも口を残さない)
+                // 高さ: 筋ごとに「上の駒の底 − 積む駒の頭」を**同じ柱(0.1m の升)で**測った最小(= その筋の触れる所の隙)の、筋の最大だけ上げる
+                //   (どの筋にも口を残さない・ほかの筋の重なりは埋めて隠す)。
+                // ⭐ 2026-10-07 第47巡: 筋の中の底の最小と頭の最大を別々の所で取って引くと、どの柱の隙よりも小さい値になり、
+                //    全部の筋で上の駒が浮いた(岡部 縁 Curb_R_UraZaka_0_004f が下の積み 004f_tsumi0 から +0.013・9 点)。⛔ 筋の最小と最大を引かない。
                 gvs = Body(go.transform, 999999);
-                const int NB = 7; var ulo = new float[NB]; var ghi = new float[NB];
-                for (int b = 0; b < NB; b++) { ulo[b] = float.MaxValue; ghi[b] = float.MinValue; }
+                const int NB = 7; const float CELL = 0.1f;
+                var uCol = new Dictionary<long, float>(); var gCol = new Dictionary<long, float>(); var colBin = new Dictionary<long, int>();
+                Func<Vector3, long> colOf = v => { var q = new Vector2(v.x, v.z); return ((long)Mathf.FloorToInt(Vector2.Dot(q, X) / CELL) << 32) ^ (uint)Mathf.FloorToInt(Vector2.Dot(q, fN) / CELL); };
                 Func<Vector3, int> bin = v => Mathf.Clamp((int)((Vector2.Dot(new Vector2(v.x, v.z), X) - ua0) / Mathf.Max(1e-4f, ua1 - ua0) * NB), 0, NB - 1);
-                foreach (var v in uvs) { int b = bin(v); ulo[b] = Mathf.Min(ulo[b], v.y); }
-                foreach (var v in gvs) { int b = bin(v); ghi[b] = Mathf.Max(ghi[b], v.y); }
+                foreach (var v in uvs) { long c = colOf(v); float y; if (!uCol.TryGetValue(c, out y) || v.y < y) uCol[c] = v.y; colBin[c] = bin(v); }
+                foreach (var v in gvs) { long c = colOf(v); float y; if (!gCol.TryGetValue(c, out y) || v.y > y) gCol[c] = v.y; }
+                var binGap = new float[NB]; for (int b = 0; b < NB; b++) binGap[b] = float.MaxValue;
+                foreach (var kc in uCol) { float gy; if (!gCol.TryGetValue(kc.Key, out gy)) continue; int b = colBin[kc.Key]; binGap[b] = Mathf.Min(binGap[b], kc.Value - gy); }
                 float lift = float.NegativeInfinity;
-                for (int b = 0; b < NB; b++) if (ulo[b] < float.MaxValue && ghi[b] > float.MinValue) lift = Mathf.Max(lift, ulo[b] - ghi[b]);
+                for (int b = 0; b < NB; b++) if (binGap[b] < float.MaxValue) lift = Mathf.Max(lift, binGap[b]);
+                if (float.IsNegativeInfinity(lift))
+                {   // 同じ柱が一つも無い(駒が細い)── 筋の底の最小と頭の最大で(従前)
+                    var ulo = new float[NB]; var ghi = new float[NB];
+                    for (int b = 0; b < NB; b++) { ulo[b] = float.MaxValue; ghi[b] = float.MinValue; }
+                    foreach (var v in uvs) { int b = bin(v); ulo[b] = Mathf.Min(ulo[b], v.y); }
+                    foreach (var v in gvs) { int b = bin(v); ghi[b] = Mathf.Max(ghi[b], v.y); }
+                    for (int b = 0; b < NB; b++) if (ulo[b] < float.MaxValue && ghi[b] > float.MinValue) lift = Mathf.Max(lift, ulo[b] - ghi[b]);
+                }
                 if (!float.IsNegativeInfinity(lift)) go.transform.position += Vector3.up * lift;
                 n++; k++; cur = go;
                 gap = gapOf(cur, fN);

@@ -37,8 +37,7 @@
 - [partFrom の `4.5f` が 0 に化けた・差し替えは Place の後に旧を消す](ownpath-float-suffix-and-destroy-before-place.md) — OwnF を直した(EDO-0438)
 - [接地は格子点でなく描かれている地表で測る](contact-must-use-drawn-surface.md) — 2m格子で斜面に ±(1m×勾配) の嘘。嘘の不合格と嘘の合格が同時に出る
 - [幹の足は樹皮の底の輪か 0.02m 上の断面で測る](trunk-foot-band-catches-foliage.md) — 0.3m 帯は紅葉・蔓で 0.39m 外れた。蔓は最も低い茎
-- [SeatPlant は斜面の木を浮き上限で沈める](seatplant-float-cap-buries-slope-trees.md) — 名指し20本が埋没15〜21m/浮き0.70。社叢の数え合わせは矩形の縁で11本落ちる
-- [SeatPlant は既定で格子を引く・皮の上の木が浮く](seatplant-reads-grid-not-skin.md) — 皮の後に Drawn() を一度作って drawn に渡す
+- [SeatPlant は斜面の木を浮き上限で沈める](seatplant-float-cap-buries-slope-trees.md)・[既定で格子を引く](seatplant-reads-grid-not-skin.md) — 埋没15〜21m/皮の後は Drawn() を渡す
 - [榎・椋は SeatPlant が NaN](seatplant-nan-enoki-mukunoki-noki.md) — LOD の子名の "noki" を IsRoofName が屋根と見る。篩を EdoBuild で直す
 - [退けた群の下に建てると子が非活性で測れない](retired-group-makes-children-unmeasurable.md) — SeatPlant 全数 NaN。親を起こす。躯体の寸法は断面で(BodyFootprintLocal)
 - [埋没を地形を掘って消す器は連鎖する](dig-to-unbury-cascades.md) — 山王 0.53/0.65 の埋没で3通り試し全部戻した。納めの話
@@ -56,6 +55,7 @@
 - [均しの縁の節点・皮の PIN の被り・閉じの検め](pad-edge-nodes-outside-face-and-pinned-skin.md) — PadRim・PIN_TUCK・基壇を数える・積みを地表で測らない
 - [LevelPad に区画を渡すと段の土留めを越えて下の面を盛る](levelpad-crosses-terrace-wall.md) — 棟の建つ面の poly を渡す。均した後は heightmap の差を見る
 - [造成は変わった段だけ流し直す](regrade-only-the-changed-block.md) — 全面だと築山と池が平らに戻り掘り直せない
+- [筋の最小−最大は全筋で浮く・門は皮の前に据わる・返しの外形の中は上げない](strip-min-max-leaves-float-and-gate-seat-before-skin.md) — 柱ごとに測る・SeatGamaeOn・TopLanding 面
 - [門長屋の口の芯はローカル +X で len/2−gc](nagaya-mon-gate-offset-axis.md) — 口の s から gc を出すのは据えた後の向き(sSign)で。奥の壁の抜けで測る
 - [土井の表門は旧い版・札の front は出格子を拾う](doi-omotemon-old-part-and-front-by-foot.md) — 躯体11.18/番所が右/切り下げ無し。外面は foot で寄せる・新FBXは1本ずつ remap
 - [番所はピボットが奥行の芯・部材は片手](bansho-pivot-and-protrude.md) — protrude は躯体の外面の越える量。対に振らないと袖塀へ 0.22 めり込む
@@ -183,13 +183,10 @@
 - [退役した Stage が残ると検査が嘘の件数を出す](retired-stage-makes-fake-counts.md) — 449=1278−829 は別の母集団の引き算
 - [退ける門と検査は同じ測りで](machiya-clash-gate-weaker-than-check.md) — 門だけ屋根を外すと検査でめり込み。揃えた犠牲は駒1個だけ
 - [CheckScene は矩形の芯で測る](checkscene-center-vs-seat.md) — `seat` で据えた部材は永久に鳴る。⛔芯へ動かして0件にしない
-- [天端の埋没の数えは法の根入れを拾う](crest-burial-count-picks-batter-face.md) — 4m の偽の埋没。TuckUnderCrest に見え面を渡し天端の帯だけ数える
-- [UnderfloorGap は一体の駒で屋根を拾う](underfloorgap-picks-roof-on-one-mesh-parts.md) — 堂・鐘楼で 5〜7m の偽の浮き。底の頂点で測る
-- [山王 Stage0 は今の Keidai・Sando を退避する](sanno-stage0-retires-live-groups.md) — 名木20本ごと非活性へ。建て直しは Stage1 から
+- [天端の埋没の数えは法の根入れを拾う](crest-burial-count-picks-batter-face.md)・[UnderfloorGap は一体の駒で屋根を拾う](underfloorgap-picks-roof-on-one-mesh-parts.md) — 4m・5〜7m の偽。天端の帯だけ数える・底の頂点で測る
+- 山王の Stage の罠: [Stage0 は Keidai・Sando を退避](sanno-stage0-retires-live-groups.md)・[Stage7 の縁の木の重ね(解消)](sanno-stage7-edge-trees-duplicate.md)・[Stage6 は Clear の後に指紋](sanno-stage6-clears-before-fingerprint.md) — 建て直しは Stage1 から・bake を見張る
 - [門・柵の浮きは「床」で測る](gate-float-measure-on-bed.md) — 土留めの天端に載る隅は地表で嘘の浮き。座は上限・浮けば床へ。Stage9 の後に S4/5
-- [山王 Stage7 は縁の地形の木11本を毎回重ねる](sanno-stage7-edge-trees-duplicate.md) — 矩形の等号が float 往復で外れる。a07d0d1b で解消(取り残し0を確認 2026-09-23)
 - [社叢QAのカメラ②は赤坂では宝蔵院の門の中](sanno-shaso-qa-camera2-inside-gate.md) — 撮る間だけ門+十坊の板塀 3_4f/4b ほか計52個を消す。カメラは動かさない
-- [山王 Stage6 は Clear の後に指紋を検める](sanno-stage6-clears-before-fingerprint.md) — 落ちると社殿が空。並行の指図書きが済むまで bake を見張る
 - [法の足元の土の縁は底の読み違い](batter-toe-read-as-bottom.md) — 駒の底は根入れ済みだった。皮の塞ぎが法の途中を底と読む。段ごとの値で追う
 - [法の途中を底と読む歯・石段の前の土・外周の石垣を皮へ渡す](foot-bottom-batter-and-stair-front.md) — TopIndex.FootBottom。点の Bottom/WallBottom を reflection で刷る
 - [見え面の足元の山形は外形の中の節点](wall-foot-ridge-from-nodes-under-hull.md) — 皮が近くの点を地形のまま描いた。CleanAt・差で混ぜる・Stage9 は6回走る

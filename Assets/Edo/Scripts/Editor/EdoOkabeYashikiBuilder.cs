@@ -72,7 +72,7 @@ public static class EdoOkabeYashikiBuilder
 
     /// <summary>読み直す。指図か算出物を差し替えたら必ず呼ぶ(Unity は静的を抱え続ける)。</summary>
     [MenuItem("Edo/岡部筑前守上屋敷/指図を読み直す")]
-    public static void Reload() { _d = null; _impl = null; _runs = null; _frame = null; _graded = null; _flat = null; _rampProf = null; }
+    public static void Reload() { _topLanding.Clear(); _d = null; _impl = null; _runs = null; _frame = null; _graded = null; _flat = null; _rampProf = null; }
 
     static Dictionary<string, object> D
     {
@@ -486,6 +486,13 @@ public static class EdoOkabeYashikiBuilder
         return sb.ToString();
     }
 
+    /// <summary>上がり口の段石(topStep)の背の平らの奥行[m]。【U】普請奉行の指示 2026-10-07(EDO-0502 第47巡)「背の 0〜1m を天端 −0.02 ±0.02」。
+    /// ⚠ 指図 kaidans[].topStep の文はまだ長さを持たない ── 欄に入ったらそちらを読む。</summary>
+    const float TOPSTEP_BACK_FLAT = 1.0f;
+    /// <summary>上がり口の段石の背の平らで地形が外れてよい量[m](超える升は皮で描く)。【U】普請奉行の指示 2026-10-07「18.73±0.02」。</summary>
+    const float TOPSTEP_BACK_TOL = 0.02f;
+    /// <summary>上がり口の段石の背の平らの面(坂の名/石段の名 → 面)。<see cref="ProfSNodes"/> が起こし、Stage3b が皮の faces へ足す。</summary>
+    static readonly Dictionary<string, EdoBuild.SkinFace> _topLanding = new Dictionary<string, EdoBuild.SkinFace>();
     /// <summary>坂の縦断 `profS`([s, y] の並び・同じ s に二つの高さ = 石段)と芯 `pts` から、均す芯の節点(世界 xz)と高さを起こす(EDO-0502 第8巡)。
     /// 石段の段差は、その坂を名指す石段(kaidans[].atRoute)の平面 a→b を芯へ射影した道のりの両端に分ける(手前 = 前の勾配の延長・奥 = 段の上の高さ)。
     /// 石段が見つからない段差は ⛔ null(発明しない)。</summary>
@@ -550,7 +557,25 @@ public static class EdoOkabeYashikiBuilder
             if (i2 < 0) { int at = ss.FindIndex(z => z > s2); if (at < 0) at = ss.Count; ss.Insert(at, s2); yy.Insert(at, yb); }
             else yy[i2] = yb;
             keepS.Add(s2);
-            note += "上がり口の背 " + s2.ToString("F2") + " を " + yb.ToString("F2") + " へ(topStep) ";
+            // 段石の背の平ら(天端 − x のまま奥へ TOPSTEP_BACK_FLAT)── 背の 0〜1m を坂の勾配で上げない(2026-10-07 第47巡・普請奉行の指示
+            //   「背の 0〜1m の地表を 18.73±0.02」── 1m 奥で +0.096 上がっていた)。その先の節点から坂へ戻る。
+            float s3 = s2 + TOPSTEP_BACK_FLAT;
+            int iNext = ss.FindIndex(z => z > s2 + 1e-2f);
+            if (iNext >= 0 && ss[iNext] > s3 + 0.5f)
+            {
+                ss.Insert(iNext, s3); yy.Insert(iNext, yb); keepS.Add(s3);
+                // 皮が描く平らな面(Stage3b が faces へ足す)── 2m 格子の地形と返しの石垣の外形の中の「上げない」の規則では、段石の背 0.1〜0.25m が
+                //   地形のまま 18.49〜18.65 で窪んだ(施主の写真の天端の前の縁の下の影の筋)。面にすれば返しの法の下も面の高さで描く。
+                float wR = Has(r, "w") ? F(r["w"]) : (Has(k, "wKen") ? F(k["wKen"]) * C("ken") : 0f);
+                if (wR > 0f)
+                {
+                    Vector2 d2, d3; var c2 = EdoBuild.ArcPoint(line, s2 - 0.05f, out d2); var c3 = EdoBuild.ArcPoint(line, s3, out d3);
+                    Vector2 n2 = new Vector2(-d2.y, d2.x).normalized * (wR * 0.5f), n3 = new Vector2(-d3.y, d3.x).normalized * (wR * 0.5f);
+                    _topLanding[nm + "/" + S(k["name"])] = new EdoBuild.SkinFace("TopLanding_" + S(k["name"]), new[] { c2 + n2, c3 + n3, c3 - n3, c2 - n2 }, yb, TOPSTEP_BACK_TOL);
+                }
+                note += "上がり口の背 " + s2.ToString("F2") + "〜" + s3.ToString("F2") + " を " + yb.ToString("F2") + " へ(topStep・平ら " + TOPSTEP_BACK_FLAT.ToString("0.0#") + "m) ";
+            }
+            else note += "上がり口の背 " + s2.ToString("F2") + " を " + yb.ToString("F2") + " へ(topStep・⚠ 次の節点が近く平らを取れない) ";
         }
         var pts = new Vector2[ss.Count]; var ys = yy.ToArray();
         for (int i = 0; i < ss.Count; i++) { Vector2 d; pts[i] = EdoBuild.ArcPoint(line, ss[i], out d); }
@@ -1523,6 +1548,22 @@ public static class EdoOkabeYashikiBuilder
         }
         return "縁の積み下ろし(描かれた地表へ): " + tot + " 駒・継ぎ目の駒の抜け 最悪 " + (float.IsNegativeInfinity(wbA) ? "-" : wbA.ToString("+0.000;-0.000")) + " → "
              + (float.IsNegativeInfinity(waA) ? "-" : waA.ToString("+0.000;-0.000")) + "m" + (waA > 0.005f ? " ⛔" : "") + (log.Length > 0 ? "\n" + log.ToString().TrimEnd() : "");
+    }
+
+    /// <summary>通用口(Mon の駒)を皮の後の描かれた地表へ据え直す(置き方は <see cref="EdoBuild.SeatGamaeOn"/>)。Stage2 の <c>SeatGamae</c> は
+    /// 皮の前の地形で当てるので、敷居の面(溜り 12.20)を皮が描く所で門の足が 0.014 埋まった(2026-10-07 第47巡)。</summary>
+    static string SeatMonOnSkin()
+    {
+        var dg = EdoBuild.Drawn();
+        System.Func<float, float, float> bed = (x, z) => { float d = dg.At(x, z); return float.IsNaN(d) ? EdoBuild.Ground(x, z) : d; };
+        var parts = new List<string>();
+        foreach (Transform c in Group("Mon"))
+        {
+            if (!c.gameObject.activeInHierarchy) continue;
+            float mv = EdoBuild.SeatGamaeOn(c.gameObject, bed);
+            parts.Add(c.name + " " + (float.IsNaN(mv) ? "測れない ⛔" : mv.ToString("+0.000;-0.000") + "m"));
+        }
+        return "門構えを描かれた地表へ据えた: " + (parts.Count == 0 ? "門なし" : string.Join(" / ", parts.ToArray()));
     }
 
     /// <summary>天端の垣 DanKaki を皮の後の据わる床(描かれた地表と土留め Ishigaki・Dan の上向きの面の高い方)で据え直す
@@ -3290,6 +3331,8 @@ public static class EdoOkabeYashikiBuilder
                     }
             }
             sb.AppendLine("  坂の路盤の帯を縦断(GradeRamps の節点)で皮の格子 " + dstep.ToString("F2") + "m に写した節点 " + nr);
+            // 上がり口の段石の背の平ら(指図 kaidans[].topStep「背の地盤は天端 −0.02」【硬】)を皮の平らな面に(RampAxis が起こした物)
+            foreach (var kv in _topLanding) { faces.Add(kv.Value); sb.AppendLine("  面 " + kv.Value.name + "(" + kv.Value.y.ToString("F2") + "): 上がり口の段石の背 " + TOPSTEP_BACK_FLAT.ToString("0.0#") + "m"); }
         }
         // ⭐ 袖の坂の低い端の小口に土を被せる(指図 sodeSlope 追記 2026-10-07「小口は高さ 0.15・長さ 0.25 の土を 1:1.5 で被せて隠す」【硬】・EDO-0502 第42巡)──
         //   据えた端の駒の小口を実メッシュで測り(走りの外へ最も出た頂点の帯 0.05)、小口の外の設計の地盤を「小口の頂(≤ 地盤 + 高さ)から 1:bf で下りる面」まで盛る。⛔ 下げない。
@@ -3442,6 +3485,7 @@ public static class EdoOkabeYashikiBuilder
         sb.AppendLine("  皮の後に " + SeatHeiOnBed(Group("Kakoi")));
         sb.AppendLine("  皮の後に " + SeatKakiOnBed());
         sb.AppendLine("  皮の後に " + StackCurbOnSkin());
+        sb.AppendLine("  皮の後に " + SeatMonOnSkin());
         return sb.ToString();
     }
 
@@ -6110,6 +6154,7 @@ public static class EdoOkabeYashikiBuilder
     ///   ① 指図の素通し … 指図の run・木柵・開口で覆えない長さ(指図そのものの穴)
     ///   ② 実装の素通し … いま**建っている**物と開口で覆えない長さ(この巡の未達)
     /// ⚠ ②が 0 でない=欠陥、ではない。表門・表長屋・通用口は裁定3=B で次巡に回してある。
+    ///   ②の「建っている物」= Kakoi・Mon・Fences・Ishigaki(基壇の石垣)の活きている駒。
     ///   ⛔ だからといって数字を出さないと「据えたつもり」が見えなくなる。</summary>
     public static string ClosureQA()
     {
@@ -6123,7 +6168,9 @@ public static class EdoOkabeYashikiBuilder
         {
             var rt = GameObject.Find(GN);
             if (rt != null)
-                foreach (var gn in new[] { "Kakoi", "Mon", "Fences" })
+                // ⭐ 基壇の石垣(Ishigaki の群)も塞ぐ物に数える(2026-10-07 EDO-0502 第47巡)── 数えないと辺23/24/41 の
+                //   石垣だけで閉じている所を 0.12/0.11/0.30 の素通しと出した(検査の文言「建っている物」と集合をそろえる)
+                foreach (var gn in new[] { "Kakoi", "Mon", "Fences", "Ishigaki" })
                 { var g = rt.transform.Find(gn); if (g != null) foreach (Transform c in g) if (c.gameObject.activeInHierarchy) built.Add(c.gameObject); }
         }
         for (int e = 0; e < n; e++)

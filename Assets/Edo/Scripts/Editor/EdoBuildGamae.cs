@@ -67,6 +67,21 @@ public static partial class EdoBuild
         if (only != null ? Mathf.Abs(r.lo) > 1e-4f : r.lo < -1e-4f) piece.transform.position -= new Vector3(0f, r.lo, 0f);
     }
 
+    /// <summary>**門構えの駒を皮の後の床へ据え直す**(高さだけ)── <see cref="SeatGamae"/> と同じ当たり(札の contact の部材・無ければ外形)を
+    /// 地形でなく <paramref name="bedAt"/>(描かれた地表 = 皮の在る所は皮)で測り、当たりの最小を床へ合わせる(浮いていれば下ろし・埋まっていれば上げる)。
+    /// 硬い ±0.01。⛔ 基準点で高さを決めない(規則21)。返り値 = 動かした量[m](上げ = 正)・測れなければ NaN。
+    /// ⭐ <see cref="SeatGamae"/> は皮の前の 2m 格子の地形で当てるので、敷居の面を皮が描く所(溜りの 12.20)で門の足が 0.014 埋まった
+    ///    (2026-10-07 岡部 通用門 Tsuyomon・EDO-0502 第47巡)。当たる先: 皮を起こす邸の門構え(岡部 Stage3b の Mon・類型の門は皮を起こさない)。</summary>
+    public static float SeatGamaeOn(GameObject piece, Func<float, float, float> bedAt)
+    {
+        var only = GamaeContact(piece);
+        var r = RootToBed(piece, bedAt, 0.1f, only);
+        if (float.IsNaN(r.lo)) return float.NaN;
+        if (Mathf.Abs(r.lo) <= 1e-4f) return 0f;
+        piece.transform.position -= new Vector3(0f, r.lo, 0f);
+        return -r.lo;
+    }
+
     /// <summary>囲いの種別 → 門の脇に来る**端の駒**の資産(札を引く相手)。囲わない・杭の類は null(口に端が無い)。</summary>
     public static string FenceEndPiece(string kind)
     {

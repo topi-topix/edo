@@ -46,7 +46,11 @@ public static partial class EdoBuild
     public struct SkinFace
     {
         public string name; public Vector2[] poly; public float y;
-        public SkinFace(string name, Vector2[] poly, float y) { this.name = name; this.poly = poly; this.y = y; }
+        /// <summary>この面の中で地形が面から外れてよい量[m](0 = <see cref="CutEdgeSkin"/> の faceTol)。超える升は穴を開けて皮で面を描く。
+        /// 硬い面(石段の上がり口の段石の背 ±0.02 ── 岡部 K_Dan1・2026-10-07 第47巡)だけ小さくする。</summary>
+        public float tol;
+        public SkinFace(string name, Vector2[] poly, float y) { this.name = name; this.poly = poly; this.y = y; this.tol = 0f; }
+        public SkinFace(string name, Vector2[] poly, float y, float tol) { this.name = name; this.poly = poly; this.y = y; this.tol = tol; }
     }
 
     /// <summary>皮が面の外で写す**設計の地盤**(算出物 `graded` の節点格子。法面を含む)と法の勾配。
@@ -770,10 +774,10 @@ public static partial class EdoBuild
                 for (int i = CI(mnx); i <= CI(mxx); i++)
                     for (int j = CJ(mnz); j <= CJ(mxz); j++)
                     {
-                        float x0 = org.x + i * cs, z0 = org.z + j * cs; bool bad = false;
+                        float x0 = org.x + i * cs, z0 = org.z + j * cs; bool bad = false; float ftol = f.tol > 0f ? f.tol : faceTol;
                         for (float x = x0 + 0.125f; x < x0 + cs && !bad; x += 0.25f)
                             for (float z = z0 + 0.125f; z < z0 + cs && !bad; z += 0.25f)
-                                if (EdoGeom.PIP(f.poly, new Vector2(x, z)) && !InKeepOut(new Vector2(x, z)) && Mathf.Abs(probe.At(x, z) - f.y) > faceTol) bad = true;
+                                if (EdoGeom.PIP(f.poly, new Vector2(x, z)) && !InKeepOut(new Vector2(x, z)) && Mathf.Abs(probe.At(x, z) - f.y) > ftol) bad = true;
                         if (!bad) continue;
                         for (int di = -1; di <= 1; di++) for (int dj = -1; dj <= 1; dj++)
                         {
@@ -1716,12 +1720,17 @@ public static partial class EdoBuild
             var nbr = new[] { new Vector2Int(1, 0), new Vector2Int(-1, 0), new Vector2Int(0, 1), new Vector2Int(0, -1), new Vector2Int(1, 1), new Vector2Int(-1, -1) };
             var faceOf = new Dictionary<int, Vector2>();
             var cand = new List<long>(); var candWho = new Dictionary<long, List<int>>(); var underFace = new HashSet<long>();
+            // ⭐ 硬い面(SkinFace.tol > 0 ── 石段の上がり口の段石の背の平ら)の中の点は下げない(2026-10-07 EDO-0502 第47巡):
+            //   面の高さが硬い所では、返しの石垣の法の下の点も面の高さが地盤(法の足はその下へ根入れ)。⛔ 下げると岡部 K_Dan1 の上がり口の背が
+            //   返しの見え面の前で 18.73 → 18.58 と窪んだ(この 3b が段鼻へ下りる斜めの隣を「見え面の側の低い点」と読んだ)。
+            var hardFaces = new List<SkinFace>(); foreach (var f0 in fl) if (f0.tol > 0f) hardFaces.Add(f0);
             foreach (var kv in H)
             {
                 if (PIN.Contains(kv.Key)) continue;
                 int gi = (int)(kv.Key >> 32), gj = (int)(uint)(kv.Key & 0xffffffff);
                 float x = org.x + gi * step, z = org.z + gj * step;
                 if (NearPart(gi, gj) != 2) continue;
+                if (hardFaces.Count > 0) { bool inHard = false; foreach (var hf in hardFaces) if (EdoGeom.PIP(hf.poly, new Vector2(x, z))) { inHard = true; break; } if (inHard) continue; }
                 int who; float tr = idx.TopRaw(x, z, out who);
                 // ⭐ 上を向いた面の無い法の帯(城の石垣の滑らかな見え面 ── 法線の y 0.24 < UP_NY)の下の点も候補に入れる(2026-10-05 EDO-0502 第23巡):
                 //   TopRaw が NaN でも、真上にその駒の**見え面**が在れば(TopIndex.UnderFace)法の帯の下の点。⛔ 2026-10-05 まで TopRaw の NaN で外し、門の内の

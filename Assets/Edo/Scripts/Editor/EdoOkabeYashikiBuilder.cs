@@ -19,8 +19,8 @@
 //   ⛔ **焼いた生成器 `Tools/Sashizu/build_okabe_sashizu.py` はもう無い** — 2026-09-20 の生成器の共通化
 //   (afb529c2)で消え、main には焼き手が一つも残らなかった。焼き直せない欄は黙って腐る:
 //   実際 `corners[].deg` は 13 隅すべて符号が逆のまま半月止まっていた(EDO-0343 / EDO-0386)。
-//   ⭕ いまの焼き手は `python3 Tools/Sashizu/bake_impl.py okabe --write`。**焼けるのは `corners` だけ**で、
-//   `graded` / `rails` / `base` / `planting` / `kui` / `migiwa` / `gardens` は据え置き(＝未検査・規則19)。
+//   ⭕ いまの焼き手は `python3 Tools/Sashizu/bake_impl.py okabe --write`(器 `Tools/Sashizu/impl_okabe.py`)。
+//   `rails` / `kui` / `migiwa` / `checks` は据え置き(＝未検査・規則19)── どの欄が据え置きかは `baked.carried` が正。
 //   ⭐ 同じ作法の先例が松江松平の植栽(`matsudaira_dewa_planting_out.json`)にある。
 //
 // 【この版で建つもの】2026-09-03 ユーザー裁定3=B。
@@ -5426,6 +5426,8 @@ public static class EdoOkabeYashikiBuilder
             string key = Has(g, "asset") ? S(g["asset"]) : null;
             var pts = A(Get(g, "world"));
             byKind[kind] = (byKind.ContainsKey(kind) ? byKind[kind] : 0) + 1;
+            // ---- 据えるのに要る値が指図に無い行(焼き手 impl_okabe.bake_gardens が `wait` を付ける)── 据えずに名乗る
+            if (Has(g, "wait")) { wait.Add("庭 " + S(g["name"]) + "(" + kind + "): " + S(g["wait"])); continue; }
 
             // ---- 地表の塗り(スプラット)は**地表の輪**が受け持つ。ここでは据えない
             if (key != null && key.StartsWith("L_")) { splat++; continue; }

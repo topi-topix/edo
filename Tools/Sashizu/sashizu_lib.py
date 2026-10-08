@@ -2934,3 +2934,81 @@ def tw_cut_rule(tw, tname, u, v, reach, K):
             return False, tw_top_at(ln, r[3]) + r[0] * K / ln["above"]
         return False, None
     return True, None
+
+
+# ================================================================ 庭の算出物の共有の手(EDO-0502・EDO-0407)
+#   ⭐ 岡部の器(`impl_okabe.bake_gardens`)が使う。⚠ 他の邸の器はまだ呼ばない ── 足しても他邸の焼きは変わらない。
+
+def seeded_rnd(key):
+    """**名から決まる乱数**(`random.Random`)。⛔ 時刻や連番で振らない ── 同じ指図からは同じ石の並びが出る。"""
+    import random
+    return random.Random(int(_hashlib.sha256(str(key).encode("utf-8")).hexdigest()[:16], 16))
+
+
+def polyline_len(P):
+    """折れ線の長さ(点の単位のまま)。"""
+    return sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(P, P[1:]))
+
+
+def ring_seg(ring, i_from, i_to):
+    """閉じた輪 `ring`(頂点の列・閉じ点なし)の **1 始まりの番号** `i_from` から `i_to` まで(進む向き・輪を回る)の
+    頂点の列。指図の汀線の符牒 `#3→#4→#5` を点の列へ解く。"""
+    n = len(ring)
+    a, b = (i_from - 1) % n, (i_to - 1) % n
+    out = [tuple(ring[a])]
+    k = a
+    while k != b:
+        k = (k + 1) % n
+        out.append(tuple(ring[k]))
+    return out
+
+
+def parse_ring_seg(seg):
+    """汀線の区間の符牒 `#19→#20→#1→#2→#3` / `#8→…→#16` を (始め, 終わり) の番号へ。読めなければ None。"""
+    ns = [int(x) for x in re.findall(r"#(\d+)", str(seg))]
+    return (ns[0], ns[-1]) if len(ns) >= 2 else None
+
+
+def stones_along(P, pmin, pmax, rnd):
+    """折れ線 `P` に沿って、芯々 `pmin`〜`pmax`(P の単位)の**不等ピッチ**で石の芯を置く。両端を含む。
+    ⛔ 等間隔にしない(飛石・沢飛石の作法)。"""
+    if len(P) < 2:
+        return [tuple(q) for q in P]
+    Ltot = polyline_len(P)
+    out, s = [tuple(P[0])], 0.0
+    while True:
+        s += rnd.uniform(pmin, pmax)
+        if s > Ltot - pmin * 0.5:
+            break
+        out.append(point_at(P, s))
+    if math.hypot(out[-1][0] - P[-1][0], out[-1][1] - P[-1][1]) > pmin * 0.5:
+        out.append(tuple(P[-1]))
+    return out
+
+
+def point_at(P, s):
+    """折れ線 `P` の頭から道のり `s` の点。"""
+    acc = 0.0
+    for a, b in zip(P, P[1:]):
+        L = math.hypot(b[0] - a[0], b[1] - a[1])
+        if acc + L >= s and L > 1e-12:
+            t = (s - acc) / L
+            return (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
+        acc += L
+    return tuple(P[-1])
+
+
+def split_polyline(P, mark):
+    """`[点, 点, "橋", 点, …]` のように**符牒の語で切れた折れ線**を、点だけの折れ線の列へ割る。"""
+    out, cur = [], []
+    for q in P:
+        if isinstance(q, str):
+            if q == mark or mark is None:
+                if len(cur) >= 2:
+                    out.append(cur)
+                cur = []
+            continue
+        cur.append((float(q[0]), float(q[1])))
+    if len(cur) >= 2:
+        out.append(cur)
+    return out

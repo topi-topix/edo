@@ -1,6 +1,6 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 ee6466e9e6e0 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 e9bfe54a4422 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
@@ -68,7 +68,7 @@
 | `EdoBuild.Ground(x, z)` | `float` |  | live terrain の標高 (m)。 | OkabeYashiki(PlaceFences・PlaceKekkai・PlaceNiwaItem…), SannoSha(Ground・SodeFootAt・Stage5_MonTorii…), MatsudairaDewa(BuildPtsHei・PlaceAgari・PlaceMizo…), Yamato(PadAt・PlanSegments・Y1_Grade…), Typology(GroundBed・GroundBedSpan・TuckBase) ほか8 |
 | `EdoBuild.Place(path, pos, ry, scale, parent, name)` | `GameObject` |  | プレハブを実体化して置く。パスは EdoAssets 経由で渡すこと (規則11)。 | OkabeYashiki(MeasureHeight・MeasureRunWidth・PlaceBox…), MatsudairaDewa(BuildNagayaOne・DaidokoromonGamae・FenceWidth…), SannoSha(Kairo・Place・SakuRun…), Doi(LayGaki・PlaceFumiishi・PlaceKaidans…), DoiBuilder.Niwa(Kutsunugi・Niwa_B_Gogan・Niwa_C_Mizushiri…) ほか8 |
 | `EdoBuild.DressBare(go, path)` | `void` |  | 材に画像の無い在庫の駒へ、同じフォルダの画像を貼った材を着せる(EdoAssets.Eg.BareTex)。 | — |
-| `EdoBuild.RB(go)` | `Bounds` |  | 子孫 Renderer 全体のワールド Bounds。 | OkabeYashiki(KeepToe・MeasureHeight・PlaceBox…), SannoSha(AbutStairsToWalls・FaceFlushSegs・Kairo…), MatsudairaDewa(ItabeiRun・ObbOverlapInBand・PlaceItabeiSpan…), Doi(Box・PlaceFumiishi・PlaceKaidans…), Typology(BuildParcel・GamaeJointReport・Omoya…) ほか14 |
+| `EdoBuild.RB(go)` | `Bounds` |  | 子孫 Renderer 全体のワールド Bounds。 | OkabeYashiki(ExtendKaidanEndsToWalls・KeepToe・MeasureHeight…), SannoSha(AbutStairsToWalls・FaceFlushSegs・Kairo…), MatsudairaDewa(ItabeiRun・ObbOverlapInBand・PlaceItabeiSpan…), Doi(Box・PlaceFumiishi・PlaceKaidans…), Typology(BuildParcel・GamaeJointReport・Omoya…) ほか14 |
 | `EdoBuild.SeatBottom(go, y)` | `void` |  | Bounds の底面を y に据える。 | OkabeYashiki(PlaceKekkai・PlaceNagayaPiece・PlaceNiwaItem…), Yamato(PlaceUV・UmayaPair・Y2_Enclosure), MatsudairaDewa(BuildNagayaOne・Stage2Fences), Doi(PlaceService), SannoSha(SeatBottom) ほか1 |
 | `EdoBuild.ObbFootprint(it, mnx, mxx, mnz, mxz, mny)` | `void` |  | it のローカル座標系での mesh 頂点 footprint (OBB)。 | OkabeYashiki(ObbWD・PlaceNagayaPiece) |
 
@@ -327,8 +327,8 @@ EdoBuild — 段の土留め(石垣・野面)を天端の折れ線へ据える(2
 |---|---|---|---|---|
 | `Shiki`(struct) | — | | LayShikiishi の報告。口・食い込みは据えた後に天端の帯で光線を打って測った最大(相手の在る端だけ・無ければ NaN)。 | |
 | `EdoBuild.RayAtTopBand(mates, o, d, maxDist, yTop, band=…)` | `float` | 駒どうし・天端 | 天端の帯へ光線を打つ。高さ yTop − 0.005 から band 下まで 0.01 刻みで o(高さは無視)から d へ打ち、最初に当たった高さでの距離(当たらなければ NaN)。 | — |
-| `EdoBuild.ExtendEndToFace(piece, dir, mates, yTop, maxReach, spread, hits)` | `float` | 駒どうし・天端 | 駒の端を相手の面まで伸ばす(StretchEnd)。 ⟶ 返す: 伸ばした量[m](当たらなければ NaN・駒は触らない) | — |
-| `EdoBuild.MeasureEndGap(piece, dir, mates, yTop)` | `float` | 駒どうし・天端 | 駒の dir の端と相手の面の見える口[m](+ 口 / − 食い込み)の最大 ── 駒の厚みの 3 点 × 天端の帯 (yTop − 0.005 から下へ、最初に当たる高さ)。 | — |
+| `EdoBuild.ExtendEndToFace(piece, dir, mates, yTop, maxReach, spread, hits)` | `float` | 駒どうし・天端 | 駒の端を相手の面まで伸ばす(StretchEnd)。 ⟶ 返す: 伸ばした量[m](当たらなければ NaN・駒は触らない) | OkabeYashiki(ExtendKaidanEndsToWalls) |
+| `EdoBuild.MeasureEndGap(piece, dir, mates, yTop)` | `float` | 駒どうし・天端 | 駒の dir の端と相手の面の見える口[m](+ 口 / − 食い込み)の最大 ── 駒の厚みの 3 点 × 天端の帯 (yTop − 0.005 から下へ、最初に当たる高さ)。 | OkabeYashiki(ExtendKaidanEndsToWalls) |
 | `FlatSode`(struct) | — | | LayFlatSode の検め(全て実メッシュで測った値)。 | |
 | `EdoBuild.EndGapProfile(piece, dir, mates, yTop, gMin, gMax)` | `void` | 駒どうし・天端 | 駒の端と相手の面の取り合いを高さ方向に測る(EDO-0459)。 | — |
 | `EdoBuild.LayFlatSode(old, below, pathOf, depths, up, mates, yBand, maxReach, rep, warn, flushTo=…)` | `GameObject` | 硬 駒どうし・天端 | 石段の袖の最上段の駒を、天端が水平な袖へ差し替えて相手の面まで伸ばす(EDO-0459 施主裁定A 2026-09-26)。 | SannoSha(Stage2_Kaidan・Stage5b_Fumiishi) |

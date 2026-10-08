@@ -95,6 +95,7 @@
 - [野面の網の罠](nozura-net-face-crest-end.md) — 見え面は設計面と天端の列の控えで・端の行は口の地表・端の光線は前の地表まで・打ち切りは低い端だけ
 - [斜めの取り合いは相手の面の法線で測る・法の楔](oblique-contact-and-batter-wedge.md) — 走りの筋では −0.27 の嘘。入隅の鉛直な小口は縮めても法へ入る
 - [皮の土の箱は小段の端の法の回り込み・溝の尾根は 1m 格子](bench-end-slope-spills-and-3b-opposite-wall.md) — RaycastAll と BackBenchAt を点で刷る
+- [脇の返しの背の小段は本線の前へ回り込む・垣は紙の口で空けない](side-bench-spill-and-fence-on-paper-gap.md) — K_Dan1 の土の箱は皮。本線は篩に無い。gapOf を渡す
 - [重ねて埋める短い run は突き付けで駒 0](overlap-run-abuts-to-zero.md) — NozuraSeg.noAbut。2b のログの「駒 0」を grep
 - [城の石垣の法の帯は 3b の候補に入らない](castle-batter-no-up-tris-skips-3b.md) — 見え面 ny 0.24 で TopRaw NaN。UnderFace で足す・外形の中だけで足すと背を掘る
 - [野面の見え面の土の帯は皮の辺](skin-edge-across-nozura-face.md) — 抜けでなく天端下の点と足元の点を結ぶ皮の三角形。光線で駒/皮/地形の先着を数える

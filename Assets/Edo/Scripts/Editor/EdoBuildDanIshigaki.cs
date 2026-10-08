@@ -521,6 +521,82 @@ public static partial class EdoBuild
         return new List<Vector2> { p, p + axis * len };
     }
 
+    /// <summary>**野面の駒の見え面の法**(水平 / 鉛直)を駒の実メッシュから測る(2026-10-08 EDO-0502 第57巡)。見え面(局所 +Z)の頂点を
+    /// 天端の帯と足の帯で取り、前の縁の差 ÷ 高さの差。⛔ 決め打ちしない(岡部の H4800 は 0.30)。測れなければ NaN。
+    /// 当たる先: 法のある駒の見え面を高さごとに線へ合わせる所(<see cref="StairSideCrestLines"/>)。</summary>
+    public static float FaceBatterOf(string path)
+    {
+        var bv = BodyAt(path, Vector3.zero, 0f, true); if (bv == null || bv.Count == 0) return float.NaN;
+        float y0 = float.MaxValue, y1 = float.MinValue; foreach (var v in bv) { y0 = Mathf.Min(y0, v.y); y1 = Mathf.Max(y1, v.y); }
+        float h = y1 - y0; if (h < 0.5f) return float.NaN;
+        Func<float, float> front = y => { float z = float.MinValue; foreach (var v in bv) if (Mathf.Abs(v.y - y) < h * 0.06f && Mathf.Abs(v.x) < 0.6f) z = Mathf.Max(z, v.z); return z; };
+        float ya = y0 + h * 0.15f, yb = y1 - h * 0.1f, za = front(ya), zb = front(yb);
+        if (za == float.MinValue || zb == float.MinValue) return float.NaN;
+        return (za - zb) / (yb - ya);
+    }
+
+    /// <summary>**石段の脇の見え面を石段の端の線へ**(指図 kaidans[].sideFace・2026-10-08 EDO-0502 第57巡 施主指摘「門の内の石段が途中で幅が狭まって見える」)。
+    /// 土留めを切って通る石段の両脇の返し(法 1:<paramref name="batter"/> の積み)の**天端の前の縁の線**を、側ごとに解く。見え面は法なので、
+    /// 天端の線を石段の端の線(芯から ±<paramref name="halfW"/>・平面で平行な直線)から外へ batter ×(天端 − 足元の面)退けて引けば、
+    /// 各段の踏面の高さで見え面が端の線に乗る ── 脇の面は一つ・手前へ出る面なし(第53巡までの返しは天端の線を端の線に引き、
+    /// 法の足が下の段ほど段の内へ 0.5〜0.9 出ていた)。足元の面 <paramref name="surf"/> = 走り u(足 <paramref name="foot"/> から上手 <paramref name="up"/> へ)→ 高さ:
+    /// 呼び手が据わった段石の天端(踏面の中ほど)と段の外の設計面で渡す(測った値)。折れ線は差が <paramref name="tol"/> 以下の点を間引く。
+    /// 始まり = 天端の線の最初の区間を下手へ延ばして本線 <paramref name="wallNodes"/> と交わる点(口の端・出隅)。<paramref name="gapS"/> = 側ごとのその点の本線の道のり。
+    /// 硬い(許容0): 各踏面の高さで見え面と端の線の差 ≤ tol × batter(間引きの許し)── 呼び手は据えた後に実測して刷ること。柔らかい: なし。
+    /// 当たる先: 法のある土留めを切って通る石段の脇の返し全部(岡部 K_Dan1・K_Dan2・K_Tsuyo。袖を持つ石段は袖が受けるので当てない)。</summary>
+    public static List<Vector2>[] StairSideCrestLines(List<Vector2> wallNodes, Vector2 foot, Vector2 up, float halfW, float crest, float batter,
+        List<Vector2> surf, float uEnd, float tol, out float[] gapS, out string note)
+    {
+        gapS = new[] { float.NaN, float.NaN }; note = "";
+        var res = new List<Vector2>[2];
+        up.Normalize(); Vector2 n = new Vector2(-up.y, up.x);
+        var su = new List<Vector2>(surf); su.Sort((p, q) => p.x.CompareTo(q.x));
+        if (su.Count < 2) { note = "足元の面の点が足りない"; return res; }
+        for (int si = 0; si < 2; si++)
+        {
+            float sg = si == 0 ? 1f : -1f;
+            // u → 天端の線の外への退き(折れ線)。間引き = 一次で結んで差 ≤ tol の中の点を落とす(Douglas–Peucker)
+            var off = new List<Vector2>(); foreach (var p in su) if (p.x <= uEnd + 1e-3f) off.Add(new Vector2(p.x, halfW + batter * Mathf.Max(0f, crest - p.y)));
+            if (off.Count < 2) continue;
+            var keep = new bool[off.Count]; keep[0] = keep[off.Count - 1] = true;
+            System.Action<int, int> dp = null;
+            dp = (i0, i1) =>
+            {
+                if (i1 <= i0 + 1) return; int bi = -1; float bd = tol;
+                for (int i = i0 + 1; i < i1; i++)
+                {
+                    float t = (off[i].x - off[i0].x) / Mathf.Max(1e-4f, off[i1].x - off[i0].x);
+                    float d = Mathf.Abs(off[i].y - Mathf.Lerp(off[i0].y, off[i1].y, t)); if (d > bd) { bd = d; bi = i; }
+                }
+                if (bi < 0) return; keep[bi] = true; dp(i0, bi); dp(bi, i1);
+            };
+            dp(0, off.Count - 1);
+            var pl = new List<Vector2>(); for (int i = 0; i < off.Count; i++) if (keep[i]) pl.Add(foot + up * off[i].x + n * (sg * off[i].y));
+            // 本線との交点: 天端の線の区間(最初の区間は下手へ 20m 延ばす)と本線の区間の交わり ── 最も下手の物
+            Vector2 hit = Vector2.zero; int hitSeg = -1; float hitT = float.MaxValue, hitArc = float.NaN;
+            for (int k = 0; k + 1 < pl.Count && hitSeg < 0; k++)
+            {
+                Vector2 a = pl[k], b = pl[k + 1]; if (k == 0) a = a - (b - a).normalized * 20f;
+                float arc = 0f;
+                for (int j = 0; j + 1 < wallNodes.Count; j++)
+                {
+                    Vector2 c = wallNodes[j], d = wallNodes[j + 1]; Vector2 r = b - a, s = d - c; float den = r.x * s.y - r.y * s.x;
+                    if (Mathf.Abs(den) > 1e-6f)
+                    {
+                        Vector2 ca = c - a; float t = (ca.x * s.y - ca.y * s.x) / den, uu = (ca.x * r.y - ca.y * r.x) / den;
+                        if (t >= 0f && t <= 1f && uu >= -1e-3f && uu <= 1f + 1e-3f && t < hitT) { hitT = t; hit = a + r * t; hitSeg = k; hitArc = arc + s.magnitude * Mathf.Clamp01(uu); }
+                    }
+                    arc += (d - c).magnitude;
+                }
+            }
+            if (hitSeg < 0) { note += (si == 0 ? "右" : "左") + ": 天端の線が本線と交わらない "; continue; }
+            var line = new List<Vector2> { hit }; for (int k = hitSeg + 1; k < pl.Count; k++) line.Add(pl[k]);
+            res[si] = line; gapS[si] = hitArc;
+            note += (si == 0 ? "右" : "左") + ": 天端の線 " + line.Count + " 点・本線の s=" + hitArc.ToString("F2") + "・退き " + off[0].y.ToString("F2") + "→" + off[off.Count - 1].y.ToString("F2") + " ";
+        }
+        return res;
+    }
+
     // ============================================================ 段違いの継ぎ目の下の積み下ろし(EDO-0502 第11巡)
     /// <summary>**段違いの継ぎ目の下を同じ積みの駒で地表まで積み下ろす**(2026-10-04 EDO-0502 第11巡・指図 terraceWalls[].dropJoint)。
     /// 野面の段の境の駒(<see cref="PlaceNozuraRun"/> が段の境に据える勾配の駒・名 <c>*_dan</c>)は丈が一つ(H1.50)しか焼いていないので、

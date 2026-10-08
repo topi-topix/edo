@@ -87,6 +87,7 @@
 - [Castle Wall の見え面は局所 −X](castlewall-face-is-local-minus-x.md) — 山王の土留め 162/233 駒が法の面を高い側へ。FaceSide/WallFaceRise で測る
 - [裏込めの皮は退役・原因は殻の石垣の底の測り違い](backfill-skin-needs-three-limits.md) — 鉛直な見え面で底が天端に化け偽の隙4510。WallBottom で15
 - [張り出す石段の袖の笠は入隅の天端で潰れる・垣の口の端は 0.2 ずれる](stair-sode-crest-vs-kasa-and-fence-gap-end.md) — K_Kuruwa 笠 0.003。PlaceIshidanSodeRow・PlaceCrestFence の許し 0.3
+- [法の返しの見え面を石段の端の線へ](battered-side-face-on-stair-end-line.md) — 天端の線を法×(天端−踏面)退けて斜めに・短い残りを捨てると隅が立たない・丈は踏面で
 - [石垣の隅は区間の端ごとに・T 字の継ぎ目・二段築の下段](run-corners-seams-and-tiers.md) — PlaceRunCorners/PlaceTierBelow。控えは外向きの駒で・基壇の向きは低い地盤で測り直す
 - [野面の網の罠](nozura-net-face-crest-end.md) — 見え面は設計面と天端の列の控えで・端の行は口の地表・端の光線は前の地表まで・打ち切りは低い端だけ
 - [斜めの取り合いは相手の面の法線で測る・法の楔](oblique-contact-and-batter-wedge.md) — 走りの筋では −0.27 の嘘。入隅の鉛直な小口は縮めても法へ入る

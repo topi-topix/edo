@@ -1543,19 +1543,7 @@ public static partial class EdoBuild
     {
         cut = 0f; float L = PolylineLength(pl); if (L < 1e-3f || hull == null || hull.Length < 3) return pl;
         var hl = new List<Vector2>(hull);
-        Func<List<Vector2>, bool> over = line =>
-        {
-            float LL = PolylineLength(line);
-            foreach (var sp in MizoPieceSpans(LL, pieceLen))
-            {
-                if (sp.y < LL - 2f * pieceLen - 1e-3f) continue;   // 尻から 2 駒より上流は窪みに届かない
-                Vector2 dd; var a = PointAt(line, sp.x, out dd); var b = PointAt(line, sp.y, out dd);
-                var d = b - a; if (d.sqrMagnitude < 1e-8f) continue; d.Normalize(); var n = new Vector2(-d.y, d.x);
-                var rect = new List<Vector2> { a - n * halfW, b - n * halfW, b + n * halfW, a + n * halfW };
-                if (ConvexOverlap(rect, hl, 0.005f)) return true;
-            }
-            return false;
-        };
+        Func<List<Vector2>, bool> over = line => TailPiecesOverHull(line, hl, halfW, pieceLen);
         if (!over(pl)) return pl;
         for (float c = 0.01f; c <= maxCut + 1e-4f && L - c >= minLeft; c += 0.01f)
         {
@@ -1563,6 +1551,129 @@ public static partial class EdoBuild
             if (!over(t)) { cut = c; return t; }
         }
         cut = -1f; return pl;
+    }
+
+    /// <summary>尻の 2 駒(<see cref="MizoPieceSpans"/> の弦・幅 2 × <paramref name="halfW"/> の矩形)のどれかが凸の多角形 <paramref name="hull"/> と重なるか(0.005 の余り)。
+    /// <see cref="TrimTailOutOfHull"/>・<see cref="FitTailToMasuFace"/> の窪みの測り(式を一か所に)。</summary>
+    static bool TailPiecesOverHull(List<Vector2> line, List<Vector2> hull, float halfW, float pieceLen)
+    {
+        if (hull == null || hull.Count < 3) return false;
+        float LL = PolylineLength(line);
+        foreach (var sp in MizoPieceSpans(LL, pieceLen))
+        {
+            if (sp.y < LL - 2f * pieceLen - 1e-3f) continue;   // 尻から 2 駒より上流は窪みに届かない
+            Vector2 dd; var a = PointAt(line, sp.x, out dd); var b = PointAt(line, sp.y, out dd);
+            var d = b - a; if (d.sqrMagnitude < 1e-8f) continue; d.Normalize(); var n = new Vector2(-d.y, d.x);
+            var rect = new List<Vector2> { a - n * halfW, b - n * halfW, b + n * halfW, a + n * halfW };
+            if (ConvexOverlap(rect, hull, 0.005f)) return true;
+        }
+        return false;
+    }
+
+    /// <summary>**入る尻の平均に置く桝の平面を、溝を敷く前に引く**(<see cref="PlaceMasu"/> と同じ式 ── 局所 (0, 底, 長さの中ほど) を <paramref name="at"/> へ・局所 +Z = <paramref name="outDir"/>・
+    /// 局所 +X = lat)。返す <see cref="MasuPlan"/> の pivot・lat・outDir で外の面(<see cref="MasuOuterHull"/>)と内法の窪み(<see cref="MasuInnerHull"/>)が引ける。
+    /// ⛔ 桝を据えてから測り直さない ── 据えも <see cref="PlaceMasu(Transform, string, string, MasuPlan, float, float, out float, out float)"/> でこの答えを使う(式を二重に持たない)。
+    /// 測るだけ(硬・柔の条件は持たない)。当たる先: 面の取り合いで解かない桝の全て(土井 D2 masu[0]・D11 masu[0])。</summary>
+    public static MasuPlan MasuPlanAt(string path, Vector2 at, Vector2 outDir)
+    {
+        var r = new MasuPlan();
+        var mp = MizoPieceOf(path); if (!mp.ok) { r.why = "桝の駒が測れない(" + path + ")"; return r; }
+        if (outDir.sqrMagnitude < 1e-8f) { r.why = "桝の向きが無い"; return r; }
+        var n = outDir.normalized; var lat = new Vector2(n.y, -n.x);   // PlaceMasu の yaw で局所 +X が向く向き
+        float xmid = 0.5f * (mp.xMin + mp.xMax), zmid = 0.5f * (mp.zMin + mp.zMax);
+        var P = at - n * zmid;
+        r.outDir = n; r.lat = lat; r.pivot = P; r.at = at; r.onLine = at;
+        r.center = P + n * zmid + lat * xmid;
+        r.faceIn = P + n * mp.zMin + lat * xmid; r.faceOut = P + n * mp.zMax + lat * xmid;
+        r.faceXmin = P + n * zmid + lat * mp.xMin; r.faceXmax = P + n * zmid + lat * mp.xMax;
+        r.ok = true; return r;
+    }
+
+    /// <summary>桝を <see cref="MasuPlan"/>(<see cref="MasuPlanOffLine"/>・<see cref="MasuPlanAt"/> の答え)の平面と向きで据える。高さは <see cref="PlaceMasu(Transform, string, string, Vector2, Vector2, float, float, out float, out float)"/> と同じ。
+    /// 当たる先: 土井 S9 の桝の全て。</summary>
+    public static GameObject PlaceMasu(Transform parent, string name, string path, MasuPlan plan, float topWant, float floorMax, out float floor, out float sink)
+    {
+        floor = sink = float.NaN; if (plan == null || !plan.ok) return null;
+        return PlaceMasu(parent, name, path, plan.at, plan.outDir, topWant, floorMax, out floor, out sink);
+    }
+
+    /// <summary>**桝の外の面の実の正方形**(世界 XZ・駒の実測の外形 xMin..xMax × zMin..zMax を <see cref="MasuPlan"/> の pivot・lat・outDir で置いた矩形)。
+    /// 測るだけ。当たる先: <see cref="FitTailToMasuFace"/>(桝へ入る溝の尻)。</summary>
+    public static Vector2[] MasuOuterHull(MasuPlan pl, string path)
+    {
+        if (pl == null || !pl.ok) return null;
+        var mp = MizoPieceOf(path); if (!mp.ok) return null;
+        var o = pl.pivot; var x = pl.lat; var z = pl.outDir;
+        return new[] { o + x * mp.xMin + z * mp.zMin, o + x * mp.xMax + z * mp.zMin, o + x * mp.xMax + z * mp.zMax, o + x * mp.xMin + z * mp.zMax };
+    }
+
+    /// <summary><see cref="FitTailToMasuFace"/> の答え。moved = 尻を動かした量(+ 延ばした・− 詰めた)/ gap = 小口の両隅のうち桝の外の面の正方形の外へ残った最悪[m](0 = 両隅が届いた)/
+    /// reached = 両隅が届き、尻の駒が内法の窪みに掛からない(硬 ⭕)/ ok = 窪みに掛からない置き場が在った(線を返した)。</summary>
+    public class TailFit { public bool ok, reached; public List<Vector2> line; public float moved, gap = float.NaN, buryMin, buryMax; public string note; }
+
+    /// <summary>**桝へ入る溝の尻を、小口の両隅が桝の外の面の実の正方形に届く所まで延ばす(詰める)**。
+    /// 測る物: 尻の駒(<see cref="MizoPieceSpans"/> の最後の弦・幅 2 × <paramref name="halfW"/>)の小口の両隅と、桝の外の面の正方形 <paramref name="outer"/>(<see cref="MasuOuterHull"/>)の離れ /
+    /// 尻の 2 駒の弦の矩形と内法の窪み <paramref name="inner"/>(<see cref="MasuInnerHull"/>)の重なり。
+    /// 硬(許容0): ① 小口の両隅が外の面の正方形の内(壁の厚みの内へ埋めるのは可 ── 部材どうしの重なりは数えない・oki-kata §0a)② 尻の駒が内法の窪みの上へ張り出さない(張り出すと駒が浮く)。
+    /// 動かし方: 延ばすときは最後の直線を延ばす(上限 <paramref name="maxExt"/>)・詰めるときは線を切る(上限 <paramref name="maxCut"/>・残り ≥ <paramref name="minLeft"/>)。0.01m 刻みに試し、
+    /// ①② を満たす一続きの幅の中ほど(壁の厚みの中ほど)を採る。満たす所が無ければ ② を満たす中で ① の離れが最も小さい所へ置き、reached = false と離れを返す(呼び手は ⚠ で名乗る ──
+    /// 駒の幅が桝の外の面より広い・斜めに入って隅が揃わない・上限まで延ばしても届かない)。② を満たす所も無ければ線を変えない(ok = false)。
+    /// ⭐ 2026-10-08 EDO-0533 第44巡: D1 seg3 の小口が桝 D1_masu0 の外形まで 0.10・D2 seg3 が D2_masu0 まで 0.16(角度差 16.3°)の口を残し、小口の外の皮が駒の底より 0.15〜0.22 低い隙になった
+    /// (<see cref="TrimLineAtCircle"/> は円で切るので向きの違う桝の面に届かず、<see cref="TrimTailOutOfHull"/> は戻すだけで届かせない)。
+    /// 当たる先: 桝へ入る溝の全部(土井 S9 の D1 seg2・seg3・seg4・D2 seg3・seg4・D11 へ入る区間)── 以後、桝・吐口の面へ入る溝の全て。</summary>
+    public static TailFit FitTailToMasuFace(List<Vector2> pl, Vector2[] outer, Vector2[] inner, float halfW, float pieceLen, float maxExt, float maxCut, float minLeft)
+    {
+        var r = new TailFit { line = pl };
+        float L = PolylineLength(pl);
+        if (pl == null || pl.Count < 2 || L < 1e-3f) { r.note = "線が無い"; return r; }
+        if (outer == null || outer.Length < 3) { r.note = "桝の外の面が引けない"; return r; }
+        var tl = pl[pl.Count - 1] - pl[pl.Count - 2]; if (tl.sqrMagnitude < 1e-8f) { r.note = "尻の直線の長さが 0"; return r; }
+        tl.Normalize();
+        var outL = new List<Vector2>(outer) { outer[0] }; var innL = inner != null && inner.Length >= 3 ? new List<Vector2>(inner) : null;
+        Func<float, List<Vector2>> lineAt = e =>
+        {
+            if (e >= 0f) { var cp = new List<Vector2>(pl); cp[cp.Count - 1] = cp[cp.Count - 1] + tl * e; return cp; }
+            return SubPolyline(pl, 0f, L + e);
+        };
+        Func<List<Vector2>, float> cornerGap = line =>
+        {
+            float LL = PolylineLength(line); var sps = MizoPieceSpans(LL, pieceLen); if (sps.Count == 0) return float.PositiveInfinity;
+            var sp = sps[sps.Count - 1]; Vector2 dd; var a = PointAt(line, sp.x, out dd); var b = PointAt(line, sp.y, out dd);
+            var d = b - a; if (d.sqrMagnitude < 1e-8f) return float.PositiveInfinity; d.Normalize(); var n = new Vector2(-d.y, d.x);
+            float worst = 0f;
+            foreach (var q in new[] { b - n * halfW, b + n * halfW })
+                if (!EdoGeom.PIP(outer, q)) worst = Mathf.Max(worst, Vector2.Distance(q, ClosestOn(outL, q)));
+            return worst;
+        };
+        var es = new List<float>(); var gaps = new List<float>(); var clears = new List<bool>();
+        for (float e = -maxCut; e <= maxExt + 1e-4f; e += 0.01f)
+        {
+            if (L + e < minLeft) continue;
+            var ln = lineAt(e);
+            es.Add(e); gaps.Add(cornerGap(ln)); clears.Add(innL == null || !TailPiecesOverHull(ln, innL, halfW, pieceLen));
+        }
+        int lo = -1, hi = -1;
+        for (int i = 0; i < es.Count; i++)
+        {
+            bool f = clears[i] && gaps[i] <= 1e-3f;
+            if (f && lo < 0) lo = i;
+            if (lo >= 0) { if (f) hi = i; else break; }
+        }
+        if (lo >= 0)
+        {
+            int mid = (lo + hi) / 2; float e = es[mid];
+            r.ok = r.reached = true; r.line = lineAt(e); r.moved = e; r.gap = 0f; r.buryMin = es[lo]; r.buryMax = es[hi];
+            r.note = "小口の両隅が桝の外の面に届く幅 " + (es[hi] - es[lo]).ToString("F2") + "m の中ほどへ " + (e >= 0f ? "延ばした " : "詰めた ") + Mathf.Abs(e).ToString("F2") + "m【硬 ⭕ 隅が外の面の内・窪みに掛からない】";
+            return r;
+        }
+        int bi = -1;
+        for (int i = 0; i < es.Count; i++) if (clears[i] && (bi < 0 || gaps[i] < gaps[bi] - 1e-4f || (Mathf.Abs(gaps[i] - gaps[bi]) <= 1e-4f && Mathf.Abs(es[i]) < Mathf.Abs(es[bi])))) bi = i;
+        if (bi < 0) { r.note = "尻の駒が桝の窪みに掛からない所が無い(" + (-maxCut).ToString("F2") + "〜+" + maxExt.ToString("F2") + "m)── 尻を動かさない"; return r; }
+        r.ok = true; r.line = lineAt(es[bi]); r.moved = es[bi]; r.gap = gaps[bi];
+        bool capped = es[bi] >= maxExt - 0.005f;
+        r.note = "⚠ 小口の隅が桝の外の面に " + gaps[bi].ToString("F3") + "m 届かない(" + (capped ? "上限 " + maxExt.ToString("F1") + "m まで延ばした" : "窪みに掛からない中で最も近い所 ── " + (es[bi] >= 0f ? "延ばした " : "詰めた ") + Mathf.Abs(es[bi]).ToString("F2") + "m")
+                 + "・駒の幅 " + (2f * halfW).ToString("F2") + " / 桝の外の面の幅 " + Vector2.Distance(outer[0], outer[1]).ToString("F2") + "×" + Vector2.Distance(outer[1], outer[2]).ToString("F2") + ")【硬 ✗ 隙が残る】";
+        return r;
     }
 
     /// <summary>坂の頭へ水切り石を据える。平面 = 坂の頭の縁から下へ <paramref name="inset"/> の線の中ほど・坂の軸に対して skew 度振る
@@ -2443,44 +2554,87 @@ public static partial class EdoBuild
         return new List<Vector2> { xa, xb };
     }
 
-    /// <summary>**④ 面の、相手に最も向く辺**: 多角形の各辺のうち、外向きの法線と「辺の中点 → 相手の芯」の向きの cos が最も大きい辺(cos &lt; <paramref name="minDot"/> なら null)。
-    /// 測るだけ。当たる先: 土井 D4 seg5(面 Baba の Kachu_K3 側の縁)── 「面 X の Y 側の縁の線」すべて。</summary>
-    public static List<Vector2> PolyEdgeMostFacing(Vector2[] poly, Vector2[] target, float minDot, out string why)
+    /// <summary>**④ 面の、相手に最も向く辺**: 多角形の各辺のうち、外向きの法線と「辺の中点 → 相手の芯」の向きの cos が最も大きい辺。
+    /// ⛔ しきい値で落とさない ── 最大を採る。cos が狙い <paramref name="aimDot"/> に届かなければ返したうえで <paramref name="why"/> に ⚠ を名乗る(柔)。
+    /// <paramref name="crossLine"/> を渡すと、その線(両端を無限の直線として)と交わらない辺(平行 ── |cos| &gt; 0.98 ── <see cref="LineBetweenLines"/> と同じ線)は候補から外す。
+    /// <paramref name="cos"/> = 採った辺の cos・<paramref name="outside"/> = 採った辺を延ばした線と crossLine の交点が辺の外へ出る量[m](0 = 辺の上で交わる・crossLine が無ければ NaN)。
+    /// 返すのは null(候補が無い)か辺の二点。why は null(狙いどおり)か ⚠ の文。
+    /// ⭐ 2026-10-08 EDO-0533 第44巡: 面 Baba の Kachu_K3 側の縁は cos 0.26 で、しきい値 0.50 で落として D4 seg5・seg4 が引けなかった。
+    /// 当たる先: 土井 D4 seg5(面 Baba の Kachu_K3 側の縁)── 「面 X の Y 側の縁の線」すべて。</summary>
+    public static List<Vector2> PolyEdgeMostFacing(Vector2[] poly, Vector2[] target, float aimDot, List<Vector2> crossLine, out float cos, out float outside, out string why)
     {
-        why = null; if (poly == null || poly.Length < 3 || target == null || target.Length == 0) { why = "面か相手が無い"; return null; }
+        why = null; cos = float.NaN; outside = float.NaN;
+        if (poly == null || poly.Length < 3 || target == null || target.Length == 0) { why = "面か相手が無い"; return null; }
+        Vector2 cd = Vector2.zero; bool hasCross = crossLine != null && crossLine.Count >= 2;
+        if (hasCross) { cd = crossLine[crossLine.Count - 1] - crossLine[0]; if (cd.sqrMagnitude < 1e-8f) hasCross = false; else cd.Normalize(); }
         var tc = target.Length >= 3 ? PolyCentroid(target) : target[0];
-        int bi = -1; float best = -2f;
+        int bi = -1; float best = -2f; int parallel = 0;
         for (int i = 0; i < poly.Length; i++)
         {
             Vector2 a = poly[i], b = poly[(i + 1) % poly.Length], m = 0.5f * (a + b), on = -EdoGeom.InwardNormal(poly, i);
+            if ((b - a).sqrMagnitude < 1e-8f) continue;
+            if (hasCross && Mathf.Abs(Vector2.Dot(cd, (b - a).normalized)) > 0.98f) { parallel++; continue; }
             var dv = tc - m; if (dv.sqrMagnitude < 1e-6f) continue;
             float c = Vector2.Dot(on, dv.normalized); if (c > best) { best = c; bi = i; }
         }
-        if (bi < 0 || best < minDot) { why = "相手の芯へ向く辺が無い(cos 最大 " + best.ToString("F2") + " < " + minDot.ToString("F2") + ")"; return null; }
-        return new List<Vector2> { poly[bi], poly[(bi + 1) % poly.Length] };
+        if (bi < 0) { why = "面の縁に" + (parallel > 0 ? "基の線と交わる辺が無い(平行 " + parallel + ")" : "辺が無い"); return null; }
+        cos = best;
+        Vector2 ea = poly[bi], eb = poly[(bi + 1) % poly.Length];
+        if (hasCross)
+        {
+            var ed = (eb - ea); float eL = ed.magnitude; ed /= eL;
+            var x = EdoGeom.LineIntersect(crossLine[0], cd, ea, ed, new Vector2(float.NaN, float.NaN));
+            if (!float.IsNaN(x.x)) { float u = Vector2.Dot(x - ea, ed); outside = u < 0f ? -u : u > eL ? u - eL : 0f; }
+        }
+        if (best < aimDot)
+            why = "⚠ 相手の芯へ最も向く辺の cos " + best.ToString("F2") + " < 狙い " + aimDot.ToString("F2") + "(柔 ── 最大の辺を採った)"
+                  + (!float.IsNaN(outside) && outside > 0.05f ? "・基の線とはその辺を " + outside.ToString("F1") + "m 延ばした所で交わる" : "");
+        return new List<Vector2> { ea, eb };
     }
 
-    /// <summary>**⑤ 端を面との出合いへ**: 折れ線の <paramref name="near"/> に近い端の最後の直線を無限に延ばした線と、面の線 <paramref name="a"/>–<paramref name="b"/>(無限の直線)の交点へ
-    /// 端を動かす ── 交点が端の外なら延ばし、内(最後の直線の上)なら詰める。<paramref name="moved"/> = 動かした量(+ 延ばした・− 詰めた)。
-    /// 硬: 交点が最後の直線の始まりより奥(詰めると直線が消える)・延ばしが maxMove を超える・交点が面の線の端から <paramref name="faceReach"/> を超えて外 ── のどれかなら false(線は変えない)。
-    /// 当たる先: 土井 D7 seg1(E13_N01 の側の端 ↔ 長屋 E12_N03 の内面 ── 端が面を越えていた)── 「… の内面との出合いで止める」「… まで延ばして止める」すべて。</summary>
+    /// <summary>**⑤ 端を面との出合いへ**: 折れ線の <paramref name="near"/> に近い端を、面の線 <paramref name="a"/>–<paramref name="b"/>(無限の直線)との出合いへ動かす。
+    /// 詰める: 端から折れ線の全体をさかのぼり、**最初に面の線と交わる所**で切る(交点が面の線の端から <paramref name="faceReach"/> の内のものだけ)。
+    /// 延ばす: 折れ線が面の線と交わらなければ、最後の直線を無限に延ばした線と面の線の交点まで延ばす。
+    /// <paramref name="moved"/> = 動かした量(+ 延ばした・− 詰めた弧長)。pl はその場で書き換える。
+    /// 硬: 交わる所が無い・延ばしが maxMove を超える・延ばした交点が面の線の端から faceReach を超えて外・詰めた残りが 0.05m に満たない ── のどれかなら false(線は変えない)。
+    /// ⭐ 2026-10-08 EDO-0533 第44巡: D7 seg1 は出合いが端の直線の始まりより 9.29m 奥(直線 6.47m)で、最後の直線しか見ていなかったので引けなかった。
+    /// 当たる先: 土井 D7 seg1(E13_N01 の側の端 ↔ 長屋 E12_N03 の内面)── 「… の内面との出合いで止める」「… まで延ばして止める」すべて。</summary>
     public static bool MoveEndToLine(List<Vector2> pl, Vector2 near, Vector2 a, Vector2 b, float maxMove, float faceReach, out float moved, out string why)
     {
         moved = float.NaN; why = null;
         if (pl == null || pl.Count < 2) { why = "線が無い"; return false; }
         bool atStart = (pl[0] - near).sqrMagnitude < (pl[pl.Count - 1] - near).sqrMagnitude;
-        Vector2 e = atStart ? pl[0] : pl[pl.Count - 1], e1 = atStart ? pl[1] : pl[pl.Count - 2];
-        float segL = Vector2.Distance(e, e1); if (segL < 1e-4f) { why = "端の直線の長さが 0"; return false; }
-        Vector2 dir = (e - e1) / segL, fd = b - a; float fL = fd.magnitude; if (fL < 1e-4f) { why = "面の線の長さが 0"; return false; }
+        var w = new List<Vector2>(pl); if (atStart) w.Reverse();   // 動かす端を末尾へ
+        Vector2 fd = b - a; float fL = fd.magnitude; if (fL < 1e-4f) { why = "面の線の長さが 0"; return false; }
         fd /= fL;
-        float den = dir.x * fd.y - dir.y * fd.x; if (Mathf.Abs(den) < 1e-4f) { why = "端の直線が面と平行(出合わない)"; return false; }
-        Vector2 qp = a - e; float t = (qp.x * fd.y - qp.y * fd.x) / den;
-        var hit = e + dir * t; float u = Vector2.Dot(hit - a, fd);
-        if (u < -faceReach || u > fL + faceReach) { why = "出合いが面の線の端から " + (u < 0f ? -u : u - fL).ToString("F2") + "m 外(> " + faceReach.ToString("F1") + "m)"; return false; }
-        if (t > maxMove) { why = "延ばす量 " + t.ToString("F2") + "m > " + maxMove.ToString("F0") + "m"; return false; }
-        if (t < -(segL - 0.05f)) { why = "出合いが端の直線の始まりより奥(詰める量 " + (-t).ToString("F2") + "m ≥ 直線の長さ " + segL.ToString("F2") + "m)"; return false; }
-        moved = t;
-        if (atStart) pl[0] = hit; else pl[pl.Count - 1] = hit;
+        // 詰める: 末尾からさかのぼって最初に面の線と交わる所
+        float back = 0f; string farWhy = null;
+        for (int k = w.Count - 1; k >= 1; k--)
+        {
+            Vector2 p1 = w[k], p0 = w[k - 1], sd = p1 - p0; float sL = sd.magnitude;
+            if (sL < 1e-6f) continue;
+            float d0 = (p0.x - a.x) * fd.y - (p0.y - a.y) * fd.x, d1 = (p1.x - a.x) * fd.y - (p1.y - a.y) * fd.x;   // 面の線からの符号付きの離れ
+            if ((d0 > 0f && d1 > 0f) || (d0 < 0f && d1 < 0f) || Mathf.Abs(d0 - d1) < 1e-9f) { back += sL; continue; }
+            float t = d0 / (d0 - d1); var hit = p0 + sd * t; float u = Vector2.Dot(hit - a, fd);
+            if (u < -faceReach || u > fL + faceReach) { if (farWhy == null) farWhy = "面の線の端から " + (u < 0f ? -u : u - fL).ToString("F2") + "m 外で交わる所は採らない"; back += sL; continue; }
+            float cutLen = back + sL * (1f - t);
+            var nw = new List<Vector2>(); for (int i = 0; i < k; i++) nw.Add(w[i]); nw.Add(hit);
+            if (PolylineLength(nw) < 0.05f) { why = "出合いで詰めると線が残らない(詰める量 " + cutLen.ToString("F2") + "m)"; return false; }
+            if (atStart) nw.Reverse();
+            pl.Clear(); pl.AddRange(nw); moved = -cutLen; return true;
+        }
+        // 延ばす: 最後の直線を延ばす(今のまま)
+        Vector2 e = w[w.Count - 1], e1 = w[w.Count - 2];
+        float segL = Vector2.Distance(e, e1); if (segL < 1e-4f) { why = "端の直線の長さが 0"; return false; }
+        Vector2 dir = (e - e1) / segL;
+        float den = dir.x * fd.y - dir.y * fd.x; if (Mathf.Abs(den) < 1e-4f) { why = "端の直線が面と平行(出合わない)" + (farWhy != null ? "・" + farWhy : ""); return false; }
+        Vector2 qp = a - e; float te = (qp.x * fd.y - qp.y * fd.x) / den;
+        if (te < 0f) { why = "折れ線が面の線と交わらず、延ばしても出合わない" + (farWhy != null ? "(" + farWhy + ")" : ""); return false; }
+        var hitE = e + dir * te; float ue = Vector2.Dot(hitE - a, fd);
+        if (ue < -faceReach || ue > fL + faceReach) { why = "出合いが面の線の端から " + (ue < 0f ? -ue : ue - fL).ToString("F2") + "m 外(> " + faceReach.ToString("F1") + "m)"; return false; }
+        if (te > maxMove) { why = "延ばす量 " + te.ToString("F2") + "m > " + maxMove.ToString("F0") + "m"; return false; }
+        moved = te;
+        if (atStart) pl[0] = hitE; else pl[pl.Count - 1] = hitE;
         return true;
     }
 

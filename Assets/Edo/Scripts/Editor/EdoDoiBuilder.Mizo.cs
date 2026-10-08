@@ -409,6 +409,54 @@ public static partial class EdoDoiBuilder
         };
         Func<Match, int, int, MzSeg, string> masuIdOf = (mm2, gD, gK, g0) => (mm2.Groups[gD].Success && mm2.Groups[gD].Value.Length > 0 ? mm2.Groups[gD].Value : g0.drain) + " masu[" + mm2.Groups[gK].Value + "]";
         Func<string, string> planWhy = mid => masuPlanWhy.ContainsKey(mid) ? masuPlanWhy[mid] : "欄 at が面の取り合いの言い方でない";
+        // ---- 面の取り合いで解かない桝(欄 at「桝の芯は入る尻の平均」)の芯と向き ── 溝を敷く前に一度だけ決め、尻の合わせ(EdoBuild.FitTailToMasuFace)と
+        //      桝の据え(EdoBuild.PlaceMasu)の両方がこの答えを使う(式を二重に持たない ── 第44巡 D2 masu[0] は尻を仮の芯の円で切り、据えは尻の平均と出る溝の向きで
+        //      別に引いたので、向きが 16.3° 違って小口と桝の間に 0.16 の口が開いた)。平面の式は EdoBuild.MasuPlanAt(= PlaceMasu の式)。
+        //      芯 = known(建てた・建てている尻)と、skip でない入る区間の解いた線(rawLines)の、known[0] に近い端の平均 / 向き = 出る区間(欄 then の segN)の、芯に近い端から線の内へ
+        //      ── 出る区間が無ければ区画の芯から外へ
+        var masuAim = new Dictionary<string, EdoBuild.MasuPlan>();
+        EdoBuild.MasuPlan MasuAim(MzMasu mz, IList<Vector2> known, Func<MzSeg, bool> skip, out string aw)
+        {
+            aw = null; EdoBuild.MasuPlan got;
+            if (masuPlan.TryGetValue(mz.id, out got)) return got;
+            if (masuAim.TryGetValue(mz.id, out got)) return got;
+            string path = EdoBuild.AssetByName("Own", "DoiMasu", Sk(mz.raw, "kata"));
+            var mp = EdoBuild.MizoPieceOf(path); if (!mp.ok) { aw = "桝の駒 Own.DoiMasu(\"" + Sk(mz.raw, "kata") + "\") が測れない"; return null; }
+            if (known == null || known.Count == 0) { aw = "入る溝の尻が無い"; return null; }
+            Vector2 seed = known[0], sum = Vector2.zero; int nE = 0;
+            foreach (var q in known) { sum += q; nE++; }
+            foreach (var h in segs)
+            {
+                if (h.noBuild || masuOf(h) != mz || skip(h) || h.rawLines == null) continue;
+                foreach (var rl in h.rawLines)
+                {
+                    if (rl.Count < 2) continue;
+                    var e = (rl[0] - seed).sqrMagnitude < (rl[rl.Count - 1] - seed).sqrMagnitude ? rl[0] : rl[rl.Count - 1];
+                    if ((e - seed).magnitude > 2f * mp.halfW + 0.6f) { aw = "桝へ入る他の尻が散らばり(" + h.id + " の端まで " + (e - seed).magnitude.ToString("F2") + "m > 桝の幅 + 0.6)、桝の芯が引けない"; return null; }
+                    sum += e; nE++;
+                }
+            }
+            var c = sum / nE;
+            Vector2 od = (c - parcelC).normalized;
+            if (mz.then != null)
+            {
+                float bd = float.MaxValue;
+                foreach (var r in segs)
+                {
+                    if (r.drain != mz.id.Split(' ')[0] || !Regex.IsMatch(mz.then, @"seg" + (r.si + 1) + @"\b")) continue;
+                    var rls = r.built && r.lines != null ? r.lines : r.rawLines; if (rls == null) continue;
+                    foreach (var rl in rls)
+                    {
+                        if (rl.Count < 2) continue;
+                        bool head = (rl[0] - c).sqrMagnitude <= (rl[rl.Count - 1] - c).sqrMagnitude;
+                        Vector2 e0 = head ? rl[0] : rl[rl.Count - 1], e1 = head ? rl[1] : rl[rl.Count - 2];
+                        float dd = (e0 - c).sqrMagnitude; if (dd < bd && (e1 - e0).sqrMagnitude > 1e-8f) { bd = dd; od = (e1 - e0).normalized; }
+                    }
+                }
+            }
+            var pl = EdoBuild.MasuPlanAt(path, c, od); if (!pl.ok) { aw = pl.why; return null; }
+            masuAim[mz.id] = pl; return pl;
+        }
 
         // ---- 向き(上流 → 下流)── 受ける側の線・桝が解けていればそこへ、無ければ地盤の低い方へ
         // 受ける側の線(建っていれば建てた線・まだなら解いた線)と、同じ桝へ入る他の区間の線 ── 尻はこれらへ最も近い端
@@ -624,9 +672,11 @@ public static partial class EdoDoiBuilder
                 if (la == null) { why = ba + " の " + ta + " 側の軒先: " + w2; return null; }
                 var fpb = poly(fb); if (fpb == null) { why = "面 " + fb + " の多角形が欄に無い"; return null; }
                 var tpb = targetPoly(tb); if (tpb == null) { why = "相手 " + tb + " が引けない(棟・面・庭・坂のどれでもない/建っていない)"; return null; }
-                var lb = EdoBuild.PolyEdgeMostFacing(fpb, tpb, 0.5f, out w2); if (lb == null) { why = "面 " + fb + " の " + tb + " 側の縁: " + w2; return null; }
                 var P = Poly; var inN = EdoGeom.InwardNormal(P, ei);
                 var bl = new List<Vector2> { P[ei] + inN * off, P[(ei + 1) % P.Length] + inN * off };
+                //   B は最も向く辺を採る(しきい値で落とさない ── 狙い cos ≥ 0.50 に届かなければ柔 ⚠)。基の線と交わらない(平行な)辺は採らない
+                float cb, ob; var lb = EdoBuild.PolyEdgeMostFacing(fpb, tpb, 0.5f, bl, out cb, out ob, out w2); if (lb == null) { why = "面 " + fb + " の " + tb + " 側の縁: " + w2; return null; }
+                if (w2 != null) { line(1, g.id + ": 面 " + fb + " の " + tb + " 側の縁 ── " + w2); Wait(g.id + ": 面 " + fb + " の " + tb + " 側の縁 ── " + w2); }
                 var cutL = EdoBuild.LineBetweenLines(bl, la[0], la[1], lb[0], lb[1], out w2);
                 if (cutL == null) { why = "辺" + ei + " を内へずらした線を切れない: " + w2; return null; }
                 g.fixedDir = true; res.Add(cutL); return res;
@@ -1116,45 +1166,23 @@ public static partial class EdoDoiBuilder
             {
                 var pl = g.lines[li];
                 Vector2 endOrig = pl[pl.Count - 1];   // 尻(桝の芯・受ける区間の頭の引き当てはこの点 ── 切る前)
-                if (ms != null && !masuPlan.ContainsKey(ms.id))
+                if (ms != null)
                 {
-                    // 桝へ入る尻は桝の外の面で止める(EdoBuild.TrimLineAtCircle)── 面の取り合いで解いた桝(masuPlan)は線が面の中央で止まっているので切らない── 尻の駒が桝の窪みの上へ張り出して浮く(D1 seg3 ── EDO-0533 第10巡)
-                    var mpm = EdoBuild.MizoPieceOf(EdoBuild.AssetByName("Own", "DoiMasu", Sk(ms.raw, "kata")));
-                    if (mpm.ok)
-                    {
-                        // 桝の仮の芯 = この尻と、同じ桝へ入る他の区間の線の端(この尻に近い方)の平均 ── 桝の芯の引き方(入る尻の平均)と同じ
-                        Vector2 sum = endOrig; int nE = 1; bool far = false;
-                        foreach (var h in segs)
-                        {
-                            if (h == g || masuOf(h) != ms || h.rawLines == null) continue;
-                            foreach (var rl in h.rawLines)
-                            {
-                                if (rl.Count < 2) continue;
-                                var e = (rl[0] - endOrig).sqrMagnitude < (rl[rl.Count - 1] - endOrig).sqrMagnitude ? rl[0] : rl[rl.Count - 1];
-                                if ((e - endOrig).magnitude > 2f * mpm.halfW + 0.6f) far = true;
-                                sum += e; nE++;
-                            }
-                        }
-                        if (!far)
-                        {
-                            float cut; var trm = EdoBuild.TrimLineAtCircle(pl, sum / nE, mpm.halfW, 0.5f, out cut);
-                            if (cut > 1e-3f) { pl = trm; g.lines[li] = trm; hl.Add("線" + (li + 1) + " 尻を桝の外の面(芯から " + mpm.halfW.ToString("F2") + ")で " + cut.ToString("F2") + "m 止めた"); }
-                        }
-                        else hl.Add("⚠ 線" + (li + 1) + " 桝へ入る他の尻が散らばり、桝の芯が引けない ── 尻を切らない");
-                    }
-                }
-                else if (ms != null && masuPlan.ContainsKey(ms.id))
-                {
-                    // 面の取り合いで解いた桝へ入る尻(線は面の中央で止まる)── 尻の駒の弦の矩形が桝の内法の窪みに掛からない所まで戻す(EdoBuild.TrimTailOutOfHull・硬)。
-                    //   45° の脚で入る D1 seg2・seg4 は斜めの小口の隅が壁(0.15)を越えて窪みの上へ出て、尻の駒が 0.33〜0.53 浮いた(EDO-0533 第12巡)
-                    var mk = Has(kata, Sk(ms.raw, "kata") ?? "") ? O(kata[Sk(ms.raw, "kata")]) : null; var inn = mk != null ? A(Gk(mk, "inner")) : null;
+                    // 桝へ入る尻は、小口の両隅が桝の外の面(実の正方形)に届く所まで延ばす・詰める(EdoBuild.FitTailToMasuFace ── 硬: 隅が外の面の内・尻の駒が内法の窪みに掛からない)。
+                    //   桝の平面は面の取り合いで解いた桝なら masuPlan、尻の平均に置く桝なら MasuAim(据えと同じ答え)。延ばす上限 0.5m・詰める上限 0.6m。
+                    //   ⭐ 第44巡: D1 seg3 の小口が桝の外形まで 0.10・D2 seg3 が 0.16(角度差 16.3°)の口を残した(円で切る TrimLineAtCircle・戻すだけの TrimTailOutOfHull を置き換え)
+                    string mkt = Sk(ms.raw, "kata") ?? ""; string mpath = EdoBuild.AssetByName("Own", "DoiMasu", mkt);
+                    var mk = Has(kata, mkt) ? O(kata[mkt]) : null; var inn = mk != null ? A(Gk(mk, "inner")) : null;
                     float ih = inn != null && inn.Count > 0 ? 0.5f * F(inn[0]) : float.NaN;
-                    if (float.IsNaN(ih)) hl.Add("⚠ 線" + (li + 1) + " 桝 " + ms.id + " の内法(欄 kata." + Sk(ms.raw, "kata") + ".inner)が無い ── 尻を窪みで止められない(未検査)");
+                    string aw; var aim = MasuAim(ms, new List<Vector2> { endOrig }, h => h == g, out aw);
+                    if (aim == null) hl.Add("⚠ 線" + (li + 1) + " 桝 " + ms.id + " の平面が引けない(" + (masuPlan.ContainsKey(ms.id) ? "" : aw) + ")── 尻を合わせない(未検査)");
+                    else if (float.IsNaN(ih)) hl.Add("⚠ 線" + (li + 1) + " 桝 " + ms.id + " の内法(欄 kata." + mkt + ".inner)が無い ── 尻を合わせない(未検査)");
                     else
                     {
-                        float tc; var trt = EdoBuild.TrimTailOutOfHull(pl, EdoBuild.MasuInnerHull(masuPlan[ms.id], ih), Mathf.Max(Mathf.Abs(mp0.xMin), Mathf.Abs(mp0.xMax)), 1f, 0.6f, 0.5f, out tc);
-                        if (tc > 1e-3f) { pl = trt; g.lines[li] = trt; hl.Add("線" + (li + 1) + " 尻を桝 " + ms.id + " の内法の窪みの外で " + tc.ToString("F2") + "m 止めた(駒の弦の矩形 × 内法 " + (2f * ih).ToString("F2") + " 角)"); }
-                        else if (tc < 0f) hl.Add("⚠ 線" + (li + 1) + " 尻の駒が桝 " + ms.id + " の内法の窪みに掛かる ── 0.6m 戻しても外れない(線が窪みを横切る)");
+                        var fit = EdoBuild.FitTailToMasuFace(pl, EdoBuild.MasuOuterHull(aim, mpath), EdoBuild.MasuInnerHull(aim, ih), Mathf.Max(Mathf.Abs(mp0.xMin), Mathf.Abs(mp0.xMax)), 1f, 0.5f, 0.6f, 0.5f);
+                        if (fit.ok) { pl = fit.line; g.lines[li] = pl; }
+                        hl.Add((fit.reached ? "" : "⚠ ") + "線" + (li + 1) + " 尻 → 桝 " + ms.id + ": " + fit.note);
+                        if (!fit.reached) Wait(g.id + " 線" + (li + 1) + " 尻 → 桝 " + ms.id + ": " + fit.note);
                     }
                 }
                 // 頭が別の系統の既に据わった溝の駒の外形の中から出るなら、外形の外で止める(EdoBuild.TrimHeadOutOfHulls ── 頭の駒が他の溝の窪みの上に張り出して浮く・
@@ -1287,20 +1315,20 @@ public static partial class EdoDoiBuilder
             EdoBuild.MasuPlan mpl; bool planned = masuPlan.TryGetValue(mz.id, out mpl);
             if (!planned && masuPlanWhy.ContainsKey(mz.id)) { line(2, mz.id + "(" + kt + "): 置き場が解けない ── " + masuPlanWhy[mz.id] + " ── 建てない"); Wait(mz.id + ": " + masuPlanWhy[mz.id]); continue; }
             if (mz.inEnds.Count == 0) { line(2, mz.id + "(" + kt + "「" + Sk(m, "at") + "」): 入る溝が一本も建っていない ── 置き場が決まらない"); Wait(mz.id + ": 入る溝が建っていない ── 桝の置き場が引けない"); continue; }
-            Vector2 c = Vector2.zero; foreach (var p in mz.inEnds) c += p; c /= mz.inEnds.Count;
+            // 平面と向き = 尻を合わせたときと同じ答え(面の取り合いの桝 = masuPlan・尻の平均の桝 = MasuAim の控え)── 式を二重に持たない
+            string aimWhy = null; var aimP = planned ? mpl : MasuAim(mz, mz.inEnds, h => true, out aimWhy);
+            if (aimP == null) { line(2, mz.id + ": 桝の平面が引けない ── " + aimWhy + " ── 建てない"); Wait(mz.id + ": " + aimWhy); continue; }
+            Vector2 c = aimP.at;
             float spread = 0f; foreach (var p in mz.inEnds) spread = Mathf.Max(spread, Vector2.Distance(p, c));
             var mp = EdoBuild.MizoPieceOf(path);
-            if (planned) c = mpl.at;
-            else if (spread > mp.halfW + 0.3f) { line(2, mz.id + ": 入る溝の尻が桝に集まらない(散らばり " + spread.ToString("F2") + "m > 桝の半幅 + 0.3)── 建てない"); Wait(mz.id + ": 入る溝の尻が一所に集まらない"); continue; }
+            if (!planned && spread > mp.halfW + 0.3f) { line(2, mz.id + ": 入る溝の尻が桝に集まらない(散らばり " + spread.ToString("F2") + "m > 桝の半幅 + 0.3)── 建てない"); Wait(mz.id + ": 入る溝の尻が一所に集まらない"); continue; }
             float inMin = float.MaxValue; foreach (var b in mz.inBottoms) inMin = Mathf.Min(inMin, b);
             var kk = O(kata[kt]); float topA = Has(kk, "topAbove") ? F(kk["topAbove"]) : 0f, sump = Has(kk, "sumpBelowOutlet") ? F(kk["sumpBelowOutlet"]) : 0f;
             float topWant = Has(m, "top") ? F(m["top"]) : GroundY(c.x, c.y) + topA;
             float floorMax = Has(m, "bottom") ? F(m["bottom"]) : inMin - Mathf.Max(0.01f, sump);
-            Vector2 outDir = (c - parcelC).normalized;
-            if (!planned) foreach (var g in segs) if (g.built && mz.then != null && g.drain == mz.id.Split(' ')[0] && Regex.IsMatch(mz.then, @"seg" + (g.si + 1) + @"\b") && g.lines.Count > 0 && g.lines[0].Count > 1) outDir = (g.lines[0][1] - g.lines[0][0]).normalized;
+            Vector2 outDir = aimP.outDir;
             float floor, sink;
-            if (planned) outDir = mpl.outDir;
-            var go = EdoBuild.PlaceMasu(grp, mz.id.Replace(" ", "_").Replace("[", "").Replace("]", ""), path, c, outDir, topWant, floorMax, out floor, out sink);
+            var go = EdoBuild.PlaceMasu(grp, mz.id.Replace(" ", "_").Replace("[", "").Replace("]", ""), path, aimP, topWant, floorMax, out floor, out sink);
             if (go == null) { line(2, mz.id + ": 桝が測れない " + path); continue; }
             masuAt[mz.id] = c;
             if (planned && !MasuPlannedChecks9(mz, go, mpl, masuPlanBld[mz.id], eave, segs, (Func<MzSeg, MzMasu>)masuOf, masuFace, line)) { UnityEngine.Object.DestroyImmediate(go); masuAt.Remove(mz.id); continue; }

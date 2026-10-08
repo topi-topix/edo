@@ -9468,7 +9468,7 @@
     },
     {
      "kata": "D",
-     "line": "塀 Oku_Hei の Za_KachuK1〜Za_KachuK3 に向く面から 0.45間(芯)・D5 seg1 まで延ばす",
+     "line": "塀 Oku_Hei の Za_KachuK1〜Za_KachuK3 に向く面から 0.5間(芯)・D5 seg1 まで延ばす",
      "flow": "馬場の側へ",
      "to": "D5",
      "slopeMin": 0.005,

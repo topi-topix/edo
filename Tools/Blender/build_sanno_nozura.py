@@ -9,6 +9,7 @@
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado [--h=1.5] [--render]   # 出隅 90° の隅の駒
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado --h=4.8 --render       # 同・深い駒(型を 5.0 まで延ばす・EDO-0502)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=49.4,51.8 --h=4.8 [--render]  # 折れが 90° でない出隅(名の角は丸め・EDO-0502)
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=58.9 --h=4.8 [--render] / --deg=34.7 --h=0.6,0.9,1.2  # 岡部 門の内の石段の脇(第62巡・腕の先は石ごとに塞ぐ)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_cut --h=0.9 --v=b --axis=x --at=0.085 [--render]  # 隅の駒の片腕を袖の背で一度切った版(EDO-0437)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_cut --h=0.9 --v=b --axis=x --at=0.085 --arm=0.5 [--render]  # 同・切った腕を詰め天端を切り口まで通した版(r16)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_cap --h=1.5 --v=a [--render]  # 隅の駒の腕の先の継ぎ目の口を天端から 0.25 塞ぐ(同じ名で焼き直す)
@@ -1197,6 +1198,31 @@ def cut_each_ends(objs, ends=((-L / 2, -1), (L / 2, 1))):
     return keep
 
 
+def cut_each_planes(objs, planes):
+    """`cut_each_ends` の任意の平面版(Blender の (co, no)・dot(x − co, no) ≤ 0 を残す)。石ごとに切って塞ぎ、
+    切り口の面だけ三角に割って潰れた辺を畳む。板は切るだけ(輪が閉じない)。"""
+    keep = []
+    for o in objs:
+        for co, no in planes:
+            if not o.data.polygons:
+                break
+            bm_cut_keep(o, co, no, chip=0.0)
+        if not o.data.polygons:
+            bpy.data.objects.remove(o, do_unlink=True)
+            continue
+        bm = bmesh.new(); bm.from_mesh(o.data)
+        capf = []
+        for co, no in planes:
+            n = Vector(no).normalized(); c = Vector(co)
+            capf += [f for f in bm.faces if f.normal.dot(n) > 0.999 and abs((f.calc_center_median() - c).dot(n)) < 1e-4]
+        if capf:
+            bmesh.ops.triangulate(bm, faces=list(set(capf)), quad_method='BEAUTY', ngon_method='BEAUTY')
+        bmesh.ops.dissolve_degenerate(bm, dist=1e-4, edges=bm.edges[:])
+        bm.to_mesh(o.data); bm.free(); o.data.update()
+        keep.append(o)
+    return keep
+
+
 # ------------------------------------------------------------------ 出隅 90° の隅の駒
 KADO_VARIANTS = "ab"
 KADO_TIERS = [t for t in TIERS if t >= 0.30]
@@ -1693,9 +1719,11 @@ def make_kado_deg(h, v, phi):
         box_uv(ob, (0.3, 0.7))
         objs.append(ob)
     name = kado_deg_name(phi, h, v)
+    # 腕の先は**石ごとに**切って塞ぐ(2026-10-09 EDO-0502 第62巡 ── join の後の一括 bisect は小口が内向き・欠けになる:
+    # [[nozura-end-caps-per-stone]] と同じ理由。49/52 の旧駒は一括で切っていた)
+    objs = cut_each_planes(objs, [((L / 2, 0.0, 0.0), (1.0, 0.0, 0.0)),                                   # 腕1 の先: Unity X ≥ −L/2
+                                  (_u2b(L / 2 * d2[0], 0.0, L / 2 * d2[1]), _u2b(d2[0], 0.0, d2[1]))])   # 腕2 の先: p·d2 ≤ L/2
     o = V.join(objs, name)
-    bisect_keep(o, (L / 2, 0, 0), (1, 0, 0))                     # 腕1 の先: Unity X ≥ −L/2
-    bm_cut_keep(o, _u2b(L / 2 * d2[0], 0.0, L / 2 * d2[1]), _u2b(d2[0], 0.0, d2[1]), chip=0.0)   # 腕2 の先: p·d2 ≤ L/2
     nd = clean_degenerate(o)
     print("KADODEG %s 面積 0・辺 < 0.1mm の三角形 %d" % (name, nd))
     V.set_origin(o, (0, 0, 0))
@@ -1721,7 +1749,12 @@ def check_kado_deg(o, h, phi, ref):
             a2.add((round(-(x * n2[0] + z * n2[1]), 3), round(y - h, 3)))
     top = lambda S: {p for p in S if p[1] > -0.25 and p[0] < 0.6}
     deep = lambda S: {p for p in S if p[1] > -0.25 and p[0] >= 0.6}
-    d1, dd2 = len(top(ref_p) ^ top(a1)), len(top(ref_m) ^ top(a2))
+    # 腕2 は yaw φ で回した座標を 1mm で丸める ⇒ 丸めの境で 1 点ずれて偽の差になる(2026-10-09 φ=58.9 で 2 点)。
+    # 差は最近点の距離 > 1.5mm だけ数える([[nozura-steep-grade-275-and-staged-meta]] と同じ読み)
+    def nd(A, B):
+        return sum(1 for p in A if not B or min(math.hypot(p[0] - q[0], p[1] - q[1]) for q in B) > 0.0015)
+    d1 = nd(top(ref_p), top(a1)) + nd(top(a1), top(ref_p))
+    dd2 = nd(top(ref_m), top(a2)) + nd(top(a2), top(ref_m))
     print("KADODEG CHECK %s: 腕1の先 %d点 差%d / 腕2の先 %d点 差%d(面から 0.6 より奥の差 %d / %d)" % (
         o.name, len(top(a1)), d1, len(top(a2)), dd2, len(deep(a1) ^ deep(ref_p)), len(deep(a2) ^ deep(ref_m))))
     return (d1 > 0) + (dd2 > 0)
@@ -2925,6 +2958,11 @@ def crest_spec(name):
     if m:
         h = int(m.group(1)) / 1000
         return (lambda x, z: h), (lambda x, z: x <= -FACE_ROW and z <= -FACE_ROW)
+    m = re.match(r"Sanno_Nozura_Kado(\d{2,3})_H(\d{4})_[ab]$", name)   # 折れが 90° でない出隅(名の角は丸め ⇒ 背の列の判定に足りる)
+    if m:
+        h = int(m.group(2)) / 1000
+        _, n2, _ = kado_frame(float(m.group(1)))
+        return (lambda x, z: h), (lambda x, z: z <= -FACE_ROW and x * n2[0] + z * n2[1] <= -FACE_ROW)
     m = re.match(r"Sanno_Nozura_Kiri\d{3}[PM][LS]_H(\d{4})_[a-d]$", name)
     if m:
         h = int(m.group(1)) / 1000

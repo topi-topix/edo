@@ -1637,9 +1637,12 @@ public static class EdoAssets
         }
 
         /// <summary>野面の出隅の駒・**折れ <paramref name="deg"/>°**(走りの向きの変わり。90 は <see cref="SannoNozuraKado"/>)。腕1 = 稜線から局所 −X へ 0.909(見え面 +Z)/
-        /// 腕2 = 局所 (cos deg, 0, −sin deg) へ 0.909(見え面 (sin deg, 0, cos deg))。ピボット = 天端の稜線・床レベル。腕の先は直線の駒と頂点一致。焼けている組: 49 / 52 × H4.80。
-        /// 材 Kirishi / Danishi ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
-        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=49.4,51.8 --h=4.8 --render</summary>
+        /// 腕2 = 局所 (cos deg, 0, −sin deg) へ 0.909(見え面 (sin deg, 0, cos deg))。ピボット = 天端の稜線・床レベル。腕の先は直線の駒と頂点一致。焼けている組: 49 / 52 × H4.80・
+        /// **59 × H4.80**(岡部 TW_Kado_Shumen_Side1 隅 11・実寸 2.70×5.02×2.87)・**35 × H0.60 / H0.90 / H1.20**(同 Side0/Side1 隅 1・3・5)
+        /// ── 2026-10-09 EDO-0502 第62巡。腕の先は石ごとに切って塞ぐ(59/35 から。49/52 は旧の一括切り)。
+        /// 材 Kirishi / Danishi ⇒ `Edo/山王社/新造部材のマテリアルをremap`(.meta を Kado49 から写せば不要)。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=58.9 --h=4.8 --render
+        ///  / blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=34.7 --h=0.6,0.9,1.2 --render</summary>
         public static string SannoNozuraKadoDeg(float deg, float h, int i)
         {
             int d = (int)System.Math.Round(deg);

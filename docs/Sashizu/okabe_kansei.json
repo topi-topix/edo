@@ -35,8 +35,8 @@
    "label": "突き合わせ 0",
    "what": "指図(意図)と実装の食い違いが 0 件",
    "how": "Unity メニュー Edo/<敷地>/指図と実装を突き合わせる",
-   "value": "突き合わせ0件(56巡・作業場)",
-   "verdict": "pass",
+   "value": "庭 NiwaShoin(書院の泉水)が指図にあるのに建っていない ── 焼き手 impl_okabe.py に gardens の器が無く(EDO-0407)、ビルダーが据え置きの欄を退けていた。突き合わせは庭を数えていなかった(施主指摘 2026-10-08)",
+   "verdict": "fail",
    "at": "2026-10-08",
    "note": ""
   },
@@ -374,6 +374,12 @@
    "event": "record",
    "item": "match",
    "verdict": "pass"
+  },
+  {
+   "at": "2026-10-08T20:13:54+09:00",
+   "event": "record",
+   "item": "match",
+   "verdict": "fail"
   }
  ]
 }

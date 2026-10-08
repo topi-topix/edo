@@ -3526,6 +3526,94 @@ public static class EdoOkabeYashikiBuilder
                     }
             if (trs.Count > 0) sb.AppendLine("  返しと長屋の背の間の溝を設計の地盤へ写した節点 " + nt + "(溝 " + trs.Count + ")");
         }
+        // ⭐ 池の岸の断面(指図 hosoku.zosei「gardens[NiwaShoin].hori」.danmen・EDO-0502 第61巡)を皮の格子で設計の地盤へ ──
+        //   算出物 graded は 1m・地形は 2m 格子で、汀の外 2〜3m まで地表が水面より低く描かれ、水面が板のように浮いた(第60巡 縁の 1520/3203 点)。
+        //   汀線からの符号付きの距離 d(陸 +)で: 陸は max(設計, 州浜なら 水面 + d/5 ≤ 岸・石組/乱杭なら 岸)、水の中は 型の棚と法(底 bedY で止める)。
+        //   型 = 最寄りの護岸の区間(石組護岸・州浜・乱杭)の折れ線が 1.5m 以内ならその型、無ければ州浜。中島(設計 > 水面)は触らない。
+        //   描くのは帯 |d| ≤ 3m(drawAreas として CutEdgeSkin に渡す)。当たる先: 算出物の汀線を持つ庭(岡部 書院の泉水)。
+        var drawAreas = new List<Vector2[]>();
+        {
+            var GL = A(Get(IMPL, "gardens")) ?? new List<object>();
+            Dictionary<string, object> hori = null;
+            System.Action<object> fh = null;
+            fh = o => { var d0 = o as Dictionary<string, object>; if (d0 != null) { foreach (var kv in d0) { if (kv.Key.EndsWith("].hori") && kv.Value is Dictionary<string, object>) hori = (Dictionary<string, object>)kv.Value; else if (hori == null) fh(kv.Value); } return; } var l0 = o as List<object>; if (l0 != null) foreach (var v in l0) if (hori == null) fh(v); };
+            fh(D);
+            System.Func<string, string, float> rx2 = (txt, pat) => { var m = System.Text.RegularExpressions.Regex.Match(txt ?? "", pat); return m.Success ? float.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) : float.NaN; };
+            var dm = hori == null ? null : O(Get(hori, "danmen"));
+            string tS = dm == null ? null : S(Get(dm, "州浜")), tI = dm == null ? null : S(Get(dm, "石組")), tR = dm == null ? null : S(Get(dm, "乱杭"));
+            float bank = hori == null ? float.NaN : F(Get(hori, "bank"));
+            float sLand = rx2(tS, @"陸\s*([0-9.]+)\s*m"), sLandB = rx2(tS, @"陸[^、]*1\s*:\s*([0-9.]+)"), sWat = rx2(tS, @"水中\s*([0-9.]+)\s*m"), sWatB = rx2(tS, @"水中[^、]*1\s*:\s*([0-9.]+)"), sFar = rx2(tS, @"以遠\s*1\s*:\s*([0-9.]+)");
+            float iShelf = rx2(tI, @"棚\s*([0-9.]+)"), iW = rx2(tI, @"幅\s*([0-9.]+)"), iFar = rx2(tI, @"1\s*:\s*([0-9.]+)");
+            float rUp = rx2(tR, @"立ち上げ\s*([0-9.]+)"), rFar = rx2(tR, @"1\s*:\s*([0-9.]+)");
+            var miss = new List<string>();
+            foreach (var kv in new[] { new KeyValuePair<string, float>("岸 bank", bank), new KeyValuePair<string, float>("州浜の陸の幅", sLand), new KeyValuePair<string, float>("州浜の陸の法", sLandB), new KeyValuePair<string, float>("州浜の水中の幅", sWat),
+                                       new KeyValuePair<string, float>("州浜の水中の法", sWatB), new KeyValuePair<string, float>("州浜の以遠の法", sFar), new KeyValuePair<string, float>("石組の棚", iShelf), new KeyValuePair<string, float>("石組の棚の幅", iW),
+                                       new KeyValuePair<string, float>("石組の法", iFar), new KeyValuePair<string, float>("乱杭の立ち上げ", rUp), new KeyValuePair<string, float>("乱杭の法", rFar) })
+                if (float.IsNaN(kv.Value)) miss.Add(kv.Key);
+            foreach (var o in GL)
+            {
+                var mg = O(o); if (!(S(Get(mg, "kind")) ?? "").StartsWith("汀線")) continue;
+                if (miss.Count > 0) { sb.AppendLine("  ★ 池の岸の断面: 指図から読めない(" + string.Join("・", miss.ToArray()) + ")── 皮で描かない"); break; }
+                var wl = A(Get(mg, "world")); if (wl == null || wl.Count < 3) continue;
+                float wy = F(mg["y"]), bed = F(Get(mg, "bedY")); string zone = S(Get(mg, "zone"));
+                var ring = new Vector2[wl.Count]; for (int i = 0; i < wl.Count; i++) { var q = A(wl[i]); ring[i] = new Vector2(F(q[0]), F(q[1])); }
+                // 護岸の区間の折れ線と型(0 州浜・1 石組・2 乱杭)
+                var segs = new List<KeyValuePair<int, Vector2[]>>();
+                foreach (var o2 in GL)
+                {
+                    var g2 = O(o2); if (S(Get(g2, "zone")) != zone) continue; string k2 = S(Get(g2, "kind")) ?? "";
+                    int ty = k2.StartsWith("石組護岸") ? 1 : k2.StartsWith("乱杭") ? 2 : k2.StartsWith("州浜") ? 0 : -1; if (ty < 0) continue;
+                    var w2 = A(Get(g2, "world")); if (w2 == null || w2.Count < 2) continue;
+                    var pl = new Vector2[w2.Count]; for (int i = 0; i < w2.Count; i++) { var q = A(w2[i]); pl[i] = new Vector2(F(q[0]), F(q[1])); }
+                    segs.Add(new KeyValuePair<int, Vector2[]>(ty, pl));
+                }
+                System.Func<Vector2[], Vector2, bool, float> distPl = (pl, q, closed) => { float best = float.MaxValue; int n = pl.Length; for (int i = 0; i < (closed ? n : n - 1); i++) best = Mathf.Min(best, DistSeg(q, pl[i], pl[(i + 1) % n])); return best; };
+                float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
+                foreach (var q in ring) { mnx = Mathf.Min(mnx, q.x); mxx = Mathf.Max(mxx, q.x); mnz = Mathf.Min(mnz, q.y); mxz = Mathf.Max(mxz, q.y); }
+                const float BANDG = 3f, STONE_IN = 0.3f; int nUp = 0, nDn = 0;   // STONE_IN: 石組の石の半幅の最小(長軸 0.45〜1.2 の半分 ≥ 0.22)より少し広く ── 石の足の下に隠れる
+                int i0 = Mathf.Max(0, Mathf.FloorToInt((mnx - BANDG - dx0) / dstep)), i1 = Mathf.Min(dnx - 1, Mathf.CeilToInt((mxx + BANDG - dx0) / dstep));
+                int j0 = Mathf.Max(0, Mathf.FloorToInt((mnz - BANDG - dz0) / dstep)), j1 = Mathf.Min(dnz - 1, Mathf.CeilToInt((mxz + BANDG - dz0) / dstep));
+                for (int j = j0; j <= j1; j++)
+                    for (int i = i0; i <= i1; i++)
+                    {
+                        int k = j * dnx + i; if (!ok[k]) continue;
+                        var q = new Vector2(dx0 + i * dstep, dz0 + j * dstep);
+                        float dd = distPl(ring, q, true); if (dd > BANDG) continue;
+                        bool inside = EdoGeom.PIP(ring, q); float d = inside ? -dd : dd;
+                        int ty = 0; float bt = 1.5f; foreach (var sg in segs) { float e = distPl(sg.Value, q, false) - Mathf.Abs(d); if (e < bt) { bt = e; ty = sg.Key; } }
+                        float v = gh[k], y;
+                        if (d >= 0f) y = Mathf.Max(v, ty == 0 ? Mathf.Min(bank, wy + d / sLandB) : bank);
+                        else
+                        {
+                            if (v > wy + 0.01f) continue;   // 中島・岩島の盛りは触らない
+                            float u = -d;
+                            if (ty == 0) y = u <= sWat ? wy - u / sWatB : wy - sWat / sWatB - (u - sWat) / sFar;
+                            else if (u <= STONE_IN) y = bank;   // 石組・乱杭: 汀の線から内へ STONE_IN は石・杭の足の下(岸の高さ ── 水面の縁を地表で囲む【硬】)
+                            else if (ty == 1) y = u - STONE_IN <= iW ? iShelf : iShelf - (u - STONE_IN - iW) / iFar;
+                            else y = rUp - (u - STONE_IN) / rFar;
+                            y = Mathf.Max(y, bed);
+                        }
+                        if (Mathf.Abs(y - v) < 1e-3f) continue;
+                        if (y > v) nUp++; else nDn++;
+                        gh[k] = y;
+                    }
+                // 帯の外形(汀線の外接を BANDG 広げた矩形 ── 描くかは CutEdgeSkin が升ごとに設計と地形の差で決める)
+                drawAreas.Add(new[] { new Vector2(mnx - BANDG, mnz - BANDG), new Vector2(mxx + BANDG, mnz - BANDG), new Vector2(mxx + BANDG, mxz + BANDG), new Vector2(mnx - BANDG, mxz + BANDG) });
+                sb.AppendLine("  池の岸の断面 " + S(mg["name"]) + ": 汀の帯 ±" + BANDG.ToString("F0") + "m を皮の格子 " + dstep.ToString("F2") + "m で ── 上げた節点 " + nUp + "・下げた節点 " + nDn
+                    + "(岸 " + bank.ToString("F2") + "・水面 " + wy.ToString("F2") + "・底 " + bed.ToString("F2") + "・型 州浜/石組/乱杭 = 護岸の区間 " + segs.Count + ")");
+            }
+        }
+        // 背の小段(StairSideAndEndBacks の #side・#endsBack)も描く区域へ ── 小段 + 先の法(盛りの上限 ÷ 法)まで
+        foreach (var kv in SodeBenches(null))
+        {
+            if (!(kv.Key.EndsWith("#side") || kv.Key.EndsWith("#endsBack"))) continue;
+            foreach (var pr in kv.Value)
+            {
+                var bk = pr.Value; float L = Vector2.Distance(bk.a, bk.b); if (L < 0.05f) continue;
+                Vector2 t = (bk.b - bk.a) / L; float reach = bk.w + Mathf.Min(bk.maxFill, 3f) * bk.bf, ex = bk.noEndSpill ? 0.25f : Mathf.Min(bk.maxFill, 3f) * bk.bf;
+                drawAreas.Add(new[] { bk.a - t * ex, bk.b + t * ex, bk.b + t * ex + bk.back * reach, bk.a - t * ex + bk.back * reach });
+            }
+        }
         // ⭐ 法尻の土留めの背の小段(Stage2b が地形を切る・指図 toeBench)も設計の地盤へ ── 同じ式(EdoBuild.ToeBenchAt)。⛔ 上げない
         {
             var toes = ToeBenches(null); int ntb = 0;
@@ -3716,7 +3804,7 @@ public static class EdoOkabeYashikiBuilder
             if (keepNiwa.Count > 0) sb.AppendLine("  庭の土工の区域 " + keepNiwa.Count + " を面の縁の升から外す(faceKeepOut)");
         }
         var rep = EdoBuild.CutEdgeSkin("Okabe", grp, parts, faces, tol, design: design, backfill: 0f, sealFace: true,
-                                       crestBandParts: band, plantPoints: plant, faceKeepOut: keepNiwa);
+                                       crestBandParts: band, plantPoints: plant, faceKeepOut: keepNiwa, drawAreas: drawAreas);
         AssetDatabase.SaveAssetIfDirty(EdoBuild.T().terrainData);
         sb.AppendLine("  古い皮を外して塞いだ升 " + filled + " / 部材 " + rep.parts + "(土留め " + (band.Count - igN) + "・外周の石垣 " + igN + "(うち区画の外の足元を描けない " + igOut + ")・石段 " + stairN + ")/ 面 " + faces.Count + " / 守った地形の木 " + plant.Count);
         sb.AppendLine("  " + rep);
@@ -5964,28 +6052,7 @@ public static class EdoOkabeYashikiBuilder
                     dense.Add(new Vector3(p.x + outN.x * o, wy, p.y + outN.y * o));
                 }
             }
-            // ⭐ 継ぎの間の縁も測る(EDO-0502 第60巡 ── 点は出しても、点と点を結ぶ縁が低い地表の上を渡り、縁の浮きが 106/1607 残った)。
-            //   縁を 0.1m で引き、地表が水面より低い所があれば、その所に点を足して同じ向きへ出す(2 巡まで)。
-            for (int pass = 0; pass < 2; pass++)
-            {
-                var nx = new List<Vector3>(); int added = 0;
-                for (int i = 0; i < dense.Count; i++)
-                {
-                    var a3 = dense[i]; var b3 = dense[(i + 1) % dense.Count]; nx.Add(a3);
-                    Vector2 a = new Vector2(a3.x, a3.z), b = new Vector2(b3.x, b3.z); float L = (b - a).magnitude; if (L < 0.12f) continue;
-                    Vector2 t = (b - a) / L, outN = area > 0f ? new Vector2(t.y, -t.x) : new Vector2(-t.y, t.x);
-                    int k = Mathf.CeilToInt(L / 0.1f);
-                    for (int j = 1; j < k; j++)
-                    {
-                        Vector2 p = Vector2.Lerp(a, b, j / (float)k); if (dr.At(p.x, p.y) >= wy) continue;
-                        float o = 0f; while (o <= 2.0f && dr.At(p.x + outN.x * o, p.y + outN.y * o) < wy + 0.02f) o += 0.05f;
-                        if (o > 2.0f) o = 2.0f;
-                        nx.Add(new Vector3(p.x + outN.x * o, wy, p.y + outN.y * o)); added++; pmx = Mathf.Max(pmx, o);
-                        j += Mathf.Max(0, Mathf.RoundToInt(0.25f / (L / k)) - 1);   // 足すのは 0.25m おき
-                    }
-                }
-                dense = nx; if (added == 0) break;
-            }
+            // ⛔ 継ぎの間へ点を足して外へ出す手は第61巡で外した(縁の向きが瓢箪のくびれで池の中へ折れ、水面の縁が池底を渡った)── 岸は皮が描く(Stage3b 池の岸の断面)
             {
                 int nAll = 0, nLow = 0; float lowMx = 0f;
                 for (int i = 0; i < dense.Count; i++)

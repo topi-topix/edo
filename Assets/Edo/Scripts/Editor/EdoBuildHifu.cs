@@ -83,6 +83,8 @@ public static partial class EdoBuild
     /// <summary><see cref="CutEdgeSkin"/> の報告。</summary>
     public struct SkinReport
     {
+        /// <summary>描く区域(drawAreas)で開けた升の数。</summary>
+        public int cellsDraw;
         public int parts, cells, cellsParts, cellsFace, cellsBand, cellsFill, skipHole, skipTree, skipPlant, holesCut;
         /// <summary>穴を開けた後に穴の升に立つ植栽の点(<c>plantPoints</c>)の数。硬い条件・許容0。</summary>
         public int plantOnHole;
@@ -608,7 +610,8 @@ public static partial class EdoBuild
                                          IList<GameObject> crestBandParts = null, IList<Vector2> plantPoints = null,
                                          IList<GameObject> floorParts = null, IList<Vector2[]> faceKeepOut = null,
                                          IList<GameObject> hollowParts = null, IList<GameObject> seated = null,
-                                         IList<GameObject> keepGradeBeside = null, float keepBatter = 0f, bool stairApronFrontOnly = false)
+                                         IList<GameObject> keepGradeBeside = null, float keepBatter = 0f, bool stairApronFrontOnly = false,
+                                         IList<Vector2[]> drawAreas = null)
     {
         var r = new SkinReport();
         var t = T(); var td = t.terrainData; var org = t.transform.position;
@@ -1014,6 +1017,33 @@ public static partial class EdoBuild
                     }
             }
         foreach (var c in bandCells) if (!faceCells.Contains(c)) { faceCells.Add(c); }
+        // ---- 2c' 描く区域(drawAreas・2026-10-09 EDO-0502 第61巡): 区域の中で、2m 格子の地形が設計の地盤(OutsideY)と drawTol を超えて違う升を穴にする ──
+        //   面の縁でも部材の脇でもない所の、格子より細かい設計(池の岸の断面・背の小段)を皮で描く。faceKeepOut と独立(庭の区域でも開ける)。
+        //   ⛔ 2026-10-08 第60巡まで: 岡部 書院の泉水の岸を 2m 格子が描き、汀の外 2〜3m まで地表が水面 20.7 より低く(縁の 1520/3203 点)、水面が板のように浮いた。
+        //   当たる先: drawAreas を渡す邸(いまは岡部 Stage3b ── 庭の汀の帯・背の小段)。渡さなければ従来どおり。
+        int drawN = 0;
+        if (design != null && drawAreas != null)
+            foreach (var da in drawAreas)
+            {
+                if (da == null || da.Length < 3) continue;
+                float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
+                foreach (var p in da) { mnx = Mathf.Min(mnx, p.x); mxx = Mathf.Max(mxx, p.x); mnz = Mathf.Min(mnz, p.y); mxz = Mathf.Max(mxz, p.y); }
+                for (int i = CI(mnx); i <= CI(mxx); i++)
+                    for (int j = CJ(mnz); j <= CJ(mxz); j++)
+                    {
+                        long ck = CK(i, j); if (faceCells.Contains(ck)) continue;
+                        float x0 = org.x + i * cs, z0 = org.z + j * cs; bool bad = false;
+                        for (float x = x0; x <= x0 + cs + 1e-4f && !bad; x += 0.5f)
+                            for (float z = z0; z <= z0 + cs + 1e-4f && !bad; z += 0.5f)
+                            {
+                                var q = new Vector2(x, z); if (!EdoGeom.PIP(da, q)) continue;
+                                float want = FaceY(q); if (float.IsNaN(want)) want = OutsideY(q, null);
+                                if (!float.IsNaN(want) && Mathf.Abs(want - probe.At(x, z)) > drawTol) bad = true;
+                            }
+                        if (bad) { faceCells.Add(ck); drawN++; }
+                    }
+            }
+        r.cellsDraw = drawN;
 
         // ---- 2d 裏込め: 部材の底から外へ 1:backfill で下ろす盛土の面(密な格子・chamfer)
         //   種 = 外形の辺を 0.25m で歩いた点の底(縁から 0.05/0.15/0.30m 内の最も低い面 ── MeasureSkin と同じ定義)を、

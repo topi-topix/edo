@@ -11,7 +11,8 @@
   (`sashizu_lib.plant_rnd` / `apportion` / `scatter_take` / `plant_part` / `grid_sampler`)。
 ⭕ `terraceWalls` は土留めの線(`bake_terrace_walls`・EDO-0502)── 線は `sashizu_lib.tw_resolve` が指図の関係から解く。
 ⭕ `gardens` は庭方の設計(指図 `gardens[]`・`tsukiyama[]`)を Stage4 の行へ焼く(`bake_gardens`・EDO-0407)。
-  据えるのに要る値が指図に無い行は `wait` を持つ(Stage4 は据えずに名乗る)。庭木は `bake_niwa_trees` が planting の点へ足す。
+  値は `gardens[].hosoku`(庭方の補足 589d1ebf)から。据えるのに要る値が無い行は `wait` を持つ(Stage4 は据えずに名乗る)。
+  庭木は `bake_niwa_trees` が planting の点へ足す。造成(築山・池の見込み・遣水の野筋)は `sashizu_lib.niwa_y`(graded_y から)。
 ⛔ rails / kui / migiwa(溜池の汀の杭列・法肩の竹垣)は今の指図に源の欄(`nishi`)が無い — 返さない(据え置き)。
 """
 import json
@@ -629,6 +630,35 @@ def _centroid(P):
     return (sum(q[0] for q in P) / len(P), sum(q[1] for q in P) / len(P))
 
 
+def _hk_gogan(hk, t):
+    """`hosoku.gogan` の行を護岸の型 `t` で引く(鍵は「型 #区間 長さ」)。`same` は名指す型の行で埋める。"""
+    gh = hk.get("gogan") or {}
+    row = next((v for k, v in gh.items() if k.split(" ")[0] == t), None)
+    if row and row.get("same"):
+        base = next((v for k, v in gh.items() if k.split(" ")[0].endswith("(" + row["same"] + ")")), None)
+        if base:
+            row = dict(base, **dict((k, v) for k, v in row.items() if k != "same"))
+    return row
+
+
+def _bends(P, deg):
+    """折れ線 P の頂点のうち、曲がりが `deg` 度を超える物(番号, 内側の向きの単位ベクトル)。"""
+    out = []
+    for i in range(1, len(P) - 1):
+        a, b, c = P[i - 1], P[i], P[i + 1]
+        ux, uz = b[0] - a[0], b[1] - a[1]
+        wx, wz = c[0] - b[0], c[1] - b[1]
+        la, lb = math.hypot(ux, uz), math.hypot(wx, wz)
+        if la < 1e-9 or lb < 1e-9:
+            continue
+        cs = max(-1.0, min(1.0, (ux * wx + uz * wz) / (la * lb)))
+        if math.degrees(math.acos(cs)) > deg:
+            ix, iz = wx / lb - ux / la, wz / lb - uz / la
+            n = math.hypot(ix, iz) or 1.0
+            out.append((i, (ix / n, iz / n)))
+    return out
+
+
 def bake_gardens(M, d):
     ken = M.KEN
     out = []
@@ -653,8 +683,15 @@ def bake_gardens(M, d):
     def lenm(pts_uv):
         return round(L.polyline_len([M.W(*q) for q in pts_uv]), 3)
 
+    def ishi_idx(s):
+        m = re.search(r"Ishigumi\((\d)\)", str(s or ""))
+        return int(m.group(1)) if m else None
+
     for g in d.get("gardens") or []:
         gz = g["name"]
+        hk = g.get("hosoku") or {}
+        hcert = hk.get("cert")
+        stone_asset = "Own.Ishigumi" if "Own.Ishigumi" in str((hk.get("stones") or {}).get("asset") or "") else None
         poly = g.get("poly")
         if poly and len(poly) >= 3:
             add(gz + "_Kuiki", gz, "庭の区域", [tuple(q) for q in poly] + [tuple(poly[0])], kindOf=g.get("kind"),
@@ -662,12 +699,12 @@ def bake_gardens(M, d):
         mg = g.get("migiwa") or {}
         ring = [tuple(q) for q in (mg.get("pts") or [])]
         wy = mg.get("waterY")
-        # ① 汀線 ── 指図の点そのもの(⛔ 平滑の回数は指図に無い ⇒ 平滑しない)
         if len(ring) >= 3:
             add("Migiwa_" + gz, gz, "汀線(平滑後)", ring + [ring[0]], y=wy, depthMax=mg.get("depth"),
                 bedY=mg.get("floorY"), lenM=lenm(ring + [ring[0]]), form=mg.get("form"), cert=mg.get("cert"),
-                note="指図の汀の点そのまま(平滑の宣言が無いので平滑しない)。水面 waterY・深さ depth・底 floorY")
-        # ② 護岸(州浜・石組・乱杭)── 区間は汀線の頂点の番号(#n)で書かれている
+                note="指図の汀の点そのまま(平滑の宣言が無いので平滑しない)。掘りは WaterBaker が正・graded の池は"
+                     "見込みの断面(hosoku.zosei の hori.danmen)")
+        # 護岸(州浜・石組・乱杭)── 区間は汀線の頂点の番号(#n)
         for i, gg in enumerate(g.get("gogan") or []):
             se = L.parse_ring_seg(gg.get("seg"))
             if se is None or len(ring) < 3:
@@ -676,53 +713,102 @@ def bake_gardens(M, d):
             t = str(gg.get("type") or "")
             nm = "Gogan%02d_%s" % (i + 1, gz)
             base = dict(seg=gg.get("seg"), lenM=lenm(arc), why=gg.get("why"), cert=gg.get("cert"), type=t)
+            hg = _hk_gogan(hk, t) or (hk.get("gogan") or {}).get(t) or {}
             if t.startswith("州浜"):
-                add(nm, gz, "州浜(砂利の帯)", arc, y=wy,
-                    note="地表(砂利)は surface の輪。⚠ 帯の幅(汀からの出入り)は指図に無い", **base)
+                add(nm, gz, "州浜(砂利の帯)", arc, y=wy, fromWater=hg.get("bandIn_m"), toLand=hg.get("bandOut_m"),
+                    hiraishi=hg.get("hiraishi"), grass=hg.get("grass"),
+                    note="地表(砂利)は surface の輪。⚠ 平石(hiraishi)は位置が数で書かれていない ── 据えない", **base)
             elif t.startswith("石組"):
-                add(nm, gz, "石組護岸の区間", arc, asset="Own.Ishigumi", y=wy, ishi=g.get("stone"),
-                    wait=["石の長手 lenMin/lenMax", "石の数(または芯々比)", "埋まりの比 buryRatio", "天端の乱れ jag",
-                          "役石の間隔 yakuEvery"], **base)
+                need = [k for k in ("lenMin", "lenMax", "n", "buryRatio", "jag", "yakuEvery") if hg.get(k) is None]
+                add(nm, gz, "石組護岸の区間", arc, asset=stone_asset or "Own.Ishigumi", y=wy, ishi=g.get("stone"),
+                    lenMin=hg.get("lenMin"), lenMax=hg.get("lenMax"), stones=hg.get("n"), buryRatio=hg.get("buryRatio"),
+                    jag=hg.get("jag"), yakuEvery=hg.get("yakuEvery"), yakuLen=hg.get("yakuLen"), topY=hg.get("topY"),
+                    pitch=hg.get("pitch"), arai=hg.get("arai"), gap=hg.get("gap"), hcert=hcert,
+                    wait=(["hosoku.gogan[%s].%s" % (t, k) for k in need] or None), **base)
             elif t.startswith("乱杭"):
-                add(nm, gz, "乱杭", arc, asset="Own.Rangui",
-                    wait=["杭の径 rMin/rMax", "芯々(本数)", "頭の高さ topY", "杭の長さ pieceLen"], **base)
-        # ③ 中島・岩島
+                ty = hg.get("topY")
+                need = [k for k in ("rMin", "rMax", "n", "topY", "pieceLen") if hg.get(k) is None]
+                top = (sum(ty) / len(ty)) if isinstance(ty, list) else ty
+                add(nm, gz, "乱杭", arc, asset="Own.Rangui", y=top, n=hg.get("n"), rMin=hg.get("rMin"),
+                    rMax=hg.get("rMax"), pitch=hg.get("pitch"), topY=ty, pieceLen=hg.get("pieceLen"),
+                    tilt=hg.get("tilt"), hcert=hcert,
+                    botY=(round(top - hg["pieceLen"], 3) if top is not None and hg.get("pieceLen") else None),
+                    note="頭の高さ y は topY の幅の中ほど(ビルダーは一つの高さで据える)",
+                    wait=(["hosoku.gogan[乱杭].%s" % k for k in need] or None), **base)
+        # 中島・岩島
         for i, nk in enumerate(g.get("nakajima") or []):
             ol = [tuple(q) for q in (nk.get("outline") or [])]
             if len(ol) >= 3:
                 add("Nakajima%02d_%s" % (i + 1, gz), gz, "中島(輪郭)", ol + [ol[0]], y=nk.get("topY"),
                     type=nk.get("type"), rTop=nk.get("rTop_m"), falloff=nk.get("falloff"), dressing=nk.get("dressing"),
-                    cert=nk.get("cert"),
-                    note="⚠ 島の石3 は位置・丈が指図に無い(据えない)。松は植栽の算出物(planting の NiwaShoin)")
+                    cert=nk.get("cert"), note="地形の側(graded に cos で盛った)。石3は景石の行・松は planting の点")
+        for j, q in enumerate(hk.get("nakajima.ishi") or []):
+            add("NakajimaIshi%02d_%s" % (j + 1, gz), gz, "景石", [(q[0], q[1])], asset=stone_asset or "Own.Ishigumi",
+                h=q[2], idx=ishi_idx(q[3] if len(q) > 3 else None), role="中島の石", buryRatio=None, hcert=hcert,
+                note="⚠ 埋まりの比は指図に無い(ビルダーの既定 1/3)")
+        ih = hk.get("iwajima") or {}
         for i, iw in enumerate(g.get("iwajima") or []):
             uv = iw.get("uv")
             if not uv:
                 continue
             m_ = re.search(r"([\d.]+)\s*沈", str(iw.get("stones") or ""))
-            add("Iwajima%02d_%s" % (i + 1, gz), gz, "岩島", [tuple(uv)], asset="Own.Ishigumi", y=wy,
-                sink=(float(m_.group(1)) if m_ else None), stones=iw.get("stones"), cert=iw.get("cert"),
-                wait=["大石の丈 h", "肩石の丈 hShoulder"])
-        # ④ 橋 ── Stage4 に橋の分岐が無く、駒も名指されていない
+            need = [k for k in ("h", "hShoulder") if ih.get(k) is None]
+            add("Iwajima%02d_%s" % (i + 1, gz), gz, "岩島", [tuple(uv)], asset=stone_asset or "Own.Ishigumi", y=wy,
+                h=ih.get("h"), hShoulder=ih.get("hShoulder"), shoulder=(W(ih["shoulderUV"]) if ih.get("shoulderUV") else None),
+                sink=(float(m_.group(1)) if m_ else None), stones=iw.get("stones"), kataAsset=ih.get("asset"),
+                cert=iw.get("cert"), hcert=hcert, wait=(["hosoku.iwajima.%s" % k for k in need] or None),
+                note="⚠ 肩石の芯は shoulder(世界)── ビルダーは大石の芯から +0.9/+0.5 に据える")
+        # 橋 ── 在庫に無い(部材方へ)
+        hh = hk.get("hashi") or {}
         for i, hs in enumerate(g.get("hashi") or []):
             if not (hs.get("from") and hs.get("to")):
                 continue
             m_ = re.search(r"=\s*([\d.]+)", str(hs.get("deckY") or ""))
             add("Hashi%02d_%s" % (i + 1, gz), gz, "橋", [tuple(hs["from"]), tuple(hs["to"])], asset="Hashi",
                 y=(float(m_.group(1)) if m_ else None), type=hs.get("type"), spanExpect=hs.get("span_m_expect"),
-                hasamiIshi=hs.get("hasamiIshi"), lenM=lenm([tuple(hs["from"]), tuple(hs["to"])]), cert=hs.get("cert"),
-                wait=["橋の駒(在庫・新造の名指し)", "挟み石の位置と丈"])
-        # ⑤ 水の系(遣水・越流堰)── 地形の側。堰は駒が名指されていない
+                lenM=lenm([tuple(hs["from"]), tuple(hs["to"])]), cert=hs.get("cert"), partSpec=hh.get("asset"),
+                hasamiIshi=hh.get("hasamiIshi") or hs.get("hasamiIshi"),
+                mikomi=([W(q) for q in hh["uvMikomi"]] if hh.get("uvMikomi") else None),
+                wait=["橋の駒(在庫に無い ── 部材方へ: hosoku.hashi.asset)", "挟み石(実測の袂から据える)"])
+        # 水の系(遣水・越流堰)
         mz = g.get("mizu") or {}
         inf = mz.get("inflow") or {}
+        zo = hk.get("zosei") or {}
         if len(inf.get("yarimizu") or []) >= 2:
             ym = [tuple(q) for q in inf["yarimizu"]]
             add("Yarimizu_" + gz, gz, "遣水", ym, bedY=inf.get("bedY"), widthM=inf.get("width_m"), lenM=lenm(ym),
-                note="地形の側(底の高さ bedY は両端)。⚠ graded に遣水の掘り込みは入っていない")
+                bank=(zo.get("yarimizu.bank") or {}).get("value"),
+                note="地形の側(graded に溝の底と両岸の野筋を入れた)")
         wr = (mz.get("outflow") or {}).get("weir") or {}
+        sk_ = str((hk.get("seki") or {}).get("asset") or "")
         if wr.get("uv"):
-            add("Seki_" + gz, gz, "越流堰", [tuple(wr["uv"])], asset="Seki", y=wr.get("crestY"), type=wr.get("kind"),
-                wait=["堰の駒(在庫・新造の名指し)"])
-        # ⑥ 景石(主景の三石)── 丈は地上の丈・埋まりは rule の 1/3
+            mS = re.search(r"Own\.Tobiishi\((\d)\)\s*長軸\s*([\d.]+)\s*×\s*(\d+).*?幅\s*([\d.]+)\s*m", sk_)
+            route = ((mz.get("outflow") or {}).get("route") or [])
+            if mS and len(route) >= 2:
+                c = M.W(*wr["uv"])
+                nx = M.W(*route[1])
+                fx, fz = nx[0] - c[0], nx[1] - c[1]
+                fl = math.hypot(fx, fz) or 1.0
+                px, pz = -fz / fl, fx / fl                     # 流れに直交 = 口の幅の向き
+                n9, wd = int(mS.group(3)), float(mS.group(4))
+                pts = [(c[0] + px * wd * (k / (n9 - 1) - 0.5), c[1] + pz * wd * (k / (n9 - 1) - 0.5)) for k in range(n9)] \
+                    if n9 > 1 else [c]
+                ax = float(mS.group(2))
+                add("Seki_" + gz, gz, "飛石", [M.UV(*q) for q in pts], asset="Own.Tobiishi", y=wr.get("crestY"),
+                    n=n9, rMin=ax, rMax=ax, idx=int(mS.group(1)), role="越流堰の堰石", hcert=hcert,
+                    note="口の幅 %.2fm に横一列・天端 = crestY ±0.02【硬】。⚠ 個体はビルダーが選ぶ(指図は (%s))"
+                         % (wd, mS.group(1)))
+                mF = re.search(r"袖石\s*Ishigumi\((\d)\)\s*h\s*([\d.]+)\s*・\s*([\d.]+)", sk_)
+                if mF:
+                    for k, (sgn, hv) in enumerate(((-1, mF.group(2)), (1, mF.group(3)))):
+                        q = (c[0] + px * sgn * wd / 2.0, c[1] + pz * sgn * wd / 2.0)
+                        add("SekiSode%d_%s" % (k + 1, gz), gz, "景石", [M.UV(*q)], asset="Own.Ishigumi", h=float(hv),
+                            idx=int(mF.group(1)), role="堰の袖石", hcert=hcert,
+                            note="芯は口の両端(幅 %.2fm の端)── 指図は位置を書かない" % wd)
+            else:
+                add("Seki_" + gz, gz, "越流堰", [tuple(wr["uv"])], asset="Seki", y=wr.get("crestY"), type=wr.get("kind"),
+                    wait=["hosoku.seki.asset(堰石の型・数・幅)"])
+        # 景石 ── 丈は地上の丈・埋まりは rule の 1/3
         ks = g.get("keiseki") or {}
         rule = str(ks.get("rule") or "")
         bury = 1.0 / 3.0 if "1/3" in rule else None
@@ -731,39 +817,52 @@ def bake_gardens(M, d):
             if not q:
                 continue
             m_ = re.search(r"([\d.]+)\s*m", str(q[2] if len(q) > 2 else ""))
-            add("Keiseki_%s_%s" % (nm, gz), gz, "景石", [(q[0], q[1])], asset="JG.Rock",
-                h=(float(m_.group(1)) if m_ else None), role=role, pose=("立" if "立" in rule or "立" in str(q[2]) else None),
+            add("Keiseki_%s_%s" % (nm, gz), gz, "景石", [(q[0], q[1])], asset=stone_asset or "Own.Ishigumi",
+                h=(float(m_.group(1)) if m_ else None), role=role, pose=("立" if "立" in rule else None),
                 buryRatio=(round(bury, 3) if bury else None), ishi=g.get("stone"), desc=q[2] if len(q) > 2 else None,
                 why=(ks.get("main") or {}).get("why"), cert=ks.get("cert"),
                 wait=(None if m_ and bury else ["丈 h" if not m_ else "埋まりの比"]))
-        if ks.get("sub"):
-            add("Keiseki_Sub_" + gz, gz, "景石", [], asset="JG.Rock", desc=ks.get("sub"),
-                wait=["三石の位置(uv)", "三石の丈 h"])
-        # ⑦ 点景(灯籠・沓脱石)
+        sub = hk.get("keiseki.sub") or []
+        for j, q in enumerate(sub):
+            add("Keiseki_Sub%d_%s" % (j + 1, gz), gz, "景石", [(q[0], q[1])], asset=stone_asset or "Own.Ishigumi",
+                h=q[2], idx=ishi_idx(q[3] if len(q) > 3 else None), role=str(q[3]).split("・")[0] if len(q) > 3 else None,
+                pose=("立" if "立" in rule else None), buryRatio=(round(bury, 3) if bury else None), desc=q[3] if len(q) > 3 else None,
+                where=ks.get("sub"), hcert=hcert)
+        if ks.get("sub") and not sub:
+            add("Keiseki_Sub_" + gz, gz, "景石", [], asset="Own.Ishigumi", desc=ks.get("sub"),
+                wait=["hosoku.keiseki.sub(三石の位置と丈)"])
+        # 点景(灯籠・沓脱石)
         kc = (d.get("const") or {}).get("kutsunugi") or {}
+        noToro2 = "置かない" in str((hk.get("toro02") or {}).get("value") or "")
         for i, tk in enumerate(g.get("tenkei") or []):
             kd, uv = str(tk.get("kind") or ""), tk.get("uv")
             if not uv:
                 continue
             if "灯籠" in kd:
                 yuki = "雪見" in kd
+                if not yuki and noToro2:
+                    continue                                   # hosoku.toro02: 置かない
                 add("Toro%02d_%s" % (i + 1, gz), gz, "灯籠", [tuple(uv)], asset=("Eg.ToroYukimi" if yuki else "Toro"),
-                    kata=kd, wait=(None if yuki else ["%s の駒(在庫の名指し ── Stage4 の灯籠は雪見だけを据える)" % kd]))
+                    kata=kd, wait=(None if yuki else ["%s の駒" % kd]))
             elif "沓脱" in kd:
                 add("Kutsunugi%02d_%s" % (i + 1, gz), gz, "沓脱石", [tuple(uv)], asset="Own.Kutsunugi",
                     L=kc.get("partL"), Wd=kc.get("partW"), scale=(1.0 if kc.get("partL") else None),
                     note="⚠ 石の長さは指図に無い ── 駒の実寸(const.kutsunugi.partL)のまま一様 1.0")
-        # ⑧ 園路と飛石(芯々は enro.surface の宣言)
+        # 園路と飛石・踏分石・遣水の石橋
         en = g.get("enro") or {}
+        tb = hk.get("tobi") or {}
         sf = str(en.get("surface") or "")
         m_ = re.search(r"芯々\s*([\d.]+)\s*[〜~-]\s*([\d.]+)\s*m", sf)
         pmin, pmax = (float(m_.group(1)), float(m_.group(2))) if m_ else (None, None)
+        tl = tb.get("len") if isinstance(tb.get("len"), list) else None
+        mf = re.search(r"曲がり\s*>\s*([\d.]+)\s*°.*?長軸\s*([\d.]+)\s*[〜~]\s*([\d.]+)", str(tb.get("fumiwake") or ""))
         for key in ("loopE", "loopW", "summit"):
             P = en.get(key)
             if not P:
                 continue
-            for j, part in enumerate(L.split_polyline(P, None)):
-                nm = "Enro_%s%s_%s" % (key, ("_%d" % (j + 1)) if len(L.split_polyline(P, None)) > 1 else "", gz)
+            parts = L.split_polyline(P, None)
+            for j, part in enumerate(parts):
+                nm = "Enro_%s%s_%s" % (key, ("_%d" % (j + 1)) if len(parts) > 1 else "", gz)
                 add(nm, gz, "園路", part, h=en.get("width_m"), lenM=lenm(part), surface=sf, cert=en.get("cert"),
                     note="地表(土)は surface の輪。⛔ 橋の区間は切って出す")
                 if pmin is None:
@@ -771,10 +870,23 @@ def bake_gardens(M, d):
                 Pw = [M.W(*q) for q in part]
                 st = L.stones_along(Pw, pmin, pmax, L.seeded_rnd(nm + "/飛石"))
                 add("Tobi_" + nm[5:], gz, "飛石", [M.UV(*q) for q in st], asset="Own.Tobiishi", n=len(st),
+                    rMin=(tl[0] if tl else None), rMax=(tl[1] if tl else None), topY=tb.get("topY"),
                     pitchMin=pmin, pitchMax=pmax, lenM=round(L.polyline_len(Pw), 3),
-                    note="芯々 %.2f〜%.2fm の不等ピッチ(enro.surface)。⚠ 石の径・曲がりの踏分石は指図に無い"
-                         "(径はビルダーの既定)" % (pmin, pmax))
-        # ⑨ 垣(庭の東の縁の建仁寺垣)── 線は where の `v=` と庭の区域の幅・口は遣水が縁を越える所
+                    note="芯々 %.2f〜%.2fm の不等ピッチ(enro.surface)・長軸は hosoku.tobi.len" % (pmin, pmax),
+                    wait=(None if tl else ["hosoku.tobi.len(石の長軸)"]))
+                if mf:
+                    for k, (bi, nv) in enumerate(_bends(Pw, float(mf.group(1)))):
+                        q = (Pw[bi][0] + nv[0] * pmin, Pw[bi][1] + nv[1] * pmin)
+                        add("Fumiwake%02d_%s" % (k + 1, nm[5:]), gz, "飛石", [M.UV(*q)], asset="Own.Tobiishi", n=1,
+                            rMin=float(mf.group(2)), rMax=float(mf.group(3)), role="踏分石",
+                            note="曲がり>%s° の内側。⚠ 内へ出す量は指図に無い ── 芯々の下限 %.2fm を採った"
+                                 % (mf.group(1), pmin))
+        mb = re.search(r"\((-?[\d.]+)\s*,\s*(-?[\d.]+)\)\s*で切石一枚の橋", sf)
+        if mb and tb.get("yarimizuBashi"):
+            add("YarimizuBashi_" + gz, gz, "石橋", [(float(mb.group(1)), float(mb.group(2)))],
+                asset=str(tb["yarimizuBashi"]).split(" ")[0], spec=tb["yarimizuBashi"],
+                note="⚠ 向き(遣水を渡す向き)は Stage4 の1点物の分岐が持たない")
+        # 垣(庭の東の縁の建仁寺垣)
         kk = g.get("kaki") or {}
         mv = re.search(r"v\s*=\s*(-?[\d.]+)", str(kk.get("where") or ""))
         if mv and poly:
@@ -802,15 +914,15 @@ def bake_gardens(M, d):
                     lenM=lenm([(a, vk), (b, vk)]), role=kk.get("role"), cert=kk.get("cert"),
                     note="線は where の v=%.1f・庭の区域の幅いっぱい。口 %.2fm は遣水が縁を越える所(u=%s)"
                          % (vk, kk.get("openingW") or 0.0, ",".join("%.2f" % c for c in cuts) or "無し"))
-    # ⑩ 築山(指図の頂上欄 `tsukiyama[]`)── 地形の側
+    # 築山(指図の頂上欄 `tsukiyama[]`)── 地形の側(graded に削り残しを入れた)
     for t in d.get("tsukiyama") or []:
         sk = [tuple(q) for q in (t.get("skirt") or [])]
         if len(sk) < 3:
             continue
-        gz = next((g.name for g in M.gardens if all(L._pip(q, [tuple(p) for p in g.poly]) for q in sk[:1])), "NiwaShoin")
+        gz = next((g.name for g in M.gardens if L._pip(sk[0], [tuple(p) for p in g.poly])), None)
         add("Tsukiyama_%s" % t.get("name"), gz, "築山(裾の輪郭)", sk + [sk[0]], y=t.get("y"),
             peak=[t.get("u"), t.get("v")], how=t.get("how"), top=t.get("top"), cert=t.get("cert"),
-            note="地形の側。⚠ graded に築山(削り残し)は入っていない")
+            note="地形の側(graded に cos の削り残し・頂の平場・勾配の上限を入れた)")
     return out
 
 
@@ -825,6 +937,7 @@ _NIWA_TREE = {   # parts の書き方 → (族.名, 目録の prefab の型, 寸
     "JC.Azalea": ("JC.Azalea", "Azalea A 0%d", None, (1, 3, 4)),
     "Own.Momiji": ("Own.Momiji", "Tree_Momiji_%s%s", ("Small", "Mid"), (1, 2, 3)),
     "JG.Boxwood": ("JG.Boxwood", "Plant_Boxwood_Spring_0%d", None, (1, 2, 3)),
+    "Own.Teiboku": ("Own.Teiboku", "Tree_Teiboku_%s%s", ("H12", "H16", "H20", "H24"), (1, 2, 3)),
 }
 
 
@@ -835,7 +948,7 @@ def _niwa_variants(parts, A):
     for key, (fam, pf, sizes, idx) in _NIWA_TREE.items():
         if key not in s:
             continue
-        m = re.search(re.escape(key) + r"\s+([A-Za-z/]+)", s)
+        m = re.search(re.escape(key) + r"\s+([A-Za-z0-9/]+)", s)
         szs = [z for z in (m.group(1).split("/") if m else []) if z in (sizes or ())] or list(sizes or [None])
         for sz in szs:
             for i in idx:
@@ -891,6 +1004,33 @@ def bake_niwa_trees(M, d, graded):
                 return False
         return True
 
+    # 【柔】`hosoku.shokusai.rule`「幹は汀から≥0.8m・園路芯から≥0.6m」── 外れた点は最も近い守れる所へ寄せて ⚠
+    rl = " ".join(str(((g.get("hosoku") or {}).get("shokusai") or {}).get("rule") or "") for g in d.get("gardens") or [])
+    mw_ = re.search(r"汀から\s*≥\s*([\d.]+)\s*m", rl)
+    mp_ = re.search(r"園路芯から\s*≥\s*([\d.]+)\s*m", rl)
+    dW, dP = (float(mw_.group(1)) if mw_ else 0.0), (float(mp_.group(1)) if mp_ else 0.0)
+
+    def soft_ok(uv):
+        if any(L._pip(uv, w) for w in water):
+            return False
+        if dW and any(_poly_d(uv, w) * M.KEN < dW - 1e-9 for w in water):
+            return False
+        if dP and any(_line_d(uv, P) * M.KEN < dP - 1e-9 for P, _w in paths):
+            return False
+        return True
+
+    def soft_place(uv):
+        """戻り (点, 寄せた m)。守れる所が 2m 内に無ければ (元の点, None)。"""
+        if soft_ok(uv):
+            return uv, 0.0
+        for r in [0.05 * k for k in range(1, 41)]:
+            rr = r / M.KEN
+            cand = [(uv[0] + rr * math.cos(a), uv[1] + rr * math.sin(a)) for a in [2 * math.pi * j / 32 for j in range(32)]]
+            ok = [c for c in cand if soft_ok(c)]
+            if ok:
+                return ok[0], r
+        return uv, None
+
     for g in d.get("gardens") or []:
         gz = g["name"]
         sk = g.get("shokusai")
@@ -927,15 +1067,22 @@ def bake_niwa_trees(M, d, graded):
                     if "中島" in seg:
                         v = next((x for x in vs if x["size"] == "Small"), v)
                     tilt, tdir, why = 0.0, (0.0, 1.0), None
-                    mt = re.search(r"(東|西|南|北|南西|南東|北西|北東)へ\s*([\d.]+)\s*°", seg)
+                    hm = next((str(t9) for k9, t9 in ((g.get("hosoku") or {}).get("matsu") or {}).items() if k9 in seg), "")
+                    mt = re.search(r"(東|西|南|北|南西|南東|北西|北東)へ\s*([\d.]+)\s*°", seg) or \
+                        re.search(r"(東|西|南|北|南西|南東|北西|北東)へ\s*([\d.]+)\s*°", hm)
                     if mt:
                         dd = {"北": (1, 0), "南": (-1, 0), "西": (0, 1), "東": (0, -1), "南西": (-0.7071, 0.7071),
                               "南東": (-0.7071, -0.7071), "北西": (0.7071, 0.7071), "北東": (0.7071, -0.7071)}
                         tilt, tdir = float(mt.group(2)), dd[mt.group(1)]
                     elif "傾け" in seg:
                         why = "⚠ 傾けの角度が指図に無い ── 立てて据える"
-                    if not free(uv) and "中島" not in seg:
-                        why = ((why + " / ") if why else "") + "⚠ 指図の点が汀の内か園路の上"
+                    if "中島" not in seg:
+                        uv2, mv = soft_place(uv)
+                        if mv is None:
+                            why = ((why + " / ") if why else "") + "⚠ 汀・園路の離れ【柔】を 2m 内で守れない ── 指図の点のまま"
+                        elif mv > 0:
+                            why = ((why + " / ") if why else "") + "⚠ 汀・園路の離れ【柔】のため %.2fm 寄せた" % mv
+                            uv = uv2
                     got += 1
                     row("Niwa_%s_%s%02d" % (gz, lay[:2], got), gz, lay, sp, v, uv, scale, tilt, tdir,
                         {"where": seg.strip(), "note": why} if why else {"where": seg.strip()})
@@ -958,7 +1105,7 @@ def bake_niwa_trees(M, d, graded):
                 while placed < cnt and tries < 400:
                     tries += 1
                     uv = (rnd.uniform(u0, u1), rnd.uniform(v0, v1))
-                    if not free(uv) or not L._pip(M.W(*uv), gw.get(gz, [])):
+                    if not free(uv) or not soft_ok(uv) or not L._pip(M.W(*uv), gw.get(gz, [])):
                         continue
                     v = vs[rnd.randrange(len(vs))]
                     cr = (v["rec"].get("crown_r") or max(v["rec"]["sx"], v["rec"]["sz"]) / 2.0) * scale
@@ -972,6 +1119,24 @@ def bake_niwa_trees(M, d, graded):
                 if placed < cnt:
                     notes.append("⚠ 庭木 %s %s: 塊 `%s` は %d/%d 本(汀・中島・園路を避けて採りきれない)"
                                  % (gz, lay, lab.strip(), placed, cnt))
+            # (c) 補足の点(`hosoku.shokusai` の momiji / teiboku / mekakushi)
+            hs = (g.get("hosoku") or {}).get("shokusai") or {}
+            hkey = "momiji" if "モミジ" in lay else ("teiboku" if lay == "低木" else ("mekakushi" if "目隠し" in lay else None))
+            for q in (hs.get(hkey) or []) if hkey and got < n else []:
+                v = vs[rnd.randrange(len(vs))]
+                if len(q) > 2:
+                    mz = re.search(r"(Big|Mid|Small)", str(q[2]))
+                    if mz:
+                        v = next((x for x in vs if x["size"] == mz.group(1) and x["idx"] == v["idx"]), None) or \
+                            next((x for x in vs if x["size"] == mz.group(1)), v)
+                uv, mv = soft_place((q[0], q[1]))
+                got += 1
+                ex = {"where": "hosoku.shokusai.%s" % hkey, "kindNote": q[2] if len(q) > 2 else None}
+                if mv is None:
+                    ex["note"] = "⚠ 汀・園路の離れ【柔】を 2m 内で守れない ── 指図の点のまま"
+                elif mv > 0:
+                    ex["note"] = "⚠ 汀・園路の離れ【柔】のため %.2fm 寄せた" % mv
+                row("Niwa_%s_%s%02d" % (gz, lay[:2], got), gz, lay, sp, v, uv, scale, extra=ex)
             if got < n:
                 notes.append("⛔ 庭木 %s %s: %d/%d 本 ── 残り %d 本は位置が文でしか書かれていない(`%s`)── 撒かない"
                              % (gz, lay, got, n, n - got, where))

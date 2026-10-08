@@ -770,6 +770,10 @@ def graded_y(d, u, v, nat, in_parcel, walled=None):
         return st
     ins = design_y(d, u, v, in_parcel)
     if ins is not None:
+        if d.get("gardens") and niwa_setup(d):         # 庭の造成(`gardens[].hosoku.zosei` を持つ庭だけ)
+            nz = niwa_y(d, u, v, ins, nat)
+            if nz is not None:
+                return nz
         return ins
     if nat is None:
         return None
@@ -3012,3 +3016,173 @@ def split_polyline(P, mark):
     if len(cur) >= 2:
         out.append(cur)
     return out
+
+
+# ================================================================ 庭の造成(築山の削り残し・池の掘りの見込み)── EDO-0502・EDO-0407
+#   ⭐ 欄 `gardens[].hosoku.zosei`(庭方の設計)を持つ庭だけに効く。⚠ 持たない邸の graded は1点も変わらない。
+#   池の本当の掘りは WaterBaker(migiwa.pts・深さ)が正 ── ここは**見込みの断面**(土量と据えの高さの目安)。
+
+def _niwa_seg_d(p, a, b):
+    dx, dz = b[0] - a[0], b[1] - a[1]
+    L2 = dx * dx + dz * dz
+    t = 0.0 if L2 < 1e-12 else max(0.0, min(1.0, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dz) / L2))
+    return math.hypot(p[0] - a[0] - dx * t, p[1] - a[1] - dz * t), t
+
+
+def _ring_d(p, R):
+    """閉じた輪 R への距離(R の単位)と最寄りの辺の番号(0 始まり = 頂点 i→i+1)。"""
+    best, bi = 1e18, 0
+    for i in range(len(R)):
+        dd, _ = _niwa_seg_d(p, R[i], R[(i + 1) % len(R)])
+        if dd < best:
+            best, bi = dd, i
+    return best, bi
+
+
+def _line_d2(p, P):
+    best, bs, acc = 1e18, 0.0, 0.0
+    for a, b in zip(P, P[1:]):
+        dd, t = _niwa_seg_d(p, a, b)
+        L = math.hypot(b[0] - a[0], b[1] - a[1])
+        if dd < best:
+            best, bs = dd, acc + t * L
+        acc += L
+    return best, bs, acc
+
+
+def _grade_val(s):
+    m = re.search(r"1\s*:\s*([\d.]+)", str(s or ""))
+    return float(m.group(1)) if m else None
+
+
+def niwa_setup(d):
+    """庭の造成の材料を一度だけ組む(d['_niwaZ'] に覚える)。無ければ []。"""
+    if "_niwaZ" in d:
+        return d["_niwaZ"]
+    out = []
+    K = d["const"]["ken"]
+    tks = dict((t.get("name"), t) for t in d.get("tsukiyama") or [] if isinstance(t, dict))
+    for g in d.get("gardens") or []:
+        z = ((g.get("hosoku") or {}).get("zosei")) if isinstance(g, dict) else None
+        if not z or not g.get("poly"):
+            continue
+        gp = [tuple(q) for q in g["poly"]]
+        mounds = []
+        for key, f in z.items():
+            m = re.match(r"tsukiyama\[(.+)\]\.form", key)
+            if not m or m.group(1) not in tks:
+                continue
+            t = tks[m.group(1)]
+            sk = [tuple(q) for q in t.get("skirt") or []]
+            if len(sk) < 3:
+                continue
+            mounds.append({"name": m.group(1), "skirt": sk, "peak": (t["u"], t["v"]), "top": float(f["topY"]),
+                           "flat": float(f.get("topFlatR_m") or 0.0) / K, "foot": float(f["skirtY"]),
+                           "grade": _grade_val(f.get("maxGrade"))})
+        mg = g.get("migiwa") or {}
+        ring = [tuple(q) for q in mg.get("pts") or []]
+        hori = z.get("gardens[%s].hori" % g["name"]) or {}
+        types = [None] * len(ring)
+        for gg in g.get("gogan") or []:
+            se = parse_ring_seg(gg.get("seg"))
+            if se is None or not ring:
+                continue
+            n9, a9 = len(ring), (se[0] - 1) % len(ring)
+            while a9 != (se[1] - 1) % n9:                             # 辺 a→a+1 の型(番号は1始まり)
+                types[a9] = str(gg.get("type") or "")
+                a9 = (a9 + 1) % n9
+        isl = [([tuple(q) for q in nk.get("outline") or []], float(nk.get("topY") or 0), float(nk.get("rTop_m") or 0) / K)
+               for nk in g.get("nakajima") or [] if len(nk.get("outline") or []) >= 3 and nk.get("falloff") == "cos"]
+        shelf = []
+        m = re.search(r"([\d.]+)\s*径\s*([\d.]+)", str((hori.get("danmen") or {}).get("岩島") or ""))
+        if m:
+            for iw in g.get("iwajima") or []:
+                if iw.get("uv"):
+                    shelf.append((tuple(iw["uv"]), float(m.group(1)), float(m.group(2)) / 2.0 / K))
+        ym = ((g.get("mizu") or {}).get("inflow") or {})
+        yb = z.get("yarimizu.bank") or {}
+        mb = re.search(r"幅\s*([\d.]+)\s*m.*?\+\s*([\d.]+).*?肩\s*([\d.]+)\s*→\s*([\d.]+)", str(yb.get("value") or ""))
+        yar = None
+        if len(ym.get("yarimizu") or []) >= 2 and isinstance(ym.get("bedY"), list):
+            yar = {"pts": [tuple(q) for q in ym["yarimizu"]], "bed": [float(x) for x in ym["bedY"]],
+                   "half": float(ym.get("width_m") or 0.0) / 2.0 / K,
+                   "bankW": (float(mb.group(1)) / K) if mb else 0.0,
+                   "sh0": float(mb.group(3)) if mb else None, "sh1": float(mb.group(4)) if mb else None}
+        dm = hori.get("danmen") or {}
+        out.append({"name": g["name"], "poly": gp, "K": K,
+                    "mounds": mounds, "ring": ring, "types": types, "waterY": float(hori.get("waterY") or mg.get("waterY")),
+                    "floor": float(hori.get("floorY") or mg.get("floorY")), "bank": float(hori.get("bank") or 0.0),
+                    "danmen": dm, "isl": isl, "shelf": shelf, "yar": yar})
+    d["_niwaZ"] = out
+    return out
+
+
+def _danmen(z, typ, dm):
+    """汀から水の側へ dm[m] の池の底の見込み(`hori.danmen` の型ごと)。"""
+    w, fl = z["waterY"], z["floor"]
+    t = str(typ or "")
+    if t.startswith("州浜"):
+        y = w - min(dm, 1.2) / 8.0                     # 水中 1.2m を 1:8
+        if dm > 1.2:
+            y -= (dm - 1.2) / 3.0                      # 以遠 1:3
+    elif t.startswith("石組"):
+        y = 20.2 if dm <= 0.6 else 20.2 - (dm - 0.6) / 2.0       # 根石の棚 20.2 幅0.6・以遠 1:2
+    elif t.startswith("乱杭"):
+        y = 20.1 - dm / 2.0                            # 杭の面で 20.1・以遠 1:2
+    else:
+        y = fl
+    return max(fl, y)
+
+
+def niwa_y(d, u, v, base, nat):
+    """庭の造成(築山・池の見込み・遣水の野筋)の高さ。効かない点は None。"""
+    for z in niwa_setup(d):
+        if not _pip((u, v), z["poly"]):
+            continue
+        K = z["K"]
+        y = base
+        p = (u, v)
+        # 築山(削り残し)── cos の断面・頂の平場・勾配の上限・地山を超えない
+        for mo in z["mounds"]:
+            if not _pip(p, mo["skirt"]):
+                continue
+            ds, _ = _ring_d(p, mo["skirt"])
+            dp = max(0.0, math.hypot(u - mo["peak"][0], v - mo["peak"][1]) - mo["flat"])
+            t = 1.0 if ds + dp <= 1e-9 else ds / (ds + dp)
+            ym = mo["foot"] + (mo["top"] - mo["foot"]) * (1.0 - math.cos(math.pi * t)) / 2.0
+            if mo["grade"]:
+                ym = min(ym, mo["foot"] + ds * K / mo["grade"])
+            if nat is not None:
+                ym = min(ym, nat)
+            y = max(y, ym)
+        # 池(汀の輪の内)と州浜の陸の側
+        R = z["ring"]
+        if len(R) >= 3:
+            dr, ei = _ring_d(p, R)
+            dm = dr * K
+            typ = z["types"][ei]
+            if _pip(p, R):
+                y = _danmen(z, typ, dm)
+                for sp, sy, sr in z["shelf"]:
+                    if math.hypot(u - sp[0], v - sp[1]) <= sr:
+                        y = max(y, sy)
+                for ol, top, rt in z["isl"]:
+                    if _pip(p, ol):
+                        di, _ = _ring_d(p, ol)
+                        c = (sum(q[0] for q in ol) / len(ol), sum(q[1] for q in ol) / len(ol))
+                        dc = max(0.0, math.hypot(u - c[0], v - c[1]) - rt)
+                        t = 1.0 if di + dc <= 1e-9 else di / (di + dc)
+                        y = max(y, z["waterY"] + (top - z["waterY"]) * (1.0 - math.cos(math.pi * t)) / 2.0)
+                return y
+            if str(typ or "").startswith("州浜") and dm < 1.5:
+                y = min(y, z["waterY"] + (z["bank"] - z["waterY"]) * dm / 1.5)     # 陸 1.5m を 1:5
+        # 遣水(溝の底と両岸の野筋)
+        ya = z["yar"]
+        if ya:
+            dl, s, tot = _line_d2(p, ya["pts"])
+            if dl <= ya["half"]:
+                y = ya["bed"][0] + (ya["bed"][1] - ya["bed"][0]) * (s / tot if tot > 0 else 0.0)
+            elif ya["sh0"] is not None and dl <= ya["half"] + ya["bankW"] and 0.0 < s < tot:
+                y = max(y, ya["sh0"] + (ya["sh1"] - ya["sh0"]) * (dl - ya["half"]) / ya["bankW"])
+        return y
+    return None

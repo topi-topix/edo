@@ -13,3 +13,4 @@ How to apply: 皮の直しは**1回目の Stage3b から EdoBuild.SkinTrace に�
 関連: [[pad-edge-nodes-outside-face-and-pinned-skin]] [[fumiishi-chamfer-and-floor-cover]] [[sode-check-skinground-and-dropped-run-residue]]
 追記 2026-10-08 第53巡: SkinTrace の点は**皮の格子に乗せる**(岡部の皮は x,z が …13/…38/…63/…88)。-437.50 のような丸い値は TrHit(±0.125)を外れて何も刷らず、3b を一回空振りした。先に皮の頂点を読んで座標を写す。
 同じ枝(面の外は max(底, 面) まで下げる)が立てた土(hold)の節点まで下げていた ⇒ HoldY より下げない。
+追記 第54巡: 端の駒を埋める土の ⛔ −0.157 の正体は「法の面の下」の枝(帯で篩う駒の外形の中で面の中の点を FaceY=16.50 にする)。hold の上げは「外形の中の設計」(FaceY が NaN の時だけ)にしか無く、面の中の外形では効かない。

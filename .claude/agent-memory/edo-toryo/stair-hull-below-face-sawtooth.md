@@ -11,3 +11,5 @@ metadata:
 ⚠ 罠: 最初「面の中で地形が低い点を上げる」と推して 1 巡(Stage3b 37 分)を無駄にした。FaceY が NaN かどうかは見た目で分からない。
 How to apply: 皮の直しは**1回目の Stage3b から EdoBuild.SkinTrace に疑いの節点を入れて流す**(TrLog がどの枝で下げたかを刷る)。推して直してから流さない。
 関連: [[pad-edge-nodes-outside-face-and-pinned-skin]] [[fumiishi-chamfer-and-floor-cover]] [[sode-check-skinground-and-dropped-run-residue]]
+追記 2026-10-08 第53巡: SkinTrace の点は**皮の格子に乗せる**(岡部の皮は x,z が …13/…38/…63/…88)。-437.50 のような丸い値は TrHit(±0.125)を外れて何も刷らず、3b を一回空振りした。先に皮の頂点を読んで座標を写す。
+同じ枝(面の外は max(底, 面) まで下げる)が立てた土(hold)の節点まで下げていた ⇒ HoldY より下げない。

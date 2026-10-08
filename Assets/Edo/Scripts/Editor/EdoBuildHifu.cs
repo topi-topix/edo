@@ -1490,6 +1490,9 @@ public static partial class EdoBuild
                                         { float fq = FaceY(p + new Vector2(Mathf.Cos(an), Mathf.Sin(an)) * rr); if (!float.IsNaN(fq)) { fyN = fq; break; } }
                                     }
                                     float to = (!float.IsNaN(fyN) && !IsHollow(wS) && Mathf.Abs(fb - fyN) <= faceTol - 0.02f) ? Mathf.Max(fb, fyN) : fb;
+                                    // ⛔ 立てた土(SkinDesign.hold)の節点は立てた土の頂(HoldY)より下げない(2026-10-08 EDO-0502 第53巡)── 端の駒を土で埋める盛りの、
+                                    //   駒の見え面に沿う一列が面 16.50 へ下がり、駒の上の描かれた地表が天端 −0.157 になった(TW_Kado_Sode_0_0_016f)。
+                                    { float hyS = HoldY(p); if (!float.IsNaN(hyS)) to = Mathf.Max(to, hyS); }
                                     if (hgt > to) { hgt = to; r.stairFaced++; }
                                 }
                             }

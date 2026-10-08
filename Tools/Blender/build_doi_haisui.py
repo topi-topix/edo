@@ -80,6 +80,12 @@ H_LEN = 0.50
 I_RISES = (0.10, 0.15, 0.20, 0.25, 0.30)
 I_NORI = (1.0, 1.5)   # 法の勾配(切 1:1.0 / 盛 1:1.5)
 L_W = 0.50            # 蓋石の見込み(json wMin 0.45..wMax 0.6)
+# 指図の drainKata にまだ入っていない型(普請方の設計 第45巡 2026-10-08・確度 作り B / 寸法 U)。
+# ⛔ json に入ったら json が勝つ(K.get が先)── ここは json に載るまでのつなぎ。
+_KATA_PENDING = {"G3": {"label": "石の桝(中・溝 E を受ける)", "inner": [0.9, 0.9],
+                        "wall": {"kind": "切石4枚組", "t": 0.15}, "topAbove": 0.05, "topRef": "地盤",
+                        "sumpBelowOutlet": 0.15,
+                        "lid": {"kind": "石蓋", "n": 2, "size": [0.9, 0.5], "t": 0.20, "notch": None}}}
 G1_FLOOR = -0.75      # G1 の底の天端(地盤から)= 吐き口の底 −0.60 − 溜め 0.15
 H_WALL_TOP = 0.50     # H の野面石の天端(段の底から・json hMin 0.45..hMax 0.6)
 
@@ -658,14 +664,16 @@ def masu(kind):
         溝の駒は桝の外の面へ突き付ける(溝の端の小口は桝の石で塞がる)。
     G2: 内法 0.90 角・底の天端 −1.80(json levels masuTop 26.65 − masuBottom 24.8)・石蓋2枚(0.9 × 0.5 × 0.15)
         を Z 側の壁の段で受け、−Z の蓋に切り欠き 0.20 角・その下の壁の天端を −0.25 まで欠く(D5 の溝が入る口)。
+    G3: 内法 0.90 角・外 1.20 角・底と吐き口は G1 の取り方(底の天端 −0.75)・石蓋2枚(0.9 × 0.5 × 0.20)を
+        G2 と同じ Z 側の壁の段で受ける・切り欠き無し(普請方 第45巡・溝 E を受ける中の桝)。
     吐き口の奥は石樋の短い筒 0.40 + 塞ぎ石(埋樋の本体は焼かない)。"""
-    g = K[kind]
-    rng = random.Random(5330700 + (2 if kind == "G2" else 1))
+    g = K.get(kind) or _KATA_PENDING[kind]
+    rng = random.Random(5330700 + {"G1": 1, "G2": 2, "G3": 3}[kind])
     a = g["inner"][0] / 2.0
     t = g["wall"]["t"]
     top = g["topAbove"]
     o = a + t
-    floor = G1_FLOOR if kind == "G1" else top - 1.85
+    floor = G1_FLOOR if kind in ("G1", "G3") else top - 1.85
     yb = floor - 0.15
     stone(-o, o, yb, floor, -o, o, rng, ends=False)                     # 底石
     out_bot = floor + 0.15
@@ -681,7 +689,7 @@ def masu(kind):
         stone(-a, a, out_bot + 0.30, top, a, o, rng, ends=False)
         tube(hw, out_bot, out_bot + 0.30, o, o + 0.40, rng)
         return "Doi_Masu_G1"
-    # ---- G2
+    # ---- G2 / G3
     lid = g["lid"]
     lt = lid["t"]
     ledge = top - lt
@@ -689,12 +697,16 @@ def masu(kind):
         X0, X1 = (-o, -a) if s < 0 else (a, o)
         stone(X0, X1, floor, top, -o, o, rng, ends=False)
     lz = lid["size"][1]                    # 0.5 ⇒ 蓋2枚で Z ±0.5、壁の段 a..0.5 で受ける
-    nx, nz = lid["notch"]
+    if kind == "G3":                       # 切り欠き無し: −Z の壁は段まで控え全部・その上は段の外だけ
+        stone(-a, a, floor, ledge, -o, -a, rng, ends=False)
+        stone(-a, a, ledge, top, -o, -lz, rng, ends=False)
+    nx, nz = lid["notch"] if kind == "G2" else (0.0, 0.0)
     # −Z の壁: 段(蓋の受け)の高さまでを控え全部で・その上は外の 0.10 だけ。切り欠きは −0.25 まで
-    prism([(-a, floor), (a, floor), (a, ledge), (nx / 2, ledge), (nx / 2, -0.25), (-nx / 2, -0.25), (-nx / 2, ledge), (-a, ledge)],
-          'z', -o, -a, rng)
-    stone(-a, -nx / 2, ledge, top, -o, -lz, rng, ends=False)
-    stone(nx / 2, a, ledge, top, -o, -lz, rng, ends=False)
+    if kind == "G2":
+        prism([(-a, floor), (a, floor), (a, ledge), (nx / 2, ledge), (nx / 2, -0.25), (-nx / 2, -0.25), (-nx / 2, ledge), (-a, ledge)],
+              'z', -o, -a, rng)
+        stone(-a, -nx / 2, ledge, top, -o, -lz, rng, ends=False)
+        stone(nx / 2, a, ledge, top, -o, -lz, rng, ends=False)
     # +Z の壁: 吐き口(0.30 角)を避けて積む
     stone(-a, a, floor, out_bot, a, o, rng, ends=False)
     stone(-a, -0.15, out_bot, out_bot + 0.30, a, o, rng, ends=False)
@@ -702,6 +714,10 @@ def masu(kind):
     stone(-a, a, out_bot + 0.30, ledge, a, o, rng, ends=False)
     stone(-a, a, ledge, top, lz, o, rng, ends=False)
     tube(hw, out_bot, out_bot + 0.30, o, o + 0.40, rng)
+    if kind == "G3":                       # 蓋2枚(切り欠き無し)
+        stone(-a, a, ledge, top, -lz, -0.004, rng, ends=False)
+        stone(-a, a, ledge, top, 0.004, lz, rng, ends=False)
+        return "Doi_Masu_G3"
     # 蓋2枚(−Z の蓋に切り欠き)
     prism([(-a, -lz), (-nx / 2, -lz), (-nx / 2, -lz + nz), (nx / 2, -lz + nz), (nx / 2, -lz), (a, -lz), (a, -0.004), (-a, -0.004)],
           'y', ledge, top, rng)
@@ -943,6 +959,7 @@ for d in E_DEPTHS:
 JOBS.append(("K", _mz(mizo_K), "mizo"))
 JOBS.append(("G1", _mz(masu, "G1"), "masu"))
 JOBS.append(("G2", _mz(masu, "G2"), "masu"))
+JOBS.append(("G3", _mz(masu, "G3"), "masu"))
 JOBS.append(("H", _mz(danochi, 0.0), "dan"))
 for r in H_RISES:
     JOBS.append(("H", _mz(danochi, r), "dan"))
@@ -964,7 +981,7 @@ JOBS.append(("N", _mz(mizunuki), "kuchi"))
 for L in sorted(set(round(RAMPS[n]["w"] + 0.30, 2) for n in ("R_Tsuyomon", "R_Tomomachi"))):
     JOBS.append(("O", _mz(mizukiri, L), "kuchi"))
 
-GROUPS = {"mizo": "ABCDEFK", "masu": ("G1", "G2"), "dan": "HI", "uke": "J", "kuchi": "LMNO"}
+GROUPS = {"mizo": "ABCDEFK", "masu": ("G1", "G2", "G3"), "dan": "HI", "uke": "J", "kuchi": "LMNO"}
 
 
 # ================================================================ 結線とレンダ
@@ -1106,7 +1123,8 @@ def main():
             # 地面の穴 = 部材の外形(Y=0 の高さで)。溝は走りに通す。桝は天端の外形だけ・口の部材は地面なし
             hole = (-hw, hw, -mx.y, -mn.y)
             if name.startswith("Doi_Masu_"):
-                oo = K[name[-2:]]["inner"][0] / 2.0 + K[name[-2:]]["wall"]["t"]
+                gk = K.get(name[-2:]) or _KATA_PENDING[name[-2:]]
+                oo = gk["inner"][0] / 2.0 + gk["wall"]["t"]
                 hole = (-oo, oo, -oo, oo)
             elif name.startswith(("Doi_Ankyo", "Doi_Mizunuki")):
                 hole = None

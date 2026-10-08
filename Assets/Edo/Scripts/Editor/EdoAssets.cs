@@ -4096,6 +4096,20 @@ public static class EdoAssets
         public static string Rangui(float dia)
         { return NiwaDir + "Rangui_" + dia.ToString("0.000") + ".fbx"; }
 
+        /// <summary>**木の平橋**(岡部 書院の泉水 `gardens[NiwaShoin].hashi`・`hosoku.hashi.asset`・EDO-0502)。
+        /// 幅 1.82・2径間・中央に丸太の橋脚1組・丸太桁3本・反り無し・敷板+低い地覆(欄干なし)。
+        /// 実寸 **8.000(X) × 1.740(Y: −1.650..+0.090) × 1.920(Z: 梁と台木の出・敷板は 1.82)**。
+        /// ローカル X = 長手(from→to へ yaw)。ピボット = **橋面の平面の中心・敷板の天端** ⇒ <c>position.y = deckY</c>(21.05)を直に。
+        /// 地覆は +0.09。橋脚は −1.65(池底 19.8 = −1.25 の下へ根入れ 0.40)。梁の下端 −0.345 ≒ 水面(20.7)。
+        /// 長さは袂の実測へ **scale.x だけ** 0.94〜1.06 で合わせる(Y・Z は 1)。桁の端は袂の地盤へ埋まる前提。
+        /// 材 = `wood`(Village Kit・敷板と地覆)/ `M_Wood_fence`(丸太)。remap が要る。
+        /// 生成: BUZAI_OUT=&lt;dir&gt; blender --background --python Tools/Blender/build_okabe_hashi.py -- --L 8.0 --W 1.82 --render</summary>
+        public static string HashiIta(float L = 8f, float W = 1.82f)
+        {
+            var ci = System.Globalization.CultureInfo.InvariantCulture;
+            return NiwaDir + "Okabe_Hashi_Ita_L" + L.ToString("0.00", ci) + "_W" + W.ToString("0.00", ci) + ".fbx";
+        }
+
         /// <summary>**雪見灯籠**。⚠ 実体は在庫の <see cref="Eg.ToroYukimi"/>(edogoyomi)で、
         /// これはそこへの転送(⛔ パスの literal を二重に書かないため)。棟梁が `Own.` の下で
         /// 探すので入口だけ用意してある。⛔ **`ES = 1.818` を掛けて置く**(素だと 0.5m の模型)。

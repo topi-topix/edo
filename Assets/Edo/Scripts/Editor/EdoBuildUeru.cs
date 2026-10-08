@@ -45,11 +45,14 @@ public static partial class EdoBuild
     /// 皮の無い所・皮の升の継ぎ目(NaN)は地形で引く。当たる先: 皮のある邸で木を GameObject で据える所(岡部 Stage5・土井 Stage8・山王 Stage7 の名指しの木)。</summary>
     public static bool SeatPlant(GameObject go, float sink, out float bury, out float flt,
                                  float buryMax = 1.0f, float floatMax = 0.7f, float footBand = 0.3f,
-                                 int maxSamples = 60000, DrawnGround drawn = null)
+                                 int maxSamples = 60000, DrawnGround drawn = null, Vector2 trunkXZ = default(Vector2), float trunkR = 0f)
     {
         bury = flt = float.NaN;
         var pts = GroundCandidates(go.transform, maxSamples);
         if (pts.Count == 0) return false;
+        // ⭐ 幹の足の帯は幹の芯から trunkR の内だけ(EDO-0502 第60巡 ── 1.65 倍の黒松の垂れた枝先が池の側の低い地表 19.99 に当たり、
+        //   それを「根元」として据えて幹の足を 1.0〜1.6m 埋め、主木 7 本が埋没 1.0〜3.9 で退いていた)。trunkR ≤ 0 なら従前(全部の当たり)。
+        System.Func<Vector3, bool> nearTrunk = p => trunkR <= 0f || (new Vector2(p.x, p.z) - trunkXZ).sqrMagnitude <= trunkR * trunkR;
         var probe = Probe();
         System.Func<float, float, float> G = (x, z) =>
         {
@@ -58,13 +61,15 @@ public static partial class EdoBuild
         };
         Vector3 up = go.transform.up;
         float hmin = float.MaxValue;
-        foreach (var p in pts) hmin = Mathf.Min(hmin, Vector3.Dot(p, up));
+        foreach (var p in pts) if (nearTrunk(p)) hmin = Mathf.Min(hmin, Vector3.Dot(p, up));
+        if (hmin == float.MaxValue) { foreach (var p in pts) hmin = Mathf.Min(hmin, Vector3.Dot(p, up)); trunkR = 0f; }
         // 全部の当たりの最小の隙 / 根元(footBand)の当たりの最小の隙 / 根元の帯(ROOT_TOUCH)の当たりの最大の隙
         float cmin = float.MaxValue, fmin = float.MaxValue, rmax = float.MinValue;
         foreach (var p in pts)
         {
             float c = p.y - G(p.x, p.z);
             if (c < cmin) cmin = c;
+            if (!nearTrunk(p)) continue;
             float h = Vector3.Dot(p, up);
             if (h <= hmin + footBand && c < fmin) fmin = c;
             if (h <= hmin + ROOT_TOUCH && c > rmax) rmax = c;
@@ -464,6 +469,31 @@ public static partial class EdoBuild
         Vector3 f;
         if (TrunkFootWorld(go, out f))
             go.transform.position += new Vector3(trunkXZ.x - f.x, 0f, trunkXZ.y - f.z);
-        return SeatPlant(go, sink, out bury, out flt, buryMax, floatMax, TrunkFootBand, 60000, drawn);
+        float r = TrunkBaseRadius(go, trunkXZ);
+        return SeatPlant(go, sink, out bury, out flt, buryMax, floatMax, TrunkFootBand, 60000, drawn, trunkXZ, r);
+    }
+
+    /// <summary>**幹の足の半径**[m](世界・据えた scale のまま)── LOD0 の樹皮(材の名に bark)の頂点のうち、樹皮の最も低い所から
+    /// 0.3m(局所の上向き)の内の、幹の芯 <paramref name="trunkXZ"/> からの水平の最大距離 + 0.10。樹皮の材が無ければ 0(帯を絞らない)。
+    /// 当たる先: <see cref="SeatPlantAt"/> の根元の帯 ── 樹冠の垂れた枝先が低い地表(池の側・坂の下手)に当たっても根元と読まない
+    /// (EDO-0502 第60巡 岡部 主木の黒松 1.65 倍 7 本)。全邸の SeatPlantAt(岡部 Stage5・土井 Stage8・山王 Stage7)。</summary>
+    public static float TrunkBaseRadius(GameObject go, Vector2 trunkXZ)
+    {
+        var up = go.transform.up; float lo = float.MaxValue; var bark = new List<Vector3>();
+        foreach (var mf in Lod0Filters(go))
+        {
+            var m = mf.sharedMesh; if (m == null) continue; var mats = mf.GetComponent<Renderer>().sharedMaterials;
+            var l2w = mf.transform.localToWorldMatrix; var vs = m.vertices;
+            for (int sm = 0; sm < m.subMeshCount; sm++)
+            {
+                var mt = sm < mats.Length ? mats[sm] : null;
+                if (mt == null || !mt.name.ToLowerInvariant().Contains("bark") || m.GetTopology(sm) != MeshTopology.Triangles) continue;
+                foreach (var i in m.GetIndices(sm)) { var w = l2w.MultiplyPoint3x4(vs[i]); bark.Add(w); lo = Mathf.Min(lo, Vector3.Dot(w, up)); }
+            }
+        }
+        if (bark.Count == 0) return 0f;
+        float r = 0f;
+        foreach (var w in bark) if (Vector3.Dot(w, up) <= lo + 0.3f) r = Mathf.Max(r, (new Vector2(w.x, w.z) - trunkXZ).magnitude);
+        return r + 0.10f;
     }
 }

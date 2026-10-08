@@ -769,7 +769,7 @@ def bake_gardens(M, d):
                 lenM=lenm([tuple(hs["from"]), tuple(hs["to"])]), cert=hs.get("cert"), partSpec=hh.get("asset"),
                 hasamiIshi=hh.get("hasamiIshi") or hs.get("hasamiIshi"),
                 mikomi=([W(q) for q in hh["uvMikomi"]] if hh.get("uvMikomi") else None),
-                wait=["橋の駒(在庫に無い ── 部材方へ: hosoku.hashi.asset)", "挟み石(実測の袂から据える)"])
+                waitHasami="挟み石(実測の袂から据える ── 据えの器が未実装)")   # 橋の駒は焼けた(EdoAssets.Own.HashiIta・第60巡)
         # 水の系(遣水・越流堰)
         mz = g.get("mizu") or {}
         inf = mz.get("inflow") or {}

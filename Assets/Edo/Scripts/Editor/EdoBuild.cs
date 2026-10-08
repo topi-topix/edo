@@ -249,10 +249,20 @@ public static partial class EdoBuild
     static List<Vector3> GroundCandidates(Transform tr, int maxSamples)
     {
         var L = new List<Vector3>();
+        // ⭐ LODGroup を持つ駒(木)は LOD0 だけで測る(EDO-0502 第60巡 ── LOD1〜3 は同時に描かれない代わりの形で、粗い十字の板が
+        //   地中へ 1m 刺さり、1.65 倍の黒松が「埋没 1.08」で退いていた。LOD0 の樹皮は −0.17)。当たる先: 木を Contact/SeatPlant で据える全邸
+        HashSet<Renderer> lodN = null;   // LOD1 以降にだけ居る描き手(LODGroup ごとに・子に幾つあっても)
+        foreach (var lg in tr.GetComponentsInChildren<LODGroup>())
+        {
+            var lods = lg.GetLODs(); if (lods.Length < 2) continue;
+            var l0 = new HashSet<Renderer>(); foreach (var r0 in lods[0].renderers) if (r0 != null) l0.Add(r0);
+            for (int li = 1; li < lods.Length; li++) foreach (var r1 in lods[li].renderers) if (r1 != null && !l0.Contains(r1)) { if (lodN == null) lodN = new HashSet<Renderer>(); lodN.Add(r1); }
+        }
         foreach (var mf in tr.GetComponentsInChildren<MeshFilter>())
         {
             if (mf.sharedMesh == null) continue;
             var rr = mf.GetComponent<Renderer>(); if (rr == null || !rr.enabled || !mf.gameObject.activeInHierarchy) continue;
+            if (lodN != null && lodN.Contains(rr)) continue;
             if (IsRoofName(PartName(tr, mf))) continue;         // 接地は壁体で測る(屋根は除く・Body と同じ篩)
             var l2w = mf.transform.localToWorldMatrix; var vs = mf.sharedMesh.vertices;
             if (vs.Length <= maxSamples) { foreach (var v in vs) L.Add(l2w.MultiplyPoint3x4(v)); continue; }

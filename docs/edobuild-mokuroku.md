@@ -1,11 +1,11 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 e27fdfe9517a -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 ea2eb1991443 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
 
-- 公開関数 543 本(注釈なし 32)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
+- 公開関数 544 本(注釈なし 32)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
 - 同じ道具が刷る目録: 邸ビルダーのメニュー → Stage と中の関数 `docs/builder-mokuroku.md` / 部材の名 `docs/edoassets-mokuroku.md`。
 - 札: **硬** = 注釈に「硬い/許容0」・**柔** = 「柔らかい/狙い」がある(判定ではなく注釈の語)。相手の札(地面・駒どうし・天端・床・断面・面・隅・区域)も注釈の語を拾っただけ。
 - 呼んでいる所 = 定義のファイルの外で `EdoBuild.<名>(` と書いている C# ファイル(`Edo` と `Builder/Rebuild` を落とした名)と、その中の呼んでいる関数(Stage)。同じ名の多重定義はまとめて数える。`EdoBuild` の中どうしの呼び出しは載せない。
@@ -48,7 +48,7 @@
 | [EdoBuildSukima.cs](#edobuildsukimacs) | EdoBuildSukima.cs — 建物と隣の構造物の間の隙のうち、通りから裏手(敷地の内側)へ抜ける物だけを柵で塞ぐ(EDO-0503)。 | 類型ビルダーの町屋の囲い(表店の列の端・角・後ろの棟との間)── 町屋の全区画。 | 1 |
 | [EdoBuildTojiru.cs](#edobuildtojirucs) | 外周の閉じを、建っている駒の実メッシュで測る(EDO-0502 第29巡・2026-10-06) | — | 1 |
 | [EdoBuildTsugime.cs](#edobuildtsugimecs) | EdoBuild — 継ぎ目を躯体の実面で納める(2026-10-03・EDO-0502 岡部の普請検査の差し戻し)。 | — | 13 |
-| [EdoBuildUeru.cs](#edobuilduerucs) | 植木を斜面に据える (EdoBuild の partial・2026-09-23・EDO-0401) | SeatPlant を呼ぶ所すべて(今は山王の社叢の下層と名指しの木 = Stage7_Shaso だけ)。 | 15 |
+| [EdoBuildUeru.cs](#edobuilduerucs) | 植木を斜面に据える (EdoBuild の partial・2026-09-23・EDO-0401) | SeatPlant を呼ぶ所すべて(今は山王の社叢の下層と名指しの木 = Stage7_Shaso だけ)。 | 16 |
 | [EdoBuildWaku.cs](#edobuildwakucs) | EdoBuild — 多角形の枠を解く・駒を線と面へ寄せる(2026-10-04・EDO-0554 松江松平 起こし直しの第2段)。 | 指図の欄が poly(四角だが格子に対して傾いた枠)で来る棟・附属屋(松江松平の内長屋 Uchi_* 9棟)と、 門の通路の返し石垣のように「線の端から決まった長さだけ・面を線に揃えて」積む駒(御臺所門の返し 2本)。 | 10 |
 | [EdoBuildZosei.cs](#edobuildzoseics) | EdoBuild — 造成(平場を採る)。2026-09-27・EDO-0477 P1(山王 Stage1_Grade と松江松平 DesignY の型を、図を持たない区画へ)。 | 類型ビルダーで建てる全区画(武家・寺社・町屋・公有地)。 | 8 |
 | [EdoGeom.cs](#edogeomcs) | 純幾何ヘルパの共有置き場 (Phase 2c, 2026-08-26) | — | 7 |
@@ -695,7 +695,7 @@ EdoBuild — 道の造成(縦断を設計して道の面を均す)。2026-09-30�
 | 関数 | 返す | 札 | 何をするか(注釈の一文目) | 呼んでいる所 |
 |---|---|---|---|---|
 | `NozuraSeg`(class) | — | | 野面の土留めの一区間(直線)。指図の run を口(石段の口)で割った一本ずつ。 | |
-| `EdoBuild.IsNagayaBody(g)` | `bool` |  | 長屋の躯体か(型で ── ⛔ 名の頭文字で見ない): 駒のメッシュの名か資産のパスに「Nagaya」を含む。 | OkabeYashiki(SodeSlopeSegs・Stage2b_Dan) |
+| `EdoBuild.IsNagayaBody(g)` | `bool` |  | 長屋の躯体か(型で ── ⛔ 名の頭文字で見ない): 駒のメッシュの名か資産のパスに「Nagaya」を含む。 | OkabeYashiki(Stage2b_Dan・StairSideAndEndBacks) |
 | `EdoBuild.RunAxis(g)` | `Vector2` |  | 駒の走りの向き(実メッシュの頂点の水平の主軸・単位)。 | OkabeYashiki(Stage2b_Dan) |
 | `NozuraEndRule`(class) | — | | 野面の土留めの端の納め(2026-10-06・EDO-0502 第30巡・指図 nozuraEndRule)。 | |
 | `EndSpec`(class) | — | | 名指された端の型(NozuraEndRule.spec・EDO-0502 第41巡)。 | |
@@ -849,13 +849,13 @@ EdoBuild — 坂の路盤(折れ線の芯と縦断で道の面を均し、盛土
 | `EdoBuild.BodyFootWorld(go, prefabPath)` | `Vector2[]` | 断面 | 据わった棟の躯体の足あと(世界 xz の四隅)。 | OkabeYashiki(PlaceService・ServicePads) |
 | `EdoBuild.SakaCenterAt(pts, ys, p, bd, bs, yr)` | `bool` |  | 坂の芯の最寄り: 節点 p から芯 pts への水平距離 bd・道のり bs・ その点の路面の高さ yr(ys を道のりで一次)。 | OkabeYashiki(GradeQA) |
 | `BackBench`(class) | — | | 土留めの背の小段の裏込めの一本(run 一つ)。 | |
-| `EdoBuild.InFrontOfFace(a, b, back, p, depth)` | `bool` | 面 | 土留めの見え面の前の帯(線 a→b・背 back の逆の側へ depth まで・走りの両端は線の内)に点 p が入るか。 | OkabeYashiki(SodeSlopeSegs) |
+| `EdoBuild.InFrontOfFace(a, b, back, p, depth)` | `bool` | 面 | 土留めの見え面の前の帯(線 a→b・背 back の逆の側へ depth まで・走りの両端は線の内)に点 p が入るか。 | OkabeYashiki(SodeSlopeSegs・StairSideAndEndBacks) |
 | `EdoBuild.BackBenchAt(k, p, cur)` | `float` | 硬 天端 | 背の小段の裏込めが節点 p に与える高さ(2026-10-04 EDO-0502 第13巡・岡部 TW_Kado_Sode.backfill)。 | — |
 | `EdoBuild.BackBenchesAt(ks, p, cur)` | `float` | 天端・隅 | 小段の組が節点 p に与える高さ(盛りは最大・切りは最小 ── 盛る小段が一つでもあれば盛りが勝つ)。 | OkabeYashiki(GradeQA・SodeSlopeSegs・Stage3b_Hifu) |
-| `EdoBuild.RaiseEndLen(backFromEnd, thr, L, minIn, lo, hi, sCross, softMiss, ds=…)` | `float` | 柔 天端 | 土留めの端の一部を高い天端の別の run に割る長さ(指図 terraceWalls[].endRaise・2026-10-06 EDO-0502 第37巡 岡部 TW_Kita_Koshi)。 | OkabeYashiki(SodeSlopeSegs) |
-| `EdoBuild.RunsByContour(L, backAt, step, minLen, ds=…)` | `List<Vector3>` | 天端 | 段違いの run を背の法の等高線で割る(指図 TW_Kado_Sode.runSplit・EDO-0502 第32巡)。 ⟶ 返す: (始まり, 終わり, 天端) を道のりの順に | OkabeYashiki(SodeSlopeSegs) |
-| `EdoBuild.RunsByBackSlope(L, backAt, step, maxDrop, minLen, ds=…)` | `List<Vector3>` | 天端 | run の線 a→b を、背の法の高さ(backAt(s) = 道のり s の背の地盤)で天端の割りへ分ける (指図 TW_Kado_Sode.top: 天端 = run の上手の端の背の高さを step 刻みで切り上げ… ⟶ 返す: (s0, s1, 天端) の並び(道のりの順) | OkabeYashiki(SodeSlopeSegs) |
-| `EdoBuild.RunsByCrestGap(L, backAt, frontAt, firstTop, step, maxGap, endDiff, minLen, sEnd, ds=…, dropHidden=…)` | `List<Vector3>` | 地面・天端・隅 | 天端と背の地盤の差で run を切る割り(指図 TW_Minami_Koshi.returnTop・EDO-0502 第24巡 ── 普請方の設計)。 ⟶ 返す: (a, b, 天端) | OkabeYashiki(SodeSlopeSegs) |
+| `EdoBuild.RaiseEndLen(backFromEnd, thr, L, minIn, lo, hi, sCross, softMiss, ds=…)` | `float` | 柔 天端 | 土留めの端の一部を高い天端の別の run に割る長さ(指図 terraceWalls[].endRaise・2026-10-06 EDO-0502 第37巡 岡部 TW_Kita_Koshi)。 | OkabeYashiki(StairSideAndEndBacks) |
+| `EdoBuild.RunsByContour(L, backAt, step, minLen, ds=…)` | `List<Vector3>` | 天端 | 段違いの run を背の法の等高線で割る(指図 TW_Kado_Sode.runSplit・EDO-0502 第32巡)。 ⟶ 返す: (始まり, 終わり, 天端) を道のりの順に | OkabeYashiki(StairSideAndEndBacks) |
+| `EdoBuild.RunsByBackSlope(L, backAt, step, maxDrop, minLen, ds=…)` | `List<Vector3>` | 天端 | run の線 a→b を、背の法の高さ(backAt(s) = 道のり s の背の地盤)で天端の割りへ分ける (指図 TW_Kado_Sode.top: 天端 = run の上手の端の背の高さを step 刻みで切り上げ… ⟶ 返す: (s0, s1, 天端) の並び(道のりの順) | OkabeYashiki(StairSideAndEndBacks) |
+| `EdoBuild.RunsByCrestGap(L, backAt, frontAt, firstTop, step, maxGap, endDiff, minLen, sEnd, ds=…, dropHidden=…)` | `List<Vector3>` | 地面・天端・隅 | 天端と背の地盤の差で run を切る割り(指図 TW_Minami_Koshi.returnTop・EDO-0502 第24巡 ── 普請方の設計)。 ⟶ 返す: (a, b, 天端) | OkabeYashiki(StairSideAndEndBacks) |
 | `EdoBuild.BackBenchWrite(ks, fillMax)` | `int` | 硬 地面・区域 | 背の小段の裏込めを地形へ書く(BackBenchAt を節点ごとに・run を順に重ねる)。 ⟶ 返す: 書いた節点の数(盛りの最大は out) | OkabeYashiki(Stage2b_Dan) |
 | `EdoBuild.BackBenchWrite(ks, fillMax, cutMax)` | `int` |  | ⚠ 注釈なし | OkabeYashiki(Stage2b_Dan) |
 | `ToeBench`(class) | — | | 法尻の土留めの背の小段(切り)の一本(指図 terraceWalls[].toeBench・EDO-0502 第33巡)。 | |
@@ -992,7 +992,7 @@ EdoBuild — 継ぎ目を躯体の実面で納める(2026-10-03・EDO-0502 岡�
 
 | 関数 | 返す | 札 | 何をするか(注釈の一文目) | 呼んでいる所 |
 |---|---|---|---|---|
-| `EdoBuild.SeatPlant(go, sink, bury, flt, buryMax=…, floatMax=…, footBand=…, maxSamples=…, drawn=…)` | `bool` | 硬 地面 | 植木を足元の当たりで据える。戻り値 = 埋没 ≤ buryMax かつ 根元の浮き ≤ 0(許容0・硬い) かつ ≤ floatMax で据わったか。 ⟶ 返す: 埋没 ≤ buryMax かつ 根元の浮き ≤ 0(許容0・硬い) かつ ≤ floatMax で据わったか | — |
+| `EdoBuild.SeatPlant(go, sink, bury, flt, buryMax=…, floatMax=…, footBand=…, maxSamples=…, drawn=…, trunkXZ=…, trunkR=…)` | `bool` | 硬 地面 | 植木を足元の当たりで据える。戻り値 = 埋没 ≤ buryMax かつ 根元の浮き ≤ 0(許容0・硬い) かつ ≤ floatMax で据わったか。 ⟶ 返す: 埋没 ≤ buryMax かつ 根元の浮き ≤ 0(許容0・硬い) かつ ≤ floatMax で据わったか | — |
 | `EdoBuild.RootBandGap(go, bedAt, maxSamples=…, band=…)` | `Scribe` |  | 根元の帯の隙(2026-10-04 EDO-0533 普請検査 第1回 ── 斜面の根元の浮き 4 本)。 | — |
 | `EdoBuild.ReseatRootBand(go, bedAt, buryMax, sunk, flt, tol=…)` | `bool` | 硬 地面 | 据えた植木の根元を、後から描き直された地表へ据え直す(2026-10-05 EDO-0533 第11巡 ── 土井の植栽 19 本の根元が最大 0.209 浮いた。 | DoiBuilder.Shokusai(Stage8b_RootReseat) |
 | `EdoBuild.LowestGap(go, bedAt, maxSamples=…)` | `float` | 床 | 最も低い当たりの隙[m](負 = 埋まり)── 当たり = 格子ごとの最下点(GroundCandidates・幹・根張り・枝葉の全部)の 下端 − bedAt の最小。 | — |
@@ -1009,6 +1009,7 @@ EdoBuild — 継ぎ目を躯体の実面で納める(2026-10-03・EDO-0502 岡�
 | `EdoBuild.RetireTreesNearRoad(poly, keep, log=…)` | `int` | 硬 地面・区域 | 道辺から幹の芯が近すぎる地形の木を退ける(硬い・許容0・区域 ── 施主の規則「幹の芯 ↔ 道辺 ≥ 2.0m」NiwaSet.TREE_KEEP)。 ⟶ 返す: 退けた本数 | OkabeYashiki(Stage3b_Hifu) |
 | `EdoBuild.TrunkFootWorld(go, foot)` | `bool` |  | 据えた木の幹の足の中心(世界)。傾き・scale は据えたとおり(帯は上向きに 0.3m)。 | Typology(Inspect) |
 | `EdoBuild.SeatPlantAt(go, trunkXZ, sink, bury, flt, buryMax=…, floatMax=…, drawn=…)` | `bool` |  | 幹の足の中心を trunkXZ へ寄せてから SeatPlant で据える。 | SannoSha(Stage7_Shaso) |
+| `EdoBuild.TrunkBaseRadius(go, trunkXZ)` | `float` | 地面 | 幹の足の半径[m](世界・据えた scale のまま)── LOD0 の樹皮(材の名に bark)の頂点のうち、樹皮の最も低い所から 0.3m(局所の上向き)の内の、幹の芯 trunkXZ からの水平の最大距離 + 0.… | — |
 
 ## EdoBuildWaku.cs
 

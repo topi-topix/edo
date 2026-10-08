@@ -1,6 +1,6 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 f2d7b35633ee -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 a8362acbe482 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
@@ -96,8 +96,8 @@
 | `EdoBuild.UNDERFLOOR_MAX` | `float` | 床 | 床下の開きの合否閾値[m](縁の下 0.45m + 規則3 の系統差 ±0.25m = 0.70m。 | — |
 | `EdoBuild.UnderfloorGap(go, at, maxSamples=…)` | `float` | 地面・床 | 床下の開き[m]。駒の接地候補点のうち、地面から最も離れた点(浮きの最悪。 | — |
 | `EdoBuild.UnderfloorGap(pieces, worstName, maxSamples=…)` | `float` | 床 | 複数駒の床下の開きの最悪[m]と、その駒名。 | — |
-| `EdoBuild.SeatOnGround(go, sink=…, maxSamples=…)` | `float` | 地面・天端・床 | 地面に据える。Contact で測った 地面と触れる箇所が地形(格子点)に着く高さへ動かし、 sink だけ沈める。 ⟶ 返す: 動かした量[m] | DoiBuilder.Mune(PlaceServiceA・PlaceWellsA), MatsudairaDewa(PlaceUchiNagaya・Stage1c_BoundaryNatural), Typology(Omoya・Seat), TypologyBuilder.Jisha(JishaOmoya) |
-| `EdoBuild.SeatBuried(go, fraction, maxSamples=…)` | `float` |  | 丈の fraction だけ埋めて据える。 ⟶ 返す: 埋めた量[m] | MatsudairaDewaBuilder.Niwa(Stage6c_Ishigumi) |
+| `EdoBuild.SeatOnGround(go, sink=…, maxSamples=…)` | `float` | 地面・天端・床 | 地面に据える。Contact で測った 地面と触れる箇所が地形(格子点)に着く高さへ動かし、 sink だけ沈める。 ⟶ 返す: 動かした量[m] | DoiBuilder.Mune(PlaceServiceA・PlaceWellsA), MatsudairaDewa(PlaceUchiNagaya・Stage1c_BoundaryNatural), OkabeYashiki(PlaceNiwaItem・SeatNiwaStone), Typology(Omoya・Seat), TypologyBuilder.Jisha(JishaOmoya) |
+| `EdoBuild.SeatBuried(go, fraction, maxSamples=…)` | `float` |  | 丈の fraction だけ埋めて据える。 ⟶ 返す: 埋めた量[m] | MatsudairaDewaBuilder.Niwa(Stage6c_Ishigumi), OkabeYashiki(PlaceNiwaItem) |
 | `EdoBuild.SeatOnCrest(go, stones, sink, crest)` | `bool` | 天端 | 駒の底を、その真下の石垣の天端(CrestY)から sink だけ沈めた高さに据える。 | Doi(Stage2_Perimeter), MatsudairaDewa(PlaceKado) |
 | `EdoBuild.FitRunAlongAxis(foot, up, treadS, treadTop, searchHalf, step, accept, devBefore, devAfter)` | `float` | 地面・天端 | 段(石段)の一連を、地表の落ち際へ合わせて走り方向に滑らせる。 | MatsudairaDewa(Stage6_Zosaku) |
 | `EdoBuild.KeepInsidePoly(go, poly, runDir, maxPull, before, step=…, tol=…)` | `float` | 柔 駒どうし・隅・区域 | 壁体を区画の多角形の内へ収める。置いた駒の実メッシュ(屋根を除く)が poly の外へ出ていたら、走り runDir に沿って 最小量だけ引いて収める。 ⟶ 返す: 動かした量[m](+ は runDir 向き・0 = 元から内側) | OkabeYashiki(PlaceFences・PlaceIshigaki・Stage2_Perimeter), MatsudairaDewa(Stage3_Ishigaki) |
@@ -233,7 +233,7 @@ EdoBuild — 段の土留め(石垣・野面)を天端の折れ線へ据える(2
 | `EdoBuild.SkinGapTable(parts, faces, faceTol)` | `string` | 地面・駒どうし | 皮と部材の隙を三つに分けて刷る(2026-09-25 普請奉行の決め・EDO-0430): A 面の高さで塞がる(外が面の中・部材の底 ≤ 面 + 許容)/ B 駒が浮く(外が面の中・底 &gt; 面 + 許容 ── 駒… | SannoSha(HifuGapTable・Stage9_Hifu), DoiBuilder.Hifu(Stage4b_Hifu), OkabeYashiki(Stage3b_Hifu) |
 | `EdoBuild.ClearEdgeSkins(parent)` | `int` |  | ⚠ 注釈なし | OkabeYashiki(Stage1_Grade・Stage3b_Hifu), SannoSha(Stage9_Hifu・UnSkin), Doi(Stage1_Grade), DoiBuilder.Hifu(Stage4b_Hifu) |
 | `DrawnGround`(class) | — | | 描かれた地表を引く掴み。穴の升では皮の高さ(皮が無ければ NaN = 何も描かれていない)、 それ以外は地形(SampleHeight)。 | |
-| `EdoBuild.Drawn()` | `DrawnGround` | 地面 | 描かれた地表の掴みを作る(DrawnGround)。 | OkabeYashiki(PlantFromImpl・SeatMonOnSkin・StackCurbOnSkin…), SannoSha(AbutStairsToWalls・HifuMeasure・RetractRunEndsFromWalls…), DoiBuilder.Shokusai(Stage8_Shokusai・Stage8b_RootReseat), GotenKit(AshimotoReach・RokaFeetToGround), DoiBuilder.Mune(Stage5b_RokaAshi) ほか3 |
+| `EdoBuild.Drawn()` | `DrawnGround` | 地面 | 描かれた地表の掴みを作る(DrawnGround)。 | OkabeYashiki(PlaceNiwaItem・PlaceWaterSurface・PlantFromImpl…), SannoSha(AbutStairsToWalls・HifuMeasure・RetractRunEndsFromWalls…), DoiBuilder.Shokusai(Stage8_Shokusai・Stage8b_RootReseat), GotenKit(AshimotoReach・RokaFeetToGround), DoiBuilder.Mune(Stage5b_RokaAshi) ほか3 |
 | `EdoBuild.DrawnExpected()` | `DrawnGround` | 地面 | 皮を外している間も、外す前の皮を描かれた地表として読む掴み(2026-09-26・EDO-0437 第11巡)。 | SannoSha(AbutStairsToWalls) |
 | `PartTops`(class) | — | | 部材の上を向いた面の最も高い所を引く掴み(駒が他の駒の下に入っているかを見る)。 | |
 | `AtariBed`(class) | — | | 当たりの床 = 下端が接すると決めた相手の面だけを返す床。 | |

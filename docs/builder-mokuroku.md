@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 92・関数 832(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 92・関数 833(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -25,7 +25,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoDoiBuilder.cs](#edodoibuildercs) | 土井大隅守上屋敷(三河刈谷藩2万3千石・譜代・雁間)ビルダー。 | 15 | 89 |
 | [EdoMatsudairaDewaBuilder.Niwa.cs](#edomatsudairadewabuilderniwacs) | 松平出羽守上屋敷 — 庭の工程(池・築山・水の系・石組・点景・滝見口)。 | 9 | 30 |
 | [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 16 | 120 |
-| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 19 | 149 |
+| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 19 | 150 |
 | [EdoSannoShaBuilder.cs](#edosannoshabuildercs) | 山王権現社(日枝神社)本体+樹下家邸+山王門前町ビルダー (2026-08-11。観理院は 2026-09-26 に類型へ移し削除) | 1 | 31 |
 | [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 13 | 102 |
 | [EdoSanyashikiRebuild.cs](#edosanyashikirebuildcs) | 三屋敷(太田・加納・鍋島=松平肥前守)の区画を下書きv3へ更新 (2026-08-08) | 0 | 6 |
@@ -654,6 +654,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `PlaceWaterSurface(items, wait)` | `string` |  | 池の水面だけを張る(2026-09-04 普請奉行の裁定)。 |
 | `PaintSplat(items, wait)` | `string` |  | 地表を塗る(2026-09-04 指図方が `layer` を宣言した分)。 |
 | `PlaceNiwaItem(sub, g, kind, key, pts, missing, wait)` | `int` |  | 庭の一節を据える。部材ごとに据え方が違うので種別で分ける。 |
+| `SeatNiwaStone(sub, nm, idv, c, h, bury, sink, waterY, yaw, drawn, wait)` | `int` |  | 庭石を一つ据える(景石・岩島・肩石)。⭐ 高さは地面と触れる箇所で決める(EdoBuild.SeatOnGround)── ⛔ ピボットを地盤の値へ置かない。 |
 | `IshigumiW(i)` | `float` |  | 庭石の個体 i の、丈 1.000 のときの平面の幅 W(X)[m](部材の doc の実測値)。 |
 | `PolyAt(pts, t)` | `Vector2` |  | 折れ線 `pts`(世界座標)の走り比 t(0〜1)の点。 |
 | `SeatByBury(go, g, groundY)` | `void` |  | 石を「丈の `buryRatio` だけ埋めて」据える。 |

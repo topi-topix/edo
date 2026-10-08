@@ -3697,8 +3697,24 @@ public static class EdoOkabeYashikiBuilder
                         if (EdoGeom.PIP(P, q)) plant.Add(q);
                 }
         }
+        // ⭐ 庭の土工(池を掘り築山を盛る庭の区域)は面の縁の升に数えない(faceKeepOut・土井 EDO-0533 と同じ型)──
+        //   外さないと皮が池を面の高さで埋め、築山を削る(EDO-0502 第59巡: 書院の泉水を造成へ入れた)。
+        //   区域は算出物 gardens の「庭の区域」のうち、同じ zone に汀線か築山を持つもの(白洲の区域は外さない)
+        var keepNiwa = new List<Vector2[]>();
+        {
+            var gl = A(Get(IMPL, "gardens")) ?? new List<object>(); var earth = new HashSet<string>();
+            foreach (var o in gl) { var g = O(o); string k = S(Get(g, "kind")) ?? ""; if (k.StartsWith("汀線") || k.StartsWith("築山")) earth.Add(S(Get(g, "zone")) ?? ""); }
+            foreach (var o in gl)
+            {
+                var g = O(o); if ((S(Get(g, "kind")) ?? "") != "庭の区域" || !earth.Contains(S(Get(g, "zone")) ?? "")) continue;
+                var w = A(Get(g, "world")); if (w == null || w.Count < 3) continue;
+                var pl = new Vector2[w.Count]; for (int i = 0; i < w.Count; i++) { var q = A(w[i]); pl[i] = new Vector2(F(q[0]), F(q[1])); }
+                keepNiwa.Add(pl);
+            }
+            if (keepNiwa.Count > 0) sb.AppendLine("  庭の土工の区域 " + keepNiwa.Count + " を面の縁の升から外す(faceKeepOut)");
+        }
         var rep = EdoBuild.CutEdgeSkin("Okabe", grp, parts, faces, tol, design: design, backfill: 0f, sealFace: true,
-                                       crestBandParts: band, plantPoints: plant);
+                                       crestBandParts: band, plantPoints: plant, faceKeepOut: keepNiwa);
         AssetDatabase.SaveAssetIfDirty(EdoBuild.T().terrainData);
         sb.AppendLine("  古い皮を外して塞いだ升 " + filled + " / 部材 " + rep.parts + "(土留め " + (band.Count - igN) + "・外周の石垣 " + igN + "(うち区画の外の足元を描けない " + igOut + ")・石段 " + stairN + ")/ 面 " + faces.Count + " / 守った地形の木 " + plant.Count);
         sb.AppendLine("  " + rep);
@@ -4788,6 +4804,8 @@ public static class EdoOkabeYashikiBuilder
             case "MarutaTesuriPost": return EdoAssets.Own.MarutaTesuriPost;
             case "Kui":              return a0 > 0f ? EdoAssets.Own.Kui(a0) : null;
             case "KuiNuki":          return EdoAssets.Own.KuiNuki;
+            // ---- 庭(指図 gardens.NiwaShoin の遣水の石橋 `Own.Ishibashi` ── 松江松平の庭のために新造した切石橋 2.2m)
+            case "Ishibashi":        return EdoAssets.Own.Ishibashi();
             default: return null;
         }
     }
@@ -5674,6 +5692,8 @@ public static class EdoOkabeYashikiBuilder
         { return "庭: 算出物に gardens が無い — ⛔ main に焼き手が無い欄(EDO-0386)。掲示板へ起票すること"; }
 
         var grp = Group("Niwa"); Clear(grp);
+        // ⭐ 前の巡で RetireStaleGroup が退けた群(非活性)を起こす ── 非活性の下に据えると子が測れず SeatOnGround が投げる(EDO-0502 第59巡)
+        if (!grp.gameObject.activeSelf) grp.gameObject.SetActive(true);
         int made = 0, splat = 0, terrainOwned = 0, skipped = 0;
         var missing = new Dictionary<string, int>();
         var byKind = new Dictionary<string, int>();
@@ -5807,6 +5827,32 @@ public static class EdoOkabeYashikiBuilder
             var w = A(q); if (w == null || w.Count < 2) continue;
             wb.outline.Add(new Vector3(F(w[0]), wy, F(w[1])));
             wb.sharp.Add(true);           // ⛔ 二重に平滑しない(指図の汀線は平滑後)
+        }
+        // ⭐ **汀は地表と水面の交わり**(従属値・EDO-0502 第59巡)。指図の汀線は狙いで、描かれた地表(石組の岸の断面 + 2m 格子)では
+        //   汀線の上の地表が水面より最大 0.56 低く、水面の縁が宙に浮いていた(557 点のうち 273)。⇒ 汀線を 0.5m に割り、各点を外向きの法線に沿って
+        //   描かれた地表が水面 +0.02 に届く所まで出す(⛔ 内へは寄せない ── 地表が水面より高い所は水面が地表の下に隠れるので残す)。
+        //   硬い: 水面の縁が地表の上に浮かない。出す量の上限 2.0m(届かなければ ⚠)。当たる先: 算出物の汀線で水面を張る全邸の池(土井・松江松平も同じ型)
+        {
+            var dr = EdoBuild.Drawn(); var src = wb.outline; int n0 = src.Count; float area = 0f;
+            for (int i = 0; i < n0; i++) { var a = src[i]; var b = src[(i + 1) % n0]; area += a.x * b.z - b.x * a.z; }
+            var dense = new List<Vector3>(); int pushed = 0, stuck = 0; float pmx = 0f;
+            for (int i = 0; i < n0; i++)
+            {
+                Vector2 a = new Vector2(src[i].x, src[i].z), b = new Vector2(src[(i + 1) % n0].x, src[(i + 1) % n0].z);
+                Vector2 t = (b - a).normalized, outN = area > 0f ? new Vector2(t.y, -t.x) : new Vector2(-t.y, t.x);   // 反時計回りなら右手が外
+                int k = Mathf.Max(1, Mathf.CeilToInt((b - a).magnitude / 0.5f));
+                for (int j = 0; j < k; j++)
+                {
+                    Vector2 p = Vector2.Lerp(a, b, j / (float)k); float o = 0f;
+                    while (o <= 2.0f && dr.At(p.x + outN.x * o, p.y + outN.y * o) < wy + 0.02f) o += 0.05f;
+                    if (o > 2.0f) { stuck++; o = 2.0f; }
+                    if (o > 0f) { pushed++; pmx = Mathf.Max(pmx, o); }
+                    dense.Add(new Vector3(p.x + outN.x * o, wy, p.y + outN.y * o));
+                }
+            }
+            wb.outline = dense; wb.sharp = new List<bool>(); foreach (var _ in dense) wb.sharp.Add(true);
+            if (stuck > 0) wait.Add("水面: 汀の " + stuck + " 点は外へ 2.0m 出しても地表が水面に届かない(⚠ 水面の縁が浮く)");
+            wait.Add("水面: 汀を描かれた地表と水面の交わりへ出した " + pushed + "/" + dense.Count + " 点(最大 " + pmx.ToString("F2") + "m・指図の汀線は狙い)");
         }
         wb.waterY = wy;
         wb.depth = depth;
@@ -5942,36 +5988,65 @@ public static class EdoOkabeYashikiBuilder
         };
         System.Func<int, Vector2> P2 = delegate(int i)
         { var w = A(pts[i]); return new Vector2(F(w[0]), F(w[1])); };
+        // ⭐ 地盤は**描かれた地表**で引く(EDO-0502 第59巡)。⛔ 設計の graded で引かない ── 地形は 2m 格子で描くので、池の岸・築山の
+        //   斜面で設計と描かれた地表が食い違い、飛石・垣が浮くか埋まる(メモリ contact-must-use-drawn-surface)
+        var drawn = EdoBuild.Drawn();
         System.Func<Vector2, float> GY = delegate(Vector2 c)
-        { float y = Graded.At(c.x, c.y); return float.IsNaN(y) ? EdoBuild.Ground(c.x, c.y) : y; };
+        { float y = drawn.At(c.x, c.y); return float.IsNaN(y) ? EdoBuild.Ground(c.x, c.y) : y; };
         int made = 0;
 
         // ---- 庭石(景石・岩島)。⭕ 丈 1.0 に正規化・ピボット = 芯・底
-        //      露出 h を `buryRatio` 埋めるなら **総丈 H = h/(1−bury)**、y = 地盤 − (H−h)
+        //      露出 h を `buryRatio` 埋める ⇒ **総丈 H = h/(1−bury)**。⭐ 高さは**地面と触れる箇所**で測る(SeatNiwaStone)。
+        //      ⭐ 個体は指図の `idx`(岩島は `kataAsset` の「Ishigumi(主)/(肩)」)を読む。無い行だけ名の hash で散らす
+        //      ⭐ 岩島の肩石は指図の `shoulder` の点へ。⛔ 点が無ければ据えない(位置を発明しない)
         if (kind == "景石" || kind == "岩島")
         {
             float h = F(Get(g, "h"));
             float bury = Has(g, "buryRatio") ? F(g["buryRatio"]) : 0.333f;
             float sink = Has(g, "sink") ? F(g["sink"]) : 0f;
-            int idv = StableHash(nm) % 5;
-            var src = load(EdoAssets.Own.Ishigumi(idv)); if (src == null) return 0;
-            Vector2 c = P2(0);
-            float H = h / Mathf.Max(0.05f, 1f - bury);
-            float y = (Has(g, "y") ? F(g["y"]) : GY(c)) - (H - h) - sink;
-            var go = EdoBuild.Place(EdoAssets.Own.Ishigumi(idv), new Vector3(c.x, y, c.y),
-                                    StableHash(nm + "y") % 360, Vector3.one * H, sub, nm);
-            if (go != null) made++;
-            // 岩島は肩石を1つ添える
+            int idv = Has(g, "idx") ? (int)F(g["idx"]) : StableHash(nm) % 5, idk = 4;
+            {
+                var km = System.Text.RegularExpressions.Regex.Matches(S(Get(g, "kataAsset")) ?? "", @"\((\d)\)");
+                if (km.Count >= 1 && !Has(g, "idx")) idv = int.Parse(km[0].Groups[1].Value);
+                if (km.Count >= 2) idk = int.Parse(km[1].Groups[1].Value);
+            }
+            if (load(EdoAssets.Own.Ishigumi(idv)) == null) return 0;
+            float wy = Has(g, "y") ? F(g["y"]) : float.NaN;
+            made += SeatNiwaStone(sub, nm, idv, P2(0), h, bury, sink, wy, StableHash(nm + "y") % 360, drawn, wait);
             if (kind == "岩島" && Has(g, "hShoulder"))
             {
-                float hs = F(g["hShoulder"]);
-                float Hs = hs / Mathf.Max(0.05f, 1f - bury);
-                var go2 = EdoBuild.Place(EdoAssets.Own.Ishigumi(4),
-                    new Vector3(c.x + 0.9f, (Has(g, "y") ? F(g["y"]) : GY(c)) - (Hs - hs) - sink, c.y + 0.5f),
-                    StableHash(nm + "s") % 360, Vector3.one * Hs, sub, nm + "_Kata");
-                if (go2 != null) made++;
+                var sp = A(Get(g, "shoulder"));
+                if (sp == null || sp.Count < 2) wait.Add("庭 " + nm + " の肩石: 指図に肩石の点(shoulder)が無い ── 据えない");
+                else made += SeatNiwaStone(sub, nm + "_Kata", idk, new Vector2(F(sp[0]), F(sp[1])), F(g["hShoulder"]), bury, sink, wy,
+                                           StableHash(nm + "s") % 360, drawn, wait);
             }
             return made;
+        }
+
+        // ---- 石橋(切石の一枚物)。⭐ 長手(局所 +X)を**遣水の流れに直交**させ、両の袂の地面と触れる箇所で据える(SeatOnGround)
+        //      ⛔ 名の hash で回さない(流れに沿って架かる)
+        if (kind == "石橋")
+        {
+            string pth = AssetByKey(key); if (load(pth) == null) return 0;
+            Vector2 c = P2(0); Vector2 dir = Vector2.zero; float bd = float.MaxValue;
+            foreach (var o in A(Get(IMPL, "gardens")) ?? new List<object>())
+            {
+                var y2 = O(o); if ((S(Get(y2, "kind")) ?? "") != "遣水" || S(Get(y2, "zone")) != S(Get(g, "zone"))) continue;
+                var wl = A(Get(y2, "world")); if (wl == null) continue;
+                for (int i = 1; i < wl.Count; i++)
+                {
+                    var qa = A(wl[i - 1]); var qb = A(wl[i]); Vector2 a2 = new Vector2(F(qa[0]), F(qa[1])), b2 = new Vector2(F(qb[0]), F(qb[1]));
+                    float d = DistSeg(c, a2, b2); if (d < bd) { bd = d; dir = (b2 - a2).normalized; }
+                }
+            }
+            if (dir == Vector2.zero) { wait.Add("庭 " + nm + ": 架ける遣水が算出物に無い ── 据えない"); return 0; }
+            Vector2 px = new Vector2(-dir.y, dir.x);                     // 流れに直交
+            float yaw = Mathf.Atan2(-px.y, px.x) * Mathf.Rad2Deg;          // 局所 +X → px
+            var go = EdoBuild.Place(pth, new Vector3(c.x, GY(c), c.y), yaw, Vector3.one, sub, nm);
+            if (go == null) return 0;
+            EdoBuild.SeatOnGround(go, 0f);
+            if (bd > 0.5f) wait.Add("庭 " + nm + ": 点が遣水の芯から " + bd.ToString("F2") + "m 離れている(据えた・⚠ 架かっているかレンダで見る)");
+            return 1;
         }
 
         // ---- 石組護岸。折れ線に沿って `stones` 個。⭕ **長軸**で指定されるので scale = 長軸/W_i
@@ -5991,10 +6066,14 @@ public static class EdoOkabeYashikiBuilder
                 float axis = Mathf.Lerp(lo, hi, (StableHash(nm + "L" + i) % 1000) / 1000f);
                 float sc = axis / Mathf.Max(0.05f, w0);
                 Vector2 c = PolyAt(pts, n <= 1 ? 0f : i / (float)(n - 1));
-                float y = baseY - sc * bury + ((StableHash(nm + "j" + i) % 1000) / 1000f - 0.5f) * 2f * jag;
-                var go = EdoBuild.Place(EdoAssets.Own.Ishigumi(idv), new Vector3(c.x, y, c.y),
+                var go = EdoBuild.Place(EdoAssets.Own.Ishigumi(idv), new Vector3(c.x, baseY, c.y),
                                         StableHash(nm + "r" + i) % 360, Vector3.one * sc, sub, nm + "_" + i);
-                if (go != null) made++;
+                if (go == null) continue;
+                // ⭐ 高さは**地面(汀の法・池床)と触れる箇所**で(EdoBuild.SeatBuried ── 実メッシュの丈の bury を埋める)。⛔ 水面 y から丈×bury を引いて置かない
+                //   (第59巡: 汀の法が水面より低い所で 28 個が最大 0.45 浮いた)。jag は下へだけ散らす(浮かせない)
+                EdoBuild.SeatBuried(go, bury);
+                go.transform.position += new Vector3(0f, -((StableHash(nm + "j" + i) % 1000) / 1000f) * jag, 0f);
+                made++;
             }
             return made;
         }
@@ -6031,6 +6110,9 @@ public static class EdoOkabeYashikiBuilder
             float y = Has(g, "y") ? F(g["y"]) : GY(c);
             var go = EdoBuild.Place(EdoAssets.Own.Kutsunugi, new Vector3(c.x, y, c.y),
                                     0f, Vector3.one * (L / 1.2f), sub, nm);
+            // ⭐ 天端の y が指図に無ければ、部材の根(0.15・部材の doc「露出 0.35 + 根 0.15」)だけ地面と触れる箇所から沈める ──
+            //   ⛔ 天端を地盤の値に置かない(第59巡: 沓脱石が地表と面一で丸ごと埋まった)
+            if (go != null && !Has(g, "y")) EdoBuild.SeatOnGround(go, 0.15f * (L / 1.2f));
             return go != null ? 1 : 0;
         }
 
@@ -6113,6 +6195,35 @@ public static class EdoOkabeYashikiBuilder
             if (go != null) { SeatByBury(go, g, y); return 1; }
             return 0;
         }
+    }
+
+    /// <summary>庭石を一つ据える(景石・岩島・肩石)。⭐ 高さは**地面と触れる箇所**で決める(EdoBuild.SeatOnGround)── ⛔ ピボットを地盤の値へ置かない。
+    /// 陸の石: 総丈 H = h/(1−bury) で置き、当たりから (H−h)+sink 沈める(斜面でも底が浮かない)。
+    /// 水の石(<paramref name="waterY"/> が在る): 露出 h は**水面から**測る ── 池床に sink だけ沈めて天端が waterY+h に来る総丈へ倍率を解く
+    /// (床が深ければ大きく・浅ければ bury の丈で)。硬い: 底の浮き 0(当たりで据える)。柔らかい: 天端 = waterY+h(±0.03 で ⚠)。</summary>
+    static int SeatNiwaStone(Transform sub, string nm, int idv, Vector2 c, float h, float bury, float sink, float waterY,
+                             float yaw, EdoBuild.DrawnGround drawn, List<string> wait)
+    {
+        string pth = EdoAssets.Own.Ishigumi(idv);
+        float H = h / Mathf.Max(0.05f, 1f - bury);
+        var go = EdoBuild.Place(pth, new Vector3(c.x, drawn.At(c.x, c.y), c.y), yaw, Vector3.one * H, sub, nm);
+        if (go == null) return 0;
+        if (float.IsNaN(waterY)) { EdoBuild.SeatOnGround(go, (H - h) + sink); return 1; }
+        // 水の石: 当たりで池床へ据え(sink 沈め)、天端を測って倍率を解き直す(2 回)
+        float top = 0f;
+        for (int it = 0; it < 3; it++)
+        {
+            EdoBuild.SeatOnGround(go, sink);
+            var b = EdoBuild.RB(go); top = b.max.y; float want = waterY + h;
+            if (Mathf.Abs(top - want) <= 0.03f || it == 2) break;
+            float span = top - (b.min.y);                                   // 今の丈
+            float need = want - b.min.y; if (span < 1e-3f || need <= 0.05f) break;
+            float k = Mathf.Max(need / span, (h / Mathf.Max(0.05f, 1f - bury)) / H);   // bury の丈より小さくしない
+            H *= k; go.transform.localScale = Vector3.one * H;
+        }
+        if (Mathf.Abs(top - (waterY + h)) > 0.03f)
+            wait.Add("庭 " + nm + ": ⚠ 狙い 天端 " + (waterY + h).ToString("F2") + " に対し " + top.ToString("F2") + "(池床で据えた)");
+        return 1;
     }
 
     /// <summary>庭石の個体 i の、丈 1.000 のときの平面の幅 W(X)[m](部材の doc の実測値)。

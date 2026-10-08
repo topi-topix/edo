@@ -60,6 +60,7 @@
 - [小段の盛り残りは Stage1 から流せば消える](backbench-residue-cleared-by-stage1.md) — 岡部 S1 は graded へ上書き。返しの前の尾根は壁の下の節点を 2m 格子が描く物
 - [土留めに埋まった地形の木が皮の穴を止める](tree-buried-in-wall-blocks-skin-hole.md) — 尾根と背の隙の正体。RetireTreesInParts。穴の升を先に刷る
 - [皮を庭の後に流すと池を埋める・印は巡ごとに名を替える](skin-after-garden-fills-pond.md) — CutEdgeSkin faceKeepOut に庭の矩形
+- [算出物の汀線で張った水面の縁が浮く・作業場の水面は赤坂へ行かない・黒松の拡大は埋没で退く](pond-outline-and-garden-seat-traps.md) — 汀を地表との交わりへ出す。Niwa の群を起こす
 - [園路の敷きはメッシュ。スプラット不可](gravel-band-mesh-not-splat.md) — alphamap 4.0 m/px。巻きは上から見て時計回り
 - [透塀の段の境は両側 c](sukibei-step-ends-both-c.md)・[隅は kadoFrom で run に入れない](pitfall-sanno-sukibei-kado.md) — 口 0.18m・継ぎ目は端 n・偽の芯ずれ 8 本
 - [山王の社叢は「数え方」が入れ物を決める](sanno-shaso-counting-and-bake-gap.md) — 低木はGameObject・名指しは群の外・旧Keidairinは群ごと退避。焼き出し7点は `{size}` のまま

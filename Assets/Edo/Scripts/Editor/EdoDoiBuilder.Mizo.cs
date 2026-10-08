@@ -1419,7 +1419,9 @@ public static partial class EdoDoiBuilder
                 if (tds.Count > 0)
                 {
                     string wr; bool wok = EdoBuild.MasuFaceWidthCheck(aimP, path, tds, pws, 0.10f, out wr);
-                    if (!wok) { line(2, mz.id + "(" + kt + "): 桝の外の面の幅 ── " + wr + " ── 建てない"); Wait(mz.id + ": 桝の外の面の幅が入る溝に足りない ── " + wr); continue; }
+                    // 柔(第46巡・普請奉行の決め): 幅が足りなくても桝は建てる ── 建てないと溝の尻が桝の無い所で開く(第45巡 D1・D2 の桝が消えた)。隙そのものは 4b の皮と部材の隙(硬)で数える
+                    if (!wok) { line(1, mz.id + "(" + kt + "): ⚠ 桝の外の面の幅が狙いに届かない ── " + wr + " ── 建てて 4b の隙で検める(柔)"); Wait(mz.id + ": 桝の外の面の幅が入る溝に足りない(柔)── " + wr); }
+                    else
                     line(0, mz.id + "(" + kt + "): 桝の外の面の幅 ── " + wr);
                 }
                 if (unk.Count > 0) Wait(mz.id + ": 入る区間 " + string.Join("・", unk.ToArray()) + " は駒の幅が測れず、桝の外の面の幅の硬い条件は未検査");

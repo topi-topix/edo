@@ -2354,7 +2354,7 @@ public static class EdoOkabeYashikiBuilder
                 var made = EdoBuild.PlaceCrestWall(cw, SkinGround, grp, runEnds, segPieces, log, out wf, out bs);
                 castle.AddRange(made);
                 // ⭐ 両端の延長(指図 terraceWalls[].ends・EDO-0502 第20巡)── 線は EndExtensions が解く(野面の枝と同じ)
-                foreach (var ex in EndExtensions(nm, w, nodes, key, sb, null))
+                foreach (var ex in EndExtensions(nm, w, nodes, tops[0], key, sb, null))
                 {
                     var ew = new EdoBuild.CrestWall { name = ex.name, nodes = new List<Vector2> { ex.pe, ex.pf }, nodeTops = new List<float> { tops[0], tops[0] }, gaps = new List<Vector2>(),
                                                       runAlongX = false, runLen = 2.0f, pitchMax = 1.8f, pathOfH = EdoBuild.CastleWallOfExpose, lowHint = (pa, pb) => ex.lowD, lowForce = true };
@@ -2438,7 +2438,7 @@ public static class EdoOkabeYashikiBuilder
                 if (S(Get(w, "mode")) == "fill")
                 {
                     gaps = StairGaps(key, w, nodes, tops[0], kaiRoot, nozSegs, sb);
-                    foreach (var ex in EndExtensions(nm, w, nodes, key, sb, extraPool))
+                    foreach (var ex in EndExtensions(nm, w, nodes, tops[0], key, sb, extraPool))
                         nozSegs.Add(new EdoBuild.NozuraSeg { name = ex.name + "_0", a = ex.pe, b = ex.pf, crestAt = sl => tops[0], face = ex.lowD });
                 }
                 // 野面: 節点ごとの区間(天端は節点の値を道のりで一次)。口で割る
@@ -3053,6 +3053,10 @@ public static class EdoOkabeYashikiBuilder
     /// ② 無ければ据わった段石の実面で口を詰め(<see cref="EdoBuild.GapFromPieces"/>)、返しは GapReturnLine の線(見え面は口の内)。
     /// 返り値 = 口の道のり [s0, s1] の並び。硬い: sideFace(各段の踏面の高さで見え面 = 端の線)は据えた後に MeasureSideFaces で実測して刷る。
     /// 当たる先: 石段が切る野面の段の土留め(岡部 TW_Kado_Shumen・TW_Kado_Hokuto・TW_Higashi_Tsuyo)。</summary>
+    /// <summary>**道の路盤の高さ**(石段の脇の返しの足元・EDO-0502 第58巡)── 坂の縦断(RampProfileAt)が在ればそれ、無ければ皮が描く地表。
+    /// ⛔ 設計の地盤 graded で測らない ── graded は切通しの坂を持たず面の高さ 21.0 を返し、返しの駒が H0.30 に選ばれて下が 1.4m 抜けた(第57巡)。</summary>
+    static float RoadGround(Vector2 q) { float rp = RampProfileAt(q); return !float.IsNaN(rp) ? rp : SkinGround(q.x, q.y); }
+
     /// <summary>この巡の sideFace の返しの始まり(本線の上の出隅の点)── 本線の短い残りを捨てずに返しと継ぐ(Stage2b の区間割り)。</summary>
     static List<Vector2> _sideCorner = new List<Vector2>();
     static List<Vector2> StairGaps(string key, Dictionary<string, object> w, List<Vector2> nodes, float top, Transform kaiRoot, List<EdoBuild.NozuraSeg> nozSegs, System.Text.StringBuilder sb)
@@ -3119,7 +3123,7 @@ public static class EdoOkabeYashikiBuilder
                 for (float u = 0f; u <= uEnd + 1e-3f; u += 0.5f)
                 {
                     if (spans.Exists(sp => u >= sp.x - 0.3f && u <= sp.y + 0.3f)) continue;
-                    var q = foot + ax * u; float gy = DesignY(q); if (!float.IsNaN(gy)) surf.Add(new Vector2(u, gy));
+                    var q = foot + ax * u; float gy = RoadGround(q); if (!float.IsNaN(gy)) surf.Add(new Vector2(u, gy));
                 }
                 var stoneOf = new System.Text.StringBuilder();
                 float batter = EdoBuild.FaceBatterOf(EdoAssets.Own.SannoNozura(4.8f, 0f, 0));
@@ -3147,7 +3151,7 @@ public static class EdoOkabeYashikiBuilder
                 {
                     float u = Vector2.Dot(new Vector2(x, z) - footC, axC); float y = float.NaN;
                     foreach (var f3 in footOf) if (u >= f3.x - 0.05f && u <= f3.y + 0.05f && (float.IsNaN(y) || f3.z < y)) y = f3.z;   // 段鼻の下は低い段
-                    return float.IsNaN(y) ? DesignY(new Vector2(x, z)) : y;
+                    return float.IsNaN(y) ? RoadGround(new Vector2(x, z)) : y;
                 };
                 for (int si = 0; si < 2; si++)
                 {
@@ -3186,7 +3190,7 @@ public static class EdoOkabeYashikiBuilder
     /// 低い側の面(欄 lo の terraces[].poly)の縁が線の端から折れて続くなら、その縁に沿って台の道の側の石垣(Ishigaki の駒)の実面まで。
     /// 面は実メッシュで測る(殻の駒 ⇒ 縁の線の脇 1m に入る頂点の最も手前)。⛔ 長さを決め打ちしない。<paramref name="partners"/> へ相手の駒を足す(null 可)。
     /// 硬い/柔らかい: どちらでもない(読みと実測)。当たる先: ends を持つ段の土留め(岡部 TW_Higashi_Tsuyo)。</summary>
-    static List<EndExt> EndExtensions(string nm, Dictionary<string, object> w, List<Vector2> nodes, string key, System.Text.StringBuilder sb, List<GameObject> partners)
+    static List<EndExt> EndExtensions(string nm, Dictionary<string, object> w, List<Vector2> nodes, float top, string key, System.Text.StringBuilder sb, List<GameObject> partners)
     {
         var res = new List<EndExt>();
         Dictionary<string, object> twE = null;
@@ -3212,6 +3216,8 @@ public static class EdoOkabeYashikiBuilder
                 if (!c.gameObject.activeInHierarchy) continue; var rb = EdoBuild.RB(c.gameObject); if (Vector2.Distance(new Vector2(rb.center.x, rb.center.z), pe) > 12f) continue;
                 foreach (var v in EdoBuild.Body(c, 4000))
                 {
+                    // 相手の面は天端の帯(天端 −0.6〜+0.1)で測る ── 法の面の足で測ると上で口が開いた(第57巡: 小口の隙 1.5〜1.7m)。下はめり込み(埋めて隠す)
+                    if (!float.IsNaN(top) && (v.y < top - 0.6f || v.y > top + 0.1f)) continue;
                     Vector2 r0 = new Vector2(v.x, v.z) - pe; if (Mathf.Abs(Vector2.Dot(r0, en)) > 1.0f) continue;
                     float u = Vector2.Dot(r0, ed); if (u > 0.3f && u < 12f && (float.IsNaN(hit) || u < hit)) { hit = u; }
                 }
@@ -3500,7 +3506,9 @@ public static class EdoOkabeYashikiBuilder
             }
             sb.AppendLine("  坂の路盤の帯を縦断(GradeRamps の節点)で皮の格子 " + dstep.ToString("F2") + "m に写した節点 " + nr);
             // 上がり口の段石の背の平ら(指図 kaidans[].topStep「背の地盤は天端 −0.02」【硬】)を皮の平らな面に(RampAxis が起こした物)
-            foreach (var kv in _topLanding) { faces.Add(kv.Value); sb.AppendLine("  面 " + kv.Value.name + "(" + kv.Value.y.ToString("F2") + "): 上がり口の段石の背 " + TOPSTEP_BACK_FLAT.ToString("0.0#") + "m"); }
+            //   ⭐ 第58巡: 坂の節点(RampAxis)から起こすと坂を持たない石段(K_Tsuyo)や節点の近い坂(K_Kuruwa)で面が無く、背が 0.6 窪んだ ⇒
+            //   据わった上がり口の段石の実メッシュから全石段ぶん起こす(TopLandingFaces)
+            foreach (var tf in TopLandingFaces(sb)) faces.Add(tf);
         }
         // ⭐ 返しの石垣と長屋の背の間の溝(Stage2b と同じ BackTrenches)も設計の地盤へ ── 溝の中は低い側の面まで下げる(⛔ 上げない)。
         //   皮が graded(門の内の面)のまま描くと、溝を N39_1 の背まで土で埋め戻す(EDO-0502 第19巡)
@@ -5499,6 +5507,36 @@ public static class EdoOkabeYashikiBuilder
                         + "・段石の差し込み 最小 " + (insMin == float.MaxValue ? "-" : insMin.ToString("F3")) + (Mathf.Abs(worst) > 0.05f || none > 0 ? " ⛔" : " ⭕") + "\n    " + string.Join(" / ", det.ToArray()));
         }
         return sb.ToString();
+    }
+
+    /// <summary>**上がり口の段石の背の平らな面**(指図 kaidans[].topStep「背の地盤は天端 − x」・topStepBackFlat の奥行【硬】・EDO-0502 第58巡)。
+    /// 据わった上がり口の段石(名 "<石段>_top_*")の実メッシュから解く: 上がる向き = 一段目の列 → 上がり口の列、面 = 段石の奥の縁(−0.05)から
+    /// 奥行ぶん奥まで・横は段石の端から端、高さ = 段石の天端 − x。皮の平らな面として渡す(Stage3b)。読めない欄は ★ を刷って起こさない。
+    /// 当たる先: topStep を持つ石段すべて(岡部 K_Dan1・K_Dan2・K_Tsuyo・K_Kuruwa ── 坂の有無を問わない)。</summary>
+    static List<EdoBuild.SkinFace> TopLandingFaces(System.Text.StringBuilder sb)
+    {
+        var res = new List<EdoBuild.SkinFace>(); var inv = System.Globalization.CultureInfo.InvariantCulture;
+        var root = GameObject.Find(GN); var kai = root == null ? null : root.transform.Find("Fuzoku/Kaidan"); if (kai == null) return res;
+        foreach (var o in A(Get(D, "kaidans")) ?? new List<object>())
+        {
+            var k = O(o); if (k == null) continue; string nm = S(Get(k, "name")), ts = S(Get(k, "topStep")); if (nm == null || ts == null) continue;
+            var mb = System.Text.RegularExpressions.Regex.Match(ts, @"背の地盤は天端\s*[−\-]\s*([0-9.]+)");
+            var mf = System.Text.RegularExpressions.Regex.Match(S(Get(k, "topStepBackFlat")) ?? "", @"^\s*([0-9.]+)");
+            if (!mb.Success) { sb.AppendLine("  ★ 上がり口の背の面 " + nm + ": topStep の背の地盤が読めない ── 起こさない"); continue; }
+            float drop = float.Parse(mb.Groups[1].Value, inv), flat = mf.Success ? float.Parse(mf.Groups[1].Value, inv) : TOPSTEP_BACK_FLAT;
+            var tops = new List<Transform>(); var first = new List<Transform>();
+            foreach (Transform c in kai) { if (!c.gameObject.activeInHierarchy) continue; if (c.name.StartsWith(nm + "_top_")) tops.Add(c); else if (c.name.StartsWith(nm + "_1_")) first.Add(c); }
+            if (tops.Count == 0 || first.Count == 0) { sb.AppendLine("  ★ 上がり口の背の面 " + nm + ": 上がり口の段石が据わっていない ── 起こさない"); continue; }
+            Bounds bt = EdoBuild.RB(tops[0].gameObject); foreach (var t in tops) bt.Encapsulate(EdoBuild.RB(t.gameObject));
+            Bounds b1 = EdoBuild.RB(first[0].gameObject); foreach (var t in first) b1.Encapsulate(EdoBuild.RB(t.gameObject));
+            Vector2 c0 = new Vector2(bt.center.x, bt.center.z), up = (c0 - new Vector2(b1.center.x, b1.center.z)).normalized, side = new Vector2(-up.y, up.x);
+            float u1 = float.MinValue, l0 = float.MaxValue, l1 = float.MinValue;
+            foreach (var t in tops) foreach (var v in EdoBuild.Body(t, 4000)) { Vector2 r = new Vector2(v.x, v.z) - c0; u1 = Mathf.Max(u1, Vector2.Dot(r, up)); float l = Vector2.Dot(r, side); l0 = Mathf.Min(l0, l); l1 = Mathf.Max(l1, l); }
+            float y = bt.max.y - drop; Vector2 pa = c0 + up * (u1 - 0.05f), pb = c0 + up * (u1 + flat);
+            res.Add(new EdoBuild.SkinFace("TopLanding_" + nm, new[] { pa + side * l1, pb + side * l1, pb + side * l0, pa + side * l0 }, y, TOPSTEP_BACK_TOL));
+            sb.AppendLine("  面 TopLanding_" + nm + "(" + y.ToString("F2") + "): 上がり口の段石の背 " + flat.ToString("0.0#") + "m・幅 " + (l1 - l0).ToString("F2") + "m(据わった段石から)");
+        }
+        return res;
     }
 
     static int PlaceKaidanAB(Transform grp, Dictionary<string, object> k, List<string> wait)

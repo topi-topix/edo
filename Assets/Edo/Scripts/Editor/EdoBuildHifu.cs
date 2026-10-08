@@ -84,6 +84,7 @@ public static partial class EdoBuild
         /// <summary>穴を開けた後に穴の升に立つ植栽の点(<c>plantPoints</c>)の数。硬い条件・許容0。</summary>
         public int plantOnHole;
         public int stairFaced;
+        public int holdRaised; public float holdRaisedMax;   // 3e 盛った土を最後に効かせた節点の数と最大の上げ
         public int verts, tris, pinned, faced, clamped, under, floored, designed, sloped, filled, fillLostTree;
         public float fillMax; public Vector3 fillAt;
         public float maxLower, maxRaise; public Vector3 lowerAt, raiseAt;
@@ -127,7 +128,7 @@ public static partial class EdoBuild
                    "・既に穴で触らず " + skipHole + "・地形の木が立つので開けず " + skipTree + "・植栽の点が立つので開けず " + skipPlant + ")" +
                    (plantOnHole > 0 ? " ⛔ 穴の上の植栽の点 " + plantOnHole : "") +
                    " / 皮 頂点 " + verts + "・三角 " + tris + "(縁の点 " + pinned + " は地形のまま)" +
-                   " / 面の高さへ " + faced + " 点(うち石段の外形の中と前 " + stairFaced + ")・面の外は設計の地盤へ " + designed + " 点(うち縁から法で受けた " + sloped + ")" +
+                   " / 面の高さへ " + faced + " 点(うち石段の外形の中と前 " + stairFaced + ")" + (holdRaised > 0 ? "・盛った土を最後に効かせた " + holdRaised + " 点(最大 +" + holdRaisedMax.ToString("F2") + ")" : "") + "・面の外は設計の地盤へ " + designed + " 点(うち縁から法で受けた " + sloped + ")" +
                    " / 部材の天端の下へ " + clamped + " 点(うち真下 " + under + "・隣の底で止めた " + floored + ")" +
                    " / 裏込め(部材の底まで盛る)" + filled + " 点・最大 " + fillMax.ToString("F2") + "m @(" + fillAt.x.ToString("F1") + ", " + fillAt.z.ToString("F1") + ")" +
                    "・地形の木の升は穴を開けず被せた " + fillLostTree + " 升" +
@@ -1390,18 +1391,6 @@ public static partial class EdoBuild
                             //   (前庭の SE の背: 設計の地盤 16.65・駒の底 16.50・地形 15.8)、外形の外の設計の地盤との間の三角形が背の底の下を
                             //   0.54m 覗かせた。底は駒のどの面より低いので天端は埋まらない(「上げない」の由来 ── 袖の天端を埋めた ── は設計の地盤へ上げた話)。
                             if (botOk && hgt < Mathf.Min(bl, dz)) hgt = Mathf.Min(bl, dz);
-                            // ⭐ 立てた節点(SkinDesign.hold ── 部材の小口に被せる土)の周りは、外形の中でも上げる ── 上限は立てた土の頂(HoldY)
-                            //   (2026-10-08 EDO-0502 第51巡)。⛔ 「下げるだけ」のままだと小口の際の節点が地形(16.47)に残り、外の盛った節点(16.65)との間の
-                            //   三角形で小口の前 0.02〜0.25 の描かれた地表が 0.19 低く、小口が見えた(TW_Kado_Sode_0_0_016f)。天端の下なら駒の中に隠れる。
-                            //   当たる先: SkinDesign.hold を渡す邸(岡部 Stage3b の小口の土)の、hold の節点が部材の外形に掛かる所すべて。
-                            {
-                                float hy = HoldY(p);
-                                if (!float.IsNaN(hy) && hy > hgt)
-                                {
-                                    float capT = hy;   // 上限 = 立てた土の頂(指図の土の頂 ── 駒の天端より上に出てよい・第51巡の2 施主側の裁き)
-                                    if (capT > hgt) { hgt = capT; if (trc) TrLog(x, z, "立てた節点(外形の中)", hgt); }
-                                }
-                            }
                         }
                         if (trc) TrLog(x, z, "外形の中の設計", hgt);
                         // ⭐ 天端の帯で篩う駒の**法の面の下**(外形の中・天端の帯の外)は、その点の面の高さで描く ── 法の足・控えは面の土の下へ入る
@@ -1490,9 +1479,6 @@ public static partial class EdoBuild
                                         { float fq = FaceY(p + new Vector2(Mathf.Cos(an), Mathf.Sin(an)) * rr); if (!float.IsNaN(fq)) { fyN = fq; break; } }
                                     }
                                     float to = (!float.IsNaN(fyN) && !IsHollow(wS) && Mathf.Abs(fb - fyN) <= faceTol - 0.02f) ? Mathf.Max(fb, fyN) : fb;
-                                    // ⛔ 立てた土(SkinDesign.hold)の節点は立てた土の頂(HoldY)より下げない(2026-10-08 EDO-0502 第53巡)── 端の駒を土で埋める盛りの、
-                                    //   駒の見え面に沿う一列が面 16.50 へ下がり、駒の上の描かれた地表が天端 −0.157 になった(TW_Kado_Sode_0_0_016f)。
-                                    { float hyS = HoldY(p); if (!float.IsNaN(hyS)) to = Mathf.Max(to, hyS); }
                                     if (hgt > to) { hgt = to; r.stairFaced++; }
                                 }
                             }
@@ -1640,15 +1626,6 @@ public static partial class EdoBuild
                         if (!float.IsNaN(self)) { float sc = self - (FillSeeded(gi, gj) ? FILL_UNDER : under); capF = float.IsNaN(capF) ? sc : Mathf.Min(capF, sc); }
                         float pre = hgt;
                         if (stairRim.Contains(k) && !float.IsNaN(self)) cap = self - STAIR_RIM_TUCK;   // 段石の背の縁: 自分の段石の天端の下だけ(下の段の天端で引き下げない)
-                        // ⭐ 立てた節点(SkinDesign.hold ── 小口に被せる土)の周りは、天端の下へ納める上限を立てた土の頂(HoldY)まで緩める
-                        //   (2026-10-08 EDO-0502 第51巡)。⛔ 自分の点の天端(野面の丸い肩 16.56)− under 0.15 で切ると、小口の際の点が 16.41 に下がり、
-                        //   外の盛った点(16.70)との三角形で小口の前の描かれた地表が小口の頂(16.65)より 0.16 低かった。土は石の肩に被ってよい(被せて隠す)。
-                        //   当たる先: SkinDesign.hold を渡す邸(岡部 Stage3b の小口の土)。hold の無い点は従来どおり。
-                        if (!float.IsNaN(cap) && design != null && design.hold != null)
-                        {
-                            float hyC = HoldY(p);
-                            if (!float.IsNaN(hyC) && hyC > cap) cap = hyC;   // 上限 = 立てた土の頂(駒を土で隠すのが設計 ── 天端より上に出てよい)
-                        }
                         if (!float.IsNaN(cap) && hgt > cap) { hgt = cap; r.clamped++; if (!float.IsNaN(self)) r.under++; }
                         if (trc) TrLog(x, z, "天端の下(self " + self.ToString("F2") + " cap " + cap.ToString("F2") + ")", hgt);
                         // ⭐ 溝の脇の法(keepBatter > 0・硬): 天端が沈んだ溝の外形の外は、床(天端の外の辺からの法)まで下げる ── 造成の面のまま残すと
@@ -1809,10 +1786,6 @@ public static partial class EdoBuild
                 int gi = (int)(kv.Key >> 32), gj = (int)(uint)(kv.Key & 0xffffffff);
                 float x = org.x + gi * step, z = org.z + gj * step;
                 if (NearPart(gi, gj) != 2) continue;
-                // ⭐ 立てた土(SkinDesign.hold ── 小口を隠すために被せる面)の点は見え面の前の判定に掛けない(2026-10-08 EDO-0502 第51巡):
-                //   被せる面は見え面ではない。⛔ 掛けると小口の際の点が 16.59 → 16.50 へ下がり、小口の前の土が 0.07 足りなかった。見え面の判定そのものは変えない。
-                //   当たる先: SkinDesign.hold を渡す邸だけ(今は岡部 Stage3b の小口の土)── hold の無い邸の皮には効かない。
-                if (!float.IsNaN(HoldY(new Vector2(x, z)))) continue;
                 if (hardFaces.Count > 0) { bool inHard = false; foreach (var hf in hardFaces) if (EdoGeom.PIP(hf.poly, new Vector2(x, z))) { inHard = true; break; } if (inHard) continue; }
                 int who; float tr = idx.TopRaw(x, z, out who);
                 // ⭐ 上を向いた面の無い法の帯(城の石垣の滑らかな見え面 ── 法線の y 0.24 < UP_NY)の下の点も候補に入れる(2026-10-05 EDO-0502 第23巡):
@@ -1930,6 +1903,22 @@ public static partial class EdoBuild
         r.pinned = PIN.Count;
 
 
+        // ---- 3e 盛った土は最後に勝つ(SkinDesign.hold・2026-10-08 EDO-0502 第55巡 施主側の裁き「型を一つに」)── 立てた土(部材の小口・端の駒を
+        //   土で隠す盛り)は設計の意図そのもの。3〜3d のどの枝の押し下げ(面の高さ・法の面の下・天端の下の cap・見え面の前・石段の外形)より後に、
+        //   hold の節点の周り(HoldY が値を持つ点)だけを y = max(y, HoldY) にする。⛔ 枝ごとに hold を除外しない(第49〜53巡で 5 か所に散った)。
+        //   縁の点(PIN ── 地形と継ぐ)は触らない。当たる先: SkinDesign.hold を渡す邸だけ(今は岡部 Stage3b の小口の土)── hold の無い邸の皮は不変。
+        if (design != null && design.hold != null)
+        {
+            int raised = 0; float rmx = 0f; var keys = new List<long>(H.Keys);
+            foreach (var kk in keys)
+            {
+                if (PIN.Contains(kk)) continue;
+                int gi = (int)(kk >> 32), gj = (int)(uint)(kk & 0xffffffff);
+                float hy = HoldY(new Vector2(org.x + gi * step, org.z + gj * step));
+                if (!float.IsNaN(hy) && hy > H[kk] + 1e-4f) { rmx = Mathf.Max(rmx, hy - H[kk]); H[kk] = hy; raised++; }
+            }
+            r.holdRaised = raised; r.holdRaisedMax = rmx;
+        }
         if (SkinTrace != null) TrDump("4 の前", H, org.x, org.z, step);
         // ---- 4 メッシュ
         var go = new GameObject(SKIN_PREFIX + name);

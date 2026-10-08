@@ -86,7 +86,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `PiecesByPrefix9(prefix, root)` | `List<GameObject>` |  | — |
 | `BuildDanOchi9(g, grp, solvedEnds, receivers, masuOf, kf, line)` | `void` |  | 型 H(段落ち)の区間: 頭の底(始点の区間の尻・入る区間の尻 ── 線の頭から 3m 内)と尻の狙い(欄の 段 × 1段/吐口が塀の水抜きなら塀の外の道 + bottomAboveRoad)を 欄から読み、EdoBui… |
 | `BuildHariOtoshi9(g, grp, byId, edgeChk, kf, line)` | `void` |  | 区間の欄 drop(型 I 張り石の落とし): 始点 = 座の「辺N 側の縁」のうち受ける区間に最も近い所・終点 = 受ける区間の線(垂線の足)を引き、 頭 = 座の縁の地盤(この区間の尻の底が低ければそれ)・法尻 =… |
-| `BuildUke9(g, grp, masuAt, edgeChk, line)` | `void` |  | 型 J(玉石の受け)の区間: 線「受け: <条件> のうち <起点> に最も近い所に a×b 間」を読み、起点の桝(据えた位置)・指名の辺・勾配の上限を EdoBuild.PlaceUke(置き場は PlaceBest… |
+| `BuildUke9(g, grp, masuAt, masuFloor, edgeChk, line)` | `void` |  | 型 J(玉石の受け)の区間: 線「受け: <条件> のうち <起点> に最も近い所に a×b 間」を読み、起点の桝(据えた位置)・指名の辺・勾配の上限を EdoBuild.PlaceUke(置き場は PlaceBest… |
 | `BuildAfterUke9(g, grp, masuAt, segById, kf, line)` | `bool` |  | ⑥ 線「<Dn> masu[k] の芯から <区間> の受けの縁の最寄りの中央へ直線 ── 頭は地盤が埋樋の管底 + c まで下がった所・尻は受けの底」の型 H(段落ち)を、 桝と受け(型 J)を据えた後に引いて据える。 |
 | `ToArr(mc)` | `string[]` |  | — |
 

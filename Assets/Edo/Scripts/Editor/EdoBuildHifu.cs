@@ -75,6 +75,9 @@ public static partial class EdoBuild
         /// 低い端「高さ 0.15・長さ 0.25 の土を 1:1.5 で被せる」【硬】)は面(門の内 16.50)の縁の脇で面より高い ⇒ 法の頭打ちが面の高さへ
         /// 削り戻して小口が 0.15 見えた(2026-10-07 EDO-0502 第49巡)。当たる先: 設計の地盤を部材の脇で面より上へ盛る全ての欄(いまは岡部の小口の土)。</summary>
         public bool[] hold;
+        /// <summary>**設計で土に埋める駒**(見え面を持たない ── 2026-10-08 EDO-0502 第56巡・指図 sodeSlope 追記 2026-10-08「低い端の水平の駒は土で完全に埋める」)。
+        /// 皮の検めの「皮が部材の天端に被る」から外す(埋めるのが設計)。渡すのは盛った土(hold)を作る側。当たる先: 岡部 Stage3b の端の駒。</summary>
+        public HashSet<GameObject> buried;
     }
 
     /// <summary><see cref="CutEdgeSkin"/> の報告。</summary>
@@ -2042,7 +2045,7 @@ public static partial class EdoBuild
                 float g = FaceY(q); if (float.IsNaN(g)) g = OutsideY(q, null);
                 return !float.IsNaN(g) && g > top + 1e-3f;
             };
-        MeasureSkin(idx, ref r, null, (px, pz) => treeCells.Contains(CK(CI(px), CJ(pz))), sunk);
+        MeasureSkin(idx, ref r, null, (px, pz) => treeCells.Contains(CK(CI(px), CJ(pz))), sunk, design != null ? design.buried : null);
         return r;
     }
 
@@ -2511,7 +2514,7 @@ public static partial class EdoBuild
     { foreach (var g in parts) if (g != null && g.name == name) return g; return null; }
 
     static void MeasureSkin(TopIndex idx, ref SkinReport r, List<string> samples, Func<float, float, bool> plantCell = null,
-                            Func<int, Vector2, float, bool> sunkHollow = null)
+                            Func<int, Vector2, float, bool> sunkHollow = null, HashSet<GameObject> buried = null)
     {
         var plantBy = new Dictionary<string, int>(); var sunkBy = new Dictionary<string, int>();
         var probe = Probe();
@@ -2542,7 +2545,8 @@ public static partial class EdoBuild
                     if (float.IsNaN(topRaw)) continue;
                     // 被り: 外形の内で 皮 > 天端
                     float gin = dg.At(pin.x, pin.y);
-                    if (!float.IsNaN(gin) && !float.IsNaN(top))
+                    // 設計で土に埋める駒(SkinDesign.buried)は見え面を持たない ⇒ 被りに数えない
+                    if (!float.IsNaN(gin) && !float.IsNaN(top) && !(buried != null && k < idx.gos.Count && buried.Contains(idx.gos[k])))
                     {
                         r.coverPts++;
                         if (gin > top + 1e-3f)

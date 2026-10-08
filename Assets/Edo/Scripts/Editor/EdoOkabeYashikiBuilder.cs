@@ -3389,6 +3389,7 @@ public static class EdoOkabeYashikiBuilder
         // ⭐ 袖の坂の低い端の小口に土を被せる(⚠ 設計の地盤を書く最後の手 ── 溝・小段・棟の下の均しの後。盛った節点は SkinDesign.hold で法の頭打ちから外す・第49巡)(指図 sodeSlope 追記 2026-10-07「小口は高さ 0.15・長さ 0.25 の土を 1:1.5 で被せて隠す」【硬】・EDO-0502 第42巡)──
         //   据えた端の駒の小口を実メッシュで測り(走りの外へ最も出た頂点の帯 0.05)、小口の外の設計の地盤を「小口の頂(≤ 地盤 + 高さ)から 1:bf で下りる面」まで盛る。⛔ 下げない。
         //   当たる先: sodeSlope の低い端を水平の駒で終える袖(岡部 TW_Kado_Sode)。
+        var buriedParts = new HashSet<GameObject>();
         var covers = new List<SodeEndCover>(); var hold = new bool[gh.Length]; var coverFace = new List<Vector4>(); var coverLat = new List<Vector2>(); var coverDu = new List<float[]>(); var coverTop = new List<float[]>(); var coverPiece = new List<GameObject>();   // (端の点 x, z, 小口の頂, 走りの外の縁 u)
         {
             foreach (var o in A(Get(IMPL, "terraceWalls")) ?? new List<object>())
@@ -3446,11 +3447,15 @@ public static class EdoOkabeYashikiBuilder
                             var q = new Vector2(dx0 + i * dstep, dz0 + j * dstep) - c.end; float du = Vector2.Dot(q, c.away) - um, dl = Vector2.Dot(q, lat);
                             float exU = Mathf.Max(0f, Mathf.Max(pIn - du, du)), exL = Mathf.Max(0f, Mathf.Max(pL0 - c.burySide - dl, dl - pL1 - c.burySide));
                             float ex = Mathf.Sqrt(exU * exU + exL * exL);
-                            float yTop = pTop + c.buryTop - (Mathf.Clamp(du, pIn, 0f) - pIn) * c.drn;
-                            float y = yTop - ex / c.bf; if (y <= gh[k] + 1e-4f) continue;
+                            // 駒の上と横の両側 burySide は端の駒の天端 + buryTop の水平(指図 追記 2026-10-08【柔】)。水 1/drn は平らの外の擦り付けの側でとる
+                            //   ── 小口の外(東・du > 0)へ下りる面を 1:bf と 1/drn の緩い方にせず、1:bf の法の頭を平らの縁から 1/drn で落としてから下ろす
+                            //   (⛔ 第55巡まで頂を内の端に取り駒の上で 1/20 下げていた ── 小口の際で 0.11 下がり天端 +0.012 だった)。
+                            float yTop = pTop + c.buryTop;
+                            float y = yTop - (exU > 0f && du > 0f ? Mathf.Min(exU, dstep) * c.drn + Mathf.Max(0f, ex - dstep) / c.bf : ex / c.bf);
+                            if (y <= gh[k] + 1e-4f) continue;
                             mx = Mathf.Max(mx, y - gh[k]); gh[k] = y; nc++; hold[k] = true;
                         }
-                    if (bury) top = pTop;   // 検めは端の駒の天端で
+                    if (bury) { top = pTop; buriedParts.Add(eg); }   // 検めは端の駒の天端で・埋める駒は皮の被りの検めから外す(SkinDesign.buried)
                     for (int j = 0; !bury && j < dnz; j++)
                         for (int i = 0; i < dnx; i++)
                         {
@@ -3483,7 +3488,7 @@ public static class EdoOkabeYashikiBuilder
         var design = new EdoBuild.SkinDesign
         {
             x0 = dx0, z0 = dz0, step = dstep, nx = dnx, nz = dnz, h = gh, ok = ok,
-            batterCut = C("batterCut"), batterFill = C("batterFill"), baseAt = EdoBuild.BaseDem(), own = Poly, hold = hold
+            batterCut = C("batterCut"), batterFill = C("batterFill"), baseAt = EdoBuild.BaseDem(), own = Poly, hold = hold, buried = buriedParts
         };
         // ⭐ 区画の外の節点は区画の外の地盤(今の地形・区画の内と駒の下の節点は造成前)で持たせる(EDO-0502 第29巡)── 外周の石垣の見え面の前
         EdoBuild.DesignOutsideOwn(design, parts, sb);

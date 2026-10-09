@@ -111,6 +111,7 @@ public static partial class EdoBuild
         /// <summary>駒ごとの外形(凸包)と見え面ごとの前の縁(face, 前の縁の u)── ③ を帯の割りに依らず駒の外形で測る(隅の駒の腕の継ぎで帯が欠けても表の石を守る)。</summary>
         public sealed class PieceFaces { public Vector2[] hull; public Vector4 box; public List<Vector3> faces = new List<Vector3>(); }
         public readonly List<PieceFaces> pieceFaces = new List<PieceFaces>();
+        readonly List<GameObject> pieceGo = new List<GameObject>();
         const float BIN = 0.1f;
 
         /// <summary>駒を足す(見え面は <see cref="WallFace"/>・隅の駒は <see cref="KadoFaces"/> の二面)。</summary>
@@ -156,7 +157,7 @@ public static partial class EdoBuild
                 float fmax = float.MinValue; foreach (var x in fu) if (!float.IsNaN(x)) fmax = Mathf.Max(fmax, x);
                 if (fmax > float.MinValue) pf.faces.Add(new Vector3(f.x, f.y, fmax));
             }
-            if (pf.hull.Length >= 3 && pf.faces.Count > 0) pieceFaces.Add(pf);
+            if (pf.hull.Length >= 3 && pf.faces.Count > 0) { pieceFaces.Add(pf); pieceGo.Add(go); }
         }
 
         bool Bin(FaceBins fb, Vector2 q, out float d, out float c) { float r; return Bin(fb, q, out d, out c, out r); }
@@ -179,6 +180,31 @@ public static partial class EdoBuild
                 foreach (var fc in pf.faces) { float d = fc.z - (q.x * fc.x + q.y * fc.y); if (d >= -frontGuard && d < front) return true; }
             }
             return false;
+        }
+        /// <summary>見え面から front より前の皮の節点の上限 = 駒の天端 − capDrop【硬】(指図 const.nozuraCrestCover 言い直し 2026-10-09b・EDO-0502 第65巡)。NaN なら無し。</summary>
+        public float capDrop = float.NaN;
+        /// <summary>**表の石の上と見え面の上の皮の天井**(言い直し 2026-10-09b【硬】+ 許容0 の被り)。
+        /// ① 帯の割りで 0 ≤ d &lt; front の点 = 駒の天端 − capDrop ② 駒の外形の中で見え面の前の縁より前(d &lt; 0 = 法の見え面の上)の点 =
+        /// 真下の見え面(<paramref name="surfaceOf"/>(駒, 点) ── 実メッシュへ下ろした光線)− capDrop。
+        /// ⭐ ② は写真 r64 の「隅の継ぎ目の縦の土の帯」の正体: 外形の中の皮の節点が天端の下(cap)に留まり、法の見え面(下ほど前へ出る)の上へ
+        /// 0.3〜0.9 出た皮の三角が見え面の前 0.03〜0.1 に立っていた(岡部 TW_Kado_Shumen_Side0_0_006f・kado11・Side1_0_014f)。
+        /// 足元の地盤(見え面の前の土・根入れの上)は ② に入れない ── 呼び手が周りの低い節点からの立ち上がりで篩う。天井が無ければ NaN。</summary>
+        public float Ceiling(Vector2 q, Func<GameObject, Vector2, float> surfaceOf, bool overFace)
+        {
+            if (float.IsNaN(capDrop)) return float.NaN;
+            float best = float.NaN;
+            foreach (var fb in list) { float d, c; if (Bin(fb, q, out d, out c) && d >= 0f && d < front) { float y = c - capDrop; if (float.IsNaN(best) || y < best) best = y; } }
+            if (overFace && surfaceOf != null)
+                for (int i = 0; i < pieceFaces.Count; i++)
+                {
+                    var pf = pieceFaces[i];
+                    if (q.x < pf.box.x || q.x > pf.box.z || q.y < pf.box.y || q.y > pf.box.w || !EdoGeom.PIP(pf.hull, q)) continue;
+                    bool over = false; foreach (var fc in pf.faces) if (fc.z - (q.x * fc.x + q.y * fc.y) < 0f) over = true;
+                    if (!over) continue;
+                    float sy = surfaceOf(pieceGo[i], q); if (float.IsNaN(sy)) continue;
+                    float y = sy - capDrop; if (float.IsNaN(best) || y < best) best = y;
+                }
+            return best;
         }
         /// <summary>①② 設計の地盤(どの面にも入らなければ NaN)。③ は見ない。</summary>
         public float Target(Vector2 q)
@@ -264,7 +290,7 @@ public static partial class EdoBuild
         public int plantOnHole;
         public int stairFaced;
         public int holdRaised; public float holdRaisedMax;   // 3e 盛った土を最後に効かせた節点の数と最大の上げ
-        public int crestCovered; public float crestCoverMax;   // 3f 野面の天端の裏石の帯を覆った皮の節点の数と最大の上げ(SkinDesign.crestCover)
+        public int crestCovered; public float crestCoverMax; public int crestCapped; public float crestCapMax;   // 3f 野面の天端の裏石の帯を覆った皮の節点の数と最大の上げ(SkinDesign.crestCover)
         public int verts, tris, pinned, faced, clamped, under, floored, designed, sloped, filled, fillLostTree;
         public float fillMax; public Vector3 fillAt;
         public float maxLower, maxRaise; public Vector3 lowerAt, raiseAt;
@@ -308,7 +334,7 @@ public static partial class EdoBuild
                    "・既に穴で触らず " + skipHole + "・地形の木が立つので開けず " + skipTree + "・植栽の点が立つので開けず " + skipPlant + ")" +
                    (plantOnHole > 0 ? " ⛔ 穴の上の植栽の点 " + plantOnHole : "") +
                    " / 皮 頂点 " + verts + "・三角 " + tris + "(縁の点 " + pinned + " は地形のまま)" +
-                   " / 面の高さへ " + faced + " 点(うち石段の外形の中と前 " + stairFaced + ")" + (holdRaised > 0 ? "・盛った土を最後に効かせた " + holdRaised + " 点(最大 +" + holdRaisedMax.ToString("F2") + ")" : "") + (crestCovered > 0 ? "・野面の天端の裏石の帯を覆った " + crestCovered + " 点(最大 +" + crestCoverMax.ToString("F2") + ")" : "") + "・面の外は設計の地盤へ " + designed + " 点(うち縁から法で受けた " + sloped + ")" +
+                   " / 面の高さへ " + faced + " 点(うち石段の外形の中と前 " + stairFaced + ")" + (holdRaised > 0 ? "・盛った土を最後に効かせた " + holdRaised + " 点(最大 +" + holdRaisedMax.ToString("F2") + ")" : "") + (crestCovered > 0 ? "・野面の天端の裏石の帯を覆った " + crestCovered + " 点(最大 +" + crestCoverMax.ToString("F2") + ")" : "") + (crestCapped > 0 ? "・表の石と見え面の上の天井へ下げた " + crestCapped + " 点(最大 −" + crestCapMax.ToString("F2") + ")" : "") + "・面の外は設計の地盤へ " + designed + " 点(うち縁から法で受けた " + sloped + ")" +
                    " / 部材の天端の下へ " + clamped + " 点(うち真下 " + under + "・隣の底で止めた " + floored + ")" +
                    " / 裏込め(部材の底まで盛る)" + filled + " 点・最大 " + fillMax.ToString("F2") + "m @(" + fillAt.x.ToString("F1") + ", " + fillAt.z.ToString("F1") + ")" +
                    "・地形の木の升は穴を開けず被せた " + fillLostTree + " 升" +
@@ -2133,6 +2159,10 @@ public static partial class EdoBuild
         if (design != null && design.crestCover != null)
         {
             int raised = 0; float rmx = 0f; var keys = new List<long>(H.Keys); var ccv = design.crestCover;
+            int capped = 0; float cmx = 0f; var H0c = new Dictionary<long, float>(H);
+            var goIdx = new Dictionary<GameObject, int>(); for (int gk = 0; gk < idx.gos.Count; gk++) if (idx.gos[gk] != null) goIdx[idx.gos[gk]] = gk;
+            Func<GameObject, Vector2, float> surfOf = (pg, p2) =>
+            { int gk; if (pg == null || !goIdx.TryGetValue(pg, out gk)) return float.NaN; float dd = idx.Ray(new Vector3(p2.x, 60f, p2.y), Vector3.down, 80f, gk); return float.IsNaN(dd) ? float.NaN : 60f - dd; };
             // 覆う駒(野面)でない部材(石段・城の石垣・段石)の外形の中と縁 0.2 は盛らない(⛔ 段石・踊り場の上へ土を被せない)
             ccv.otherPart = q =>
             {
@@ -2154,9 +2184,19 @@ public static partial class EdoBuild
                 // 表の石の上で帯の縁の手前は駒の天端 − 0.003 まで(⛔ 越えない)上げる ── 皮の一次の面が帯の縁で石の天端の下へ潜らない
                 if (y1 <= y0 + 1e-4f && design.crestCover.Protected(q3) && design.crestCover.NearBandEdge(q3))
                 { int w3; float tp = idx.Top(q3.x, q3.y, out w3); if (!float.IsNaN(tp) && w3 >= 0 && w3 < idx.gos.Count && design.crestCover.pieceSet.Contains(idx.gos[w3]) && tp - 0.003f > y0) y1 = tp - 0.003f; }
+                // 天井(言い直し 2026-10-09b【硬】・EDO-0502 第65巡): 表の石の上(0〜front)は駒の天端 − capDrop、見え面の上は真下の石の面 − capDrop。
+                //   見え面の上は「周り(8 近傍)の最も低い節点から 0.3 より上に立つ節点」だけ ── 足元の地盤(根入れの上の土)は掘らない。
+                if (!float.IsNaN(ccv.capDrop))
+                {
+                    float nlo = float.MaxValue;
+                    for (int di = -1; di <= 1; di++) for (int dj = -1; dj <= 1; dj++) { if (di == 0 && dj == 0) continue; float hn; if (H0c.TryGetValue(CK(gi + di, gj + dj), out hn)) nlo = Mathf.Min(nlo, hn); }
+                    bool overFace = nlo < float.MaxValue && y0 - nlo > 0.3f;
+                    float cy = ccv.Ceiling(q3, surfOf, overFace);
+                    if (!float.IsNaN(cy) && Mathf.Max(y1, y0) > cy + 1e-4f) { y1 = cy; if (y1 < y0 - 1e-4f) { capped++; cmx = Mathf.Max(cmx, y0 - y1); H[kk] = y1; } continue; }
+                }
                 if (y1 > y0 + 1e-4f) { rmx = Mathf.Max(rmx, y1 - y0); H[kk] = y1; raised++; }
             }
-            r.crestCovered = raised; r.crestCoverMax = rmx;
+            r.crestCovered = raised; r.crestCoverMax = rmx; r.crestCapped = capped; r.crestCapMax = cmx;
         }
         if (SkinTrace != null) TrDump("4 の前", H, org.x, org.z, step);
         // ---- 4 メッシュ

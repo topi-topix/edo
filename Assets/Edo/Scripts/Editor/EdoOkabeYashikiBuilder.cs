@@ -2537,6 +2537,7 @@ public static class EdoOkabeYashikiBuilder
             sb.AppendLine("  袖の背の小段の裏込め: run " + benchAll.Count + "・盛り/切りの節点 " + bn + "・今回の盛り 最大 " + bfm.ToString("F2") + "m・切り 最大 " + bcm.ToString("F2") + "m(上限は設計面から)");
         }
         // 野面の乱積み(城の石垣の実面へ端を突き付ける・pool)
+        MuneNoMaSegs(nozSegs, sb);   // 指図 TW_Kado_Hokuto.end 上書き 2026-10-09i(棟の間の石垣・第77巡)
         if (nozSegs.Count > 0)
         {
             var heights = new[] { 0.30f, 0.60f, 0.90f, 1.20f, 1.50f, 1.80f, 2.10f, 2.40f, 4.80f };
@@ -3158,7 +3159,11 @@ public static class EdoOkabeYashikiBuilder
                 {
                     float u = Vector2.Dot(new Vector2(x, z) - footC, axC); float y = float.NaN;
                     foreach (var f3 in footOf) if (u >= f3.x - 0.05f && u <= f3.y + 0.05f && (float.IsNaN(y) || f3.z < y)) y = f3.z;   // 段鼻の下は低い段
-                    return float.IsNaN(y) ? RoadGround(new Vector2(x, z)) : y;
+                    if (!float.IsNaN(y)) return y;
+                    // 段の外は道の地盤 ── ただし平らな面(門の内 16.50)の輪郭の中は面の高さが下限(第77巡: 返しの延長の低い端の駒が造成前の高い地盤で見付を取り 0.68 浮いた)
+                    float rg = RoadGround(new Vector2(x, z)); if (_flat == null) _flat = FlatFaces(null);
+                    foreach (var ff in _flat) if (ff.poly != null && EdoGeom.PIP(ff.poly, new Vector2(x, z)) && (float.IsNaN(rg) || ff.y < rg)) rg = ff.y;
+                    return rg;
                 };
                 for (int si = 0; si < 2; si++)
                 {
@@ -3217,7 +3222,10 @@ public static class EdoOkabeYashikiBuilder
                             {
                                 var extN = new List<Vector2> { p0, p0 + dE * tStop }; var extSegs = new List<EdoBuild.NozuraSeg>();
                                 string r0 = SodeSlopeSegs(key + "_SideEnd" + sw, extN, sodeTxt, extSegs, new List<SodeSlopeCheck>(), null, null, true, sinkH);
-                                foreach (var es in extSegs) es.face = faceS;
+                                // 足元 = 前の平らな面(門の内 16.50)── 段の造成前の地形(切る前の高い地盤)で見付を取ると、皮が面を描いた後に駒が 0.68 浮いた(第77巡【硬・浮き 0】)
+                                if (_flat == null) _flat = FlatFaces(null); var flatsF = _flat;
+                                Func<float, float, float> footF = (x, z) => { var qf = new Vector2(x, z); float best = float.NaN; foreach (var ff in flatsF) if (ff.poly != null && EdoGeom.PIP(ff.poly, qf) && (float.IsNaN(best) || ff.y < best)) best = ff.y; return best; };
+                                foreach (var es in extSegs) { es.face = faceS; es.footAt = footF; }
                                 nozSegs.AddRange(extSegs);
                                 // ⭐ 追記 2026-10-09g【硬】: 延ばした区間の背 = 天端 − dropB の平らな小段を控えの後端 + behindB まで(幅は一間を狙う【柔】)・その先 1:bfB で今の地盤へ
                                 //   擦り付け(切りも盛りも ── 石垣と法の間に谷を作らない)・水は 1/drnB で石垣から離す。駒の区間ごと 0.9m に割り、天端の高い端を b にして走りに沿って落とす。
@@ -4173,6 +4181,48 @@ public static class EdoOkabeYashikiBuilder
             var p2 = new List<Vector2>(); foreach (var v in EdoBuild.Body(t, 4000)) p2.Add(new Vector2(v.x, v.z)); if (p2.Count >= 3) res.Add(EdoBuild.ConvexHull2(p2).ToArray());
         }
         return res;
+    }
+
+    /// <summary>**棟の間の石垣**(指図 terraceWalls[].end 上書き 2026-10-09i【硬】・第77巡)── 「&lt;A&gt; と &lt;B&gt; の棟の間も同じ野面の石垣で通し、両棟の台の石垣に入隅で継ぐ。
+    /// 天端 y 一直線」。線 = 欄 between の高い側の面(門の内)の輪郭のうち、二つの棟の外形の間に入る所(両棟から 3m 以内・どちらの外形の外)。両端は棟の外形へ 0.3 差し込む(入隅で継ぐ)。
+    /// 見え面 = 面の外へ。⛔ 読めなければ ★。当たる先: 欄 end に「棟の間も同じ野面の石垣で通し」を持つ段の土留め(岡部 TW_Kado_Hokuto)。</summary>
+    static void MuneNoMaSegs(List<EdoBuild.NozuraSeg> nozSegs, System.Text.StringBuilder sb)
+    {
+        var inv = System.Globalization.CultureInfo.InvariantCulture; var root = GameObject.Find(GN); if (root == null) return;
+        if (_flat == null) _flat = FlatFaces(null);
+        foreach (var o in A(Get(D, "terraceWalls")) ?? new List<object>())
+        {
+            var tw = O(o); string en = S(Get(tw, "end")); if (en == null) continue; int i9 = en.IndexOf("上書き 2026-10-09i"); if (i9 < 0) continue;
+            string tx = en.Substring(i9); if (!tx.Contains("棟の間も同じ野面の石垣で通し")) continue;
+            string nm = S(Get(tw, "name"));
+            var mN = System.Text.RegularExpressions.Regex.Match(tx, @"(N[0-9_]+)\s*と\s*(N[0-9_]+)\s*の棟の間"); var mT = System.Text.RegularExpressions.Regex.Match(tx, @"天端\s*([0-9.]+)\s*一直線");
+            var bt = A(Get(tw, "between")); string hiF = bt != null && bt.Count >= 2 ? S(bt[1]) : null;
+            var lf = _flat.Find(f0 => f0.name == hiF);
+            var kk = root.transform.Find("Kakoi");
+            if (!mN.Success || !mT.Success || lf.poly == null || kk == null) { sb.AppendLine("  ★ " + nm + " end 上書き 2026-10-09i: 指図か面・棟が読めない ── 棟の間に石垣を置かない"); continue; }
+            var nA = kk.Find(mN.Groups[1].Value); var nB = kk.Find(mN.Groups[2].Value);
+            if (nA == null || nB == null) { sb.AppendLine("  ★ " + nm + " 棟の間: 棟 " + mN.Groups[1].Value + "・" + mN.Groups[2].Value + " が無い"); continue; }
+            System.Func<Transform, Vector2[]> hullOf = tr => { var p2 = new List<Vector2>(); foreach (var v in EdoBuild.Body(tr, 4000)) p2.Add(new Vector2(v.x, v.z)); return p2.Count >= 3 ? EdoBuild.ConvexHull2(p2).ToArray() : null; };
+            var hA = hullOf(nA); var hB = hullOf(nB); if (hA == null || hB == null) continue;
+            float yT = float.Parse(mT.Groups[1].Value, inv);
+            // 輪郭を 0.1m おきに辿り、両棟の外形の外で両方から 3m 以内の点の最も長い続き
+            var poly = lf.poly; var run = new List<Vector2>(); var best = new List<Vector2>(); Vector2 outN = Vector2.zero, bestN = Vector2.zero;
+            for (int k = 0; k < poly.Length; k++)
+            {
+                Vector2 a0 = poly[k], b0 = poly[(k + 1) % poly.Length]; float L = Vector2.Distance(a0, b0); Vector2 d0 = (b0 - a0) / Mathf.Max(L, 1e-4f);
+                for (float s = 0f; s <= L; s += 0.1f)
+                {
+                    var q = a0 + d0 * s; bool ok = !EdoGeom.PIP(hA, q) && !EdoGeom.PIP(hB, q) && EdoBuild.EdgeDistPublic(hA, q) < 3f && EdoBuild.EdgeDistPublic(hB, q) < 3f;
+                    if (ok) { if (run.Count == 0) { var n0 = new Vector2(d0.y, -d0.x); outN = EdoGeom.PIP(poly, q + n0 * 0.2f) ? -n0 : n0; } run.Add(q); }
+                    else { if (run.Count > best.Count) { best = new List<Vector2>(run); bestN = outN; } run.Clear(); }
+                }
+            }
+            if (run.Count > best.Count) { best = run; bestN = outN; }
+            if (best.Count < 3) { sb.AppendLine("  ⚠ " + nm + " 棟の間: 面の縁が二つの棟の間を通らない ── 置かない"); continue; }
+            Vector2 pa = best[0], pb = best[best.Count - 1]; Vector2 dd = (pb - pa).normalized; pa -= dd * 0.3f; pb += dd * 0.3f;   // 両棟の台の石垣へ差し込む(入隅)
+            nozSegs.Add(new EdoBuild.NozuraSeg { name = nm + "_MuneNoMa_0", a = pa, b = pb, crestAt = sl => yT, face = bestN });
+            sb.AppendLine("  棟の間の石垣 " + nm + "_MuneNoMa(end 上書き 2026-10-09i): " + mN.Groups[1].Value + "〜" + mN.Groups[2].Value + " の間 (" + pa.x.ToString("F1", inv) + ", " + pa.y.ToString("F1", inv) + ")→(" + pb.x.ToString("F1", inv) + ", " + pb.y.ToString("F1", inv) + ")・" + Vector2.Distance(pa, pb).ToString("F2", inv) + "m・天端 " + yT.ToString("F2", inv) + "・両端を棟の外形へ 0.3 差し込む");
+        }
     }
 
     class SodeSlopeCheck { public string key; public List<Vector2> line; public List<Vector2> back; public float maxDiff, depth; public float sLo; }

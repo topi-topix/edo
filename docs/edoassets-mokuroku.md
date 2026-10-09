@@ -407,12 +407,12 @@
 | `Own.ItabeiHashira` | string | `Itabei_Hashira_N0.30.fbx` — 板塀の柱1本(ItabeiIta と組・2026-09-26・EDO-0437)。 | — |
 | `Own.ItabeiJifuku` | string | `Itabei_Jifuku_1.410_Hk0.60.fbx` — 板塀の地覆(板の下の横木)1間・光付けの代つき(2026-09-27・EDO-0437 施主裁定 案A「板を石の天端・地面まで下ろす」)。 | BuildRun(PostBoardRun), SannoSha(Stage4_Kakoi) |
 | `Own.ItabeiHashiraHk` | string | `Itabei_Hashira_Hk0.60.fbx` — 板塀の柱1本・光付けの代つき(ItabeiJifuku と組・2026-09-27・EDO-0437 案A)。 | BuildRun(PostBoardRun), SannoSha(Stage4_Kakoi) |
-| `Own.Ishigumi(i)` | 関数 | 庭石1個(景石・石組護岸の石・岩島・中島の汀石・荒磯の立石を全部これで置く)。 | DoiBuilder.Niwa(AbutAlts・Niwa_B_Gogan・ResolveNiwaApi), OkabeYashiki(PlaceNiwaItem), TypologyBuilder.Niwa(MomijiPalFor) |
+| `Own.Ishigumi(i)` | 関数 | 庭石1個(景石・石組護岸の石・岩島・中島の汀石・荒磯の立石を全部これで置く)。 | DoiBuilder.Niwa(AbutAlts・Niwa_B_Gogan・ResolveNiwaApi), OkabeYashiki(PlaceNiwaItem・SeatNiwaStone), TypologyBuilder.Niwa(MomijiPalFor) |
 | `Own.Tobiishi(i)` | 関数 | 飛石・沢飛石1枚(天端が平ら)。⭕ 同じ photoscanned rock の頭を水平に 落として天端を作り、縁は自然石のまま残してある(⛔ 切石に見せない)。 | DoiBuilder.Niwa(Niwa_D_Tenkei・ResolveNiwaApi・ResolveTobi), OkabeYashiki(PlaceNiwaItem), TypologyBuilder.Niwa(MomijiPalFor) |
 | `Own.Kutsunugi` | string | 沓脱石(根府川石)。天端を平らに落とした自然石。 | DoiBuilder.Niwa(ResolveNiwaApi), MatsudairaDewa(PlaceAgari), OkabeYashiki(PlaceNiwaItem) |
 | `Own.Tateishi(size, variant)` | 関数 | 立石(縦長の庭石)3種。松江松平上屋敷の庭(`tenkei[].stones[]` の 主石・副石・鏡石、`sensui.iwaya` の鏡石ほか)向け。 | DoiBuilder.Niwa(ResolveNiwaApi), MatsudairaDewa(ResolveApi) |
 | `Own.Hiraishi(kind)` | 関数 | 大型の平石2種(天井石・伏石)。松江松平上屋敷の庭向け。 | MatsudairaDewa(ResolveApi) |
-| `Own.Ishibashi()` | 関数 | 切石橋(切石の一枚物の橋)。松江松平上屋敷の庭向け。 | MatsudairaDewa(ResolveApi) |
+| `Own.Ishibashi()` | 関数 | 切石橋(切石の一枚物の橋)。松江松平上屋敷の庭向け。 | MatsudairaDewa(ResolveApi), OkabeYashiki(AssetByKey) |
 | `Own.HatakeUne` | string | 菜園の畝(うね)1本・1間(樹下邸の菜園・EDO-0532)。 | TypologyBuilder.Katte(Katte) |
 | `Own.Ikegaki(end)` | 関数 | 刈込の生垣モジュール(ツゲ・マサキの見立て・1 間 × 1.90m × 0.80m、葉カード・材 M_FJG_Plant_Boxwood_01_Spring・LOD1)。 | DoiBuilder.Niwa(ResolveNiwaApi), MatsudairaDewaBuilder.Niwa(Stage6d_Tenkei) |
 | `Own.YotsumeGaki(h)` | 関数 | 四つ目垣 1スパン(1間)。親柱1 + 立子5 + 胴縁(h1.2 で4段 / h0.9 で3段)+ 棕櫚縄の結び。 | OkabeYashiki(PlaceDanKaki・PlaceNiwaItem・PlaceTakegaki), DoiBuilder.Niwa(Niwa_G_Kaki・ResolveNiwaApi), Doi(PlaceTakegaki), DoiBuilder.Saku(SakuPart) |
@@ -442,7 +442,7 @@
 | `Own.DoiOtoshimizo` | string | 水尻の石敷きの落とし溝 — 1m モジュール。 | MatsudairaDewa(PlaceMizo) |
 | `Own.MatsudairaIshidoi` | string | 石樋(松江松平 溝 MZ17 が土留めを抜ける所・EDO-0554)。 | MatsudairaDewa(PlaceMizo) |
 | `Own.MatsudairaIshibuta1m` | string | 石蓋つきの溝 1m(松江松平 溝 MZ16 の段の頭の前ほか・EDO-0554)。 | MatsudairaDewa(PlaceMizo) |
-| `Own.DoiMizo(kata, depth=…)` | 関数 | 排水の溝 1m 駒(型 A/B/C/D/E/F/K)。 | — |
+| `Own.DoiMizo(kata, depth=…)` | 関数 | 排水の溝 1m 駒(型 A/B/C/D/E/F/K)。 | OkabeYashiki(S2F) |
 | `Own.DoiMasu(kata)` | 関数 | 石の桝(型 G1 / G2・切石4枚組・天端 +0.05)。 | — |
 | `Own.DoiDanOchi(rise)` | 関数 | 石組の段落ち 1段(型 H・内法 0.60・野面石積みの側 天端 = 段の底 +0.50・平石の段鼻と水叩き)。 | — |
 | `Own.DoiHariOtoshi(rise, nori=…)` | 関数 | 張り石の落とし 1段(型 I・法面を縦に・幅 0.60・平石 t0.12・両脇の縁石 w0.12 天端 +0.06)。 | — |
@@ -455,7 +455,7 @@
 | `Own.DoiMizunuki` | string | 塀の水抜き(型 N・内法 0.24 角の通し石・外へ嘴 0.10)。 | — |
 | `Own.DoiMizukiri(len)` | 関数 | 水切り石(型 O・坂の頭を斜め 60° に横切る)。 | — |
 | `Own.Rangui(dia)` | 関数 | 乱杭1本(汀を留める細い杭。`gardens[].rangui`)。 | DoiBuilder.Niwa(Niwa_B_Gogan), OkabeYashiki(PlaceNiwaItem) |
-| `Own.HashiIta(L=…, W=…)` | 関数 | 木の平橋(岡部 書院の泉水 `gardens[NiwaShoin].hashi`・`hosoku.hashi.asset`・EDO-0502)。 | — |
+| `Own.HashiIta(L=…, W=…)` | 関数 | 木の平橋(岡部 書院の泉水 `gardens[NiwaShoin].hashi`・`hosoku.hashi.asset`・EDO-0502)。 | OkabeYashiki(AssetByKey・PlaceNiwaItem) |
 | `Own.Toro` | string | 雪見灯籠。⚠ 実体は在庫の Eg.ToroYukimi(edogoyomi)で、 これはそこへの転送(⛔ パスの literal を二重に書かないため)。 | DoiBuilder.Niwa(ResolveNiwaApi), TypologyBuilder.Niwa(NiwaToro) |
 | `Own.LayerGrass` | string | `L_grass.terrainlayer` — 地表層(TerrainLayer)。「実寸」= 繰り返しの一枚の大きさ `m_TileSize`[m]。 | IshigakiFit |
 | `Own.LayerDirt` | string | `L_dirt.terrainlayer` — 土(踏み固めた道・白洲・前庭)。タイル 8×8m | — |

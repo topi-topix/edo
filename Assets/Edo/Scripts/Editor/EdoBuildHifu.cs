@@ -284,14 +284,18 @@ public static partial class EdoBuild
         /// <summary>①② 設計の地盤(どの面にも入らなければ NaN)。③ は見ない。</summary>
         public float Target(Vector2 q)
         {
-            float best = float.NaN;
+            float best = float.NaN, cap = float.NaN;
             foreach (var fb in list)
             {
-                float d, c, rs; if (!Bin(fb, q, out d, out c, out rs) || d < front || d > back + skirtMax) continue;
+                float d, c, rs; if (!Bin(fb, q, out d, out c, out rs) || d < 0f || d > back + skirtMax) continue;
+                // ⭐ 第80巡【硬】: 点が駒の天端の帯(0〜back)の上なら、その駒の天端 + rise を上限に ── 坂の駒の継ぎ目で、隣の高い駒の帯の土が
+                //   低い駒の天端の上へ 0.52 被った(岡部 返しの延長 018f)。帯の重なりでは低い方の天端が勝つ。
+                if (d <= back) { float cy = c + rs; if (float.IsNaN(cap) || cy < cap) cap = cy; }
+                if (d < front) continue;
                 float y = d <= back ? c + rs - (d - front) * drain : c + rs - (back - front) * drain - (d - back) / bf;
                 if (float.IsNaN(best) || y > best) best = y;
             }
-            return best;
+            return float.IsNaN(best) || float.IsNaN(cap) ? best : Mathf.Min(best, cap);
         }
         /// <summary>表の石の上で帯の縁の手前 edgeW に入る点(どれかの面)。</summary>
         public bool NearBandEdge(Vector2 q)

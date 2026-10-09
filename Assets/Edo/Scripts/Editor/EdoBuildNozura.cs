@@ -2195,4 +2195,24 @@ public static partial class EdoBuild
         return g;
     }
 
+
+    /// <summary>**前の地表より低い天端の区間を置かない**(打ち切り ── 第87巡・岡部 指図 sideEnd/sodeSlope 追記 2026-10-10d【硬】「天端が前の地表より低い駒は置かない
+    /// (打ち切りの駒の先に足さない)」)。区間 <paramref name="seg"/> を 0.1m おきに歩き、天端(crestAt)が前の地表 <paramref name="frontAt"/>(走りの点 → 前の地表)
+    /// より低くなった所から低い端の側を切り落とす。区間の端の型(打ち切り・小口)は据える側(PlaceNozuraNet)がそのまま掛ける。
+    /// ⟶ 返す: 0 = そのまま / 1 = 縮めた / 2 = 全部が前の地表より低い(置かない)。当たる先: 低い端を前の地表へ下ろす坂の袖・延長の run。</summary>
+    public static int TrimSegBelowFront(NozuraSeg seg, Func<Vector2, float> frontAt, out float cutAt)
+    {
+        cutAt = float.NaN; float L = Vector2.Distance(seg.a, seg.b); if (L < 1e-3f || seg.crestAt == null) return 0;
+        var t = (seg.b - seg.a) / L; bool lowAtB = seg.crestAt(L) <= seg.crestAt(0f);
+        Func<float, bool> below = sl => { float g = frontAt(seg.a + t * sl); return !float.IsNaN(g) && seg.crestAt(sl) < g; };
+        float keep0 = 0f, keep1 = L;
+        if (lowAtB) { for (float sl = 0f; sl <= L + 1e-4f; sl += 0.1f) if (below(Mathf.Min(sl, L))) { keep1 = Mathf.Min(sl, L); break; } }
+        else { for (float sl = L; sl >= -1e-4f; sl -= 0.1f) if (below(Mathf.Max(sl, 0f))) { keep0 = Mathf.Max(sl, 0f); break; } }
+        if (keep1 - keep0 < 0.05f) { cutAt = lowAtB ? keep1 : keep0; return 2; }
+        if (keep0 <= 1e-4f && keep1 >= L - 1e-4f) return 0;
+        var crest0 = seg.crestAt; float off = keep0;
+        var a0 = seg.a; seg.a = a0 + t * keep0; seg.b = a0 + t * keep1;
+        if (off > 0f) seg.crestAt = sl => crest0(sl + off);
+        cutAt = lowAtB ? keep1 : keep0; return 1;
+    }
 }

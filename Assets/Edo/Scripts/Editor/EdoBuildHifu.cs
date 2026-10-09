@@ -86,6 +86,10 @@ public static partial class EdoBuild
         public List<FlatFace> flats;
         /// <summary>**端の駒を埋める土の下限**(駒 → 天端 + buryMin・指図 sodeSlope 追記 2026-10-08【硬】)。<see cref="SkinHeightSolve"/> が駒の足形とその周り 0.25 の皮の点の lo に入れる。null なら無し。</summary>
         public Dictionary<GameObject, float> buryLo;
+        /// <summary>端の駒を埋める土の狙い(駒 → 天端 + 狙い【柔】)と、埋める土と重なる天端の前の帯の天井を緩める上限[m](指図 sodeSlope 追記 2026-10-10e【硬】)。</summary>
+        public Dictionary<GameObject, float> buryAim; public float ceilRelax;
+        /// <summary>盛りの縁の法 1:n(指図 const.fillEdgeSlope「1:n より急にしない」【硬】)。NaN なら掛けない。</summary>
+        public float fillSlope = float.NaN;
     }
     /// <summary>平らな面。band 真なら輪郭の外で「縁から部材(石垣・石段)の見え面の足元まで」の帯も同じ高さ(第74巡・指図 flat 追記 2026-10-09g)── 帯 = 外の節点から縁と逆の向きへ bandMax 以内に部材の外形がある所。
     /// 部材の外形から coverD 以内は根入れを隠す土として y + coverH まで許す【硬】。</summary>

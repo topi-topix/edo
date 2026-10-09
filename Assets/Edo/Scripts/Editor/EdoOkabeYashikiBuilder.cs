@@ -3268,9 +3268,12 @@ public static class EdoOkabeYashikiBuilder
                                 var extN = new List<Vector2> { p0, p0 + dE * tStop }; var extSegs = new List<EdoBuild.NozuraSeg>();
                                 // 追記 2026-10-09j(h の低い端を改める): 勾配の駒 G−… を一駒ずつ足して前の地表 + reachJ まで下げ、袖の坂と同じ水平の駒で納める・切りの上限 cutJ
                                 float[] gradesJ = null; float reachJ = float.NaN;
-                                { int i9j = se.IndexOf("追記 2026-10-09j"); if (i9j >= 0) { string tj = se.Substring(i9j); var gjl = new List<float>();
-                                    foreach (System.Text.RegularExpressions.Match mg in System.Text.RegularExpressions.Regex.Matches(tj, @"G[−\-]([0-9]{3})")) gjl.Add(float.Parse(mg.Groups[1].Value, inv) / 1000f);
-                                    var mr = System.Text.RegularExpressions.Regex.Match(tj, @"前の地表\s*\+\s*[0-9.]+\s*〜\s*([0-9.]+)\s*まで下げる"); var mcj = System.Text.RegularExpressions.Regex.Match(tj, @"切りの上限を\s*([0-9.]+)\s*に緩める");
+                                { int i9j = se.IndexOf("追記 2026-10-10a"); if (i9j < 0) i9j = se.IndexOf("追記 2026-10-09j");   // 10-10a が 09j を改める(後の追記が勝つ)
+                                  if (i9j >= 0) { string tj = se.Substring(i9j); var gjl = new List<float>();
+                                    // 駒は「先に G−…、次に G−…」の並び(⛔ 括弧の中の読み違いの説明の G−660 を拾わない ── 第79巡の初手で 16.10 に下がり過ぎた)
+                                    string tjg = tj; { int iS = tj.IndexOf("先に"); if (iS >= 0) tjg = tj.Substring(iS); int iE = tjg.IndexOf("天端"); if (iE > 0) tjg = tjg.Substring(0, iE); }
+                                    foreach (System.Text.RegularExpressions.Match mg in System.Text.RegularExpressions.Regex.Matches(tjg, @"G[−\-]([0-9]{3})")) gjl.Add(float.Parse(mg.Groups[1].Value, inv) / 1000f);
+                                    var mr = System.Text.RegularExpressions.Regex.Match(tj, @"前の地表\s*\+\s*[0-9.]+\s*〜\s*\+?\s*([0-9.]+)\s*(?:まで下げる|を許す)"); var mcj = System.Text.RegularExpressions.Regex.Match(tj, @"切りの上限(?:を)?\s*([0-9.]+)");
                                     if (gjl.Count == 0 || !mr.Success) sb.AppendLine("    ★ " + key + " sideEnd 追記 2026-10-09j: 指図から読めない(勾配の駒・届く天端)── h のまま");
                                     else { gradesJ = gjl.ToArray(); reachJ = float.Parse(mr.Groups[1].Value, inv); sinkH = float.NaN; }
                                     if (mcj.Success) cutH = float.Parse(mcj.Groups[1].Value, inv); } }
@@ -4147,6 +4150,8 @@ public static class EdoOkabeYashikiBuilder
             var mcv = System.Text.RegularExpressions.Regex.Match(fl, @"見え面から\s*([0-9.]+)\s*以内・高さ\s*([0-9.]+)\s*以内");
             float covD = mcv.Success ? float.Parse(mcv.Groups[1].Value, inv) : float.NaN, covH = mcv.Success ? float.Parse(mcv.Groups[2].Value, inv) : float.NaN;
             var hulls = new List<Vector2[]>(); var bh = new List<Vector2[]>(); var footH = bandF ? FaceFootHulls(lf.poly) : new List<Vector2[]>();
+            foreach (System.Text.RegularExpressions.Match mb2 in System.Text.RegularExpressions.Regex.Matches(fl, @"(N[0-9_]+)\s*の台まで延ばし"))
+            { var kk2 = root.Find("Kakoi/" + mb2.Groups[1].Value); if (kk2 == null) continue; var p2b = new List<Vector2>(); foreach (var v in EdoBuild.Body(kk2, 4000)) p2b.Add(new Vector2(v.x, v.z)); if (p2b.Count >= 3) footH.Add(EdoBuild.ConvexHull2(p2b).ToArray()); }
             foreach (Transform g in root) foreach (Transform c in g)
             {
                 if (!c.gameObject.activeInHierarchy || c == skin) continue; var rr = c.GetComponentInChildren<Renderer>(); if (rr == null) continue;
@@ -4210,6 +4215,11 @@ public static class EdoOkabeYashikiBuilder
             float cd = mc.Success ? float.Parse(mc.Groups[1].Value, inv) : float.NaN, ch = mc.Success ? float.Parse(mc.Groups[2].Value, inv) : float.NaN;
             if (band && !mc.Success) sb.AppendLine("  ★ " + nm + " flat 追記 2026-10-09g: 根入れを隠す土の範囲が読めない ── 帯は ±e のまま");
             var bandH = band ? FaceFootHulls(lf.poly) : null;
+            // 追記 2026-10-10a: 縁の土の板を棟の台まで延ばす(棟の外形まで帯)── 棟の外形は躯体の頂点の凸包(長屋は長方形)
+            foreach (System.Text.RegularExpressions.Match mb2 in System.Text.RegularExpressions.Regex.Matches(fl, @"(N[0-9_]+)\s*の台まで延ばし"))
+            { var kk2 = GameObject.Find(GN) == null ? null : GameObject.Find(GN).transform.Find("Kakoi/" + mb2.Groups[1].Value);
+              if (kk2 == null) { sb.AppendLine("  ★ " + nm + " flat 追記 2026-10-10a: 棟 " + mb2.Groups[1].Value + " が無い"); continue; }
+              var p2b = new List<Vector2>(); foreach (var v in EdoBuild.Body(kk2, 4000)) p2b.Add(new Vector2(v.x, v.z)); if (p2b.Count >= 3 && bandH != null) { bandH.Add(EdoBuild.ConvexHull2(p2b).ToArray()); sb.AppendLine("  面の平らの帯 " + nm + ": " + mb2.Groups[1].Value + " の台まで(追記 2026-10-10a)"); } }
             res.Add(new EdoBuild.FlatFace { name = nm, poly = lf.poly, y = y0, e = e, band = band, coverD = cd, coverH = ch, bandHulls = bandH, exempt = q =>
             {
                 foreach (var hl in bh) if (EdoGeom.PIP(hl, q) || EdoBuild.EdgeDistPublic(hl, q) <= 0.8f) return true;

@@ -92,3 +92,6 @@
 - [野面の積み止めの駒は Kado90 を二つ突き合わせる](nozura-tome-two-kado.md) — 小口の奥行は 1.818 に縛られる・H2400 の端の石の裏面 3 本は既存の欠陥(2026-10-07)
 - [打込接ぎの袖は駒の周期を N に](sode-uchikomi-texture-lattice-cycle.md) — 城の肌は 2.0m 格子・a/b では切れる・0.283/0.450 は N=9(2026-10-07)
 - [木の平橋の丸太の長さと水面の余裕](kibashi-log-length-and-water-clearance.md) — 丸太は最長3.18m・桁は長手だけ伸ばす・梁は水面すれすれ(2026-10-08)
+- [役から claim すると窓の note を書き換える](session-claim-from-role.md) — blender の資源は無い・道だけ claim・release は窓の仕事(2026-10-08)
+- [折れの隅の駒を石ごとに塞ぐ・天端の板に見える訳](nozura-kado-deg-per-stone-and-crest-slabs.md) — 59/35 を焼いた・22° は奥に穴・裏石の帯が土に覆われない(2026-10-09)
+- [G は m あたり・103° の隅の駒](kado103-and-grade-per-meter.md) — 「1駒で1.2下ろす」は G−660。鈍い折れの継ぎ目の余りは裏石の食い込み(2026-10-09)

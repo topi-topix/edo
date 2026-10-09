@@ -10,6 +10,8 @@
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado --h=4.8 --render       # 同・深い駒(型を 5.0 まで延ばす・EDO-0502)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=49.4,51.8 --h=4.8 [--render]  # 折れが 90° でない出隅(名の角は丸め・EDO-0502)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=58.9 --h=4.8 [--render] / --deg=34.7 --h=0.6,0.9,1.2  # 岡部 門の内の石段の脇(第62巡・腕の先は石ごとに塞ぐ)
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=103.4 --h=4.8 [--render]  # 岡部 K_Dan1 の脇の返し kado11(第65巡・鈍い折れ)
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=-0.495,-0.66 --h=1.8,2.1,2.4  # 岡部 袖の坂を 1 駒で 0.9 / 1.2 下ろす(≈1:1.5・第65巡・勾配は m あたり)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_cut --h=0.9 --v=b --axis=x --at=0.085 [--render]  # 隅の駒の片腕を袖の背で一度切った版(EDO-0437)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_cut --h=0.9 --v=b --axis=x --at=0.085 --arm=0.5 [--render]  # 同・切った腕を詰め天端を切り口まで通した版(r16)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_cap --h=1.5 --v=a [--render]  # 隅の駒の腕の先の継ぎ目の口を天端から 0.25 塞ぐ(同じ名で焼き直す)
@@ -1757,7 +1759,19 @@ def check_kado_deg(o, h, phi, ref):
     dd2 = nd(top(ref_m), top(a2)) + nd(top(a2), top(ref_m))
     print("KADODEG CHECK %s: 腕1の先 %d点 差%d / 腕2の先 %d点 差%d(面から 0.6 より奥の差 %d / %d)" % (
         o.name, len(top(a1)), d1, len(top(a2)), dd2, len(deep(a1) ^ deep(ref_p)), len(deep(a2) ^ deep(ref_m))))
-    return (d1 > 0) + (dd2 > 0)
+    if dd2:
+        far = lambda A, B: sorted(p for p in A if not B or min(math.hypot(p[0] - q[0], p[1] - q[1]) for q in B) > 0.0015)
+        print("KADODEG CHECK %s 腕2の先の差: 隅の駒だけ %s / 直線の駒だけ %s" % (o.name, far(top(a2), top(ref_m)), far(top(ref_m), top(a2))))
+    # 隅の駒だけにある点が裏石の帯(面から FACE_ROW より奥)に限られるなら、隣の駒の裏石へ食い込むだけで口は開かない(めり込みは数えない)。
+    # 落とすのは直線の駒だけにある点(口)と、面の列の中の隅の駒だけの点(段差)(2026-10-09 φ=103.4 の b で深さ 0.57〜0.59 の 4 点)
+    def bad_side(A, B):
+        miss = nd(top(B), top(A))
+        extra = sum(1 for p in top(A) if p[0] < FACE_ROW and (not B or min(math.hypot(p[0] - q[0], p[1] - q[1]) for q in top(B)) > 0.0015))
+        return miss + extra
+    b1, b2 = bad_side(a1, ref_p), bad_side(a2, ref_m)
+    if (b1, b2) != (d1, dd2):
+        print("KADODEG CHECK %s 裏石の帯の食い込みだけ(口でない): 腕1 %d / 腕2 %d" % (o.name, d1 - b1, dd2 - b2))
+    return (b1 > 0) + (b2 > 0)
 
 
 def render_kado_deg(h, phi, outdir, walldir):

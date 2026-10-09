@@ -218,7 +218,7 @@
 | `Own.SannoKura(nuKen, nvKen, ewMm, nsMm)` | 関数 | 山王社の御蔵 — 土蔵造・置屋根【`bom` 行33】。 | — |
 | `Own.SannoDan(keri, fumi, w, i)` | 関数 | 山王社の段石(石段の一段)。蹴上 keri / 踏面 fumi / 幅 w[m]、 個体 i の偶奇で a / b を振る(⛔ 片方だけを53段並べない — 目地が一直線に立つ)。 | DoiBuilder.Dan(MeasureNozura・PlaceKaidansA), SannoSha(Dan), BuildKatte(SlopeStepsAt), TypologyBuilder.Katte(Katte) |
 | `Own.SannoDanNearest(width, i)` | 関数 | 幅が最も近い焼けた段石(SannoDan の綴りの物の中から・個体 i の偶奇で a / b)。 | MatsudairaDewa(PlaceAgari), SannoSha(Stage5b_Fumiishi) |
-| `Own.SannoDanNearestKeri(keri, fumi, width, i)` | 関数 | 蹴上が最も近い焼けた段石(SannoDan の綴りの物の中から・踏面 fumi ±0.01 に限る・個体 i の偶奇で a / b)。 | OkabeYashiki(PlaceKaidanAB) |
+| `Own.SannoDanNearestKeri(keri, fumi, width, i)` | 関数 | 蹴上が最も近い焼けた段石(SannoDan の綴りの物の中から・踏面 fumi ±0.01 に限る・個体 i の偶奇で a / b)。 | OkabeYashiki(PlaceGateSteps・PlaceKaidanAB) |
 | `Own.SannoDanSpec(path, keri, fumi, width)` | 関数 | SannoDan の綴りから札の寸法(蹴上・踏面・幅)を読む。 | BuildKatte(PlaceDanStone), OkabeYashiki(PlaceKaidanAB) |
 | `Own.IshidanSode(keri, fumi, i)` | 関数 | 石段の袖(袖石垣)の1段ぶんの駒 — どの石段にも使える汎用の型(寸法は蹴上 keri・踏面 fumi[m] から従属)。 | BuildIshidan(FitObliqueEnd・PlaceIshidanSode), SannoSha(AbutStairsToWalls・Stage2_Kaidan), OkabeYashiki(PlaceKaidanSodes) |
 | `Own.ISHIDAN_SODE_DEPTH_STD` | float | 袖の丈(天端の線から下端まで)の既定 2.20 = 最大見付 1.74 + 根入れ 0.46。 | BuildIshidan(MiterIshidanSode), SannoSha(Stage2_Kaidan) |
@@ -246,7 +246,7 @@
 | `Own.DanKiriEnd(d, deg, nori)` | 関数 | SannoDanKiri の端: 平面で斜めに切る。 | BuildIshidan(CutStairEndsToBatter・MeasureStepEndOnBatter) |
 | `Own.NearestBaked(path, tol)` | 関数 | 綴りの数だけが違う焼いてある兄弟を引く(EDO-0430 2026-09-26)。 | BuildIshidan(CutStairEndsToBatter) |
 | `Own.IsSannoNozura(meshAssetPath)` | 関数 | メッシュの資産パスが山王の野面の乱積みの駒(1間・隅・切り・法切り・見切り ── `Sanno_Nozura_*`)か。 | SannoSha(AbutStairsToWalls) |
-| `Own.SannoNozura(h, grade, i)` | 関数 | 野面の乱積みの土留め — 1間の駒(山王社の前庭の縁。 | OkabeYashiki(PlaceCurb・SodeSlopeSegs・Stage2b_Dan…), BuildNozura(PlaceNozuraRun・SoilSideCrestShort), BuildRim(BridgeCorner), DoiBuilder.Dan(Stage4a_Dodome) ほか3 |
+| `Own.SannoNozura(h, grade, i)` | 関数 | 野面の乱積みの土留め — 1間の駒(山王社の前庭の縁。 | OkabeYashiki(PlaceCurb・RoadEdgePlanOf・SodeSlopeSegs…), BuildNozura(PlaceNozuraRun・SoilSideCrestShort), BuildRim(BridgeCorner), DoiBuilder.Dan(Stage4a_Dodome) ほか3 |
 | `Own.SannoNozuraKiri(risesToPlusX, i)` | 関数 | 野面の乱積みの打ち切り — 根石一段が地中へ沈む駒(見付 0.2 未満で壁を終える所)。 | OkabeYashiki(PlaceCurb・Stage2b_Dan), DoiBuilder.Dan(Stage4a_Dodome), MatsudairaDewa(NozuraLines), SannoSha(Nozura) ほか1 |
 | `Own.SannoNozuraKado(h, i)` | 関数 | 野面の乱積みの出隅 90° の隅の駒(2026-09-25・山王 本殿の西の土留め `TW_Nozura_ShadenW` の帯の北西・南西の隅。 | OkabeYashiki(PlaceCurb・Stage2b_Dan), DoiBuilder.Dan(Stage4a_Dodome), MatsudairaDewa(NozuraLines), SannoSha(Nozura) ほか1 |
 | `Own.SannoNozuraKadoDeg(deg, h, i)` | 関数 | 野面の出隅の駒・折れ deg°(走りの向きの変わり。 | BuildNozura |
@@ -450,7 +450,7 @@
 | `Own.DoiTamaUke` | string | 玉石の受け(型 J)2 × 3間(X 3.636 × Z 5.454)・窪み 0.30・玉石 0.15〜0.30・縁は野面石を半ば埋める。 | — |
 | `Own.DoiFutaishi(len, t)` | 関数 | 蓋石(型 L)。長さ len(X・溝の外幅 + 0.30)× 見込み 0.50(Z)× 厚 t。 | — |
 | `Own.DoiFutaishiFor(kata, t)` | 関数 | 型(A/D/E/F)と厚み(0.15 / 0.20)から DoiFutaishi を引く。 | — |
-| `Own.DoiAnkyoKuchi` | string | 石の暗渠の吐口(型 M・内法 0.30 角・口の下に切石の嘴を +Z へ 0.15)。 | — |
+| `Own.DoiAnkyoKuchi` | string | 石の暗渠の吐口(型 M・内法 0.30 角・口の下に切石の嘴を +Z へ 0.15)。 | OkabeYashiki(OmoteGesuiPlan・PlaceOmoteGesuiLay) |
 | `Own.DoiAnkyoNomikuchi` | string | 石の暗渠の呑み口(型 M・嘴なし)。寸法とピボットは DoiAnkyoKuchi と同じ。 | — |
 | `Own.DoiMizunuki` | string | 塀の水抜き(型 N・内法 0.24 角の通し石・外へ嘴 0.10)。 | — |
 | `Own.DoiMizukiri(len)` | 関数 | 水切り石(型 O・坂の頭を斜め 60° に横切る)。 | — |

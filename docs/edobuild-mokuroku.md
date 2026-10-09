@@ -1,6 +1,6 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 50023fc16a79 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 03c7456c71fb -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
@@ -133,12 +133,12 @@ EdoBuild — 段の土留め(石垣・野面)を天端の折れ線へ据える(2
 | `EdoBuild.PlaceCrestWall(w, groundAt, parent, endsOut, segOut, log, worstFloat, buriedSkip)` | `List<GameObject>` | 硬・柔 地面・天端・面・隅 | 段の土留めを天端の折れ線へ据える(城の石垣・野面の乱積み)。 ⟶ 返す: 据えた駒 | OkabeYashiki(Stage2b_Dan) |
 | `EdoBuild.PlaceCrestFence(span, post, nodes, gaps, wallPieces, stones, parent, prefix, worstFloat, posts, note)` | `int` | 硬・柔 駒どうし・天端・床・面 | 天端の垣(四つ目垣・建仁寺垣)を土留めの天端へ据える(EDO-0502)。 ⟶ 返す: 据えた間の数 | OkabeYashiki(PlaceDanKaki) |
 | `EdoBuild.ReseatCrestFence(fgrp, bedAt, up, dn)` | `int` | 地面・天端・床 | 天端の垣(PlaceCrestFence が据えた間と親柱)を、皮を起こした後の据わる床 bedAt(Bed.At = 描かれた地表と土留め・石段の上向きの面の高い方)で据え直す(2026-10-04 EDO-0502… ⟶ 返す: 据え直した駒の数(up/dn = 最も上げた・下げた量[m]) | OkabeYashiki(SeatKakiOnBed) |
-| `EdoBuild.StackDownToGround(top, path, parent, name, maxN, warn, drawnAt=…)` | `int` | 硬 地面 | 段石の下を同じ段石で接地まで積む(雁木の積み・2026-10-03 EDO-0502 第4巡 岡部 K_Kuruwa: 石垣の口から下の面へ 張り出す石段の段石が下の面から最大 1.49m 浮いた)。 ⟶ 返す: 積んだ駒の数 | OkabeYashiki(PlaceKaidanAB) |
+| `EdoBuild.StackDownToGround(top, path, parent, name, maxN, warn, drawnAt=…)` | `int` | 硬 地面 | 段石の下を同じ段石で接地まで積む(雁木の積み・2026-10-03 EDO-0502 第4巡 岡部 K_Kuruwa: 石垣の口から下の面へ 張り出す石段の段石が下の面から最大 1.49m 浮いた)。 ⟶ 返す: 積んだ駒の数 | OkabeYashiki(PlaceGateSteps・PlaceKaidanAB) |
 | `EdoBuild.ArcOf(nodes, q)` | `Vector2` |  | 折れ線 nodes の上の点 q の道のり s と、線からの符号付きの離れ t(左手 = 正)。 | OkabeYashiki(ProfSNodes・RampPatchedDesign・RampProfileAt…) |
 | `EdoBuild.ArcPoint(nodes, s, dir)` | `Vector2` |  | 折れ線の道のり s の点(世界 xz)と、その区間の向き。 | OkabeYashiki(KaidanAB・ProfSNodes・Stage2b_Dan…) |
 | `EdoBuild.GapFromPieces(nodes, gap, pieces, band, note)` | `Vector2` | 硬 面 | 土留めの口の端を、口を通る石段の実面で決める(EDO-0502 第8巡)。 | OkabeYashiki(Stage2b_Dan・StairGaps) |
 | `EdoBuild.GapReturnLine(p, axis, inward, crest, groundAt, maxLen, len)` | `List<Vector2>` | 硬 天端・床・面 | 口の端の返し(EDO-0502 第8巡・スキル unity-modular-stonewall の小口の作法)。 ⟶ 返す: 天端の前の縁の折れ線(2 点) | OkabeYashiki(Stage2b_Dan・StairGaps) |
-| `EdoBuild.FaceBatterOf(path)` | `float` | 天端・面 | 野面の駒の見え面の法(水平 / 鉛直)を駒の実メッシュから測る(2026-10-08 EDO-0502 第57巡)。 | OkabeYashiki(StairGaps) |
+| `EdoBuild.FaceBatterOf(path)` | `float` | 天端・面 | 野面の駒の見え面の法(水平 / 鉛直)を駒の実メッシュから測る(2026-10-08 EDO-0502 第57巡)。 | OkabeYashiki(RoadEdgePlanOf・StairGaps) |
 | `EdoBuild.StairSideCrestLines(wallNodes, foot, up, halfW, crest, batter, surf, uEnd, tol, gapS, note)` | `List<Vector2>[]` | 硬・柔 天端・床・面・隅 | 石段の脇の見え面を石段の端の線へ(指図 kaidans[].sideFace・2026-10-08 EDO-0502 第57巡 施主指摘「門の内の石段が途中で幅が狭まって見える」)。 | OkabeYashiki(StairGaps) |
 
 ### 段違いの継ぎ目の下の積み下ろし(EDO-0502 第11巡)
@@ -418,7 +418,7 @@ EdoBuild — 段の土留め(石垣・野面)を天端の折れ線へ据える(2
 | `EdoBuild.LayUne(path, parent, b, pitch, sink, maxBury, note)` | `List<GameObject>` | 硬 地面・駒どうし | 畝を並べる。矩形の長手に畝を通し、畝間(芯々)pitch で並べる。 | TypologyBuilder.Katte(Katte) |
 | `EdoBuild.SlopeSteps(pathOf, parent, a, b, keri, fumi, mat, proud, blocked, note)` | `List<GameObject>` | 硬 地面・天端 | 自然の斜面に段石を据える(斜面は崩さない・造成しない)。 | TypologyBuilder.Katte(Katte) |
 | `EdoBuild.SlopeStepsAt(pathOf, parent, a, b, tops, fumi, mat, note)` | `List<GameObject>` | 硬 地面・天端・床 | 踏面の高さが決まっている石段を、造成後の斜面へ据える(2026-10-04・EDO-0533 土井 K_Kura1)。 | DoiBuilder.Dan(PlaceKaidansA) |
-| `EdoBuild.PlaceDanStone(path, parent, name, noseMid, up, top, width, tread)` | `GameObject` | 硬・柔 面 | 切石の段石を一段据える(EDO-0502 2026-10-06 夕・指図 danStone)。 | OkabeYashiki(PlaceKaidanAB) |
+| `EdoBuild.PlaceDanStone(path, parent, name, noseMid, up, top, width, tread)` | `GameObject` | 硬・柔 面 | 切石の段石を一段据える(EDO-0502 2026-10-06 夕・指図 danStone)。 | OkabeYashiki(PlaceGateSteps・PlaceKaidanAB) |
 | `EdoBuild.BodyCentreXZ(t)` | `Vector2` |  | 棟の壁体(屋根を外した実メッシュ)の頂点の重心(XZ)。 | TypologyBuilder.Katte(Katte) |
 | `EdoBuild.ExitToward(t, from, to, clear)` | `Vector2` |  | 棟の壁体の凸包を from から to の向きへ出た所から、さらに clear 外の点。 | TypologyBuilder.Katte(Katte) |
 

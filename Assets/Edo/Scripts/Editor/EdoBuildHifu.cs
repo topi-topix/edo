@@ -2316,6 +2316,7 @@ public static partial class EdoBuild
                         bool inH = EdoGeom.PIP(kh[fi], q3), isK = ccv.kadoSet.Contains(kfb[fi].go);
                         if (!inH && (!isK || EdgeDist(kh[fi], q3) > ccv.kadoBand)) continue;   // 外形の外(見え面の前の地表)を下げるのは隅の駒だけ
                         if (!inH && ccv.NearOtherPiece(q3, kfb[fi].go, 0.2f)) continue;   // 隣の駒の外形の中・縁(背・下)は下げない
+                        if (inH && ccv.kadoFloor.ContainsKey(kfb[fi].go)) continue;   // 第82巡: 高さを名指す駒(延長)は見え面の前の土だけ下げる ── 外形の中を法の面へ下げると 14.55 の節点が外の 16.50 と 1.95 の土の面を作った
                         float g = float.NaN; { var gs = new List<float>(); for (int db = -2; db <= 2; db++) { List<float> gl; if (gF.TryGetValue(((long)fi << 20) | (long)(b + db), out gl)) gs.AddRange(gl); } if (gs.Count > 0) { gs.Sort(); g = gs[gs.Count / 2]; } }
                         if (float.IsNaN(g))
                         {   // 前に皮の節点が無い(前は地形)── 法尻の 0.6 前の地形の高さを前の地表とする(第69巡: 岡部 TW_Kado_Hokuto の隅の前で 4.5 立っていた)
@@ -2399,7 +2400,8 @@ public static partial class EdoBuild
                     bool undF = false; for (int hk = 0; hk < idx.hulls.Count && !undF; hk++) { var hb = idx.bounds[hk]; if (q3.x < hb.x || q3.x > hb.z || q3.y < hb.y || q3.y > hb.w) continue; if (EdoGeom.PIP(idx.hulls[hk], q3)) undF = true; } if (undF) continue;
                     if (ff.exempt != null && ff.exempt(q3)) continue;
                     // ⭐ 平らは門の内の側(見え面の前)だけ【硬】── 野面の駒の天端の前の縁より背(d ≥ 0)の節点は背の小段・天端の帯の決めが勝つ(第76巡: 延長の 019f の背を 16.50 へ下げ 0.68 の隙)
-                    if (design.crestCover != null) { bool behind = false; foreach (var fb in design.crestCover.list) { int bb; float dd; if (design.crestCover.FaceAt(fb, q3, out bb, out dd) && dd >= 0f && dd <= design.crestCover.back + design.crestCover.skirtMax) { behind = true; break; } } if (behind) continue; }
+                    if (design.crestCover != null) { bool behind = false; foreach (var fb in design.crestCover.list) { int bb; float dd; if (design.crestCover.FaceAt(fb, q3, out bb, out dd) && dd >= 0f && dd <= design.crestCover.back + design.crestCover.skirtMax) { behind = true; break; } } if (behind && H[kk] >= ff.y - ff.e) continue; }
+                    // ⭐ 第82巡【硬】: 背の側でも面の輪郭の中の部材の外形の外の節点が面より下(野面の見え面の前の下げ・尖りの下げが延長の端の先で 15.88 へ引いた)なら面へ戻す
                     float hiLim = ff.y + ff.e;
                     if (!float.IsNaN(ff.coverD) && !float.IsNaN(ff.coverH)) { bool nearP = false; for (int hk = 0; hk < idx.hulls.Count && !nearP; hk++) { var hb = idx.bounds[hk]; if (q3.x < hb.x - ff.coverD || q3.x > hb.z + ff.coverD || q3.y < hb.y - ff.coverD || q3.y > hb.w + ff.coverD) continue; if (EdgeDist(idx.hulls[hk], q3) <= ff.coverD) nearP = true; } if (nearP) hiLim = ff.y + ff.coverH; }   // 根入れを隠す土
                     float y0 = H[kk], y1 = Mathf.Clamp(y0, ff.y - ff.e, hiLim); if (Mathf.Abs(y1 - y0) < 1e-4f) continue;
@@ -3363,7 +3365,7 @@ public static partial class EdoBuild
                         }
                 }
             }
-        var H = td.GetHoles(x0, z0, w, h); int closed = 0, step = 0; float stepMax = 0f; Vector2 stepAt = Vector2.zero; var at = new List<string>();
+        var H = td.GetHoles(x0, z0, w, h); int closed = 0, step = 0; float stepMax = 0f; Vector2 stepAt = Vector2.zero; var at = new List<string>(); var fix = new List<Vector3>();
         for (int j = 0; j < h; j++)
             for (int i = 0; i < w; i++)
             {
@@ -3371,13 +3373,32 @@ public static partial class EdoBuild
                 float px = tp.x + (x0 + i + 0.5f) * cs, pz = tp.z + (z0 + j + 0.5f) * cs; if (!EdoGeom.PIP(poly, new Vector2(px, pz))) continue;
                 if (cov[j * w + i]) continue;
                 H[j, i] = true; closed++; if (at.Count < 6) at.Add("(" + px.ToString("F0") + "," + pz.ToString("F0") + ")");
-                // 周りの皮との段(閉じた地形の高さ − 隣の覆われた升の皮の高さ)
-                float gy = Ground(px, pz), dmax = 0f;
+                // ⭐ 第82巡【硬】: 閉じた升の地形を周りの皮の高さへ合わせる ── 地形のままだと隣の皮と最大 1.20 の段が立った(延長の背)。
+                //   高さ = 8 近傍の覆われた升の皮の高さ(升の芯)の平均。近傍に皮が無ければ地形のまま(段は数える)。
+                float sum = 0f; int nn = 0;
+                for (int dj = -1; dj <= 1; dj++) for (int di = -1; di <= 1; di++) { int ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= w || jj >= h || !cov[jj * w + ii]) continue; sum += ySkin[jj * w + ii]; nn++; }
+                if (nn > 0) fix.Add(new Vector3(px, sum / nn, pz));
+                float gy = nn > 0 ? sum / nn : Ground(px, pz), dmax = 0f;
                 for (int dj = -1; dj <= 1; dj++) for (int di = -1; di <= 1; di++) { int ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= w || jj >= h || !cov[jj * w + ii]) continue; dmax = Mathf.Max(dmax, Mathf.Abs(gy - ySkin[jj * w + ii])); }
                 if (dmax > 0.05f) { step++; if (dmax > stepMax) { stepMax = dmax; stepAt = new Vector2(px, pz); } }
             }
         if (closed > 0) { td.SetHoles(x0, z0, H); UnityEditor.EditorUtility.SetDirty(td); }
-        return "皮に覆われない穴の升を閉じた " + closed + (at.Count > 0 ? "(" + string.Join(" ", at.ToArray()) + "…)" : "") + "・閉じた地形が隣の皮と 0.05 を超えて違う升 " + step + (step > 0 ? "(最大 " + stepMax.ToString("F2") + " @(" + stepAt.x.ToString("F0") + "," + stepAt.y.ToString("F0") + "))" : "") + "【硬 穴 0】";
+        int hFixed = 0;
+        if (fix.Count > 0)
+        {   // 升の中の高さの節点(縁を含む)を合わせる
+            int hres = td.heightmapResolution; float hc = td.size.x / (hres - 1);
+            foreach (var f in fix)
+            {
+                int a0 = Mathf.Clamp(Mathf.FloorToInt((f.x - cs * 0.5f - tp.x) / hc), 0, hres - 1), a1 = Mathf.Clamp(Mathf.CeilToInt((f.x + cs * 0.5f - tp.x) / hc), 0, hres - 1);
+                int b0 = Mathf.Clamp(Mathf.FloorToInt((f.z - cs * 0.5f - tp.z) / hc), 0, hres - 1), b1 = Mathf.Clamp(Mathf.CeilToInt((f.z + cs * 0.5f - tp.z) / hc), 0, hres - 1);
+                int n = Mathf.Max(a1 - a0 + 1, b1 - b0 + 1); a0 = Mathf.Min(a0, hres - n); b0 = Mathf.Min(b0, hres - n);   // 正方で読む(寸法を偽る)
+                var HH = td.GetHeights(a0, b0, n, n);
+                for (int bj = 0; bj < n; bj++) for (int ai = 0; ai < n; ai++) HH[bj, ai] = (f.y - tp.y) / td.size.y;
+                td.SetHeightsDelayLOD(a0, b0, HH); hFixed++;
+            }
+            td.SyncHeightmap(); UnityEditor.EditorUtility.SetDirty(td);
+        }
+        return "皮に覆われない穴の升を閉じた " + closed + (at.Count > 0 ? "(" + string.Join(" ", at.ToArray()) + "…)" : "") + "(地形を周りの皮へ合わせた升 " + hFixed + ")・閉じた地形が隣の皮と 0.05 を超えて違う升 " + step + (step > 0 ? "(最大 " + stepMax.ToString("F2") + " @(" + stepAt.x.ToString("F0") + "," + stepAt.y.ToString("F0") + "))" : "") + "【硬 穴 0】";
     }
 
     public static DrawnGround Drawn() { return new DrawnGround(T()); }

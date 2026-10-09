@@ -87,7 +87,9 @@ public static partial class EdoBuild
     }
     /// <summary>平らな面。band 真なら輪郭の外で「縁から部材(石垣・石段)の見え面の足元まで」の帯も同じ高さ(第74巡・指図 flat 追記 2026-10-09g)── 帯 = 外の節点から縁と逆の向きへ bandMax 以内に部材の外形がある所。
     /// 部材の外形から coverD 以内は根入れを隠す土として y + coverH まで許す【硬】。</summary>
-    public sealed class FlatFace { public string name; public Vector2[] poly; public float y, e; public Func<Vector2, bool> exempt; public int fixedN; public float fixedMax; public bool band; public float bandMax = 3f, coverD = float.NaN, coverH = float.NaN; public int bandN; }
+    public sealed class FlatFace { public string name; public Vector2[] poly; public float y, e; public Func<Vector2, bool> exempt; public int fixedN; public float fixedMax; public bool band; public float bandMax = 3f, coverD = float.NaN, coverH = float.NaN; public int bandN;
+        /// <summary>帯を受ける部材の外形(野面の石垣・石段の見え面だけ ── 第75巡: 板塀の下の斜面を帯に拾った)。null なら皮の全部材。</summary>
+        public List<Vector2[]> bandHulls; }
 
     /// <summary>**野面の石垣の天端の裏石の帯を土で覆う型**(指図 const.nozuraCrestCover・普請方の設計 2026-10-09・EDO-0502 第63巡・
     /// 施主の写真「天端が割れた板を並べたよう」── 天端の裏石 2 列の平らな帯(見え面から 0.36〜1.04)が背の土 天端−0.15 から顔を出していた)。
@@ -2384,7 +2386,7 @@ public static partial class EdoBuild
                         if (!ff.band) continue; float dE = EdgeDist(ff.poly, q3); if (dE > ff.bandMax) continue;
                         // 縁から外へ向かう向き(縁の最寄りの点 → q)に bandMax − dE 以内に部材の外形があれば帯
                         Vector2 nE = HullNearest(ff.poly, q3, out dE); Vector2 dir = (q3 - nE).sqrMagnitude > 1e-8f ? (q3 - nE).normalized : Vector2.zero; if (dir == Vector2.zero) continue;
-                        for (float tt = 0f; tt <= ff.bandMax - dE + 1e-3f && !inBand; tt += 0.1f) { var qq = q3 + dir * tt; for (int hk = 0; hk < idx.hulls.Count && !inBand; hk++) { var hb = idx.bounds[hk]; if (qq.x < hb.x || qq.x > hb.z || qq.y < hb.y || qq.y > hb.w) continue; if (EdoGeom.PIP(idx.hulls[hk], qq)) inBand = true; } }
+                        for (float tt = 0f; tt <= ff.bandMax - dE + 1e-3f && !inBand; tt += 0.1f) { var qq = q3 + dir * tt; if (ff.bandHulls != null) { foreach (var bhh in ff.bandHulls) if (EdoGeom.PIP(bhh, qq)) { inBand = true; break; } continue; } for (int hk = 0; hk < idx.hulls.Count && !inBand; hk++) { var hb = idx.bounds[hk]; if (qq.x < hb.x || qq.x > hb.z || qq.y < hb.y || qq.y > hb.w) continue; if (EdoGeom.PIP(idx.hulls[hk], qq)) inBand = true; } }
                         if (!inBand) continue;
                     }
                     bool undF = false; for (int hk = 0; hk < idx.hulls.Count && !undF; hk++) { var hb = idx.bounds[hk]; if (q3.x < hb.x || q3.x > hb.z || q3.y < hb.y || q3.y > hb.w) continue; if (EdoGeom.PIP(idx.hulls[hk], q3)) undF = true; } if (undF) continue;

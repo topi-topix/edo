@@ -238,7 +238,7 @@ public static partial class EdoBuild
             string nm = System.Text.RegularExpressions.Regex.Replace(c.name, @"_[0-9]+f$|_kado[0-9]+$|_tome[0-9]*$", "");
             parts.Add(new KeyValuePair<string, Vector2[]>(nm, ConvexHull2(p2).ToArray())); ctrs.Add(bc.center);
         }
-        int n = 0; float wMax = 0f; Vector3 wAt = Vector3.zero; var by = new Dictionary<string, int>(); var byMax = new Dictionary<string, float>();
+        int n = 0; float wMax = 0f; Vector3 wAt = Vector3.zero; var by = new Dictionary<string, int>(); var byMax = new Dictionary<string, float>(); var byAt = new Dictionary<string, Vector3>();
         foreach (var mf in skin.GetComponentsInChildren<MeshFilter>())
         {
             if (mf.sharedMesh == null) continue; var V = mf.sharedMesh.vertices; var T = mf.sharedMesh.triangles; var tr = mf.transform;
@@ -252,11 +252,11 @@ public static partial class EdoBuild
                 bool hid = false; foreach (var kv in parts) if (EdoGeom.PIP(kv.Value, q)) { hid = true; break; } if (hid) continue;
                 n++; if (hi - lo > wMax) { wMax = hi - lo; wAt = ctr; }
                 string who = "-"; float bd = 5f; for (int k = 0; k < parts.Count; k++) { float d2 = Mathf.Min(EdgeDist(parts[k].Value, q), bd); if (d2 < bd) { bd = d2; who = parts[k].Key; } }
-                int c0; by.TryGetValue(who, out c0); by[who] = c0 + 1; float m0; if (!byMax.TryGetValue(who, out m0) || hi - lo > m0) byMax[who] = hi - lo;
+                int c0; by.TryGetValue(who, out c0); by[who] = c0 + 1; float m0; if (!byMax.TryGetValue(who, out m0) || hi - lo > m0) { byMax[who] = hi - lo; byAt[who] = (a + b + c) / 3f; }
             }
         }
         var l = new List<KeyValuePair<string, int>>(by); l.Sort((x, y) => y.Value.CompareTo(x.Value)); var top = new List<string>();
-        for (int i = 0; i < Mathf.Min(14, l.Count); i++) top.Add(l[i].Key + " " + l[i].Value + "(" + byMax[l[i].Key].ToString("F2", ci) + ")");
+        for (int i = 0; i < Mathf.Min(14, l.Count); i++) top.Add(l[i].Key + " " + l[i].Value + "(" + byMax[l[i].Key].ToString("F2", ci) + " @" + byAt[l[i].Key].x.ToString("F1", ci) + "," + byAt[l[i].Key].y.ToString("F2", ci) + "," + byAt[l[i].Key].z.ToString("F1", ci) + ")");
         return label + " の縁の落差 > " + drop.ToString("F1", ci) + " の土の面(皮の三角形・1:" + bf.ToString("0.0", ci) + " より急・部材の下と垂れを除く・硬 0): " + n + (n > 0 ? "(最大の高さ " + wMax.ToString("F2", ci) + " @(" + wAt.x.ToString("F1", ci) + ", " + wAt.y.ToString("F2", ci) + ", " + wAt.z.ToString("F1", ci) + ")・" + string.Join("・", top.ToArray()) + ") ⛔" : " ⭕");
     }
     /// <summary>EdgeDist の公開の窓口(ビルダーの検めから)。</summary>

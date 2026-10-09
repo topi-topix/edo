@@ -2310,6 +2310,14 @@ public static partial class EdoBuild
                     if (ccv.otherPart != null && ccv.otherPart(q3)) continue;
                     { bool ob = false; foreach (var bhu in buriedHulls) if (EdoGeom.PIP(bhu, q3) || EdgeDist(bhu, q3) < 0.3f) { ob = true; break; } if (ob) continue; }   // 埋める駒の上は盛りが設計
                     float cap = float.NaN;
+                    // 第83巡【硬】: 高さを名指す駒(kadoFloor)の見え面の前(外形の中か縁 kadoBand 以内)の節点は、どの駒の面で下げてもその高さより下げない
+                    //   ── 延長の見え面の前の節点が隣の隅の駒の面で 14.55 へ下がり、1.95 の土の面と暗い裂け目(r82_dan1_01)を作った
+                    float floorQ = float.NaN;
+                    for (int fi = 0; fi < kfb.Count; fi++)
+                    {
+                        float kf; if (!ccv.kadoFloor.TryGetValue(kfb[fi].go, out kf)) continue; int b0; float d0; if (!ccv.FaceAt(kfb[fi], q3, out b0, out d0) || d0 >= 0f) continue;
+                        if (EdoGeom.PIP(kh[fi], q3) || EdgeDist(kh[fi], q3) <= ccv.kadoBand) floorQ = float.IsNaN(floorQ) ? kf : Mathf.Max(floorQ, kf);
+                    }
                     for (int fi = 0; fi < kfb.Count; fi++)
                     {
                         int b; float d; if (!ccv.FaceAt(kfb[fi], q3, out b, out d) || d >= 0f) continue;
@@ -2325,6 +2333,9 @@ public static partial class EdoBuild
                         }
                         if (float.IsNaN(g)) continue;
                         { float kf; if (ccv.kadoFloor.TryGetValue(kfb[fi].go, out kf)) g = Mathf.Max(g, kf); }   // 指図が名指す高さより下げない
+                        // 第83巡【硬】: 平らな面(design.flats)の輪郭の中は面の高さ − 許しより下げない ── 駒の外形(根入れの法の足が前へ 1.4m 出る)の中の節点が、
+                        //   前の地表の読み違いで駒の底 +0.05(14.55)まで下がり、延長の低い端の足元に暗い裂け目(r82_dan1_01)と 1.95 の土の面を作った
+                        if (design.flats != null) foreach (var ffl in design.flats) if (ffl.poly != null && EdoGeom.PIP(ffl.poly, q3)) g = Mathf.Max(g, ffl.y - ffl.e);
                         float c = g;
                         // ⭐ 第69巡(硬): 外形の中の節点は**見え面の平面の後ろ**へ ── 平面の高さを一格子(対角)前で測り −0.02(外の前の地表の節点との三角形も平面の後ろに収まる)。
                         //   前の地表より下げない(根入れの土)。どの駒の天端の帯の節点でも、別の面の平面より前なら同じく抑える(隅の稜で帯が隣の面の前へ立つ縦の帯 ── r68 の 01・12)。
@@ -2339,6 +2350,7 @@ public static partial class EdoBuild
                     // 駒の下に隙を作らない(第70巡【硬】): 節点の上・縁 0.2 に掛かる野面の駒の底(最も高い物)+0.05 より下げない
                     //   ── 隣の駒の面で下げた節点が、底の高い駒(岡部 袖の 048f の小口・底 19.41)の下へ潜り 0.20 の隙を作った
                     if (!float.IsNaN(cap)) { float mb = ccv.LocalBottom(q3); if (!float.IsNaN(mb)) cap = Mathf.Max(cap, mb + 0.05f); }   // 第71巡: 全体の底でなくその場所の底(3×3 升)
+                    if (!float.IsNaN(cap) && !float.IsNaN(floorQ)) cap = Mathf.Max(cap, floorQ);
                     if (!float.IsNaN(cap) && H[kk] > cap + 1e-4f) { lowered.Add(kk); float dy = H[kk] - cap; if (dy > kMx) { kMx = dy; kAt = new Vector3(q3.x, H[kk], q3.y); } H[kk] = cap; kLow++; }
                 }
                 // ⭐ 見え面の前の尖り(第70巡【硬】): 野面の駒の見え面の前(外形の外・縁から kadoBand 以内・前の縁より前)の節点が 8 近傍のどれよりも 0.05 を越えて高ければ、

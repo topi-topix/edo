@@ -3655,6 +3655,34 @@ public static class EdoOkabeYashikiBuilder
                 sb.AppendLine("  袖の背の小段の裏込めを設計の地盤へ写した節点 " + nb + "(設計の格子を " + dstep.ToString("F2") + "m に割って)");
             }
         }
+        // ⭐ 道の側の腰石垣と踏み段の前は道の現地形(指図 roadEdge「土の段・土の法を道に見せない」【硬】・規則9 区画の外の道は触らない・第83巡)── 設計の地盤
+        //   (算出物 graded・区画の外は道の現況と違う)を、見え面の足元の線から区画の線の外 1.5 まで地形の高さに置き換え、皮の縁を道の地形に合わせる。
+        //   ⛔ 第82巡は 0.5m ごとの平らな面にして段の凸凹が立ち、石垣の下半分と樋口を埋めた
+        {
+            if (_road == null) _road = RoadEdgePlanOf(); var rd = _road; int nRd = 0;
+            if (rd != null && rd.ok)
+            {
+                var spansF = new List<Vector2>(rd.spans); spansF.Add(new Vector2(rd.ps0, rd.ps1));
+                for (int j = 0; j < dnz; j++)
+                    for (int i = 0; i < dnx; i++)
+                    {
+                        int k = j * dnx + i; var q = new Vector2(dx0 + i * dstep, dz0 + j * dstep);
+                        float sAl = Vector2.Dot(q - rd.ea, rd.ax), dOut = Vector2.Dot(q - rd.ea, rd.outN);
+                        foreach (var sp in spansF)
+                        {
+                            if (sAl < sp.x || sAl > sp.y) continue;
+                            bool atGate = sp.x == rd.ps0 && sp.y == rd.ps1; float yR = RoadAtS(rd, sAl);
+                            float dIn = atGate ? 0f : rd.setback - rd.batter * (rd.yTop - yR);
+                            if (dOut < -dIn || dOut > 1.5f) continue;
+                            float gy = EdoBuild.Ground(q.x, q.y); if (float.IsNaN(gy)) continue;
+                            if (dOut < 0f && (sAl < sp.x || sAl > sp.y)) continue;   // 区画の内は石垣の見え面の前だけ(端の先は台の面のまま ── 第83巡の一回目: 端の先で 1.97 の土の面)
+                            if (dOut >= 0f || gy < gh[k]) { gh[k] = gy; ok[k] = true; nRd++; }   // 区画の内(見え面の足元〜線)は道より高くしない
+                            break;
+                        }
+                    }
+            }
+            if (nRd > 0) sb.AppendLine("  道の側の腰石垣と踏み段の前を道の現地形へ写した設計の節点 " + nRd);
+        }
         // ⭐ 坂の路盤の帯(芯から幅/2)の中は、坂の縦断(RampAxis = GradeRamps と同じ節点)を皮の格子で引く(2026-10-07 EDO-0502 施主指摘 B):
         //   今の地形(2m 格子)を写すだけだと、石段の上がり口の段石の背(天端 −0.02 の 0.45m の平ら)を描けず、皮が段石の背で 0.3〜0.85 窪んで
         //   土の斜面で立ち上がった。当たる先: 石段を名指す坂(kaidans[].atRoute)の路盤すべて。
@@ -5475,6 +5503,11 @@ public static class EdoOkabeYashikiBuilder
                     // 前の帯: 背の面(yard の向きで最も前の点の線)から bandW
                     float dMax = float.MinValue; foreach (var q in pts) dMax = Mathf.Max(dMax, Vector2.Dot(q, yardD));
                     var all = new List<Vector2>(pts); foreach (var q in pts) if (Vector2.Dot(q, yardD) > dMax - 0.5f) all.Add(q + yardD * (dMax - Vector2.Dot(q, yardD) + bandW));
+                    // 第83巡【硬】: 道の側の腰石垣(roadEdge)の天端の前の線より外へ台の面を出さない ── 面が門長屋の表(線の内 0.36)まで 16.50 で出て、石垣の見え面の上へ
+                    //   0.8 の土の帯を被せた(r82_omotemon_soto)。棟の躯体の点を天端の前の線へ寄せてから凸包を取る
+                    if (_road == null) _road = RoadEdgePlanOf();
+                    if (_road != null && _road.ok && _road.host == nb)
+                        for (int qi = 0; qi < all.Count; qi++) { float dO = Vector2.Dot(all[qi] - _road.ea, _road.outN); if (dO > -_road.setback) all[qi] -= _road.outN * (dO + _road.setback); }
                     var hull = EdoBuild.ConvexHull2(all).ToArray();
                     faces.Add(new EdoBuild.SkinFace("Dai_" + rn, hull, yD));
                     if (sb != null) sb.AppendLine("  面 台 " + rn + "(" + yD.ToString("F2") + "・dai" + rn + "): 躯体の凸包 + 前の帯 " + bandW.ToString("F2") + "m");
@@ -5557,7 +5590,7 @@ public static class EdoOkabeYashikiBuilder
             // ⭐ 道の側の腰石垣と踏み段の前は道の高さ(指図 roadEdge「土の段・土の法を道に見せず、擦り付けもしない」【硬】・第82巡)── 台の面の外の法(OutsideY)が
             //   区画の線の外へ 1:1.5 の土の法を描いて石垣と樋口を埋めた。見え面の足元(天端の前の線 + 法 ×(天端 − 道))から線の外 1.0 までを 0.5m ごとの道の高さの面にする
             if (_road == null) _road = RoadEdgePlanOf(); var rd = _road; int nR = 0;
-            if (rd != null && rd.ok)
+            if (false && rd != null && rd.ok)   // 第83巡: 平らな面をやめ、設計の地盤を道の現地形へ(Stage3b の設計の地盤の写し)
             {
                 var spansF = new List<Vector2>(rd.spans); spansF.Add(new Vector2(rd.ps0, rd.ps1));
                 foreach (var sp in spansF)

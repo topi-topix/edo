@@ -1,11 +1,11 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 03c7456c71fb -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 6308cb44dac6 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
 
-- 公開関数 550 本(注釈なし 33)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
+- 公開関数 555 本(注釈なし 33)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
 - 同じ道具が刷る目録: 邸ビルダーのメニュー → Stage と中の関数 `docs/builder-mokuroku.md` / 部材の名 `docs/edoassets-mokuroku.md`。
 - 札: **硬** = 注釈に「硬い/許容0」・**柔** = 「柔らかい/狙い」がある(判定ではなく注釈の語)。相手の札(地面・駒どうし・天端・床・断面・面・隅・区域)も注釈の語を拾っただけ。
 - 呼んでいる所 = 定義のファイルの外で `EdoBuild.<名>(` と書いている C# ファイル(`Edo` と `Builder/Rebuild` を落とした名)と、その中の呼んでいる関数(Stage)。同じ名の多重定義はまとめて数える。`EdoBuild` の中どうしの呼び出しは載せない。
@@ -32,7 +32,7 @@
 | [EdoBuildKatte.cs](#edobuildkattecs) | 勝手まわり(菜園の畝・自然の斜面に据える踏み段)の置き方 — EdoBuild の partial(2026-10-03・EDO-0532 施主裁定A) | — | 8 |
 | [EdoBuildMachiya.cs](#edobuildmachiyacs) | 町屋の表店の run — EdoBuild の一部(規則21「置く・測る・突き付ける・据えるは EdoBuild の関数だけ」)。 | — | 12 |
 | [EdoBuildMichi.cs](#edobuildmichics) | EdoBuild — 道の造成(縦断を設計して道の面を均す)。2026-09-30・EDO-0495(施主裁定②「小道を造成する」)。 | 指図の道の欄に `zosei` を持つ道(今は山王の麓の道 南西区間 = 十坊の小道だけ)。 | 4 |
-| [EdoBuildMizo.cs](#edobuildmizocs) | 排水(雨落ち・溝・桝・蓋石・水切り・水抜き)の置き方 ── 線を建った物から引き、底の高さを式で解き、1m の駒を並べる。 | 】土井 S9 排水(EdoDoiBuilder.Mizo.cs)。 | 90 |
+| [EdoBuildMizo.cs](#edobuildmizocs) | 排水(雨落ち・溝・桝・蓋石・水切り・水抜き)の置き方 ── 線を建った物から引き、底の高さを式で解き、1m の駒を並べる。 | 】土井 S9 排水(EdoDoiBuilder.Mizo.cs)。 | 95 |
 | [EdoBuildMuki.cs](#edobuildmukics) | 向き(正面)の解き — EdoBuild の partial (2026-09-22・EDO-0261 ③) | — | 7 |
 | [EdoBuildNiwa.cs](#edobuildniwacs) | 庭の置き方 — 類型の庭(Stage 5・EDO-0323)が使う「置く・測る・据える」だけ。 | — | 58 |
 | [EdoBuildNozura.cs](#edobuildnozuracs) | 野面の乱積みの土留めを一本の折れ線へ据える — EdoBuild の partial(2026-09-25・EDO-0430) | — | 16 |
@@ -524,7 +524,7 @@ EdoBuild — 道の造成(縦断を設計して道の面を均す)。2026-09-30�
 | `TailFit`(class) | — | | FitTailToMasuFace の答え。 | |
 | `EdoBuild.FitTailToMasuFace(pl, outer, inner, halfW, pieceLen, maxExt, maxCut, minLeft)` | `TailFit` | 硬 駒どうし | 桝へ入る溝の尻を、小口の両隅が桝の外の面の実の正方形に届く所まで延ばす(詰める)。 | DoiBuilder.Mizo(Stage9_Mizo) |
 | `EdoBuild.MasuDirBisect(tailDirs, prefer, maxSkewDeg, skewDeg, why)` | `Vector2` | 硬 | 桝の辺の向きを、入る溝の尻の直線の向きの二等分に取る(欄 atHard「桝の辺の向きは segA と segB の尻の直線の向きを二等分する。 | DoiBuilder.Mizo(Stage9_Mizo) |
-| `EdoBuild.MasuFaceWidthCheck(pl, path, tailDirs, pieceWidths, margin, report)` | `bool` | 硬 床 | 桝の外の面の幅の硬い条件(drainKata.common.hard「桝の外の面の幅 ≥ 入る溝の駒の幅 ÷ cos(振れ) + margin」)を、桝の平面 pl(MasuPlanAt 等の答え)と 駒の実測の外形(M… | DoiBuilder.Mizo(Stage9_Mizo) |
+| `EdoBuild.MasuFaceWidthCheck(pl, path, tailDirs, pieceWidths, margin, report)` | `bool` | 柔 床 | 桝の外の面の幅の狙い(柔 ── drainKata.common.soft「狙い: 桝の外の面の幅 ≥ 入る溝の駒の幅 ÷ cos(振れ) + margin」・第46巡に硬から柔へ)を、桝の平面 pl(MasuPlanA… | DoiBuilder.Mizo(Stage9_Mizo) |
 | `EdoBuild.SeatToeClear(seat, seatY, batterCut, batterFill, baseAt, q, maxRun)` | `float` | 隅 | 座の法尻までの離れ: 点 q から、座(多角形 seat・高さ seatY)の外の法面(切 1:batterCut・盛 1:batterFill)が 造成前の地盤 baseAt と出合う所(法尻)までの平面の離れ[m](… | — |
 | `EdoBuild.SeatToeClearAlong(line, halfW, seat, seatY, batterCut, batterFill, baseAt, worstAt)` | `float` |  | 溝の背の縁と座の法尻の離れ(欄 segs[].hard「溝の背の縁と座 Za_X の法尻の離れ ≥ c」)。 | DoiBuilder.Mizo(Stage9_Mizo) |
 | `EdoBuild.ExtensionBeyond(a0, a1, x)` | `float` |  | 直線を延ばした長さ: 点 x(直線 a0–a1 を無限に延ばした線の上の点)が、線分の端からどれだけ外にあるか[m](0 = 線分の上)。 | DoiBuilder.Mizo(Stage9_Mizo) |
@@ -536,7 +536,7 @@ EdoBuild — 道の造成(縦断を設計して道の面を均す)。2026-09-30�
 |---|---|---|---|---|
 | `EdoBuild.SubPolyline(pl, s0, s1)` | `List<Vector2>` |  | 折れ線の弧長 [s0, s1] の部分(s0 &gt; s1 なら逆向き)。 | — |
 | `EdoBuild.PolyCentroid(poly)` | `Vector2` |  | 多角形の面積の重心(退化していれば頂点の平均)。 | DoiBuilder.Mizo(Stage9_Mizo) |
-| `EdoBuild.ClosestOn(pl, p)` | `Vector2` |  | 点に最も近い折れ線の上の点(1 点だけの線はその点)。 | — |
+| `EdoBuild.ClosestOn(pl, p)` | `Vector2` |  | 点に最も近い折れ線の上の点(1 点だけの線はその点)。 | DoiBuilder.Mizo(Stage9_Mizo) |
 | `EdoBuild.ChainSegments(segs, tol)` | `List<List<Vector2>>` |  | 線分の列を、端どうしが tol 内で継がる所でつないだ折れ線の列(輪になれば最初の点を最後にも置く)。 | — |
 | `EdoBuild.EaveUnionOutline(rects, exclude, ax, why)` | `List<List<Vector2>>` |  | N1 列べた棟の軒の外周 ── 除く棟の軒の下を除く: 軒の矩形(EaveRect・同じ軸 ax で測った物)を合わせた外形の辺を、 区間の数え(他の矩形に覆われる所・同じ向きで重なる辺の二つ目を外す)で正確に切り出し、… | DoiBuilder.Mizo(Stage9_Mizo) |
 | `EdoBuild.RectSideTowardTarget(rect, target, minDot, dot, why)` | `List<Vector2>` |  | N2 棟の <相手>側の軒先: 矩形(軒の外周)の 4 辺のうち、棟の芯から相手の芯(多角形の重心)へ向く方向に最も向く辺。 | DoiBuilder.Mizo(Stage9_Mizo) |
@@ -564,6 +564,11 @@ EdoBuild — 道の造成(縦断を設計して道の面を均す)。2026-09-30�
 | `UkeHard`(class) | — | | PlaceUke の第45巡の硬い条件(NaN = 掛けない)。 | |
 | `EdoBuild.SlopeAt(q, groundAt)` | `float` | 硬 床 | 地盤の勾配(中心差分 ±1m の傾きの大きさ)。 | — |
 | `EdoBuild.PlaceUke(parent, name, path, origin, parcel, keepEdges, keep, slopeMax, groundAt, more, tally, note)` | `GameObject` | 硬・柔 床・区域 | N10 受け(型 J 玉石の受け)の置き場: 区画の内の 1m の格子の点を起点に近い順に並べ、PlaceBest で 硬い条件(足元の外形が区画の内・指名の辺から keep 以上内・足元の勾配 ≤ slopeMax)で… | DoiBuilder.Mizo(BuildUke9) |
+| `EdoBuild.KeepLineInPoly(line, poly, inset, movedMax, movedN)` | `List<Vector2>` |  | ⑧ 面の内へ寄せる(「── 面 &lt;id&gt; の外に出る所は面の縁から内へ溝の半幅に寄せる」): 線を 0.25m 刻みに割り、面の縁から内へ inset に 届かない点(外の点も)を、最も近い縁の点から内へ i… | DoiBuilder.Mizo(Stage9_Mizo) |
+| `EdoBuild.InsideClear(line, halfW, poly, worstAt)` | `float` |  | 溝の外形と面の縁の離れ: 線を 0.25m 刻みに、芯から ±halfW の両縁の点が面 poly の縁から内へどれだけあるか[m]の最悪 (− = 面の外)。 | DoiBuilder.Mizo(Stage9_Mizo) |
+| `EdoBuild.SeatToeHull(seat, seatY, batterCut, batterFill, baseAt, grow, maxRun=…)` | `List<Vector2>` |  | 座の法尻の外形(凸): 座の縁を 0.5m 刻み(角は両辺の法線と二等分)に、外へ向けて法尻(SeatToeClear と同じ測り ── 切 1:batterCut・盛 1:batterFill が 造成前の地盤と出合う… | DoiBuilder.Mizo(Stage9_Mizo) |
+| `EdoBuild.DetourAroundHull(a, b, hull, detoured)` | `List<Vector2>` |  | ⑨ 凸の外形を回る最短: 直線 a–b が凸多角形 hull を横切らなければ直線のまま、横切れば両端から外形への接線の点を通り、 外形に沿って回る二通りのうち短い方の折れ線を返す。 | DoiBuilder.Mizo(Stage9_Mizo) |
+| `EdoBuild.RunFaceStraight(faces, toward, maxTurnDeg, turnMax, why)` | `List<Vector2>` |  | ⑩ 長屋の列の内面の通り: 各棟の内面の線分(faces: [0..1] = 面の端)の端の点に一本の主軸を当て、路地側(toward の向き)へ最も出た 点まで平行にずらした直線を、全ての端の射影の範囲で返す。 | DoiBuilder.Mizo(Stage9_Mizo) |
 | `EdoBuild.RemoveNearSide(lines, a, b, tol, removed)` | `List<List<Vector2>>` |  | ① 一辺を除く: 折れ線の列から、辺 a–b(棟の軒の矩形の相手に向く辺 ── RectSideTowardTarget)から tol(溝の半幅)の内にある部分を切り取り、残りを開いた折れ線で返す(閉じた輪は切った所で開… | DoiBuilder.Mizo(Stage9_Mizo) |
 | `EdoBuild.WallFaceToward(leg, target, yLo, yHi, normal, side, why)` | `List<Vector2>` |  | ② 縁 edge の無い塀の相手側の面: 脚(走りの一直線の駒の束)の芯の線(WallMidLine)から、相手の芯 target の側へ 最も出た面(WallFaceLine ── 駒ごとの足元から [yLo, yHi… | DoiBuilder.Mizo(Stage9_Mizo) |
 | `EdoBuild.FaceFacesPoly(face, normal, poly, maxDist, minOverlap, dist)` | `bool` |  | ③ 脚が相手に向くか: 脚の面の線 face(法線 normal の側)の前 maxDist 内に多角形 poly が在り、 走りの向きへ写した多角形の幅が面の長さと minOverlap 以上重なれば true。 | DoiBuilder.Mizo(Stage9_Mizo) |

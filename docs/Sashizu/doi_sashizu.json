@@ -9052,7 +9052,7 @@
      "slopeMin": 0.003
     },
     {
-     "kata": "B",
+     "kata": "A",
      "line": "書院と表役所の間の坪の中心線 ── 泉水側の端は D1 masu[0] の棟側の面の中央まで延ばす",
      "flow": "泉水側へ",
      "to": "masu[0]",
@@ -9143,13 +9143,14 @@
    "segs": [
     {
      "kata": "A",
-     "line": "Genkan・Hiroma・Daidokoro の軒の外周 ── Shoin と Yakusho の軒の下を除く ── Hiroma の Oku 側の一辺を除く",
+     "line": "Genkan・Hiroma・Daidokoro の軒の外周 ── Shoin と Yakusho の軒の下を除く ── Hiroma の Oku 側の一辺を除く ── 面 Daichi の外に出る所は面の縁から内へ溝の半幅に寄せる",
      "flow": "台地の東の帯・前庭の溝へ",
      "to": "自分の区間に足す桝(G1・masuPitchMaxM ごと)── 区間ごとに尻を桝に入れ、seg4 へは入れない",
      "slopeMin": 0.003,
      "masuPitchMaxM": 45,
      "masuPitchNote": "頭の深さ 0.10 + 0.003×45 ≈ 0.235 ≤ 0.25(狙い)・深さ ≤0.30 は硬",
-     "masuAt": "軒の矩形の出隅を先に選ぶ(柔)"
+     "masuAt": "軒の矩形の出隅を先に選ぶ(柔)",
+     "hard": "溝の外形は面 Daichi の内(法に乗せない)"
     },
     {
      "kata": "A",
@@ -9377,10 +9378,19 @@
     },
     {
      "kata": "B",
-     "line": "奥 Oku の Hiroma 側の軒先の鉛直下・奥 Oku の Kura1 側の軒先の鉛直下",
+     "line": "奥 Oku の Hiroma 側の軒先の鉛直下",
      "flow": "seg1 へ",
      "to": "seg1",
      "note": "D2 seg1 から移した(奥の雨落ちは奥の塀の内 ⇒ D2 へは塀を抜くしかない)。玉石の雨落ち幅 0.45・柱を避ける寄せは上限 1.0m の内。【普請方の設計 2026-10-08 第44巡】確度 U"
+    },
+    {
+     "kata": "C",
+     "line": "奥 Oku の Kura1 側の軒先の鉛直下 ── 面 Okumuki の外に出る所は面の縁から内へ溝の半幅に寄せる",
+     "flow": "seg1 へ",
+     "to": "seg1",
+     "slopeMin": 0.005,
+     "hard": "溝の外形は面 Okumuki の内(法に乗せない)",
+     "note": "軒の水は法を伝って法尻で受ける。奥の壁と法尻の間は 0.45m しかなく B・A は入らない ⇒ 素掘り C。塀 Oku_Hei の内の裏方で見えない側(格 U・普請方 第47巡)"
     }
    ],
    "masu": [],
@@ -9477,13 +9487,12 @@
     },
     {
      "kata": "E",
-     "line": "D4 seg5 の尻から D5 seg1 の頭へ最短",
+     "line": "D4 seg5 の尻から D5 seg1 の頭へ最短 ── 座 Za_KachuK3 の法尻から外へ 0.3 を回る",
      "flow": "馬場へ",
      "to": "D5 の内の縁",
      "stepRiseMax": 0.15,
-     "stepPitchFrom": "0.15 ÷ 地形の勾配 を 0.25間 刻みに切り下げ",
-     "stepPitchQuantumKen": 0.25,
-     "hard": "溝の背の縁と座 Za_KachuK3 の法尻の離れ ≥ 0.3"
+     "hard": "溝の背の縁と座 Za_KachuK3 の法尻の離れ ≥ 0.3",
+     "stepPitchKen": 0.5
     },
     {
      "kata": "D",
@@ -9690,13 +9699,12 @@
    "segs": [
     {
      "kata": "E",
-     "line": "長屋 E13_N01〜E13_N08 の内面から 1.7間(芯 ── 溝の山側の縁が路地 UraRoji の幅 2間 に来る)── E13_N01 の側の端は長屋 E12_N03 の内面との出合いで止める",
+     "line": "長屋 E13_N01〜E13_N08 の内面の通り(路地側へ最も出た面を通す一直線)から 1.7間(芯 ── 溝の山側の縁が路地 UraRoji の幅 2間 に来る)── E13_N01 の側の端は長屋 E12_N03 の内面との出合いで止める",
      "flow": "地形の低い方(辺12 の内の窪)へ",
      "to": "outletBuild",
      "slope": "地形なり",
      "stepRiseMax": 0.15,
-     "stepPitchFrom": "0.15 ÷ 地形の勾配 を 0.25間 刻みに切り下げ",
-     "stepPitchQuantumKen": 0.25
+     "stepPitchKen": 0.25
     },
     {
      "kata": "A",

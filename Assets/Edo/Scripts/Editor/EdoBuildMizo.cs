@@ -1720,9 +1720,9 @@ public static partial class EdoBuild
         return best;
     }
 
-    /// <summary>**桝の外の面の幅の硬い条件**(drainKata.common.hard「桝の外の面の幅 ≥ 入る溝の駒の幅 ÷ cos(振れ) + margin」)を、桝の平面 <paramref name="pl"/>(<see cref="MasuPlanAt"/> 等の答え)と
+    /// <summary>**桝の外の面の幅の狙い**(柔 ── drainKata.common.soft「狙い: 桝の外の面の幅 ≥ 入る溝の駒の幅 ÷ cos(振れ) + margin」・第46巡に硬から柔へ)を、桝の平面 <paramref name="pl"/>(<see cref="MasuPlanAt"/> 等の答え)と
     /// 駒の実測の外形(<see cref="MizoPieceOf"/>)で測る。入る区間ごとに: 入る面 = 尻の向き <paramref name="tailDirs"/>[i] に最も近い面の法線の面・その面の幅 = 駒の外形の、法線に直交する向きの長さ・
-    /// 振れ = <see cref="SquareSkewDeg"/>。<paramref name="report"/> = 区間ごとの「幅 / 要る幅・振れ」。全て満たせば true(硬 ⭕)・一つでも破れば false(硬 ✗ ── 呼び手は桝を建てない)。
+    /// 振れ = <see cref="SquareSkewDeg"/>。<paramref name="report"/> = 区間ごとの「幅 / 要る幅・振れ」。全て満たせば true・一つでも届かなければ false(柔 ── 呼び手は桝を建てて ⚠ と名乗る・報告の末尾は【狙い未達】)。
     /// 当たる先: 土井 S9 の桝の全て(D1 masu[0]・D2 masu[0]・D11 masu[0]・区間に足す桝)── 以後、溝を受ける桝の全て。</summary>
     public static bool MasuFaceWidthCheck(MasuPlan pl, string path, IList<Vector2> tailDirs, IList<float> pieceWidths, float margin, out string report)
     {
@@ -1743,7 +1743,7 @@ public static partial class EdoBuild
             bool f = face >= need - 1e-4f; ok &= f;
             parts.Add("区間" + (i + 1) + " 面の幅 " + face.ToString("F2") + (f ? " ≥ " : " < ") + need.ToString("F2") + "(駒の幅 " + pieceWidths[i].ToString("F2") + " ÷ cos " + sk.ToString("F1") + "° + " + margin.ToString("F2") + ")");
         }
-        report = string.Join(" / ", parts.ToArray()) + (ok ? "【硬 ⭕】" : "【硬 ✗】");
+        report = string.Join(" / ", parts.ToArray()) + (ok ? "" : "【狙い未達】");
         return ok;
     }
 
@@ -2556,15 +2556,28 @@ public static partial class EdoBuild
         for (float x = Mathf.Floor(x0) + 0.5f; x < x1; x += 1f) for (float z = Mathf.Floor(z0) + 0.5f; z < z1; z += 1f)
             { var q = new Vector2(x, z); if (EdoGeom.PIP(parcel, q) && slopeAt(q) <= slopeMax) cand.Add(q); }
         cand.Sort((u, v) => (u - origin).sqrMagnitude.CompareTo((v - origin).sqrMagnitude));
-        var spots = new List<Vector2>(); var frames = new Dictionary<Vector2, Vector3>(); int examined = 0;
+        var spots = new List<Vector2>(); var frames = new Dictionary<Vector2, Vector3>(); int examined = 0, sieved = 0;
+        // 点一つで測れる硬い条件(芯の地盤 ≤ 谷底の平らの上限・桝の芯との離れ ≥ 要る離れ − 外形の半径)で先に篩い、打ち切りの 600 は篩った後に数える
+        //   (第46巡 D11 seg2: 桝に近い 600 点は台地の平らばかりで谷底の平らで全部退けられ、谷底まで探しが届かなかった ── 普請方 第47巡)
+        float footR = 0.5f * new Vector2(sp.xMax - sp.xMin, sp.zMax - sp.zMin).magnitude;
+        Func<Vector2, bool> pointOk = q =>
+        {
+            if (more == null) return true;
+            float g = groundAt(q.x, q.y); if (float.IsNaN(g)) return false;
+            if (!float.IsNaN(more.groundTopMax) && g > more.groundTopMax + 1e-4f) return false;
+            if (!float.IsNaN(more.dropRatio) && !float.IsNaN(more.masuBottom)
+                && Vector2.Distance(q, more.masuAt) < (more.masuBottom - g) / Mathf.Max(more.dropRatio, 1e-3f) - footR - 1e-4f) return false;
+            return true;
+        };
         foreach (var q in cand)
         {
-            if (++examined > 600) break;   // 起点から近い 600 点で打ち切る(遠い置き場は狙いから外れる)
+            if (!pointOk(q)) { sieved++; continue; }
+            if (++examined > 600) break;   // 篩った後の、起点から近い 600 点で打ち切る(遠い置き場は狙いから外れる)
             var fr = frame(q); if (float.IsNaN(fr.x)) continue;
             if (hardOf(foot(q, fr.y)) != null) continue;
             spots.Add(q); frames[q] = fr; if (spots.Count >= 40) break;
         }
-        if (spots.Count == 0) { note = "硬い条件(区画の内・辺から " + keep.ToString("F2") + "m・勾配 ≤ " + slopeMax.ToString("F2") + (more != null && !float.IsNaN(more.groundTopMax) ? "・谷底の平ら" : "") + (more != null && !float.IsNaN(more.dropRatio) ? "・桝の芯との離れ" : "") + ")を満たす置き場が無い(格子の候補 " + cand.Count + "・起点から近い 600 点を試した)"; return null; }
+        if (spots.Count == 0) { note = "硬い条件(区画の内・辺から " + keep.ToString("F2") + "m・勾配 ≤ " + slopeMax.ToString("F2") + (more != null && !float.IsNaN(more.groundTopMax) ? "・谷底の平ら" : "") + (more != null && !float.IsNaN(more.dropRatio) ? "・桝の芯との離れ" : "") + ")を満たす置き場が無い(格子の候補 " + cand.Count + "・点一つの条件で篩った " + sieved + "・残りの起点から近い " + Mathf.Min(examined, 600) + " 点を試した)"; return null; }
         float d0 = Vector2.Distance(spots[0], origin);
         Func<Vector2, GameObject> place = q =>
         {
@@ -2583,6 +2596,147 @@ public static partial class EdoBuild
         var rp = res.transform.TransformPoint(new Vector3(0f, sp.rim, zc));
         note = "起点から " + Vector2.Distance(new Vector2(rp.x, rp.z), origin).ToString("F1") + "m・長手の向き " + res.transform.eulerAngles.y.ToString("F0") + "°(+Z = 溢れ口 = 低い側)・縁の高さ = 足元の外周の地盤の最低(埋めて隠す)";
         return res;
+    }
+
+    // ---------------------------------------------------------------- 相手の名で書いた線 ── 第47巡の言い方(普請方の設計 2026-10-10・EDO-0533)
+    /// <summary>**⑧ 面の内へ寄せる**(「── 面 &lt;id&gt; の外に出る所は面の縁から内へ溝の半幅に寄せる」): 線を 0.25m 刻みに割り、面の縁から内へ <paramref name="inset"/> に
+    /// 届かない点(外の点も)を、最も近い縁の点から内へ <paramref name="inset"/> の所へ移す。面が細く内へ移せない点はそのまま残す(呼び手が <see cref="InsideClear"/> で硬く測る)。
+    /// <paramref name="movedMax"/> = 最も大きく移した量・<paramref name="movedN"/> = 移した点の数。測る・寄せるだけ(合否は持たない)。
+    /// 当たる先: 土井 D2 seg1(面 Daichi)・D3 seg5(面 Okumuki)── 軒先が座の法の上に掛かる棟の雨落ちすべて。</summary>
+    public static List<Vector2> KeepLineInPoly(List<Vector2> line, Vector2[] poly, float inset, out float movedMax, out int movedN)
+    {
+        movedMax = 0f; movedN = 0;
+        if (line == null || line.Count < 2 || poly == null || poly.Length < 3) return line;
+        float L = PolylineLength(line); if (L < 1e-4f) return line;
+        var ring = new List<Vector2>(poly) { poly[0] };
+        var res = new List<Vector2>();
+        int n = Mathf.Max(1, Mathf.CeilToInt(L / 0.25f));
+        for (int i = 0; i <= n; i++)
+        {
+            Vector2 d; var q = PointAt(line, L * i / n, out d);
+            bool inside = EdoGeom.PIP(poly, q); var e = ClosestOn(ring, q); float dq = Vector2.Distance(q, e);
+            if (inside && dq >= inset - 1e-4f) { res.Add(q); continue; }
+            var v = q - e; Vector2 nIn;
+            if (dq > 1e-5f) nIn = inside ? v / dq : -v / dq;
+            else { var c = Vector2.zero; foreach (var p in poly) c += p; c /= poly.Length; nIn = (c - e).normalized; }
+            var t = e + nIn * inset;
+            if (!EdoGeom.PIP(poly, t) || EdoGeom.DistToPolyEdge(poly, t) < inset - 0.02f) { res.Add(q); continue; }   // 細くて内へ入らない ── 残して硬く測らせる
+            movedMax = Mathf.Max(movedMax, Vector2.Distance(q, t)); movedN++; res.Add(t);
+        }
+        // 移した後に同じ所へ重なった点を落とす
+        var outL = new List<Vector2> { res[0] };
+        for (int i = 1; i < res.Count; i++) if ((res[i] - outL[outL.Count - 1]).sqrMagnitude > 0.01f) outL.Add(res[i]);
+        return outL.Count >= 2 ? outL : line;
+    }
+
+    /// <summary>**溝の外形と面の縁の離れ**: 線を 0.25m 刻みに、芯から ±<paramref name="halfW"/> の両縁の点が面 <paramref name="poly"/> の縁から内へどれだけあるか[m]の最悪
+    /// (− = 面の外)。測るだけ ── 欄 hard「溝の外形は面 X の内」の合否は呼び手が名乗る(硬)。当たる先: <see cref="KeepLineInPoly"/> の後の検め。</summary>
+    public static float InsideClear(List<Vector2> line, float halfW, Vector2[] poly, out Vector2 worstAt)
+    {
+        worstAt = Vector2.zero; float worst = float.PositiveInfinity;
+        float L = PolylineLength(line); if (L < 1e-4f || poly == null) return float.NaN;
+        for (float s = 0f; s <= L + 1e-4f; s += Mathf.Min(0.25f, L))
+        {
+            Vector2 d; var c = PointAt(line, Mathf.Min(s, L), out d); if (d.sqrMagnitude < 1e-8f) continue; d.Normalize(); var nn = new Vector2(-d.y, d.x);
+            foreach (var q in new[] { c + nn * halfW, c - nn * halfW })
+            {
+                float cl = EdoGeom.PIP(poly, q) ? EdoGeom.DistToPolyEdge(poly, q) : -EdoGeom.DistToPolyEdge(poly, q);
+                if (cl < worst) { worst = cl; worstAt = q; }
+            }
+        }
+        return float.IsPositiveInfinity(worst) ? float.NaN : worst;
+    }
+
+    /// <summary>**座の法尻の外形**(凸): 座の縁を 0.5m 刻み(角は両辺の法線と二等分)に、外へ向けて法尻(<see cref="SeatToeClear"/> と同じ測り ── 切 1:batterCut・盛 1:batterFill が
+    /// 造成前の地盤と出合う所)を探し、そこから更に <paramref name="grow"/> 外の点の凸包を返す。測るだけ。当たる先: <see cref="DetourAroundHull"/>(⑨ 法尻を回る)。</summary>
+    public static List<Vector2> SeatToeHull(Vector2[] seat, float seatY, float batterCut, float batterFill, Func<float, float, float> baseAt, float grow, float maxRun = 30f)
+    {
+        if (seat == null || seat.Length < 3) return null;
+        bool ccw = EdoGeom.SignedArea(seat) > 0f; int n = seat.Length; var pts = new List<Vector2>();
+        Func<Vector2, Vector2, Vector2> toe = (e, nOut) =>
+        {
+            float run = maxRun;
+            for (float s = 0.05f; s <= maxRun + 1e-4f; s += 0.05f)
+            {
+                var p = e + nOut * s; float g = baseAt(p.x, p.y); if (float.IsNaN(g)) continue;
+                float b = g > seatY ? batterCut : batterFill;
+                if (Mathf.Abs(g - seatY) <= s / Mathf.Max(b, 1e-3f)) { run = s; break; }
+            }
+            return e + nOut * (run + grow);
+        };
+        for (int i = 0; i < n; i++)
+        {
+            Vector2 a = seat[i], b = seat[(i + 1) % n], ab = b - a; float L = ab.magnitude; if (L < 1e-5f) continue;
+            var t = ab / L; var nOut = ccw ? new Vector2(t.y, -t.x) : new Vector2(-t.y, t.x);
+            Vector2 tp = seat[(i + n - 1) % n], ap = a - tp; var nPrev = ap.sqrMagnitude > 1e-10f ? (ccw ? new Vector2(ap.normalized.y, -ap.normalized.x) : new Vector2(-ap.normalized.y, ap.normalized.x)) : nOut;
+            var bis = (nOut + nPrev); if (bis.sqrMagnitude > 1e-8f) pts.Add(toe(a, bis.normalized));
+            pts.Add(toe(a, nPrev)); 
+            int k = Mathf.Max(1, Mathf.CeilToInt(L / 0.5f));
+            for (int j = 0; j <= k; j++) pts.Add(toe(a + ab * (j / (float)k), nOut));
+        }
+        return ConvexHull2(pts);
+    }
+
+    /// <summary>**⑨ 凸の外形を回る最短**: 直線 <paramref name="a"/>–<paramref name="b"/> が凸多角形 <paramref name="hull"/> を横切らなければ直線のまま、横切れば両端から外形への接線の点を通り、
+    /// 外形に沿って回る二通りのうち短い方の折れ線を返す。端が外形の内にあるときは null(呼び手が名乗る)。<paramref name="detoured"/> = 回したか。
+    /// 当たる先: 土井 D4 seg4(座 Za_KachuK3 の法尻から外へ 0.3)── 「A から B へ最短 ── 座 X の法尻から外へ c を回る」と書いた線すべて。</summary>
+    public static List<Vector2> DetourAroundHull(Vector2 a, Vector2 b, List<Vector2> hull, out bool detoured)
+    {
+        detoured = false;
+        if (hull == null || hull.Count < 3) return new List<Vector2> { a, b };
+        var ha = hull.ToArray();
+        if (EdoGeom.PIP(ha, a) || EdoGeom.PIP(ha, b)) return null;
+        // 横切るか: 線分の中点の列が外形の内に入るか(凸なので 0.05m 刻みで足りる)
+        float L = Vector2.Distance(a, b); bool cross = false;
+        for (float s = 0f; s <= L; s += 0.05f) if (EdoGeom.PIP(ha, Vector2.Lerp(a, b, s / Mathf.Max(L, 1e-5f)))) { cross = true; break; }
+        if (!cross) return new List<Vector2> { a, b };
+        int n = hull.Count;
+        Func<Vector2, int, bool> visible = (p, i) =>
+        {
+            // 頂点 i へ p から引いた線分が外形の内を通らない(接線の候補)
+            var q = hull[i]; float l = Vector2.Distance(p, q);
+            for (float s = 0.02f; s < l - 0.02f; s += 0.05f) if (EdoGeom.PIP(ha, Vector2.Lerp(p, q, s / l))) return false;
+            return true;
+        };
+        List<Vector2> best = null; float bestL = float.MaxValue;
+        for (int i = 0; i < n; i++)
+        {
+            if (!visible(a, i)) continue;
+            for (int j = 0; j < n; j++)
+            {
+                if (!visible(b, j)) continue;
+                foreach (int dir in new[] { 1, -1 })
+                {
+                    var path = new List<Vector2> { a }; int k = i; path.Add(hull[k]); int guard = 0;
+                    while (k != j && guard++ < n) { k = (k + dir + n) % n; path.Add(hull[k]); }
+                    path.Add(b); float pl = PolylineLength(path);
+                    if (pl < bestL) { bestL = pl; best = path; }
+                }
+            }
+        }
+        if (best == null) return null;
+        detoured = true; return best;
+    }
+
+    /// <summary>**⑩ 長屋の列の内面の通り**: 各棟の内面の線分(<paramref name="faces"/>: [0..1] = 面の端)の端の点に一本の主軸を当て、路地側(<paramref name="toward"/> の向き)へ最も出た
+    /// 点まで平行にずらした直線を、全ての端の射影の範囲で返す。面の向きが主軸から <paramref name="maxTurnDeg"/> を超えて振れる棟があれば null と <paramref name="why"/>(折れ目は読まない)。
+    /// 測るだけ。当たる先: 土井 D7 seg1(長屋 E13_N01〜E13_N08)── 「長屋の列の内面の通り」と書いた線すべて。</summary>
+    public static List<Vector2> RunFaceStraight(List<KeyValuePair<Vector2, Vector2>> faces, Vector2 toward, float maxTurnDeg, out float turnMax, out string why)
+    {
+        why = null; turnMax = 0f;
+        if (faces == null || faces.Count == 0) { why = "面が一つも無い"; return null; }
+        var P = new List<Vector3>(); foreach (var f in faces) { P.Add(new Vector3(f.Key.x, 0f, f.Key.y)); P.Add(new Vector3(f.Value.x, 0f, f.Value.y)); }
+        Vector2 c, t; PrincipalAxis(P, out c, out t); if (t.sqrMagnitude < 1e-8f) { why = "主軸が引けない"; return null; }
+        t.Normalize(); var nn = new Vector2(-t.y, t.x); if (Vector2.Dot(nn, toward) < 0f) nn = -nn;
+        foreach (var f in faces)
+        {
+            var d = f.Value - f.Key; if (d.sqrMagnitude < 1e-8f) continue;
+            float ang = Vector2.Angle(d, t); ang = Mathf.Min(ang, 180f - ang); turnMax = Mathf.Max(turnMax, ang);
+        }
+        if (turnMax > maxTurnDeg + 1e-3f) { why = "棟の内面の向きが主軸から " + turnMax.ToString("F1") + "° 振れる(> " + maxTurnDeg.ToString("F0") + "°)── 一直線に通せない"; return null; }
+        float off = float.MinValue, u0 = float.MaxValue, u1 = float.MinValue;
+        foreach (var p3 in P) { var p = new Vector2(p3.x, p3.z); off = Mathf.Max(off, Vector2.Dot(p - c, nn)); float u = Vector2.Dot(p - c, t); u0 = Mathf.Min(u0, u); u1 = Mathf.Max(u1, u); }
+        return new List<Vector2> { c + t * u0 + nn * off, c + t * u1 + nn * off };
     }
 
     // ---------------------------------------------------------------- 相手の名で書いた線 ── 第44巡の言い方(普請方の設計 2026-10-08・EDO-0533)

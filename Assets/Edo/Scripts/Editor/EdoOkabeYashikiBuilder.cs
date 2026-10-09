@@ -3991,6 +3991,7 @@ public static class EdoOkabeYashikiBuilder
         // 追記 2026-10-09(第63巡): 上端の取り付き ── 本線との取り付きから最初の駒 topLen は天端 = 上端の水平【硬】・その背に天端 − tDrop の平らな小段(幅 tW【柔】・
         //   盛り ≤ tFill)・2 つ目の駒から勾配 −tG を最優先に背の法 + off の線へ戻す・小段の水は石垣から離れる向きへ 1/tDrn。⛔ 読めなければ ★ で旧のまま
         float topLen = float.NaN, tDrop = float.NaN, tW = float.NaN, tFill = float.NaN, tG = float.NaN, tDrn = float.NaN, tFill2 = float.NaN, tWMin = float.NaN, tDrop2 = float.NaN;
+        float cDrop = float.NaN, cTo = float.NaN, cLand = float.NaN, cLandFill = float.NaN;   // 追記 2026-10-09c
         {
             int i9 = (txt ?? "").IndexOf("追記 2026-10-09");
             if (i9 >= 0)
@@ -4011,6 +4012,16 @@ public static class EdoOkabeYashikiBuilder
                     System.Func<string, float> rb = pat => { var m = System.Text.RegularExpressions.Regex.Match(tb9, pat); return m.Success ? float.Parse(m.Groups[1].Value, inv) : float.NaN; };
                     tFill2 = rb(@"盛りの上限は区画の内だけ\s*[0-9.]+\s*→\s*([0-9.]+)"); tWMin = rb(@"([0-9.]+)\s*まで詰めてよい"); tDrop2 = rb(@"[(（]\s*天端\s*[−\-]\s*([0-9.]+)\s*[)）]\s*まで下げる");
                     if (float.IsNaN(tFill2) || float.IsNaN(tWMin) || float.IsNaN(tDrop2)) { sb.AppendLine("  ★ " + key + " sodeSlope 追記 2026-10-09b: 指図から読めない(盛りの上限・詰める幅・下げた小段)── 旧のまま"); tFill2 = tWMin = tDrop2 = float.NaN; }
+                }
+                // 追記 2026-10-09c(第66巡): 2 つ目の駒で上端から cTo まで連続に下ろす【硬】・出隅の踊り場を cLand へ上げる【硬】・踊り場の背の盛りの上限(区画の内)cLandFill【硬】
+                int i9c = txt.IndexOf("追記 2026-10-09c");
+                if (i9c >= 0)
+                {
+                    string tc9 = txt.Substring(i9c);
+                    System.Func<string, float> rc = pat => { var m = System.Text.RegularExpressions.Regex.Match(tc9, pat); return m.Success ? float.Parse(m.Groups[1].Value, inv) : float.NaN; };
+                    cDrop = rc(@"1駒で\s*([0-9.]+)\s*下ろす"); cTo = rc(@"から\s*([0-9.]+)\s*まで連続で下ろす");
+                    cLand = rc(@"出隅の踊り場は\s*[0-9.]+\s*から\s*([0-9.]+)\s*へ上げる"); cLandFill = rc(@"踊り場の背の盛りの上限は区画の内に限り\s*([0-9.]+)");
+                    if (float.IsNaN(cTo) || float.IsNaN(cLand) || float.IsNaN(cLandFill)) { sb.AppendLine("  ★ " + key + " sodeSlope 追記 2026-10-09c: 指図から読めない(下ろす先・踊り場の高さ・踊り場の盛りの上限)── 旧のまま"); cDrop = cTo = cLand = cLandFill = float.NaN; }
                 }
             }
         }
@@ -4065,6 +4076,7 @@ public static class EdoOkabeYashikiBuilder
         // ⭐ 出隅の踊り場(追記 2026-10-07): 折れ 30° 以上の節点ごとに、隅の両側 half の区間を高さ Lc(元の坂の線が隅を通る値)の水平にし、背の法を Lc − lDrop の水平へ
         //   描き直す(切り ≤ lCut・盛り ≤ lFill【硬】・その先は 1:bfB で今の法へ)── 区間ごとの EdoBuild.BackBench(切りと盛り)。坂の線は描き直した背から引き直す。
         var lands = new List<EdoBuild.BackBench>(); var landS = new List<Vector2>();   // (隅の s, Lc)
+        float lFillC = float.IsNaN(cLandFill) ? lFill : cLandFill;   // 追記 2026-10-09c: 踊り場の背の盛りの上限(区画の内 ── BackBench.parcel で外へ盛らない)
         if (landing)
         {
             float acc = 0f;
@@ -4072,15 +4084,17 @@ public static class EdoOkabeYashikiBuilder
             {
                 acc += segL[i - 1];
                 float turn = Vector2.Angle(segT[i - 1], segT[i]); if (turn < 30f) continue;
-                float sc = acc, Lc = lineOf(mono0, sc); landS.Add(new Vector2(sc, Lc));
+                float sc = acc, Lc = lineOf(mono0, sc);
+                if (!float.IsNaN(cLand)) Lc = cLand;   // 追記 2026-10-09c【硬】: 踊り場の高さは欄の値(上端から 2 つ目の駒で下ろした先と揃える)
+                landS.Add(new Vector2(sc, Lc));
                 // 前の線より前(相手の区間の見え面の前)へは切り盛りを回さない
                 int iA = i - 1, iB = i;
                 System.Func<Vector2, bool> keep = q => { for (int j = 0; j < segL.Count; j++) if (EdoBuild.InFrontOfFace(nodes[j], nodes[j + 1], segB[j], q, 3f)) return true; return false; };
                 float hA = Mathf.Min(half, segL[iA]), hB = Mathf.Min(half, segL[iB]);
                 lands.Add(new EdoBuild.BackBench { name = key + "_land" + i + "a", a = nodes[i] - segT[iA] * hA, b = nodes[i], back = segB[iA], top = Lc, drop = lDrop, w = offS, drain = 0f, bf = bfB,
-                                                   maxFill = lFill, maxCut = lCut, parcel = Poly, baseAt = DesignY, keepOut = keep });
+                                                   maxFill = lFillC, maxCut = lCut, parcel = Poly, baseAt = DesignY, keepOut = keep });
                 lands.Add(new EdoBuild.BackBench { name = key + "_land" + i + "b", a = nodes[i], b = nodes[i] + segT[iB] * hB, back = segB[iB], top = Lc, drop = lDrop, w = offS, drain = 0f, bf = bfB,
-                                                   maxFill = lFill, maxCut = lCut, parcel = Poly, baseAt = DesignY, keepOut = keep });
+                                                   maxFill = lFillC, maxCut = lCut, parcel = Poly, baseAt = DesignY, keepOut = keep });
             }
             if (landOut != null) landOut.AddRange(lands);
         }
@@ -4209,6 +4223,13 @@ public static class EdoOkabeYashikiBuilder
             {
                 float dh = Mathf.Abs(s1 - sHigh);
                 if (dh <= topLen + 1e-3f) v = cap;
+                else if (!float.IsNaN(cTo) && landS.Count > 0)
+                {
+                    // 追記 2026-10-09c【硬・継ぎ目に段を作らない】: 上端の水平の先から、最も近い出隅の踊り場の縁まで cap → cTo を一直線に下ろす
+                    //   (2 つ目の駒 = 勾配の駒 G−cDrop/1.818 を PlaceBest が選ぶ)。踊り場の縁より先は踊り場の水平(上で入れた v)のまま。
+                    float dL = float.MaxValue; foreach (var ls in landS) dL = Mathf.Min(dL, Mathf.Abs(sHigh - ls.x) - half);
+                    if (dh < dL && dL > topLen + 0.1f) v = cap + (cTo - cap) * (dh - topLen) / (dL - topLen);
+                }
                 else { float fade = Mathf.Clamp01(1f - (dh - topLen) / (2f * topLen)); v = Mathf.Min(cap, Mathf.Max(v, Mathf.Min(cap - tG * (dh - topLen) / topLen, v + Mathf.Max(0f, maxDiff - off - 0.05f) * fade))); }
             }
             return v;
@@ -4268,7 +4289,7 @@ public static class EdoOkabeYashikiBuilder
                 mc = Mathf.Max(mc, y0 - y1); if (y1 - y0 > mf) { mf = y1 - y0; fAt = q; }
                 if (y1 < topBench.top - topBench.drop - (dn - offS) * topBench.drain - 0.02f) nCap++;
             }
-            sb.AppendLine("    上端の取り付き(追記 2026-10-09): 高い端から " + topLen.ToString("F2") + "m は天端 " + cap.ToString("F2") + " の水平・その先は一駒 −" + tG.ToString("F2") + " で坂の線へ(" + crest(sHigh - (lowAtA ? 1f : -1f) * (topLen * 2f)).ToString("F2") + " @2駒目の終わり)"
+            sb.AppendLine("    上端の取り付き(追記 2026-10-09): 高い端から " + topLen.ToString("F2") + "m は天端 " + cap.ToString("F2") + " の水平・その先は" + (!float.IsNaN(cTo) ? "(追記 2026-10-09c)踊り場の縁まで " + cap.ToString("F2") + "→" + cTo.ToString("F2") + " を一直線に・踊り場 " + cLand.ToString("F2") + "・盛り ≤ " + cLandFill.ToString("F2") + " (" : "一駒 −" + tG.ToString("F2") + " で坂の線へ(") + crest(sHigh - (lowAtA ? 1f : -1f) * (topLen * 2f)).ToString("F2") + " @2駒目の終わり)"
                           + "・背の小段 " + (cap - tDrop).ToString("F2") + "(線から " + offS.ToString("F2") + "〜" + topBench.w.ToString("F2") + "・水 1/" + tDrn.ToString("F0") + " を背へ)盛り 最大 " + mf.ToString("F2") + " @(" + fAt.x.ToString("F1") + ", " + fAt.y.ToString("F1") + ")・切り 最大 " + mc.ToString("F2") + "(硬 ≤ " + tFill.ToString("F2") + ")"
                           + (nCap > 0 ? " ⚠ 上限で止まり小段に届かない点 " + nCap : ""));
         }

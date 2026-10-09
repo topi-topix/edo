@@ -226,6 +226,16 @@ public static partial class EdoBuild
             Vector2 X = Vector2.Dot(ccw(f2), f1) > 0f ? f2 : f1; Vector2 Z = ccw(X);
             float yaw = Mathf.Atan2(-X.y, X.x) * Mathf.Rad2Deg;
             string path = oblique ? (w.kadoDeg != null ? w.kadoDeg(turn, hk, idx) : null) : w.kado(hk, idx);
+            // ⭐ 折れ 60° 以上でも 90° から 5° を超えて外れる隅は、その折れで焼いた隅の駒が在ればそれを据える(2026-10-09・EDO-0502 第66巡)──
+            //   折れ 103.4° に Kado90 を据えて 13.4° の楔の隙が開き、土が帯で見えた(岡部 TW_Kado_Shumen_Side0_0_kado11)。焼いていなければ従前の Kado90。
+            //   向きは折れの駒と同じ式(腕1 = 局所 −X・腕2 = (cos deg, 0, −sin deg))── deg = 90 で Kado90 の向きと一致する。
+            //   当たる先: 野面の土留めの 60° 以上で直角でない出隅すべて(焼いた組だけ効く ── いまは Kado103 × H4.80)。
+            if (!oblique && Mathf.Abs(turn - 90f) > 5f && w.kadoDeg != null)
+            {
+                string pd = w.kadoDeg(turn, hk, idx);
+                if (pd != null && System.IO.File.Exists(System.IO.Path.Combine(System.IO.Directory.GetParent(Application.dataPath).FullName, pd))) { path = pd; oblique = true; }
+                else log.AppendLine("    ⚠ " + name + " 隅 " + i + ": 折れ " + turn.ToString("F1") + "° の隅の駒が焼いていない(見付 " + hk + "・" + (pd ?? "null") + ")── Kado90 のまま(外の角に楔)");
+            }
             if (oblique)
             {
                 // 腕1 は「見え面 F を反時計 90° 回した向き」へ伸びる腕(局所 +Z = F・−X = 腕1)。腕1 が前の区間か次の区間かは隅の巡りで決まる。

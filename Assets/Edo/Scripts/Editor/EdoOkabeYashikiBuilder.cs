@@ -3188,11 +3188,20 @@ public static class EdoOkabeYashikiBuilder
                               foreach (var ff in _flat) { if (ff.poly == null || ff.poly.Length < 3) continue; if (!se.Contains(ff.name) && ff.name != "Kadonouchi") continue;
                                 for (int k = 0; k < ff.poly.Length; k++) { Vector2 a0 = ff.poly[k], b0 = ff.poly[(k + 1) % ff.poly.Length]; float d0 = EdoBuild.EdgeDistPublic(new[] { a0, b0, a0 }, p0); Vector2 ed = (b0 - a0).normalized; if (Mathf.Abs(Vector2.Dot(ed, dS)) < 0.8f) continue; if (d0 < bdE) { bdE = d0; dE = Vector2.Dot(ed, dS) < 0f ? ed : -ed; } } } }
                             float tStop = float.NaN;
+                            // 止めは二つの遅い方: 縁の落差 ≤ dropMax(背 1m − 前 1.5m の設計の地盤)と、sodeSlope の低い端の届き(背の法 +0.15 ≤ 前の地表 +0.20 ── 同じ欄の
+                            //   打ち切りの条件。延ばす先で SodeSlopeSegs が 6m 以内に届かず ③ で段を残した第74巡の1回目)。⛔ 届く前に止めない【硬】。
+                            bool dropOk = false; float tDrop0 = float.NaN;
                             for (float tt = 0.25f; tt <= 25f; tt += 0.25f)
                             {
                                 var q = p0 + dE * tt; float yb = DesignY(q - faceS * 1.0f), yf = DesignY(q + faceS * 1.5f);
-                                if (!float.IsNaN(yb) && !float.IsNaN(yf) && yb - yf <= dropMax) { tStop = tt; break; }
+                                if (!dropOk && !float.IsNaN(yb) && !float.IsNaN(yf) && yb - yf <= dropMax) dropOk = true;
+                                float lnB = DesignY(q - faceS * 1.3f), frG = SkinGround(q.x + faceS.x * 0.5f, q.y + faceS.y * 0.5f);
+                                bool reach = !float.IsNaN(lnB) && !float.IsNaN(frG) && lnB + 0.15f <= frG + 0.20f;
+                                if (dropOk && float.IsNaN(tDrop0)) tDrop0 = tt;
+                                if (dropOk && reach) { tStop = tt; break; }
                             }
+                            // 届きが 25m 以内に無ければ縁の落差の止めで延ばす(⚠ 低い端は sodeSlope の ③ ── 指図の二つの止めが食い違う所・普請方へ)
+                            if (float.IsNaN(tStop) && !float.IsNaN(tDrop0)) { tStop = tDrop0; sb.AppendLine("    ⚠ " + key + " sideEnd: 縁の落差 ≤ " + dropMax.ToString("F2", inv) + " は " + tDrop0.ToString("F2", inv) + "m だが、sodeSlope の打ち切り(背の法 +0.15 ≤ 前の地表 +0.20)は 25m 延ばしても届かない ── 落差の止めで延ばす(指図の二つの止めの食い違い)"); }
                             if (float.IsNaN(tStop)) sb.AppendLine("    ⚠ " + key + " sideEnd: 25m 延ばしても縁の落差が " + dropMax.ToString("F2", inv) + " 以下にならない ── 延ばさない");
                             else
                             {
@@ -3200,6 +3209,34 @@ public static class EdoOkabeYashikiBuilder
                                 string r0 = SodeSlopeSegs(key + "_SideEnd" + sw, extN, sodeTxt, extSegs, new List<SodeSlopeCheck>(), null, null, true);
                                 foreach (var es in extSegs) es.face = faceS;
                                 nozSegs.AddRange(extSegs);
+                                // ⭐ 追記 2026-10-09g【硬】: 延ばした区間の背 = 天端 − dropB の平らな小段を控えの後端 + behindB まで(幅は一間を狙う【柔】)・その先 1:bfB で今の地盤へ
+                                //   擦り付け(切りも盛りも ── 石垣と法の間に谷を作らない)・水は 1/drnB で石垣から離す。駒の区間ごと 0.9m に割り、天端の高い端を b にして走りに沿って落とす。
+                                int i9g = se.IndexOf("追記 2026-10-09g"); _sideEndBenches.Clear();
+                                if (i9g >= 0)
+                                {
+                                    string tg = se.Substring(i9g);
+                                    System.Func<string, float> rg = pat => { var mm = System.Text.RegularExpressions.Regex.Match(tg, pat); return mm.Success ? float.Parse(mm.Groups[1].Value, inv) : float.NaN; };
+                                    float dropB = rg(@"天端\s*[−\-]\s*([0-9.]+)\s*の平らな小段"), behindB = rg(@"控えの後端\s*\+\s*([0-9.]+)"), bfB = rg(@"その先は\s*1\s*:\s*([0-9.]+)"), drnB = rg(@"水は\s*1\s*/\s*([0-9.]+)");
+                                    bool ken1 = tg.Contains("幅は一間");
+                                    float backB = float.NaN; { var vs = EdoBuild.BodyExRoofAt(EdoAssets.Own.SannoNozura(4.8f, 0f, 0), Vector3.zero, 0f); if (vs.Count > 0) { float yT = float.MinValue, zMin = float.MaxValue, zF = float.MinValue; foreach (var v in vs) { yT = Mathf.Max(yT, v.y); zMin = Mathf.Min(zMin, v.z); } foreach (var v in vs) if (v.y >= yT - 0.15f) zF = Mathf.Max(zF, v.z); backB = zF - zMin; } }
+                                    if (float.IsNaN(dropB) || float.IsNaN(behindB) || float.IsNaN(bfB) || float.IsNaN(drnB) || float.IsNaN(backB)) sb.AppendLine("    ★ " + key + " sideEnd 追記 2026-10-09g: 指図か駒の控えが読めない ── 背の小段を描かない");
+                                    else
+                                    {
+                                        float wB = Mathf.Max(ken1 ? C("ken") : 0f, backB + behindB);
+                                        foreach (var es in extSegs)
+                                        {
+                                            float L = Vector2.Distance(es.a, es.b); int nC = Mathf.Max(1, Mathf.CeilToInt(L / 0.9f)); Vector2 td = (es.b - es.a) / Mathf.Max(L, 1e-4f);
+                                            for (int ci = 0; ci < nC; ci++)
+                                            {
+                                                float s0 = L * ci / nC, s1 = L * (ci + 1) / nC; float c0 = es.crestAt(s0), c1 = es.crestAt(s1); if (float.IsNaN(c0) || float.IsNaN(c1)) continue;
+                                                Vector2 pa = es.a + td * s0, pb = es.a + td * s1; if (c0 > c1) { var tq = pa; pa = pb; pb = tq; float tc = c0; c0 = c1; c1 = tc; }
+                                                _sideEndBenches.Add(new EdoBuild.BackBench { name = key + "_SideEnd_back" + _sideEndBenches.Count, a = pa, b = pb, back = -faceS, top = c1, drop = dropB, w = wB, drain = 1f / drnB,
+                                                    drainAlong = (c1 - c0) / Mathf.Max(s1 - s0, 1e-3f), bf = bfB, maxFill = 99f, maxCut = 99f, parcel = Poly, baseAt = DesignY });
+                                            }
+                                        }
+                                        sb.AppendLine("    延長の背の小段(追記 2026-10-09g): 天端 −" + dropB.ToString("F2", inv) + "・奥行 " + wB.ToString("F2", inv) + "(控えの後端 " + backB.ToString("F2", inv) + " + " + behindB.ToString("F2", inv) + (ken1 ? "・一間を狙う" : "") + ")・1:" + bfB.ToString("0.0", inv) + "・水 1/" + drnB.ToString("F0", inv) + " ── 区間 " + _sideEndBenches.Count + "(⚠ 盛り・切りの上限は欄に無い ── 上限なし)");
+                                    }
+                                }
                                 sb.AppendLine("    脇の返しの端の延長 " + key + "_SideEnd" + sw + "(sideEnd): 始まり (" + p0.x.ToString("F1", inv) + ", " + p0.y.ToString("F1", inv) + ") から縁に沿って " + tStop.ToString("F2", inv) + "m で落差 ≤ " + dropMax.ToString("F2", inv) + "・駒の区間 " + extSegs.Count);
                                 sb.Append(r0);
                             }
@@ -4034,7 +4071,9 @@ public static class EdoOkabeYashikiBuilder
             var lf = _flat.Find(f0 => f0.name == nm);
             if (!m.Success || lf.poly == null) { sb.Append("★ " + nm + " flat: 指図か面が読めない "); continue; }
             float y0 = float.Parse(m.Groups[1].Value, inv), e = float.Parse(m.Groups[2].Value, inv);
-            bool exCover = fl.Contains("小口を被せる土"), exRamp = fl.Contains("Higashi_Fall");
+            bool exCover = fl.Contains("小口を被せる土"), exRamp = fl.Contains("Higashi_Fall"), bandF = fl.Contains("見え面の足元までの帯");
+            var mcv = System.Text.RegularExpressions.Regex.Match(fl, @"見え面から\s*([0-9.]+)\s*以内・高さ\s*([0-9.]+)\s*以内");
+            float covD = mcv.Success ? float.Parse(mcv.Groups[1].Value, inv) : float.NaN, covH = mcv.Success ? float.Parse(mcv.Groups[2].Value, inv) : float.NaN;
             var hulls = new List<Vector2[]>(); var bh = new List<Vector2[]>();
             foreach (Transform g in root) foreach (Transform c in g)
             {
@@ -4054,9 +4093,18 @@ public static class EdoOkabeYashikiBuilder
             {
                 foreach (var v in top.Values)
                 {
-                    var q = new Vector2(v.x, v.z); if (!EdoGeom.PIP(lf.poly, q)) continue;
+                    var q = new Vector2(v.x, v.z); bool inP = EdoGeom.PIP(lf.poly, q);
+                    if (!inP)
+                    {   // 追記 2026-10-09g: 縁から見え面の足元までの帯(縁から外へ 3m 以内に部材の外形がある所)
+                        if (!bandF) continue; float dE = EdoBuild.EdgeDistPublic(lf.poly, q); if (dE > 3f) continue;
+                        Vector2 nE = q; { float bd = float.MaxValue; for (int k = 0; k < lf.poly.Length; k++) { Vector2 a0 = lf.poly[k], b0 = lf.poly[(k + 1) % lf.poly.Length], ab = b0 - a0; float tt = Mathf.Clamp01(Vector2.Dot(q - a0, ab) / Mathf.Max(ab.sqrMagnitude, 1e-8f)); var c0 = a0 + ab * tt; float dd = (q - c0).sqrMagnitude; if (dd < bd) { bd = dd; nE = c0; } } }
+                        Vector2 dir = (q - nE).sqrMagnitude > 1e-8f ? (q - nE).normalized : Vector2.zero; if (dir == Vector2.zero) continue; bool inBand = false;
+                        for (float tt = 0f; tt <= 3f - dE + 1e-3f && !inBand; tt += 0.1f) { var qq = q + dir * tt; foreach (var hl in hulls) if (EdoGeom.PIP(hl, qq)) { inBand = true; break; } }
+                        if (!inBand) continue;
+                    }
                     bool hid = false; foreach (var hl in hulls) if (EdoGeom.PIP(hl, q)) { hid = true; break; } if (hid) continue;
-                    nAll++; float dv = Mathf.Abs(v.y - y0); if (dv <= e + 1e-4f) continue;
+                    float hiL = y0 + e; if (!float.IsNaN(covD)) foreach (var hl in hulls) if (EdoBuild.EdgeDistPublic(hl, q) <= covD) { hiL = y0 + covH; break; }   // 根入れを隠す土
+                    nAll++; float dv = Mathf.Abs(v.y - y0); if (v.y >= y0 - e - 1e-4f && v.y <= hiL + 1e-4f) continue;
                     bool ex = false;
                     if (exCover) foreach (var hl in bh) if (EdoGeom.PIP(hl, q) || EdoBuild.EdgeDistPublic(hl, q) <= 0.8f) { ex = true; break; }
                     if (!ex && exRamp) { float gy = DesignY(q); if (!float.IsNaN(gy) && gy < y0 - e) ex = true; }
@@ -4084,7 +4132,12 @@ public static class EdoOkabeYashikiBuilder
             var bh = new List<Vector2[]>();
             if (fl.Contains("小口を被せる土") && buried != null) foreach (var g in buried) { if (g == null) continue; var p2 = new List<Vector2>(); foreach (var v in EdoBuild.Body(g.transform, 4000)) p2.Add(new Vector2(v.x, v.z)); if (p2.Count >= 3) bh.Add(EdoBuild.ConvexHull2(p2).ToArray()); }
             bool exRamp = fl.Contains("Higashi_Fall");
-            res.Add(new EdoBuild.FlatFace { name = nm, poly = lf.poly, y = y0, e = e, exempt = q =>
+            // 追記 2026-10-09g: 縁から見え面の足元までの帯も・根入れを隠す土は見え面から cd 以内・高さ ch 以内
+            bool band = fl.Contains("見え面の足元までの帯");
+            var mc = System.Text.RegularExpressions.Regex.Match(fl, @"見え面から\s*([0-9.]+)\s*以内・高さ\s*([0-9.]+)\s*以内");
+            float cd = mc.Success ? float.Parse(mc.Groups[1].Value, inv) : float.NaN, ch = mc.Success ? float.Parse(mc.Groups[2].Value, inv) : float.NaN;
+            if (band && !mc.Success) sb.AppendLine("  ★ " + nm + " flat 追記 2026-10-09g: 根入れを隠す土の範囲が読めない ── 帯は ±e のまま");
+            res.Add(new EdoBuild.FlatFace { name = nm, poly = lf.poly, y = y0, e = e, band = band, coverD = cd, coverH = ch, exempt = q =>
             {
                 foreach (var hl in bh) if (EdoGeom.PIP(hl, q) || EdoBuild.EdgeDistPublic(hl, q) <= 0.8f) return true;
                 if (exRamp) { float gy = DesignY(q); if (!float.IsNaN(gy) && gy < y0 - e) return true; }
@@ -4107,6 +4160,8 @@ public static class EdoOkabeYashikiBuilder
     /// **低い端** ── 坂の駒で天端が前の地表 + reachHi に届いた所から、水平の駒(見付 fixExp・焼いた H fixH)を一駒(⛔ 傾けて沈めない)。小口の土は Stage3b。
     /// 数は指図の文から読む(⛔ 読めなければ ★ を刷って建てない)。<paramref name="nozSegs"/> が null なら据えずに踊り場の小段と小口の土だけ返す(SodeBenches・Stage3b)。
     /// 当たる先: sodeSlope を持つ袖(岡部 TW_Kado_Sode)。</summary>
+    /// <summary>sideEnd の延長の背の小段(第74巡)── StairGaps(Stage2b)が作り、SodeBenches(Stage3b の設計の地盤)が読む。</summary>
+    static readonly List<EdoBuild.BackBench> _sideEndBenches = new List<EdoBuild.BackBench>();
     static string SodeSlopeSegs(string key, List<Vector2> nodes, string txt, List<EdoBuild.NozuraSeg> nozSegs, List<SodeSlopeCheck> chk,
                                 List<EdoBuild.BackBench> landOut = null, List<SodeEndCover> coverOut = null, bool skipOwnLanding = false)
     {
@@ -4597,6 +4652,7 @@ public static class EdoOkabeYashikiBuilder
             var m = System.Text.RegularExpressions.Regex.Match(txt ?? "", pat);
             return m.Success ? float.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) : float.NaN;
         };
+        if (_sideEndBenches.Count > 0) { var lse = new List<KeyValuePair<int, EdoBuild.BackBench>>(); foreach (var bk in _sideEndBenches) lse.Add(new KeyValuePair<int, EdoBuild.BackBench>(-1, bk)); res["sideEnd#land"] = lse; }
         foreach (var o in A(Get(IMPL, "terraceWalls")) ?? new List<object>())
         {
             var w = O(o); if (w == null || S(Get(w, "mode")) != "sode") continue;   // 線と mode は算出物・文は指図

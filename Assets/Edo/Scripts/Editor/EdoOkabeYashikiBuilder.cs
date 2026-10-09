@@ -4010,8 +4010,10 @@ public static class EdoOkabeYashikiBuilder
             if (keepNiwa.Count > 0) sb.AppendLine("  庭の土工の区域 " + keepNiwa.Count + " を面の縁の升から外す(faceKeepOut)");
         }
         var rep = EdoBuild.CutEdgeSkin("Okabe", grp, parts, faces, tol, design: design, backfill: 0f, sealFace: true,
-                                       crestBandParts: band, plantPoints: plant, faceKeepOut: keepNiwa, drawAreas: drawAreas);
+                                       crestBandParts: band, plantPoints: plant, faceKeepOut: keepNiwa, drawAreas: drawAreas,
+                                       solve: true);   // ⭐ 皮の高さは一点ごとの [lo, hi] と狙い y* で解く(EdoBuild.SkinHeightSolve・2026-10-10 施主裁定「作り直す」)── 山王・土井は従来の段3〜3f
         AssetDatabase.SaveAssetIfDirty(EdoBuild.T().terrainData);
+        sb.Append("  " + EdoBuild.SkinSolveLog.Replace("\n", "\n  ").TrimEnd() + "\n");
         sb.AppendLine("  古い皮を外して塞いだ升 " + filled + " / 部材 " + rep.parts + "(土留め " + (band.Count - igN) + "・外周の石垣 " + igN + "(うち区画の外の足元を描けない " + igOut + ")・石段 " + stairN + ")/ 面 " + faces.Count + " / 守った地形の木 " + plant.Count);
         sb.AppendLine("  " + rep);
         sb.Append(EdoBuild.SkinGapTable(parts, faces, tol));

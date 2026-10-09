@@ -632,6 +632,16 @@ public static partial class EdoBuild
             }
             return false;
         }
+        /// <summary>**縦の線の当たり**(x,z)を通る鉛直の線が切る全ての三角形 ──(持ち主, 高さ, 表の法線の y)を <paramref name="hits"/> へ。
+        /// 当たる先: <see cref="SkinHeightSolve"/> が駒の実メッシュを地盤の高さで輪切りにする(凸包でなく断面で「駒の下」を測る・2026-10-10 EDO-0502)。</summary>
+        public void Column(float x, float z, List<Vector3> hits, List<int> triIds)
+        {
+            hits.Clear(); if (triIds != null) triIds.Clear(); float y;
+            List<int> l; if (!hash.TryGetValue(K(Mathf.FloorToInt(x / B), Mathf.FloorToInt(z / B)), out l)) return;
+            foreach (var id in l) if (TriYAt(tris[id], x, z, out y)) { hits.Add(new Vector3(owner[id], y, nrm[id].y)); if (triIds != null) triIds.Add(id); }
+        }
+        /// <summary>三角形 <paramref name="id"/> の表の単位法線(<see cref="Column"/> の triIds)。無ければ零。</summary>
+        public Vector3 Normal(int id) { return id >= 0 && id < nrm.Count ? nrm[id] : Vector3.zero; }
         /// <summary>篩わない天端(帯で外した法の面も含む)。</summary>
         public float TopRaw(float x, float z, out int who) { return Scan(x, z, true, out who); }
         float ScanOwner(float x, float z, int k)
@@ -894,7 +904,7 @@ public static partial class EdoBuild
                                          IList<GameObject> floorParts = null, IList<Vector2[]> faceKeepOut = null,
                                          IList<GameObject> hollowParts = null, IList<GameObject> seated = null,
                                          IList<GameObject> keepGradeBeside = null, float keepBatter = 0f, bool stairApronFrontOnly = false,
-                                         IList<Vector2[]> drawAreas = null)
+                                         IList<Vector2[]> drawAreas = null, bool solve = false)
     {
         var r = new SkinReport();
         var t = T(); var td = t.terrainData; var org = t.transform.position;
@@ -1536,6 +1546,16 @@ public static partial class EdoBuild
         // ---- 3 皮の高さ(格子の点ごと)
         // 格子の点 (gi, gj) = 地形の原点 + (gi, gj) × step。升 (i, j) の中は gi ∈ [iN, (i+1)N]。
         var H = new Dictionary<long, float>(); var O = new Dictionary<long, float>(); var PIN = new HashSet<long>(); var SUNK = new HashSet<long>();
+        // ⭐ solve: 段3〜3f(上から順に書き換える 23 の決まり)の代わりに、一点ごとの [lo, hi] と狙い y* で解く(EdoBuildSkinSolve.cs・2026-10-10 EDO-0502 施主裁定「作り直す」)。
+        //   渡さない邸(山王社・土井)は従来どおり。
+        if (solve)
+        {
+            var sctx = new SolveCtx { idx = idx, design = design, fl = fl, faceTol = faceTol, FaceY = FaceY, HoldY = HoldY, OutsideY = OutsideY, In = In, Hole = Hole, CK = CK,
+                                      ci0 = ci0, cj0 = cj0, ci1 = ci1, cj1 = cj1, N = N, step = step, org = org, probe = probe };
+            SkinHeightSolve(sctx, parts, bandSet, H, O, PIN, SUNK, ref r);
+        }
+        else
+        {
         var topCache = new Dictionary<long, float>(); var faceTop = new HashSet<long>(); var crestTop = new HashSet<long>();
         // 部材の天端(篩わない)。⭐ 天端の帯で篩う駒(crestBandParts)の**法の面**の点は faceTop に記す ──
         //   そこでは天端の下へ納める cap を**足元の面の高さより下げない**(法の足は面の下へ入るのが正しい納め・掘らない)。
@@ -2436,6 +2456,7 @@ public static partial class EdoBuild
             }
             r.backUnderLifted = nUp; r.backUnderMax = upMx;
         }
+        }   // solve でない(従来の段3〜3f)
         if (SkinTrace != null) TrDump("4 の前", H, org.x, org.z, step);
         // ---- 4 メッシュ
         var go = new GameObject(SKIN_PREFIX + name);

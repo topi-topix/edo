@@ -1,11 +1,11 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 6308cb44dac6 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 a59a360d690a -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
 
-- 公開関数 555 本(注釈なし 33)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
+- 公開関数 556 本(注釈なし 33)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
 - 同じ道具が刷る目録: 邸ビルダーのメニュー → Stage と中の関数 `docs/builder-mokuroku.md` / 部材の名 `docs/edoassets-mokuroku.md`。
 - 札: **硬** = 注釈に「硬い/許容0」・**柔** = 「柔らかい/狙い」がある(判定ではなく注釈の語)。相手の札(地面・駒どうし・天端・床・断面・面・隅・区域)も注釈の語を拾っただけ。
 - 呼んでいる所 = 定義のファイルの外で `EdoBuild.<名>(` と書いている C# ファイル(`Edo` と `Builder/Rebuild` を落とした名)と、その中の呼んでいる関数(Stage)。同じ名の多重定義はまとめて数える。`EdoBuild` の中どうしの呼び出しは載せない。
@@ -45,6 +45,7 @@
 | [EdoBuildSeiyaku.cs](#edobuildseiyakucs) | 制約の二種 — 硬い制約(関門)と柔らかい制約(狙い)を、置く側の共通の層で使い分ける(EDO-0372・施主 2026-09-23)。 | — | 1 |
 | [EdoBuildShiroIshigaki.cs](#edobuildshiroishigakics) | EdoBuild — 城の石垣の直線 run を区画の辺に沿って据える(外周の基壇・2026-10-04・EDO-0533 土井 boundaryPlinth)。 | — | 6 |
 | [EdoBuildShokusai.cs](#edobuildshokusaics) | 植栽の置き方(算出物の撒いた点を一本ずつ据える)── EDO-0533 S8 で岡部の邸ビルダー(PlantFromImpl)から移した。 | 岡部 Stage5_Nishi(PlantFromImpl)・土井 Stage8_Shokusai。 | 7 |
+| [EdoBuildSkinSolve.cs](#edobuildskinsolvecs) | 縁の皮の高さを解く — 一点ごとに許される高さの幅 [lo, hi] を出し、その中で狙いに最も近い高さを採る(EdoBuild の partial・2026-10-10・EDO-0502) | CutEdgeSkin に solve: true を渡す邸(いまは岡部 Stage3b だけ)。 | 1 |
 | [EdoBuildSueru.cs](#edobuildsuerucs) | 埋め込む駒・差し込む駒・載せる駒を据える (EdoBuild の partial・2026-09-23・EDO-0274) | 山王の前庭の井戸(板石敷・井筒+井桁・井戸屋形)。 | 16 |
 | [EdoBuildSukima.cs](#edobuildsukimacs) | EdoBuildSukima.cs — 建物と隣の構造物の間の隙のうち、通りから裏手(敷地の内側)へ抜ける物だけを柵で塞ぐ(EDO-0503)。 | 類型ビルダーの町屋の囲い(表店の列の端・角・後ろの棟との間)── 町屋の全区画。 | 1 |
 | [EdoBuildTojiru.cs](#edobuildtojirucs) | 外周の閉じを、建っている駒の実メッシュで測る(EDO-0502 第29巡・2026-10-06) | — | 1 |
@@ -229,7 +230,7 @@ EdoBuild — 段の土留め(石垣・野面)を天端の折れ線へ据える(2
 | `EdoBuild.FLOOR_REACH` | `float` | 天端・床 | FloorTris が床の天端を探す、面の高さからの幅[m]。 | — |
 | `EdoBuild.SkinTrace` | `List<Vector2>` |  | 皮の高さの追跡(診断・2026-10-07 EDO-0502 第42巡): 点を入れると CutEdgeSkin が、その点に最も近い格子の点の高さを段ごとに SkinTraceLog へ刷る(どの段が皮を下げ・上げたか… | — |
 | `EdoBuild.SkinTraceLog` | `System.Text.StringBuilder` |  | ⚠ 注釈なし | — |
-| `EdoBuild.CutEdgeSkin(name, parent, parts, faces, faceTol, step=…, margin=…, eps=…, under=…, design=…, drawTol=…, backfill=…, sealFace=…, digParts=…, digUnder=…, digBatter=…, crestBandParts=…, plantPoints=…, floorParts=…, faceKeepOut=…, hollowParts=…, seated=…, keepGradeBeside=…, keepBatter=…, stairApronFrontOnly=…, drawAreas=…)` | `SkinReport` |  | ⚠ 注釈なし | DoiBuilder.Hifu(Stage4b_Hifu), OkabeYashiki(Stage3b_Hifu), SannoSha(Stage9_Hifu) |
+| `EdoBuild.CutEdgeSkin(name, parent, parts, faces, faceTol, step=…, margin=…, eps=…, under=…, design=…, drawTol=…, backfill=…, sealFace=…, digParts=…, digUnder=…, digBatter=…, crestBandParts=…, plantPoints=…, floorParts=…, faceKeepOut=…, hollowParts=…, seated=…, keepGradeBeside=…, keepBatter=…, stairApronFrontOnly=…, drawAreas=…, solve=…)` | `SkinReport` |  | ⚠ 注釈なし | DoiBuilder.Hifu(Stage4b_Hifu), OkabeYashiki(Stage3b_Hifu), SannoSha(Stage9_Hifu) |
 | `EdoBuild.MeasureSkinContact(parts, samples=…, crestBandParts=…, crestCover=…)` | `SkinReport` |  | 皮と部材の取り合いを測り直す(皮を起こし直さずに)。 | — |
 | `EdoBuild.SEAT_TOL` | `float` | 地面・床 | 据わりの守りで「地面に触れていた」と読む頂点の高さの上限(元の地形からの浮き)[m]。 | — |
 | `EdoBuild.SeatedUnder(root, exclude)` | `List<GameObject>` |  | 据わりの守りに渡す駒を集める(CutEdgeSkin の seated)── root の下の 生きた MeshFilter の持ち主すべて。 | DoiBuilder.Hifu(Stage4b_Hifu) |
@@ -933,6 +934,17 @@ EdoBuild — 城の石垣の直線 run を区画の辺に沿って据える(外�
 | `EdoBuild.PlantAtPoint(path, trunkXZ, wantH, tiltDeg, tiltDirWorld, layer, parent, name, drawn, seated, bury, flt, refused, buryMax=…, floatMax=…)` | `GameObject` | 硬 地面 | 算出物の撒いた点に一本据える。仮置き → 丈を `wantH` へ(一様の倍率・`wantH` ≤ 0.1 なら素の丈)→ 傾け(`tiltDeg`・世界 xz の向き `tiltDirWorld`)→ 幹の足を点へ寄せ… | DoiBuilder.Shokusai(Stage8_Shokusai), MatsudairaDewaBuilder.Niwa(Stage7b_NiwaFromScatter), OkabeYashiki(PlantFromImpl) |
 | `EdoBuild.PlantAtPoint(path, trunkXZ, wantH, tiltDeg, tiltDirWorld, layer, parent, name, drawn, seated, bury, flt, buryMax=…, floatMax=…)` | `GameObject` |  | 旧の形(seated だけ返す)。据わらない木は建てない(null)── 部材が引けない null と分けるなら refused を返す形を使う。 | DoiBuilder.Shokusai(Stage8_Shokusai), MatsudairaDewaBuilder.Niwa(Stage7b_NiwaFromScatter), OkabeYashiki(PlantFromImpl) |
 | `EdoBuild.PlantTrunkDiameter(host, y0, y1)` | `float` |  | 据えた木の幹径[m]。根元の少し上(`y0`〜`y1` m)の帯で、幹の芯からの半径の非ゼロの 25 分位を 2 倍する。 | OkabeYashiki(TrunkDiameter) |
+
+## EdoBuildSkinSolve.cs
+
+縁の皮の高さを解く — 一点ごとに許される高さの幅 [lo, hi] を出し、その中で狙いに最も近い高さを採る(EdoBuild の partial・2026-10-10・EDO-0502)
+
+| 関数 | 返す | 札 | 何をするか(注釈の一文目) | 呼んでいる所 |
+|---|---|---|---|---|
+| `EdoBuild.SkinSolveLog` | `string` |  | 直近の SkinHeightSolve の報告(件数・矛盾の上位)。 | — |
+| `EdoBuild.SkinSolveTrace` | `List<Vector2>` |  | 診断: 点を入れると、その点に最も近い格子の点の y*・[lo, hi]・決まりの名を SkinSolveTraceLog へ刷る(null なら何もしない)。 | — |
+| `EdoBuild.SkinSolveTraceLog` | `System.Text.StringBuilder` |  | ⚠ 注釈なし | — |
+| `EdoBuild.SkinSolveProbe(parts, band, pts)` | `string` | 天端 | 診断: 駒 parts(帯で篩う駒 band)の縦の線の当たり(持ち主・高さ・法線 y)と天端の帯の判定を点ごとに刷る。 | — |
 
 ## EdoBuildSueru.cs
 

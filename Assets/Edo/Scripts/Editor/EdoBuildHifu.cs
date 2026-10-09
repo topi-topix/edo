@@ -88,6 +88,8 @@ public static partial class EdoBuild
         public Dictionary<GameObject, float> buryLo;
         /// <summary>端の駒を埋める土の狙い(駒 → 天端 + 狙い【柔】)と、埋める土と重なる天端の前の帯の天井を緩める上限[m](指図 sodeSlope 追記 2026-10-10e【硬】)。</summary>
         public Dictionary<GameObject, float> buryAim; public float ceilRelax;
+        /// <summary>埋める土が隣の駒の見え面の根元を被ってよい高さ[m](前の地表 + これまで ── 指図 sodeSlope 追記 2026-10-10f【硬】)。0 なら無し。</summary>
+        public float buryFaceCover;
         /// <summary>盛りの縁の法 1:n(指図 const.fillEdgeSlope「1:n より急にしない」【硬】)。NaN なら掛けない。</summary>
         public float fillSlope = float.NaN;
     }

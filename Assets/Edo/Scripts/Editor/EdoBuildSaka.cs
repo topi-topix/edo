@@ -425,7 +425,11 @@ public static partial class EdoBuild
         /// <summary>真なら b の端の先(走りの外)へ盛らず、端の手前で 1:bf で回して下ろす ── 盛りの法尻が b の端の線に来る【硬】(指図 TW_Minami_Koshi.returnEnd 追記
         /// 2026-10-07「端の手前で妻の外の法へ 1:1.5 で回して下ろし、法尻は長屋の背と妻から一間の外・口へ入れない」・EDO-0502 第45巡)。
         /// 当たる先: 返しの終わりを積み止めで終える run(岡部 TW_Minami_Koshi#ret)。</summary>
-        public bool tuckB; }
+        public bool tuckB;
+        /// <summary>真なら切りの上限 maxCut を**小段の上だけ**に当て、小段の先の 1:bf の法は上限なしで地山に交わるまで切る【硬】── 法は小段の縁の
+        /// (上限で頭打ちした)高さから上がる(指図 TW_Kado_Shumen.sideEnd 追記 2026-10-10b「切りの上限 0.7 は小段だけに当て、超える分は擦り付けで受ける」・EDO-0502 第81巡)。
+        /// 当たる先: 背の地山が高い延長の背の小段(岡部 TW_Kado_Shumen の sideEnd)。</summary>
+        public bool cutBenchOnly; }
 
     /// <summary>**土留めの見え面の前の帯**(線 a→b・背 back の逆の側へ depth まで・走りの両端は線の内)に点 p が入るか。
     /// 当たる先: <see cref="BackBench.keepOut"/> ── 小段の裏込めの端の法(1:bf)が、隣の土留めの見え面の前へ回り込んで土の箱を立てない
@@ -459,7 +463,17 @@ public static partial class EdoBuild
         if (k.maxCut > 0f)
         {   // 切り: 小段 + 1:bf の法(上へ)より高い今の地盤を切る ── 切りの上限は設計面から(硬)
             float hi = benchY + hh / k.bf;
-            if (cur > hi) return Mathf.Min(cur, Mathf.Max(hi, b0 - k.maxCut));
+            if (cur > hi)
+            {
+                if (k.cutBenchOnly && (dn > k.w || dEnd > 0f))
+                {   // 小段の先: 小段の縁(上限で頭打ちした高さ)から 1:bf で上がる法 ── 上限なしで地山まで(超える分は法で受ける)
+                    Vector2 pe = k.a + t * Mathf.Clamp(sAl, 0f, L) + k.back * Mathf.Min(dn, k.w);
+                    float be = k.baseAt != null ? k.baseAt(pe) : float.NaN; float edgeY = benchY;
+                    if (!float.IsNaN(be)) edgeY = Mathf.Max(benchY, be - k.maxCut);
+                    return Mathf.Min(cur, edgeY + hh / k.bf);
+                }
+                return Mathf.Min(cur, Mathf.Max(hi, b0 - k.maxCut));
+            }
         }
         if (k.tuckB) target = Mathf.Min(target, b0 + (L - sAl) / k.bf);   // 法尻 = b の端の線(設計面から 1:bf で上がる)
         if (target <= cur) return cur;
@@ -616,7 +630,7 @@ public static partial class EdoBuild
         float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue, reach = 0f;
         foreach (var k in ks)
         {
-            reach = Mathf.Max(reach, k.w + k.bf * (Mathf.Max(k.maxFill, k.maxCut) + 1f) + 2f * cell);
+            reach = Mathf.Max(reach, k.w + k.bf * (Mathf.Max(k.maxFill, k.maxCut) + (k.cutBenchOnly ? 6f : 1f)) + 2f * cell);   // 小段の先を上限なしで切る法は地山の起伏 6m まで届かせる
             foreach (var q in new[] { k.a, k.b }) { mnx = Mathf.Min(mnx, q.x); mxx = Mathf.Max(mxx, q.x); mnz = Mathf.Min(mnz, q.y); mxz = Mathf.Max(mxz, q.y); }
         }
         int x0 = Mathf.Clamp(Mathf.FloorToInt((mnx - reach - tp.x) / cell), 0, hres - 1), z0 = Mathf.Clamp(Mathf.FloorToInt((mnz - reach - tp.z) / cell), 0, hres - 1);

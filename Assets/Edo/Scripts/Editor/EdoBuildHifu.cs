@@ -127,6 +127,8 @@ public static partial class EdoBuild
         /// ⭐ 写真 r66 の 01・02・12 の縦の土の帯: 返しの背の法が隅の稜を回り込み、出隅の見え面の 0.2〜0.3 前に土が立っていた(kado11)。当たる先: 野面の出隅の駒すべて(岡部 Dan)。</summary>
         public bool kadoFront; public float kadoBand = 0.6f;
         public readonly HashSet<GameObject> kadoSet = new HashSet<GameObject>();
+        /// <summary>見え面の前を下げる下限(駒ごと・世界 y)。指図が「〜まで下げる」と高さを名指す駒だけ(岡部 sideEnd 追記 2026-10-10b「16.50 まで」・第81巡)。</summary>
+        public readonly Dictionary<GameObject, float> kadoFloor = new Dictionary<GameObject, float>();
         /// <summary>隅の駒の底(最も低い頂点)── 見え面の前の皮を下げても底より下へは下げない(⛔ 駒の下に隙を作らない・根入れの土を残す)。</summary>
         public readonly Dictionary<GameObject, float> bottomOf = new Dictionary<GameObject, float>();
         /// <summary>q が go 以外の覆う駒の外形の中か縁 d 以内(⛔ 隣の駒の背・下の皮を下げない)。</summary>
@@ -2321,6 +2323,7 @@ public static partial class EdoBuild
                             { var qf = q3 + kfb[fi].f * (fu0 - Vector2.Dot(q3, kfb[fi].f) + 0.6f); g = tr0.SampleHeight(new Vector3(qf.x, 0f, qf.y)) + tr0.transform.position.y; }
                         }
                         if (float.IsNaN(g)) continue;
+                        { float kf; if (ccv.kadoFloor.TryGetValue(kfb[fi].go, out kf)) g = Mathf.Max(g, kf); }   // 指図が名指す高さより下げない
                         float c = g;
                         // ⭐ 第69巡(硬): 外形の中の節点は**見え面の平面の後ろ**へ ── 平面の高さを一格子(対角)前で測り −0.02(外の前の地表の節点との三角形も平面の後ろに収まる)。
                         //   前の地表より下げない(根入れの土)。どの駒の天端の帯の節点でも、別の面の平面より前なら同じく抑える(隅の稜で帯が隣の面の前へ立つ縦の帯 ── r68 の 01・12)。
@@ -3325,6 +3328,58 @@ public static partial class EdoBuild
     }
 
     /// <summary>描かれた地表の掴みを作る(<see cref="DrawnGround"/>)。</summary>
+    /// <summary>**皮に覆われない穴の升を閉じる**(硬・穴 0 ── EDO-0502 第81巡)。区画 <paramref name="poly"/> の内の地形の穴の升のうち、升の芯が
+    /// 皮(<paramref name="skinRoot"/> の下の MeshFilter)のどの三角形にも XZ で入らない物を閉じる(地形を見せる)。⛔ 第79〜80巡: 岡部 門の内の
+    /// N39_0 の前(-455〜-443, 1077〜1083)ほか 74 升が穴のまま皮が無く、空(灰色の平らな面)が見えた。閉じた升の数と、地形の高さが周りの皮と
+    /// 0.05 を超えて違う升の数(閉じても段が見える所 ── 地形の側の直しが要る)を返す。当たる先: 皮を張る邸すべて(CutEdgeSkin の後に呼ぶ)。</summary>
+    public static string CloseUncoveredHoles(Transform skinRoot, Vector2[] poly)
+    {
+        var t = T(); var td = t.terrainData; int res = td.holesResolution; float cs = td.size.x / res; var tp = t.transform.position;
+        float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue; foreach (var p in poly) { mnx = Mathf.Min(mnx, p.x); mxx = Mathf.Max(mxx, p.x); mnz = Mathf.Min(mnz, p.y); mxz = Mathf.Max(mxz, p.y); }
+        int x0 = Mathf.Clamp(Mathf.FloorToInt((mnx - tp.x) / cs) - 1, 0, res - 1), z0 = Mathf.Clamp(Mathf.FloorToInt((mnz - tp.z) / cs) - 1, 0, res - 1);
+        int x1 = Mathf.Clamp(Mathf.CeilToInt((mxx - tp.x) / cs) + 1, 0, res - 1), z1 = Mathf.Clamp(Mathf.CeilToInt((mxz - tp.z) / cs) + 1, 0, res - 1);
+        int w = x1 - x0 + 1, h = z1 - z0 + 1; if (w <= 0 || h <= 0) return "穴の検め: 範囲なし";
+        // ⚠ GetHoles は正方でない範囲で寸法を偽る(中身は [z,x])── 正方に揃える(棟梁の memory: terrain-detail-array-dims-lie)
+        { int n = Mathf.Max(w, h); x0 = Mathf.Min(x0, res - n); z0 = Mathf.Min(z0, res - n); x0 = Mathf.Max(0, x0); z0 = Mathf.Max(0, z0); w = h = Mathf.Min(n, res); x1 = x0 + w - 1; z1 = z0 + h - 1; }
+        var cov = new bool[w * h]; var ySkin = new float[w * h];
+        if (skinRoot != null)
+            foreach (var mf in skinRoot.GetComponentsInChildren<MeshFilter>())
+            {
+                if (mf.sharedMesh == null) continue; var M = mf.transform.localToWorldMatrix; var V = mf.sharedMesh.vertices; var Tr = mf.sharedMesh.triangles;
+                var W = new Vector3[V.Length]; for (int i = 0; i < V.Length; i++) W[i] = M.MultiplyPoint3x4(V[i]);
+                for (int k = 0; k + 2 < Tr.Length; k += 3)
+                {
+                    Vector3 a = W[Tr[k]], b = W[Tr[k + 1]], c = W[Tr[k + 2]];
+                    int ia = Mathf.FloorToInt((Mathf.Min(a.x, Mathf.Min(b.x, c.x)) - tp.x) / cs - 0.5f), ib = Mathf.CeilToInt((Mathf.Max(a.x, Mathf.Max(b.x, c.x)) - tp.x) / cs - 0.5f);
+                    int ja = Mathf.FloorToInt((Mathf.Min(a.z, Mathf.Min(b.z, c.z)) - tp.z) / cs - 0.5f), jb = Mathf.CeilToInt((Mathf.Max(a.z, Mathf.Max(b.z, c.z)) - tp.z) / cs - 0.5f);
+                    for (int j = Mathf.Max(ja, z0); j <= Mathf.Min(jb, z1); j++)
+                        for (int i = Mathf.Max(ia, x0); i <= Mathf.Min(ib, x1); i++)
+                        {
+                            float px = tp.x + (i + 0.5f) * cs, pz = tp.z + (j + 0.5f) * cs;
+                            float d = (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z); if (Mathf.Abs(d) < 1e-9f) continue;
+                            float l1 = ((b.z - c.z) * (px - c.x) + (c.x - b.x) * (pz - c.z)) / d, l2 = ((c.z - a.z) * (px - c.x) + (a.x - c.x) * (pz - c.z)) / d, l3 = 1f - l1 - l2;
+                            if (l1 < -1e-4f || l2 < -1e-4f || l3 < -1e-4f) continue;
+                            int idx = (j - z0) * w + (i - x0); cov[idx] = true; ySkin[idx] = l1 * a.y + l2 * b.y + l3 * c.y;
+                        }
+                }
+            }
+        var H = td.GetHoles(x0, z0, w, h); int closed = 0, step = 0; float stepMax = 0f; Vector2 stepAt = Vector2.zero; var at = new List<string>();
+        for (int j = 0; j < h; j++)
+            for (int i = 0; i < w; i++)
+            {
+                if (H[j, i]) continue;   // 穴でない(true = 地形あり)
+                float px = tp.x + (x0 + i + 0.5f) * cs, pz = tp.z + (z0 + j + 0.5f) * cs; if (!EdoGeom.PIP(poly, new Vector2(px, pz))) continue;
+                if (cov[j * w + i]) continue;
+                H[j, i] = true; closed++; if (at.Count < 6) at.Add("(" + px.ToString("F0") + "," + pz.ToString("F0") + ")");
+                // 周りの皮との段(閉じた地形の高さ − 隣の覆われた升の皮の高さ)
+                float gy = Ground(px, pz), dmax = 0f;
+                for (int dj = -1; dj <= 1; dj++) for (int di = -1; di <= 1; di++) { int ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= w || jj >= h || !cov[jj * w + ii]) continue; dmax = Mathf.Max(dmax, Mathf.Abs(gy - ySkin[jj * w + ii])); }
+                if (dmax > 0.05f) { step++; if (dmax > stepMax) { stepMax = dmax; stepAt = new Vector2(px, pz); } }
+            }
+        if (closed > 0) { td.SetHoles(x0, z0, H); UnityEditor.EditorUtility.SetDirty(td); }
+        return "皮に覆われない穴の升を閉じた " + closed + (at.Count > 0 ? "(" + string.Join(" ", at.ToArray()) + "…)" : "") + "・閉じた地形が隣の皮と 0.05 を超えて違う升 " + step + (step > 0 ? "(最大 " + stepMax.ToString("F2") + " @(" + stepAt.x.ToString("F0") + "," + stepAt.y.ToString("F0") + "))" : "") + "【硬 穴 0】";
+    }
+
     public static DrawnGround Drawn() { return new DrawnGround(T()); }
     /// <summary>**皮を外している間も、外す前の皮を描かれた地表として読む掴み**(2026-09-26・EDO-0437 第11巡)。土留めの Stage は頭で縁の皮を外し
     /// (<see cref="ClearEdgeSkins"/>・穴を塞ぐ)、最後の Stage で皮を起こし直す ── その間の <see cref="Drawn"/> は穴の下に残る造成前の地形を返し、

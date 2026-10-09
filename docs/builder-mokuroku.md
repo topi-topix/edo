@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 92・関数 841(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 92・関数 847(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -25,7 +25,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoDoiBuilder.cs](#edodoibuildercs) | 土井大隅守上屋敷(三河刈谷藩2万3千石・譜代・雁間)ビルダー。 | 15 | 89 |
 | [EdoMatsudairaDewaBuilder.Niwa.cs](#edomatsudairadewabuilderniwacs) | 松平出羽守上屋敷 — 庭の工程(池・築山・水の系・石組・点景・滝見口)。 | 9 | 30 |
 | [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 16 | 120 |
-| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 19 | 158 |
+| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 19 | 164 |
 | [EdoSannoShaBuilder.cs](#edosannoshabuildercs) | 山王権現社(日枝神社)本体+樹下家邸+山王門前町ビルダー (2026-08-11。観理院は 2026-09-26 に類型へ移し削除) | 1 | 31 |
 | [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 13 | 102 |
 | [EdoSanyashikiRebuild.cs](#edosanyashikirebuildcs) | 三屋敷(太田・加納・鍋島=松平肥前守)の区画を下書きv3へ更新 (2026-08-08) | 0 | 6 |
@@ -625,7 +625,13 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `FlatFacesOf(buried, sb)` | `List<EdoBuild.FlatFace>` |  | 指図 terraces[].flat を皮の平らな面(EdoBuild.FlatFace)へ ── 面は y・外れ ±e【硬】・例外は欄の文(小口を被せる土 = 埋める駒から 0.8 以内・ Higashi_Fall へ… |
 | `FaceFootHulls(poly)` | `List<Vector2[]>` |  | 面の縁の帯を受ける部材 = 野面の石垣の駒(Dan)と石段の段石(名 K_)の外形 ── 面の輪郭から 8m 以内の物(第75巡・指図 flat 追記 2026-10-09g「石垣・石段の見え面の足元」)。 |
 | `S2F(faceName)` | `float` |  | 面の名 → 高さ(terraces[].y)。 |
-| `PlaceBackGutters()` | `string` |  | 棟の背の雨落ちの浅い石組の溝(指図 terraces[].flat 追記 2026-10-10a「&lt;棟&gt; の背の雨落ちは y の面の上に浅い石組の溝(幅 w・深さ d まで【柔】)で受け、 長手に 1/n で… |
+| `OmoteGesuiPlan()` | `GesuiPlan` |  | — |
+| `PlaceOmoteGesui()` | `string` |  | 表門脇の下水を据える(指図 omoteGesui【硬】出口は入口より低く区画の外へ落とす・塀をくぐる所だけ暗渠)。 |
+| `PlaceOmoteGesuiLay(headBottom)` | `string` |  | — |
+| `MizoAByDepth(need, topAbove)` | `string` |  | DoiMizo 型 A のうち実測の深さ ≤ need + topAbove の最も深い駒(第80巡: 名の深さで選ぶと縁 0.02 の分だけ天端が浮いて落ちた)。 |
+| `FaceYAt(faces, q, skipPrefix)` | `float` |  | 点 q を含む面のうち面積の最も小さい物の高さ(皮と同じ選び方)。 |
+| `PlaceBackGutters()` | `string` |  | — |
+| `SideEndSlopeHits(ks)` | `string` |  | 袖の坂(指図 terraceWalls[].sodeSlope・普請方の設計 2026-10-07・EDO-0502 第41〜42巡)── 袖の天端を段にせず、背の法 + off の坂の一続きの線にする (上端 cap… |
 | `SodeSlopeSegs(key, nodes, txt, nozSegs, chk, landOut=…, coverOut=…, skipOwnLanding=…, sinkEndOverride=…, endGrades=…, endReach=…)` | `string` |  | — |
 | `StairSideAndEndBacks(res, note, depth, rx)` | `void` |  | 石段の脇の返しの背(指図 kaidans[].sideBack)と、段の土留めの両端の延長の背(指図 terraceWalls[].endsBack)の小段 (EDO-0502 第60巡・普請方の設計 5d33ffe5… |
 | `SodeBenches(note)` | `Dictionary<string, List<KeyValuePair<int, EdoBuild.BackBench>>>` |  | — |

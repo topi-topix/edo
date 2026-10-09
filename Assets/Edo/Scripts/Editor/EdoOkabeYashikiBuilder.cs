@@ -3901,6 +3901,14 @@ public static class EdoOkabeYashikiBuilder
                 else { cc.front = fr2; cc.capDrop = cd2; cc.rise = rs2; cc.minSoil = mn2; fr = fr2; sb.AppendLine("  天端の裏石の帯 言い直し 2026-10-09b: 見え面から " + fr2.ToString("F2") + " より前は天端 −" + cd2.ToString("F2") + " 以下【硬】(見え面の上は真下の石 −" + cd2.ToString("F2") + ")・" + fr2.ToString("F2") + "〜" + bk.ToString("F2") + " は +" + rs2.ToString("F2") + "(≥ +" + mn2.ToString("F2") + "【硬】)"); }
             }
         }
+        // 指図 terraceWalls[].kadoFace(普請方 2026-10-09・第67巡)「隅の駒の見え面より前に皮を被せない【硬】(根入れの土は除く)・被った土は前の地表まで下げる」
+        //   ⇒ 全ての野面の隅の駒に効かせる(EdoBuild.NozuraCrestCover.kadoFront)。⛔ 文が読めなければ ★ で効かせない。
+        foreach (var o2 in A(Get(D, "terraceWalls")) ?? new List<object>())
+        {
+            var t2 = O(o2); string kf = t2 == null ? null : S(Get(t2, "kadoFace")); if (kf == null) continue;
+            if (kf.Contains("見え面より前に皮を被せない") && kf.Contains("前の地表")) { cc.kadoFront = true; sb.AppendLine("  隅の駒の見え面の前(kadoFace・" + S(Get(t2, "name")) + "): 見え面より前の皮を前の地表まで下げる【硬】── 全ての野面の隅の駒へ"); }
+            else sb.AppendLine("  ★ kadoFace(" + S(Get(t2, "name")) + "): 指図から読めない ── 効かせない");
+        }
         int nk = 0;
         foreach (Transform c in Group("Dan"))
         {
@@ -4022,6 +4030,11 @@ public static class EdoOkabeYashikiBuilder
                     cDrop = rc(@"1駒で\s*([0-9.]+)\s*下ろす"); cTo = rc(@"から\s*([0-9.]+)\s*まで連続で下ろす");
                     cLand = rc(@"出隅の踊り場は\s*[0-9.]+\s*から\s*([0-9.]+)\s*へ上げる"); cLandFill = rc(@"踊り場の背の盛りの上限は区画の内に限り\s*([0-9.]+)");
                     if (float.IsNaN(cTo) || float.IsNaN(cLand) || float.IsNaN(cLandFill)) { sb.AppendLine("  ★ " + key + " sodeSlope 追記 2026-10-09c: 指図から読めない(下ろす先・踊り場の高さ・踊り場の盛りの上限)── 旧のまま"); cDrop = cTo = cLand = cLandFill = float.NaN; }
+                    // 追記 2026-10-09d(第67巡): 踊り場の背の盛りの上限(区画の内)を上書き
+                    int i9d = txt.IndexOf("追記 2026-10-09d");
+                    if (i9d >= 0 && !float.IsNaN(cLandFill))
+                    { var md = System.Text.RegularExpressions.Regex.Match(txt.Substring(i9d), @"踊り場の背の盛りの上限は区画の内に限り\s*[0-9.]+\s*→\s*([0-9.]+)");
+                      if (md.Success) cLandFill = float.Parse(md.Groups[1].Value, inv); else sb.AppendLine("  ★ " + key + " sodeSlope 追記 2026-10-09d: 指図から読めない(踊り場の盛りの上限)── 旧のまま"); }
                 }
             }
         }

@@ -113,6 +113,35 @@ public static partial class EdoBuild
         public readonly List<PieceFaces> pieceFaces = new List<PieceFaces>();
         readonly List<GameObject> pieceGo = new List<GameObject>();
         const float BIN = 0.1f;
+        /// <summary>**隅の駒の見え面の前に皮を被せない**(指図 terraceWalls[].kadoFace・普請方 2026-10-09・EDO-0502 第67巡)【硬】。true なら
+        /// <see cref="CutEdgeSkin"/> の 3f の後に、隅の駒(<see cref="kadoSet"/>)の見え面の前(前の縁より前・外形の中か外形から kadoBand 以内)の皮の節点を
+        /// 「前の地表」(同じ帯の 0.25〜1.0 前・隣の駒の外の皮の節点の最も低い高さ・駒の底 +0.05 より下げない)まで下げる。外形の中(法の見え面の上)は真下の石の面 − capDrop まで(根入れの土は前の地表より下げない)。
+        /// ⭐ 写真 r66 の 01・02・12 の縦の土の帯: 返しの背の法が隅の稜を回り込み、出隅の見え面の 0.2〜0.3 前に土が立っていた(kado11)。当たる先: 野面の出隅の駒すべて(岡部 Dan)。</summary>
+        public bool kadoFront; public float kadoBand = 0.6f;
+        public readonly HashSet<GameObject> kadoSet = new HashSet<GameObject>();
+        /// <summary>隅の駒の底(最も低い頂点)── 見え面の前の皮を下げても底より下へは下げない(⛔ 駒の下に隙を作らない・根入れの土を残す)。</summary>
+        public readonly Dictionary<GameObject, float> bottomOf = new Dictionary<GameObject, float>();
+        /// <summary>q が go 以外の覆う駒の外形の中か縁 d 以内(⛔ 隣の駒の背・下の皮を下げない)。</summary>
+        public bool NearOtherPiece(Vector2 q, GameObject go, float d)
+        {
+            for (int i = 0; i < pieceFaces.Count; i++)
+            {
+                if (pieceGo[i] == go) continue; var pf = pieceFaces[i];
+                if (q.x < pf.box.x - d || q.x > pf.box.z + d || q.y < pf.box.y - d || q.y > pf.box.w + d) continue;
+                if (EdoGeom.PIP(pf.hull, q) || EdgeDist(pf.hull, q) < d) return true;
+            }
+            return false;
+        }
+        /// <summary>帯 fb の走りの割り b と、前の縁からの奥行 d(前の縁 − q・正 = 背の側)。帯の外なら false。</summary>
+        public bool FaceAt(FaceBins fb, Vector2 q, out int b, out float d)
+        {
+            d = float.NaN; b = -1;
+            if (q.x < fb.box.x || q.x > fb.box.z || q.y < fb.box.y || q.y > fb.box.w) return false;
+            b = Mathf.FloorToInt((Vector2.Dot(q, fb.t) - fb.a0) / BIN); if (b < 0 || b >= fb.crest.Length || float.IsNaN(fb.frontU[b])) return false;
+            d = fb.frontU[b] - Vector2.Dot(q, fb.f); return true;
+        }
+        /// <summary>駒の外形(凸包)。無ければ null。</summary>
+        public Vector2[] HullOf(GameObject go) { int i = pieceGo.IndexOf(go); return i < 0 ? null : pieceFaces[i].hull; }
 
         /// <summary>駒を足す(見え面は <see cref="WallFace"/>・隅の駒は <see cref="KadoFaces"/> の二面)。</summary>
         public void Add(GameObject go, bool kado)
@@ -122,6 +151,7 @@ public static partial class EdoBuild
             if (kado) { Vector2 f1, f2; KadoFaces(go, out f1, out f2); if (f1 != Vector2.zero) fs.Add(f1.normalized); if (f2 != Vector2.zero) fs.Add(f2.normalized); }
             else { var f = WallFace(go); if (f != Vector2.zero) fs.Add(f.normalized); }
             if (fs.Count == 0) return; pieces++; pieceSet.Add(go);
+            if (kado) { kadoSet.Add(go); float yb = float.MaxValue; foreach (var v in vs) yb = Mathf.Min(yb, v.y); bottomOf[go] = yb; }
             // 隅の駒は頂点を近い方の見え面の腕へ分ける(⛔ 分けないと片方の腕の帯にもう一方の腕の石が入り、表の石の上を帯と読む)
             var own = new List<Vector3>[fs.Count];
             if (fs.Count == 1) own[0] = vs;
@@ -290,7 +320,8 @@ public static partial class EdoBuild
         public int plantOnHole;
         public int stairFaced;
         public int holdRaised; public float holdRaisedMax;   // 3e 盛った土を最後に効かせた節点の数と最大の上げ
-        public int crestCovered; public float crestCoverMax; public int crestCapped; public float crestCapMax;   // 3f 野面の天端の裏石の帯を覆った皮の節点の数と最大の上げ(SkinDesign.crestCover)
+        public int crestCovered; public float crestCoverMax; public int crestCapped; public float crestCapMax;
+        public int kadoFrontLowered; public float kadoFrontMax; public Vector3 kadoFrontAt;   // 隅の駒の見え面の前の皮を前の地表へ下げた節点(指図 kadoFace)   // 3f 野面の天端の裏石の帯を覆った皮の節点の数と最大の上げ(SkinDesign.crestCover)
         public int verts, tris, pinned, faced, clamped, under, floored, designed, sloped, filled, fillLostTree;
         public float fillMax; public Vector3 fillAt;
         public float maxLower, maxRaise; public Vector3 lowerAt, raiseAt;
@@ -334,7 +365,7 @@ public static partial class EdoBuild
                    "・既に穴で触らず " + skipHole + "・地形の木が立つので開けず " + skipTree + "・植栽の点が立つので開けず " + skipPlant + ")" +
                    (plantOnHole > 0 ? " ⛔ 穴の上の植栽の点 " + plantOnHole : "") +
                    " / 皮 頂点 " + verts + "・三角 " + tris + "(縁の点 " + pinned + " は地形のまま)" +
-                   " / 面の高さへ " + faced + " 点(うち石段の外形の中と前 " + stairFaced + ")" + (holdRaised > 0 ? "・盛った土を最後に効かせた " + holdRaised + " 点(最大 +" + holdRaisedMax.ToString("F2") + ")" : "") + (crestCovered > 0 ? "・野面の天端の裏石の帯を覆った " + crestCovered + " 点(最大 +" + crestCoverMax.ToString("F2") + ")" : "") + (crestCapped > 0 ? "・表の石と見え面の上の天井へ下げた " + crestCapped + " 点(最大 −" + crestCapMax.ToString("F2") + ")" : "") + "・面の外は設計の地盤へ " + designed + " 点(うち縁から法で受けた " + sloped + ")" +
+                   " / 面の高さへ " + faced + " 点(うち石段の外形の中と前 " + stairFaced + ")" + (holdRaised > 0 ? "・盛った土を最後に効かせた " + holdRaised + " 点(最大 +" + holdRaisedMax.ToString("F2") + ")" : "") + (crestCovered > 0 ? "・野面の天端の裏石の帯を覆った " + crestCovered + " 点(最大 +" + crestCoverMax.ToString("F2") + ")" : "") + (crestCapped > 0 ? "・表の石と見え面の上の天井へ下げた " + crestCapped + " 点(最大 −" + crestCapMax.ToString("F2") + ")" : "") + (kadoFrontLowered > 0 ? "・隅の駒の見え面の前を前の地表へ下げた " + kadoFrontLowered + " 点(最大 −" + kadoFrontMax.ToString("F2") + " @(" + kadoFrontAt.x.ToString("F1") + ", " + kadoFrontAt.z.ToString("F1") + "))" : "") + "・面の外は設計の地盤へ " + designed + " 点(うち縁から法で受けた " + sloped + ")" +
                    " / 部材の天端の下へ " + clamped + " 点(うち真下 " + under + "・隣の底で止めた " + floored + ")" +
                    " / 裏込め(部材の底まで盛る)" + filled + " 点・最大 " + fillMax.ToString("F2") + "m @(" + fillAt.x.ToString("F1") + ", " + fillAt.z.ToString("F1") + ")" +
                    "・地形の木の升は穴を開けず被せた " + fillLostTree + " 升" +
@@ -2197,6 +2228,47 @@ public static partial class EdoBuild
                 if (y1 > y0 + 1e-4f) { rmx = Mathf.Max(rmx, y1 - y0); H[kk] = y1; raised++; }
             }
             r.crestCovered = raised; r.crestCoverMax = rmx; r.crestCapped = capped; r.crestCapMax = cmx;
+            // ⭐ 隅の駒の見え面の前に皮を被せない(指図 kadoFace【硬】・EDO-0502 第67巡)── NozuraCrestCover.kadoFront の注釈
+            if (ccv.kadoFront && !float.IsNaN(ccv.capDrop))
+            {
+                var kfb = new List<NozuraCrestCover.FaceBins>(); var kh = new List<Vector2[]>();
+                foreach (var fb in ccv.list) if (fb.go != null && ccv.kadoSet.Contains(fb.go)) { var hl = ccv.HullOf(fb.go); if (hl != null) { kfb.Add(fb); kh.Add(hl); } }
+                var gF = new Dictionary<long, float>();   // (帯, 割り) → 前の地表(前の 0.25〜2.5 の節点の最も低い高さ)
+                foreach (var kk in keys)
+                {
+                    int gi = (int)(kk >> 32), gj = (int)(uint)(kk & 0xffffffff); var q3 = new Vector2(org.x + gi * step, org.z + gj * step);
+                    for (int fi = 0; fi < kfb.Count; fi++)
+                    {
+                        int b; float d; if (!ccv.FaceAt(kfb[fi], q3, out b, out d) || d >= 0f) continue;
+                        if (EdoGeom.PIP(kh[fi], q3)) continue; float ed = EdgeDist(kh[fi], q3); if (ed < 0.25f || ed > 1.0f) continue;
+                        if (ccv.NearOtherPiece(q3, kfb[fi].go, 0.2f)) continue;
+                        if (ccv.otherPart != null && ccv.otherPart(q3)) continue;
+                        long gk = ((long)fi << 20) | (long)b; float y = H0c[kk], o; if (!gF.TryGetValue(gk, out o) || y < o) gF[gk] = y;
+                    }
+                }
+                int kLow = 0; float kMx = 0f; Vector3 kAt = Vector3.zero;
+                foreach (var kk in keys)
+                {
+                    if (PIN.Contains(kk)) continue;
+                    int gi = (int)(kk >> 32), gj = (int)(uint)(kk & 0xffffffff); var q3 = new Vector2(org.x + gi * step, org.z + gj * step);
+                    if (ccv.otherPart != null && ccv.otherPart(q3)) continue;
+                    float cap = float.NaN;
+                    for (int fi = 0; fi < kfb.Count; fi++)
+                    {
+                        int b; float d; if (!ccv.FaceAt(kfb[fi], q3, out b, out d) || d >= 0f) continue;
+                        bool inH = EdoGeom.PIP(kh[fi], q3); if (!inH && EdgeDist(kh[fi], q3) > ccv.kadoBand) continue;
+                        if (ccv.NearOtherPiece(q3, kfb[fi].go, 0.2f)) continue;   // 隣の駒の外形の中・縁(背・下)は下げない
+                        float g = float.NaN; for (int db = -2; db <= 2; db++) { float o; if (gF.TryGetValue(((long)fi << 20) | (long)(b + db), out o) && (float.IsNaN(g) || o < g)) g = o; }
+                        if (float.IsNaN(g)) continue;
+                        float c = g;
+                        if (inH) { float sy = surfOf(kfb[fi].go, q3); if (!float.IsNaN(sy)) c = Mathf.Max(g, sy - ccv.capDrop); }
+                        { float yb; if (ccv.bottomOf.TryGetValue(kfb[fi].go, out yb)) c = Mathf.Max(c, yb + 0.05f); }   // 駒の底より下げない(根入れの土・駒の下の隙を作らない)
+                        if (float.IsNaN(cap) || c < cap) cap = c;
+                    }
+                    if (!float.IsNaN(cap) && H[kk] > cap + 1e-4f) { float dy = H[kk] - cap; if (dy > kMx) { kMx = dy; kAt = new Vector3(q3.x, H[kk], q3.y); } H[kk] = cap; kLow++; }
+                }
+                r.kadoFrontLowered = kLow; r.kadoFrontMax = kMx; r.kadoFrontAt = kAt;
+            }
         }
         if (SkinTrace != null) TrDump("4 の前", H, org.x, org.z, step);
         // ---- 4 メッシュ

@@ -3870,7 +3870,8 @@ public static class EdoOkabeYashikiBuilder
         // 野面の継ぎ目の段差・見え面から土が覗く所(光線・EDO-0502 第64巡)── 皮を起こし直した後でないと土の側が測れない
         { var rt = GameObject.Find(GN); var dn = rt == null ? null : rt.transform.Find("Dan");
           if (dn != null) sb.AppendLine("  " + EdoBuild.NozuraSeamReport(rt.transform, dn, rt.transform.Find("EdgeSkin")).Replace("\n", "\n  "));
-          if (dn != null && rt.transform.Find("EdgeSkin") != null) sb.AppendLine("  " + EdoBuild.NozuraSkinPlaneCheck(dn, rt.transform.Find("EdgeSkin"))); }
+          if (dn != null && rt.transform.Find("EdgeSkin") != null) sb.AppendLine("  " + EdoBuild.NozuraSkinPlaneCheck(dn, rt.transform.Find("EdgeSkin")));
+          if (rt.transform.Find("EdgeSkin") != null) sb.AppendLine("  " + SteepEdgeReport(rt.transform)); }
         return sb.ToString();
     }
 
@@ -3960,6 +3961,24 @@ public static class EdoOkabeYashikiBuilder
     /// 背の法の高さ = 天端の前の線から背へ「天端の奥行(avoid.dodomeCrestDepthM[野面の乱積み])+ 0.25m」の点の**造成の設計面**(算出物 graded ──
     /// 盛った後の地形で測ると流し直しで割りが動くので、盛りの前の面で測る)。Stage2b(据えと盛り)・Stage3b(皮の設計の地盤)・GradeQA が同じこれを使う。</summary>
     /// <summary>袖の坂の硬い検め(据えた後に測る): 区間の名の頭・線・背の向き・天端と背の地盤の差の上限。</summary>
+    /// <summary>指図 terraces[].edgeRetain の「縁の落差が x を超える所は全部石垣の見え面で受け、土の面を見せない【硬】」を持つ面ごとに
+    /// EdoBuild.SkinSteepReport を刷る(落差は欄から・法は欄 backfill の 1:x ── ⛔ 読めなければ ★)。第72巡。当たる先: 岡部 Kadonouchi(欄を持つ面すべて)。</summary>
+    static string SteepEdgeReport(Transform root)
+    {
+        var sb = new System.Text.StringBuilder(); var inv = System.Globalization.CultureInfo.InvariantCulture;
+        if (_flat == null) _flat = FlatFaces(null);
+        float bf = float.NaN; foreach (var o2 in A(Get(D, "terraceWalls")) ?? new List<object>()) { var t2 = O(o2); var mb = System.Text.RegularExpressions.Regex.Match(S(Get(t2, "backfill")) ?? "", @"法\s*1\s*:\s*([0-9.]+)"); if (mb.Success) { bf = float.Parse(mb.Groups[1].Value, inv); break; } }
+        foreach (var o in A(Get(D, "terraces")) ?? new List<object>())
+        {
+            var t = O(o); string er = S(Get(t, "edgeRetain")); if (er == null) continue;
+            var m = System.Text.RegularExpressions.Regex.Match(er, @"縁の落差が\s*([0-9.]+)\s*を超える所は全部石垣");
+            if (!m.Success) continue; string nm = S(Get(t, "name")) ?? S(Get(t, "id"));
+            var lf = _flat.Find(f0 => f0.name == nm); if (lf.poly == null || float.IsNaN(bf)) { sb.Append("★ " + nm + " の縁の落差: 面か法が読めない "); continue; }
+            sb.Append(EdoBuild.SkinSteepReport(root, root.Find("EdgeSkin"), lf.poly, 6f, float.Parse(m.Groups[1].Value, inv), bf, nm) + " ");
+        }
+        return sb.Length == 0 ? "縁の落差の検め: 欄 edgeRetain に該当なし" : sb.ToString();
+    }
+
     class SodeSlopeCheck { public string key; public List<Vector2> line; public List<Vector2> back; public float maxDiff, depth; public float sLo; }
     /// <summary>袖の坂の低い端の小口へ被せる土(指図 sodeSlope 追記 2026-10-07「その小口は高さ h・長さ len の土を 1:bf で被せて隠す」【硬】)。
     /// end = 線を延ばした低い端の点・away = 端の外へ向く走り。Stage3b が据えた端の駒の小口を実メッシュで測って皮の設計の地盤へ盛る(SodeEndCoverAt)。</summary>

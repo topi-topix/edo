@@ -220,4 +220,43 @@ public static partial class EdoBuild
         var ci = System.Globalization.CultureInfo.InvariantCulture;
         return "皮の頂点が野面の見え面の平面より前(硬 0・平面 −0.02・根入れの土を除く): " + n + " / " + pts.Count + " 頂点" + (n > 0 ? "(最悪 +" + worst.ToString("F2", ci) + " @(" + wAt.x.ToString("F1", ci) + ", " + wAt.y.ToString("F2", ci) + ", " + wAt.z.ToString("F1", ci) + ")〔" + wBy + "〕・" + string.Join("・", top.ToArray()) + ") ⛔" : " ⭕") + (n > 0 ? " ── うち埋めた面(前の地表が天端から 0.36 以内)" + nB + "(最悪 +" + worstB.ToString("F2", ci) + ")・外すと " + (n - nB) + "(最悪 +" + worstV.ToString("F2", ci) + ")" : "");
     }
+
+    /// <summary>**縁の落差 &gt; 0.3 の土の面**(硬・EDO-0502 第72巡・指図 terraces[Kadonouchi].edgeRetain 追記 2026-10-09e「縁の落差が 0.3 を超える所は全部石垣の見え面で受け、土の面を見せない」)。
+    /// 面 <paramref name="region"/>(+<paramref name="buffer"/>)の中の皮の三角形のうち、高さの幅 &gt; <paramref name="drop"/> かつ 1:<paramref name="bf"/> の法より急な物(土が立たない面)を数える。
+    /// 穴の縁の垂れ(平面の面積 ≒ 0)と、部材の外形(凸包)の中の三角形(部材の下・裏で見えない)は数えない。近い名のある部材(5m 以内)ごとに束ねる。
+    /// ⟶ 返す: 件数・最大の高さ・束。当たる先: 縁の皮を持つ全邸(岡部 Stage3b の末に刷る)。</summary>
+    public static string SkinSteepReport(Transform root, Transform skin, Vector2[] region, float buffer, float drop, float bf, string label)
+    {
+        var ci = System.Globalization.CultureInfo.InvariantCulture; float nyMax = 1f / Mathf.Sqrt(1f + 1f / (bf * bf));
+        Func<Vector2, bool> inReg = q => EdoGeom.PIP(region, q) || EdgeDist(region, q) <= buffer;
+        var parts = new List<KeyValuePair<string, Vector2[]>>(); var ctrs = new List<Vector3>();
+        foreach (Transform g in root) foreach (Transform c in g)
+        {
+            if (!c.gameObject.activeInHierarchy || c == skin || c.IsChildOf(skin)) continue; var rr = c.GetComponentInChildren<Renderer>(); if (rr == null) continue;
+            var bc = rr.bounds; if (!inReg(new Vector2(bc.center.x, bc.center.z)) && EdgeDist(region, new Vector2(bc.center.x, bc.center.z)) > buffer + 8f) continue;
+            var p2 = new List<Vector2>(); foreach (var v in Body(c, 4000)) p2.Add(new Vector2(v.x, v.z)); if (p2.Count < 3) continue;
+            string nm = System.Text.RegularExpressions.Regex.Replace(c.name, @"_[0-9]+f$|_kado[0-9]+$|_tome[0-9]*$", "");
+            parts.Add(new KeyValuePair<string, Vector2[]>(nm, ConvexHull2(p2).ToArray())); ctrs.Add(bc.center);
+        }
+        int n = 0; float wMax = 0f; Vector3 wAt = Vector3.zero; var by = new Dictionary<string, int>(); var byMax = new Dictionary<string, float>();
+        foreach (var mf in skin.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue; var V = mf.sharedMesh.vertices; var T = mf.sharedMesh.triangles; var tr = mf.transform;
+            for (int t = 0; t < T.Length; t += 3)
+            {
+                var a = tr.TransformPoint(V[T[t]]); var b = tr.TransformPoint(V[T[t + 1]]); var c = tr.TransformPoint(V[T[t + 2]]);
+                float lo = Mathf.Min(a.y, Mathf.Min(b.y, c.y)), hi = Mathf.Max(a.y, Mathf.Max(b.y, c.y)); if (hi - lo <= drop) continue;
+                var nrm = Vector3.Cross(b - a, c - a); float area2 = Mathf.Abs(nrm.y); if (area2 < 1e-3f) continue;   // 垂れ
+                nrm.Normalize(); if (Mathf.Abs(nrm.y) >= nyMax) continue;
+                var ctr = (a + b + c) / 3f; var q = new Vector2(ctr.x, ctr.z); if (!inReg(q)) continue;
+                bool hid = false; foreach (var kv in parts) if (EdoGeom.PIP(kv.Value, q)) { hid = true; break; } if (hid) continue;
+                n++; if (hi - lo > wMax) { wMax = hi - lo; wAt = ctr; }
+                string who = "-"; float bd = 5f; for (int k = 0; k < parts.Count; k++) { float d2 = Mathf.Min(EdgeDist(parts[k].Value, q), bd); if (d2 < bd) { bd = d2; who = parts[k].Key; } }
+                int c0; by.TryGetValue(who, out c0); by[who] = c0 + 1; float m0; if (!byMax.TryGetValue(who, out m0) || hi - lo > m0) byMax[who] = hi - lo;
+            }
+        }
+        var l = new List<KeyValuePair<string, int>>(by); l.Sort((x, y) => y.Value.CompareTo(x.Value)); var top = new List<string>();
+        for (int i = 0; i < Mathf.Min(14, l.Count); i++) top.Add(l[i].Key + " " + l[i].Value + "(" + byMax[l[i].Key].ToString("F2", ci) + ")");
+        return label + " の縁の落差 > " + drop.ToString("F1", ci) + " の土の面(皮の三角形・1:" + bf.ToString("0.0", ci) + " より急・部材の下と垂れを除く・硬 0): " + n + (n > 0 ? "(最大の高さ " + wMax.ToString("F2", ci) + " @(" + wAt.x.ToString("F1", ci) + ", " + wAt.y.ToString("F2", ci) + ", " + wAt.z.ToString("F1", ci) + ")・" + string.Join("・", top.ToArray()) + ") ⛔" : " ⭕");
+    }
 }

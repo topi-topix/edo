@@ -78,6 +78,180 @@ public static partial class EdoBuild
         /// <summary>**設計で土に埋める駒**(見え面を持たない ── 2026-10-08 EDO-0502 第56巡・指図 sodeSlope 追記 2026-10-08「低い端の水平の駒は土で完全に埋める」)。
         /// 皮の検めの「皮が部材の天端に被る」から外す(埋めるのが設計)。渡すのは盛った土(hold)を作る側。当たる先: 岡部 Stage3b の端の駒。</summary>
         public HashSet<GameObject> buried;
+        /// <summary>**野面の石垣の天端の裏石の帯を土で覆う**(指図 const.nozuraCrestCover・2026-10-09 EDO-0502 第63巡)。null なら無し。
+        /// <see cref="CutEdgeSkin"/> の最後(3f ── 3e の盛った土の後)に皮の節点で効かせ、皮の検めの「被り」から設計の帯を外す。</summary>
+        public NozuraCrestCover crestCover;
+    }
+
+    /// <summary>**野面の石垣の天端の裏石の帯を土で覆う型**(指図 const.nozuraCrestCover・普請方の設計 2026-10-09・EDO-0502 第63巡・
+    /// 施主の写真「天端が割れた板を並べたよう」── 天端の裏石 2 列の平らな帯(見え面から 0.36〜1.04)が背の土 天端−0.15 から顔を出していた)。
+    /// 駒ごと・見え面ごとに実メッシュを走りの 0.1m の帯へ割り、帯ごとの天端(最も高い頂点)と天端の前の縁(天端 − 0.15 以上の頂点の最も前)を測る。
+    /// 皮の節点 q の見え面からの奥行 d = 前の縁 − q で:
+    /// ① front ≤ d ≤ back の地盤 = 天端 + rise − (d − front)·drain(最高は front の線・背へ 1/20)── 帯の上の土 ≥ 0.02【硬】・0.03 は狙い【柔】。
+    /// ② back より先は 1:bf で今の地盤(各欄の小段)へ下りる【柔】(⛔ 下げない ── 盛るだけ)。
+    /// ③ 見え面の前 0.3 から front まで(表の石の上 0〜0.36・前の地表)はどの駒の物でも盛らない【硬】(出隅の隅の駒の二つの面・段の境の上の駒の見え面)。
+    /// ④ keepOut(長屋の背の一間・犬走り 0.3)の点は盛らない【硬】── 入るなら普請方へ戻す(blocked に数える)。
+    /// 坂の駒・段なりの所は帯ごとの天端(= その駒の天端の線)で測る。当たる先: 野面の乱積みの段の土留めを持つ全邸(いまは岡部 Stage3b の Dan)。
+    /// 生成した皮の検めは <see cref="Designed"/> で設計の帯を「被り」に数えない(表の石の上 0〜front は【硬】のまま数える)。</summary>
+    public sealed class NozuraCrestCover
+    {
+        public float front = 0.36f, back = 1.10f, rise = 0.03f, drain = 0.05f, bf = 3f, skirtMax = 1.5f, frontGuard = 0.3f;
+        /// <summary>帯の上の土の下限【硬】── 帯の頂(front の線)を、裏石の後端(帯ごとの控え)で minSoil を割らない高さまで上げる(rise は狙い【柔】)。</summary>
+        public float minSoil = 0.02f;
+        /// <summary>表の石の上の、帯の縁の手前 edgeW の皮の節点は駒の天端 − 0.003 まで上げる(0.25m の皮の格子の一次の面が帯の縁で石の天端の下へ潜り、裏石が顔を出すのを止める)。</summary>
+        public float edgeW = 0.3f;
+        public readonly HashSet<GameObject> pieceSet = new HashSet<GameObject>();
+        /// <summary>覆う駒でない部材の外形の中と縁(<see cref="CutEdgeSkin"/> の 3f が皮の部材から差す)── 盛らない・帯の検めに数えない。</summary>
+        public Func<Vector2, bool> otherPart;
+        public int otherSkipped;
+        public Func<Vector2, bool> keepOut;
+        public int faces, pieces, blocked; public float blockedMax; public Vector3 blockedAt;
+        public sealed class FaceBins { public GameObject go; public Vector2 f, t; public float a0; public float[] crest, frontU, riseB; public Vector4 box; }
+        public readonly List<FaceBins> list = new List<FaceBins>();
+        /// <summary>駒ごとの外形(凸包)と見え面ごとの前の縁(face, 前の縁の u)── ③ を帯の割りに依らず駒の外形で測る(隅の駒の腕の継ぎで帯が欠けても表の石を守る)。</summary>
+        public sealed class PieceFaces { public Vector2[] hull; public Vector4 box; public List<Vector3> faces = new List<Vector3>(); }
+        public readonly List<PieceFaces> pieceFaces = new List<PieceFaces>();
+        const float BIN = 0.1f;
+
+        /// <summary>駒を足す(見え面は <see cref="WallFace"/>・隅の駒は <see cref="KadoFaces"/> の二面)。</summary>
+        public void Add(GameObject go, bool kado)
+        {
+            var vs = Body(go.transform, 999999); if (vs.Count == 0) return;
+            var fs = new List<Vector2>();
+            if (kado) { Vector2 f1, f2; KadoFaces(go, out f1, out f2); if (f1 != Vector2.zero) fs.Add(f1.normalized); if (f2 != Vector2.zero) fs.Add(f2.normalized); }
+            else { var f = WallFace(go); if (f != Vector2.zero) fs.Add(f.normalized); }
+            if (fs.Count == 0) return; pieces++; pieceSet.Add(go);
+            // 隅の駒は頂点を近い方の見え面の腕へ分ける(⛔ 分けないと片方の腕の帯にもう一方の腕の石が入り、表の石の上を帯と読む)
+            var own = new List<Vector3>[fs.Count];
+            if (fs.Count == 1) own[0] = vs;
+            else
+            {
+                for (int i = 0; i < fs.Count; i++) own[i] = new List<Vector3>();
+                var um = new float[fs.Count]; for (int i = 0; i < fs.Count; i++) { um[i] = float.MinValue; foreach (var v in vs) um[i] = Mathf.Max(um[i], v.x * fs[i].x + v.z * fs[i].y); }
+                foreach (var v in vs) { int bi = 0; float be = float.MaxValue; for (int i = 0; i < fs.Count; i++) { float e = um[i] - (v.x * fs[i].x + v.z * fs[i].y); if (e < be) { be = e; bi = i; } } own[bi].Add(v); }
+            }
+            float bx0 = float.MaxValue, bz0 = float.MaxValue, bx1 = float.MinValue, bz1 = float.MinValue;
+            foreach (var v in vs) { bx0 = Mathf.Min(bx0, v.x); bz0 = Mathf.Min(bz0, v.z); bx1 = Mathf.Max(bx1, v.x); bz1 = Mathf.Max(bz1, v.z); }
+            float pad = back + skirtMax + 0.5f;
+            var pf = new PieceFaces(); { var p2 = new List<Vector2>(); foreach (var v in vs) p2.Add(new Vector2(v.x, v.z)); pf.hull = ConvexHull2(p2).ToArray(); pf.box = new Vector4(bx0, bz0, bx1, bz1); }
+            for (int fi = 0; fi < fs.Count; fi++)
+            {
+                var f = fs[fi]; var ov = own[fi]; if (ov.Count == 0) continue;
+                var t = new Vector2(-f.y, f.x); float a0 = float.MaxValue, a1 = float.MinValue;
+                foreach (var v in ov) { float a = v.x * t.x + v.z * t.y; a0 = Mathf.Min(a0, a); a1 = Mathf.Max(a1, a); }
+                int n = Mathf.Max(1, Mathf.CeilToInt((a1 - a0) / BIN)); var cr = new float[n]; var fu = new float[n]; var bu = new float[n]; var rb = new float[n];
+                for (int b = 0; b < n; b++) { cr[b] = float.NaN; fu[b] = float.NaN; bu[b] = float.NaN; }
+                foreach (var v in ov) { int b = Mathf.Clamp(Mathf.FloorToInt((v.x * t.x + v.z * t.y - a0) / BIN), 0, n - 1); if (float.IsNaN(cr[b]) || v.y > cr[b]) cr[b] = v.y; }
+                foreach (var v in ov)
+                {
+                    int b = Mathf.Clamp(Mathf.FloorToInt((v.x * t.x + v.z * t.y - a0) / BIN), 0, n - 1); if (v.y < cr[b] - 2f * CREST_BAND) continue;
+                    float u = v.x * f.x + v.z * f.y; if (float.IsNaN(bu[b]) || u < bu[b]) bu[b] = u;   // 裏石の後端(天端 − 0.3 までの石)
+                    if (v.y < cr[b] - CREST_BAND) continue;
+                    if (float.IsNaN(fu[b]) || u > fu[b]) fu[b] = u;
+                }
+                // 帯の頂の上げ: 裏石の後端(天端の帯の最も奥)で土 ≥ minSoil【硬】── rise(狙い)と比べて高い方
+                for (int b = 0; b < n; b++) rb[b] = float.IsNaN(fu[b]) ? rise : Mathf.Max(rise, minSoil + 0.005f + Mathf.Max(0f, Mathf.Min(back, fu[b] - bu[b]) - front) * drain);
+                list.Add(new FaceBins { go = go, f = f, t = t, a0 = a0, crest = cr, frontU = fu, riseB = rb, box = new Vector4(bx0 - pad, bz0 - pad, bx1 + pad, bz1 + pad) });
+                faces++;
+                float fmax = float.MinValue; foreach (var x in fu) if (!float.IsNaN(x)) fmax = Mathf.Max(fmax, x);
+                if (fmax > float.MinValue) pf.faces.Add(new Vector3(f.x, f.y, fmax));
+            }
+            if (pf.hull.Length >= 3 && pf.faces.Count > 0) pieceFaces.Add(pf);
+        }
+
+        bool Bin(FaceBins fb, Vector2 q, out float d, out float c) { float r; return Bin(fb, q, out d, out c, out r); }
+        bool Bin(FaceBins fb, Vector2 q, out float d, out float c, out float rs)
+        {
+            d = float.NaN; c = float.NaN; rs = rise;
+            if (q.x < fb.box.x || q.x > fb.box.z || q.y < fb.box.y || q.y > fb.box.w) return false;
+            int b = Mathf.FloorToInt((Vector2.Dot(q, fb.t) - fb.a0) / BIN); if (b < 0 || b >= fb.crest.Length || float.IsNaN(fb.crest[b]) || float.IsNaN(fb.frontU[b])) return false;
+            d = fb.frontU[b] - Vector2.Dot(q, fb.f); c = fb.crest[b]; rs = fb.riseB[b]; return true;
+        }
+        /// <summary>③ 表の石の上(0〜front)と見え面の前 frontGuard のどれかに入る点(盛らない・被りに数える)。</summary>
+        public bool Protected(Vector2 q)
+        {
+            foreach (var fb in list) { float d, c; if (Bin(fb, q, out d, out c) && d >= -frontGuard && d < front) return true; }
+            // 駒の外形(+ frontGuard)の中で、どれかの見え面の前の縁から front 未満(前の縁の面で測る ── 帯の割りの欠けに依らない)
+            foreach (var pf in pieceFaces)
+            {
+                if (q.x < pf.box.x - frontGuard || q.x > pf.box.z + frontGuard || q.y < pf.box.y - frontGuard || q.y > pf.box.w + frontGuard) continue;
+                if (!EdoGeom.PIP(pf.hull, q) && EdgeDist(pf.hull, q) >= frontGuard) continue;
+                foreach (var fc in pf.faces) { float d = fc.z - (q.x * fc.x + q.y * fc.y); if (d >= -frontGuard && d < front) return true; }
+            }
+            return false;
+        }
+        /// <summary>①② 設計の地盤(どの面にも入らなければ NaN)。③ は見ない。</summary>
+        public float Target(Vector2 q)
+        {
+            float best = float.NaN;
+            foreach (var fb in list)
+            {
+                float d, c, rs; if (!Bin(fb, q, out d, out c, out rs) || d < front || d > back + skirtMax) continue;
+                float y = d <= back ? c + rs - (d - front) * drain : c + rs - (back - front) * drain - (d - back) / bf;
+                if (float.IsNaN(best) || y > best) best = y;
+            }
+            return best;
+        }
+        /// <summary>表の石の上で帯の縁の手前 edgeW に入る点(どれかの面)。</summary>
+        public bool NearBandEdge(Vector2 q)
+        { foreach (var fb in list) { float d, c; if (Bin(fb, q, out d, out c) && d >= front - edgeW && d < front) return true; } return false; }
+        /// <summary>帯の中(front〜back)の天端(どの面にも入らなければ NaN)── 検めの基準。</summary>
+        public float CrestInBand(Vector2 q)
+        {
+            float best = float.NaN;
+            foreach (var fb in list) { float d, c; if (Bin(fb, q, out d, out c) && d >= front && d <= back && (float.IsNaN(best) || c > best)) best = c; }
+            return best;
+        }
+        /// <summary>皮の検めで「被り」に数えない点 = 設計で土を載せる帯(③ と keepOut の点は数える)。</summary>
+        public bool Designed(Vector2 q)
+        {
+            if (Protected(q) || (keepOut != null && keepOut(q))) return false;
+            return !float.IsNaN(Target(q));
+        }
+        /// <summary>皮の高さ y の点 q を、盛る所なら盛った高さへ(⛔ 下げない)。keepOut に当たって盛らなかった点は blocked に数える。</summary>
+        public float Apply(Vector2 q, float y)
+        {
+            float tg = Target(q); if (float.IsNaN(tg) || tg <= y + 1e-4f) return y;
+            if (Protected(q)) return y;
+            if (keepOut != null && keepOut(q)) { blocked++; if (tg - y > blockedMax) { blockedMax = tg - y; blockedAt = new Vector3(q.x, y, q.y); } return y; }
+            return tg;
+        }
+        /// <summary>据えた後の検め(描かれた地表 dg で・**その駒の石の上**の点だけ ── 駒の上向きの面(TopIndex)の真上で持ち主がその駒の点):
+        /// 帯(front + 0.04 〜 back)の土の厚み(地表 − 石の上面)の最小 ≥ minSoil【硬】/ 表の石の上(d 0.05〜front − 0.03)で 地表 > 石の上面 の点【硬・0】。点は帯ごとに 0.1m おき。</summary>
+        public string Measure(Func<float, float, float> dg)
+        {
+            var ti = new TopIndex(); foreach (var g in pieceSet) if (g != null && g.activeInHierarchy) ti.Add(g);
+            int nB = 0, nLow = 0, nF = 0, nOver = 0; float minB = float.MaxValue, maxF = float.MinValue; Vector3 minAt = Vector3.zero, fAt = Vector3.zero; string minBy = "-", fBy = "-";
+            foreach (var fb in list)
+                for (int b = 0; b < fb.crest.Length; b++)
+                {
+                    if (float.IsNaN(fb.crest[b]) || float.IsNaN(fb.frontU[b])) continue;
+                    float a = fb.a0 + (b + 0.5f) * BIN;
+                    for (float d = 0.05f; d <= back + 1e-3f; d += 0.1f)
+                    {
+                        var q = fb.t * a + fb.f * (fb.frontU[b] - d);
+                        bool inBand = d >= front + 0.04f, inFront = d <= front - 0.03f;
+                        if (!inBand && !inFront) continue;
+                        int w; float top = ti.TopRaw(q.x, q.y, out w); if (float.IsNaN(top) || w < 0 || w >= ti.gos.Count || ti.gos[w] != fb.go) continue;   // その駒の石の上だけ
+                        if (inBand && (Protected(q) || (keepOut != null && keepOut(q)) || (otherPart != null && otherPart(q)))) continue;
+                        float g = dg(q.x, q.y); if (float.IsNaN(g)) continue; float s = g - top;
+                        if (inBand)
+                        {
+                            nB++; if (s < minSoil - 1e-4f) nLow++;
+                            if (s < minB) { minB = s; minAt = new Vector3(q.x, top, q.y); minBy = fb.go.name; }
+                        }
+                        else
+                        {
+                            nF++; if (s > 1e-3f) nOver++;
+                            if (s > maxF) { maxF = s; fAt = new Vector3(q.x, top, q.y); fBy = fb.go.name; }
+                        }
+                    }
+                }
+            return "天端の裏石の帯(" + front.ToString("F2") + "〜" + back.ToString("F2") + "): 駒 " + pieces + "・面 " + faces + "・石の上の点 " + nB + "・土の厚みの最小 " + (nB > 0 ? minB.ToString("+0.000;-0.000") : "-")
+                 + " @(" + minAt.x.ToString("F1") + ", " + minAt.z.ToString("F1") + ")〔" + minBy + "〕・" + minSoil.ToString("F2") + " 未満 " + nLow + " 点【硬】"
+                 + " / 表の石の上(0〜" + front.ToString("F2") + "): 点 " + nF + "・地表 > 石の上面 " + nOver + " 点【硬】(最大 " + (nF > 0 ? maxF.ToString("+0.000;-0.000") : "-") + " @(" + fAt.x.ToString("F1") + ", " + fAt.z.ToString("F1") + ")〔" + fBy + "〕)"
+                 + " / 石段など他の部材の上で盛らなかった皮の節点 " + otherSkipped + " / 長屋の背の一間・犬走りで盛らなかった皮の節点 " + blocked + (blocked > 0 ? "(最大 " + blockedMax.ToString("F2") + " @(" + blockedAt.x.ToString("F1") + ", " + blockedAt.z.ToString("F1") + ")── 普請方へ)" : "");
+        }
     }
 
     /// <summary><see cref="CutEdgeSkin"/> の報告。</summary>
@@ -90,6 +264,7 @@ public static partial class EdoBuild
         public int plantOnHole;
         public int stairFaced;
         public int holdRaised; public float holdRaisedMax;   // 3e 盛った土を最後に効かせた節点の数と最大の上げ
+        public int crestCovered; public float crestCoverMax;   // 3f 野面の天端の裏石の帯を覆った皮の節点の数と最大の上げ(SkinDesign.crestCover)
         public int verts, tris, pinned, faced, clamped, under, floored, designed, sloped, filled, fillLostTree;
         public float fillMax; public Vector3 fillAt;
         public float maxLower, maxRaise; public Vector3 lowerAt, raiseAt;
@@ -133,7 +308,7 @@ public static partial class EdoBuild
                    "・既に穴で触らず " + skipHole + "・地形の木が立つので開けず " + skipTree + "・植栽の点が立つので開けず " + skipPlant + ")" +
                    (plantOnHole > 0 ? " ⛔ 穴の上の植栽の点 " + plantOnHole : "") +
                    " / 皮 頂点 " + verts + "・三角 " + tris + "(縁の点 " + pinned + " は地形のまま)" +
-                   " / 面の高さへ " + faced + " 点(うち石段の外形の中と前 " + stairFaced + ")" + (holdRaised > 0 ? "・盛った土を最後に効かせた " + holdRaised + " 点(最大 +" + holdRaisedMax.ToString("F2") + ")" : "") + "・面の外は設計の地盤へ " + designed + " 点(うち縁から法で受けた " + sloped + ")" +
+                   " / 面の高さへ " + faced + " 点(うち石段の外形の中と前 " + stairFaced + ")" + (holdRaised > 0 ? "・盛った土を最後に効かせた " + holdRaised + " 点(最大 +" + holdRaisedMax.ToString("F2") + ")" : "") + (crestCovered > 0 ? "・野面の天端の裏石の帯を覆った " + crestCovered + " 点(最大 +" + crestCoverMax.ToString("F2") + ")" : "") + "・面の外は設計の地盤へ " + designed + " 点(うち縁から法で受けた " + sloped + ")" +
                    " / 部材の天端の下へ " + clamped + " 点(うち真下 " + under + "・隣の底で止めた " + floored + ")" +
                    " / 裏込め(部材の底まで盛る)" + filled + " 点・最大 " + fillMax.ToString("F2") + "m @(" + fillAt.x.ToString("F1") + ", " + fillAt.z.ToString("F1") + ")" +
                    "・地形の木の升は穴を開けず被せた " + fillLostTree + " 升" +
@@ -1952,6 +2127,37 @@ public static partial class EdoBuild
             }
             r.holdRaised = raised; r.holdRaisedMax = rmx;
         }
+        // ---- 3f 野面の石垣の天端の裏石の帯を土で覆う(SkinDesign.crestCover・指図 const.nozuraCrestCover・2026-10-09 EDO-0502 第63巡)──
+        //   皮の節点ごとに NozuraCrestCover.Apply(盛るだけ・表の石の上と見え面の前は盛らない)。設計の格子(双一次)でなく皮の節点で効かせる
+        //   ⛔ 設計の格子に置くと 0.25m の双一次が表の石の上(0〜0.36)へ土を引き込む。縁の点(PIN)は触らない。当たる先: crestCover を渡す邸だけ。
+        if (design != null && design.crestCover != null)
+        {
+            int raised = 0; float rmx = 0f; var keys = new List<long>(H.Keys); var ccv = design.crestCover;
+            // 覆う駒(野面)でない部材(石段・城の石垣・段石)の外形の中と縁 0.2 は盛らない(⛔ 段石・踊り場の上へ土を被せない)
+            ccv.otherPart = q =>
+            {
+                for (int h = 0; h < idx.hulls.Count; h++)
+                {
+                    if (h < idx.gos.Count && ccv.pieceSet.Contains(idx.gos[h])) continue;
+                    var hb = idx.bounds[h]; if (q.x < hb.x - 0.2f || q.x > hb.z + 0.2f || q.y < hb.y - 0.2f || q.y > hb.w + 0.2f) continue;
+                    if (EdgeOrIn(idx.hulls[h], q, 0.2f)) return true;
+                }
+                return false;
+            };
+            foreach (var kk in keys)
+            {
+                if (PIN.Contains(kk)) continue;
+                int gi = (int)(kk >> 32), gj = (int)(uint)(kk & 0xffffffff);
+                var q3 = new Vector2(org.x + gi * step, org.z + gj * step); float y0 = H[kk];
+                if (!float.IsNaN(ccv.Target(q3)) && ccv.otherPart(q3)) { ccv.otherSkipped++; continue; }
+                float y1 = design.crestCover.Apply(q3, y0);
+                // 表の石の上で帯の縁の手前は駒の天端 − 0.003 まで(⛔ 越えない)上げる ── 皮の一次の面が帯の縁で石の天端の下へ潜らない
+                if (y1 <= y0 + 1e-4f && design.crestCover.Protected(q3) && design.crestCover.NearBandEdge(q3))
+                { int w3; float tp = idx.Top(q3.x, q3.y, out w3); if (!float.IsNaN(tp) && w3 >= 0 && w3 < idx.gos.Count && design.crestCover.pieceSet.Contains(idx.gos[w3]) && tp - 0.003f > y0) y1 = tp - 0.003f; }
+                if (y1 > y0 + 1e-4f) { rmx = Mathf.Max(rmx, y1 - y0); H[kk] = y1; raised++; }
+            }
+            r.crestCovered = raised; r.crestCoverMax = rmx;
+        }
         if (SkinTrace != null) TrDump("4 の前", H, org.x, org.z, step);
         // ---- 4 メッシュ
         var go = new GameObject(SKIN_PREFIX + name);
@@ -2075,17 +2281,18 @@ public static partial class EdoBuild
                 float g = FaceY(q); if (float.IsNaN(g)) g = OutsideY(q, null);
                 return !float.IsNaN(g) && g > top + 1e-3f;
             };
-        MeasureSkin(idx, ref r, null, (px, pz) => treeCells.Contains(CK(CI(px), CJ(pz))), sunk, design != null ? design.buried : null);
+        MeasureSkin(idx, ref r, null, (px, pz) => treeCells.Contains(CK(CI(px), CJ(pz))), sunk, design != null ? design.buried : null,
+                    design != null && design.crestCover != null ? (Func<Vector2, bool>)design.crestCover.Designed : null);
         return r;
     }
 
     /// <summary>皮と部材の取り合いを測り直す(皮を起こし直さずに)。<paramref name="samples"/> に隙の点を最大 20 行刷る。</summary>
-    public static SkinReport MeasureSkinContact(IList<GameObject> parts, List<string> samples = null, IList<GameObject> crestBandParts = null)
+    public static SkinReport MeasureSkinContact(IList<GameObject> parts, List<string> samples = null, IList<GameObject> crestBandParts = null, NozuraCrestCover crestCover = null)
     {
         var bs = crestBandParts != null ? new HashSet<GameObject>(crestBandParts) : null;
         var idx = new TopIndex(); foreach (var g in parts) if (g != null && g.activeInHierarchy) idx.Add(g, bs != null && bs.Contains(g));
         var r = new SkinReport(); r.parts = idx.hulls.Count; r.mesh = "—";
-        MeasureSkin(idx, ref r, samples); return r;
+        MeasureSkin(idx, ref r, samples, null, null, null, crestCover != null ? (Func<Vector2, bool>)crestCover.Designed : null); return r;
     }
 
     /// <summary>**皮を駒の実メッシュの外形の縁で閉じる**(2026-09-26・EDO-0437 第7巡)。格子(0.25m)の点ごとに決めた皮は、点の間を三角形で
@@ -2528,6 +2735,9 @@ public static partial class EdoBuild
         return sb.ToString();
     }
 
+    /// <summary>点 q が外形の中か、縁から <paramref name="d"/> 以内か。</summary>
+    static bool EdgeOrIn(Vector2[] hull, Vector2 q, float d) { return EdoGeom.PIP(hull, q) || EdgeDist(hull, q) < d; }
+
     /// <summary>点 q が部材の外形の縁から <paramref name="d"/> 以内か(外形の中の縁の帯)。</summary>
     static bool EdgeDistAny(TopIndex idx, Vector2 q, float d)
     {
@@ -2544,7 +2754,7 @@ public static partial class EdoBuild
     { foreach (var g in parts) if (g != null && g.name == name) return g; return null; }
 
     static void MeasureSkin(TopIndex idx, ref SkinReport r, List<string> samples, Func<float, float, bool> plantCell = null,
-                            Func<int, Vector2, float, bool> sunkHollow = null, HashSet<GameObject> buried = null)
+                            Func<int, Vector2, float, bool> sunkHollow = null, HashSet<GameObject> buried = null, Func<Vector2, bool> coverDesigned = null)
     {
         var plantBy = new Dictionary<string, int>(); var sunkBy = new Dictionary<string, int>();
         var probe = Probe();
@@ -2576,7 +2786,8 @@ public static partial class EdoBuild
                     // 被り: 外形の内で 皮 > 天端
                     float gin = dg.At(pin.x, pin.y);
                     // 設計で土に埋める駒(SkinDesign.buried)は見え面を持たない ⇒ 被りに数えない
-                    if (!float.IsNaN(gin) && !float.IsNaN(top) && !(buried != null && k < idx.gos.Count && buried.Contains(idx.gos[k])))
+                    // 設計で土を載せる野面の天端の裏石の帯(SkinDesign.crestCover ── 見え面から 0.36 より奥)も被りに数えない(表の石の上 0〜0.36 は数える【硬】)
+                    if (!float.IsNaN(gin) && !float.IsNaN(top) && !(buried != null && k < idx.gos.Count && buried.Contains(idx.gos[k])) && !(coverDesigned != null && coverDesigned(pin)))
                     {
                         r.coverPts++;
                         if (gin > top + 1e-3f)

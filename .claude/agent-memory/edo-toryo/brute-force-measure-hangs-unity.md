@@ -24,3 +24,7 @@ Unity が約 6 分ふさがり再送で TCS timed out 37 回・bridge が一度�
 (呼ぶたびに配列を丸ごと複写 → 頂点数² の大きな確保)。`sample <pid>` の主スレッドは `GC_alloc_large → GC_collect_a_little → GC_mark_some`
 で、一回の確保ごとに全ヒープを舐めていた。30 分戻らず、作業に一度も入れなかった。
 ⇒ **`var vs = mesh.vertices;` は輪の外で一度だけ**(`sharedMesh.vertices`・`GetTriangles` も同じ)。送る前に輪の中のプロパティ呼びを目で検める。
+
+**五度目 2026-10-09 EDO-0502 第63巡**: 野面の帯の検めを execute_code で `RayToBodies` 3.8 万回(駒 210 面 × 帯 × 奥行)にした ──
+RayToBodies は呼ぶたびに mesh.vertices を複写して全三角形を舐める。10 分超 Unity を塞いだ。
+⇒ 石の上面は **TopIndex(EdoBuild の中・NozuraCrestCover.Measure)で一度だけ索引を作って引く**。execute_code に RayToBodies の輪を書かない。

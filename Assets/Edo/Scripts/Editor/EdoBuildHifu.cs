@@ -84,6 +84,8 @@ public static partial class EdoBuild
         /// <summary>**平らな面**(指図 terraces[].flat「面は y、外れ ±e【硬】・盛りと擦り付けの法尻は縁で止め面の上へ出さない」・第73巡)。null なら無し。
         /// <see cref="CutEdgeSkin"/> の最後(4 の前)に、輪郭の中・部材の外形の外の節点を y ± e の内へ収める(exempt が真の点は除く ── 欄の例外)。</summary>
         public List<FlatFace> flats;
+        /// <summary>**端の駒を埋める土の下限**(駒 → 天端 + buryMin・指図 sodeSlope 追記 2026-10-08【硬】)。<see cref="SkinHeightSolve"/> が駒の足形とその周り 0.25 の皮の点の lo に入れる。null なら無し。</summary>
+        public Dictionary<GameObject, float> buryLo;
     }
     /// <summary>平らな面。band 真なら輪郭の外で「縁から部材(石垣・石段)の見え面の足元まで」の帯も同じ高さ(第74巡・指図 flat 追記 2026-10-09g)── 帯 = 外の節点から縁と逆の向きへ bandMax 以内に部材の外形がある所。
     /// 部材の外形から coverD 以内は根入れを隠す土として y + coverH まで許す【硬】。</summary>

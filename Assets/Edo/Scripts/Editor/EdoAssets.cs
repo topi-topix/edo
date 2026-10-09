@@ -1590,9 +1590,9 @@ public static class EdoAssets
 
         /// <summary><see cref="SannoNozura"/> の勾配を**その見付・その個体で焼いてある勾配のうち最も近いもの**へ寄せる [‰]
         /// (2026-09-26 EDO-0437)。焼けている勾配: 全段 0 / H1800 を除く 8 段 ±120(前庭の天端を流す)/ H0150 ±180(打ち切り)/
-        /// H1500 ±220(段の境)/ H0600〜H2400 ±275(岡部 外周の端の下げ打ち・EDO-0502)/ H0600〜H2400 ±450(袖の坂・端の沈め・EDO-0502 第41巡)/ H1800〜H2400 −495・−660(岡部 袖の坂を 1 駒で 0.9 / 1.2 下ろす ≈1:1.5・EDO-0502 第65巡 ── 勾配は m あたり ⇒ 1.818 で 0.90 / 1.20)/ H3000〜H4800 ±120・±275・±450(深い見付の袖の坂・EDO-0502 第44巡)。刻み 0.12 ⇒ 天端の勾配 0〜0.18 のどこでも 1間(伸縮 1.2 まで)の端の天端の差 ≤ 0.065
+        /// H1500 ±220(段の境)/ H0600〜H2400 ±275(岡部 外周の端の下げ打ち・EDO-0502)/ H0600〜H2400 ±450(袖の坂・端の沈め・EDO-0502 第41巡)/ H1800〜H4800 −495・−660(岡部 袖の坂を 1 駒で 0.9 / 1.2 下ろす ≈1:1.5・EDO-0502 第65巡 ── 勾配は m あたり ⇒ 1.818 で 0.90 / 1.20。H3000〜H4800 は第66巡 ── 袖の上端 049f・048f は前の地表が低く見付 H4800)/ H3000〜H4800 ±120・±275・±450(深い見付の袖の坂・EDO-0502 第44巡)。刻み 0.12 ⇒ 天端の勾配 0〜0.18 のどこでも 1間(伸縮 1.2 まで)の端の天端の差 ≤ 0.065
         /// (裁定の頭の不揃い ±0.08 の内)。同じ見付の駒が一つも無ければ求めた勾配のまま返す(呼ぶ側が「焼いていない」と刷る)。
-        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=set(±275: -- wall --grade=0.275,-0.275 --h=0.6,0.9,1.2,1.5,1.8,2.1,2.4 / ±450: -- wall --grade=0.45,-0.45 --h=0.6,0.9,1.2,1.5,1.8,2.1,2.4 / −495・−660: -- wall --grade=-0.495,-0.66 --h=1.8,2.1,2.4)</summary>
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=set(±275: -- wall --grade=0.275,-0.275 --h=0.6,0.9,1.2,1.5,1.8,2.1,2.4 / ±450: -- wall --grade=0.45,-0.45 --h=0.6,0.9,1.2,1.5,1.8,2.1,2.4 / −495・−660: -- wall --grade=-0.495,-0.66 --h=1.8,2.1,2.4,3.0,3.6,4.2,4.8)</summary>
         static int SannoNozuraNearestGrade(int hmm, int gm, string v)
         {
             if (!System.IO.Directory.Exists(SannoNozuraDir)) return gm;
@@ -1642,6 +1642,8 @@ public static class EdoAssets
         /// ── 2026-10-09 EDO-0502 第62巡。腕の先は石ごとに切って塞ぐ(59/35 から。49/52 は旧の一括切り)。
         /// **103 × H4.80**(岡部 K_Dan1 の脇 TW_Kado_Shumen_Side0_0_kado11・折れ 103.4° に Kado90 を据えて 13.4° の楔が開いた ── 第65巡)
         /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=103.4 --h=4.8 --render
+        /// **100 × H4.80**(岡部 TW_Kado_Hokuto_1_0 隅 1・折れ 100.2°)・**79 × H4.80**(岡部 TW_Higashi_Tsuyo_0_0 隅 1 / _Side1_2 隅 3・折れ 79.1° / 79.0°)── 第66巡 Kado90 が据わって楔が開いていた
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=100.2,79.1 --h=4.8 --render
         /// 材 Kirishi / Danishi ⇒ `Edo/山王社/新造部材のマテリアルをremap`(.meta を Kado49 から写せば不要)。
         /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=58.9 --h=4.8 --render
         ///  / blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=34.7 --h=0.6,0.9,1.2 --render</summary>

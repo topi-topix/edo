@@ -95,3 +95,4 @@
 - [役から claim すると窓の note を書き換える](session-claim-from-role.md) — blender の資源は無い・道だけ claim・release は窓の仕事(2026-10-08)
 - [折れの隅の駒を石ごとに塞ぐ・天端の板に見える訳](nozura-kado-deg-per-stone-and-crest-slabs.md) — 59/35 を焼いた・22° は奥に穴・裏石の帯が土に覆われない(2026-10-09)
 - [G は m あたり・103° の隅の駒](kado103-and-grade-per-meter.md) — 「1駒で1.2下ろす」は G−660。鈍い折れの継ぎ目の余りは裏石の食い込み(2026-10-09)
+- [79°/100° の隅の穴と天端の尖り](kado79-100-floor-and-crest-spike.md) — φ<90 は腕2 の裏石が囲む目地に底の板・天端より上の点は下ろす(2026-10-09)

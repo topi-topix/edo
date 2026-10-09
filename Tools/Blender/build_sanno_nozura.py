@@ -12,6 +12,8 @@
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=58.9 --h=4.8 [--render] / --deg=34.7 --h=0.6,0.9,1.2  # 岡部 門の内の石段の脇(第62巡・腕の先は石ごとに塞ぐ)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=103.4 --h=4.8 [--render]  # 岡部 K_Dan1 の脇の返し kado11(第65巡・鈍い折れ)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=-0.495,-0.66 --h=1.8,2.1,2.4  # 岡部 袖の坂を 1 駒で 0.9 / 1.2 下ろす(≈1:1.5・第65巡・勾配は m あたり)
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=-0.495,-0.66 --h=3.0,3.6,4.2,4.8  # 同・深い見付(袖の上端 049f・048f は H4800・第66巡)
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=100.2,79.1 --h=4.8 [--render]  # 岡部 TW_Kado_Hokuto / TW_Higashi_Tsuyo の隅(第66巡)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_cut --h=0.9 --v=b --axis=x --at=0.085 [--render]  # 隅の駒の片腕を袖の背で一度切った版(EDO-0437)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_cut --h=0.9 --v=b --axis=x --at=0.085 --arm=0.5 [--render]  # 同・切った腕を詰め天端を切り口まで通した版(r16)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_cap --h=1.5 --v=a [--render]  # 隅の駒の腕の先の継ぎ目の口を天端から 0.25 塞ぐ(同じ名で焼き直す)
@@ -1575,6 +1577,7 @@ def _map_obj(o, f):
     o.data.update()
 
 
+KADO_DEG_FLOOR_D = 0.98      # 折れ < 90° の腕1 の先の奥の底の板の奥の限り(kado_deg_ura)
 KADO_DEG_URA_MARGIN = 0.06   # 裏石を留めの線から越えて採る量(重なりは石の中に隠れる)
 
 
@@ -1602,6 +1605,19 @@ def kado_deg_ura(h, v, mats, phi):
                 out.append(o)
             else:
                 bpy.data.objects.remove(o)
+    # 折れ < 90° では腕2 の先の裏石が腕1 の先の奥(面から 0.76〜1.0・留めの線の腕1 の側)を背から囲み、直線の駒では奥へ
+    # 抜けていた裏石の目地が「囲まれた穴」になる(φ=79.1 で (−0.77, −0.91) に 0.11 角・a/b とも)⇒ その帯だけ底の板を奥へ延ばす。
+    # 板は天端の 0.20 下・石の外形の内(腕1 の先の裏石は 1.04・腕2 の先の物は 1.09 まで)(2026-10-09 EDO-0502 第66巡)
+    if phi < 90.0:
+        o = ura_floor("ura_floor_kd", wall_Q(h, 0.0), mats[1], -L / 2, -0.55, URA_FLOOR_D, KADO_DEG_FLOOR_D)
+        bm_ = bmesh.new(); bm_.from_mesh(o.data)
+        bmesh.ops.bisect_plane(bm_, geom=bm_.verts[:] + bm_.edges[:] + bm_.faces[:], dist=1e-6, plane_co=Vector((0, 0, 0)),
+                               plane_no=Vector(_u2b(1.0 / nm, 0.0, -t / nm)), clear_outer=True, clear_inner=False)
+        bm_.to_mesh(o.data); bm_.free(); o.data.update()
+        if len(o.data.polygons):
+            out.append(o)
+        else:
+            bpy.data.objects.remove(o)
     return out
 
 
@@ -1697,6 +1713,18 @@ def make_kado_deg(h, v, phi):
     objs += taper_fill(objs, lambda co: (-co.x, -co.y, co.z - h), (-L / 2, bx1, bz0, 0.0), keep_k, "K%d%s" % (int(round(phi)), v),
                        lambda xx, zz, u: _u2b(xx, h + u, zz), mats, h + BURY, "tf-kado%d-%s" % (int(round(phi)), v),
                        depth_of=lambda x, z: min(dep1(x, z), dep2(x, z)))
+    # 天端より上の点は天端へ下ろす(φ=100.2 の a で腕2 の天端の列の石 st_Ka52I の背の 1 点が +0.18 出て、凸包で尖りの頭になった
+    # ── crest の「頭の出 ≤ 0」。上に出た点が無い駒(59/35/103)は何も動かない)(2026-10-09 EDO-0502 第66巡)
+    for ob in objs:
+        if ob.type != 'MESH':
+            continue
+        moved = False
+        for vt in ob.data.vertices:
+            x_, y_, z_ = _b2u(vt.co)
+            if y_ > h:
+                vt.co = _u2b(x_, h, z_); moved = True
+        if moved:
+            ob.data.update()
     nh = kado_hull_stones(objs, h, depth=h + BURY + 0.1, d2=d2)
     print("KADODEG 凸な塊に焼き直した石 %d" % nh)
     # ③ 目地の奥を塞ぐ板(面から dd 奥・法に沿う)── 二枚が留めの線で閉じる

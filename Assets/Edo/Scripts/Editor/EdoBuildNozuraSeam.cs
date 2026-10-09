@@ -197,10 +197,10 @@ public static partial class EdoBuild
                 long k = ((long)fi << 20) | (long)b; List<float> gl; if (!gF.TryGetValue(k, out gl)) gF[k] = gl = new List<float>(); gl.Add(p.y);
             }
         }
-        int n = 0; float worst = 0f; Vector3 wAt = Vector3.zero; string wBy = "-"; var by = new Dictionary<string, int>();
+        int n = 0, nB = 0; float worst = 0f, worstB = 0f, worstV = 0f; Vector3 wAt = Vector3.zero; string wBy = "-"; var by = new Dictionary<string, int>();
         foreach (var p in pts)
         {
-            var q = new Vector2(p.x, p.z); float ex = float.NaN; string who = null;
+            var q = new Vector2(p.x, p.z); float ex = float.NaN; string who = null; bool exBuried = false;
             for (int fi = 0; fi < cc.list.Count; fi++)
             {
                 var fb = cc.list[fi]; var hl = hullOf[fb.go]; int b; float d; if (hl == null || !cc.FaceAt(fb, q, out b, out d) || d >= 0f || !EdoGeom.PIP(hl, q)) continue;
@@ -208,13 +208,16 @@ public static partial class EdoBuild
                 if (float.IsNaN(g)) { var tr0 = Terrain.activeTerrain; float fu0 = fb.footU[b]; if (tr0 != null && !float.IsNaN(fu0)) { var qf = q + fb.f * (fu0 - Vector2.Dot(q, fb.f) + 0.6f); g = tr0.SampleHeight(new Vector3(qf.x, 0f, qf.y)) + tr0.transform.position.y; } }
                 if (!float.IsNaN(g) && p.y <= g + 0.02f) continue;   // 根入れの土
                 float e = p.y - (cc.FacePlaneY(fb, b, Vector2.Dot(q, fb.f)) - 0.02f);
-                if (e > 1e-3f && (float.IsNaN(ex) || e > ex)) { ex = e; who = fb.go.name; }
+                // 埋めた面(提案・第71巡): 前の地表が天端から 0.36 以内の面は見え面が地上に出ていない ── 別に数える(外さずに両方刷る)
+                bool buriedFace = !float.IsNaN(g) && g >= fb.crest[b] - 0.36f;
+                if (e > 1e-3f && (float.IsNaN(ex) || e > ex)) { ex = e; who = fb.go.name; exBuried = buriedFace; }
             }
             if (float.IsNaN(ex)) continue;
-            n++; int c0; by.TryGetValue(who, out c0); by[who] = c0 + 1; if (ex > worst) { worst = ex; wAt = p; wBy = who; }
+            n++; if (exBuried) { nB++; if (ex > worstB) worstB = ex; } else if (ex > worstV) worstV = ex;
+            int c0; by.TryGetValue(who, out c0); by[who] = c0 + 1; if (ex > worst) { worst = ex; wAt = p; wBy = who; }
         }
         var l = new List<KeyValuePair<string, int>>(by); l.Sort((a, b2) => b2.Value.CompareTo(a.Value)); var top = new List<string>(); for (int i = 0; i < Mathf.Min(6, l.Count); i++) top.Add(l[i].Key + " " + l[i].Value);
         var ci = System.Globalization.CultureInfo.InvariantCulture;
-        return "皮の頂点が野面の見え面の平面より前(硬 0・平面 −0.02・根入れの土を除く): " + n + " / " + pts.Count + " 頂点" + (n > 0 ? "(最悪 +" + worst.ToString("F2", ci) + " @(" + wAt.x.ToString("F1", ci) + ", " + wAt.y.ToString("F2", ci) + ", " + wAt.z.ToString("F1", ci) + ")〔" + wBy + "〕・" + string.Join("・", top.ToArray()) + ") ⛔" : " ⭕");
+        return "皮の頂点が野面の見え面の平面より前(硬 0・平面 −0.02・根入れの土を除く): " + n + " / " + pts.Count + " 頂点" + (n > 0 ? "(最悪 +" + worst.ToString("F2", ci) + " @(" + wAt.x.ToString("F1", ci) + ", " + wAt.y.ToString("F2", ci) + ", " + wAt.z.ToString("F1", ci) + ")〔" + wBy + "〕・" + string.Join("・", top.ToArray()) + ") ⛔" : " ⭕") + (n > 0 ? " ── うち埋めた面(前の地表が天端から 0.36 以内)" + nB + "(最悪 +" + worstB.ToString("F2", ci) + ")・外すと " + (n - nB) + "(最悪 +" + worstV.ToString("F2", ci) + ")" : "");
     }
 }

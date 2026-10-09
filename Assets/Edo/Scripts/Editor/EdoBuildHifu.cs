@@ -366,7 +366,7 @@ public static partial class EdoBuild
         public int stairFaced;
         public int holdRaised; public float holdRaisedMax;   // 3e 盛った土を最後に効かせた節点の数と最大の上げ
         public int crestCovered; public float crestCoverMax; public int crestCapped; public float crestCapMax;
-        public int kadoFrontLowered; public float kadoFrontMax; public Vector3 kadoFrontAt; public int facePeaks, faceDips;   // 隅の駒の見え面の前の皮を前の地表へ下げた節点(指図 kadoFace)   // 3f 野面の天端の裏石の帯を覆った皮の節点の数と最大の上げ(SkinDesign.crestCover)
+        public int kadoFrontLowered; public float kadoFrontMax; public Vector3 kadoFrontAt; public int facePeaks, faceDips; public int backUnderLifted; public float backUnderMax;   // 隅の駒の見え面の前の皮を前の地表へ下げた節点(指図 kadoFace)   // 3f 野面の天端の裏石の帯を覆った皮の節点の数と最大の上げ(SkinDesign.crestCover)
         public int verts, tris, pinned, faced, clamped, under, floored, designed, sloped, filled, fillLostTree;
         public float fillMax; public Vector3 fillAt;
         public float maxLower, maxRaise; public Vector3 lowerAt, raiseAt;
@@ -410,7 +410,7 @@ public static partial class EdoBuild
                    "・既に穴で触らず " + skipHole + "・地形の木が立つので開けず " + skipTree + "・植栽の点が立つので開けず " + skipPlant + ")" +
                    (plantOnHole > 0 ? " ⛔ 穴の上の植栽の点 " + plantOnHole : "") +
                    " / 皮 頂点 " + verts + "・三角 " + tris + "(縁の点 " + pinned + " は地形のまま)" +
-                   " / 面の高さへ " + faced + " 点(うち石段の外形の中と前 " + stairFaced + ")" + (holdRaised > 0 ? "・盛った土を最後に効かせた " + holdRaised + " 点(最大 +" + holdRaisedMax.ToString("F2") + ")" : "") + (crestCovered > 0 ? "・野面の天端の裏石の帯を覆った " + crestCovered + " 点(最大 +" + crestCoverMax.ToString("F2") + ")" : "") + (crestCapped > 0 ? "・表の石と見え面の上の天井へ下げた " + crestCapped + " 点(最大 −" + crestCapMax.ToString("F2") + ")" : "") + (kadoFrontLowered > 0 ? "・野面の見え面の上と隅の前を前の地表へ下げた " + kadoFrontLowered + " 点(最大 −" + kadoFrontMax.ToString("F2") + " @(" + kadoFrontAt.x.ToString("F1") + ", " + kadoFrontAt.z.ToString("F1") + "))" : "") + (facePeaks > 0 ? "・見え面の前の尖りを近傍へ下げた " + facePeaks + " 点" : "") + (faceDips > 0 ? "・窪み(近傍より 0.10 超え低い)を近傍の最も低い節点へ戻した " + faceDips + " 点" : "") + "・面の外は設計の地盤へ " + designed + " 点(うち縁から法で受けた " + sloped + ")" +
+                   " / 面の高さへ " + faced + " 点(うち石段の外形の中と前 " + stairFaced + ")" + (holdRaised > 0 ? "・盛った土を最後に効かせた " + holdRaised + " 点(最大 +" + holdRaisedMax.ToString("F2") + ")" : "") + (crestCovered > 0 ? "・野面の天端の裏石の帯を覆った " + crestCovered + " 点(最大 +" + crestCoverMax.ToString("F2") + ")" : "") + (crestCapped > 0 ? "・表の石と見え面の上の天井へ下げた " + crestCapped + " 点(最大 −" + crestCapMax.ToString("F2") + ")" : "") + (kadoFrontLowered > 0 ? "・野面の見え面の上と隅の前を前の地表へ下げた " + kadoFrontLowered + " 点(最大 −" + kadoFrontMax.ToString("F2") + " @(" + kadoFrontAt.x.ToString("F1") + ", " + kadoFrontAt.z.ToString("F1") + "))" : "") + (facePeaks > 0 ? "・見え面の前の尖りを近傍へ下げた " + facePeaks + " 点" : "") + (faceDips > 0 ? "・窪み(近傍より 0.10 超え低い)を近傍の最も低い節点へ戻した " + faceDips + " 点" : "") + (backUnderLifted > 0 ? "・野面の背で駒の底の下の節点を底 +0.05 へ上げた " + backUnderLifted + " 点(最大 +" + backUnderMax.ToString("F2") + ")" : "") + "・面の外は設計の地盤へ " + designed + " 点(うち縁から法で受けた " + sloped + ")" +
                    " / 部材の天端の下へ " + clamped + " 点(うち真下 " + under + "・隣の底で止めた " + floored + ")" +
                    " / 裏込め(部材の底まで盛る)" + filled + " 点・最大 " + fillMax.ToString("F2") + "m @(" + fillAt.x.ToString("F1") + ", " + fillAt.z.ToString("F1") + ")" +
                    "・地形の木の升は穴を開けず被せた " + fillLostTree + " 升" +
@@ -2391,12 +2391,30 @@ public static partial class EdoBuild
                     }
                     bool undF = false; for (int hk = 0; hk < idx.hulls.Count && !undF; hk++) { var hb = idx.bounds[hk]; if (q3.x < hb.x || q3.x > hb.z || q3.y < hb.y || q3.y > hb.w) continue; if (EdoGeom.PIP(idx.hulls[hk], q3)) undF = true; } if (undF) continue;
                     if (ff.exempt != null && ff.exempt(q3)) continue;
+                    // ⭐ 平らは門の内の側(見え面の前)だけ【硬】── 野面の駒の天端の前の縁より背(d ≥ 0)の節点は背の小段・天端の帯の決めが勝つ(第76巡: 延長の 019f の背を 16.50 へ下げ 0.68 の隙)
+                    if (design.crestCover != null) { bool behind = false; foreach (var fb in design.crestCover.list) { int bb; float dd; if (design.crestCover.FaceAt(fb, q3, out bb, out dd) && dd >= 0f && dd <= design.crestCover.back + design.crestCover.skirtMax) { behind = true; break; } } if (behind) continue; }
                     float hiLim = ff.y + ff.e;
                     if (!float.IsNaN(ff.coverD) && !float.IsNaN(ff.coverH)) { bool nearP = false; for (int hk = 0; hk < idx.hulls.Count && !nearP; hk++) { var hb = idx.bounds[hk]; if (q3.x < hb.x - ff.coverD || q3.x > hb.z + ff.coverD || q3.y < hb.y - ff.coverD || q3.y > hb.w + ff.coverD) continue; if (EdgeDist(idx.hulls[hk], q3) <= ff.coverD) nearP = true; } if (nearP) hiLim = ff.y + ff.coverH; }   // 根入れを隠す土
                     float y0 = H[kk], y1 = Mathf.Clamp(y0, ff.y - ff.e, hiLim); if (Mathf.Abs(y1 - y0) < 1e-4f) continue;
                     if (y0 < ff.y - ff.e) y1 = ff.y; ff.fixedMax = Mathf.Max(ff.fixedMax, Mathf.Abs(y0 - y1)); H[kk] = y1; ff.fixedN++; if (inBand) ff.bandN++;
                 }
             }
+        // ⭐ 野面の駒の背の側で面の高さが駒の底より低い節点を、その場所の駒の底 + 0.05 へ(第76巡【硬・浮き 0】)── 面(門の内 16.50)の輪郭の内に立つ石垣
+        //   (延長の 019f)の背で、面の高さへ描いた皮が駒の底 17.18 の下に 0.68 の隙を作った。背 = どれかの見え面の天端の前の縁より奥(d ≥ 0)。
+        if (design != null && design.crestCover != null)
+        {
+            var cc2 = design.crestCover; int nUp = 0; float upMx = 0f;
+            foreach (var kk in new List<long>(H.Keys))
+            {
+                if (PIN.Contains(kk)) continue;
+                int gi = (int)(kk >> 32), gj = (int)(uint)(kk & 0xffffffff); var q3 = new Vector2(org.x + gi * step, org.z + gj * step);
+                bool behind = false; foreach (var fb in cc2.list) { int bb; float dd; if (cc2.FaceAt(fb, q3, out bb, out dd) && dd >= 0f && dd <= cc2.back) { behind = true; break; } }
+                if (!behind) continue;
+                float lb = cc2.LocalBottom(q3); if (float.IsNaN(lb)) continue;
+                if (H[kk] < lb + 0.05f - 1e-4f) { upMx = Mathf.Max(upMx, lb + 0.05f - H[kk]); H[kk] = lb + 0.05f; nUp++; }
+            }
+            r.backUnderLifted = nUp; r.backUnderMax = upMx;
+        }
         if (SkinTrace != null) TrDump("4 の前", H, org.x, org.z, step);
         // ---- 4 メッシュ
         var go = new GameObject(SKIN_PREFIX + name);

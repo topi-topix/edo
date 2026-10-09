@@ -4981,9 +4981,18 @@ public static class EdoOkabeYashikiBuilder
         foreach (var tr in BackTrenches(null))
         {
             float L = Vector2.Dot(tr.far - tr.stop, tr.along) + tr.off;
+            // ⭐ 郭の側の端は溝の底の高さのまま開け、土の面を作らない【硬】(指図 return<棟> 追記 2026-10-09h・第76巡)── 溝の帯を、帯の芯の設計の地盤(graded)が
+            //   溝の底 + 0.05 以下になる所まで長手へ延ばす(郭の面の縁まで)。届かなければ ⚠ で元の長さ。
+            float ext = float.NaN; string openNote = "";
+            { int iR = -1; foreach (var o2 in A(Get(D, "terraceWalls")) ?? new List<object>()) { var t2 = O(o2); if (t2 != null && S(Get(t2, "name")) == tr.wall) { string rv = S(Get(t2, "return" + tr.run)); if (rv != null && rv.Contains("溝の底の高さのまま開け")) iR = 1; } }
+              if (iR > 0)
+              {
+                  for (float tt = 0f; tt <= 15f + 1e-3f; tt += 0.25f) { var qc = tr.stop + tr.along * (L + tt) + tr.yard * (tr.off * 0.5f); float gy = Graded.At(qc.x, qc.y); if (!float.IsNaN(gy) && gy <= tr.y + 0.05f) { ext = tt; break; } }
+                  if (float.IsNaN(ext)) openNote = "・⚠ 郭の側の端: 15m 延ばしても設計の地盤が溝の底に届かない ── 開けない"; else { L += ext; openNote = "・郭の側の端を溝の底のまま " + ext.ToString("F2") + "m 延ばして開けた(追記 2026-10-09h)"; }
+              } }
             Vector2 p0 = tr.stop - tr.yard * 0.30f, p1 = p0 + tr.along * L, p2 = tr.stop + tr.along * L + tr.yard * tr.off, p3 = tr.stop + tr.yard * tr.off;
             faces.Add(new EdoBuild.SkinFace("Mizo_" + tr.run, new[] { p0, p1, p2, p3 }, tr.y));
-            if (sb != null) sb.AppendLine("  面 溝 " + tr.run + "(" + tr.y.ToString("F2") + "): 返しと背の間 " + L.ToString("F2") + "×" + (tr.off + 0.30f).ToString("F2") + "m");
+            if (sb != null) sb.AppendLine("  面 溝 " + tr.run + "(" + tr.y.ToString("F2") + "): 返しと背の間 " + L.ToString("F2") + "×" + (tr.off + 0.30f).ToString("F2") + "m" + openNote);
         }
         // ⭐ 両端の返しで三方が閉じた長屋の背の一間(指図 terraceWalls[].stripDrain・EDO-0502 第25巡)も平らな面 ── 溝の底は算出物 graded の
         //   溝の芯の中ほど(両端の返しから離れた所)の中央値。⛔ 2026-10-05 まで面が無く、graded の 1m 格子が返しの見え面の前 1〜1.5m で

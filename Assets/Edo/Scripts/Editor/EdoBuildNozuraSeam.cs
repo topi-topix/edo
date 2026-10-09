@@ -70,6 +70,12 @@ public static partial class EdoBuild
                 float ov = Mathf.Min(pl[1], prr[1]) - Mathf.Max(pl[0], prr[0]);
                 if (ov > 1.0f) continue;                                   // 積み下ろし・重ねて埋める駒(継ぎ目でない)
                 if (ov < -0.6f) continue;                                  // 外接箱だけ触れる隣でない駒(隅の駒の腕の先の向こうの駒)
+                if (ov < -0.02f)
+                {   // 間に挟まる駒が口を覆っていれば隣でない(第70巡: 岡部 Kado79 × 039f の口 0.401 は間の 038f が −2.78〜−0.93 で覆っていた ── 偽の口)
+                    bool covered = false; float g0 = Mathf.Min(pl[1], prr[1]), g1 = Mathf.Max(pl[0], prr[0]);
+                    foreach (var w3 in ws) { if (w3 == a || w3 == b) continue; var b3 = RB(w3); b3.Expand(0.05f); if (!b3.Intersects(ba)) continue; var p3 = pr(w3); if (p3[0] <= g0 + 0.02f && p3[1] >= g1 - 0.02f) { covered = true; break; } }
+                    if (covered) continue;
+                }
                 float seam = 0.5f * (pl[1] + prr[0]);
                 float yLo = Mathf.Max(pl[2], prr[2]), yHi = Mathf.Min(pl[3], prr[3]);
                 Vector2 sp = o + X * seam; float fg = dg.At(sp.x + f.x * 0.6f, sp.y + f.y * 0.6f); if (float.IsNaN(fg)) fg = yLo;
@@ -179,8 +185,8 @@ public static partial class EdoBuild
         foreach (var fb in cc.list) if (!hullOf.ContainsKey(fb.go)) hullOf[fb.go] = cc.HullOf(fb.go);
         var pts = new List<Vector3>();
         foreach (var mf in skin.GetComponentsInChildren<MeshFilter>()) { if (mf.sharedMesh == null) continue; var V = mf.sharedMesh.vertices; foreach (var v in V) pts.Add(mf.transform.TransformPoint(v)); }
-        // 前の地表(帯ごと): 外形の外・前 0.25〜1.0 の頂点の最も低い高さ
-        var gF = new Dictionary<long, float>();
+        // 前の地表(帯ごと): 外形の外・前 0.25〜1.0 の頂点の高さの中央値(前後 2 割り)
+        var gF = new Dictionary<long, List<float>>();
         for (int fi = 0; fi < cc.list.Count; fi++)
         {
             var fb = cc.list[fi]; var hl = hullOf[fb.go]; if (hl == null) continue;
@@ -188,7 +194,7 @@ public static partial class EdoBuild
             {
                 var q = new Vector2(p.x, p.z); int b; float d; if (!cc.FaceAt(fb, q, out b, out d) || d >= 0f || EdoGeom.PIP(hl, q)) continue;
                 float ed = EdgeDist(hl, q); if (ed < 0.25f || ed > 1.0f) continue;
-                long k = ((long)fi << 20) | (long)b; float o; if (!gF.TryGetValue(k, out o) || p.y < o) gF[k] = p.y;
+                long k = ((long)fi << 20) | (long)b; List<float> gl; if (!gF.TryGetValue(k, out gl)) gF[k] = gl = new List<float>(); gl.Add(p.y);
             }
         }
         int n = 0; float worst = 0f; Vector3 wAt = Vector3.zero; string wBy = "-"; var by = new Dictionary<string, int>();
@@ -198,7 +204,7 @@ public static partial class EdoBuild
             for (int fi = 0; fi < cc.list.Count; fi++)
             {
                 var fb = cc.list[fi]; var hl = hullOf[fb.go]; int b; float d; if (hl == null || !cc.FaceAt(fb, q, out b, out d) || d >= 0f || !EdoGeom.PIP(hl, q)) continue;
-                float g = float.NaN; for (int db = -2; db <= 2; db++) { float o; if (gF.TryGetValue(((long)fi << 20) | (long)(b + db), out o) && (float.IsNaN(g) || o < g)) g = o; }
+                float g = float.NaN; { var gs = new List<float>(); for (int db = -2; db <= 2; db++) { List<float> gl; if (gF.TryGetValue(((long)fi << 20) | (long)(b + db), out gl)) gs.AddRange(gl); } if (gs.Count > 0) { gs.Sort(); g = gs[gs.Count / 2]; } }
                 if (float.IsNaN(g)) { var tr0 = Terrain.activeTerrain; float fu0 = fb.footU[b]; if (tr0 != null && !float.IsNaN(fu0)) { var qf = q + fb.f * (fu0 - Vector2.Dot(q, fb.f) + 0.6f); g = tr0.SampleHeight(new Vector3(qf.x, 0f, qf.y)) + tr0.transform.position.y; } }
                 if (!float.IsNaN(g) && p.y <= g + 0.02f) continue;   // 根入れの土
                 float e = p.y - (cc.FacePlaneY(fb, b, Vector2.Dot(q, fb.f)) - 0.02f);

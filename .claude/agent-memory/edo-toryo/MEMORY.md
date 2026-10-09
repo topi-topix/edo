@@ -148,6 +148,8 @@
 - [野面の段の境の駒は H1.50 だけ・継ぎ目の下が抜ける](nozura-dan-piece-fixed-height.md) — 直線は H4.8 まで選ぶ。StackDownAtNozuraSteps で積み下ろす
 - [地形の前後の差は資産の写しから採れる](terrain-diff-from-asset-copy.md)・[検証レンダの構図は残らない](render-camera-poses-not-kept.md) — int16 の塊を行で探す・構図は cams.txt
 
+- [皮を [lo,hi] で解く最初の2回の罠](skin-solve-lo-hi-first-runs.md) — 野面は石の寄せ集め・全ての駒の見え面・周りは陰を飛ばす・buryMin は硬い lo・延長の天端 < 平ら
+
 ## 測り方・関門
 
 - [練塀は下絵の seat で置かれ埋まる・天端の垣と S_Hei_20 の浮きは偽](dobei-seat-is-shitae-and-false-floats-r12.md) — 岡部 辺34 で 2.6m 埋没。浮きは光線の先着で確かめる・作業場の取り違え

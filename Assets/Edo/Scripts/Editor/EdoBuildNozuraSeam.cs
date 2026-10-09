@@ -259,4 +259,6 @@ public static partial class EdoBuild
         for (int i = 0; i < Mathf.Min(14, l.Count); i++) top.Add(l[i].Key + " " + l[i].Value + "(" + byMax[l[i].Key].ToString("F2", ci) + ")");
         return label + " の縁の落差 > " + drop.ToString("F1", ci) + " の土の面(皮の三角形・1:" + bf.ToString("0.0", ci) + " より急・部材の下と垂れを除く・硬 0): " + n + (n > 0 ? "(最大の高さ " + wMax.ToString("F2", ci) + " @(" + wAt.x.ToString("F1", ci) + ", " + wAt.y.ToString("F2", ci) + ", " + wAt.z.ToString("F1", ci) + ")・" + string.Join("・", top.ToArray()) + ") ⛔" : " ⭕");
     }
+    /// <summary>EdgeDist の公開の窓口(ビルダーの検めから)。</summary>
+    public static float EdgeDistPublic(Vector2[] poly, Vector2 p) { return EdgeDist(poly, p); }
 }

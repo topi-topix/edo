@@ -81,7 +81,11 @@ public static partial class EdoBuild
         /// <summary>**野面の石垣の天端の裏石の帯を土で覆う**(指図 const.nozuraCrestCover・2026-10-09 EDO-0502 第63巡)。null なら無し。
         /// <see cref="CutEdgeSkin"/> の最後(3f ── 3e の盛った土の後)に皮の節点で効かせ、皮の検めの「被り」から設計の帯を外す。</summary>
         public NozuraCrestCover crestCover;
+        /// <summary>**平らな面**(指図 terraces[].flat「面は y、外れ ±e【硬】・盛りと擦り付けの法尻は縁で止め面の上へ出さない」・第73巡)。null なら無し。
+        /// <see cref="CutEdgeSkin"/> の最後(4 の前)に、輪郭の中・部材の外形の外の節点を y ± e の内へ収める(exempt が真の点は除く ── 欄の例外)。</summary>
+        public List<FlatFace> flats;
     }
+    public sealed class FlatFace { public string name; public Vector2[] poly; public float y, e; public Func<Vector2, bool> exempt; public int fixedN; public float fixedMax; }
 
     /// <summary>**野面の石垣の天端の裏石の帯を土で覆う型**(指図 const.nozuraCrestCover・普請方の設計 2026-10-09・EDO-0502 第63巡・
     /// 施主の写真「天端が割れた板を並べたよう」── 天端の裏石 2 列の平らな帯(見え面から 0.36〜1.04)が背の土 天端−0.15 から顔を出していた)。
@@ -2363,6 +2367,22 @@ public static partial class EdoBuild
                 r.kadoFrontLowered = kLow; r.kadoFrontMax = kMx; r.kadoFrontAt = kAt; r.facePeaks = kPk; r.faceDips = kDip;
             }
         }
+        // ⭐ 平らな面(SkinDesign.flats・指図 flat【硬】・第73巡): 輪郭の中・部材の外形の外の節点を y ± e の内へ(盛り・擦り付けの法尻を面の上へ出さない)
+        if (design != null && design.flats != null)
+            foreach (var ff in design.flats)
+            {
+                if (ff.poly == null) continue; ff.fixedN = 0; ff.fixedMax = 0f;
+                foreach (var kk in new List<long>(H.Keys))
+                {
+                    if (PIN.Contains(kk)) continue;
+                    int gi = (int)(kk >> 32), gj = (int)(uint)(kk & 0xffffffff); var q3 = new Vector2(org.x + gi * step, org.z + gj * step);
+                    if (!EdoGeom.PIP(ff.poly, q3)) continue;
+                    bool undF = false; for (int hk = 0; hk < idx.hulls.Count && !undF; hk++) if (EdoGeom.PIP(idx.hulls[hk], q3)) undF = true; if (undF) continue;
+                    if (ff.exempt != null && ff.exempt(q3)) continue;
+                    float y0 = H[kk], y1 = Mathf.Clamp(y0, ff.y - ff.e, ff.y + ff.e); if (Mathf.Abs(y1 - y0) < 1e-4f) continue;
+                    y1 = ff.y; ff.fixedMax = Mathf.Max(ff.fixedMax, Mathf.Abs(y0 - y1)); H[kk] = y1; ff.fixedN++;
+                }
+            }
         if (SkinTrace != null) TrDump("4 の前", H, org.x, org.z, step);
         // ---- 4 メッシュ
         var go = new GameObject(SKIN_PREFIX + name);

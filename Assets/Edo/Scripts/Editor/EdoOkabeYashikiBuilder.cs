@@ -3869,7 +3869,8 @@ public static class EdoOkabeYashikiBuilder
         sb.AppendLine("  皮の後に " + SeatMonOnSkin());
         // 野面の継ぎ目の段差・見え面から土が覗く所(光線・EDO-0502 第64巡)── 皮を起こし直した後でないと土の側が測れない
         { var rt = GameObject.Find(GN); var dn = rt == null ? null : rt.transform.Find("Dan");
-          if (dn != null) sb.AppendLine("  " + EdoBuild.NozuraSeamReport(rt.transform, dn, rt.transform.Find("EdgeSkin")).Replace("\n", "\n  ")); }
+          if (dn != null) sb.AppendLine("  " + EdoBuild.NozuraSeamReport(rt.transform, dn, rt.transform.Find("EdgeSkin")).Replace("\n", "\n  "));
+          if (dn != null && rt.transform.Find("EdgeSkin") != null) sb.AppendLine("  " + EdoBuild.NozuraSkinPlaneCheck(dn, rt.transform.Find("EdgeSkin"))); }
         return sb.ToString();
     }
 

@@ -106,7 +106,7 @@ public static partial class EdoBuild
         public int otherSkipped;
         public Func<Vector2, bool> keepOut;
         public int faces, pieces, blocked; public float blockedMax; public Vector3 blockedAt;
-        public sealed class FaceBins { public GameObject go; public Vector2 f, t; public float a0; public float[] crest, frontU, riseB; public Vector4 box; }
+        public sealed class FaceBins { public GameObject go; public Vector2 f, t; public float a0; public float[] crest, frontU, riseB, footU, botY; public Vector4 box; }
         public readonly List<FaceBins> list = new List<FaceBins>();
         /// <summary>駒ごとの外形(凸包)と見え面ごとの前の縁(face, 前の縁の u)── ③ を帯の割りに依らず駒の外形で測る(隅の駒の腕の継ぎで帯が欠けても表の石を守る)。</summary>
         public sealed class PieceFaces { public Vector2[] hull; public Vector4 box; public List<Vector3> faces = new List<Vector3>(); }
@@ -143,6 +143,14 @@ public static partial class EdoBuild
         /// <summary>q が go 以外(null なら全て)の駒の面の天端の帯(前の縁から奥 0〜back)に入るか。</summary>
         public bool InOtherBand(Vector2 q, GameObject go)
         { foreach (var fb in list) { if (fb.go == go) continue; int b; float d; if (FaceAt(fb, q, out b, out d) && d >= 0f && d <= back) return true; } return false; }
+        /// <summary>**見え面の平面の高さ**(第69巡): 帯 b の天端の前の縁 (frontU, crest) から法尻 (footU, botY) へ下りる平面の、奥行 u での高さ。
+        /// 法の傾き k = (footU − frontU)/(crest − botY) を 0.05〜0.6 に収める(測れなければ 0.3)。u ≤ frontU なら天端。</summary>
+        public float FacePlaneY(FaceBins fb, int b, float u)
+        {
+            float c = fb.crest[b], f0 = fb.frontU[b]; if (u <= f0) return c;
+            float k = 0.3f; if (!float.IsNaN(fb.footU[b]) && !float.IsNaN(fb.botY[b]) && c - fb.botY[b] > 0.2f) k = Mathf.Clamp((fb.footU[b] - f0) / (c - fb.botY[b]), 0.05f, 0.6f);
+            return c - (u - f0) / k;
+        }
         /// <summary>駒の外形(凸包)。無ければ null。</summary>
         public Vector2[] HullOf(GameObject go) { int i = pieceGo.IndexOf(go); return i < 0 ? null : pieceFaces[i].hull; }
 
@@ -184,9 +192,12 @@ public static partial class EdoBuild
                     if (v.y < cr[b] - CREST_BAND) continue;
                     if (float.IsNaN(fu[b]) || u > fu[b]) fu[b] = u;
                 }
+                // 見え面の平面(法)の足: 帯ごとの最も前の頂点(法尻)と最も低い頂点 ── 見え面の平面 = (frontU, crest) と (footU, botY) を通る(第69巡)
+                var ft = new float[n]; var by = new float[n]; for (int b = 0; b < n; b++) { ft[b] = float.NaN; by[b] = float.NaN; }
+                foreach (var v in ov) { int b = Mathf.Clamp(Mathf.FloorToInt((v.x * t.x + v.z * t.y - a0) / BIN), 0, n - 1); float u = v.x * f.x + v.z * f.y; if (float.IsNaN(ft[b]) || u > ft[b]) ft[b] = u; if (float.IsNaN(by[b]) || v.y < by[b]) by[b] = v.y; }
                 // 帯の頂の上げ: 裏石の後端(天端の帯の最も奥)で土 ≥ minSoil【硬】── rise(狙い)と比べて高い方
                 for (int b = 0; b < n; b++) rb[b] = float.IsNaN(fu[b]) ? rise : Mathf.Max(rise, minSoil + 0.005f + Mathf.Max(0f, Mathf.Min(back, fu[b] - bu[b]) - front) * drain);
-                list.Add(new FaceBins { go = go, f = f, t = t, a0 = a0, crest = cr, frontU = fu, riseB = rb, box = new Vector4(bx0 - pad, bz0 - pad, bx1 + pad, bz1 + pad) });
+                list.Add(new FaceBins { go = go, f = f, t = t, a0 = a0, crest = cr, frontU = fu, riseB = rb, footU = ft, botY = by, box = new Vector4(bx0 - pad, bz0 - pad, bx1 + pad, bz1 + pad) });
                 faces++;
                 float fmax = float.MinValue; foreach (var x in fu) if (!float.IsNaN(x)) fmax = Mathf.Max(fmax, x);
                 if (fmax > float.MinValue) pf.faces.Add(new Vector3(f.x, f.y, fmax));
@@ -2269,10 +2280,17 @@ public static partial class EdoBuild
                         bool inH = EdoGeom.PIP(kh[fi], q3), isK = ccv.kadoSet.Contains(kfb[fi].go);
                         if (!inH && (!isK || EdgeDist(kh[fi], q3) > ccv.kadoBand)) continue;   // 外形の外(見え面の前の地表)を下げるのは隅の駒だけ
                         if (!inH && ccv.NearOtherPiece(q3, kfb[fi].go, 0.2f)) continue;   // 隣の駒の外形の中・縁(背・下)は下げない
-                        if (inH && ccv.InOtherBand(q3, null)) continue;   // どの駒の天端の帯(隅の駒のもう一方の面・上の段の駒の天端)の下も下げない
                         float g = float.NaN; for (int db = -2; db <= 2; db++) { float o; if (gF.TryGetValue(((long)fi << 20) | (long)(b + db), out o) && (float.IsNaN(g) || o < g)) g = o; }
+                        if (float.IsNaN(g))
+                        {   // 前に皮の節点が無い(前は地形)── 法尻の 0.6 前の地形の高さを前の地表とする(第69巡: 岡部 TW_Kado_Hokuto の隅の前で 4.5 立っていた)
+                            var tr0 = Terrain.activeTerrain; float fu0 = kfb[fi].footU[b]; if (tr0 != null && !float.IsNaN(fu0))
+                            { var qf = q3 + kfb[fi].f * (fu0 - Vector2.Dot(q3, kfb[fi].f) + 0.6f); g = tr0.SampleHeight(new Vector3(qf.x, 0f, qf.y)) + tr0.transform.position.y; }
+                        }
                         if (float.IsNaN(g)) continue;
                         float c = g;
+                        // ⭐ 第69巡(硬): 外形の中の節点は**見え面の平面の後ろ**へ ── 平面の高さを一格子(対角)前で測り −0.02(外の前の地表の節点との三角形も平面の後ろに収まる)。
+                        //   前の地表より下げない(根入れの土)。どの駒の天端の帯の節点でも、別の面の平面より前なら同じく抑える(隅の稜で帯が隣の面の前へ立つ縦の帯 ── r68 の 01・12)。
+                        if (inH) c = Mathf.Max(g, ccv.FacePlaneY(kfb[fi], b, Vector2.Dot(q3, kfb[fi].f) + step * 1.42f) - 0.02f);
                         // 外形の中(法の見え面の上)も前の地表へ ── ⭐ 第68巡: 見え面の面−capDrop に沿わせると、外形の縁をまたぐ皮の三角形
                         //   (外の前の地表の節点 ↔ 中の高い節点)が法(1:0.3)より急になり、法尻の上で見え面の前へ出る(写真 r67 の 01・12 の縦の帯)。
                         //   前の地表の高さなら三角形は石の面の下に隠れる。

@@ -163,4 +163,52 @@ public static partial class EdoBuild
         if (!string.IsNullOrEmpty(tsv)) { System.IO.File.WriteAllText(tsv + "_joints.tsv", sbJ.ToString()); System.IO.File.WriteAllText(tsv + "_soil.tsv", sbS.ToString()); }
         return summary;
     }
+
+    /// <summary>**皮の頂点が野面の見え面の平面より前に出ないか**(硬・EDO-0502 第69巡 ── 施主「石垣の隙間に土が見える」の縦の帯の検め)。
+    /// 駒ごと・見え面ごとに <see cref="NozuraCrestCover"/> の帯(天端の前の縁 → 法尻の平面・<see cref="NozuraCrestCover.FacePlaneY"/>)を作り、
+    /// 駒の外形の中で天端の前の縁より前にある皮の頂点が 平面 − 0.02 を越えたら数える。根入れの土(帯の前 0.25〜1.0 の皮の頂点の最も低い高さ = 前の地表)以下は数えない。
+    /// ⟶ 返す: 件数・最悪(平面からの高さ)・上位の駒。当たる先: 野面の乱積みの土留めを持つ全邸(岡部 Dan)── Stage3b の末に刷る。</summary>
+    public static string NozuraSkinPlaneCheck(Transform walls, Transform skin)
+    {
+        var cc = new NozuraCrestCover(); var hullOf = new Dictionary<GameObject, Vector2[]>();
+        foreach (Transform c in walls)
+        {
+            if (!c.gameObject.activeInHierarchy) continue; var mf = c.GetComponentInChildren<MeshFilter>(); if (mf == null || mf.sharedMesh == null || !mf.sharedMesh.name.Contains("Nozura")) continue;
+            cc.Add(c.gameObject, mf.sharedMesh.name.Contains("_Kado"));
+        }
+        foreach (var fb in cc.list) if (!hullOf.ContainsKey(fb.go)) hullOf[fb.go] = cc.HullOf(fb.go);
+        var pts = new List<Vector3>();
+        foreach (var mf in skin.GetComponentsInChildren<MeshFilter>()) { if (mf.sharedMesh == null) continue; var V = mf.sharedMesh.vertices; foreach (var v in V) pts.Add(mf.transform.TransformPoint(v)); }
+        // 前の地表(帯ごと): 外形の外・前 0.25〜1.0 の頂点の最も低い高さ
+        var gF = new Dictionary<long, float>();
+        for (int fi = 0; fi < cc.list.Count; fi++)
+        {
+            var fb = cc.list[fi]; var hl = hullOf[fb.go]; if (hl == null) continue;
+            foreach (var p in pts)
+            {
+                var q = new Vector2(p.x, p.z); int b; float d; if (!cc.FaceAt(fb, q, out b, out d) || d >= 0f || EdoGeom.PIP(hl, q)) continue;
+                float ed = EdgeDist(hl, q); if (ed < 0.25f || ed > 1.0f) continue;
+                long k = ((long)fi << 20) | (long)b; float o; if (!gF.TryGetValue(k, out o) || p.y < o) gF[k] = p.y;
+            }
+        }
+        int n = 0; float worst = 0f; Vector3 wAt = Vector3.zero; string wBy = "-"; var by = new Dictionary<string, int>();
+        foreach (var p in pts)
+        {
+            var q = new Vector2(p.x, p.z); float ex = float.NaN; string who = null;
+            for (int fi = 0; fi < cc.list.Count; fi++)
+            {
+                var fb = cc.list[fi]; var hl = hullOf[fb.go]; int b; float d; if (hl == null || !cc.FaceAt(fb, q, out b, out d) || d >= 0f || !EdoGeom.PIP(hl, q)) continue;
+                float g = float.NaN; for (int db = -2; db <= 2; db++) { float o; if (gF.TryGetValue(((long)fi << 20) | (long)(b + db), out o) && (float.IsNaN(g) || o < g)) g = o; }
+                if (float.IsNaN(g)) { var tr0 = Terrain.activeTerrain; float fu0 = fb.footU[b]; if (tr0 != null && !float.IsNaN(fu0)) { var qf = q + fb.f * (fu0 - Vector2.Dot(q, fb.f) + 0.6f); g = tr0.SampleHeight(new Vector3(qf.x, 0f, qf.y)) + tr0.transform.position.y; } }
+                if (!float.IsNaN(g) && p.y <= g + 0.02f) continue;   // 根入れの土
+                float e = p.y - (cc.FacePlaneY(fb, b, Vector2.Dot(q, fb.f)) - 0.02f);
+                if (e > 1e-3f && (float.IsNaN(ex) || e > ex)) { ex = e; who = fb.go.name; }
+            }
+            if (float.IsNaN(ex)) continue;
+            n++; int c0; by.TryGetValue(who, out c0); by[who] = c0 + 1; if (ex > worst) { worst = ex; wAt = p; wBy = who; }
+        }
+        var l = new List<KeyValuePair<string, int>>(by); l.Sort((a, b2) => b2.Value.CompareTo(a.Value)); var top = new List<string>(); for (int i = 0; i < Mathf.Min(6, l.Count); i++) top.Add(l[i].Key + " " + l[i].Value);
+        var ci = System.Globalization.CultureInfo.InvariantCulture;
+        return "皮の頂点が野面の見え面の平面より前(硬 0・平面 −0.02・根入れの土を除く): " + n + " / " + pts.Count + " 頂点" + (n > 0 ? "(最悪 +" + worst.ToString("F2", ci) + " @(" + wAt.x.ToString("F1", ci) + ", " + wAt.y.ToString("F2", ci) + ", " + wAt.z.ToString("F1", ci) + ")〔" + wBy + "〕・" + string.Join("・", top.ToArray()) + ") ⛔" : " ⭕");
+    }
 }

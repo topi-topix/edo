@@ -619,7 +619,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `Stage3c_SodeSlopeCheck()` | `string` | 公 | 袖の坂の硬い検めを皮の後に測り直す(指図 sodeSlope「天端と背の地盤の差 ≤ x」【硬】・EDO-0502 第45巡)。 |
 | `Stage3_Shukaku()` | `string` | 公 | — |
 | `Stage3b_Hifu()` | `string` | 公 | — |
-| `NozuraCrestCoverOf(sb)` | `EdoBuild.NozuraCrestCover` |  | 野面の石垣の天端の裏石の帯を土で覆う型(EdoBuild.NozuraCrestCover)を、段の土留め(Dan)の野面の駒から起こす (指図 const.nozuraCrestCover・普請方の設計 2026-10… |
+| `NozuraCrestCoverOf(sb, buried=…)` | `EdoBuild.NozuraCrestCover` |  | 野面の石垣の天端の裏石の帯を土で覆う型(EdoBuild.NozuraCrestCover)を、段の土留め(Dan)の野面の駒から起こす (指図 const.nozuraCrestCover・普請方の設計 2026-10… |
 | `SodeSlopeSegs(key, nodes, txt, nozSegs, chk, landOut=…, coverOut=…)` | `string` |  | 袖の坂(指図 terraceWalls[].sodeSlope・普請方の設計 2026-10-07・EDO-0502 第41〜42巡)── 袖の天端を段にせず、背の法 + off の坂の一続きの線にする (上端 cap… |
 | `StairSideAndEndBacks(res, note, depth, rx)` | `void` |  | 石段の脇の返しの背(指図 kaidans[].sideBack)と、段の土留めの両端の延長の背(指図 terraceWalls[].endsBack)の小段 (EDO-0502 第60巡・普請方の設計 5d33ffe5… |
 | `SodeBenches(note)` | `Dictionary<string, List<KeyValuePair<int, EdoBuild.BackBench>>>` |  | — |

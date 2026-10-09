@@ -3867,6 +3867,9 @@ public static class EdoOkabeYashikiBuilder
         sb.AppendLine("  皮の後に " + SeatKakiOnBed());
         sb.AppendLine("  皮の後に " + StackCurbOnSkin());
         sb.AppendLine("  皮の後に " + SeatMonOnSkin());
+        // 野面の継ぎ目の段差・見え面から土が覗く所(光線・EDO-0502 第64巡)── 皮を起こし直した後でないと土の側が測れない
+        { var rt = GameObject.Find(GN); var dn = rt == null ? null : rt.transform.Find("Dan");
+          if (dn != null) sb.AppendLine("  " + EdoBuild.NozuraSeamReport(rt.transform, dn, rt.transform.Find("EdgeSkin")).Replace("\n", "\n  ")); }
         return sb.ToString();
     }
 
@@ -4174,6 +4177,8 @@ public static class EdoOkabeYashikiBuilder
                 if (flatEnd) ns.fixHEnd[e] = fixH;   // 低い端の一駒は水平の焼いた H(⛔ 勾配の駒を傾けて刺さない)
                 else ns.endSink[e] = sink;
             }
+            // 上端の取り付き(追記 2026-10-09【硬】): 高い端の区間の高い端から topLen は水平の駒(⛔ 勾配の駒を選ばせない ── 第63巡は G−275 で 21.24→20.80 に傾き本線より 0.23 出た)
+            if (!float.IsNaN(topLen)) { int eh = lowAtA ? (i == segL.Count - 1 ? 1 : -1) : (i == 0 ? 0 : -1); if (eh >= 0) ns.flatEnd[eh] = topLen; }
             nozSegs.Add(ns);
         }
         var ln = new List<Vector2>(); var bk = new List<Vector2>();

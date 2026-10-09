@@ -66,6 +66,24 @@ public static partial class EdoBuild
         /// <summary>走りの範囲 (s の始まり, s の終わり, 焼いた H) ── 駒の中ほどが範囲に入る駒は見付をこの H **ちょうど**にする(指図 sodeSlope 追記 2026-10-07
         /// 「低い端は水平の H0600 を一駒」・EDO-0502 第42巡)。<see cref="NozuraSeg.fixHEnd"/> から。</summary>
         public List<Vector3> fixHRanges = new List<Vector3>();
+        /// <summary>走りの範囲 (s の始まり, s の終わり) ── 駒の中ほどが範囲に入る駒は勾配の駒を使わず水平(G+000)に据える(指図 sodeSlope 追記 2026-10-09
+        /// 「最初の駒1つ分は天端を 21.0 で水平」【硬】・EDO-0502 第64巡)。<see cref="NozuraSeg.flatEnd"/> から。</summary>
+        public List<Vector2> flatRanges = new List<Vector2>();
+    }
+
+    /// <summary>**名指した見え面は「側」だけ採り、向きは区間の線の法線にする**(2026-10-09・EDO-0502 第64巡・施主「石垣の部材のつなぎ目で段差」)。
+    /// 指図・ビルダーが名指す見え面(<see cref="NozuraSeg.face"/> ── 石段の芯へ・背の逆)は区間の線と直交するとは限らない。
+    /// 石段の脇の返しは天端の線が石段の軸から 2〜9° 振れる(見付が段ごとに 0.3 増え、法 3分で天端の前の縁が 0.09 ずつ退く ── StairSideCrestLines)のに、
+    /// 見え面を軸の法線のまま据えたため、駒ごとに天端の前の縁を線へ寄せると継ぎ目ごとに見え面が 0.08〜0.42 前後へずれ(鋸の歯)、走りの向きに 0.05〜0.25 の口が開いて
+    /// 土が覗いた(岡部 TW_Kado_Shumen_Side0/1・TW_Higashi_Tsuyo_Side0/1・積み止め)。⇒ 線の法線のうち名指した側を返す(一つの法の面に揃う)。
+    /// 名指した向きが線とほぼ平行(|内積| &lt; 0.5)なら名指しのまま。【硬】(隙 0)。
+    /// 当たる先: 名指した見え面を持つ野面の区間すべて(岡部 石段の脇の返し・袖の坂・腰の返し、PlaceNozuraNet の端の見立て・積み止め)。</summary>
+    public static Vector2 FaceAcross(Vector2 named, Vector2 dir)
+    {
+        Vector2 n = new Vector2(dir.y, -dir.x); if (n.sqrMagnitude < 1e-8f) return named; n.Normalize();
+        float d = Vector2.Dot(named.normalized, n);
+        if (Mathf.Abs(d) < 0.5f) return named;
+        return d > 0f ? n : -n;
     }
 
     /// <summary>**野面の乱積みの土留めを据える**(2026-09-25・EDO-0430)。見え面 = 描かれた地表の低い側
@@ -91,7 +109,7 @@ public static partial class EdoBuild
             float l = Vector2.Distance(P[i], P[i + 1]); dir[i] = (P[i + 1] - P[i]) / Mathf.Max(l, 1e-6f); s0[i + 1] = s0[i] + l;
             int vn, vx; var lo = LowSide(P[i], P[i + 1], faceG, probe, 0.05f, null, out vn, out vx);
             face[i] = lo;
-            if (w.faceAt != null) { var fz = w.faceAt((s0[i] + s0[i + 1]) * 0.5f); if (fz.sqrMagnitude > 0.5f) { face[i] = fz; vx = 0; } }
+            if (w.faceAt != null) { var fz = w.faceAt((s0[i] + s0[i + 1]) * 0.5f); if (fz.sqrMagnitude > 0.5f) { face[i] = FaceAcross(fz, dir[i]); vx = 0; } }
             if (vx > 0) log.AppendLine("    ⚠ " + name + " 区間 " + i + " で低い側が割れた(" + vn + " 対 " + vx + ")");
         }
         for (int i = 0; i + 1 < m; i++)   // 票の無い区間は隣の区間の向きを回して借りる
@@ -146,7 +164,7 @@ public static partial class EdoBuild
         Func<int, float, float, Vector2> faceOn = (si, sa, sb) =>
         {
             float a0 = Mathf.Clamp(sa, s0[si], s0[si + 1]), b0 = Mathf.Clamp(sb, s0[si], s0[si + 1]);
-            if (w.faceAt != null) { var fz = w.faceAt((a0 + b0) * 0.5f); if (fz.sqrMagnitude > 0.5f) return fz; }   // 名指した見え面(袖の坂)
+            if (w.faceAt != null) { var fz = w.faceAt((a0 + b0) * 0.5f); if (fz.sqrMagnitude > 0.5f) return FaceAcross(fz, dir[si]); }   // 名指した見え面(袖の坂)── 側だけ採り、向きは区間の法線(FaceAcross)
             if (b0 - a0 < 0.3f) return face[si];
             if (w.sidesAt != null)
             {   // 指図の縦断の低い側・高い側の地盤に、線の両脇の設計面のどちらが揃うか
@@ -659,6 +677,7 @@ public static partial class EdoBuild
                 Vector2 X = new Vector2(fN.y, -fN.x);
                 float gX = gradeX(sMid, 0.5f * W * sc, X, si);
                 foreach (var r in w.fixHRanges) if (sMid >= r.x && sMid <= r.y) gX = 0f;   // 名指した端の一駒は水平(sodeSlope の低い端 ── ⛔ 傾けて刺さない)
+                foreach (var r in w.flatRanges) if (sMid >= r.x && sMid <= r.y) gX = 0f;   // 名指した端の水平の範囲(sodeSlope の上端の取り付き ── 第63巡は PlaceBest が G−275 を選び 21.24→20.80 に傾いた)
                 float yaw = Mathf.Atan2(-X.y, X.x) * Mathf.Rad2Deg;
                 bool kiriHere = (lastFree && k == N - 1 && !fromB) || (firstFree && k == 0 && !fromB);
                 // ⛔ 打ち切りの駒(見付 0.15 で頭が下がる)は端の見付が最も低い段で足りる所だけ ── 見付の要る端に置くと床が地表から浮く
@@ -1049,6 +1068,8 @@ public static partial class EdoBuild
         public float[] endSink = { float.NaN, float.NaN };
         /// <summary>端(0 = a / 1 = b)の一駒の焼いた H(見付の段)を名指す ── 指図 sodeSlope 追記 2026-10-07「低い端は水平の H0600 を一駒」。NaN なら無し。</summary>
         public float[] fixHEnd = { float.NaN, float.NaN };
+        /// <summary>端(0 = a / 1 = b)から走りの長さ ── その内に中ほどが入る駒は水平(勾配の駒を選ばない)。指図 sodeSlope 追記 2026-10-09「最初の駒1つ分は水平」【硬】。NaN なら無し。</summary>
+        public float[] flatEnd = { float.NaN, float.NaN };
         /// <summary>見え面の向き(水平の単位)を名指す ── 背の向きが指図・設計面で決まっている区間(袖の坂: 背 = 設計面の高い側)。zero なら地表で決める。</summary>
         public Vector2 face;
         public float Len { get { return Vector2.Distance(a, b); } }
@@ -1371,7 +1392,7 @@ public static partial class EdoBuild
         {
             // 名指した見え面(NozuraSeg.face)が在れば先に採る ── 駒の向き(PlaceNozuraRun の faceAt)と継ぎの見立てを同じ向きで解く
             //   (2026-10-07 EDO-0502 第44巡: 隅の返しの腕の見え面を地表で測ると入隅と見立て、隅の駒が据わらなかった)
-            if (sg.face.sqrMagnitude > 0.5f) return sg.face;
+            if (sg.face.sqrMagnitude > 0.5f) return FaceAcross(sg.face, sg.Dir);
             float l = sg.Len, t = Mathf.Min(W, l);
             Vector2 pa = e == 0 ? sg.a : sg.b - sg.Dir * t, pb = e == 0 ? sg.a + sg.Dir * t : sg.b;
             var fg = faceGroundAt ?? groundAt;
@@ -1784,6 +1805,7 @@ public static partial class EdoBuild
                 {
                     float pe = (e == 0) != ch[i].Value ? c0 : c1;   // 裏返した区間は端が入れ替わる
                     if (!float.IsNaN(sg.fixHEnd[e])) w.fixHRanges.Add(new Vector3(pe - W, pe + W, sg.fixHEnd[e]));
+                    if (!float.IsNaN(sg.flatEnd[e])) w.flatRanges.Add(pe == c0 ? new Vector2(c0 - W, c0 + sg.flatEnd[e]) : new Vector2(c1 - sg.flatEnd[e], c1 + W));
                     if (float.IsNaN(sg.minHEnd[e])) continue;
                     w.minHRanges.Add(new Vector3(pe - W, pe + W, sg.minHEnd[e]));
                 }

@@ -2528,7 +2528,8 @@ def make_nnori(ls, h, end, v):
     mats = materials()
     e, s_e, s_c = nnori_frame(ls, end)
     cells = []
-    for poly, kind, key in wall_cells(v):
+    # ⭐ 型の深さは直線の駒と同じ取り方(h+BURY > DEEP の駒だけ深い型・EDO-0502 2026-10-10 H2.40 超を焼くので)
+    for poly, kind, key in wall_cells(v, h + BURY):
         p2 = clip(poly, (0, -1), h + BURY)
         if len(p2) >= 3 and area(p2) > 0.004:
             cells.append((p2, kind, key))
@@ -2539,15 +2540,23 @@ def make_nnori(ls, h, end, v):
     objs.append(backing("back", h, 0.0, mats[1]))
     objs.append(backing("back2", h, 0.0, mats[1], *BACK2))
     name = nnori_name(ls, end, h, v)
+    # ⭐ 両端とも石ごとに切って塞ぐ(EDO-0502 2026-10-10 ── join 後の一括 bisect は小口が内向き・欠けになる `cut_each_ends` の教訓)。
+    #   継ぐ側(−e 端)は直線の駒と同じ平面 / 切る端: e·X ≤ e·s_e + NNORI·(Y − h) ⇔ Blender で dot(p − (−s_e, 0, h), (−e, 0, −NNORI)) ≤ 0
+    seam = ((L / 2, 0, 0), (1, 0, 0)) if e > 0 else ((-L / 2, 0, 0), (-1, 0, 0))
+    objs = cut_each_planes(objs, [seam, ((-s_e, 0.0, h), (-e, 0.0, -NNORI))])
+    nd = 0
+    for ob in list(objs):     # 法の面で削がれて二辺とも欠片の寸法に満たない石は落とす(旧の bm_cut_keep の chip と同じ判定)
+        cs = [ob.matrix_world @ q.co for q in ob.data.vertices]
+        ext = sorted(max(c[i] for c in cs) - min(c[i] for c in cs) for i in range(3))
+        if len(ob.data.polygons) > 2 and ext[1] < NKIRI_CHIP:
+            nd += len(cs); objs.remove(ob); bpy.data.objects.remove(ob, do_unlink=True)
     o = V.join(objs, name)
-    # 継ぐ側(−e 端)は直線の駒と同じ切り口
-    if e > 0:
-        bisect_keep(o, (L / 2, 0, 0), (1, 0, 0))        # Unity X >= −L/2
-    else:
-        bisect_keep(o, (-L / 2, 0, 0), (-1, 0, 0))      # Unity X <= +L/2
-    # 切る端: e·X ≤ e·s_e + NNORI·(Y − h) ⇔ Blender で dot(p − (−s_e, 0, h), (−e, 0, −NNORI)) ≤ 0
-    nd = bm_cut_keep(o, (-s_e, 0.0, h), (-e, 0.0, -NNORI))
-    print("NNORI 欠片を落とした 頂点 %d" % nd)
+    bm = bmesh.new(); bm.from_mesh(o.data)          # 塞ぎ直しで残る面の無い点を掃く
+    loose_ = [q for q in bm.verts if not q.link_faces]
+    if loose_:
+        bmesh.ops.delete(bm, geom=loose_, context='VERTS')
+    bm.to_mesh(o.data); bm.free(); o.data.update()
+    print("NNORI 欠片を落とした 頂点 %d・面の無い点 %d" % (nd, len(loose_)))
     # 窓の中心をピボットへ(Unity X −= s_c ⇔ Blender X += s_c)
     o.data.transform(mathutils.Matrix.Translation((s_c, 0.0, 0.0))); o.data.update()
     V.set_origin(o, (0, 0, 0))
@@ -2609,23 +2618,26 @@ def render_nnori(ls, h, end, v):
     相手の駒は法の包絡の出(0.075)だけ離す(= 据え手が触れている箇所で寄せた所)。反対の端に直線の駒 1 を継ぐ。"""
     e = 1 if end == "P" else -1
     V.reset()
-    _import_at(os.path.join(OUT_WALL, nnori_name(ls, end, h, v) + ".fbx"), 0, 0, 0)
-    _import_at(os.path.join(OUT_WALL, wall_name(h, 0, "b") + ".fbx"), -e * (ls / 2 + L / 2), 0, 0)
-    hw = 0.90
-    _import_at(os.path.join(OUT_WALL, wall_name(hw, 0, "c") + ".fbx"), e * (ls / 2 + 0.075), L / 2, h - hw, -90.0 * e)
+    src = lambda nm: next((p_ for p_ in (os.path.join(OUT_WALL, nm + ".fbx"), os.path.join(OUT_WALL_REPO, nm + ".fbx")) if os.path.exists(p_)),
+                          os.path.join(OUT_WALL, nm + ".fbx"))      # staging に無い直線の駒は在庫から
+    _import_at(src(nnori_name(ls, end, h, v)), 0, 0, 0)
+    _import_at(src(wall_name(h, 0, "b")), -e * (ls / 2 + L / 2), 0, 0)
+    hw = 0.90 if h <= 2.4 else h       # 深い駒は相手も同じ見付(法の面が全丈で沿うかを見る)
+    _import_at(src(wall_name(hw, 0, "a" if hw > 2.4 else "c")), e * (ls / 2 + 0.075), L / 2, h - hw, -90.0 * e)
     hook_stone_textures()
     ground(0.0, -30, 30)
     _upper_ground(h, (-4 * L, 0.0) if e > 0 else (0.0, 4 * L), (-6.0, -0.25))
     tag = nnori_name(ls, end, h, v)
-    studio_run([], _u2b(-e * 1.2, h + 0.9, 3.4), _u2b(e * ls * 0.3, h * 0.5, 0.2), 30, os.path.join(SHOT, tag + ".png"))
-    studio_run([], _u2b(-e * 1.2, h + 0.9, 3.4), _u2b(e * ls * 0.3, h * 0.5, 0.2), 30, os.path.join(SHOT, tag + "_magenta.png"), magenta=True)
+    cz = 3.4 if h <= 2.4 else 3.4 + 1.2 * (h - 2.4)    # 深い駒は引いて全丈を入れる
+    studio_run([], _u2b(-e * 1.2, h + 0.9, cz), _u2b(e * ls * 0.3, h * 0.5, 0.2), 30, os.path.join(SHOT, tag + ".png"))
+    studio_run([], _u2b(-e * 1.2, h + 0.9, cz), _u2b(e * ls * 0.3, h * 0.5, 0.2), 30, os.path.join(SHOT, tag + "_magenta.png"), magenta=True)
     # 真横(走りの向きの横 = 見え面から)から: 切る端の法が相手の面に沿うか
     for nm in ("Upper",):
         ob = bpy.data.objects.get(nm)
         if ob:
             bpy.data.objects.remove(ob)
     cam = bpy.context.scene.camera
-    cam.data.type = 'ORTHO'; cam.data.ortho_scale = 2.4
+    cam.data.type = 'ORTHO'; cam.data.ortho_scale = max(2.4, 1.25 * h + 0.4)
     cam.location = _u2b(e * ls * 0.3, h * 0.5, 8.0)
     cam.rotation_euler = (Vector(_u2b(e * ls * 0.3, h * 0.5, 0.0)) - cam.location).to_track_quat('-Z', 'Y').to_euler()
     V.render(os.path.join(SHOT, tag + "_side.png"))

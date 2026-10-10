@@ -1779,8 +1779,13 @@ public static class EdoAssets
         /// ⛔ **伸縮させない**(scale.x で法が変わる)── 長さは 0.05 刻みで焼いてある(0.30〜0.80)ので、区間に収まる最長を引く(<paramref name="len"/> を 0.05 へ切り下げる)。
         /// 据えは天端の前の縁の切る端を「相手の面 × 天端の線」へ当て、相手の面の法線で触れている箇所を測って走りに沿って寄せる(接して 0)。
         /// 焼いてあるもの: +X(P)・見付 0.60 / 1.80(1.80 は棟梁が第3巡に W の南の区間の見付 1.61 から焼き足した ── 行は `Tools/Blender/sanno_nozura_nori_set.txt`)・長さ 0.30〜0.80・個体 a のみ。実寸(長さ 0.40): X −0.200〜+0.200 × Y −0.21〜0.60 × Z −0.86〜+0.31。三角形 540〜1,470。
-        /// 材 `Kirishi` / `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
-        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- nnori --list=Tools/Blender/sanno_nozura_nori_set.txt --render</summary>
+        /// ⭐ 岡部の入隅(EDO-0502 2026-10-10・const.abutOrder で後から据える返し・袖・端)に **P/M × 見付 0.30〜2.40・4.80** を焼き足した
+        /// (行は `Tools/Blender/okabe_nozura_nori_set.txt`)。長さは <see cref="SannoNozuraNoriMinLen"/>(= 0.3·(見付 + 根入れ 0.20) の 0.05 切り上げ)から
+        /// 0.80(見付 ≤2.40)/ **1.50〜1.80(H4.80)**── 下限より短いと法の面が駒の底へ届く前に駒が尽き、下は継ぐ直線の駒の鉛直な小口が相手の法へ入る。
+        /// 据え手は長さを <see cref="SannoNozuraNoriMaxLen"/> から 0.05 刻みで下ろして引く(焼いていない組は File.Exists で落ちる)。実寸(H4.80 長 1.50): X −0.750〜+0.750 × Y −0.20〜4.80 × Z −1.05〜+1.46。三角形 1.4〜2.0 万。
+        /// 材 `Kirishi` / `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`(meta は既存の駒から写してあるので取り込みだけで材が付く)。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- nnori --list=Tools/Blender/sanno_nozura_nori_set.txt --render
+        /// / BUZAI_OUT=&lt;staging&gt; blender --background --python Tools/Blender/build_sanno_nozura.py -- nnori --list=Tools/Blender/okabe_nozura_nori_set.txt</summary>
         /// <summary>野面の乱積みの駒(`SannoNozura*`)の見え面の法(水平/鉛直)。部材方の実測 1:0.3(前の包絡は 0.3 の面より 0.065〜0.08 前で平行)。</summary>
         public const float SannoNozuraNori = 0.3f;
         public static string SannoNozuraNoriEnd(float len, bool atPlusX, float h)
@@ -1788,6 +1793,14 @@ public static class EdoAssets
             int mm = UnityEngine.Mathf.FloorToInt(len * 20f + 1e-3f) * 50;
             return SannoNozuraDir + "/Sanno_Nozura_Nori" + (atPlusX ? "P" : "M") + "_L" + mm.ToString("0000")
                  + "_H" + ((int)System.Math.Round(h * 1000.0)).ToString("0000") + "_a.fbx";
+        }
+        /// <summary><see cref="SannoNozuraNoriEnd"/> の焼いてある長さの上限(H4.80 の 1.80 ── 1間の窓 1.818 の内)。見付 ≤2.40 は 0.80 まで。</summary>
+        public const float SannoNozuraNoriMaxLen = 1.80f;
+        /// <summary><see cref="SannoNozuraNoriEnd"/> の長さの下限 = 0.3·(見付 <paramref name="h"/> + 根入れ 0.20) を 0.05 へ切り上げ(下限 0.30)。
+        /// これより短い駒は法の面が底へ届かず、継ぐ直線の駒の鉛直な小口が相手の法の中へ入る(山王で焼いた H1.80 の 0.30〜0.55 はこれを割る)。</summary>
+        public static float SannoNozuraNoriMinLen(float h)
+        {
+            return UnityEngine.Mathf.Max(0.30f, UnityEngine.Mathf.Ceil(SannoNozuraNori * (h + 0.20f) / 0.05f - 1e-3f) * 0.05f);
         }
 
         /// <summary>**背を相手の法で切った野面の袖**(2026-09-26 EDO-0437 第3巡・参道の階の袖の背が切り込みの出隅の駒の法に当たる所)。

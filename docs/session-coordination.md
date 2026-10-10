@@ -8,6 +8,17 @@
 ⚠ **worktree は自動では分かれない。** `.claude/worktrees/` にあるのはサブエージェントが
 使った残骸で、通常のセッションは**全部メインのチェックアウトを共有している**。
 
+### Dispatch で立てた窓は、立ってからメインへ移る(2026-10-10 実測・EDO-0581)
+
+デスクトップアプリの Dispatch で立てた窓は、`.claude/worktrees/<アプリが付けた名>`(古いコミットの
+detached HEAD・使い回し)に立つ。メインに直に立てる手は無い:
+- ⛔ `worktree.bgIsolation: "none"` は Dispatch に効かない。立てる場所をメインにすると、メインに別の窓が
+  いる限り「Another Claude Code session is already active in this directory」で起動を断られる。
+- ⭕ **立った後で、アプリの作業場所の切替(`change_directory`)でメイン(`/Users/toshio/project/edo-unity`)へ
+  移る。**メインで別の窓が Unity を握っていても通る。アプリが「移動できませんでした」と出しても、
+  次のターンで移っていることがある — `pwd` で確かめてから判断する。
+- 移った後は通常の窓と同じ(`start <邸> --task EDO-xxxx`)。worktree の側には何も残らないので写す物は無い。
+
 ---
 
 ## ⛔ 身元は毎回 `--session <短縮ID>` で明示する

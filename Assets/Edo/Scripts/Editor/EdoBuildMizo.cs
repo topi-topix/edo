@@ -638,6 +638,55 @@ public static partial class EdoBuild
         return made;
     }
 
+    /// <summary>溝の駒の片側の縁石の天端の帯(局所 x の範囲と天端の高さ)を実メッシュで測る。side = +1 なら +X の縁・−1 なら −X の縁。
+    /// 天端 = その側(芯から外)の頂点の最高・帯 = 天端 −0.005 以内の頂点の x の範囲。測れなければ ok = false。</summary>
+    public static bool MizoCurbTop(string path, int side, out float xA, out float xB, out float top)
+    {
+        xA = xB = top = float.NaN; var pf = AssetDatabase.LoadAssetAtPath<GameObject>(path); if (pf == null) return false;
+        var go = (GameObject)PrefabUtility.InstantiatePrefab(pf); go.transform.position = Vector3.zero; go.transform.rotation = Quaternion.identity; go.transform.localScale = Vector3.one;
+        var pts = new List<Vector3>();
+        try { foreach (var mf in go.GetComponentsInChildren<MeshFilter>()) { if (mf.sharedMesh == null) continue; var m = mf.transform.localToWorldMatrix; foreach (var v in mf.sharedMesh.vertices) pts.Add(m.MultiplyPoint3x4(v)); } }
+        finally { UnityEngine.Object.DestroyImmediate(go); }
+        float t = float.MinValue; foreach (var v in pts) if (v.x * side > 0.01f) t = Mathf.Max(t, v.y); if (t == float.MinValue) return false;
+        float a = float.MaxValue, b = float.MinValue; foreach (var v in pts) if (v.x * side > 0.01f && v.y >= t - 0.005f) { a = Mathf.Min(a, v.x); b = Mathf.Max(b, v.x); }
+        xA = a; xB = b; top = t; return true;
+    }
+
+    /// <summary>**溝の外の壁の嵩上げ**(溝の駒の片側の縁石の天端に嵩上げ石を載せ、天端を狙いの高さへ ── 岡部 roadEdge 追記 2026-10-10n・EDO-0502 第96巡)。
+    /// 置き方(oki-kata の4手): ① 固定側 = 据わった溝の駒。② 触れる所 = 溝の駒の外の縁石の天端の帯(実メッシュ <see cref="MizoCurbTop"/>)と嵩上げ石の下面(実メッシュの最低)。
+    /// ③ 平面 = 縁石の天端の帯の芯・向きは溝の駒と同じ(勾配も)・高さ = 下面を縁石の天端へ。④ 丈 = 駒の両端と中ほどで「狙い − 縁石の天端」の最大以上の最も低い焼いた丈
+    /// (実メッシュの丈で選ぶ ── 名の丈で選ばない)。狙いが縁石より低い駒には載せない。
+    /// 条件: 硬い = 天端 ≥ 狙い(丈の刻みの分だけ上へ外れ得る ── 外れは呼び手が刷る)・焼いた丈の最大で届かない駒は据えず hardFail へ。柔らかい = 隣の駒との天端の段差(呼び手が刷る)。
+    /// <paramref name="outDir"/> = 外の壁の側(水平・世界)。当たる先: 道の地盤を外の壁で受ける石組の溝すべて(岡部 N39_1 の前の下水溝)。</summary>
+    public static List<GameObject> LayMizoKasa(Transform parent, IList<GameObject> pieces, Vector2 outDir, Func<float, float, float> targetTop,
+                                               Func<float, string> pathForH, float hMin, float hMax, float hStep, List<string> hardFail)
+    {
+        var made = new List<GameObject>();
+        foreach (var pc in pieces)
+        {
+            if (pc == null) continue;
+            string pp = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(pc); var mp = MizoPieceOf(pp); if (!mp.ok) { if (hardFail != null) hardFail.Add(pc.name + ": 溝の駒が測れない"); continue; }
+            Vector3 rx = pc.transform.right; int side = Vector2.Dot(new Vector2(rx.x, rx.z), outDir) >= 0f ? 1 : -1;
+            float xA, xB, ct; if (!MizoCurbTop(pp, side, out xA, out xB, out ct)) { if (hardFail != null) hardFail.Add(pc.name + ": 外の縁石の天端が測れない"); continue; }
+            float xc = 0.5f * (xA + xB), zc = 0.5f * (mp.zMin + mp.zMax);
+            float need = float.MinValue;
+            foreach (float lz in new[] { mp.zMin, zc, mp.zMax })
+            { var w = pc.transform.TransformPoint(new Vector3(xc, ct, lz)); float tg = targetTop(w.x, w.z); if (float.IsNaN(tg)) continue; need = Mathf.Max(need, tg - w.y); }
+            if (need == float.MinValue || need <= 0.005f) continue;   // 狙いが縁石の天端以下 ⇒ 載せない
+            string pick = null; MizoPiece km = null;
+            for (float h = hMin; h <= hMax + 1e-4f; h += hStep)
+            { string p = pathForH((float)Math.Round(h, 2)); var q = MizoPieceOf(p); if (!q.ok) continue; if (q.top - q.bottom >= need - 0.002f) { pick = p; km = q; break; } }
+            if (pick == null) { if (hardFail != null) hardFail.Add(pc.name + ": 嵩上げ " + need.ToString("F3") + " が焼いた丈の最大 " + hMax.ToString("F2") + " に収まらない"); continue; }
+            var tgt = pc.transform.TransformPoint(new Vector3(xc, ct, zc));
+            var go = Place(pick, tgt, 0f, Vector3.one, parent, pc.name + "_Kasa");
+            go.transform.rotation = pc.transform.rotation;
+            var wb = go.transform.TransformPoint(new Vector3(0.5f * (km.xMin + km.xMax), km.bottom, 0.5f * (km.zMin + km.zMax)));
+            go.transform.position += tgt - wb;
+            made.Add(go);
+        }
+        return made;
+    }
+
     /// <summary>桝を据える。平面 = <paramref name="at"/>(溝の出合い)・向き = 出る溝の向き。高さ = **桝の実測の底**を
     /// min(天端の狙い − 桝の深さ, 入る溝の底の最低 − 溜め)へ当てる(硬: 桝の底 &lt; 入る溝の底)。天端の沈みを sink に返す(柔)。
     /// 当たる先: D1・D2 の G1・D11 の G2。</summary>

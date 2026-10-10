@@ -148,7 +148,7 @@
 - [野面の段の境の駒は H1.50 だけ・継ぎ目の下が抜ける](nozura-dan-piece-fixed-height.md) — 直線は H4.8 まで選ぶ。StackDownAtNozuraSteps で積み下ろす
 - [地形の前後の差は資産の写しから採れる](terrain-diff-from-asset-copy.md)・[検証レンダの構図は残らない](render-camera-poses-not-kept.md) — int16 の塊を行で探す・構図は cams.txt
 
-- [皮を [lo,hi] で解く最初の2回の罠](skin-solve-lo-hi-first-runs.md) — 野面は石の寄せ集め・全ての駒の見え面・周りは陰を飛ばす・buryMin は硬い lo・延長の天端 < 平ら
+- [皮を [lo,hi] で解く罠 (1)〜(38)](skin-solve-lo-hi-first-runs.md) — 野面は石の寄せ集め・陰を飛ばす・buryMin は硬い lo・袖が先は 2b の順と逆・帯の下の暗渠は設計の地盤を先に
 
 ## 測り方・関門
 

@@ -728,7 +728,8 @@ public static partial class EdoBuild
     /// <paramref name="yard"/> = 背から庭(区画の内)への単位の向き。線を始まりから辿り、背から off の帯へ最初に入る点 X で切って
     /// X → 帯の縁の stop 側の端 → 背の線の stop の点、と継ぐ(途中に土の口なし)。
     /// <para>硬い: 背から off の内に石垣を立てない・返しの端は背の線で止める。柔らかい: off(一間)。
-    /// 帯へ入らない(背の端の外で終わる・背に届かない)なら null ── 返しは要らない。</para>
+    /// 帯へ入らない(背の端の外で終わる・背に届かない)なら null ── 返しは要らない。ただし線の終わりが背へ向かい帯の手前 off 以内で止まる(指図の線が
+    /// 長屋の奥行の目安で引かれ、実の背より遠い ── 第103巡)なら、終わりを帯の縁まで延ばして返す(延ばした量を note に名乗る)。</para>
     /// <para>返り値 = 新しい節点(始まりの側の節点はそのまま ⇒ 口の道のり s は変わらない)。
     /// <paramref name="trenchFar"/> = 背の線の上で、溝(返しと背の間)の stop の反対の端(X の射影)。</para>
     /// 当たる先: 段の土留めの線が長屋・棟の背に当たる所(岡部 TW_Kado_Hokuto × N39_1)。</summary>
@@ -756,6 +757,26 @@ public static partial class EdoBuild
             note = "背から " + off.ToString("F3") + "m で返した: 交点 (" + X.x.ToString("F2") + "," + X.y.ToString("F2") + ")・返しの長さ " + sx.ToString("F2")
                  + "m・妻の線の閉じ " + off.ToString("F2") + "m(元の線の残り " + (Vector2.Distance(X, q) + SumLen(nodes, i + 1)).ToString("F2") + "m を外した)";
             return res;
+        }
+        // ⭐ 線の終わりが背へ向かい、背から off の帯の手前で止まる(EDO-0502 第103巡 岡部 TW_Kado_Hokuto × N39_1): 指図の線は長屋の奥行の目安で引いた物【柔】で、
+        //   据えた長屋の実の背はその目安より浅い(実測 3.65 / 目安 4.65)── 線の終わりを帯の縁まで延ばして返す。指図の欄「石垣を長屋の背の線まで通し」の型。
+        //   延ばすのは最後の区間の向きのまま・背の端(stop〜far + off)の内・延ばしが off(一間)以内に限る(それより遠いのは目安の食い違いでなく別の線)。
+        {
+            int m = nodes.Count;
+            Vector2 p = nodes[m - 2], q = nodes[m - 1], d = q - p; float Ld = d.magnitude;
+            float fq = Vector2.Dot(q - P0, yard), dv = Ld < 1e-4f ? 0f : Vector2.Dot(d / Ld, yard);
+            if (Ld > 1e-4f && fq > 0f && dv < -0.3f)
+            {
+                float ext = fq / -dv; Vector2 X = q + d / Ld * ext; float sx = Vector2.Dot(X - P0, u);
+                if (ext <= off + 1e-3f && sx >= 0f && sx <= Lb + off)
+                {
+                    var res = new List<Vector2>(nodes); res[m - 1] = X; res.Add(P0); res.Add(backStop);
+                    trenchFar = backStop + u * sx;
+                    note = "背から " + off.ToString("F3") + "m で返した: 線の終わりを背へ " + ext.ToString("F2") + "m 延ばした(指図の線は目安 ── 実の背との食い違い " + ext.ToString("F2")
+                         + "m)・交点 (" + X.x.ToString("F2") + "," + X.y.ToString("F2") + ")・返しの長さ " + sx.ToString("F2") + "m・妻の線の閉じ " + off.ToString("F2") + "m";
+                    return res;
+                }
+            }
         }
         note = "線が背から " + off.ToString("F2") + "m の帯へ入らない ── 返し要らない";
         return null;

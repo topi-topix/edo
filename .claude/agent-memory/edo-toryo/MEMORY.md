@@ -48,6 +48,7 @@
 - [段の位置は指図の pos でなく実地表から解く](stair-position-is-terrain-dependent.md) — 落ち際は擦り付けで2〜4.5m。許容は段自身の蹴上
 - [比は意図でなく据わった数で決まる](ratio-on-intent-vs-seated.md) — 樹冠の大きい層が据わりで負け一方向に外れる。CrownR で先に測る
 - [斜面の走りは道のりで割り、丈の中ほどで継ぐ](slope-run-walk-by-arc-not-horizontal.md) — 水平割り+傾けは隙とめり込みを同時に出す。GroundPolyline/PlaceOnChord
+- [指図の返しの線が実の背の手前で止まると返しが黙って退く](return-guide-line-short-of-real-back.md) — 輪郭は奥行の目安。ReturnAlongBack が帯の縁まで延ばす(EDO-0502 第103巡)
 - [坂の両脇の石垣は bake が黙って退く・坂の足が壁の手前で止まると口が無い](ramp-side-walls-unresolved-by-bake.md) — between [面,坂]。算出物の unresolved を流す前に grep
 - [測って置く。事後に寄せる関数を持たない](measure-dont-nudge.md) — 帯の頂点では門柱が消えて偽の穴。閉じは三角形で測る
 - [段を跨ぐ渡廊下は区間に割る](roka-dan-step-joint.md) — 段の柱は低い側。折れ目に 0.19m の口(雨押えの部材が無い)

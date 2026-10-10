@@ -1032,7 +1032,8 @@ public static partial class EdoBuild
     public static GameObject LayFutaishi(Transform parent, string name, string path, Vector2 at, Vector2 flowDir, IList<GameObject> under, Func<float, float, float> groundAt, out float off)
     {
         off = float.NaN;
-        var mp = MizoPieceOf(path); if (!mp.ok) return null;
+        // 蓋石は低ポリの板で溝の底(floor)が解けず mp.ok が偽になる ── 蓋に要るのは外形(下端・天端)だけなので外形が取れたかで採る(LayAnkyoUnder と同じ・EDO-0502 第103巡 D_N40_Mae の門の口で 0 枚だった)
+        var mp = MizoPieceOf(path); if (mp.len < 1e-3f || !(mp.top > mp.bottom)) return null;
         float crest = float.MinValue;
         foreach (var g in under)
         {

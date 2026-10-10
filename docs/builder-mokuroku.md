@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 92・関数 855(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 92・関数 857(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -25,7 +25,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoDoiBuilder.cs](#edodoibuildercs) | 土井大隅守上屋敷(三河刈谷藩2万3千石・譜代・雁間)ビルダー。 | 15 | 89 |
 | [EdoMatsudairaDewaBuilder.Niwa.cs](#edomatsudairadewabuilderniwacs) | 松平出羽守上屋敷 — 庭の工程(池・築山・水の系・石組・点景・滝見口)。 | 9 | 30 |
 | [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 16 | 120 |
-| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 19 | 172 |
+| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 19 | 174 |
 | [EdoSannoShaBuilder.cs](#edosannoshabuildercs) | 山王権現社(日枝神社)本体+樹下家邸+山王門前町ビルダー (2026-08-11。観理院は 2026-09-26 に類型へ移し削除) | 1 | 31 |
 | [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 13 | 102 |
 | [EdoSanyashikiRebuild.cs](#edosanyashikirebuildcs) | 三屋敷(太田・加納・鍋島=松平肥前守)の区画を下書きv3へ更新 (2026-08-08) | 0 | 6 |
@@ -627,6 +627,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `S2F(faceName)` | `float` |  | 面の名 → 高さ(terraces[].y)。 |
 | `RoadAtS(r, sAl)` | `float` |  | — |
 | `RoadEdgePlanOf()` | `RoadEdgePlan` |  | — |
+| `TrimRoadSpans(r)` | `string` |  | 腰石垣の区間の端を、駒の底の全幅の下に地盤が在る所まで縮める(roadEdge 追記 2026-10-10g【硬】・第90巡)── 計画(RoadEdgePlanOf)の中で一度だけ。 |
 | `RoadEdgeSegs(nozSegs)` | `string` |  | 腰石垣の区間を野面の区間へ(Stage2b の据えの前に)。 |
 | `PlaceGateSteps(wait)` | `string` |  | 門の口の踏み段(roadEdge【硬】一段目の段鼻は区画の線を越えない・蹴上 = 落差 ÷ 段数・段数 = 落差 ÷ 屋敷の中の石段の既定の蹴上 0.30 の切り上げ・踏面は欄を狙う【柔】)。 |
 | `OmoteGesuiPlan()` | `GesuiPlan` |  | — |
@@ -635,7 +636,8 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `MizoAByDepth(need, topAbove)` | `string` |  | DoiMizo 型 A のうち実測の深さ ≤ need + topAbove の最も深い駒(第80巡: 名の深さで選ぶと縁 0.02 の分だけ天端が浮いて落ちた)。 |
 | `FaceYAt(faces, q, skipPrefix)` | `float` |  | 点 q を含む面のうち面積の最も小さい物の高さ(皮と同じ選び方)。 |
 | `PlaceBackGutters()` | `string` |  | — |
-| `TrimRunsToPartners(segs)` | `string` |  | 袖の坂(指図 terraceWalls[].sodeSlope・普請方の設計 2026-10-07・EDO-0502 第41〜42巡)── 袖の天端を段にせず、背の法 + off の坂の一続きの線にする (上端 cap… |
+| `RestorePerimeterSpill(band)` | `string` | 公 | 袖の坂(指図 terraceWalls[].sodeSlope・普請方の設計 2026-10-07・EDO-0502 第41〜42巡)── 袖の天端を段にせず、背の法 + off の坂の一続きの線にする (上端 cap… |
+| `TrimRunsToPartners(segs)` | `string` |  | 指図 ends 追記 2026-10-10f【硬】(第89巡): 「突き付け」を名指す run の端が、別の run の区間の線を越えていれば交点まで縮める(EdoBuild.TrimSegToPartnerLine)─… |
 | `CutEndsMikiri(segs)` | `string` |  | 指図 cuts 追記 2026-10-10f【硬】(第89巡): 「〜が切る口の両端は見切り石で納め、隅の駒を口に置かない」── その欄の run の区間の端のうち、名指しの石段の駒から 1.5m 以内の端に見切り石を名… |
 | `TrimRunsBelowFront(segs)` | `string` |  | 指図 sideEnd・sodeSlope 追記 2026-10-10d【硬】の打ち切り(第87巡)── 欄が「flat の帯の中に駒を置かない」を持つ run(sodeSlope = 欄の名・sideEnd = 欄の名… |
 | `FillEdgeSlope(sb)` | `float` |  | 指図 const.fillEdgeSlope「盛りの縁は 1:n より急にしない【硬】」の n(読めなければ NaN と ★)。 |

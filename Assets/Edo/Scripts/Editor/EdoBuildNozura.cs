@@ -2234,4 +2234,27 @@ public static partial class EdoBuild
         if (e == 1) seg.b = x; else { var c0 = seg.crestAt; float off = cut; seg.a = x; if (c0 != null) seg.crestAt = sl => c0(sl + off); }
         return cut;
     }
+
+    /// <summary>**交わる所を据える順の型**(const.abutOrder【硬】・第90巡):「隅の駒 → 本線 → 返し・袖・端 の順に据え、後から据える方が先の方の見え面に突き付ける」。
+    /// 端どうしが <paramref name="near"/> 以内で出会う区間の組のうち、順位(<paramref name="rank"/> ── 大きいほど後)の違う組で、後の区間を可動側(movesAtConcave)・先の区間を通す側にする。
+    /// ⟶ 書き換えた区間の数。当たる先: 野面の土留めの網(返し・袖・端を持つ全ての run)。</summary>
+    public static int ApplyAbutOrder(List<NozuraSeg> segs, Func<NozuraSeg, int> rank, float near, System.Text.StringBuilder log)
+    {
+        int n = 0;
+        for (int i = 0; i < segs.Count; i++)
+            for (int j = 0; j < segs.Count; j++)
+            {
+                if (i == j) continue; int ri = rank(segs[i]), rj = rank(segs[j]); if (ri <= rj) continue;
+                bool meet = false;
+                foreach (var pi in new[] { segs[i].a, segs[i].b })
+                {
+                    var o = segs[j]; Vector2 d = o.b - o.a; float L = d.magnitude; if (L < 1e-3f) continue; d /= L;
+                    float u = Mathf.Clamp(Vector2.Dot(pi - o.a, d), 0f, L); if (Vector2.Distance(o.a + d * u, pi) <= near) meet = true;
+                }
+                if (!meet) continue;
+                if (!segs[i].movesAtConcave || segs[j].movesAtConcave) { if (log != null) log.AppendLine("    据える順(abutOrder): " + segs[i].name + " を " + segs[j].name + " へ突き付ける側に"); n++; }
+                segs[i].movesAtConcave = true; segs[j].movesAtConcave = false;
+            }
+        return n;
+    }
 }

@@ -1278,6 +1278,7 @@ public static class EdoOkabeYashikiBuilder
                     }
                 }
                 made++; if (!hosted) nagH = lastH;
+                { var tF = kak.Find(r.name); if (tF != null) sb.Append(FrontForGutter(tF.gameObject, r)); }   // 指図 runs[].front(前の下水溝の分だけ区画の線の内へ・第95巡)
                 if (hosted) sb.Append(GateInNagaya(kak, r, call, nikai, gS, gW, gLabel, wait));
             }
         }
@@ -1492,6 +1493,42 @@ public static class EdoOkabeYashikiBuilder
     /// <summary>据えた長屋の**実メッシュ**が辺の上で占める区間[m](s)。
     /// 隅の返し(短い練塀)はここへ突き付けるので、⛔ 呼び寸法で継がない。</summary>
     static Dictionary<string, Vector2> _nagayaSpan = new Dictionary<string, Vector2>();
+
+    /// <summary>指図 runs[] の欄 key(無ければ null)。</summary>
+    static string RunText(string run, string key)
+    {
+        foreach (var o in A(D["runs"]) ?? new List<object>()) { var q = O(o); if (q != null && S(Get(q, "name")) == run) return S(Get(q, key)); }
+        return null;
+    }
+
+    /// <summary>前の下水溝の駒(石組の溝 型A ── 背の雨落ち・表門脇の下水と同じ型)の実測の全幅[m](外の壁を含む)。測れなければ NaN。</summary>
+    static float FrontGutterWidth()
+    {
+        var p = EdoBuild.AssetByName("Own", "DoiMizo", "A", 0.30f); if (p == null) return float.NaN;
+        var mp = EdoBuild.MizoPieceOf(p); return mp.ok ? mp.xMax - mp.xMin : float.NaN;
+    }
+    const float FRONT_GUTTER_GAP = 0.01f;
+
+    /// <summary>**長屋の前の面を、前の下水溝の分だけ区画の線の内へ**(指図 runs[].front「前の面を、区画の線から『前の下水溝+外の壁』だけ内へ寄せる」【硬】・座は変えない【硬】・
+    /// 普請方 2026-10-10m・EDO-0502 第95巡)。前の面 = 躯体(屋根の材を除く実頂点)の、溝の内の壁が触れる帯(底〜+0.30・土台)の、区画の線から外への最大の張り出し(<see cref="EdoBuild.FaceOut"/>)。
+    /// 寄せる量 = 溝の駒(型A)の実測の全幅 + 0.01 ── 法線の向きの平行移動だけ(<see cref="EdoBuild.AlignFace"/>)。⛔ ピボット・犬走りの定数で決めない。
+    /// 二階の軒は帯の外(軒は区画の線を越えてよい・施主裁定A 2026-09-21)。条件: 硬い(区域侵犯 0 ── 溝の外の壁が区画の線の内)。
+    /// 当たる先: 欄 front に「区画の線」と「下水溝」を持つ長屋すべて(岡部 N39_1)。他邸の長屋も同じ欄を持てば同じ型。</summary>
+    static string FrontForGutter(GameObject go, Run r)
+    {
+        string fr = RunText(r.name, "front"); if (fr == null || !fr.Contains("区画の線") || !fr.Contains("下水溝")) return "";
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        float W = FrontGutterWidth(); if (float.IsNaN(W)) return "  ★ " + r.name + ".front: 溝の駒(DoiMizo 型A)が測れない ── 寄せない\n";
+        Vector2 ea = EdgePt(r.edge, 0f), on = OutNormal(r.edge);
+        var pts = EdoBuild.BodyExRoof(go.transform, 6000); if (pts.Count == 0) return "  ★ " + r.name + ".front: 躯体が測れない ── 寄せない\n";
+        float y0 = float.MaxValue; foreach (var p in pts) y0 = Mathf.Min(y0, p.y);
+        // 測る帯 = 溝の内の壁が触れる所(躯体の底〜+0.30 ── 土台。一階の壁は土台より 0.04 内・第95巡の一回目は壁で測り、土台と溝の間でなく溝と区画の線の間に 0.10 の土の帯が残った)
+        float before = EdoBuild.FaceOut(go, ea, on, y0 - 0.01f, y0 + 0.30f);
+        float mv = EdoBuild.AlignFace(go, ea, on, -(W + FRONT_GUTTER_GAP), y0 - 0.01f, y0 + 0.30f);
+        if (float.IsNaN(mv)) return "  ★ " + r.name + ".front: 前の面が測れない ── 寄せない\n";
+        return "  " + r.name + ": 前の面を区画の線から " + before.ToString("+0.000;-0.000", inv) + " → " + (-(W + FRONT_GUTTER_GAP)).ToString("F3", inv) + "(前の下水溝 型A 全幅 " + W.ToString("F2", inv)
+             + " + " + FRONT_GUTTER_GAP.ToString("F2", inv) + "・runs.front【硬】・座 " + go.transform.position.y.ToString("F2", inv) + " は変えない)・法線へ " + mv.ToString("+0.000;-0.000", inv) + "m\n";
+    }
 
     static bool PlaceNagayaPiece(Transform kak, string name, string path, int edge, float sMid,
                                  float seat, float call, List<string> wait, ref float lastH)
@@ -2304,7 +2341,11 @@ public static class EdoOkabeYashikiBuilder
                 var trc = tr; trenchHint = (pa, pb) =>
                 {
                     Vector2 mid = (pa + pb) * 0.5f, ctr = (trc.stop + trc.far) * 0.5f + trc.yard * (trc.off * 0.5f);
-                    if (Vector2.Distance(mid, ctr) < Vector2.Distance(trc.stop, trc.far) * 0.5f + trc.off + 0.5f) return (ctr - mid).normalized;
+                    // 溝に面する区間 = 中ほどが溝の帯(背 −0.5 〜 背から off + 0.3・止めの妻 −0.5 〜 反対の妻 + off + 0.5)の内(⛔ 溝の芯からの距離の円で篩わない ──
+                    //   棟を 0.26 寄せて溝が動くと、円が返しに継ぐ郭の側の本線 TW_Kado_Hokuto_0_1 の区間まで入り、見え面を溝へ裏返して 0_1 × 1_0 の入隅の見立てが割れ、
+                    //   急な土の面 77 → 162(EDO-0502 第95巡)。当たる先: return<棟> の溝を持つ段の土留めすべて(岡部 TW_Kado_Hokuto × N39_1)
+                    float sT = Vector2.Dot(mid - trc.stop, trc.along), dT = Vector2.Dot(mid - trc.stop, trc.yard), LT = Vector2.Dot(trc.far - trc.stop, trc.along);
+                    if (sT >= -0.5f && sT <= LT + trc.off + 0.5f && dT >= -0.5f && dT <= trc.off + 0.3f) return (ctr - mid).normalized;
                     int v1, v2; return EdoBuild.LowSide(pa, pb, SkinGround, 3.0f, 0.05f, null, out v1, out v2);
                 };
             }
@@ -3628,11 +3669,12 @@ public static class EdoOkabeYashikiBuilder
         // ⭐ 溝は皮より先に置き、皮が避ける部材に入れる(第81巡【硬】)── 皮の後に置くと、皮(面の 16.50)と穴でない升の地形が溝の中を覆った(第80巡 18 駒中 13)
         sb.Append(PlaceOmoteGesui());     // 指図 Kadonouchi.omoteGesui(表門脇の下水)── 背の雨落ちの落ち先なので先に解く
         sb.Append(PlaceBackGutters());    // 指図 flat 追記 2026-10-10a の背の雨落ち(第80巡)
+        sb.Append(PlaceFrontGutters());   // 指図 roadEdge 追記 2026-10-10m・runs[].front の前の下水溝(第95巡)
         // 部材 = 段の土留め(Dan の駒)+ その口を切って上る石段(駒の外形から 2m 以内の段)
         var parts = new List<GameObject>(); var band = new List<GameObject>();
         var danB = new List<Bounds>();
         foreach (Transform c in Group("Dan")) if (c.gameObject.activeInHierarchy) { parts.Add(c.gameObject); band.Add(c.gameObject); danB.Add(EdoBuild.RB(c.gameObject)); }
-        foreach (var gm in new[] { "BackMizo", "OmoteGesui", "GateSteps" }) foreach (Transform c in Group(gm)) if (c.gameObject.activeInHierarchy) parts.Add(c.gameObject);   // 溝(皮が避ける・帯は持たない)
+        foreach (var gm in new[] { "BackMizo", "OmoteGesui", "FrontMizo", "GateSteps" }) foreach (Transform c in Group(gm)) if (c.gameObject.activeInHierarchy) parts.Add(c.gameObject);   // 溝(皮が避ける・帯は持たない)
         int stairN = 0, igN = 0, igOut = 0;
         var root = GameObject.Find(GN); var kai = root == null ? null : root.transform.Find("Fuzoku/Kaidan");
         // ⭐ 外周の石垣(Ishigaki)の駒のうち段の土留めの駒に接する物(外接 1m 内)も部材として渡す(2026-10-04 EDO-0502 第10巡):
@@ -4823,6 +4865,113 @@ public static class EdoOkabeYashikiBuilder
             if (a < area) { area = a; best = f.y; }
         }
         return best;
+    }
+
+    /// <summary>**長屋の前の下水溝**(指図 terraces[].roadEdge 追記 2026-10-10m・runs[].front・drains D_&lt;棟&gt;_Mae・普請方・EDO-0502 第95巡)。
+    /// 区画の内に石組の溝(型A ── 背の雨落ち・表門脇の下水と同じ型)を棟の前の全長に通す。置き方(oki-kata の4手):
+    /// ① 固定側 = 上の端の石垣(欄が名指す「〜を延ばした石垣」・Stage2b が先に据える)と棟の躯体(Stage2 が runs.front で寄せた)。
+    /// ② 溝の芯の線 = 躯体の前の面(溝の高さの帯で**触れる所**を実頂点で測る)+ 0.005 + 駒の半幅 ── 内の壁が躯体の前の面に触れ、外の壁が区画の線の内【硬】。
+    /// ③ 上の端 = 石垣の実頂点のうち溝の帯(幅 × 底〜天端)に入る物の、棟の側への最も先の s(突き付け・石垣が先【硬】)。下の端 = 棟の躯体の東の端、
+    ///    ただし溝の矩形が他の棟の躯体・区画の外へ入る手前まで。④ 底 = 頭で座 −drop【硬】・そこから 1/n で下げる【柔】(SolveMizoBottom)。
+    /// 深さは道の地盤(造成前の地盤 = 道の現地形・道は掘らない【硬】)から選ぶ ── 型A の最も深い版でも道に届かない所は「外の壁の天端が道より低い」を ⚠ で名乗る(柔ではなく
+    /// 欄の「外の壁で道の地盤を受ける」が部材で満たせない所 ── 普請方へ)。当たる先: roadEdge 10-10m を持つ面と front に「下水溝」を持つ長屋(岡部 Kadonouchi × N39_1)。</summary>
+    static string PlaceFrontGutters()
+    {
+        var sb = new System.Text.StringBuilder(); var inv = System.Globalization.CultureInfo.InvariantCulture; var root = GameObject.Find(GN); if (root == null) return "";
+        var grp = Group("FrontMizo"); Clear(grp);
+        string txt = null, tName = null;
+        foreach (var o in A(Get(D, "terraces")) ?? new List<object>()) { var t = O(o); string re = S(Get(t, "roadEdge")); if (re == null) continue; int i0 = re.IndexOf("追記 2026-10-10m"); if (i0 >= 0 && re.Substring(i0).Contains("下水溝")) { txt = re.Substring(i0); tName = S(Get(t, "name")); } }
+        if (txt == null) return "";
+        foreach (var r in Runs)
+        {
+            if (!r.Nagaya) continue; string fr = RunText(r.name, "front"); if (fr == null || !fr.Contains("下水溝") || !txt.Contains(r.name)) continue;
+            var nbT = root.transform.Find("Kakoi/" + r.name); if (nbT == null) { sb.AppendLine("  ★ 前の下水溝 " + r.name + ": 棟が無い"); continue; }
+            var mD = System.Text.RegularExpressions.Regex.Match(txt, @"座より\s*([0-9.]+)\s*以上低く");
+            var mS = System.Text.RegularExpressions.Regex.Match(txt, @"1/(\d+)\s*で東へ");
+            var mW = System.Text.RegularExpressions.Regex.Match(txt, @"溝の幅は\s*([0-9.]+)\s*〜\s*([0-9.]+)");
+            var mH = System.Text.RegularExpressions.Regex.Match(txt, @"上の端は\s*([A-Za-z0-9_]+)\s*を延ばした石垣の面に突き付け");
+            if (!mD.Success || !mS.Success || !mH.Success) { sb.AppendLine("  ★ 前の下水溝 " + r.name + ": 欄 roadEdge 10-10m の座からの落ち・勾配・上の端の石垣が読めない ── 置かない"); continue; }
+            float drop = float.Parse(mD.Groups[1].Value, inv), slope = 1f / float.Parse(mS.Groups[1].Value, inv); string headWall = mH.Groups[1].Value;
+            var p30 = EdoBuild.AssetByName("Own", "DoiMizo", "A", 0.30f); var p10 = EdoBuild.AssetByName("Own", "DoiMizo", "A", 0.10f);
+            var m30 = p30 == null ? default(EdoBuild.MizoPiece) : EdoBuild.MizoPieceOf(p30); var m10 = p10 == null ? default(EdoBuild.MizoPiece) : EdoBuild.MizoPieceOf(p10);
+            if (p30 == null || p10 == null || !m30.ok || !m10.ok) { sb.AppendLine("  ★ 前の下水溝 " + r.name + ": 石組の溝の駒(DoiMizo 型A)が測れない ── 置かない"); continue; }
+            float halfW = Mathf.Max(Mathf.Abs(m30.xMin), Mathf.Abs(m30.xMax)), W = m30.xMax - m30.xMin;
+            int e = r.edge; Vector2 ea = EdgePt(e, 0f), ax = (EdgePt(e, 1f) - ea).normalized, on = OutNormal(e);
+            var bp = EdoBuild.BodyExRoof(nbT, 6000); if (bp.Count == 0) { sb.AppendLine("  ★ 前の下水溝 " + r.name + ": 躯体が測れない"); continue; }
+            float y0 = float.MaxValue; foreach (var p in bp) y0 = Mathf.Min(y0, p.y);   // 座 = 躯体の底
+            float headB = y0 - drop, yLo = headB - 0.40f, yHi = headB + m30.Depth + 0.05f;
+            // ② 内の壁が触れる所 = 躯体の前の面(溝の高さの帯)
+            float fFront = EdoBuild.FaceOut(nbT.gameObject, ea, on, y0 - 0.01f, Mathf.Max(yHi, y0 + 0.30f));
+            if (float.IsNaN(fFront)) { sb.AppendLine("  ★ 前の下水溝 " + r.name + ": 躯体の前の面が測れない"); continue; }
+            float dC = fFront + 0.005f + halfW, dOut = dC + halfW;
+            if (dOut > 0.001f) { sb.AppendLine("  ⛔ 前の下水溝 " + r.name + ": 外の壁が区画の線の外 " + dOut.ToString("F3", inv) + " ── 置かない(runs.front の寄せが足りない)"); continue; }
+            var sp = EdoBuild.SpecBodySpanAlong(nbT.gameObject, ea, ax); if (float.IsNaN(sp.x)) sp = EdoBuild.BodySpanAlong(nbT.gameObject, ea, ax);
+            // ③ 上の端 = 石垣が先(溝の帯に入る石垣の実頂点の、棟の側への最も先の s)
+            float sHead = float.NaN; string headGo = null;
+            foreach (Transform dc in Group("Dan"))
+            {
+                // 名指しの石垣と、それに出隅で継ぐ駒(道の側の腰石垣の隅の駒 ── 溝の帯へ出るのは隅の駒の腕・第95巡の一回目は名で篩って 0 駒)。
+                //   帯 = 溝の幅 × 底〜天端 + 0.6(溝の上に石垣が被る所へも入れない)・棟の妻の ±3m
+                if (!dc.gameObject.activeInHierarchy) continue;
+                foreach (var v in EdoBuild.Body(dc, 8000))
+                {
+                    var q = new Vector2(v.x, v.z) - ea; float d = Vector2.Dot(q, on), s = Vector2.Dot(q, ax);
+                    if (d < dC - halfW - 0.02f || d > dC + halfW + 0.02f || v.y < yLo || v.y > yHi + 0.6f || s > sp.x + 0.5f || s < sp.x - 3f) continue;
+                    if (float.IsNaN(sHead) || s > sHead) { sHead = s; headGo = dc.name; }
+                }
+            }
+            bool headOk = !float.IsNaN(sHead);
+            if (!headOk) { sHead = sp.x; sb.AppendLine("  ⛔ 前の下水溝 " + r.name + ": 上の端の石垣 " + headWall + " が溝の帯(芯 " + dC.ToString("F2", inv) + "・底〜天端)に無い ── 突き付けられず躯体の妻 s " + sp.x.ToString("F2", inv) + " から(普請方へ)"); }
+            // 下の端 = 躯体の東の端・他の棟の躯体と区画の外の手前
+            var hulls = new List<KeyValuePair<string, Vector2[]>>();
+            foreach (Transform c in root.transform.Find("Kakoi"))
+            {
+                if (c == nbT || !c.gameObject.activeInHierarchy || !EdoBuild.IsNagayaBody(c.gameObject)) continue;
+                var cp = EdoBuild.BodyExRoof(c, 4000); if (cp.Count == 0) continue; float cy = float.MaxValue; foreach (var v in cp) cy = Mathf.Min(cy, v.y);
+                if (cy > yHi + 0.6f) continue;   // 溝より高い座の棟(台の上の N39_0)は溝の高さに居ない ── 平面の重なりで止めない(第95巡の一回目は 0.4m で止めた)
+                var p2 = new List<Vector2>(); foreach (var v in cp) if (v.y < cy + 2.0f) p2.Add(new Vector2(v.x, v.z)); if (p2.Count < 3) continue;
+                var hh = EdoBuild.ConvexHull2(p2).ToArray(); bool near = false; foreach (var h in hh) if (Vector2.Distance(h, ea + ax * sp.y) < 25f) near = true; if (near) hulls.Add(new KeyValuePair<string, Vector2[]>(c.name, hh));
+            }
+            float sTail = sp.y; string tailWhy = "躯体の東の端";
+            for (float s = sHead + 0.5f; s <= sp.y + 1e-3f; s += 0.05f)
+            {
+                string hit = null;
+                foreach (float dd in new[] { dC - halfW, dC, dC + halfW })
+                {
+                    var q = ea + ax * s + on * dd; if (!EdoGeom.PIP(Poly, q)) { hit = "区画の線"; break; }
+                    foreach (var kv in hulls) if (EdoGeom.PIP(kv.Value, q)) { hit = kv.Key + " の躯体"; break; } if (hit != null) break;
+                }
+                if (hit != null) { sTail = s - 0.06f; tailWhy = hit + " の手前"; break; }
+            }
+            var line = new List<Vector2> { ea + ax * sHead + on * dC, ea + ax * sTail + on * dC };
+            var bd = EdoBuild.BaseDem();
+            System.Func<float, float, float> road = (x, z) => { float s = Vector2.Dot(new Vector2(x, z) - ea, ax); var qq = ea + ax * s + on * 0.05f; return bd(qq.x, qq.y); };
+            System.Func<float, float, float> gnd = (x, z) => Mathf.Max(road(x, z), y0);   // 溝の天端の狙い = 道の地盤(座より低い所は座)
+            var spec = new EdoBuild.MizoSpec { chord = true, name = r.name + "_Mae", kata = "A", line = line, groundAt = gnd, topAbove = 0.02f, pieceDepth = float.NaN,
+                                               depthMin = m10.Depth, depthMax = m30.Depth, slopeMin = slope, halfW = halfW, headBottom = headB };
+            var pr = EdoBuild.SolveMizoBottom(spec);
+            int miss; string mw; var fail = new List<string>();
+            var made = EdoBuild.LayMizo(grp, r.name + "_Mae", pr, need => MizoAByDepth(need, spec.topAbove), out miss, out mw, gnd, fail);
+            // 外の壁の天端と道(欄「外の壁で道の地盤を受ける」)── 型A の最も深い版で届かない所
+            float shortMax = 0f; int nShort = 0; float sShort0 = float.NaN, sShort1 = float.NaN;
+            foreach (var g in made)
+            {
+                var b = EdoBuild.RB(g); var cq = new Vector2(b.center.x, b.center.z); float rd = road(cq.x, cq.y), sh = rd - b.max.y;
+                if (sh > 0.02f) { nShort++; shortMax = Mathf.Max(shortMax, sh); float sc = Vector2.Dot(cq - ea, ax); sShort0 = float.IsNaN(sShort0) ? sc : Mathf.Min(sShort0, sc); sShort1 = float.IsNaN(sShort1) ? sc : Mathf.Max(sShort1, sc); }
+            }
+            float headGap = float.NaN;
+            if (made.Count > 0 && headOk) { float smin = float.MaxValue; foreach (var v in EdoBuild.Body(made[0].transform, 4000)) smin = Mathf.Min(smin, Vector2.Dot(new Vector2(v.x, v.z) - ea, ax)); headGap = smin - sHead; }
+            Vector2 tP = line[1]; float roadTail = road(tP.x, tP.y);
+            sb.AppendLine("  前の下水溝 " + tName + " × " + r.name + "(roadEdge 追記 2026-10-10m・D_" + r.name + "_Mae): 石組の溝 型A " + made.Count + " 駒・" + pr.length.ToString("F1", inv) + "m(s " + sHead.ToString("F2", inv) + "〜" + sTail.ToString("F2", inv) + "・下の端 = " + tailWhy + ")"
+                          + "・全幅 " + W.ToString("F2", inv) + (mW.Success ? (W >= float.Parse(mW.Groups[1].Value, inv) - 1e-3f && W <= float.Parse(mW.Groups[2].Value, inv) + 1e-3f ? " ⭕(柔 " : " ⚠(柔 ") + mW.Groups[1].Value + "〜" + mW.Groups[2].Value + ")" : "")
+                          + "・内の壁 = 躯体の前の面 " + fFront.ToString("F3", inv) + "・外の壁 " + dOut.ToString("F3", inv) + "(区画の線の内【硬】⭕)"
+                          + "・底 " + pr.Head.ToString("F3", inv) + "→" + pr.Tail.ToString("F3", inv) + "(座 " + y0.ToString("F2", inv) + " − " + drop.ToString("F2", inv) + " 以下【硬】" + (pr.Head <= headB + 1e-3f ? "⭕" : "⛔") + "・1/" + mS.Groups[1].Value + ")"
+                          + "・上の端 " + (headOk ? headWall + " の面へ突き付け〔" + headGo + "〕隙 " + headGap.ToString("+0.000;-0.000", inv) : "突き付けず ⛔")
+                          + (nShort > 0 ? "・⚠ 外の壁の天端が道より低い " + nShort + " 駒(最大 " + shortMax.ToString("F2", inv) + "・s " + sShort0.ToString("F1", inv) + "〜" + sShort1.ToString("F1", inv) + ")── 型A の深さ " + m30.Depth.ToString("F2", inv) + " では道の地盤を受けきれない(普請方へ)" : "・外の壁の天端 ≥ 道 ⭕")
+                          + "・尻の底 " + pr.Tail.ToString("F2", inv) + " / 道 " + roadTail.ToString("F2", inv) + (pr.Tail < roadTail - 0.01f ? " ⚠ 尻が道より低く道へ落ちない(道は掘らない【硬】・排水の検査は未)" : " ⭕")
+                          + (fail.Count > 0 ? "・⛔ 浮く駒 " + fail.Count + " を据えない" : "") + (miss > 0 ? "・⚠ 駒が無い " + miss : "") + (pr.ok ? "" : "・⛔ " + pr.hard));
+        }
+        return sb.ToString();
     }
 
     static string PlaceBackGutters()
@@ -6018,7 +6167,7 @@ public static class EdoOkabeYashikiBuilder
         {
             var rootM = GameObject.Find(GN); int nM = 0; float innerHalfMizo = 0f;
             foreach (var o9 in A(Get(D, "terraces")) ?? new List<object>()) { var mI = System.Text.RegularExpressions.Regex.Match(S(Get(O(o9), "flat")) ?? "", @"浅い石組の溝[(（]\s*幅\s*([0-9.]+)"); if (mI.Success) innerHalfMizo = 0.5f * float.Parse(mI.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture); }
-            foreach (var gm in new[] { "BackMizo", "OmoteGesui" })
+            foreach (var gm in new[] { "BackMizo", "OmoteGesui", "FrontMizo" })
             {
                 var gT = rootM == null ? null : rootM.transform.Find(gm); if (gT == null) continue;
                 foreach (Transform c in gT)

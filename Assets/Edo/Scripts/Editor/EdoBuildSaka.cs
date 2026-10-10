@@ -920,6 +920,10 @@ public static partial class EdoBuild
                     {
                         var np = new Vector2(tp.x + (x0 + c.x) * cell, tp.z + (z0 + c.y) * cell);
                         if (!EdoGeom.PIP(parcel, np)) continue;
+                        // ⛔ 検める帯(背から band + 0.6)より奥の節点は下げない ── 升の四隅は帯の向こう 2m まで届き、返しの石垣の向こうの面(岡部 門の内 16.50)の節点を
+                        //   13.10 へ掘って、面の縁に高さ 3.4 の急な土の面を 100 余り立てた(EDO-0502 第95巡: 棟を 0.39 寄せて溝の帯が隣の升へ入った)。帯の地山は皮が設計の地盤で描く。
+                        //   当たる先: CutAlongBack を呼ぶ全て(岡部の返しの溝・土井の門の背)。
+                        if (Vector2.Dot(np - a, inward) > band + 0.6f + 1e-3f) continue;
                         float cur = H[c.y, c.x] * ts.y + tp.y; if (cur <= y + 1e-4f) continue;
                         int key = c.y * w + c.x; if (!cutBefore.ContainsKey(key)) cutBefore[key] = cur;
                         H[c.y, c.x] = (y - tp.y) / ts.y; any = true;

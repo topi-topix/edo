@@ -1,16 +1,5 @@
 {
   "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/edo_greet.py",
-            "timeout": 20
-          }
-        ]
-      }
-    ],
     "SessionEnd": [
       {
         "hooks": [

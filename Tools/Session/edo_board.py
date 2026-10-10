@@ -768,7 +768,7 @@ def main():
     p.add_argument("--json", action="store_true")
     p.set_defaults(fn=cmd_list)
     p = sub.add_parser("show"); p.add_argument("id"); p.set_defaults(fn=cmd_show)
-    p = sub.add_parser("age", help="齢を検める(古び14日・時効30日。挨拶フックが --apply --quiet で打つ)")
+    p = sub.add_parser("age", help="齢を検める(古び14日・時効30日。毎朝の自動タスク edo-nikki-daily が --apply --quiet で打つ)")
     p.add_argument("--apply", action="store_true", help="印と時効を実際に書く(既定は検めるだけ)")
     p.add_argument("--quiet", action="store_true", help="何も起きなければ無言")
     p.set_defaults(fn=cmd_age)

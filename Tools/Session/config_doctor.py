@@ -1198,14 +1198,6 @@ def cmd_deep(env):
         if r.returncode:
             print("   " + (r.stdout + r.stderr).strip().replace("\n", "\n   ")[:1500])
             rc = 1
-    print("\n## 挨拶の予算\n")
-    g = env.p(".claude", "hooks", "edo_greet.py")
-    if os.path.isfile(g):
-        t0 = time.time()
-        r = subprocess.run([sys.executable, g], input="{}", capture_output=True, text=True, cwd=env.root,
-                           env=dict(os.environ, CLAUDE_PROJECT_DIR=env.root))
-        dt, nl = time.time() - t0, len(r.stdout.strip().split("\n"))
-        print("%s 挨拶 %.1f 秒 / %d 行(目安 8 秒 / 25 行)" % ("⭕" if dt <= 8 and nl <= 25 else "⚠", dt, nl))
     print("\n## 月次の手作業(道具では測れない物)\n")
     print("- メモリ: `Skill(anthropic-skills:consolidate-memory)` で重複・古い事実・索引を整理する")
     print("- スキル: `Skill(anthropic-skills:skill-creator)` で edo 各スキルの description の発火精度と SKILL.md の長さを見直す")

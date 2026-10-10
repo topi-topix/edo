@@ -65,7 +65,7 @@ sparse worktree には `Tools/` も入るので `python3 Tools/Session/edo_sessi
 **掲示板に一言も起票できなかった**)。⚠ ただし worktree 側の古い写しを走らせれば古い名簿のままなので、
 main の絶対パスで叩く原則は変わらない。
 
-フック(`edo_guard.py`/`edo_greet.py`)は 2026-08-31 に、git の common-dir から main の絶対パスを
+フック(`edo_guard.py` ほか)は 2026-08-31 に、git の common-dir から main の絶対パスを
 解決して**常に main の Tools/Session/ を実行する**よう直した。**手で叩くときは同じことを自分でやる**:
 
 ```bash

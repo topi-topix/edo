@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 418(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 420(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -260,6 +260,8 @@
 | `Own.SannoNozuraKiriEnd(deg, atPlusX, faceLonger, h, i)` | 関数 | 片端を斜めの鉛直面で切った野面の乱積みの駒(2026-09-26 EDO-0437・前庭の南の土留め TW_Zentei_SW の東端 / SE の西端を女坂の袖の外面へ当てる)。 | BuildNozura, SannoSha(Nozura) |
 | `Own.SannoNozuraNori` | float | 小口を相手の法で切った野面の短い駒(2026-09-26 EDO-0437 第3巡・前庭の W の南の区間 ── 入隅の可動側の端が 通す側 TW_Zentei_SW の見え面の法の楔に入る所)。 | SannoSha(AbutStairsToWalls) |
 | `Own.SannoNozuraNoriEnd(len, atPlusX, h)` | 関数 | — | BuildNozura, OkabeYashiki(Stage2b_Dan), SannoSha(Nozura) |
+| `Own.SannoNozuraNoriMaxLen` | float | SannoNozuraNoriEnd の焼いてある長さの上限(H4.80 の 1.80 ── 1間の窓 1.818 の内)。 | BuildNozura(PlaceNozuraRun) |
+| `Own.SannoNozuraNoriMinLen(h)` | 関数 | SannoNozuraNoriEnd の長さの下限 = 0.3·(見付 h + 根入れ 0.20) を 0.05 へ切り上げ(下限 0.30)。 | — |
 | `Own.IshidanSodeNozuraNori(keri, fumi, e, i)` | 関数 | 背を相手の法で切った野面の袖(2026-09-26 EDO-0437 第3巡・参道の階の袖の背が切り込みの出隅の駒の法に当たる所)。 | SannoSha(AbutStairsToWalls) |
 | `Own.SannoNozuraFillSandoKai4(side)` | 関数 | 段 4 に面する所だけ天端を埋めた前庭の野面の駒(EDO-0437 r13 2026-09-27)。 | — |
 | `Own.SannoNozuraFillBeside(basePath, stair, i, side)` | 関数 | 石段 stair の段 i の脇 side('W'/'E')に合わせて焼いた野面の駒の名 (元の部材 basePath の名 + "_" + 石段 + 段 + 脇)。 | — |

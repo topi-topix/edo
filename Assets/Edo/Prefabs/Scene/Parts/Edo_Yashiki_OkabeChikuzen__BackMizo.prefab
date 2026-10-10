@@ -28,6 +28,1077 @@ Transform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 2883269545632595006}
+  - {fileID: 6248875911092709681}
+  - {fileID: 1521200161268307596}
+  - {fileID: 3274343375386937694}
+  - {fileID: 1170889499800768600}
+  - {fileID: 2555902079138425920}
+  - {fileID: 8779053691937690166}
+  - {fileID: 4466393204843024596}
+  - {fileID: 6922974530341571815}
+  - {fileID: 941138958444408679}
+  - {fileID: 2543914827989984348}
+  - {fileID: 6692584159697465800}
+  - {fileID: 6365044810507195221}
+  - {fileID: 7781868106492600684}
+  - {fileID: 6700977595047955477}
+  - {fileID: 4679841097412091547}
+  - {fileID: 2069767211861311399}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1001 &758049049149524108
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 8757291665819204024}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -442.2565
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 16.495275
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1087.6622
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.6023654
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0030124153
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.79820484
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0.003991804
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_Name
+      value: Kadonouchi_N39_0_Amaochi_1_000
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+--- !u!4 &941138958444408679 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+  m_PrefabInstance: {fileID: 758049049149524108}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &1339497640543875431
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 8757291665819204024}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -455.985
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 16.475279
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1083.7463
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.79820234
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0039901524
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.6023688
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.003011195
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_Name
+      value: Kadonouchi_N39_0_Amaochi_0_002
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+--- !u!4 &1521200161268307596 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+  m_PrefabInstance: {fileID: 1339497640543875431}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &1708391165220452275
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 8757291665819204024}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -454.0617
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 16.45528
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1084.2949
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.79820234
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0039909137
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.6023688
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.0030117694
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_Name
+      value: Kadonouchi_N39_0_Amaochi_0_004
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+--- !u!4 &1170889499800768600 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+  m_PrefabInstance: {fileID: 1708391165220452275}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &1960177638911973452
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 8757291665819204024}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -448.89514
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 16.476234
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1085.7688
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.6023654
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0030124153
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.79820484
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0.003991804
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_Name
+      value: Kadonouchi_N39_0_Amaochi_1_007
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+--- !u!4 &2069767211861311399 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+  m_PrefabInstance: {fileID: 1960177638911973452}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &2650214946013201335
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 8757291665819204024}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -443.2182
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 16.485275
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1087.388
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.6023687
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0030117691
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.7982024
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0.0039909137
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_Name
+      value: Kadonouchi_N39_0_Amaochi_1_001
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+--- !u!4 &2543914827989984348 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+  m_PrefabInstance: {fileID: 2650214946013201335}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &2662430140520663979
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 8757291665819204024}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -453.09958
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 16.49528
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1084.5695
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.7982049
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0039902823
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.6023654
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.0030112662
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_Name
+      value: Kadonouchi_N39_0_Amaochi_0_005
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+--- !u!4 &2555902079138425920 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+  m_PrefabInstance: {fileID: 2662430140520663979}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &3096915850698616501
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 8757291665819204024}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -455.02335
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 16.46528
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1084.0208
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.79820734
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0039904113
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.60236204
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.003011338
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_Name
+      value: Kadonouchi_N39_0_Amaochi_0_003
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+--- !u!4 &3274343375386937694 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+  m_PrefabInstance: {fileID: 3096915850698616501}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &3425505512716540885
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 8757291665819204024}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -457.90833
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 16.495277
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1083.1979
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.79820234
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0039901524
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.6023688
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.003011195
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_Name
+      value: Kadonouchi_N39_0_Amaochi_0_000
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+--- !u!4 &2883269545632595006 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+  m_PrefabInstance: {fileID: 3425505512716540885}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &4211263167178635071
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 8757291665819204024}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -451.1763
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 16.47528
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1085.118
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.79820234
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0039901524
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.6023688
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.003011195
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_Name
+      value: Kadonouchi_N39_0_Amaochi_0_007
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+--- !u!4 &4466393204843024596 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+  m_PrefabInstance: {fileID: 4211263167178635071}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &5150037506958883184
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 8757291665819204024}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -448.02692
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 16.485264
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1086.0165
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.60241556
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.003012679
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.798167
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0.003991632
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_Name
+      value: Kadonouchi_N39_0_Amaochi_1_006
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+--- !u!4 &4679841097412091547 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+  m_PrefabInstance: {fileID: 5150037506958883184}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &5850966417579462362
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 8757291665819204024}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -456.94662
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 16.48528
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1083.4722
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.79820734
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0039911726
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.60236204
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.0030119126
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_Name
+      value: Kadonouchi_N39_0_Amaochi_0_001
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+--- !u!4 &6248875911092709681 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+  m_PrefabInstance: {fileID: 5850966417579462362}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &6587196877594236451
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 8757291665819204024}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -444.17987
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 16.475273
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1087.1138
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.6023654
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0030124153
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.79820484
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0.003991804
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_Name
+      value: Kadonouchi_N39_0_Amaochi_1_002
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+--- !u!4 &6692584159697465800 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+  m_PrefabInstance: {fileID: 6587196877594236451}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &6589926119050456062
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 8757291665819204024}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -447.06528
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 16.495266
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1086.2908
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.60231847
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0030120797
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.7982402
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0.003991847
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_Name
+      value: Kadonouchi_N39_0_Amaochi_1_005
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+--- !u!4 &6700977595047955477 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+  m_PrefabInstance: {fileID: 6589926119050456062}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &6908407433593681086
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 8757291665819204024}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -445.14148
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 16.465271
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1086.8394
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.6023654
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0030124153
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.79820484
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0.003991804
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_Name
+      value: Kadonouchi_N39_0_Amaochi_1_003
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+--- !u!4 &6365044810507195221 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+  m_PrefabInstance: {fileID: 6908407433593681086}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &7465246186323798796
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 8757291665819204024}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -450.57513
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 16.46903
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1085.2896
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.79820234
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0039901524
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.6023688
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.003011195
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_Name
+      value: Kadonouchi_N39_0_Amaochi_0_008
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+--- !u!4 &6922974530341571815 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+  m_PrefabInstance: {fileID: 7465246186323798796}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &7814878595353118343
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 8757291665819204024}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -446.10315
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 16.455269
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1086.5652
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.60241556
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0030121042
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.798167
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0.0039908704
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+      propertyPath: m_Name
+      value: Kadonouchi_N39_0_Amaochi_1_004
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+--- !u!4 &7781868106492600684 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 08688aa517bc14720a060c7bbf940398, type: 3}
+  m_PrefabInstance: {fileID: 7814878595353118343}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &9106225312340538845
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 8757291665819204024}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -452.13797
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 16.485281
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1084.8436
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.7982049
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.003991043
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.6023654
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.0030118406
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+      propertyPath: m_Name
+      value: Kadonouchi_N39_0_Amaochi_0_006
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+--- !u!4 &8779053691937690166 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 4586b9945cf194063ac98c189a3f83f1, type: 3}
+  m_PrefabInstance: {fileID: 9106225312340538845}
+  m_PrefabAsset: {fileID: 0}

@@ -824,14 +824,19 @@ class Model(object):
                 cuts.append((k["name"], [tuple(k["a"][:2]), tuple(k["b"][:2])], w / 2.0, True))
         for r in self.d.get("ramps") or []:
             if isinstance(r.get("pts"), list) and r.get("w"):
-                cuts.append((r["name"], [tuple(q[:2]) for q in r["pts"]], r["w"] / K / 2.0, False))
+                # 坂も芯線の両端を少し延ばして見る ── 坂の足が壁の線(面の輪郭)のわずか手前で止まると口が開かなかった
+                #   (岡部 R_KiriZaka の足 u=15.41 と TW_Higashi_Hokuto の線 u≈15.46・EDO-0502 第102巡)
+                cuts.append((r["name"], [tuple(q[:2]) for q in r["pts"]], r["w"] / K / 2.0, True))
         out = []
         for nm, C, half, ext in cuts:
-            if ext:                                      # 石段は芯線を少し延ばして見る(段の頭・尻が壁の線の手前で止まる)
-                (a, b) = C
-                dx, dy = b[0] - a[0], b[1] - a[1]
-                Ln = math.hypot(dx, dy) or 1e-9
-                C = [(a[0] - dx / Ln * 1.0, a[1] - dy / Ln * 1.0), (b[0] + dx / Ln * 1.0, b[1] + dy / Ln * 1.0)]
+            if ext:                                      # 石段・坂は芯線を少し延ばして見る(段の頭・尻が壁の線の手前で止まる)
+                a, b = C[0], C[-1]
+                a1, b1 = C[1], C[-2]
+                dx, dy = a1[0] - a[0], a1[1] - a[1]
+                La = math.hypot(dx, dy) or 1e-9
+                ex, ey = b[0] - b1[0], b[1] - b1[1]
+                Lb = math.hypot(ex, ey) or 1e-9
+                C = [(a[0] - dx / La * 1.0, a[1] - dy / La * 1.0)] + list(C) + [(b[0] + ex / Lb * 1.0, b[1] + ey / Lb * 1.0)]
             for i in range(len(P) - 1):
                 for j in range(len(C) - 1):
                     a, b, c, e = P[i], P[i + 1], C[j], C[j + 1]
@@ -842,7 +847,9 @@ class Model(object):
                     s = ((c[0] - a[0]) * (b[1] - a[1]) - (c[1] - a[1]) * (b[0] - a[0])) / den
                     if 0 <= t <= 1 and 0 <= s <= 1:
                         sm = (ln["_cum"][i] + t * (ln["_cum"][i + 1] - ln["_cum"][i]))
-                        out.append({"by": nm, "s0": round((sm - half) * K, 2), "s1": round((sm + half) * K, 2)})
+                        g = {"by": nm, "s0": round((sm - half) * K, 2), "s1": round((sm + half) * K, 2)}
+                        if g not in out:                 # 延ばした芯の継ぎ目で同じ交わりを二度拾わない
+                            out.append(g)
         return out
 
     def mine_edges(self):

@@ -48,6 +48,7 @@
 - [段の位置は指図の pos でなく実地表から解く](stair-position-is-terrain-dependent.md) — 落ち際は擦り付けで2〜4.5m。許容は段自身の蹴上
 - [比は意図でなく据わった数で決まる](ratio-on-intent-vs-seated.md) — 樹冠の大きい層が据わりで負け一方向に外れる。CrownR で先に測る
 - [斜面の走りは道のりで割り、丈の中ほどで継ぐ](slope-run-walk-by-arc-not-horizontal.md) — 水平割り+傾けは隙とめり込みを同時に出す。GroundPolyline/PlaceOnChord
+- [坂の両脇の石垣は bake が黙って退く・坂の足が壁の手前で止まると口が無い](ramp-side-walls-unresolved-by-bake.md) — between [面,坂]。算出物の unresolved を流す前に grep
 - [測って置く。事後に寄せる関数を持たない](measure-dont-nudge.md) — 帯の頂点では門柱が消えて偽の穴。閉じは三角形で測る
 - [段を跨ぐ渡廊下は区間に割る](roka-dan-step-joint.md) — 段の柱は低い側。折れ目に 0.19m の口(雨押えの部材が無い)
 - [設計面を地形へ写す二つの罠](grade-transfer-cliff-and-dropped-cells.md) — 石垣の見え面を双一次で跨がない・縮めた設計面の外に前の巡の切盛が残る
@@ -158,8 +159,7 @@
 
 ## 測り方・関門
 
-- [検査役の execute_code の全文は MCP の log に残る](qa-code-in-mcp-log.md) — 同じ測りで刷り直すときはそこから抜く。get_history は先頭だけ
-
+- [検査役の execute_code の全文は MCP の log に残る](qa-code-in-mcp-log.md) — 同じ測りで刷り直すときはそこから抜く(自分の前巡の流し方も)
 - [長屋の軒を躯体の前の面と読む](nagaya-eaves-read-as-body-front.md) — _kutai は材1つで BodyExRoof が軒を残す。前の面は一階の帯で(N39_1 の 0.27 は軒)
 - [練塀は下絵の seat で置かれ埋まる・天端の垣と S_Hei_20 の浮きは偽](dobei-seat-is-shitae-and-false-floats-r12.md) — 岡部 辺34 で 2.6m 埋没。浮きは光線の先着で確かめる・作業場の取り違え
 - [偶奇の多数決の内外判定は野面で偽のめり込み](parity-inside-test-false-intrusion.md) — 袖×SW の隅 0.234 は偽。当たり0の向きが在れば外
@@ -172,10 +172,9 @@
 - [bake_impl は指紋違いで焼ける欄まで書かない](bake-impl-carried-src.md) — 欄を足したら carriedSrc を残す。半分だけ焼かない
 - [面の輪郭ぎわの残差は物差しの話](terrace-rim-residual-is-the-ruler.md) — 失敗点が全部1セル以内なら造成の欠陥でない。均すと段が埋まり崖に盛土
 - [池が掘れていないの正体は水面の紛失と 2m 格子](pond-carved-but-water-lost.md) — ⛔掘り直さない。CreateNoCarve で水面だけ
-- [作業場の書き戻しは台帳0件で黙る](koba-writeback-ledger-empty.md) — 段別の邸は本体が台帳に載らない。Convert(自邸名)で拾う
+- [作業場の書き戻しは台帳0件で黙る](koba-writeback-ledger-empty.md)・[プレハブの grep で名が出ないのは正常](prefab-yaml-has-guids-not-names.md) — 段別の邸は Convert(自邸名)で拾う・検めは LoadAssetAtPath で childCount
 - [類型を何軒も建て直す作業場](typology-multi-parcel-koba.md) — 隣は20m以内だけ・残りは実体を足す。BuildParcel は自分で切り出すので wrote=0 が正常
 - [並びの区画のログの浮きは後の造成で古くなる](typology-log-stale-after-neighbor-regrade.md) — 共有辺の地表が動く。建て終えてから数え直す
-- [プレハブの grep で名が出ないのは正常](prefab-yaml-has-guids-not-names.md) — 参照は GUID。検めるのは LoadAssetAtPath で childCount
 
 ## 検査の読み方
 

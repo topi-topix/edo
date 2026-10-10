@@ -28,6 +28,510 @@ Transform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 7741864754539284529}
+  - {fileID: 8448102748303467093}
+  - {fileID: 1784426038898485340}
+  - {fileID: 2404483178752227649}
+  - {fileID: 2716506058018511372}
+  - {fileID: 1224739289455036107}
+  - {fileID: 307258406660372774}
+  - {fileID: 5325379761847390205}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1001 &272785097852395213
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 1477966083920921818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -450.10745
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 16.5
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1086.8333
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.9903616
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.1385061
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_Name
+      value: Kadonouchi_OmoteGesui_001_Futa0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: b1748e67237434207a950d57e11c2849, type: 3}
+--- !u!4 &307258406660372774 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+  m_PrefabInstance: {fileID: 272785097852395213}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &1690429413622276384
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 1477966083920921818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -450.17593
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 16.5
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1087.0732
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.9903616
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.1385061
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_Name
+      value: Kadonouchi_OmoteGesui_000_Futa1
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: b1748e67237434207a950d57e11c2849, type: 3}
+--- !u!4 &1224739289455036107 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+  m_PrefabInstance: {fileID: 1690429413622276384}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &2254394086913806263
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 1477966083920921818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 5fd750707c7834a6cafd6619af83f896, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -450.17633
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5fd750707c7834a6cafd6619af83f896, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 16.496527
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5fd750707c7834a6cafd6619af83f896, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1087.0747
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5fd750707c7834a6cafd6619af83f896, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.99034923
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5fd750707c7834a6cafd6619af83f896, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.004951542
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5fd750707c7834a6cafd6619af83f896, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.13850439
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5fd750707c7834a6cafd6619af83f896, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0.0006924933
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5fd750707c7834a6cafd6619af83f896, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5fd750707c7834a6cafd6619af83f896, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5fd750707c7834a6cafd6619af83f896, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 5fd750707c7834a6cafd6619af83f896, type: 3}
+      propertyPath: m_Name
+      value: Kadonouchi_OmoteGesui_001
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 5fd750707c7834a6cafd6619af83f896, type: 3}
+--- !u!4 &1784426038898485340 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 5fd750707c7834a6cafd6619af83f896, type: 3}
+  m_PrefabInstance: {fileID: 2254394086913806263}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &2465807247316270567
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 1477966083920921818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -450.0388
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 16.5
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1086.5925
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.9903616
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.1385061
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_Name
+      value: Kadonouchi_OmoteGesui_000_Futa0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: b1748e67237434207a950d57e11c2849, type: 3}
+--- !u!4 &2716506058018511372 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+  m_PrefabInstance: {fileID: 2465807247316270567}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &2798083143684382378
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 1477966083920921818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -450.5564
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 16.301537
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1088.4069
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.9903611
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.13850984
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_Name
+      value: Kadonouchi_OmoteGesui_Higuchi
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 5844b2768787f477d8576e1061030284, type: 3}
+--- !u!4 &2404483178752227649 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+  m_PrefabInstance: {fileID: 2798083143684382378}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &5651232278518081558
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 1477966083920921818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -450.2446
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 16.5
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1087.314
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.9903616
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.1385061
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: b1748e67237434207a950d57e11c2849, type: 3}
+      propertyPath: m_Name
+      value: Kadonouchi_OmoteGesui_001_Futa1
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: b1748e67237434207a950d57e11c2849, type: 3}
+--- !u!4 &5325379761847390205 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: b1748e67237434207a950d57e11c2849, type: 3}
+  m_PrefabInstance: {fileID: 5651232278518081558}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &7852616957681676250
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 1477966083920921818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -449.73535
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 16.5
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1085.529
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.9903611
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.13850984
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_Name
+      value: Kadonouchi_OmoteGesui_Masu
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+--- !u!4 &7741864754539284529 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+  m_PrefabInstance: {fileID: 7852616957681676250}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &8266086421230273982
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 1477966083920921818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 5fd750707c7834a6cafd6619af83f896, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -450.10767
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5fd750707c7834a6cafd6619af83f896, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 16.49903
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5fd750707c7834a6cafd6619af83f896, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1086.834
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5fd750707c7834a6cafd6619af83f896, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.99034923
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5fd750707c7834a6cafd6619af83f896, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.004951542
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5fd750707c7834a6cafd6619af83f896, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.13850439
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5fd750707c7834a6cafd6619af83f896, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0.0006924933
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5fd750707c7834a6cafd6619af83f896, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5fd750707c7834a6cafd6619af83f896, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5fd750707c7834a6cafd6619af83f896, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 5fd750707c7834a6cafd6619af83f896, type: 3}
+      propertyPath: m_Name
+      value: Kadonouchi_OmoteGesui_000
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 5fd750707c7834a6cafd6619af83f896, type: 3}
+--- !u!4 &8448102748303467093 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 5fd750707c7834a6cafd6619af83f896, type: 3}
+  m_PrefabInstance: {fileID: 8266086421230273982}
+  m_PrefabAsset: {fileID: 0}

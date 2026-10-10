@@ -2754,8 +2754,84 @@ def tw_resolve(d, parcel_uv, nat, in_parcel):
                 lines.append(tw_prep(dict(base, mode="cut", hi=None, lo=hi, pts=pts[::-1], top=float(top), tops=None,
                                           above=above)))
             continue
+        rp = next((r for r in (d.get("ramps") or []) if r.get("name") in bt), None)
+        hi = next((t for t in tn if t), None)
+        if rp is not None and hi is not None:
+            # ---------------- ramp(面 ↔ 坂: 面の盛りの中に坂の幅だけ盛り残した溝の両脇の石垣・EDO-0502 第102巡)
+            #   線 = 坂の芯 ± 幅/2(坂の縁)。始まり = 線が面(hi)の輪郭を出る所(口)・終わり = 天端 − 坂の縦断 < 積み止めの落差(ends)。
+            #   天端 = 「口の側 Y1 … (約 Lm)から先は Y2」の段違い(sode と同じく区間の頭の値)。どちらの脇かは文が名指す棟から測る
+            #   (「<棟の名> の … から n間」)── 名指しが無い本は同じ坂のもう一本の反対の脇。⛔ 読めなければ線を作らない。
+            got = _tw_ramp_side(d, w, rp, polys[hi], T, ws, K)
+            if isinstance(got, str):
+                bad.append((nm, got))
+            else:
+                lines.append(tw_prep(dict(base, mode="sode", hi=hi, lo=None, ramp=rp["name"], **got)))
+            continue
         bad.append((nm, "between の形が読めない: %s" % txt))
     return lines, bad, polys
+
+
+def _tw_ramp_side(d, w, rp, P, T, ws, K, side=None):
+    """`_tw_resolve` の ramp の枝。戻り {pts, tops, top, stop, steps, sideV} か 理由の文。"""
+    C = [tuple(q[:2]) for q in rp.get("pts") or []]
+    if len(C) != 2 or not rp.get("w") or not isinstance(rp.get("profY"), list) or len(rp["profY"]) != 2:
+        return "坂 %s の芯(2点)・幅 w・縦断 profY(2値)が無い" % rp.get("name")
+    (a, b) = C
+    L0 = math.hypot(b[0] - a[0], b[1] - a[1]) or 1e-9
+    ax = ((b[0] - a[0]) / L0, (b[1] - a[1]) / L0)
+    nrm = (-ax[1], ax[0])
+    half = float(rp["w"]) / K / 2.0
+    y0, y1 = float(rp["profY"][0]), float(rp["profY"][1])
+    top_s = str(w.get("top") or "")
+    m1 = re.search(r"口の側\s*([\d.]+)", top_s)
+    m2 = re.search(r"約\s*([\d.]+)\s*m\s*\)\s*から先は\s*([\d.]+)", top_s)
+    m3 = re.search(r"落差\s*([\d.]+)\s*未満", str(w.get("ends") or ""))
+    if not (m1 and m2 and m3):
+        return "坂の脇の石垣の天端(口の側 Y・約 Lm から先は Y)か積み止めの落差(ends)が読めない"
+    yA, sStep, yB, stop = float(m1.group(1)), float(m2.group(1)), float(m2.group(2)), float(m3.group(1))
+
+    def side_of(wall):
+        txt = _json.dumps(wall, ensure_ascii=False)
+        for s in (d.get("service") or []) + (d.get("munes") or []):
+            lab = s.get("label")
+            if lab and lab + " の" in txt and all(k in s for k in ("u0", "v0", "u1", "v1")):
+                cu, cv = (s["u0"] + s["u1"]) / 2.0, (s["v0"] + s["v1"]) / 2.0
+                return 1 if (cu - a[0]) * nrm[0] + (cv - a[1]) * nrm[1] > 0 else -1
+        return None
+    sg = side_of(w)
+    if sg is None:
+        mates = [x for x in ws if x is not w and rp["name"] in [str(y) for y in x.get("between") or []]]
+        sm = [side_of(x) for x in mates]
+        sm = [x for x in sm if x is not None]
+        if len(sm) != 1:
+            return "坂 %s のどちらの脇か名指しが無い(相方の名指しも無い)" % rp["name"]
+        sg = -sm[0]
+    off = (nrm[0] * half * sg, nrm[1] * half * sg)
+    o = (a[0] + off[0], a[1] + off[1])
+    # 口 = 線が面の輪郭を横切る所(坂の足の側の外から坂の向きへ射る)── 足の点が輪郭の外なら芯の向き、内なら逆向き
+    inside = _pt_in_ring(P, o[0], o[1])
+    t0 = None
+    if inside:
+        h = _tw_ray(o, (-ax[0], -ax[1]), P, 4.0)
+        t0 = None if h is None else -h
+    else:
+        h = _tw_ray(o, ax, P, 4.0)
+        t0 = h
+    if t0 is None:
+        return "坂 %s の脇の線が面の輪郭と交わらない(口が無い)" % rp["name"]
+    grade = (y1 - y0) / (L0 * K)
+    tEnd = (yB - stop - y0) / grade / K if grade > 1e-6 else L0
+    tEnd = min(tEnd, L0)
+    tS = t0 + sStep / K
+    if not (t0 < tS < tEnd):
+        return "段違いの継ぎ目 %.1fm が口と積み止めの間に無い" % sStep
+    pt = lambda t: (o[0] + ax[0] * t, o[1] + ax[1] * t)
+    pts, tops = [pt(t0), pt(tS), pt(tEnd)], [yA, yB, yB]
+    # 上(面の側)を左へ: 進む向き ax の左は +nrm ── 外(sg)が左でなければ向きを返す
+    if sg < 0:
+        # sode の天端は区間の頭の値 ⇒ 逆向きでは [積み止め→継ぎ目 = Y2, 継ぎ目→口 = Y1, 終わり]
+        pts, tops = [pts[2], pts[1], pts[0]], [yB, yA, yA]
+    return {"pts": pts, "tops": tops, "top": None, "stop": stop, "steps": [yA, yB], "sideV": sg}
 
 
 def _tw_nearest_edge(P, es, p):

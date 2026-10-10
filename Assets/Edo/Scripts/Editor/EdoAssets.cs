@@ -1283,6 +1283,8 @@ public static class EdoAssets
         /// 寸法の設計値(厚み・天端の高さ・笠石・根入れ)は【U 部材方 2026-09-23】。焼けている組: (0.260, 0.650) / (0.300, 1.199) / (0.250, 0.542) /
         /// 郭の階 (0.238, 0.450) / 中門の内の階 (0.200, 0.450)(2026-09-24・EDO-0430)/ 岡部の曲輪の石段 (0.283, 0.450)(2026-10-07・EDO-0502・丈 2.20 / 3.20 / 4.20 ── `IshidanSodeDepthsDeep`)/ 中門の内の階の二段 (0.175, 0.450)(2026-09-25・EDO-0430・丈 2.20 のみ・
         /// blender --background --python Tools/Blender/build_sanno_buzai.py -- sode 0.175 0.450 2.540 --render ⇒ W 0.600 × H 2.367〜2.375 × D 0.450)。
+        /// 岡部の表の石段 K_Kuruwa の 2間・12段 (0.2675, 0.450)(2026-10-10・EDO-0502・名は F3 で 0.268・丈 2.20 / 3.20 / 4.20 ── `IshidanSodeDepthsDeep`・
+        /// blender --background --python Tools/Blender/build_sanno_buzai.py -- sode 0.2675 0.450 3.636 --depth=4.20 --render ⇒ W 0.600 × H 4.456〜4.467 × D 0.450)。
         /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- sode [--only=男坂 | <蹴上> <踏面>] --render</summary>
         public static string IshidanSode(float keri, float fumi, int i)
         {

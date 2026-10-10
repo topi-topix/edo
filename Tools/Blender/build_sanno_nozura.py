@@ -33,6 +33,7 @@
     blender --background --python Tools/Blender/build_sanno_nozura.py -- nkiri --list=Tools/Blender/sanno_nozura_kiri_set.txt --render  # 片端を斜めの鉛直面で切った駒(女坂の袖に当てる・2026-09-26)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- mikiri_h [--h=1.5,1.8] --render   # 丈を合わせた見切り石(天端まで届く・2026-09-26)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- mikiri_h --h=2.4 --render         # 同・見付 2.40(岡部 外周の塞がる端・EDO-0502・2026-10-06)
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- mikiri_h --h=3.6 --render         # 同・見付 3.60(4 石・岡部 K_Kuruwa が TW_Kado_Hokuto を切る口の両端・EDO-0502・2026-10-10)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- nnori --list=Tools/Blender/sanno_nozura_nori_set.txt --render  # 小口を相手の法 1:0.3 で切った短い駒(入隅の可動側の端・第3巡)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- sode_nori --keri=0.250 --fumi=0.542 [--e=-0.15] --render     # 背を相手の法 1:0.3 で切った野面の袖(第3巡)
 
@@ -140,6 +141,7 @@ OPT = dict((a[2:].split("=", 1) + [""])[:2] for a in ARGS if a.startswith("--"))
 RENDER = "render" in OPT
 
 OUT_WALL = V.out_dir(os.path.join(V.REPO, "Assets", "Edo", "Models", "Sanno"))
+OUT_WALL_REPO = os.path.join(V.REPO, "Assets", "Edo", "Models", "Sanno")  # 検証レンダが在庫の駒を読む先(staging に無いとき)
 OUT_SODE = V.out_dir(os.path.join(V.REPO, "Assets", "Edo", "Models", "Kaidan"))
 SHOT = os.path.join(V.REPO, "Screenshots")
 MATDIR = os.path.join(V.REPO, "Assets", "Edo", "Materials", "Sanno")
@@ -2760,7 +2762,9 @@ def make_mikiri_h(h):
     rng = random.Random("nozura-mikiri-H%04d" % int(round(h * 1000)))
     w = MIKIRI_W
     total = h + BURY
-    nst = 2 if h <= 1.55 else 3
+    # 石の数: H ≤ 1.50 は 2 石・H ≤ 2.40 は 3 石(既存の駒の乱数列を変えない)・それより高い見付は石の丈 ≈ 0.85〜0.95 になる数
+    # (H3600 = 4 石・EDO-0502 2026-10-10 ── 3 石のままだと丈 1.27 の縦長の板が立ち、野面の柱に見えない)
+    nst = 2 if h <= 1.55 else 3 if h <= 2.45 else max(4, int(round(total / 0.95)))
     # 横目地の高さ(天端から下へ)── 石ごとの丈を 0.85〜1.15 で振る・目地は ±0.06 で傾ける
     wts = [rng.uniform(0.85, 1.15) for _ in range(nst)]
     cuts, acc = [], 0.0
@@ -3414,7 +3418,18 @@ def render_mikiri_h(h):
     V.reset()
     _import_at(os.path.join(OUT_WALL, mikiri_name(h) + ".fbx"), 0, 0, 0)
     for i, wv in enumerate("ab"):
-        _import_at(os.path.join(OUT_WALL, wall_name(h, 0, wv) + ".fbx"), -(MIKIRI_W / 2 + L / 2 + i * L), 0, 0)
+        # 同じ見付の G0 の駒が無い(H3000〜H4200 は G0 を焼いていない)ときは、より深い G0 の駒を天端で合わせて沈める
+        # (割りは天端から下へ測った一つの型なので天端まわりは同じ姿)。OUT_WALL(staging)に無ければ在庫から読む。
+        hw, path_ = None, None
+        for hh in [h] + [t_ for t_ in (2.4, 3.0, 3.6, 4.2, 4.8) if t_ > h + 1e-6]:
+            for d_ in (OUT_WALL, OUT_WALL_REPO):
+                cand = os.path.join(d_, wall_name(hh, 0, wv) + ".fbx")
+                if os.path.exists(cand):
+                    hw, path_ = hh, cand
+                    break
+            if path_:
+                break
+        _import_at(path_, -(MIKIRI_W / 2 + L / 2 + i * L), 0, h - hw)
     hook_stone_textures()
     ground(0.0, -30, 30)
     xb = MIKIRI_W / 2

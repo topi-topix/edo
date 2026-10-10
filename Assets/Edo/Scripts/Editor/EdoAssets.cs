@@ -1729,12 +1729,12 @@ public static class EdoAssets
         public const string SannoNozuraMikiri = "Assets/Edo/Models/Sanno/Sanno_Nozura_Mikiri.fbx";
 
         /// <summary>**丈を合わせた見切り石**(2026-09-26 EDO-0437・男坂の口の両脇 TW_Zentei_W の端 2 か所)。見付 <paramref name="h"/> 以上で
-        /// **焼いてある段のうち最も低いもの**を返す(焼いてある段: 1.20 / 1.50 / 1.80 / 2.10 / 2.40(2.40 は 2026-10-06 EDO-0502 岡部 外周の塞がる端)。どれも足りなければ ceil(h/0.3)·0.3 の名を返す ⇒ 呼ぶ側が「焼いていない」と刷る)。
-        /// 大きな野面石 2 石(H ≤ 1.50)/ 3 石を不揃いの横目地で積んだ柱。面 0.83〜0.84 × 控え 0.89。**最高 = 天端の線(床 + 段)で、背の上面が天端に揃う**
+        /// **焼いてある段のうち最も低いもの**を返す(焼いてある段: 1.20 / 1.50 / 1.80 / 2.10 / 2.40 / 3.60(2.40 は 2026-10-06 EDO-0502 岡部 外周の塞がる端・3.60 は 2026-10-10 EDO-0502 岡部 K_Kuruwa が TW_Kado_Hokuto を切る口の両端)。どれも足りなければ ceil(h/0.3)·0.3 の名を返す ⇒ 呼ぶ側が「焼いていない」と刷る)。
+        /// 大きな野面石 2 石(H ≤ 1.50)/ 3 石(H ≤ 2.40)/ 4 石(H3600)を不揃いの横目地で積んだ柱。面 0.83〜0.84 × 控え 0.89。**最高 = 天端の線(床 + 段)で、背の上面が天端に揃う**
         /// (頭の前は天端から下へ 0〜0.1 の円弧)。軸・ピボットは <see cref="SannoNozura"/> と同じ(中心・床レベル = 天端 − 段・Z=0 は天端の線での面・見え面 +Z・3分の法・根入れ 0.20)。
         /// ⭐ 据えは**床ではなく天端で**: 最高を土留めの天端へ合わせ、段が見付より高い分は下へ沈める(駒と同じ「見付 2.3 は 2.40 を沈める」)。
-        /// 実寸: X ±0.42 × Y −0.20〜段 × Z −0.89〜+0.3·(段+0.2)。三角形 530〜900。材 `Kirishi` / `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
-        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- mikiri_h [--h=1.5,1.8,2.4] --render</summary>
+        /// 実寸: X ±0.42 × Y −0.20〜段 × Z −0.89〜+0.3·(段+0.2)。三角形 530〜1170(H3600 は 1166)。材 `Kirishi` / `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- mikiri_h [--h=1.5,1.8,2.4,3.6] --render</summary>
         public static string SannoNozuraMikiriH(float h)
         {
             int want = (int)System.Math.Ceiling(h * 1000.0 - 0.5);

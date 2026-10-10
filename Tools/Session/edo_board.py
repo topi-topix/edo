@@ -490,6 +490,9 @@ def cmd_from_commit(a):
     if not body:
         return 0
     subj = body.strip().split("\n")[0][:80]
+    # ⭐ 書いた窓を残す(EDO-0578)。post-commit はコミットした窓の Bash から走るので
+    #   CLAUDE_CODE_SESSION_ID を継ぐ。手仕舞いのフック(edo_board_fresh.py)が「この窓が板を動かしたか」を引く。
+    who = sid(strict=False) or ""
     closes = set(re.findall(r"(?i)\b(?:closes?|fixes|resolves?)\s+(EDO-\d{4})", body))
     # ⭐ 型はコミット本文の行で渡す: 「型: EdoBuildRun.cs FenceRun」「広がり: 全類型の囲い」「単発: <理由>」
     def _line(key):
@@ -504,7 +507,7 @@ def cmd_from_commit(a):
             why = check_kata(c, kata, hirogari, tanpatsu)
             if why:
                 # ⛔ 型の記録なしに done にしない。票は開けたまま、閉じ方を log に残す(EDO-0376)。
-                c["log"].append({"t": now(), "by": "post-commit",
+                c["log"].append({"t": now(), "by": "post-commit", "sid": who,
                                  "msg": "⚠ closes @ %s を保留 — 型の記録が無い(%s)。"
                                         "`edo_board.py close %s --kata <場所> --hirogari <当たる先>`"
                                         "(単発なら --tanpatsu <理由>)で閉じる。コミット本文なら「型:」「広がり:」の行。"
@@ -514,9 +517,9 @@ def cmd_from_commit(a):
                 continue
             set_kata(c, "post-commit@" + a.sha[:8], kata, hirogari, tanpatsu)
             c["status"] = "done"
-            c["log"].append({"t": now(), "by": "post-commit", "msg": "closes @ %s: %s" % (a.sha[:8], subj)})
+            c["log"].append({"t": now(), "by": "post-commit", "sid": who, "msg": "closes @ %s: %s" % (a.sha[:8], subj)})
         else:
-            c["log"].append({"t": now(), "by": "post-commit", "msg": "commit %s: %s" % (a.sha[:8], subj)})
+            c["log"].append({"t": now(), "by": "post-commit", "sid": who, "msg": "commit %s: %s" % (a.sha[:8], subj)})
         save(c, fp)
         print("from-commit: %s" % fmt_line(c))
     return 0

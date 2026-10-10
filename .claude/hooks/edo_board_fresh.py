@@ -9,7 +9,8 @@
   B(常時の窓)    机の前では `Tools/Session/board_window.py` が 5 分以内に焼き直す(launchd)
 
 【止める条件】(`stop_hook_active` が立っていれば通す = 一度だけ)
-  ・掲示板の件が公開の判より新しい … 焼くのはこのフックがやる。**公開だけは手が要る**(Artifact は人の道具)
+  ・**この窓が前の公開の後に板を動かした**(件の log の by / sid が自分・EDO-0578)うえで、掲示板の件が
+    公開の判より新しい … 焼くのはこのフックがやる。**公開だけは手が要る**(Artifact は人の道具)
   ・このセッションが立てた裁定要請が awaiting-user のまま、最後の一通に【裁定】の見出しが無い
     … 「裁定と詰まりの二種は即時で施主に出す」(EDO-0298 の裁定文)を機械で守る
 
@@ -93,8 +94,32 @@ def main():
             stamp = {}
     at = stamp.get("at", 0)
     url = stamp.get("url") or DEFAULT_URL
-    ver, pub_ver = board_version(root), stamp.get("version")
+    me = (ev.get("session_id") or "")[:12]
     reasons = []
+
+    # ⭐ **板を動かした窓だけが上げる**(EDO-0578・施主 2026-10-10)。誰の分でも閉じる窓に上げさせると、
+    #   窓が十数本並ぶ日は板がほぼ常に動いていて、相談だけの窓まで返事のたびに止まった
+    #   (2026-10-03〜10-09: 680 回・中央値 39 秒・計 約 9 時間)。動かした窓が閉じるときに上げれば
+    #   遅れは数分のまま、その一枚には他の窓の分も載る。⛔ 回数や間隔の制限は足さない(施主: 確かめと待ちが増える)。
+    #   齢(古び・時効)と post-commit の身元不明の分は、次に板を動かした窓の一枚に載る。
+    def wrote_since(t0):
+        if not me:
+            return False
+        for f in items:
+            if os.path.getmtime(f) <= t0:
+                continue
+            try:
+                log = json.load(open(f, encoding="utf-8")).get("log", [])
+            except Exception:
+                continue
+            if any((e.get("t") or 0) > t0 and me in ((e.get("by") or "")[:12], (e.get("sid") or "")[:12])
+                   for e in log):
+                return True
+        return False
+
+    if not wrote_since(at):
+        sys.exit(0)
+    ver, pub_ver = board_version(root), stamp.get("version")
 
     # ── ① 板が公開より新しい → 焼いてから、公開を頼む
     # ⭐ **版で測る(2026-09-22 施主指示)。**版が同じなら、誰が上げた一枚でも今の板を写している。
@@ -138,8 +163,7 @@ def main():
                else "⛔ 焼き直しに失敗したので `python3 Tools/Session/build_board_html.py` を手で回してから、",
                how, url, stage_dir, url))
 
-    # ── ② 自分が立てた裁定要請を、施主へ出さずに手を止めようとしている
-    me = (ev.get("session_id") or "")[:12]
+    # ── ② 自分が立てた裁定要請を、施主へ出さずに手を止めようとしている(2026-10-03 から止めない)
     if me:
         msg = ev.get("last_assistant_message") or ""
         if False and not re.search(r"【裁定", msg):   # ⛔ 止めない(2026-10-03: 差し戻すと報告が二度見える)

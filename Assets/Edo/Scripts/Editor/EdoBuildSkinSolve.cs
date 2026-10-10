@@ -43,6 +43,7 @@ public static partial class EdoBuild
         public GroundProbe probe;
         // 内で作る
         public Func<Vector2, bool> otherPart;
+        readonly Dictionary<long, float> outCache = new Dictionary<long, float>();
         /// <summary>点 q が、平らな面の高さ y + e より高い天端を持つ石垣の天端の前の縁より背(0〜back+skirt)に在るか ── そこは石垣が受ける上の地盤で、平らな面の内ではない。</summary>
         public Func<Vector2, float, bool> behindHigherWall;
         /// <summary>点 q が、面の高さ fy を背で受ける石垣(天端 ≈ fy ± gradeTol・背の点は同じ面・前の地表は別の面)の天端の前の縁より前に在るか(第87巡【硬】)。
@@ -54,7 +55,16 @@ public static partial class EdoBuild
         public float Target(Vector2 q)
         {
             // 区画の外は今の地形(⛔ 面の多角形が区画の線の外へ出ても、区画の外の道・隣へ面の高さを描かない ── 第86巡: 表門の前の腰石垣の前の道に 16.50 の土の歯)
-            if (design != null && design.own != null && !EdoGeom.PIP(design.own, q)) return probe.At(q.x, q.y);
+            //   ⭐ 第94巡: own は区画の外を描き終えた後 null(EdoBuildHifuSoto)── ownKept も見る。見ていなかったので区画の外 0.04 の点が面 16.50 を取り、
+            //   門の口の段鼻の前に尖った土の山(r93_fumidan)・N39_1 の前の道に 16.1 の盛り(r93_tsuma)。当たる先: SkinHeightSolve を流す全ての邸の区画の外の点
+            //   区画の外の地盤は縁の皮の区画の外と同じ測り(OutsideOwnGround ── 区画の内の地形の節点は造成前の地盤へ)。⛔ 今の地形の 2m 格子は台の 16.50 を線の外へ一次で引き、
+            //   門の口の段鼻の前を 16.56 と読んだ(第94巡の一回目)
+            { var ownT = design == null ? null : (design.own ?? design.ownKept);
+              if (ownT != null && !EdoGeom.PIP(ownT, q))
+              {
+                  if (design.baseAt != null) { bool rep; float g = OutsideOwnGround(T(), q.x, q.y, ownT, design.baseAt, null, outCache, out rep); if (rep && !float.IsNaN(g)) return g; }
+                  return probe.At(q.x, q.y);
+              } }
             float y = FaceY(q);
             if (!float.IsNaN(y) && inFrontOfRetainer != null && inFrontOfRetainer(q, y)) y = float.NaN;
             if (!float.IsNaN(y)) { float hy = HoldY(q); if (!float.IsNaN(hy) && hy > y) y = hy; }
@@ -210,7 +220,7 @@ public static partial class EdoBuild
                 float u = Vector2.Dot(q, fb.f); var back = q + fb.f * (d - 0.3f);   // 天端の前の縁の 0.3 背
                 float yb = c.FaceY(back); if (float.IsNaN(yb) || Mathf.Abs(yb - fy) > c.faceTol) continue;
                 float fu = fb.footU[b]; if (float.IsNaN(fu)) continue;
-                var qf = q + fb.f * (fu - u + 0.6f); bool outOwn = design != null && design.own != null && !EdoGeom.PIP(design.own, qf);
+                var qf = q + fb.f * (fu - u + 0.6f); var ownR = design == null ? null : (design.own ?? design.ownKept); bool outOwn = ownR != null && !EdoGeom.PIP(ownR, qf);
                 float yf = c.FaceY(qf); if (!outOwn && !float.IsNaN(yf) && Mathf.Abs(yf - fy) <= c.faceTol) continue;   // 前も同じ面 ── 受けの石垣でない(前が区画の外なら面の多角形が線の外へ出ていても受け ── 第89巡)
                 return true;
             }
@@ -494,7 +504,7 @@ public static partial class EdoBuild
                         }
                         YS[key] = ys; H[key] = hgt; LO0[key] = lo;
                         if (SkinSolveTrace != null) foreach (var tq in SkinSolveTrace) if (Mathf.Abs(tq.x - x) <= step * 0.5f && Mathf.Abs(tq.y - z) <= step * 0.5f)
-                                    SkinSolveTraceLog.AppendLine("  (" + x.ToString("F2", ci) + ", " + z.ToString("F2", ci) + ") y* " + ys.ToString("F3", ci) + " lo " + lo.ToString("F3", ci) + "〔" + loWhy + "〕 hi " + hi.ToString("F3", ci) + "〔" + hiWhy + "〕 ⇒ " + hgt.ToString("F3", ci) + " 断面 " + sectioned + " 当たり " + hits.Count + " 〔狙いの経過 Target " + ysT0.ToString("F3", ci) + "・盛りの縁 " + ysT1.ToString("F3", ci) + "・平ら " + ysT2.ToString("F3", ci) + "・埋める土 " + ysT3.ToString("F3", ci) + "・区画の内 " + (design == null || design.own == null || EdoGeom.PIP(design.own, p)) + "・地形 " + orig.ToString("F3", ci) + "〕");
+                                    SkinSolveTraceLog.AppendLine("  (" + x.ToString("F2", ci) + ", " + z.ToString("F2", ci) + ") y* " + ys.ToString("F3", ci) + " lo " + lo.ToString("F3", ci) + "〔" + loWhy + "〕 hi " + hi.ToString("F3", ci) + "〔" + hiWhy + "〕 ⇒ " + hgt.ToString("F3", ci) + " 断面 " + sectioned + " 当たり " + hits.Count + " 〔狙いの経過 Target " + ysT0.ToString("F3", ci) + "・盛りの縁 " + ysT1.ToString("F3", ci) + "・平ら " + ysT2.ToString("F3", ci) + "・埋める土 " + ysT3.ToString("F3", ci) + "・区画の内 " + (design == null || (design.own ?? design.ownKept) == null || EdoGeom.PIP(design.own ?? design.ownKept, p)) + "・地形 " + orig.ToString("F3", ci) + "〕");
                         if (orig - hgt > r.maxLower) { r.maxLower = orig - hgt; r.lowerAt = new Vector3(x, hgt, z); }
                         if (hgt - orig > r.maxRaise) { r.maxRaise = hgt - orig; r.raiseAt = new Vector3(x, hgt, z); }
                     }

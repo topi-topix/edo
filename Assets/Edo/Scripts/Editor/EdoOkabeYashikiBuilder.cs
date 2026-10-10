@@ -3026,7 +3026,11 @@ public static class EdoOkabeYashikiBuilder
     }
 
     /// <summary>段の土留めの線が長屋の背へ入り込む所の返しと溝(指図 terraceWalls[].return<run> を持つ欄・EDO-0502 第19巡)。</summary>
-    public class BackTrench { public string wall, run; public List<Vector2> nodes; public Vector2 stop, far, yard, along; public float off, y; public bool standalone; }
+    public class BackTrench { public string wall, run; public List<Vector2> nodes; public Vector2 stop, far, yard, along; public float off, y; public bool standalone;
+        /// <summary>溝の前の縁 ── 背の面から道の側へ出す量(既定 0.30)。指図 return<棟> 追記 2026-10-10k「溝の前の縁は <棟> の背の線で止め」【硬】なら 0。</summary>
+        public float front = 0.30f;
+        /// <summary>皮の面(溝の矩形)を止めの端から手前へ延ばす量(roadEdge 追記 2026-10-10k: 妻の面の石垣の天端の前の線まで)。地形の切り・石垣の線には効かない。</summary>
+        public float pre; }
 
     /// <summary>**返しの石垣と溝を解く**(Stage2b の据えと Stage3b の皮の設計の地盤が同じ答えを読む)。背の面・妻は据えた長屋の実メッシュ
     /// (FaceOut・SpecBodySpanAlong)、止める妻 = 帯の縁で地表の高い側、線の切りと返しは <see cref="EdoBuild.ReturnAlongBack"/>、
@@ -3107,6 +3111,21 @@ public static class EdoOkabeYashikiBuilder
                 res.Add(new BackTrench { wall = nm, run = rn, nodes = nn, stop = bStop, far = tFar, yard = yard, along = standalone ? (tFar - bStop).normalized : (bFar - bStop).normalized, off = off, y = loY, standalone = standalone });
             }
         }
+        // 指図 return<棟> 追記 2026-10-10k【硬】「溝の前の縁は <棟> の背の線で止め、それより道の側へ出さない」── 前の縁を背の線(0)へ。当たる先: return<棟> を持つ溝すべて(岡部 N39_1)
+        foreach (var t in res)
+            foreach (var o2 in A(Get(D, "terraceWalls")) ?? new List<object>())
+            { var t2 = O(o2); if (t2 == null || S(Get(t2, "name")) != t.wall) continue; string rv = S(Get(t2, "return" + t.run)) ?? "";
+              if (System.Text.RegularExpressions.Regex.IsMatch(rv, @"溝の前の縁は\s*" + t.run + @"\s*の背の線で止め")) t.front = 0f; }
+        // roadEdge 追記 2026-10-10k【硬】: 溝の止めの妻の閉じは妻の面の石垣(天端の前の線 sCorner)── 溝の止めの端を隣の棟の妻の面からその線まで延ばす
+        //   (⛔ 延ばさないと石垣の見え面と隣の妻の面の間 0.77 が溝でも面でもなく、設計の地盤 15.0 の窪みに急な土の面 ── 第94巡の二回目)
+        { var rk = _road ?? RoadEdgePlanOf();
+          if (rk != null && rk.ok && rk.k10 && !float.IsNaN(rk.sCorner))
+              foreach (var t in res)
+              {
+                  if (t.run != rk.gableNb) continue; float sSt = Vector2.Dot(t.stop - rk.ea, rk.ax); if (Mathf.Abs(sSt - rk.nbFace) > 0.3f) continue;
+                  t.pre = Mathf.Abs(rk.sCorner - sSt);   // ⛔ stop を動かさない ── 第94巡の三回目: stop を動かすと地形の溝の切り(2m 格子で 3.40)と返しの見え面の向きまで変わり、0_1 と 1_0 の継ぎが割れた
+                  if (sb != null) sb.AppendLine("    溝 " + t.run + " の皮の面を止めの端から妻の面の石垣の天端の前の線まで " + t.pre.ToString("F2") + "m 延ばす(roadEdge 追記 2026-10-10k・地形の切りと石垣の線は替えない)");
+              } }
         return res;
     }
 
@@ -3116,7 +3135,7 @@ public static class EdoOkabeYashikiBuilder
         foreach (var t in ts)
         {
             float s = Vector2.Dot(q - t.stop, t.along), d = Vector2.Dot(q - t.stop, t.yard), L = Vector2.Dot(t.far - t.stop, t.along) + t.off;
-            if (s >= -0.05f && s <= L && d >= -0.30f && d <= t.off) return t.y;
+            if (s >= -0.05f - t.pre && s <= L && d >= -t.front && d <= t.off) return t.y;
         }
         return float.NaN;
     }
@@ -4193,8 +4212,12 @@ public static class EdoOkabeYashikiBuilder
                   var pts = new List<Vector2>(); foreach (var v in EdoBuild.Body(c, 2000)) pts.Add(new Vector2(v.x, v.z)); if (pts.Count < 3) continue;
                   var h = EdoBuild.ConvexHull2(pts); if (h.Count >= 3) { roadHulls.Add(h.ToArray()); nRoadK++; }
               } }
+        // 追記 2026-10-10k【硬】「(妻の面の石垣の)天端の裏に盛りを当てない」── 妻の面の天端の前の線から背へ bk・隣の棟の背の一間の線から道の側の線まで(⛔ 駒の名で拾わない ── 線で)
+        RoadEdgePlan rkT = _road; bool tsumaKeep = rkT != null && rkT.ok && rkT.k10 && !float.IsNaN(rkT.sCorner) && !float.IsNaN(rkT.nbD0);
+        float sgT = tsumaKeep && rkT.gable > 0.5f * (rkT.ps0 + rkT.ps1) ? 1f : -1f;
         cc.keepOut = q =>
         {
+            if (tsumaKeep) { float bs = sgT * (rkT.sCorner - Vector2.Dot(q - rkT.ea, rkT.ax)), dq = Vector2.Dot(q - rkT.ea, rkT.outN); if (bs >= -0.05f && bs <= bk && dq >= rkT.nbD0 - ES - 0.3f && dq <= 0.05f) return true; }
             for (int i = 0; i < roadHulls.Count; i++) if (EdoGeom.PIP(roadHulls[i], q) || EdoGeom.DistToPolyEdge(roadHulls[i], q) < bk) return true;
             for (int i = 0; i < hulls.Count; i++)
             {
@@ -4363,7 +4386,7 @@ public static class EdoOkabeYashikiBuilder
     /// <summary>**道の側の腰石垣と門の口の踏み段**(指図 terraces[].roadEdge・普請方 2026-10-10c・EDO-0502 第82巡)。門長屋(gate.host)の走りの辺に沿い、
     /// 天端 = 欄の高さ一直線【硬】・見え面は区画の線の内【硬】(天端の前の線を線から 法 ×(天端 − 道の最も低い所 + 根入れ)+ 0.02 退ける ── 法は駒の実測 FaceBatterOf)・
     /// 段(天端 − 道)が欄の値を切る所で打ち切り【硬】・門の口(札の passage)は空けて踏み段。道 = 区画の線の外 0.5m の地形。⛔ 座標を書かない ── 毎回測る。</summary>
-    class RoadEdgePlan { public bool ok, h10, j10; public float mikiriDrop = float.NaN, gable = float.NaN, endDropMax = float.NaN, depth = float.NaN; public string why, terrace, trimNote, gableNb; public int e; public Vector2 ea, ax, outN; public float yTop, cutDrop, fumi, ps0, ps1, sRun0, sRun1, batter, setback, neiri; public Transform host; public EdoPartSpec.Spec spec; public List<Vector2> spans = new List<Vector2>(); }
+    class RoadEdgePlan { public bool ok, h10, j10, k10; public string tsumaSeg; public float sCorner = float.NaN, nbFace = float.NaN, nbLow = float.NaN, nbD0 = float.NaN, nbD1 = float.NaN, tsumaBatterMax = float.NaN; public float mikiriDrop = float.NaN, gable = float.NaN, endDropMax = float.NaN, depth = float.NaN; public string why, terrace, trimNote, gableNb; public int e; public Vector2 ea, ax, outN; public float yTop, cutDrop, fumi, ps0, ps1, sRun0, sRun1, batter, setback, neiri; public Transform host; public EdoPartSpec.Spec spec; public List<Vector2> spans = new List<Vector2>(); }
     static RoadEdgePlan _road;
     /// <summary>道の高さ(線の外 0.5)── 皮が区画の外を描くのと同じ測り(EdoBuild.OutsideOwnGround: 区画の内の地形の節点は造成前の地盤へ)。
     /// ⛔ 地形をそのまま引かない ── 2m 格子が台の 16.50 を線の外へ一次で引き、門の口の道を 16.23 と読んで踏み段が皮(道 15.85)の上に 0.25 浮いた(第92巡)。</summary>
@@ -4415,6 +4438,24 @@ public static class EdoOkabeYashikiBuilder
                   for (int k = 0; k < Runs.Length; k++) if (k != ri && Runs[k].edge == r.e && (Mathf.Abs(Runs[k].s0 - far) < 0.05f || Mathf.Abs(Runs[k].s1 - far) < 0.05f)) r.gableNb = Runs[k].name;
                   if (r.gableNb == null) { r.j10 = false; r.trimNote = "  ★ roadEdge 追記 2026-10-10j: 門長屋 " + host + " の妻の先に同じ辺の棟が無い ── 妻の線が測れない(延ばさない)\n"; }
                   else { r.gable = far; r.spans.RemoveAll(v => (far > gm) ? v.y > gm : v.x < gm); r.spans.Add(far > gm ? new Vector2(gEdge, far) : new Vector2(far, gEdge)); r.spans.Sort((a2, b2) => a2.x.CompareTo(b2.x)); }
+              } }
+            // 追記 2026-10-10k【硬】: 妻の線の端は隅の駒で出隅にし、妻の線に沿って背へ折って台の妻の面の石垣(溝の返しの止めの区間を前へ延ばした一続き)── 区間は RoadEdgeSegs が継ぐ
+            { int i10k = tx.IndexOf("追記 2026-10-10k"); string tk = i10k < 0 ? "" : tx.Substring(i10k);
+              r.k10 = r.j10 && tk.Contains("隅の駒で出隅にし") && tk.Contains("躯体の妻の面を越えない");
+              var mB = System.Text.RegularExpressions.Regex.Match(tk, @"1:([0-9.]+)\s*まで立てる"); if (mB.Success) r.tsumaBatterMax = float.Parse(mB.Groups[1].Value, inv);
+              // 妻の面の石垣の天端の前の線 = 隣の棟の躯体の妻の面から 法 ×(天端 − 隣の側の地盤)+ 0.02 退けた線(法尻が躯体の妻の面を越えない【硬】)。
+              //   隣の側の地盤 = 隣の躯体の底と妻の面の前の道の低い方(⛔ 座標を書かない ── 据えた棟の実メッシュから毎回測る)
+              var nbT = r.k10 ? root.transform.Find("Kakoi/" + r.gableNb) : null;
+              if (r.k10 && nbT == null) { r.k10 = false; r.trimNote = (r.trimNote ?? "") + "  ★ roadEdge 追記 2026-10-10k: 隣の棟 " + r.gableNb + " が無い ── 妻の面の石垣を建てない\n"; }
+              if (r.k10)
+              {
+                  var spN = EdoBuild.SpecBodySpanAlong(nbT.gameObject, r.ea, r.ax); if (float.IsNaN(spN.x)) spN = EdoBuild.BodySpanAlong(nbT.gameObject, r.ea, r.ax);
+                  bool upK = r.gable > 0.5f * (r.ps0 + r.ps1); float sgn = upK ? 1f : -1f; r.nbFace = upK ? spN.x : spN.y;
+                  float lowN = float.MaxValue; r.nbD0 = float.MaxValue; r.nbD1 = float.MinValue;
+                  foreach (var v in EdoBuild.Body(nbT, 4000)) { lowN = Mathf.Min(lowN, v.y); float dv = Vector2.Dot(new Vector2(v.x, v.z) - r.ea, r.outN); r.nbD0 = Mathf.Min(r.nbD0, dv); r.nbD1 = Mathf.Max(r.nbD1, dv); }
+                  float rdF = RoadAtS(r, r.nbFace + sgn * 0.5f); r.nbLow = float.IsNaN(rdF) ? lowN : Mathf.Min(lowN, rdF);
+                  if (float.IsNaN(r.nbFace) || lowN == float.MaxValue) { r.k10 = false; r.trimNote = (r.trimNote ?? "") + "  ★ roadEdge 追記 2026-10-10k: " + r.gableNb + " の躯体の妻の面が測れない ── 妻の面の石垣を建てない\n"; }
+                  else r.sCorner = r.nbFace - sgn * (r.batter * (r.yTop - r.nbLow) + 0.02f);
               } }
             r.trimNote = (r.trimNote ?? "") + TrimRoadSpans(r); return r;
         }
@@ -4477,6 +4518,13 @@ public static class EdoOkabeYashikiBuilder
                 for (int e2 = 0; e2 < 2; e2++)
                 {
                     float sE = e2 == 0 ? sp.x : sp.y; bool atGate = Mathf.Abs(sE - r.ps0) < 0.25f || Mathf.Abs(sE - r.ps1) < 0.25f;
+                    if (r.k10 && Mathf.Abs(sE - r.gable) < 0.05f)
+                    {   // 追記 2026-10-10k【硬】: 妻の線の端は隅の駒で出隅 ── 区間の端を隅(天端の前の線どうしの交わり)へ。妻の面の石垣は溝の返しの止めの区間を前へ延ばした一続き(TsumaWall)
+                        string why = TsumaWall(r, nozSegs, seg, e2, sb);
+                        if (why == null) { seg.mikiriTo[e2] = null; seg.noAbut[e2] = false; continue; }
+                        sb.AppendLine("    ★ 腰石垣の妻の線の端: 妻の面の石垣を継げない(" + why + ")── 見切り石で止める ⛔(普請方へ)");
+                        seg.mikiriTo[e2] = new List<GameObject>(); seg.noAbut[e2] = false; continue;
+                    }
                     if (r.j10 && Mathf.Abs(sE - r.gable) < 0.05f)
                     {   // 追記 2026-10-10j【硬】: 妻の線の端 ── 別の石垣の止めと出会えば(端の先 0.4・控えの奥行の中に別の野面の駒の実メッシュ)隅の駒が先・突き付け / 出会わなければ見切り石
                         // ⛔ Dan の駒はこの時まだ据わっていない(Stage2b は区間を全部集めてから据える)── 他の区間の計画(線 a→b と見え面の向き・控えの奥行)の帯で測る
@@ -4514,11 +4562,76 @@ public static class EdoOkabeYashikiBuilder
         return sb.ToString();
     }
 
+    /// <summary>**台の妻の面の石垣**(指図 terraces[].roadEdge 追記 2026-10-10k・EDO-0502 第94巡)── 道の側の腰石垣の妻の線の端を隅の駒で出隅にし、妻の線に沿って背へ折る。
+    /// 折った石垣 = 妻の線に沿う別の区間(溝の返しの止め ── 両端が妻の線の上)を前へ延ばした一続き: その区間の背の端を天端の前の線 sCorner へ(継ぐ相手の端も同じ点へ)、
+    /// 前の端を隅(腰石垣の天端の前の線との交わり)へ。見え面 = 隣の棟の側、足元の地盤 = 溝の中は溝の底・隣の躯体の帯は躯体の底・外は道(⛔ 座標を書かない)。
+    /// 隅の駒・突き付けは PlaceNozuraNet(① 出隅の駒が先)。当たる先: roadEdge 10-10k を持つ面(岡部 Kadonouchi × N39_1)。返り値 null = 継いだ / 理由。</summary>
+    static string TsumaWall(RoadEdgePlan r, List<EdoBuild.NozuraSeg> nozSegs, EdoBuild.NozuraSeg seg, int e2, System.Text.StringBuilder sb)
+    {
+        var inv = System.Globalization.CultureInfo.InvariantCulture; if (float.IsNaN(r.sCorner)) return "天端の前の線が解けていない";
+        bool up = r.gable > 0.5f * (r.ps0 + r.ps1); float sgn = up ? 1f : -1f;
+        Func<Vector2, float> sOf = q => Vector2.Dot(q - r.ea, r.ax);
+        EdoBuild.NozuraSeg ts = null; float best = float.MinValue;
+        foreach (var os in nozSegs)
+        {
+            if (os == seg || os.name.Contains("_RoadEdge_")) continue;
+            if (Mathf.Abs(sOf(os.a) - r.gable) > 0.3f || Mathf.Abs(sOf(os.b) - r.gable) > 0.3f || os.Len < 0.3f) continue;   // 妻の線に沿う区間
+            float dF = Mathf.Max(Vector2.Dot(os.a - r.ea, r.outN), Vector2.Dot(os.b - r.ea, r.outN)); if (dF > best) { best = dF; ts = os; }
+        }
+        if (ts == null) return "妻の線に沿う石垣の区間が無い";
+        Vector2 C = r.ea + r.ax * r.sCorner - r.outN * r.setback;
+        bool aFront = Vector2.Dot(ts.a - r.ea, r.outN) > Vector2.Dot(ts.b - r.ea, r.outN);
+        Vector2 back = aFront ? ts.b : ts.a, back2 = back + r.ax * (r.sCorner - sOf(back));
+        int moved = 0; string mate = null;
+        foreach (var os in nozSegs)
+        {
+            if (os == ts || os == seg) continue;
+            if (Vector2.Distance(os.a, back) < 0.05f) { if (Mathf.Abs(Vector2.Dot(os.Dir, r.ax)) < 0.9f) return os.name + " が棟の背に沿わない ── 端を延ばせない"; os.a = back2; moved++; mate = os.name; }
+            else if (Vector2.Distance(os.b, back) < 0.05f) { if (Mathf.Abs(Vector2.Dot(os.Dir, r.ax)) < 0.9f) return os.name + " が棟の背に沿わない ── 端を延ばせない"; os.b = back2; moved++; mate = os.name; }
+        }
+        float oldLen = ts.Len;
+        if (aFront) { ts.a = C; ts.b = back2; } else { ts.a = back2; ts.b = C; }
+        if (e2 == 0) seg.a = C; else seg.b = C;
+        ts.face = r.ax * sgn;   // 見え面 = 隣の棟の側
+        var trs = BackTrenches(null);
+        var rr = r;
+        ts.footAt = (x, z) =>
+        {
+            var q = new Vector2(x, z); float tY = TrenchAt(trs, q); if (!float.IsNaN(tY)) return tY;
+            return RoadAtS(rr, sOf(q));   // 指図「法尻は隣の側の地盤(前は道の地表・背は溝の底)」── 溝の外は道の地表(⛔ 第94巡の一回目: 隣の躯体の帯を躯体の底 14.0 と読み、
+            //   腕の見付 2.5 を受ける段が H4.8 しか無く鎖の全ての駒が H4.8 ── 隅の腕の根入れが区画の線の外へ 0.75 出た)
+        };
+        seg.footAt = ts.footAt;   // 鎖の足元は一つの測り(腰石垣の側は従前の道の地表と同じ)
+        r.tsumaSeg = ts.name;
+        sb.AppendLine("    腰石垣の妻の線の端を隅の駒で出隅に(roadEdge 追記 2026-10-10k【硬】): 隅 (" + C.x.ToString("F2", inv) + ", " + C.y.ToString("F2", inv) + ")・s " + r.sCorner.ToString("F2", inv)
+                      + "(" + r.gableNb + " の躯体の妻の面 s " + r.nbFace.ToString("F2", inv) + " から 法 " + r.batter.ToString("F2", inv) + " ×(天端 " + r.yTop.ToString("F2", inv) + " − 隣の側の地盤 " + r.nbLow.ToString("F2", inv) + ")+ 0.02 退けた)・"
+                      + ts.name + " を前へ延ばした一続き " + oldLen.ToString("F2", inv) + " → " + ts.Len.ToString("F2", inv) + "m(背の端を天端の前の線へ・" + (mate ?? "継ぐ相手なし") + " の端も " + moved + ")・見え面 = " + r.gableNb + " の側・法 1:"
+                      + r.batter.ToString("0.00", inv) + "(狙い 1:0.3【柔】" + (r.batter > 0.3f + 0.005f ? " ⚠ 狙い未達" : " ⭕") + ")");
+        return null;
+    }
+
     /// <summary>腰石垣の妻の線の端の前の落差(指図 roadEdge 追記 2026-10-10j「出会わなければ見切り石で止め、端の前の落差は x 以下【硬】」)── 皮の後に、
     /// 端の駒(見切り石)の実メッシュの最も先の s から 0.15・0.5 先、控えの奥行の帯(線の内 0.1〜setback+奥行)の描かれた地表と天端の差の最大。当たる先: 欄 roadEdge を持つ面(岡部 Kadonouchi)。</summary>
     static string RoadEdgeEndReport(Transform root)
     {
         var inv = System.Globalization.CultureInfo.InvariantCulture; var r = _road ?? RoadEdgePlanOf(); if (r == null || !r.ok || !r.j10) return "腰石垣の妻の線の端: 欄 10-10j に該当なし";
+        if (r.k10 && !float.IsNaN(r.sCorner))
+        {   // 追記 2026-10-10k【硬】: 妻の面の石垣の法尻が隣の棟の躯体の妻の面を越えない ── 段の駒の頂点のうち、隣の躯体の底より上・躯体の奥行の帯の中で、妻の面を越える量の最大
+            float sg = r.gable > 0.5f * (r.ps0 + r.ps1) ? 1f : -1f; float over = float.MinValue; string who = "-"; int nP = 0;
+            foreach (Transform dc in root.Find("Dan"))
+            {
+                if (!dc.gameObject.activeInHierarchy) continue; var rb = EdoBuild.RB(dc.gameObject); float sc = Vector2.Dot(new Vector2(rb.center.x, rb.center.z) - r.ea, r.ax);
+                if (Mathf.Abs(sc - r.nbFace) > 6f) continue; bool any = false;
+                foreach (var v in EdoBuild.Body(dc, 4000))
+                {
+                    if (v.y < r.nbLow + 0.02f) continue; float dv = Vector2.Dot(new Vector2(v.x, v.z) - r.ea, r.outN); if (dv < r.nbD0 || dv > r.nbD1) continue;
+                    float o = sg * (Vector2.Dot(new Vector2(v.x, v.z) - r.ea, r.ax) - r.nbFace); any = true; if (o > over) { over = o; who = dc.name; }
+                }
+                if (any) nP++;
+            }
+            return "妻の面の石垣(roadEdge 追記 2026-10-10k・" + r.gableNb + " の躯体の妻の面 s " + r.nbFace.ToString("F2", inv) + "・天端の前の線 s " + r.sCorner.ToString("F2", inv) + "): 駒 " + nP + " の法尻が妻の面を越える最大 "
+                   + (over == float.MinValue ? "-" : over.ToString("F3", inv)) + "〔" + who + "〕・硬 ≤ 0" + (over > 1e-3f ? " ⛔" : " ⭕");
+        }
         var dg = EdoBuild.Drawn(); float sEnd = float.NaN; string nm = null; bool up = r.gable > 0.5f * (r.ps0 + r.ps1);
         foreach (Transform dc in root.Find("Dan"))
         {
@@ -5822,7 +5935,7 @@ public static class EdoOkabeYashikiBuilder
                   for (float tt = 0f; tt <= 15f + 1e-3f; tt += 0.25f) { var qc = tr.stop + tr.along * (L + tt) + tr.yard * (tr.off * 0.5f); float gy = Graded.At(qc.x, qc.y); if (!float.IsNaN(gy) && gy <= tr.y + 0.05f) { ext = tt; break; } }
                   if (float.IsNaN(ext)) openNote = "・⚠ 郭の側の端: 15m 延ばしても設計の地盤が溝の底に届かない ── 開けない"; else { L += ext; openNote = "・郭の側の端を溝の底のまま " + ext.ToString("F2") + "m 延ばして開けた(追記 2026-10-09h)"; }
               } }
-            Vector2 p0 = tr.stop - tr.yard * 0.30f, p1 = p0 + tr.along * L, p2 = tr.stop + tr.along * L + tr.yard * tr.off, p3 = tr.stop + tr.yard * tr.off;
+            Vector2 st0 = tr.stop - tr.along * tr.pre; Vector2 p0 = st0 - tr.yard * tr.front, p1 = tr.stop - tr.yard * tr.front + tr.along * L, p2 = tr.stop + tr.along * L + tr.yard * tr.off, p3 = st0 + tr.yard * tr.off;
             faces.Add(new EdoBuild.SkinFace("Mizo_" + tr.run, new[] { p0, p1, p2, p3 }, tr.y));
             if (sb != null) sb.AppendLine("  面 溝 " + tr.run + "(" + tr.y.ToString("F2") + "): 返しと背の間 " + L.ToString("F2") + "×" + (tr.off + 0.30f).ToString("F2") + "m" + openNote);
         }
@@ -5852,6 +5965,11 @@ public static class EdoOkabeYashikiBuilder
                     if (_road == null) _road = RoadEdgePlanOf();
                     if (_road != null && _road.ok && _road.host == nb)
                         for (int qi = 0; qi < all.Count; qi++) { float dO = Vector2.Dot(all[qi] - _road.ea, _road.outN); if (dO > -_road.setback) all[qi] -= _road.outN * (dO + _road.setback); }
+                    // roadEdge 追記 2026-10-10k【硬】「台は妻の線を石で受ける」── 台の面を妻の面の石垣の天端の前の線より隣の棟の側へ出さない(棟の躯体が隣の棟へ 0.62 入り込み、
+                    //   凸包が石垣の見え面の上と隣の棟の下へ 16.50 を引いて土の法 1:1.5 が隣の棟を埋めた ── 第93巡 r93_tsuma)
+                    if (_road != null && _road.ok && _road.host == nb && _road.k10 && !float.IsNaN(_road.sCorner))
+                    {   float sg = _road.gable > 0.5f * (_road.ps0 + _road.ps1) ? 1f : -1f;
+                        for (int qi = 0; qi < all.Count; qi++) { float sO = Vector2.Dot(all[qi] - _road.ea, _road.ax); if (sg * (sO - _road.sCorner) > 0f) all[qi] -= _road.ax * (sO - _road.sCorner); } }
                     var hull = EdoBuild.ConvexHull2(all).ToArray();
                     faces.Add(new EdoBuild.SkinFace("Dai_" + rn, hull, yD));
                     if (sb != null) sb.AppendLine("  面 台 " + rn + "(" + yD.ToString("F2") + "・dai" + rn + "): 躯体の凸包 + 前の帯 " + bandW.ToString("F2") + "m");
@@ -5948,6 +6066,25 @@ public static class EdoOkabeYashikiBuilder
                     }
             }
             if (sb != null && nR > 0) sb.AppendLine("  面 道の側の腰石垣と踏み段の前(道の高さ・0.5m ごと) " + nR);
+        }
+        // ⭐ 座より高い段の面に掛かる長屋の躯体の下は、その面でなく棟の座(第94巡: Kadonouchi の多角形が N39_1(座 14.00)の西の端の下まで入り、皮が躯体を 16.50 で
+        //   埋め、外へ 1:1.5 の土の盛り ── 指図 roadEdge 追記 2026-10-10k「今の急な土の盛りは切って除く」【硬】)。躯体の凸包を座の高さの面に(面積の小さい面が勝つ)。
+        //   当たる先: 皮を起こす邸の、段の面の多角形に躯体が掛かり座が面より gradeTol(0.25)を超えて低い長屋すべて(岡部 N39_1)
+        {
+            var rootZ = GameObject.Find(GN); var kz = rootZ == null ? null : rootZ.transform.Find("Kakoi"); int nZ = 0; var zaNote = new List<string>();
+            var terrN = new HashSet<string>(); foreach (var oT in A(D["terraces"]) ?? new List<object>()) { var tT = O(oT); string tn = tT == null ? null : S(Get(tT, "name")); if (tn != null) terrN.Add(tn); }
+            var baseFaces = faces.FindAll(x => terrN.Contains(x.name));   // 面 = 指図の段(溝・台・踏み段の小さい面は除く)
+            if (kz != null)
+                foreach (Transform c in kz)
+                {
+                    if (!c.gameObject.activeInHierarchy || !EdoBuild.IsNagayaBody(c.gameObject)) continue;
+                    var pts = new List<Vector2>(); float yLo = float.MaxValue; foreach (var v in EdoBuild.Body(c, 4000)) { pts.Add(new Vector2(v.x, v.z)); yLo = Mathf.Min(yLo, v.y); } if (pts.Count < 3) continue;
+                    var hull = EdoBuild.ConvexHull2(pts).ToArray(); string hit = null;
+                    foreach (var bf in baseFaces) { if (bf.poly == null || bf.y - yLo <= 0.25f) continue; /* 面が座より高い(躯体を埋める)時だけ */ foreach (var hq in hull) if (EdoGeom.PIP(bf.poly, hq)) { hit = bf.name + " " + bf.y.ToString("F2"); break; } if (hit != null) break; }
+                    if (hit == null) continue;
+                    faces.Add(new EdoBuild.SkinFace("Za_" + c.name, hull, yLo)); nZ++; zaNote.Add(c.name + "(座 " + yLo.ToString("F2") + " ⊂ 面 " + hit + ")");
+                }
+            if (sb != null && nZ > 0) sb.AppendLine("  面 長屋の座(面の高さと違う座の躯体の下) " + nZ + ": " + string.Join("・", zaNote.ToArray()));
         }
         return faces;
     }

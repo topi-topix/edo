@@ -113,8 +113,5 @@
       }
     ]
   },
-  "autoCompactWindow": "500k",
-  "worktree": {
-    "bgIsolation": "none"
-  }
+  "autoCompactWindow": "500k"
 }

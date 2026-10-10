@@ -4,6 +4,7 @@
 //   実装差のある版は各ファイルに据え置き(直上に注記あり)。統一は裁定待ち。
 // 依存は UnityEngine の Vector2 / Mathf のみ。シーン・アセットには一切触らない。
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 public static class EdoGeom
@@ -60,6 +61,22 @@ public static class EdoGeom
         if (Mathf.Abs(den) < 1e-4f) return fallback;
         float t = ((p1.x - p0.x) * d1.y - (p1.y - p0.y) * d1.x) / den;
         return p0 + d0 * t;
+    }
+
+    /// <summary>多角形を半平面 dot(q − p0, n) ≤ 0 で切る(Sutherland–Hodgman)。残りが 3 点未満なら null。
+    /// 当たる先: 面の多角形を石垣の線で止める所(岡部 Za_N39_1 を背の台の石垣の線で ── EDO-0502 第98巡)。</summary>
+    public static Vector2[] ClipHalfPlane(Vector2[] poly, Vector2 p0, Vector2 n)
+    {
+        if (poly == null || poly.Length < 3) return null;
+        var o = new List<Vector2>();
+        for (int i = 0; i < poly.Length; i++)
+        {
+            Vector2 a = poly[i], b = poly[(i + 1) % poly.Length];
+            float da = Vector2.Dot(a - p0, n), db = Vector2.Dot(b - p0, n);
+            if (da <= 0f) o.Add(a);
+            if ((da < 0f && db > 0f) || (da > 0f && db < 0f)) o.Add(a + (b - a) * (da / (da - db)));
+        }
+        return o.Count < 3 ? null : o.ToArray();
     }
 
     public static float DistToPolyEdge(Vector2[] poly, Vector2 p)

@@ -150,6 +150,8 @@
 
 - [皮を [lo,hi] で解く罠 (1)〜(40)](skin-solve-lo-hi-first-runs.md) — 野面は石の寄せ集め・陰を飛ばす・buryMin は硬い lo・袖が先は 2b の順と逆・足元の帯は歯に効かない・欄の「前の地表」は設計と描画の両方で刷る
 
+- [座の面は凸包で背の外へ出る・網の区間は足した順に据わる](za-hull-and-back-wall-order.md) — Za_ を背の線で切る・相手の鎖を先にするなら最後に足す・長屋は pool の間引きで拾えない
+
 ## 測り方・関門
 
 - [検査役の execute_code の全文は MCP の log に残る](qa-code-in-mcp-log.md) — 同じ測りで刷り直すときはそこから抜く。get_history は先頭だけ

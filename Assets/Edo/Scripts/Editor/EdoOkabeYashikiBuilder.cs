@@ -9963,7 +9963,9 @@ public static class EdoOkabeYashikiBuilder
         string[] modelDirs = { "Assets/Edo/Models/Nagaya", "Assets/Edo/Models/Mon",
                                "Assets/Edo/Models/Maruta", "Assets/Edo/Models/Goten/Roofs",
                                "Assets/Edo/Models/Fuzokuya", "Assets/Edo/Models/Hei",
-                               "Assets/Edo/Models/Trees", "Assets/Edo/Models/Niwa" };
+                               "Assets/Edo/Models/Trees", "Assets/Edo/Models/Niwa",
+                               // 野面の重ねの端の版 `Nozura2_*`(Kirishi / Danishi ── 借り先 Assets/Edo/Materials/Sanno・2026-10-11 EDO-0502)
+                               "Assets/Edo/Models/Nozura2" };
         // ⭐ 芯は EdoRemapMat.Run(全邸で1本・EDO-0318)。ここに書くのは並びだけ。
         return EdoRemapMat.Run(donorDirs, modelDirs, "岡部の新造部材");
     }

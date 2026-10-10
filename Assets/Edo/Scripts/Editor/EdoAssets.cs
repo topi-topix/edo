@@ -1590,6 +1590,73 @@ public static class EdoAssets
 
         const string SannoNozuraDir = "Assets/Edo/Models/Sanno";
 
+        /// <summary>**野面の乱積みの直線の駒 — 重ねの端の版 `Nozura2_H&lt;見付mm&gt;_G&lt;勾配‰&gt;_&lt;a〜d&gt;`**(2026-10-11 EDO-0502 岡部・施主「石垣の部材の境目の隙間および段差」)。
+        /// 引数・軸・ピボット・接する面は <see cref="SannoNozura"/> と同じ(1間の中心・床レベル = 中心での天端 − 見付・Z=0 は天端の線での面・見え面 +Z・3分の法)⇒
+        /// `EdoBuild.NozuraWall.straight` に渡す関数を差し替えるだけで据え方は変わらない。山王(完成済み)は旧の `Sanno_Nozura_*` のまま。
+        /// ⭐ 違いは二つ。① **両端を継ぎ目の線 X = ±0.909 より 0.02 + 0.026·(天端からの深さ) だけ延ばしてある**(重ね)── 延ばした所は隣の駒と共有する
+        /// 端の石(同じ種・同じ形・同じ UV)なので、まっすぐ継げば隣の石と重なって消え、継ぎ目の目地は中の目地と同じ(光線で幅 p90 0.02・縦に抜ける行 0)。
+        /// 走りが継ぎ目で折れても(据えの折れ 20° 未満は隅の駒を使わず直線の駒で継ぐ)、凸の側で法の分だけ開く楔を重ねが塞ぐ
+        /// (旧の駒は折れ 5.5° で継ぎ目の線に沿って 74% の行が奥へ抜け・幅 0.12 ── 岡部 K_Dan1 の脇・写真1。重ねの版は 0)。見付 2.4 以下は折れ 15°・
+        /// 見付 4.8 は 10° まで隙なし。それより大きい折れは <see cref="SannoNozuraKadoDeg"/> を焼いて据える。
+        /// 端の石の列は旧版と同じ ⇒ 旧の隅・法切り・積み止め・切りの駒(`Sanno_Nozura_*`)とも、旧の直線の駒とも継げる(重ねは新しい側だけ)。
+        /// ② **急な勾配を足した**: 焼けている勾配は 0(a〜d)と ±0.12・±0.22・±0.35(見付 0.3〜2.4・4.8 の 9 段 × a・b)・
+        /// ±0.45・±0.55・±0.66・±0.75(見付 0.6〜2.4・4.8 の 8 段 × a・b)。坂なりの線は 1駒で最大 1.25 下がる(勾配 0.69・岡部 K_Dan1 の下の北への石垣・袖の坂)。
+        /// 勾配の駒は剪断なので継ぎ目の切り口は天端から測って G0 と同じ ⇒ **隣の駒の終わりの天端に次の駒の始まりの天端を合わせれば(連鎖)天端は継ぎ目で連続**する。
+        /// 見付 3.0〜4.2 は焼いていない ⇒ 一つ上の焼いた見付(4.8)を返す(高い段は沈める ── 根入れ)。H0150 も 0.3 へ上げる。
+        /// <paramref name="grade"/> は焼いてある勾配のうち最も近いもの(個体を問わず)へ寄せ、個体は G0 なら i%4 で a〜d・勾配の駒は i%2 で a・b。
+        /// 焼いた物が一つも無い(staging から移していない)ときは <see cref="SannoNozura"/> へ落ちる。
+        /// 実寸(G0): W 1.858(H0.3)〜1.978(H2.4)/ 2.119(H4.8)── 継ぎ目の線から外へ重ねの分 × H 見付+0.20 × D 1.2〜2.6。三角形 約 5,000(H0.3)〜3.3 万(H4.8)。
+        /// 材 `Kirishi` / `Danishi`(新規なし)⇒ `Edo/岡部筑前守上屋敷/新造部材のマテリアルをremap`(Models/Nozura2 を見ている)。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --family=2 --h=0.3,0.6,0.9,1.2,1.5,1.8,2.1,2.4,4.8 --grade=0(勾配の駒は --grade=0.12,-0.12,… --v=ab)</summary>
+        public static string Nozura2(float h, float grade, int i)
+        {
+            int hmm = (int)System.Math.Round(h * 1000.0);
+            int req = (int)System.Math.Round(grade * 1000.0);
+            if (!System.IO.Directory.Exists(Nozura2Dir)) return SannoNozura(h, grade, i);
+            // 焼いてある (見付, 勾配, 個体) の一覧
+            var rx = new System.Text.RegularExpressions.Regex(@"Nozura2_H(\d{4})_G([+-]\d{3})_([a-d])\.fbx$");
+            var have = new System.Collections.Generic.List<int[]>();
+            foreach (var f in System.IO.Directory.GetFiles(Nozura2Dir, "Nozura2_H*_G*_*.fbx"))
+            {
+                var m = rx.Match(f.Replace('\\', '/')); if (!m.Success) continue;
+                have.Add(new[] { int.Parse(m.Groups[1].Value), int.Parse(m.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture), m.Groups[3].Value[0] - 'a' });
+            }
+            if (have.Count == 0) return SannoNozura(h, grade, i);
+            // 見付: 焼いた見付のうち h 以上で最も低いもの(無ければ最も高いもの)。その見付で勾配が 0.06 を超えて外れるなら、外れの小さい一つ上の見付へ
+            var hs = new System.Collections.Generic.SortedSet<int>(); foreach (var a in have) hs.Add(a[0]);
+            System.Func<int, int> nearestG = hh => { int b = req, bd = int.MaxValue; foreach (var a in have) if (a[0] == hh) { int d = System.Math.Abs(a[1] - req); if (d < bd || (d == bd && System.Math.Abs(a[1]) < System.Math.Abs(b))) { bd = d; b = a[1]; } } return b; };
+            int hSel = -1; foreach (int hh in hs) if (hh >= hmm) { hSel = hh; break; }
+            if (hSel < 0) hSel = hs.Max;
+            int gSel = nearestG(hSel);
+            if (System.Math.Abs(gSel - req) > 60)
+                foreach (int hh in hs)
+                {
+                    if (hh <= hSel) continue;
+                    int g2 = nearestG(hh);
+                    if (System.Math.Abs(g2 - req) + 1 < System.Math.Abs(gSel - req)) { hSel = hh; gSel = g2; break; }
+                }
+            // 個体: その (見付, 勾配) で焼いてある個体を順に振る
+            var vs = new System.Collections.Generic.List<int>();
+            foreach (var a in have) if (a[0] == hSel && a[1] == gSel) vs.Add(a[2]);
+            vs.Sort();
+            char v = (char)('a' + (vs.Count > 0 ? vs[((i % vs.Count) + vs.Count) % vs.Count] : 0));
+            return Nozura2Dir + "/Nozura2_H" + hSel.ToString("0000") + "_G" + (gSel >= 0 ? "+" : "-") + System.Math.Abs(gSel).ToString("000") + "_" + v + ".fbx";
+        }
+
+        /// <summary><see cref="Nozura2"/> の置き場。</summary>
+        public const string Nozura2Dir = "Assets/Edo/Models/Nozura2";
+
+        /// <summary><see cref="Nozura2"/> の重ね: 継ぎ目の線(局所 X = ±0.909・伸縮前)から外へ延びる量 = <see cref="Nozura2OverlapCrest"/> + <see cref="Nozura2OverlapPerDepth"/>·(天端の線からの深さ)。
+        /// ⚠ **駒を実メッシュの走りの射影の端(span)で連ねると、この分だけ駒が離れる**(H4.8 の足元で片側 0.15)。継ぎ目の線は
+        /// 「射影の端 − 伸縮 × <see cref="Nozura2OverlapMax"/>(焼いた見付)」か、天端の前の縁の端 − 伸縮 × 0.020 で読む(= 伸縮 × 1.818 の間で連ねる)。</summary>
+        public const float Nozura2OverlapCrest = 0.020f, Nozura2OverlapPerDepth = 0.026f;
+        /// <summary><see cref="Nozura2"/> の重ねの最大(床の 0.20 下の根入れの底)= 0.02 + 0.026·(<paramref name="hBaked"/> + 0.20)。<paramref name="hBaked"/> は焼いた見付(名の H)。</summary>
+        public static float Nozura2OverlapMax(float hBaked) { return Nozura2OverlapCrest + Nozura2OverlapPerDepth * (hBaked + 0.20f); }
+
+        /// <summary>メッシュの資産パスが重ねの端の版の野面の駒(`Nozura2_*`)か。<see cref="IsSannoNozura"/> と同じ法・同じ端の石の列。</summary>
+        public static bool IsNozura2(string meshAssetPath)
+        { return !string.IsNullOrEmpty(meshAssetPath) && System.IO.Path.GetFileName(meshAssetPath).StartsWith("Nozura2_"); }
+
         /// <summary><see cref="SannoNozura"/> の勾配を**その見付・その個体で焼いてある勾配のうち最も近いもの**へ寄せる [‰]
         /// (2026-09-26 EDO-0437)。焼けている勾配: 全段 0 / H1800 を除く 8 段 ±120(前庭の天端を流す)/ H0150 ±180(打ち切り)/
         /// H1500 ±220(段の境)/ H0600〜H2400 ±275(岡部 外周の端の下げ打ち・EDO-0502)/ H0600〜H2400 ±450(袖の坂・端の沈め・EDO-0502 第41巡)/ H1800〜H4800 −495・−660(岡部 袖の坂を 1 駒で 0.9 / 1.2 下ろす ≈1:1.5・EDO-0502 第65巡 ── 勾配は m あたり ⇒ 1.818 で 0.90 / 1.20。H3000〜H4800 は第66巡 ── 袖の上端 049f・048f は前の地表が低く見付 H4800)/ H3000〜H4800 ±120・±275・±450(深い見付の袖の坂・EDO-0502 第44巡)。刻み 0.12 ⇒ 天端の勾配 0〜0.18 のどこでも 1間(伸縮 1.2 まで)の端の天端の差 ≤ 0.065
@@ -1648,7 +1715,10 @@ public static class EdoAssets
         /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=100.2,79.1 --h=4.8 --render
         /// 材 Kirishi / Danishi ⇒ `Edo/山王社/新造部材のマテリアルをremap`(.meta を Kado49 から写せば不要)。
         /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=58.9 --h=4.8 --render
-        ///  / blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=34.7 --h=0.6,0.9,1.2 --render</summary>
+        ///  / blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=34.7 --h=0.6,0.9,1.2 --render
+        /// **33 × H0.60 / H0.90 / H1.20**(岡部 K_Dan2 の上端の脇 Side1_6_kado5 ほか・実の折れ 32.7° に Kado35 を据えて口 0.45〜0.48 が開いた ── 2026-10-11 EDO-0502。
+        /// 同じ所の反対の脇は実の折れ 2.0° ⇒ 隅の駒を据えず <see cref="Nozura2"/> の直線の駒で継ぐ)
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=32.7 --h=0.6,0.9,1.2 --render</summary>
         public static string SannoNozuraKadoDeg(float deg, float h, int i)
         {
             int d = (int)System.Math.Round(deg);

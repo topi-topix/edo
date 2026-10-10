@@ -26,6 +26,10 @@
     blender --background --python Tools/Blender/build_sanno_nozura.py -- grade --grade=0.275 --render [--h=1.2]   # 同・並べ焼き
     blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=0.45,-0.45 --h=0.6,0.9,1.2,1.5,1.8,2.1,2.4  # 岡部 袖石垣の天端を背の法なりに下げる勾配の駒 ±0.45(EDO-0502・2026-10-07・TW_Kado_Sode.sodeSlope)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=0.12,-0.12,0.275,-0.275,0.45,-0.45 --h=3.0,3.6,4.2,4.8  # 岡部 袖石垣の高い見付の勾配の駒(EDO-0502・2026-10-07・H4800 が G0 しか無く平らな段になった)
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --family=2 --h=0.3,0.6,0.9,1.2,1.5,1.8,2.1,2.4,4.8 --grade=0   # 重ねの端の版 Nozura2_*(Models/Nozura2・岡部 EDO-0502 2026-10-11)
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --family=2 --h=0.3,0.6,0.9,1.2,1.5,1.8,2.1,2.4,4.8 --grade=0.12,-0.12,0.22,-0.22,0.35,-0.35 --v=ab
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --family=2 --h=0.6,0.9,1.2,1.5,1.8,2.1,2.4,4.8 --grade=0.45,-0.45,0.55,-0.55,0.66,-0.66,0.75,-0.75 --v=ab   # 坂なりの線 1駒で最大 1.25 下がる所
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=32.7 --h=0.6,0.9,1.2 --render   # 岡部 K_Dan2 の上端の脇の実の折れ(Kado35 を据えていた・2026-10-11)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- tome [--h=0.6,1.2,2.4] [--hand=P,M] [--render]   # 積み止めの駒(小口にも面石・両角が稜・岡部 nozuraEndRule 2026-10-07b・EDO-0502)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- crest [--dir=…] [--json=…]  # 全駒の背の天端の下がり(≤ 0.03)・頭の出(≤ 0)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- holes [--dir=…] [--json=…]  # 全駒を真上から見て天端に穴(裏・下の見える所)が 0 か
@@ -84,6 +88,16 @@
   ⛔ 新規マテリアルなし。UV は石ごとの箱投影(1.05m で1枚・石ごとに位相をずらす)。
   裏に目地の奥を塞ぐ板(`Danishi`)を 0.12 奥に張る ⇒ 目地から空が抜けない。
 
+━━━ 1b. 重ねの端の版 `Nozura2_H<見付mm>_G<勾配‰>_<a〜d>.fbx`(Models/Nozura2・`--family=2`・2026-10-11 EDO-0502)━━━━━━━━━━
+  岡部の施主の写真「石垣の部材の境目の隙間および段差」。測ると、まっすぐ継いだ継ぎ目は旧の駒でも中の目地と同じ(光線で幅 p90 0.02・縦に抜ける行 0)。
+  隙は**継ぎ目で走りが折れる所**だけで起きていた: 旧の駒は切り口が平らなので、凸の側で法(下ほど前へ出る)の分だけ楔に開き、小口と縦一直線の隙が
+  見えた(折れ 5.5° の H4.8 で 74% の行が奥へ抜け・幅 0.12 ── K_Dan1 の脇)。据えの規則は折れ 20° 未満を直線の駒で継ぐ。
+  ⇒ 両端を継ぎ目の線から **0.02 + 0.026·(天端からの深さ)** だけ延ばす(`overlap_planes`・斜めの切り口)。延ばした所は隣の駒と共有する端の石
+  (同じ種・同じ形・同じ UV)⇒ まっすぐ継げば頂点まで重なって消える。折れると重ねが楔を塞ぐ(H2.4 以下は 15°・H4.8 は 10° まで抜け 0)。
+  重ねの所の目地の奥の板は本体の板より 6mm 奥(`overlap_backing` ── 隣の駒の板と z-fight しない)。天端の列の重ねは 0.02 ⇒ 勾配の違う駒どうしの
+  重なりの食い違いは ΔG × 0.02 以下。端の石の列は旧版と同じ ⇒ 旧の隅・法切り・積み止め・切りの駒とそのまま継げる。
+  急な勾配 ±0.55・±0.66・±0.75 を足した(坂なりの線が 1駒で最大 1.25 下がる ── G2/G4)。⛔ 山王は旧の `Sanno_Nozura_*` のまま(上書きしない)。
+
 ━━━ 2. 根石の打ち切り = `H0150` の `G±180` ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   見付 0.2 未満で壁を終える駒。頭が 1.818m の間に 0.33 下がるので、高い側の天端を隣(見付 0.30)に
   合わせれば先端の石は床へ沈む。G+180 = +X へ上がる(−X 側の端に置く)/ G−180 = +X へ下がる(+X 側の端)。
@@ -140,7 +154,12 @@ POS = [a for a in ARGS if not a.startswith("--")]
 OPT = dict((a[2:].split("=", 1) + [""])[:2] for a in ARGS if a.startswith("--"))
 RENDER = "render" in OPT
 
-OUT_WALL = V.out_dir(os.path.join(V.REPO, "Assets", "Edo", "Models", "Sanno"))
+# ⭐ 版(2026-10-11 EDO-0502 岡部・施主「石垣の部材の境目の隙間および段差」): --family=2 は**重ねの端の版** `Nozura2_*`(Models/Nozura2)。
+#   山王(完成済み)は `Sanno_Nozura_*` を使い続ける ⇒ 旧の FBX は上書きしない。重ねの版は直線の駒(と勾配の駒)だけ ──
+#   端の石の列は旧版と同じ種・同じ形なので、隅・法切り・積み止めの駒(Sanno_Nozura_*)とそのまま継げる。
+FAMILY2 = OPT.get("family") == "2"
+NAME_PREFIX = "Nozura2_" if FAMILY2 else "Sanno_Nozura_"
+OUT_WALL = V.out_dir(os.path.join(V.REPO, "Assets", "Edo", "Models", "Nozura2" if FAMILY2 else "Sanno"))
 OUT_WALL_REPO = os.path.join(V.REPO, "Assets", "Edo", "Models", "Sanno")  # 検証レンダが在庫の駒を読む先(staging に無いとき)
 OUT_SODE = V.out_dir(os.path.join(V.REPO, "Assets", "Edo", "Models", "Kaidan"))
 SHOT = os.path.join(V.REPO, "Screenshots")
@@ -1105,9 +1124,9 @@ def bisect_keep(o, co, no):
 
 
 # ------------------------------------------------------------------ 壁の駒
-def wall_name(h, g, v):
+def wall_name(h, g, v, prefix=None):
     gm = int(round(g * 1000))
-    return "Sanno_Nozura_H%04d_G%s%03d_%s" % (int(round(h * 1000)), "+" if gm >= 0 else "-", abs(gm), v)
+    return "%sH%04d_G%s%03d_%s" % (NAME_PREFIX if prefix is None else prefix, int(round(h * 1000)), "+" if gm >= 0 else "-", abs(gm), v)
 
 
 def wall_P(h, g):
@@ -1173,10 +1192,67 @@ def make_wall(h, g, v):
     objs.append(backing("back", h, g, mats[1]))
     objs.append(backing("back2", h, g, mats[1], *BACK2))
     name = wall_name(h, g, v)
-    objs = cut_each_ends(objs)
+    if FAMILY2:
+        objs += overlap_backing(h, g, mats)
+        objs = cut_each_planes(objs, overlap_planes(h, g))
+    else:
+        objs = cut_each_ends(objs)
     o = V.join(objs, name)
     V.set_origin(o, (0, 0, 0))
     return o, name, len(cells)
+
+
+# ------------------------------------------------------------------ 重ねの端(`Nozura2_*`・2026-10-11 EDO-0502)
+# 継ぎ目の線(Unity X = ±0.909)を越えて、隣の駒と共有する端の石(同じ種・同じ形・同じ UV)を OV0 + OV1·(天端からの深さ) まで残す。
+# ⇒ まっすぐ継げば重なった所は隣の駒の同じ石と頂点まで重なって見えない(継ぎ目の目地 = 中の目地)。
+#   継ぎ目で走りが折れる(据えの折れ 1〜14°)と、旧の駒は凸の側で法(下ほど前へ出る)の分だけ楔に開き、平らな小口と
+#   縦一直線の隙が見えた(岡部 K_Dan1 の脇 5.5°・写真1)。開きは 折れ × 0.3 × 深さ で深いほど広い ⇒ 重ねも深さに比例させる
+#   (天端の列は 0.02 ── 勾配の違う駒どうしの重なりの食い違いを (ΔG × 0.02) に抑える)。
+#   0.02 + 0.026·深さ で、両側の重ねの和が 折れ ≈ 10° の開き(0.3·深さ·tan10°×… + 面の出 0.08)を覆う。
+OV0 = 0.02
+OV1 = 0.026
+OV_BACK = 0.006     # 重ねの所の目地の奥の板は本体の板より この分 奥(隣の駒の本体の板と z-fight しない)
+
+
+def overlap_planes(h, g):
+    """両端の重ねの切り口(Blender の (co, no)・dot(x − co, no) ≤ 0 を残す)。
+    Unity: +X 端 x ≤ L/2 + OV0 + OV1·(h + g·x − Y) / −X 端 −x ≤ L/2 + OV0 + OV1·(h + g·x − Y)(Y − (h + g·x) = 天端からの u)。"""
+    out = []
+    for sg in (1, -1):
+        # sg·x − OV1·(g·x − Y) ≤ L/2 + OV0 + OV1·h  ⇔  n_u·(x, Y) ≤ c
+        nx, ny = sg - OV1 * g, OV1
+        c = L / 2 + OV0 + OV1 * h
+        # 平面上の一点: Y = h + g·x(天端の線)・x = sg·(L/2 + OV0)
+        x0 = sg * (L / 2 + OV0)
+        y0 = h + g * x0
+        assert abs(nx * x0 + ny * y0 - c) < 1e-9
+        # Unity (x, Y, Z) → Blender (−x, −Z, Y)
+        out.append(((-x0, 0.0, y0), (-nx, 0.0, ny)))
+    return out
+
+
+def overlap_backing(h, g, mats):
+    """重ねの所の目地の奥の板(本体の板 `back` / `back2` / 裏石の底の板の継ぎ目の先・OV_BACK 奥)── 折れて開いた楔の奥から空が抜けない。"""
+    out = []
+    ext = OV0 + OV1 * (h + BURY) + 0.02
+    P = wall_P(h, g)
+    Q = wall_Q(h, g)
+    for sg in (1, -1):
+        s0, s1 = sorted((sg * L / 2, sg * (L / 2 + ext)))
+        for nm, d, u0, u1 in (("ovback", 0.12, -0.12, -(h + BURY)), ("ovback2",) + BACK2):
+            bm = bmesh.new()
+            vs = [bm.verts.new(P(s, u, d + OV_BACK)) for s in (s0, s1) for u in (u0, u1)]
+            bm.faces.new((vs[0], vs[1], vs[3], vs[2]))
+            me = bpy.data.meshes.new(nm); bm.to_mesh(me); bm.free()
+            o = bpy.data.objects.new(nm, me); bpy.context.scene.collection.objects.link(o)
+            o.data.materials.append(mats[1]); me.update()
+            if me.polygons[0].normal.y > 0:
+                me.flip_normals()
+            box_uv(o, (0.3, 0.7))
+            out.append(o)
+        fl = ura_floor("ovfloor", lambda s_, d_, u_: Q(s_, d_, u_ - OV_BACK), mats[1], s0, s1, URA_FLOOR_D0, URA_FLOOR_D)
+        out.append(fl)
+    return out
 
 
 def cut_each_ends(objs, ends=((-L / 2, -1), (L / 2, 1))):
@@ -3008,7 +3084,7 @@ def crest_check(objs, T, is_back, step=0.05):
 def crest_spec(name):
     """FBX 名 → (天端の線 T(x, z)(Unity 局所), 背の列か is_back(x, z))"""
     import re
-    m = re.match(r"Sanno_Nozura_H(\d{4})_G([+-]\d{3})_[a-d]$", name)
+    m = re.match(r"(?:Sanno_Nozura_|Nozura2_)H(\d{4})_G([+-]\d{3})_[a-d]$", name)   # Nozura2_ = 重ねの端の版
     if m:
         h, g = int(m.group(1)) / 1000, int(m.group(2)) / 1000
         return (lambda x, z: h + g * x), (lambda x, z: z <= -FACE_ROW)
@@ -3569,9 +3645,10 @@ def do_wall():
     else:
         grades = _floats("grade", [0.0])
         hs = _floats("h", TIERS)
+    vs = OPT.get("v") or VARIANTS          # --v=ab で個体を絞る(重ねの版の勾配の駒は a・b の二つ)
     for g in grades:
         for h in hs:
-            for v in VARIANTS:
+            for v in vs:
                 o, name, n = make_wall(h, g, v)
                 export(o, name, OUT_WALL)
 

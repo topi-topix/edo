@@ -272,7 +272,7 @@ public static partial class EdoBuild
         var LO = new Dictionary<long, float>(); var HI = new Dictionary<long, float>(); var YS = new Dictionary<long, float>(); var LO0 = new Dictionary<long, float>();
         var BURYN = new HashSet<long>(); var FACE = new Dictionary<long, List<Vector3>>(); var FACEQ = new Dictionary<long, List<Vector2>>(); var feR = new List<Vector3>(); var HIO = new Dictionary<long, float>(); var HIOW = new Dictionary<long, string>(); var LOW = new Dictionary<long, string>();
         var conflicts = new List<KeyValuePair<float, string>>(); var pairN = new Dictionary<string, int>();
-        int nToe = 0; int nRim = 0, nSec = 0, nTop = 0, nFace = 0, nBury = 0, nRelax = 0, nFlatEdge = 0, nRing = 0, nBot = 0, nEdgeBot = 0, nFlat = 0, nSoil = 0, nCeil = 0, nClampUp = 0, nClampDn = 0;
+        int nToe = 0, nToeBack = 0; int nRim = 0, nSec = 0, nTop = 0, nFace = 0, nBury = 0, nRelax = 0, nFlatEdge = 0, nRing = 0, nBot = 0, nEdgeBot = 0, nFlat = 0, nSoil = 0, nCeil = 0, nClampUp = 0, nClampDn = 0;
         int[] D8i = { 1, -1, 0, 0, 1, 1, -1, -1 }, D8j = { 0, 0, 1, -1, 1, -1, 1, -1 };
 
         // 4a 盛りの縁の法(指図 const.fillEdgeSlope「盛りの縁は 1:n より急にしない」【硬】を設計の狙い y* へ ── 第87巡): 解く前に y* を全ての点で引き、
@@ -483,6 +483,35 @@ public static partial class EdoBuild
                                 if (!float.IsNaN(toeBest)) { ys = toeBest; Hi(toeBest + design.toeBandRise, "足元の帯 法尻+" + design.toeBandRise.ToString("F2", ci) + "〔" + toeW + "〕"); nToe++; }
                             }
                         }
+                        // 足元の帯の背の押さえ(const.toeBand 追記 2026-10-10p【硬】・第100巡): 法尻の線から背へ toeBackFar 以内の点(駒の下・断面でも)は
+                        //   ≤ toeBackNear: 法尻 + toeBandRise / toeBackNear〜toeBackFar: min(天端 − toeBackCrestDrop, 法尻 + toeBandRise + 法の立ち上がり × (距離 − toeBackNear))。
+                        //   法尻の高さは前の帯と同じ(法尻の点の 0.05 前の設計の狙い・駒の底より下げない)。法の立ち上がり = 1/k(k = 見え面の平面の水平/鉛直 ── FacePlaneY と同じ測り)。
+                        //   埋める駒(通しの駒)は数えない。⛔ 区画の外は今の地形。当たる先: 帯で篩う全ての石垣・野面の法尻の背(岡部 辺24 の土の歯・平面より前)。
+                        if (design != null && !float.IsNaN(design.toeBandW) && !float.IsNaN(design.toeBackNear) && !float.IsNaN(design.toeBackFar))
+                        {
+                            var ownB = design.own ?? design.ownKept; if (ownB == null || EdoGeom.PIP(ownB, p))
+                            {
+                                float capB = float.NaN; string capW = null;
+                                foreach (int fiB in BinsAt(p))
+                                {
+                                    var fbB = wf.list[fiB]; if (fbB.go == null || (buried != null && buried.Contains(fbB.go))) continue;
+                                    int bB; float dB; if (!wf.FaceAt(fbB, p, out bB, out dB)) continue;
+                                    float fuB = fbB.footU[bB]; if (float.IsNaN(fuB) || float.IsNaN(fbB.crest[bB])) continue;
+                                    float back = fuB - Vector2.Dot(p, fbB.f); if (back <= 0.05f || back > design.toeBackFar) continue;   // 0.05 以内は前の帯が受ける
+                                    var qB = p + fbB.f * back; float tyB = c.Target(qB + fbB.f * 0.05f); if (float.IsNaN(tyB)) continue;
+                                    if (!float.IsNaN(fbB.botY[bB]) && tyB < fbB.botY[bB]) tyB = fbB.botY[bB];
+                                    float cb = tyB + design.toeBandRise;
+                                    if (back > design.toeBackNear)
+                                    {
+                                        float cr = fbB.crest[bB], k = 0.3f;
+                                        if (!float.IsNaN(fbB.botY[bB]) && cr - fbB.botY[bB] > 0.2f) k = Mathf.Clamp((fuB - fbB.frontU[bB]) / (cr - fbB.botY[bB]), 0.05f, 0.6f);
+                                        cb = Mathf.Min(cr - (float.IsNaN(design.toeBackCrestDrop) ? 0f : design.toeBackCrestDrop), cb + (back - design.toeBackNear) / k);
+                                    }
+                                    if (float.IsNaN(capB) || cb < capB) { capB = cb; capW = fbB.go.name; }
+                                }
+                                if (!float.IsNaN(capB)) { Hi(capB, "足元の帯の背〔" + capW + "〕"); nToeBack++; }
+                            }
+                        }
                         float ysT2 = ys;
                         if (!float.IsInfinity(buryAimV[0]) && buryAimV[0] > ys) ys = buryAimV[0];   // 埋める土の狙い(柔)
                         float ysT3 = ys;
@@ -583,7 +612,8 @@ public static partial class EdoBuild
         sb.AppendLine("皮の高さを解いた(SkinHeightSolve・一点ごとの [lo, hi] と狙い y*): 節点 " + LO.Count + "・縁の点(地形に PIN)" + PIN.Count
                       + "・断面に入った区間 " + nSec + "(底+0.05 " + nBot + ")・天端の上限 " + nTop + "(周りの断面の駒から " + nRing + ")・見え面の帯 " + nFace + "(前の地表を解いた皮で測り直して動いた " + nRe + ")・見切り石の背 " + nMk + "・埋める駒の土 " + nBury + "(天井を緩めた " + nRelax + ")・天端の前の帯の天井 " + nCeil
                       + "・裏石の帯の土 " + nSoil + "・平ら " + nFlat + "(縁の石垣の天端で止めた " + nFlatEdge + ")・足の縁の底 " + nEdgeBot + "・部材の縁の内 " + nRim + " / 狙いより上げた " + nClampUp + "・下げた " + nClampDn + "・尖り窪みの均し " + nSm);
-        if (design != null && !float.IsNaN(design.toeBandW)) sb.AppendLine("  石垣の足元の帯(const.toeBand【硬】): 幅 " + design.toeBandW.ToString("F2", ci) + "・法尻 +" + design.toeBandRise.ToString("F2", ci) + " を上限に平ら ── 掛けた点 " + nToe);
+        if (design != null && !float.IsNaN(design.toeBandW)) sb.AppendLine("  石垣の足元の帯(const.toeBand【硬】): 幅 " + design.toeBandW.ToString("F2", ci) + "・法尻 +" + design.toeBandRise.ToString("F2", ci) + " を上限に平ら ── 掛けた点 " + nToe
+                                                                                 + (float.IsNaN(design.toeBackNear) ? "" : "・背の押さえ(10-10p) " + design.toeBackNear.ToString("F2", ci) + " 以内 法尻+" + design.toeBandRise.ToString("F2", ci) + "・〜" + design.toeBackFar.ToString("F2", ci) + " は天端−" + design.toeBackCrestDrop.ToString("F2", ci) + " と勾配なりの低い方 ── 掛けた点 " + nToeBack));
         if (design != null && !float.IsNaN(design.fillSlope)) sb.AppendLine("  盛りの縁の法 1:" + design.fillSlope.ToString("0.0", ci) + "(const.fillEdgeSlope・y* へ): 上げた点 " + nFillUp + "・最大 " + fillMax.ToString("F2", ci) + " @(" + fillAt.x.ToString("F1", ci) + ", " + fillAt.z.ToString("F1", ci) + ")・法尻が面にかかる点(上げが gradeTol を超えるのに面 ── 野面石で受ける所・普請方へ)" + nFillFace);
         sb.AppendLine("  矛盾(lo > hi・硬 ── hi を採った): " + conflicts.Count + (conflicts.Count > 0 ? "(最大 " + conflicts[0].Key.ToString("F3", ci) + ")" : " ⭕"));
         if (pairN.Count > 0)

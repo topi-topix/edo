@@ -2841,7 +2841,9 @@ public static class EdoOkabeYashikiBuilder
                             }
                         }
                         string ekT = S(Get(tw, "endKado"));
-                        // 指図 ends 追記 2026-10-10o「辺24 の run は、前の地表が天端 −0.15 に届いた所で終える(④→①)・今の tome1 は退ける」【硬】は当てない(第97巡で一度流して戻した):
+                        // 指図 ends 追記 2026-10-10p(10-10o を置き換え)の端の型は当てない(第100巡): 「始まり(外周の隅 Kado_P24 の側)は ② の隅の返し」と「終わりは積み止め tome1 を戻し endKado の通り」が
+                        //   同じ端(Kado_P24 は辺24 の南の端 = 辺24_1_0 の端1 = endKado の積み止めの端)を名指す ⇒ 欄どうしの矛盾として普請方へ戻した。端は第99巡のまま(北 ④・南 積み止め)。
+                        // 旧注(第97巡): 指図 ends 追記 2026-10-10o「辺24 の run は、前の地表が天端 −0.15 に届いた所で終える(④→①)・今の tome1 は退ける」【硬】は当てない(第97巡で一度流して戻した):
                         //   設計の地盤(SkinGround・前 0.6)では両端とも前の地表が天端 −0.15 に届かず(縮めは TrimRunsBelowFront が刷る)、積み止めを退けると終わりの端が
                         //   見付 2.33 の直線の駒の小口(③⛔ ── nozuraEndRule【硬】に反する)、始まりは ④ を止めると ② の隅の返しになった。欄どうしの矛盾 ⇒ 普請方へ戻す(EDO-0502 第97巡)。
                         if (ekT != null && ekT.Contains("積み止め"))
@@ -2933,6 +2935,9 @@ public static class EdoOkabeYashikiBuilder
                 if (ao != null && ao.Contains("返し・袖・端"))
                 {
                     var sodeN = new List<string>(); foreach (var o2 in A(Get(D, "terraceWalls")) ?? new List<object>()) { var t2 = O(o2); if (S(Get(t2, "sodeSlope")) != null) sodeN.Add(S(Get(t2, "name")) + "_"); }
+                    // ⚠ ends 追記 2026-10-10p「野面の本線(石段の背)は脇の石垣の見え面に入隅で突き付け、脇は本線の背の側へ控え +0.3 以上通す」は当てない(第100巡で一度流して戻した):
+                    //   K_Tsuyo の口が本線 5.4m のうち [0.28, 5.17] を切り、本線は両端に 0.28m しか残らない ⇒ 脇(End)の通しの駒が石段の脇の返し(Side0/1)と 0.28 離れて並び、
+                    //   被り 220→494・継ぎ目の口から土 259→385(TW_Higashi_Tsuyo_0_0 136・Side1_0 78・End1 の通し 175)。脇の延長の背の納めは普請方へ戻した。
                     System.Func<EdoBuild.NozuraSeg, int> rk = sg => (sg.name.Contains("_Kaeshi") || sg.name.Contains("_End") || sodeN.Exists(x => sg.name.StartsWith(x))) ? 2 : 1;
                     // 追記 2026-10-10o【硬】: 入隅は先に据える壁を角の点から後の壁の背の側へ『後の壁の控え+c』以上通して止める(EdoBuild.ApplyAbutOrder の passClear)
                     float passC = float.NaN; int i10o = ao.IndexOf("追記 2026-10-10o");
@@ -4128,7 +4133,7 @@ public static class EdoOkabeYashikiBuilder
         var design = new EdoBuild.SkinDesign
         {
             x0 = dx0, z0 = dz0, step = dstep, nx = dnx, nz = dnz, h = gh, ok = ok,
-            batterCut = C("batterCut"), batterFill = C("batterFill"), baseAt = EdoBuild.BaseDem(), own = Poly, hold = hold, buried = buriedParts, flats = FlatFacesOf(buriedParts, sb), buryLo = buryLo, mikiriDrop = MikiriSoil(0), mikiriFlat = MikiriSoil(1), mikiriBatter = MikiriSoil(2), buryAim = buryAim, ceilRelax = ceilRelax, buryFaceCover = buryFaceCover, fillSlope = FillEdgeSlope(sb), toeBandW = ToeBand(sb, 0), toeBandRise = ToeBand(null, 1),
+            batterCut = C("batterCut"), batterFill = C("batterFill"), baseAt = EdoBuild.BaseDem(), own = Poly, hold = hold, buried = buriedParts, flats = FlatFacesOf(buriedParts, sb), buryLo = buryLo, mikiriDrop = MikiriSoil(0), mikiriFlat = MikiriSoil(1), mikiriBatter = MikiriSoil(2), buryAim = buryAim, ceilRelax = ceilRelax, buryFaceCover = buryFaceCover, fillSlope = FillEdgeSlope(sb), toeBandW = ToeBand(sb, 0), toeBandRise = ToeBand(null, 1), toeBackNear = ToeBandBack(sb, 0), toeBackFar = ToeBandBack(null, 1), toeBackCrestDrop = ToeBandBack(null, 2),
             crestCover = crestCover
         };
         // ⭐ 区画の外の節点は区画の外の地盤(今の地形・区画の内と駒の下の節点は造成前)で持たせる(EDO-0502 第29巡)── 外周の石垣の見え面の前
@@ -5383,34 +5388,32 @@ public static class EdoOkabeYashikiBuilder
             if (ss.Contains("追記 2026-10-10d") && ss.Contains("帯の中に駒を置かない")) pre.Add(n2 + "_");
             if (se.Contains("追記 2026-10-10d") && se.Contains("帯の中に駒を置かない")) pre.Add(n2 + "_SideEnd");
         }
-        // 指図 terraceWalls[].ends 追記 2026-10-10o【硬】(第97巡):「辺N の run は、前の地表が天端 −m に届いた所で終える」── 区間の両端から内へ(TrimSegEndsAtFrontReach)
-        var reach = new List<KeyValuePair<string, float>>();
+        // 指図 terraceWalls[].ends 追記 2026-10-10p(第98巡の差し戻し): 10-10o の「前の地表が天端 −m に届いた所で終える」は置き換えられた ──『前の地表 ≤ 天端』は検査として刷るだけ(切らない)。
+        //   前の地表 = 見え面の 0.6 前(平らな面の内なら面の高さ・外なら設計の地盤 SkinGround)を走りに沿って 0.25 刻み。当たる先: ends に 10-10p の検査の文を持つ欄(岡部 TW_Nishi_Kado 辺24)。
+        var chk = new List<string>();
         foreach (var o2 in A(Get(D, "terraceWalls")) ?? new List<object>())
         {
-            var t2 = O(o2); string n2 = S(Get(t2, "name")); string en = S(Get(t2, "ends")) ?? ""; int i10o = en.IndexOf("追記 2026-10-10o"); if (n2 == null || i10o < 0) continue;
-            var mR = System.Text.RegularExpressions.Regex.Match(en.Substring(i10o), @"(辺[0-9]+)\s*の run は、前の地表が天端\s*[−\-]\s*([0-9.]+)\s*に届いた所で終える");
-            if (mR.Success) reach.Add(new KeyValuePair<string, float>(n2 + "_" + mR.Groups[1].Value + "_", float.Parse(mR.Groups[2].Value, inv)));
+            var t2 = O(o2); string n2 = S(Get(t2, "name")); string en = S(Get(t2, "ends")) ?? ""; int i10p = en.IndexOf("追記 2026-10-10p"); if (n2 == null || i10p < 0) continue;
+            if (!en.Substring(i10p).Contains("『前の地表 ≤ 天端』は検査として残す")) continue;
+            var mP = System.Text.RegularExpressions.Regex.Match(en.Substring(0, i10p), @"(辺[0-9]+)\s*の run は、前の地表が天端");
+            chk.Add(n2 + "_" + (mP.Success ? mP.Groups[1].Value + "_" : ""));
         }
-        if (pre.Count == 0 && reach.Count == 0) return "";
+        if (pre.Count == 0 && chk.Count == 0) return "";
         var flats = FlatFacesOf(new HashSet<GameObject>(), new System.Text.StringBuilder());
-        if (reach.Count > 0)
+        foreach (var sg in segs)
         {
-            var dropR = new HashSet<EdoBuild.NozuraSeg>(); int nR = 0;
-            foreach (var sg in segs)
+            if (!chk.Exists(x => sg.name.StartsWith(x))) continue;
+            var tv = (sg.b - sg.a); if (tv.sqrMagnitude < 1e-6f) continue; float L = tv.magnitude; tv /= L; var nv = new Vector2(-tv.y, tv.x);
+            Vector2 mid = (sg.a + sg.b) * 0.5f; Vector2 f = sg.face.sqrMagnitude > 0.5f ? sg.face.normalized : (SkinGround(mid.x + nv.x * 0.6f, mid.y + nv.y * 0.6f) < SkinGround(mid.x - nv.x * 0.6f, mid.y - nv.y * 0.6f) ? nv : -nv);
+            float worst = float.MinValue, at = 0f; int over = 0, n0 = 0;
+            for (float sl = 0f; sl <= L + 1e-3f; sl += 0.25f)
             {
-                int ri = reach.FindIndex(x => sg.name.StartsWith(x.Key)); if (ri < 0) continue;
-                var tv = (sg.b - sg.a); if (tv.sqrMagnitude < 1e-6f) continue; tv.Normalize(); var nv = new Vector2(-tv.y, tv.x);
-                Vector2 mid = (sg.a + sg.b) * 0.5f; Vector2 f = sg.face.sqrMagnitude > 0.5f ? sg.face.normalized : (SkinGround(mid.x + nv.x * 0.6f, mid.y + nv.y * 0.6f) < SkinGround(mid.x - nv.x * 0.6f, mid.y - nv.y * 0.6f) ? nv : -nv);
-                System.Func<Vector2, float> front = q => { var fp = q + f * 0.6f; foreach (var ff in flats) if (ff.poly != null && EdoGeom.PIP(ff.poly, fp)) return ff.y; return SkinGround(fp.x, fp.y); };
-                float c0, c1; int r = EdoBuild.TrimSegEndsAtFrontReach(sg, front, reach[ri].Value, out c0, out c1);
-                if (r == 0) { sb.AppendLine("    終わり(ends 追記 2026-10-10o): " + sg.name + " ── 両端とも前の地表が天端 −" + reach[ri].Value.ToString("F2", inv) + " に届かない(切らない)"); continue; }
-                if (r == 2) dropR.Add(sg); nR++;
-                sb.AppendLine("    終わり(ends 追記 2026-10-10o): " + sg.name + (r == 2 ? " を置かない" : " を始め " + c0.ToString("F2", inv) + "・終わり " + c1.ToString("F2", inv) + " 切った") + "(前の地表 ≥ 天端 −" + reach[ri].Value.ToString("F2", inv) + ")");
+                var fp = sg.a + tv * sl + f * 0.6f; float fy = float.NaN; foreach (var ff in flats) if (ff.poly != null && EdoGeom.PIP(ff.poly, fp)) { fy = ff.y; break; } if (float.IsNaN(fy)) fy = SkinGround(fp.x, fp.y);
+                float dd = fy - sg.crestAt(sl); n0++; if (dd > 0f) over++; if (dd > worst) { worst = dd; at = sl; }
             }
-            segs.RemoveAll(x => dropR.Contains(x));
-            sb.Insert(0, "  前の地表が天端 −m に届いた所で終える(ends 追記 2026-10-10o【硬】): 区間 " + nR + "\n");
-            if (pre.Count == 0) return sb.ToString();
+            sb.AppendLine("    検査 前の地表 ≤ 天端(ends 追記 2026-10-10p): " + sg.name + " ── 前の地表 − 天端 最大 " + worst.ToString("+0.00;-0.00", inv) + " @走り " + at.ToString("F2", inv) + "・越える点 " + over + "/" + n0 + (over > 0 ? " ⛔" : " ⭕"));
         }
+        if (pre.Count == 0) return sb.ToString();
         var drop = new HashSet<EdoBuild.NozuraSeg>(); int nCut = 0, nDrop = 0;
         foreach (var sg in segs)
         {
@@ -5451,6 +5454,18 @@ public static class EdoOkabeYashikiBuilder
         var inv = System.Globalization.CultureInfo.InvariantCulture; float w = float.Parse(mW.Groups[1].Value, inv), r = float.Parse(mR.Groups[1].Value, inv);
         if (sb != null) sb.AppendLine("  石垣の足元の帯(const.toeBand 10-10o): 見え面の前 " + w.ToString("F2", inv) + " を法尻の高さで平ら・上限 法尻 +" + r.ToString("F2", inv) + "【硬】・区画の外は今の地形");
         return which == 0 ? w : r;
+    }
+    /// <summary>指図 const.toeBand 追記 2026-10-10p(普請方・第98巡の差し戻し)の背の押さえ ── 0: 法尻の線から背への近い帯(法尻 + 上限)・1: 遠い帯の端・2: 天端からの下げ。
+    /// 読めなければ NaN(掛けない)。当たる先: EdoBuild.SkinHeightSolve の足元の帯の背(第100巡)。</summary>
+    static float ToeBandBack(System.Text.StringBuilder sb, int which)
+    {
+        string t = S(Get(O(D["const"]), "toeBand")); if (t == null) return float.NaN; int i = t.IndexOf("追記 2026-10-10p"); if (i < 0) return float.NaN; t = t.Substring(i);
+        var mN = System.Text.RegularExpressions.Regex.Match(t, @"法尻の線から背へ\s*([0-9.]+)\s*以内の点は法尻\s*\+\s*[0-9.]+\s*以下");
+        var mF = System.Text.RegularExpressions.Regex.Match(t, @"([0-9.]+)\s*〜\s*([0-9.]+)\s*の点は『天端\s*[−\-]\s*([0-9.]+)』と");
+        if (!mN.Success || !mF.Success) { if (sb != null) sb.AppendLine("  ★ const.toeBand 追記 2026-10-10p: 背の押さえの帯・天端からの下げが指図から読めない ── 背は押さえない"); return float.NaN; }
+        var inv = System.Globalization.CultureInfo.InvariantCulture; float n = float.Parse(mN.Groups[1].Value, inv), f = float.Parse(mF.Groups[2].Value, inv), d = float.Parse(mF.Groups[3].Value, inv);
+        if (sb != null) sb.AppendLine("  足元の帯の背の押さえ(const.toeBand 10-10p【硬】): 法尻の線から背へ " + n.ToString("F2", inv) + " 以内は法尻 + 上限・〜" + f.ToString("F2", inv) + " は天端 −" + d.ToString("F2", inv) + " と勾配なりの低い方");
+        return which == 0 ? n : which == 1 ? f : d;
     }
     static float FillEdgeSlope(System.Text.StringBuilder sb)
     {

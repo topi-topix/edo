@@ -99,6 +99,11 @@ public static partial class EdoBuild
         /// <summary>**石垣の足元の帯**(指図 const.toeBand「見え面の前 0.5 を法尻の高さで平らに・皮の頂点を見え面の平面より前・法尻 +0.2 より上へ出さない」【硬】・普請方 2026-10-10o・EDO-0502 第97巡)。
         /// toeBandW = 帯の幅(見え面の法尻から前へ)・toeBandRise = 法尻からの上限。NaN なら掛けない。区画の外は掛けない(今の地形)。当たる先: 全ての石垣・野面の駒(帯で篩う駒)の足元。</summary>
         public float toeBandW = float.NaN, toeBandRise = float.NaN;
+        /// <summary>**足元の帯の背の押さえ**(指図 const.toeBand 追記 2026-10-10p【硬】・EDO-0502 第100巡): 法尻の線から背へ toeBackNear 以内の点は法尻 + toeBandRise 以下、
+        /// toeBackNear〜toeBackFar の点は「天端 − toeBackCrestDrop」と「法尻 + toeBandRise + 勾配なり(見え面の法の立ち上がり × (距離 − toeBackNear))」の低い方以下。
+        /// 土の歯 = 前の低い皮の点と背の高い皮の点を結ぶ三角が見え面の前を斜めに渡る物 ── 前の帯だけでは消えない。NaN なら掛けない。
+        /// 当たる先: 帯で篩う全ての石垣・野面の駒の法尻の背(岡部 Dan・Ishigaki)。</summary>
+        public float toeBackNear = float.NaN, toeBackFar = float.NaN, toeBackCrestDrop = float.NaN;
     }
     /// <summary>平らな面。band 真なら輪郭の外で「縁から部材(石垣・石段)の見え面の足元まで」の帯も同じ高さ(第74巡・指図 flat 追記 2026-10-09g)── 帯 = 外の節点から縁と逆の向きへ bandMax 以内に部材の外形がある所。
     /// 部材の外形から coverD 以内は根入れを隠す土として y + coverH まで許す【硬】。</summary>

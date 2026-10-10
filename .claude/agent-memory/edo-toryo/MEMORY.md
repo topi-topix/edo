@@ -150,6 +150,8 @@
 
 - [皮を [lo,hi] で解く罠 (1)〜(40)](skin-solve-lo-hi-first-runs.md) — 野面は石の寄せ集め・陰を飛ばす・buryMin は硬い lo・袖が先は 2b の順と逆・足元の帯は歯に効かない・欄の「前の地表」は設計と描画の両方で刷る
 
+- [溜りの城の隅の返しは s=1.25 で収まらない・辺24 の端の名指しの矛盾](tamari-castle-return-and-p24-end-conflict.md) — 基壇の倍率と隅の駒の控え・impl の線の向きと Kado_P の位置を先に刷る
+- [入隅の通しは検めで外す・袖の上端の相手は常に空だった](concave-pass-and-sode-first.md) — _Tooshi を平面の検めから外す・cuts の長文と == ・笠 0
 - [座の面は凸包で背の外へ出る・網の区間は足した順に据わる](za-hull-and-back-wall-order.md) — Za_ を背の線で切る・相手の鎖を先にするなら最後に足す・長屋は pool の間引きで拾えない
 
 ## 測り方・関門

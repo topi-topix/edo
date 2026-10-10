@@ -1,11 +1,11 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 9cdbe433a003 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 b7f0055d9459 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
 
-- 公開関数 563 本(注釈なし 33)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
+- 公開関数 562 本(注釈なし 33)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
 - 同じ道具が刷る目録: 邸ビルダーのメニュー → Stage と中の関数 `docs/builder-mokuroku.md` / 部材の名 `docs/edoassets-mokuroku.md`。
 - 札: **硬** = 注釈に「硬い/許容0」・**柔** = 「柔らかい/狙い」がある(判定ではなく注釈の語)。相手の札(地面・駒どうし・天端・床・断面・面・隅・区域)も注釈の語を拾っただけ。
 - 呼んでいる所 = 定義のファイルの外で `EdoBuild.<名>(` と書いている C# ファイル(`Edo` と `Builder/Rebuild` を落とした名)と、その中の呼んでいる関数(Stage)。同じ名の多重定義はまとめて数える。`EdoBuild` の中どうしの呼び出しは載せない。
@@ -35,7 +35,7 @@
 | [EdoBuildMizo.cs](#edobuildmizocs) | 排水(雨落ち・溝・桝・蓋石・水切り・水抜き)の置き方 ── 線を建った物から引き、底の高さを式で解き、1m の駒を並べる。 | 】土井 S9 排水(EdoDoiBuilder.Mizo.cs)。 | 97 |
 | [EdoBuildMuki.cs](#edobuildmukics) | 向き(正面)の解き — EdoBuild の partial (2026-09-22・EDO-0261 ③) | — | 7 |
 | [EdoBuildNiwa.cs](#edobuildniwacs) | 庭の置き方 — 類型の庭(Stage 5・EDO-0323)が使う「置く・測る・据える」だけ。 | — | 58 |
-| [EdoBuildNozura.cs](#edobuildnozuracs) | 野面の乱積みの土留めを一本の折れ線へ据える — EdoBuild の partial(2026-09-25・EDO-0430) | — | 20 |
+| [EdoBuildNozura.cs](#edobuildnozuracs) | 野面の乱積みの土留めを一本の折れ線へ据える — EdoBuild の partial(2026-09-25・EDO-0430) | — | 19 |
 | [EdoBuildNozuraSeam.cs](#edobuildnozuraseamcs) | EdoBuild — 野面の土留めの継ぎ目と見え面を光線で測る(2026-10-09・EDO-0502 第64巡・施主「石垣の隙間に土が見えていたり、 | — | 4 |
 | [EdoBuildOsameru.cs](#edobuildosamerucs) | 寄せて測るを収まるまで回す (EdoBuild の partial・2026-09-26・EDO-0454) | 類型ビルダーの番所→門(EdoTypologyBuilder Stage 1・2b)。 | 2 |
 | [EdoBuildQueue.cs](#edobuildqueuecs) | EdoBuildQueue.cs — 長い建て直しを MCP の 1 回の呼び出しの中で回さず、エディタの中で順に予約して即座に返す(EDO-0503)。 | — | 0 |
@@ -719,7 +719,6 @@ EdoBuild — 道の造成(縦断を設計して道の面を均す)。2026-09-30�
 | `EdoBuild.CutKoshiBench(ep, away, face, y, along, depth, bc, cutMax, parcel, keep, keepGap, note, depthMin=…, isCut=…, bcCut=…, drain=…)` | `bool` | 硬 天端・面・区域 | 腰の土留めの端の背を小段に切る(koshiEnd・指図 nozuraEndRule 追記 2026-10-06・EDO-0502 第31巡)。 ⟶ 返す: 切ったか(note に節点数・切りの最大・退けた理由) | — |
 | `EdoBuild.PlaceNozuraMikiri(pathOfH, edge, toward, face, footY, crestY, partners, parent, name, log, soilAt=…)` | `GameObject` | 天端・床・面 | 口の縁の見切り石を据える(2026-09-26・EDO-0437)。 | — |
 | `EdoBuild.TrimSegBelowFront(seg, frontAt, cutAt)` | `int` | 地面・天端 | 前の地表より低い天端の区間を置かない(打ち切り ── 第87巡・岡部 指図 sideEnd/sodeSlope 追記 2026-10-10d【硬】「天端が前の地表より低い駒は置かない (打ち切りの駒の先に足さない)」)。 ⟶ 返す: 0 = そのまま / 1 = 縮めた / 2 = 全部が前の地表より低い(置かない) | OkabeYashiki(Stage2b_Dan・TrimRunsBelowFront) |
-| `EdoBuild.TrimSegEndsAtFrontReach(seg, frontAt, margin, cut0, cut1)` | `int` | 柔 地面・天端 | 前の地表が天端 − margin に届いた所で区間を終える(両端から内へ ── 指図 TW_Nishi_Kado.ends 追記 2026-10-10o「辺24 の run は、前の地表が天端 −0.15 に届いた所で終… | OkabeYashiki(TrimRunsBelowFront) |
 | `EdoBuild.TrimSegToPartnerLine(seg, e, other)` | `float` | 駒どうし・天端・面・隅 | 相手の区間の線を越えて据えない(突き付けの前の縮め ── 第89巡・岡部 指図 ends 追記 2026-10-10f【硬】「隅の駒の見え面に突き付け、隅の駒の天端の帯・見え面の上に駒を据えない」)。 | OkabeYashiki(TrimRunsToPartners) |
 | `EdoBuild.ApplyAbutOrder(segs, rank, near, log, passClear=…)` | `int` | 駒どうし・面・隅 | 交わる所を据える順の型(const.abutOrder【硬】・第90巡):「隅の駒 → 本線 → 返し・袖・端 の順に据え、後から据える方が先の方の見え面に突き付ける」。 | OkabeYashiki(Stage2b_Dan) |
 | `EdoBuild.MikiriBackSoilCut` | `bool` |  | 見切り石の背の土を皮が頭より下げる(指図の欄 ── 岡部 roadEdge・cuts 追記 2026-10-10h)と呼び手が名乗るとき true ── 背の土が頭より高くても見切り石を退けない。 | — |

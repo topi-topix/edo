@@ -2868,6 +2868,8 @@ public static class EdoOkabeYashikiBuilder
             // ⭐ 指図 sideEnd・sodeSlope 追記 2026-10-10d【硬】: 平らの帯の中・天端が前の地表より低い所に駒を置かない(打ち切りの駒の先に足さない)── 欄がこの文を持つ run だけ。
             //   前の地表 = 前 0.6 の点が平らな面の輪郭の内なら面の高さ・外なら皮の地表(SkinGround)。置き方は EdoBuild.TrimSegBelowFront(第87巡)。
             sb.Append(TrimRunsBelowFront(nozSegs));
+            sb.Append(TrimRunsToPartners(nozSegs));
+            sb.Append(CutEndsMikiri(nozSegs));
             var got = EdoBuild.PlaceNozuraNet(nozSegs, SkinGround, SkinGround, 1.2f, grp,
                 (h, g, i) => EdoAssets.Own.SannoNozura(h, g, i), (h, i) => EdoAssets.Own.SannoNozuraKado(h, i),
                 (up, i) => EdoAssets.Own.SannoNozuraDan(up, i), (up, i) => EdoAssets.Own.SannoNozuraKiri(up, i),
@@ -4129,9 +4131,9 @@ public static class EdoOkabeYashikiBuilder
             var mf = c.GetComponentInChildren<MeshFilter>(); string ap = mf == null || mf.sharedMesh == null ? "" : AssetDatabase.GetAssetPath(mf.sharedMesh);
             if (!ap.Contains("Nozura")) continue;
             if (buried != null && buried.Contains(c.gameObject)) continue;   // 設計で土に埋める駒(袖の低い端)は帯を持たない
-            bool kado = System.IO.Path.GetFileName(ap).Contains("_Kado"); if (kado) nk++;
+            bool kadoType = System.IO.Path.GetFileName(ap).Contains("_Kado"), kado = kadoType; if (kado) nk++;
             if (!kado) foreach (var sf in sideEndFront) if (c.name.StartsWith(sf)) { kado = true; if (!float.IsNaN(sideEndFloor)) cc.kadoFloor[c.gameObject] = sideEndFloor; break; }
-            cc.Add(c.gameObject, kado);
+            cc.Add(c.gameObject, kado, kadoType);   // 見え面の二面は隅の型(_Kado)の駒だけ ── 延長の直線の駒は見え面の前の扱いだけ隅に倣う(第89巡)
         }
         // ④ 長屋の背の一間・犬走り(外形の凸包から測る ── 長い躯体の頂点だけで測ると壁の中ほどを見落とす)
         var cen = new List<Vector2>(); var hulls = new List<Vector2[]>(); var isNag = new List<bool>(); var axs = new List<Vector2>(); var rng = new List<Vector3>(); var boxes = new List<Vector4>();
@@ -4626,6 +4628,68 @@ public static class EdoOkabeYashikiBuilder
     /// **低い端** ── 坂の駒で天端が前の地表 + reachHi に届いた所から、水平の駒(見付 fixExp・焼いた H fixH)を一駒(⛔ 傾けて沈めない)。小口の土は Stage3b。
     /// 数は指図の文から読む(⛔ 読めなければ ★ を刷って建てない)。<paramref name="nozSegs"/> が null なら据えずに踊り場の小段と小口の土だけ返す(SodeBenches・Stage3b)。
     /// 当たる先: sodeSlope を持つ袖(岡部 TW_Kado_Sode)。</summary>
+    /// <summary>指図 ends 追記 2026-10-10f【硬】(第89巡): 「突き付け」を名指す run の端が、別の run の区間の線を越えていれば交点まで縮める(EdoBuild.TrimSegToPartnerLine)──
+    /// 隅の駒の天端の帯・見え面の上に駒を据えない。相手の実面への突き付けは PlaceNozuraNet の ③(1.5m 以内の据わった駒)。</summary>
+    static string TrimRunsToPartners(List<EdoBuild.NozuraSeg> segs)
+    {
+        var sb = new System.Text.StringBuilder(); var inv = System.Globalization.CultureInfo.InvariantCulture; var pre = new List<string>();
+        foreach (var o2 in A(Get(D, "terraceWalls")) ?? new List<object>())
+        {
+            var t2 = O(o2); string n2 = S(Get(t2, "name")); string en = S(Get(t2, "ends")) ?? ""; int i10f = en.IndexOf("追記 2026-10-10f");
+            if (n2 != null && i10f >= 0 && en.Substring(i10f).Contains("突き付け")) pre.Add(n2 + "_");
+        }
+        if (pre.Count == 0) return "";
+        System.Func<string, string> runOf = nm => System.Text.RegularExpressions.Regex.Replace(nm, @"_[0-9]+(f)?$", "");
+        int n = 0;
+        foreach (var sg in segs)
+        {
+            if (!pre.Exists(x => sg.name.StartsWith(x))) continue;
+            for (int e = 0; e < 2; e++)
+            {
+                Vector2 ep = e == 1 ? sg.b : sg.a; float best = 0f; EdoBuild.NozuraSeg bo = null;
+                foreach (var ot in segs)
+                {
+                    if (ot == sg || runOf(ot.name) == runOf(sg.name)) continue;
+                    // 端の近く(2m)を通る別の run の区間だけ
+                    Vector2 od = ot.b - ot.a; float oL = od.magnitude; if (oL < 1e-3f) continue; od /= oL; float uu = Mathf.Clamp(Vector2.Dot(ep - ot.a, od), 0f, oL);
+                    if (Vector2.Distance(ot.a + od * uu, ep) > 2f) continue;
+                    var tmp = new EdoBuild.NozuraSeg { name = sg.name, a = sg.a, b = sg.b, crestAt = sg.crestAt };
+                    float cut = EdoBuild.TrimSegToPartnerLine(tmp, e, ot); if (cut > best) { best = cut; bo = ot; }
+                }
+                if (bo == null) continue;
+                EdoBuild.TrimSegToPartnerLine(sg, e, bo); n++;
+                sb.AppendLine("    突き付けの前に縮めた(ends 追記 2026-10-10f): " + sg.name + " 端" + e + " を " + best.ToString("F2", inv) + "m(" + bo.name + " の線まで)");
+            }
+        }
+        return "  相手の区間の線を越えて据えない(ends 追記 2026-10-10f【硬】): 縮めた端 " + n + "\n" + sb;
+    }
+    /// <summary>指図 cuts 追記 2026-10-10f【硬】(第89巡): 「〜が切る口の両端は見切り石で納め、隅の駒を口に置かない」── その欄の run の区間の端のうち、名指しの石段の駒から 1.5m 以内の端に見切り石を名指す(mikiriTo = 石段の駒)。</summary>
+    static string CutEndsMikiri(List<EdoBuild.NozuraSeg> segs)
+    {
+        var sb = new System.Text.StringBuilder(); int n = 0; var root = GameObject.Find(GN);
+        foreach (var o2 in A(Get(D, "terraceWalls")) ?? new List<object>())
+        {
+            var t2 = O(o2); string n2 = S(Get(t2, "name")); string ct = S(Get(t2, "cuts")) ?? ""; int i10f = ct.IndexOf("追記 2026-10-10f");
+            if (n2 == null || i10f < 0 || !ct.Substring(i10f).Contains("見切り石")) continue;
+            var mK = System.Text.RegularExpressions.Regex.Match(ct.Substring(i10f), @"(K_[A-Za-z0-9]+)\s*が切る口"); if (!mK.Success || root == null) { sb.AppendLine("    ★ " + n2 + " cuts 追記 2026-10-10f: 石段の名が読めない"); continue; }
+            var steps = new List<GameObject>(); foreach (var r in root.GetComponentsInChildren<MeshRenderer>()) if (r.name.StartsWith(mK.Groups[1].Value + "_")) steps.Add(r.gameObject);
+            if (steps.Count == 0) { sb.AppendLine("    ★ " + n2 + " cuts 追記 2026-10-10f: 石段 " + mK.Groups[1].Value + " が据わっていない"); continue; }
+            var bb = new List<Bounds>(); foreach (var g in steps) bb.Add(EdoBuild.RB(g));
+            foreach (var sg in segs)
+            {
+                if (!sg.name.StartsWith(n2 + "_")) continue;
+                for (int e = 0; e < 2; e++)
+                {
+                    Vector2 ep = e == 1 ? sg.b : sg.a; bool near = false;
+                    foreach (var b in bb) { var c2 = new Vector2(Mathf.Clamp(ep.x, b.min.x, b.max.x), Mathf.Clamp(ep.y, b.min.z, b.max.z)); if (Vector2.Distance(c2, ep) <= 1.5f) { near = true; break; } }
+                    if (!near || sg.mikiriTo[e] != null) continue;
+                    sg.mikiriTo[e] = new List<GameObject>(steps); n++;
+                    sb.AppendLine("    口の端を見切り石で(cuts 追記 2026-10-10f): " + sg.name + " 端" + e + "(" + mK.Groups[1].Value + ")");
+                }
+            }
+        }
+        return n == 0 && sb.Length == 0 ? "" : "  石段の口の両端は見切り石(cuts 追記 2026-10-10f【硬】): " + n + " 端\n" + sb;
+    }
     /// <summary>指図 sideEnd・sodeSlope 追記 2026-10-10d【硬】の打ち切り(第87巡)── 欄が「flat の帯の中に駒を置かない」を持つ run(sodeSlope = 欄の名・sideEnd = 欄の名 + "_SideEnd")の区間を、
     /// 天端が前の地表より低くなった所で切り、それより低い端の側の区間は置かない。</summary>
     static string TrimRunsBelowFront(List<EdoBuild.NozuraSeg> segs)

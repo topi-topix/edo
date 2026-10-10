@@ -2215,4 +2215,23 @@ public static partial class EdoBuild
         if (off > 0f) seg.crestAt = sl => crest0(sl + off);
         cutAt = lowAtB ? keep1 : keep0; return 1;
     }
+
+    /// <summary>**相手の区間の線を越えて据えない**(突き付けの前の縮め ── 第89巡・岡部 指図 ends 追記 2026-10-10f【硬】「隅の駒の見え面に突き付け、隅の駒の天端の帯・見え面の上に駒を据えない」)。
+    /// 区間 <paramref name="seg"/> の端 e が、相手の区間 <paramref name="other"/> の線を、自分の反対の端の側から越えていれば、端を相手の線との交点まで縮める。
+    /// 交点からの突き付け(相手の据わった駒の実面へ)は据える側(PlaceNozuraNet ③)が掛ける。⟶ 縮めた長さ(縮めなければ 0)。当たる先: 隅で他の run へ取り付く run の端。</summary>
+    public static float TrimSegToPartnerLine(NozuraSeg seg, int e, NozuraSeg other)
+    {
+        Vector2 d = seg.b - seg.a; float L = d.magnitude; if (L < 1e-3f) return 0f; d /= L;
+        Vector2 od = other.b - other.a; float oL = od.magnitude; if (oL < 1e-3f) return 0f; od /= oL; var on = new Vector2(-od.y, od.x);
+        Vector2 ep = e == 1 ? seg.b : seg.a, sp = e == 1 ? seg.a : seg.b;
+        float se = Vector2.Dot(ep - other.a, on), ss = Vector2.Dot(sp - other.a, on);
+        if (Mathf.Abs(ss) < 1e-3f || Mathf.Sign(se) == Mathf.Sign(ss) || Mathf.Abs(se) < 1e-3f) return 0f;   // 越えていない
+        float den = Vector2.Dot(e == 1 ? d : -d, on); if (Mathf.Abs(den) < 1e-3f) return 0f;
+        float t = -se / den;   // 端から交点まで(負 = 戻る)
+        var x = ep + (e == 1 ? d : -d) * t;
+        float u = Vector2.Dot(x - other.a, od); if (u < -0.5f || u > oL + 0.5f) return 0f;   // 相手の線の外
+        float cut = Vector2.Distance(ep, x); if (cut >= L - 0.05f) return 0f;
+        if (e == 1) seg.b = x; else { var c0 = seg.crestAt; float off = cut; seg.a = x; if (c0 != null) seg.crestAt = sl => c0(sl + off); }
+        return cut;
+    }
 }

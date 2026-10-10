@@ -193,11 +193,14 @@ public static partial class EdoBuild
         public Vector2[] HullOf(GameObject go) { int i = pieceGo.IndexOf(go); return i < 0 ? null : pieceFaces[i].hull; }
 
         /// <summary>駒を足す(見え面は <see cref="WallFace"/>・隅の駒は <see cref="KadoFaces"/> の二面)。</summary>
-        public void Add(GameObject go, bool kado)
+        public void Add(GameObject go, bool kado) { Add(go, kado, kado); }
+        /// <summary><paramref name="kado"/> = 隅の駒の扱い(kadoSet ── 見え面の前を下げる)・<paramref name="twoFaces"/> = 見え面を隅の二面で取る(⛔ 隅の型でない駒に二面を取らない ──
+        /// 第89巡: sideEnd の延長の直線の駒に KadoFaces を当てると走りの向きに偽の面ができ、低い頂点 14.57 を天端と読んで門の内に 1.95 の窪みを作った)。</summary>
+        public void Add(GameObject go, bool kado, bool twoFaces)
         {
             var vs = Body(go.transform, 999999); if (vs.Count == 0) return;
             var fs = new List<Vector2>();
-            if (kado) { Vector2 f1, f2; KadoFaces(go, out f1, out f2); if (f1 != Vector2.zero) fs.Add(f1.normalized); if (f2 != Vector2.zero) fs.Add(f2.normalized); }
+            if (twoFaces) { Vector2 f1, f2; KadoFaces(go, out f1, out f2); if (f1 != Vector2.zero) fs.Add(f1.normalized); if (f2 != Vector2.zero) fs.Add(f2.normalized); }
             else { var f = WallFace(go); if (f != Vector2.zero) fs.Add(f.normalized); }
             if (fs.Count == 0) return; pieces++; pieceSet.Add(go);
             if (kado) kadoSet.Add(go);
@@ -225,6 +228,9 @@ public static partial class EdoBuild
                 int n = Mathf.Max(1, Mathf.CeilToInt((a1 - a0) / BIN)); var cr = new float[n]; var fu = new float[n]; var bu = new float[n]; var rb = new float[n];
                 for (int b = 0; b < n; b++) { cr[b] = float.NaN; fu[b] = float.NaN; bu[b] = float.NaN; }
                 foreach (var v in ov) { int b = Mathf.Clamp(Mathf.FloorToInt((v.x * t.x + v.z * t.y - a0) / BIN), 0, n - 1); if (float.IsNaN(cr[b]) || v.y > cr[b]) cr[b] = v.y; }
+                // ⭐ 隅の駒(二面)は天端が水平の型 ── 腕の帯で、駒の天端から 2 帯より低い所しか無い割り(腕の端で、もう一方の面の法の頂点だけが入った割り)は天端の帯でない(第89巡:
+                //   kado1 の腕の端の割りが 12.1〜12.7 を「天端」と読み、上に据わった隣の run の駒の底と 3.6 の矛盾を作った)。当たる先: 野面の隅の駒すべて。
+                if (twoFaces) { float ytop = float.MinValue; foreach (var v in vs) ytop = Mathf.Max(ytop, v.y); for (int b = 0; b < n; b++) if (!float.IsNaN(cr[b]) && cr[b] < ytop - 2f * CREST_BAND) cr[b] = float.NaN; }
                 foreach (var v in ov)
                 {
                     int b = Mathf.Clamp(Mathf.FloorToInt((v.x * t.x + v.z * t.y - a0) / BIN), 0, n - 1); if (v.y < cr[b] - 2f * CREST_BAND) continue;

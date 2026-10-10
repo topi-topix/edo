@@ -169,24 +169,45 @@ public static partial class EdoBuild
             }
             return false;
         };
+        // 受けの駒の帯(第89巡): 帯で篩う石垣(wf)に加え、篩わない部材(門の踏み段・樋口・石段・溝)の見え面の帯も「面を受ける駒」として測る ── 見え面の上限(FaceEntries)には使わない
+        var wfR = new NozuraCrestCover(); var wfRPiece = new List<int>(); var binHashR = new Dictionary<long, List<int>>();
+        for (int k = 0; k < idx.gos.Count; k++)
+        {
+            if (idx.banded[k] || idx.gos[k] == null) continue; int n0 = wfR.list.Count;
+            try { wfR.Add(idx.gos[k], false, false); } catch (Exception) { }
+            for (int q = n0; q < wfR.list.Count; q++) wfRPiece.Add(k);
+        }
+        for (int fi = 0; fi < wfR.list.Count; fi++)
+        {
+            var bx = wfR.list[fi].box;
+            for (int i2 = Mathf.FloorToInt(bx.x / 2f); i2 <= Mathf.FloorToInt(bx.z / 2f); i2++)
+                for (int j2 = Mathf.FloorToInt(bx.y / 2f); j2 <= Mathf.FloorToInt(bx.w / 2f); j2++)
+                { long hk = ((long)i2 << 32) ^ (uint)j2; List<int> l; if (!binHashR.TryGetValue(hk, out l)) binHashR[hk] = l = new List<int>(); l.Add(fi); }
+        }
         var hRet = new List<Vector3>();
         c.inFrontOfRetainer = (q, fy) =>
         {
             bool col = false;
-            foreach (int fi in BinsAt(q))
+            long hq = ((long)Mathf.FloorToInt(q.x / 2f) << 32) ^ (uint)Mathf.FloorToInt(q.y / 2f);
+            List<int> lR; binHashR.TryGetValue(hq, out lR);
+            var all = new List<KeyValuePair<NozuraCrestCover.FaceBins, int>>();
+            foreach (int fi in BinsAt(q)) all.Add(new KeyValuePair<NozuraCrestCover.FaceBins, int>(wf.list[fi], binPiece[fi]));
+            if (lR != null) foreach (int fi in lR) all.Add(new KeyValuePair<NozuraCrestCover.FaceBins, int>(wfR.list[fi], wfRPiece[fi]));
+            foreach (var kvb in all)
             {
-                var fb = wf.list[fi]; int b; float d; if (!wf.FaceAt(fb, q, out b, out d) || Mathf.Abs(fb.crest[b] - fy) > c.faceTol) continue;
+                var fb = kvb.Key; int b; float d; if (!wf.FaceAt(fb, q, out b, out d) || Mathf.Abs(fb.crest[b] - fy) > c.faceTol) continue;
                 if (d >= 0f)
                 {
                     // 天端の背の線まで(Kadonouchi.flat 追記 2026-10-10f【硬】「平らの輪郭は縁の石垣の天端の背の線で止め、見え面の上や外へ出さない」): 点の真下にその駒の石が在れば天端の上
                     if (!col) { idx.Column(q.x, q.y, hRet, null); col = true; }
-                    int k = binPiece[fi]; bool over = false; foreach (var hh in hRet) if ((int)hh.x == k) { over = true; break; }
+                    int k = kvb.Value; bool over = false; foreach (var hh in hRet) if ((int)hh.x == k) { over = true; break; }
                     if (!over) continue;
                 }
                 float u = Vector2.Dot(q, fb.f); var back = q + fb.f * (d - 0.3f);   // 天端の前の縁の 0.3 背
                 float yb = c.FaceY(back); if (float.IsNaN(yb) || Mathf.Abs(yb - fy) > c.faceTol) continue;
                 float fu = fb.footU[b]; if (float.IsNaN(fu)) continue;
-                float yf = c.FaceY(q + fb.f * (fu - u + 0.6f)); if (!float.IsNaN(yf) && Mathf.Abs(yf - fy) <= c.faceTol) continue;   // 前も同じ面 ── 受けの石垣でない
+                var qf = q + fb.f * (fu - u + 0.6f); bool outOwn = design != null && design.own != null && !EdoGeom.PIP(design.own, qf);
+                float yf = c.FaceY(qf); if (!outOwn && !float.IsNaN(yf) && Mathf.Abs(yf - fy) <= c.faceTol) continue;   // 前も同じ面 ── 受けの石垣でない(前が区画の外なら面の多角形が線の外へ出ていても受け ── 第89巡)
                 return true;
             }
             return false;

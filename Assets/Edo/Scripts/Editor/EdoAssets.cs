@@ -4022,6 +4022,21 @@ public static class EdoAssets
             return FuzokuyaDir + "Doi_Mizo_" + k + "_D" + d.ToString("0.00", DoiInv) + ".fbx";
         }
 
+        /// <summary>**型 A の外壁の嵩上げ石 1m 駒**(岡部 EDO-0502・okabe_sashizu terraces[1].roadEdge 10-10n)。
+        /// A の外の縁石の天端に載せ、天端を道の地盤 +0.02 まで上げる。<paramref name="h"/> = 嵩上げの丈
+        /// 0.10〜0.45(0.05 刻みに丸める・範囲外は端の版)。実寸 **W 0.120(X)× H h(Y)× D 1.000(Z)**。
+        /// 材と肌は A の縁石と同じ(M_photoscanned_rocks_01 の無地の灰・面取り 0.012)。上下の面は平ら。
+        /// 丈 ≤ 0.25 は1段・0.30 以上は2段に積む。継ぎ目は駒の中(1段目 Z +0.05・2段目 Z −0.45)で、A の縁石の継ぎ目
+        /// (Z −0.15 / +0.25)とどちらの側でも 0.2 ずれる。駒の端(Z ±0.5)の稜は面取りしない(並べて一枚に見える)。
+        /// **ピボット = 駒の中心・見付の芯・下面**(Y=0 = 縁石の天端)。⇒ 縁石の天端に触れて据え、X は縁石の見付の芯に合わせる。
+        /// 走りのピッチと端数の切り方は <see cref="DoiMizo"/> と同じ(⛔ 伸縮しない)。
+        ///   blender --background --python Tools/Blender/build_doi_haisui.py -- AK --render</summary>
+        public static string DoiMizoAKasa(float h)
+        {
+            float d = DoiSnap(h, 0.10f, 0.45f, 0.05f);
+            return FuzokuyaDir + "Doi_Mizo_A_Kasa_H" + d.ToString("0.00", DoiInv) + ".fbx";
+        }
+
         /// <summary>**石の桝**(型 G1 / G2・切石4枚組・天端 +0.05)。ピボット = 桝の芯・地盤の高さ・+Z = 吐き口の側。
         /// G1: 内法 0.45 角・外 0.75 角・底の天端 −0.75・+Z の壁に吐き口 0.30 角(奥は石樋の筒 0.40 + 塞ぎ石・Z +0.855 まで)。
         ///     ⛔ 入口の切り欠きは無い(溝の付かない口から地形の下の空が抜けるため)── 溝の駒は桝の外の面へ突き付ける。

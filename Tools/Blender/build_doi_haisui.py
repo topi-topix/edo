@@ -3,6 +3,7 @@
     blender --background --python Tools/Blender/build_doi_haisui.py -- all --render
     blender --background --python Tools/Blender/build_doi_haisui.py -- mizo masu --render
     blender --background --python Tools/Blender/build_doi_haisui.py -- A E F    # 型ごと(深さの版は全部)
+    blender --background --python Tools/Blender/build_doi_haisui.py -- AK --render   # 型 A の外壁の嵩上げ石(岡部 EDO-0502)
     BUZAI_OUT=/path/staging blender --background --python Tools/Blender/build_doi_haisui.py -- all
 
 【寸法の正典は `docs/Sashizu/doi_sashizu.json` の `drainKata`(型 A〜P)】⛔ ここに数字を書き写さない —
@@ -486,6 +487,33 @@ def mizo_A(d):
     return "Doi_Mizo_A_D%.2f" % d
 
 
+KASA_HS = (0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45)
+KASA_COURSE = 0.25    # 1段の丈の上限(E の faceHMax と同じ)── 超えたら2段に積む
+KASA_JOINTS = (0.55, 0.05)   # 段ごとの継ぎ目(走り r)。A の縁石の継ぎ目 0.35/0.75 から左右どちらでも 0.2 ずらす
+
+
+def kasa_A(h):
+    """**型 A の外壁の嵩上げ石**(岡部 EDO-0502 第95巡・okabe_sashizu terraces[1].roadEdge 10-10n)。
+    A の縁石と同じ見付 0.12・切石・同じ材と肌で、長さ 1.000 の駒。丈 h(0.10〜0.45)。
+    **ピボット = 駒の中心・見付の芯・下面**(Y=0 = 載せる縁石の天端)。上下の面は平ら(面取りは稜だけ)。
+    丈 ≤ 0.25 は1段・超えたら2段(下段 = h/2 を 0.05 に丸め)、継ぎ目は段ごとに半駒ずらす。
+    駒の端(Z=±0.5)の稜は面取りしない(並べて一枚に見せる)。"""
+    a = K["A"]; c = a["curb"]
+    rng = random.Random(5330900 + int(round(h * 1000)))
+    hw = c["w"] / 2.0
+    if h <= KASA_COURSE + 1e-6:
+        cuts = [0.0, h]
+    else:
+        lo = round(h / 2.0 / 0.05) * 0.05
+        cuts = [0.0, lo, h]
+    for i in range(len(cuts) - 1):
+        y0, y1 = cuts[i], cuts[i + 1]
+        uvo = (PLAIN[0] + rng.uniform(0, 0.02), PLAIN[1] + rng.uniform(0, 0.015))
+        course([KASA_JOINTS[i % 2]],
+               lambda r0, r1, w, y0=y0, y1=y1, uvo=uvo: run_stone(r0, r1, w, -hw, hw, y0, y1, rng, uvo=uvo))
+    return "Doi_Mizo_A_Kasa_H%.2f" % h
+
+
 def _skirt(xe, ye, s):
     """縁の無い溝の肩の土の皮(xe,ye = 溝の縁 → 外へ SKIRT 出て −0.03 へ潜る)。s = ±1。"""
     return [(s * (xe + SKIRT), -0.03), (s * (xe + 0.05), 0.004)]
@@ -948,6 +976,8 @@ def _mz(fn, *a):
 JOBS = []
 for d in A_DEPTHS:
     JOBS.append(("A", _mz(mizo_A, d), "mizo"))
+for h in KASA_HS:
+    JOBS.append(("AK", _mz(kasa_A, h), "kasa"))
 JOBS.append(("B", _mz(mizo_B), "mizo"))
 for d in C_DEPTHS:
     JOBS.append(("C", _mz(mizo_C, d), "mizo"))
@@ -981,7 +1011,7 @@ JOBS.append(("N", _mz(mizunuki), "kuchi"))
 for L in sorted(set(round(RAMPS[n]["w"] + 0.30, 2) for n in ("R_Tsuyomon", "R_Tomomachi"))):
     JOBS.append(("O", _mz(mizukiri, L), "kuchi"))
 
-GROUPS = {"mizo": "ABCDEFK", "masu": ("G1", "G2", "G3"), "dan": "HI", "uke": "J", "kuchi": "LMNO"}
+GROUPS = {"mizo": "ABCDEFK", "kasa": ("AK",), "masu": ("G1", "G2", "G3"), "dan": "HI", "uke": "J", "kuchi": "LMNO"}
 
 
 # ================================================================ 結線とレンダ
@@ -1081,6 +1111,60 @@ def shots(o, name, hole, tile, kind):
     return out
 
 
+def kasa_shots(o, name):
+    """嵩上げ石を型 A(D0.15)の +X の縁石の天端に載せ、前後に写しを並べて撮る(検め用・書き出さない)。
+    背景はマゼンタ。地面は道の側(+X の外)を嵩上げ石の天端 −0.02 に、溝の内側の側(−X の外)を A の地盤 0 に。"""
+    saved = list(_objs)
+    _objs.clear()
+    mizo_A(0.15)
+    ctx = DN._finish(_objs, "_ctx")
+    _objs.clear(); _objs.extend(saved)
+    a = K["A"]; c = a["curb"]
+    cx = a["innerW"] / 2.0 + c["w"] / 2.0           # +X の縁石の見付の芯
+    o.location = Vector(u2b(cx, c["topAbove"], 0.0))
+    hook()
+    extra = [ctx]
+    for k in (-1, 1):
+        for src in (o, ctx):
+            cc = src.copy(); cc.data = src.data
+            cc.location = src.location + Vector((0.0, -k * 1.0, 0.0))
+            bpy.context.scene.collection.objects.link(cc)
+            cc.hide_render = False
+            extra.append(cc)
+    mn, mx = V.bbox([o])
+    htop = mx.z
+    gm = bpy.data.materials.new("_ground_render")
+    gm.use_nodes = True
+    gm.node_tree.nodes["Principled BSDF"].inputs['Base Color'].default_value = (0.30, 0.26, 0.20, 1)
+    R = 4.0
+    xo = cx + c["w"] / 2.0
+    for (a0, a1, y) in ((xo, R, htop - 0.02), (-R, -(a["innerW"] / 2.0 + c["w"]), 0.0)):
+        bpy.ops.mesh.primitive_plane_add(size=1.0)
+        g = bpy.context.active_object
+        g.scale = (a1 - a0, 2 * R, 1.0)
+        bx, by, _ = u2b((a0 + a1) * 0.5, 0, 0)
+        g.location = (bx, by, y - 0.001)
+        g.data.materials.append(gm)
+        extra.append(g)
+    os.makedirs(SHOT, exist_ok=True)
+    out = []
+    bx, _, _ = u2b(cx, 0, 0)
+    # 3d = 溝の内(−X)から外の壁の見え面と天端を / koguchi = 下流からの正投影の断面 / road = 道の側から
+    for tag, loc, at, ortho in (("3d", (bx + 1.4, -1.9, 1.3), (bx, 0.0, htop * 0.5), None),
+                                ("koguchi", (bx + 0.2, -6.0, htop * 0.4), (bx + 0.2, 0.0, htop * 0.4), 1.2),
+                                ("road", (bx - 1.6, -1.5, htop + 0.9), (bx, 0.0, htop * 0.5), None)):
+        V.studio(loc, at, ortho_scale=ortho, res=(900, 640))
+        _magenta_sky()
+        p = os.path.join(SHOT, "doihaisui_%s_%s.png" % (name, tag))
+        V.render(p)
+        out.append(p)
+    for e in extra:
+        bpy.data.objects.remove(e, do_unlink=True)
+    o.location = (0.0, 0.0, 0.0)
+    bpy.context.view_layer.update()
+    return out
+
+
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     words = [a for a in argv if not a.startswith("--")] or ["all"]
@@ -1128,7 +1212,7 @@ def main():
                 hole = (-oo, oo, -oo, oo)
             elif name.startswith(("Doi_Ankyo", "Doi_Mizunuki")):
                 hole = None
-            for p in shots(o, name, hole, tile, grp):
+            for p in (kasa_shots(o, name) if grp == "kasa" else shots(o, name, hole, tile, grp)):
                 print("RENDER " + p)
         V.export_fbx([o], os.path.join(OUT, name + ".fbx"))
         print("[haisui] 書き出し " + os.path.join(OUT, name + ".fbx"))

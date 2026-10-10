@@ -497,13 +497,13 @@ var live = D.claims.filter(function(c){ return c.beat <= 15; });
 var unmTotal = D.branches.reduce(function(a,b){ return a + ((b.ahead>0 && !b.orphan && !b.head) ? b.ahead : 0); },0);
 var unmBr = D.branches.filter(function(b){ return b.ahead>0 && !b.orphan && !b.head; }).length;
 var oldBr = D.branches.filter(function(b){ return b.orphan; }).length;
-var wtCount = D.branches.filter(function(b){ return b.wt; }).length;
+var wtCount = D.branches.filter(function(b){ return b.wt && !b.head; }).length;  // 原本の机(main)は数えない
 var todayN = D.series[D.series.length-1].n;
 var week = D.series.slice(-7).reduce(function(a,s){ return a+s.n; },0);
 var vit = [
   {k:'普請中の車線', v:live.length, u:'／'+D.claims.length+' 席', n:'心拍 15 分以内', alert:false},
   {k:'main の未送り', v:D.ahead_origin, u:'commit', n:'origin/main へ push 待ち', alert:D.ahead_origin>0},
-  {k:'枝', v:D.branches.length, u:'本', n:wtCount+' 本が worktree に開いている', alert:false},
+  {k:'枝', v:D.branches.length, u:'本', n:wtCount+' 本が写しの机(worktree)に開いている', alert:false},
   {k:'置き去りの仕事', v:unmTotal, u:'commit', n:unmBr+' 本の枝に未マージ', alert:unmTotal>0},
   {k:'掲示板', v:D.board.length, u:'件', n:'裁定待ち '+D.board.filter(function(b){return b.state==='awaiting-user';}).length+' 件', alert:false},
   {k:'この 7 日', v:week, u:'commit', n:'本日 '+todayN+' 件', alert:false}

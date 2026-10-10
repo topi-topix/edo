@@ -12,6 +12,7 @@ metadata:
   build_sashizu._tw_gaps で坂の芯も石段と同じく両端 1 間延ばす(継ぎ目の重複は除く)。どちらの脇かは文が名指す棟(「蔵1 の …」)から、無ければ相方の反対。
 - 罠2: 皮が坂の路盤を縦断で描くのは「石段を名指す坂(atRoute)」だけ ── 石垣で挟んだ 1.5間の坂は 2m 格子が溝を描けず路盤が 0.3〜0.7 高い。
   RampDrawnByProfile(石段を名指す坂 + kiritoshi.wall に「石垣」)で SkinGround と 3b の写しに入れた ⇒ 頭の半分は ±0.05、足の半分は +0.2〜0.55 が残る(駒の底の lo が皮を押し上げる疑い・未検)。
+- 第103巡の測り: 足の半分(s1.5〜11)の皮は SkinTrace の「4 の前」で既に縦断 +0.35〜+0.86 ── 皮の設計の地盤(gh)は縦断を写しているので、上げているのは 4 より前の手(lo の押し上げ)。次は SkinTrace の点を増やして 1〜3 の手を名指す(RunAll は swap で 61 分かかった)。
 - 残り: 算出物の `h` は sode の測りで lo を持たないので嘘の値(-0.03〜0.16)。
 
 How to apply: 算出物の notes / unresolved を流す前に grep する ── 欄が増えても bake は黙って退く。関連: [[return-lost-when-sashizu-text-format-changes]]

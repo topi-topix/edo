@@ -10,14 +10,14 @@ CLAUDE.md・`.claude/`(役・コマンド・フック・rules・workflows)・ス
 
 | 役目 | 道具 | いつ |
 |---|---|---|
-| **道具改め** — 設定の破れを鳴らす | `python3 Tools/Session/config_doctor.py` | 挨拶(`--quick`)・週次(`--table`)・月次(`--deep`) |
+| **道具改め** — 設定の破れを鳴らす | `python3 Tools/Session/config_doctor.py` | `start infra`(`--quick`)・週次(`--table`)・月次(`--deep`) |
 | **利用実績** — 使われていない役・スキル・参照を挙げる。直さない(畳む・統合する・残すは人が決める) | `config_doctor.py --table` の **U1**(30 日呼ばれない役・スキル)/ **U2**(60 日読まれない参照)。台帳は `python3 Tools/Session/usage_ledger.py` | 週次(`--table`・`--deep`)。挨拶では回さない |
 | **週次の自動点検** — 表と自己検査を取り、掲示板(`infra`)へ起票して通知する。直さない | スケジュール済みタスク `edo-teire-weekly`(本文 `~/.claude/scheduled-tasks/edo-teire-weekly/SKILL.md`) | 毎週日曜 18 時(アプリが閉じていれば次の起動時)。2026-09-13 ユーザー裁定 |
-| **手入れ** — 表を読んで処置する | `/teire` | 週次。自動点検の起票を受けて回す。挨拶も「前回から N 日」と催促する |
+| **手入れ** — 表を読んで処置する | `/teire` | 週次。自動点検の起票を受けて回す |
 | 自己検査 — 道具の検出が生きているか | `config_doctor.py --selftest` | 月次(`--deep` が回す)と道具を直したとき |
 | **日誌** — 各セッションが何をして、どこに時間を使ったかを数値にする | `python3 Tools/Session/nikki.py digest`(数値の正典 `docs/Nikki/<日付>.json`、人が読む `.md`) | 毎朝(自動点検と `/nikki` の両方が回す) |
 | **日次の自動点検** — 前日の日誌を取り、反映案(→スキル/→規則/→メモリ/→教訓/→不要)を掲示板(`infra`)へ起票して通知する。書かない | スケジュール済みタスク `edo-nikki-daily`(本文 `~/.claude/scheduled-tasks/edo-nikki-daily/SKILL.md`) | 毎朝 5 時に前日ぶん(アプリが閉じていれば次の起動時)。2026-09-19 ユーザー裁定 |
-| **日誌の処置** — 日誌を本書きし、反映案をスキル・規則・メモリ・教訓へ手で入れる | `/nikki` | 毎朝。挨拶が「未処置が N 日ぶん」と催促する |
+| **日誌の処置** — 日誌を本書きし、反映案をスキル・規則・メモリ・教訓へ手で入れる | `/nikki` | 毎朝(挨拶での催促は 2026-10-10 に廃止) |
 | **週の日誌** — 7 日ぶんを束ねて前週と比べる | `python3 Tools/Session/nikki.py week`(`docs/Nikki/week-*.md`) | 週次(自動点検と `/teire` の両方が回す) |
 
 検査の型(鍵の頭 2 文字): **R** 参照の実在(役→スキル・参照節、CLAUDE.md の表→文書・役、コマンド→Workflow・道具、
@@ -29,7 +29,7 @@ CLAUDE.md・`.claude/`(役・コマンド・フック・rules・workflows)・ス
 
 ## 作法
 
-1. **挨拶で ⛔ が出たら、設定を触る前に直す。** ⛔ は曖昧さの無い破れ(無い物を指す・JSON が壊れている・
+1. **`start infra` で ⛔ が出たら、設定を触る前に直す。** ⛔ は曖昧さの無い破れ(無い物を指す・JSON が壊れている・
    義務の正典が 2 つ)。`.claude/`・CLAUDE.md・`Tools/Skills/`・メモリ・`docs/lessons.md` を触るコミットは、
    `--quick` が無言であることが合格の条件。⚠ は表の材料であって止め物ではない。
    **コミットの手前で門番が回す**(2026-09-21・EDO-0221): 上の物を含む `git commit` / `edo_session.py commit` は、
@@ -45,7 +45,7 @@ CLAUDE.md・`.claude/`(役・コマンド・フック・rules・workflows)・ス
    教訓の昇格は**セッションが手で**行う(`docs/verification-loops.md`「書き戻しを自動化しない」)。
    週次はさらに**週の日誌**を読み、7 日ぶんの `/nikki` で足したメモリ・教訓・スキル節を統合・畳み・昇格し、前週より
    改善したかを報告に書く(日次は「足す」、週次は「整える」)。
-3. **月に一度 `/teire --deep`。** 各関門の自己検査・挨拶の計時に加え、`anthropic-skills:consolidate-memory` で
+3. **月に一度 `/teire --deep`。** 各関門の自己検査に加え、`anthropic-skills:consolidate-memory` で
    メモリを畳み、`anthropic-skills:skill-creator` で各スキルの description の発火精度と SKILL.md の長さを見直す。
 3.5. **規則・役の本文の書き直しは、差分を先に全文そろえてから一度に入れる。** 2026-09-19 の工程の組み替えでは、
    一本の作業が CLAUDE.md を **20 回**編集し、門番に **6 回**止められた(役やスキルの参照が、途中の版を指す

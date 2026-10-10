@@ -1710,6 +1710,61 @@ def _board_open(name):
             print("    " + ln)
 
 
+def _gates(name):
+    """仕事を始めた窓へ、その邸の関門の赤を出す(EDO-0580・施主 2026-10-10)。
+    窓を開いた時の挨拶(edo_greet.py)は出さない形にした ── どの邸の仕事かは指示を読んで `start` を
+    打つまで分からず、全邸の赤を全窓に刷っても受け取った窓は動けない(範囲外・規則16)。
+    infra は全邸の関門と設定の破れ、邸はその邸の分だけ。どれも赤の時だけ刷り、無傷なら無言。"""
+    root = os.path.dirname(_common_git_dir())
+    sa = lambda f: os.path.join(root, "Tools", "Sashizu", f)
+    one = [] if name in ("infra", "cross") else [name]
+    doc = lambda suf: os.path.exists(os.path.join(root, "docs", "Sashizu", "%s_%s.json" % (name, suf)))
+    runs = []
+    if not one or doc("sashizu"):      # 類型の区画には指図も算出物も無い ── 刷ると偽の赤になる
+        runs += [[sa("review_gate.py"), "--quiet"] + one, [sa("kansei_gate.py"), "--quiet"] + one]
+    if not one or doc("impl"):         # 全邸の --quiet と同じく、算出物の無い邸は鳴らさない
+        runs.append([sa("bake_impl.py"), "--quiet"] + one)
+    if name in ("infra", "typology"):
+        runs.append([sa("typology_check.py"), "--quiet"])
+    if name == "infra":
+        runs += [[sa("utsushi_check.py"), "--quiet"],
+                 [os.path.join(root, "Tools", "Session", "config_doctor.py"), "--quick"]]
+    for cmd in runs:
+        if not os.path.exists(cmd[0]):
+            continue
+        try:
+            r = subprocess.run([sys.executable] + cmd, capture_output=True, text=True, timeout=30, cwd=root)
+        except Exception:
+            continue
+        if r.stdout.strip():
+            print("\n".join("  " + ln for ln in r.stdout.strip().split("\n")))
+    # 結線関門は 0 件でも全生成器を刷る作りなので、⛔ の行だけ拾う(元は挨拶にあった扱い)。
+    w = sa("wiring_gate.py")
+    if os.path.exists(w):
+        try:
+            r = subprocess.run([sys.executable, w] + one, capture_output=True, text=True, timeout=60, cwd=root)
+            bad = [ln.strip() for ln in r.stdout.split("\n")
+                   if r.returncode and "⛔" in ln and ("build_" in ln or "孤立" in ln or "黙り" in ln)]
+            if bad:
+                print("  結線関門 — 書いたのに誰の目にも入らない産物(`python3 Tools/Sashizu/wiring_gate.py <邸名>`・規則19)")
+                for ln in bad[:8]:
+                    print("    " + ln)
+        except Exception:
+            pass
+
+
+def _claude_md_drift(wt):
+    """worktree の CLAUDE.md が main と食い違っていれば 1 行(EDO-0077。元は挨拶にあった)。"""
+    try:
+        a, b = os.path.join(wt, "CLAUDE.md"), os.path.join(os.path.dirname(_common_git_dir()), "CLAUDE.md")
+        if os.path.realpath(a) != os.path.realpath(b) and os.path.exists(a) and os.path.exists(b) \
+                and open(a, encoding="utf-8").read() != open(b, encoding="utf-8").read():
+            print("  ⚠ この worktree の CLAUDE.md は main と食い違っている(main を取り込むまで古い)。"
+                  "不変則を当てにする前に `diff %s %s`。" % (a, b))
+    except Exception:
+        pass
+
+
 def _shared_edge_estates(name):
     """parcels.json で `name` と辺(2 頂点)を共有する区画の id。座標は正典から読む(規則11)。"""
     fp = os.path.join(ROOT, "docs", "Sashizu", "parcels.json")
@@ -1811,6 +1866,7 @@ def cmd_start(a):
             print("  ⚠ 焼いたら Unity で **Edo ▸ 御殿 ▸ …マテリアルをremap** を走らせること"
                   "(FBX は材質名しか運ばないので、やらないと白い模型になる)")
         _board_open(dom.split(":", 1)[-1])
+        _gates(dom.split(":", 1)[-1])
         return 0
     save(c, fp)
     wt = ensure_wt(dom, quiet=False)
@@ -1818,6 +1874,8 @@ def cmd_start(a):
     print("start: %s\n  作業ディレクトリ: %s" % (dom, wt))
     print("  ⚠ Unity はここでは開けない。計測が要るなら別途 `claim --resources unity`")
     _board_open(dom.split(":", 1)[-1])
+    _gates(dom.split(":", 1)[-1])
+    _claude_md_drift(wt)
     return 0
 
 

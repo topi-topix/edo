@@ -610,7 +610,10 @@ def ramp_y(d, u, v):
                 continue
             u0_, u1_ = min(r["u0"], r["u1"]), max(r["u0"], r["u1"])
             v0_, v1_ = min(r["v0"], r["v1"]), max(r["v0"], r["v1"])
-            if (u1_ - u0_) > (v1_ - v0_):
+            # 面の勾配は向きが外接矩形の長手と限らない(2026-10-10 岡部の表の溜り: 矩形は u に長いが勾配は v)。
+            #   `axis` を申告すればそれに従い、無ければ長手。
+            ax = r.get("axis") or ("u" if (u1_ - u0_) > (v1_ - v0_) else "v")
+            if ax == "u":
                 t = (u - u0_) / ((u1_ - u0_) or 1.0)
             else:
                 t = (v - v0_) / ((v1_ - v0_) or 1.0)

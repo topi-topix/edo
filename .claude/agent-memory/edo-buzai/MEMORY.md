@@ -99,3 +99,4 @@
 - [見切り石 H3600 は 4 石](mikiri-h3600-four-stones.md) — 高い見付は石を増やす・レンダは深い G0 を沈めて代用(2026-10-10)
 - [法切りの駒の長さの下限と深い見付](nnori-min-length-full-wedge.md) — ls < 0.3·(h+0.2) は底へ届かない・depth を渡す・据え手の走査は 0.80 決め打ち(2026-10-10)
 - [型A の嵩上げ石の継ぎ目と並べ焼き](mizo-a-kasa-stagger.md) — 下面ピボット・継ぎ目は両側の縁石と 0.2 ずらす(2026-10-10)
+- [番所が口に接する門長屋](nagayamon-bansho-beside-gate.md) — --bansho-mon・mon<gc> と mon<len−gc> の両方を焼く(2026-10-10)

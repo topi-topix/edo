@@ -58,6 +58,10 @@
   ・⛔ **開口だけの短い部材は作れない**(妻2つ+bay で最小およそ 8.8m)。門口は長い run の中に開ける
   ・抜いたあと左右の方立と上の楣を張るので、開口の縁は透けない(検証レンダ `*_mon3d.png` で確認)
 
+【`--bansho-mon`】(EDO-0502 2026-10-10)`--bansho` の出格子を両端でなく**門口の両脇の窓**に付ける
+  (口に掛からない窓のうち口の両側で一番近いもの)。番所が口に接する割り(岡部の表門 B:
+  部屋3間・番所1.5間・門口2間・番所1.5間)用。⛔ 既定の出力は変わらない。
+
 【切る場所】切断面は**必ず pier(無地の壁)の中**に取る。窓を切ると格子の小口が出る。
   bay の切り出しは `c` の中央の窓を挟んで対称に、妻の切り出しは妻寄りの窓を挟んで同じ位相で
   取るので、**継ぎ目の断面は互いに平行移動で一致する**(留め継ぎと同じ理屈)。
@@ -684,7 +688,7 @@ def solve(Lm, cap_w, bay, ncap):
 def build(Lm, ends="both", name=None, floors=1, gate=None,
           ridge=None, doorh=None, bansho=0, kabuki=0.0, kuguri=None,
           bansho_out=None, gate_drop=0.0, body=False, miter=None, bansho_ux=-1,
-          gate_post=0.0, join_sill=False, miter_cut=None):
+          gate_post=0.0, join_sill=False, miter_cut=None, bansho_mon=False):
     """miter_cut=(θL, θR)(`--miter-cut`)は**大きく外へ折れる角を二等分の面で切って留める**版(cut_miter_* の注)。
     body=True(`--body`)は **Lm = 躯体の長さ(両端の妻壁の外面どうし)**。破風(片側 0.322m)は
     躯体の外へ出る。中の窓割りは 1.5間 で通し、端数は両端の間で受ける(solve_body)。門口・潜り戸の
@@ -919,6 +923,21 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
         # 片番所の端: 既定は cen[0](obj −X → 回して Blender +X → **Unity 局所 −X** = 街路から見て右)。
         # `--bansho-ux +1` で cen[1](**Unity 局所 +X** = 街路から見て左)。EDO-0533
         sel = (cen[:1] if bansho_ux < 0 else cen[1:]) if bansho < 2 else cen
+        if bansho_mon:
+            # `--bansho-mon`(EDO-0502 2026-10-10 岡部の表門 B): 番所を**門口の両脇**の窓に付ける
+            #   (指図 gate.plan.wari「部屋3間・番所1.5間・門口2間・番所1.5間」── 番所が口に接する)。
+            #   窓の芯の並び = 端の間の窓 + 中の窓割り (i+0.5)·bw。口に掛からない窓のうち、口の両側で一番近いもの。
+            if gate is None:
+                raise SystemExit("[nagaya] --bansho-mon は --gate と併せる")
+            wins = [cen[0]] + [(i + 0.5) * bw for i in range(k)] + [cen[1]] if body else \
+                   [cen[0]] + [(i + 0.5) * bwid for i in range(k)] + [cen[1]]
+            lo = [x for x in wins if x + win_hw < gx0]
+            hi = [x for x in wins if x - win_hw > gx1]
+            sel = ([max(lo)] if lo else []) + ([min(hi)] if hi else [])
+            if bansho < 2:
+                sel = sel[:1] if bansho_ux < 0 else sel[-1:]
+            print("[nagaya] --bansho-mon: 口の両脇の窓(obj x %s / 口 %.3f〜%.3f)"
+                  % (", ".join("%.3f" % x for x in sel), gx0, gx1))
         add_degoshi(o, sel,
                     y_wall_front, z_win0, z_win1, win_hw, out=bansho_out)
         me = o.data
@@ -1009,6 +1028,7 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
                               " --gate-drop %g" % gate_drop if (gate and gate_drop) else "",
                               (" --bansho %d" % bansho if bansho else "")
                               + (" --bansho-ux +1" if (bansho == 1 and bansho_ux > 0) else "")
+                              + (" --bansho-mon" if (bansho and bansho_mon) else "")
                               + (" --kuguri %g %g %g" % kuguri if kuguri else "")
                               + (" --doorh %g" % doorh if (gate and doorh) else "")
                               + (" --kabuki %g" % kabuki if (gate and kabuki) else "")
@@ -1328,7 +1348,7 @@ def main():
                                 kabuki=kabuki, kuguri=kuguri, bansho_out=bout,
                                 gate_drop=gdrop, body=body, miter=miter,
                                 bansho_ux=bux, gate_post=gpost, join_sill=('--join-sill' in argv),
-                                miter_cut=mcut)
+                                miter_cut=mcut, bansho_mon=('--bansho-mon' in argv))
         if do_render:
             shots(o, fmt(Lm) + ("" if gate is None else "_mon%s" % fmt(gate[0]))
                   + ("" if floors < 2 else "_%df" % floors)

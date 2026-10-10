@@ -2200,7 +2200,8 @@ public static class EdoAssets
         /// 含む全幅で、全幅で突き付けると躯体が継ぎ目ごとに 0.644m 開く。この版は躯体の端(妻の海鼠の外面)が ±len/2 にあり、
         /// 破風はそこから外へ 0.322 ずつ出る ⇒ 隣と**妻壁の実面どうし**で突き付け、破風の重なりは埋めて隠す。
         /// 窓割りは 1.5間固定・端数は両端の間。札 = <c>Assets/Edo/Data/PartSpecs/&lt;名&gt;.json</c>(jambL/jambR.x = 躯体の端)。
-        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- &lt;長さm&gt; --body --floors 2 --render</summary>
+        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- &lt;長さm&gt; --body --floors 2 --render
+        /// 14.8(岡部 N40_1 の 14.803・門長屋 8間の余り 0.13 を寄せた棟・EDO-0502 2026-10-10)は `-- 14.803 --body --floors 2`。</summary>
         public static string NagayaOmote2FKutai(float len)
         {
             return "Assets/Edo/Models/Nagaya/Nagaya_Omote_" + Len2(len) + "_2f_kutai.fbx";
@@ -2217,7 +2218,10 @@ public static class EdoAssets
         ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- &lt;長さm&gt; --body --gate &lt;左端から&gt; &lt;口幅&gt; &lt;有効高&gt; --floors 2
         /// **5.46・mon3.52・2f**: 土井 E13_N09 の通用門(komon Tsuyomon・EDO-0533)。局所 +X 端 = run の s0 側(辺13 では局所 +X = −走り)。
         /// 敷居は土台の底より 0.70 低い ⇒ 扉と方立が底より 0.70 下へ出る(据えは土台の底 = 座 19.7)。
-        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- 5.46 --body --gate 3.52 2.4 2.8 --gate-drop 0.70 --floors 2 --render</summary>
+        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- 5.46 --body --gate 3.52 2.4 2.8 --gate-drop 0.70 --floors 2 --render
+        /// **14.54・mon4.54 / mon10・2f**: 岡部の表門 B(辺40 N40_0・8間・口の芯 s=10.0・EDO-0502 2026-10-10)。割りは隅の側から部屋3間・番所1.5間・門口2間・番所1.5間 ⇒
+        /// 出格子は `--bansho-mon` で**口の両脇の窓**へ(両端でない)。向きで gc が割れるので両方焼いた(局所 +X が走りの向きなら 4.54)。素の全幅版 14.54_mon10_2f も同じ引数で。
+        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- 14.544 --body --gate 4.544 3.636 3.3 --floors 2 --ridge 8.5 --doorh 3.3 --kabuki 0.42 --bansho 2 --bansho-mon --render</summary>
         public static string NagayaOmoteMonKutai(float len, float gateFromLeft, bool nikai)
         {
             return "Assets/Edo/Models/Nagaya/Nagaya_Omote_" + Len2(len)

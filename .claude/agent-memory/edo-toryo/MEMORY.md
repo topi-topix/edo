@@ -24,6 +24,7 @@
 
 ## 部材の据え方
 
+- [表門を別の辺へ移す巡の3つの止め](gate-move-parts-bake-and-host-coupling.md) — 新造FBXの有無・fall(axis形)を graded が焼かない・gate.host を N39_0 と読む関数
 - [隅の縦の土の帯は法の見え面の上の皮](skin-over-battered-face-vertical-strips.md) — 画素から光線で名指す。外形の中の節点を真下の石の面−0.02へ(Ceiling)
 - [名指した見え面が線と直交しないと継ぎ目が鋸の歯](named-face-not-normal-to-line-sawtooth.md) — 脇の返しは線が軸から2〜9°振れる。FaceAcross・測りは NozuraSeamReport
 - [欄の書式が変わると Stage が「読めない」で黙って退く](return-lost-when-sashizu-text-format-changes.md) — 腰石垣の返しが returnEnd の書き換えで消えた。★読めない を grep

@@ -90,6 +90,8 @@ public static partial class EdoBuild
         public Dictionary<GameObject, float> buryAim; public float ceilRelax;
         /// <summary>埋める土が隣の駒の見え面の根元を被ってよい高さ[m](前の地表 + これまで ── 指図 sodeSlope 追記 2026-10-10f【硬】)。0 なら無し。</summary>
         public float buryFaceCover;
+        /// <summary>見切り石の背の土(指図 roadEdge・cuts 追記 2026-10-10h): 頭より mikiriDrop 以上低く【硬】・そこから mikiriFlat を平らに・先は 1:mikiriBatter【柔】。NaN なら掛けない。</summary>
+        public float mikiriDrop = float.NaN, mikiriFlat = float.NaN, mikiriBatter = float.NaN;
         /// <summary>盛りの縁の法 1:n(指図 const.fillEdgeSlope「1:n より急にしない」【硬】)。NaN なら掛けない。</summary>
         public float fillSlope = float.NaN;
     }

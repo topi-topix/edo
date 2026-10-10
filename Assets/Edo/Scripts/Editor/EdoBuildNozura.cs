@@ -560,7 +560,7 @@ public static partial class EdoBuild
             //   長さの順: 残りが 0.05 以下(口)か直線の駒を縮めて埋まる長さ(③ の端の駒の下限 0.20 間)以上になる物を先に、次にその他を長い順
             //   (反対の端の相手が天端より下で前へ出ていると、天端で測った残りより手前で当たる ── 見切り石の足・2026-09-26)
             var lens = new List<float>(); var lens2 = new List<float>();
-            for (float ls = 0.80f; ls >= 0.30f - 1e-4f; ls -= 0.05f)
+            for (float ls = EdoAssets.Own.SannoNozuraNoriMaxLen; ls >= 0.30f - 1e-4f; ls -= 0.05f)   // 上限は焼いた最長(H4.80 は 1.50〜1.80・第91巡)── 焼いていない組は File.Exists で落ちる
             {
                 float r = avail - ls; if (r < -1e-3f) continue;
                 if (r <= 0.05f || r >= 0.20f * W + 1e-3f) lens.Add(ls); else lens2.Add(ls);
@@ -2183,7 +2183,9 @@ public static partial class EdoBuild
         if (soilAt != null)
         {
             Vector3 bat; float bur = SoilSideCrestShort(g, new[] { face }, soilAt, out bat);
-            if (!float.IsNaN(bur) && bur > 0.05f)
+            if (!float.IsNaN(bur) && bur > 0.05f && MikiriBackSoilCut)
+                log.AppendLine("    見切り石 " + name + ": 背の土が石の頭より " + bur.ToString("F2") + "m 高い ── 皮が背の土を頭より下げる(指図「見切り石の背の土は頭より低く」【硬】)ので据える");
+            else if (!float.IsNaN(bur) && bur > 0.05f)
             {
                 log.AppendLine("    ⛔ 見切り石 " + name + ": 背の土が石の頭より " + bur.ToString("F2") + "m 高い(" + bat.x.ToString("F1") + ", " + bat.z.ToString("F1") +
                                ")── 埋没(許容0)なので据えない。土留めの端は近くの駒の実面へ突き付ける");
@@ -2257,4 +2259,8 @@ public static partial class EdoBuild
             }
         return n;
     }
+
+    /// <summary>見切り石の背の土を皮が頭より下げる(指図の欄 ── 岡部 roadEdge・cuts 追記 2026-10-10h)と呼び手が名乗るとき true ── 背の土が頭より高くても見切り石を退けない。
+    /// ⚠ 呼び手は PlaceNozuraNet の前に立て、後に必ず戻す。</summary>
+    public static bool MikiriBackSoilCut;
 }

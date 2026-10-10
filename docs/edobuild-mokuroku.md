@@ -1,6 +1,6 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 933b821eab85 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 7031354e3669 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
@@ -719,6 +719,7 @@ EdoBuild — 道の造成(縦断を設計して道の面を均す)。2026-09-30�
 | `EdoBuild.TrimSegBelowFront(seg, frontAt, cutAt)` | `int` | 地面・天端 | 前の地表より低い天端の区間を置かない(打ち切り ── 第87巡・岡部 指図 sideEnd/sodeSlope 追記 2026-10-10d【硬】「天端が前の地表より低い駒は置かない (打ち切りの駒の先に足さない)」)。 ⟶ 返す: 0 = そのまま / 1 = 縮めた / 2 = 全部が前の地表より低い(置かない) | OkabeYashiki(Stage2b_Dan・TrimRunsBelowFront) |
 | `EdoBuild.TrimSegToPartnerLine(seg, e, other)` | `float` | 駒どうし・天端・面・隅 | 相手の区間の線を越えて据えない(突き付けの前の縮め ── 第89巡・岡部 指図 ends 追記 2026-10-10f【硬】「隅の駒の見え面に突き付け、隅の駒の天端の帯・見え面の上に駒を据えない」)。 | OkabeYashiki(TrimRunsToPartners) |
 | `EdoBuild.ApplyAbutOrder(segs, rank, near, log)` | `int` | 駒どうし・面・隅 | 交わる所を据える順の型(const.abutOrder【硬】・第90巡):「隅の駒 → 本線 → 返し・袖・端 の順に据え、後から据える方が先の方の見え面に突き付ける」。 | OkabeYashiki(Stage2b_Dan) |
+| `EdoBuild.MikiriBackSoilCut` | `bool` |  | 見切り石の背の土を皮が頭より下げる(指図の欄 ── 岡部 roadEdge・cuts 追記 2026-10-10h)と呼び手が名乗るとき true ── 背の土が頭より高くても見切り石を退けない。 | — |
 
 ## EdoBuildNozuraSeam.cs
 

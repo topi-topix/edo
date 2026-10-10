@@ -2880,11 +2880,15 @@ public static class EdoOkabeYashikiBuilder
             }
             sb.Append(TrimRunsToPartners(nozSegs));
             sb.Append(CutEndsMikiri(nozSegs));
+            {   // 指図 roadEdge・cuts 追記 2026-10-10h【硬】: 見切り石の背の土は頭より下げる(皮が下げる)── 背の土が頭より高くても見切り石を退けない
+                bool cutSoil = false; var all3 = new List<object>(A(Get(D, "terraces")) ?? new List<object>()); all3.AddRange(A(Get(D, "terraceWalls")) ?? new List<object>()); foreach (var o3 in all3) { var t3 = O(o3); foreach (var key3 in new[] { "roadEdge", "cuts" }) { string tx3 = S(Get(t3, key3)) ?? ""; if (tx3.Contains("追記 2026-10-10h") && tx3.Contains("見切り石の背の土")) cutSoil = true; } }
+                EdoBuild.MikiriBackSoilCut = cutSoil;
+            }
             var got = EdoBuild.PlaceNozuraNet(nozSegs, SkinGround, SkinGround, 1.2f, grp,
                 (h, g, i) => EdoAssets.Own.SannoNozura(h, g, i), (h, i) => EdoAssets.Own.SannoNozuraKado(h, i),
                 (up, i) => EdoAssets.Own.SannoNozuraDan(up, i), (up, i) => EdoAssets.Own.SannoNozuraKiri(up, i),
                 EdoAssets.Own.SannoNozuraMikiriH, heights, poolN, log, null, EdoAssets.Own.SannoNozuraNoriEnd,   // 入隅の可動側の端は小口を相手の法で切った駒(型は EdoBuild・EDO-0502 第16巡)
-                null, endRule);
+                null, endRule); EdoBuild.MikiriBackSoilCut = false;
             sb.AppendLine("  野面の端の納め(nozuraEndRule): " + endRule.record.Count + " 端");
             foreach (var r0 in endRule.record) sb.AppendLine("    " + r0);
             var per = new Dictionary<string, int>();
@@ -3970,7 +3974,7 @@ public static class EdoOkabeYashikiBuilder
         var design = new EdoBuild.SkinDesign
         {
             x0 = dx0, z0 = dz0, step = dstep, nx = dnx, nz = dnz, h = gh, ok = ok,
-            batterCut = C("batterCut"), batterFill = C("batterFill"), baseAt = EdoBuild.BaseDem(), own = Poly, hold = hold, buried = buriedParts, flats = FlatFacesOf(buriedParts, sb), buryLo = buryLo, buryAim = buryAim, ceilRelax = ceilRelax, buryFaceCover = buryFaceCover, fillSlope = FillEdgeSlope(sb),
+            batterCut = C("batterCut"), batterFill = C("batterFill"), baseAt = EdoBuild.BaseDem(), own = Poly, hold = hold, buried = buriedParts, flats = FlatFacesOf(buriedParts, sb), buryLo = buryLo, mikiriDrop = MikiriSoil(0), mikiriFlat = MikiriSoil(1), mikiriBatter = MikiriSoil(2), buryAim = buryAim, ceilRelax = ceilRelax, buryFaceCover = buryFaceCover, fillSlope = FillEdgeSlope(sb),
             crestCover = crestCover
         };
         // ⭐ 区画の外の節点は区画の外の地盤(今の地形・区画の内と駒の下の節点は造成前)で持たせる(EDO-0502 第29巡)── 外周の石垣の見え面の前
@@ -4140,6 +4144,7 @@ public static class EdoOkabeYashikiBuilder
             if (!c.gameObject.activeInHierarchy) continue;
             var mf = c.GetComponentInChildren<MeshFilter>(); string ap = mf == null || mf.sharedMesh == null ? "" : AssetDatabase.GetAssetPath(mf.sharedMesh);
             if (!ap.Contains("Nozura")) continue;
+            if (ap.Contains("Mikiri")) continue;   // 見切り石は頭を見せる石 ── 天端の裏石の帯の土(①の被せ)を当てない(roadEdge・cuts 追記 2026-10-10h【硬】)
             if (buried != null && buried.Contains(c.gameObject)) continue;   // 設計で土に埋める駒(袖の低い端)は帯を持たない
             bool kadoType = System.IO.Path.GetFileName(ap).Contains("_Kado"), kado = kadoType; if (kado) nk++;
             if (!kado) foreach (var sf in sideEndFront) if (c.name.StartsWith(sf)) { kado = true; if (!float.IsNaN(sideEndFloor)) cc.kadoFloor[c.gameObject] = sideEndFloor; break; }
@@ -4331,7 +4336,7 @@ public static class EdoOkabeYashikiBuilder
     /// <summary>**道の側の腰石垣と門の口の踏み段**(指図 terraces[].roadEdge・普請方 2026-10-10c・EDO-0502 第82巡)。門長屋(gate.host)の走りの辺に沿い、
     /// 天端 = 欄の高さ一直線【硬】・見え面は区画の線の内【硬】(天端の前の線を線から 法 ×(天端 − 道の最も低い所 + 根入れ)+ 0.02 退ける ── 法は駒の実測 FaceBatterOf)・
     /// 段(天端 − 道)が欄の値を切る所で打ち切り【硬】・門の口(札の passage)は空けて踏み段。道 = 区画の線の外 0.5m の地形。⛔ 座標を書かない ── 毎回測る。</summary>
-    class RoadEdgePlan { public bool ok; public string why, terrace, trimNote; public int e; public Vector2 ea, ax, outN; public float yTop, cutDrop, fumi, ps0, ps1, sRun0, sRun1, batter, setback, neiri; public Transform host; public EdoPartSpec.Spec spec; public List<Vector2> spans = new List<Vector2>(); }
+    class RoadEdgePlan { public bool ok, h10; public float mikiriDrop = float.NaN; public string why, terrace, trimNote; public int e; public Vector2 ea, ax, outN; public float yTop, cutDrop, fumi, ps0, ps1, sRun0, sRun1, batter, setback, neiri; public Transform host; public EdoPartSpec.Spec spec; public List<Vector2> spans = new List<Vector2>(); }
     static RoadEdgePlan _road;
     static float RoadAtS(RoadEdgePlan r, float sAl) { var q = r.ea + r.ax * sAl + r.outN * 0.5f; return EdoBuild.Ground(q.x, q.y); }
     static RoadEdgePlan RoadEdgePlanOf()
@@ -4365,7 +4370,12 @@ public static class EdoOkabeYashikiBuilder
                 if ((!on || sAl + 0.1f > r.sRun1 + 1e-3f) && !float.IsNaN(sa)) { float sb2 = on ? sAl : sAl - 0.1f; if (sb2 - sa >= 0.5f) r.spans.Add(new Vector2(sa, sb2)); sa = float.NaN; }
             }
             if (r.spans.Count == 0) { r.why = "段が " + r.cutDrop.ToString("F2", inv) + " を超える所が無い"; return r; }
-            r.setback = r.batter * (r.yTop - lo + r.neiri) + 0.02f; r.ok = true; r.trimNote = TrimRoadSpans(r); return r;
+            r.setback = r.batter * (r.yTop - lo + r.neiri) + 0.02f; r.ok = true;
+            // 追記 2026-10-10h【硬】: 腰石垣は門の柱筋まで通す ── 口に接する区間の端を口の縁(ps0/ps1)へ(0.1 刻みの歩きの丸めを戻す)
+            { int i10h = tx.IndexOf("追記 2026-10-10h"); r.h10 = i10h >= 0 && tx.Substring(i10h).Contains("門の柱筋まで通し");
+              var mD = System.Text.RegularExpressions.Regex.Match(tx, @"落差が\s*([0-9.]+)\s*を超えるなら見切り石"); if (mD.Success) r.mikiriDrop = float.Parse(mD.Groups[1].Value, inv);
+              if (r.h10) for (int si = 0; si < r.spans.Count; si++) { var v = r.spans[si]; if (Mathf.Abs(v.x - r.ps1) <= 0.25f) v.x = r.ps1; if (Mathf.Abs(v.y - r.ps0) <= 0.25f) v.y = r.ps0; r.spans[si] = v; } }
+            r.trimNote = TrimRoadSpans(r); return r;
         }
         r.why = null; return r;
     }
@@ -4416,7 +4426,16 @@ public static class EdoOkabeYashikiBuilder
             Vector2 a = r.ea + r.ax * sp.x - r.outN * r.setback, b = r.ea + r.ax * sp.y - r.outN * r.setback; var rr = r;
             var seg = new EdoBuild.NozuraSeg { name = r.terrace + "_RoadEdge_" + k++, a = a, b = b, crestAt = sl => rr.yTop, face = r.outN,
                                                footAt = (x, z) => { float sAl = Vector2.Dot(new Vector2(x, z) - rr.ea, rr.ax); return RoadAtS(rr, sAl); } };
-            seg.noAbut[0] = seg.noAbut[1] = true; nozSegs.Add(seg);
+            seg.noAbut[0] = seg.noAbut[1] = true;
+            // 追記 2026-10-10h【硬】: 口の側の端(門の柱筋に接する端)は見切り石・溝の側の端は端の前の地表との落差が mikiriDrop を超えるなら見切り石(打ち切りはそれ以下だけ)
+            if (r.h10)
+                for (int e2 = 0; e2 < 2; e2++)
+                {
+                    float sE = e2 == 0 ? sp.x : sp.y; bool atGate = Mathf.Abs(sE - r.ps0) < 0.25f || Mathf.Abs(sE - r.ps1) < 0.25f;
+                    float sOut = e2 == 0 ? sE - 0.5f : sE + 0.5f; var qo = r.ea + r.ax * sOut - r.outN * r.setback; float dropE = r.yTop - EdoBuild.Ground(qo.x, qo.y);
+                    if (atGate || (!float.IsNaN(r.mikiriDrop) && dropE > r.mikiriDrop)) { seg.mikiriTo[e2] = new List<GameObject>(); seg.noAbut[e2] = false; sb.AppendLine("    腰石垣の端" + e2 + "(s " + sE.ToString("F1", inv) + ")を見切り石で止める(" + (atGate ? "門の柱筋" : "端の前の落差 " + dropE.ToString("F2", inv)) + "・roadEdge 追記 2026-10-10h)"); }
+                }
+            nozSegs.Add(seg);
         }
         var ig = Group("Ishigaki"); string run = r.host.name;
         foreach (Transform c in ig)
@@ -4438,9 +4457,20 @@ public static class EdoOkabeYashikiBuilder
     {
         var sb = new System.Text.StringBuilder(); var inv = System.Globalization.CultureInfo.InvariantCulture; var r = _road; var grp = Group("GateSteps"); Clear(grp);
         if (r == null || !r.ok) return "";
-        float pm = 0.5f * (r.ps0 + r.ps1), road = RoadAtS(r, pm), drop = r.yTop - road; if (drop < 0.05f) { sb.AppendLine("  門の口の踏み段: 落差 " + drop.ToString("F2", inv) + " ── 置かない"); return sb.ToString(); }
+        // 追記 2026-10-10h【硬】(abutOrder: 腰石垣が先): 踏み段の端は腰石垣の口の側の見切り石の面に突き付ける ── 見切り石の実メッシュが口の幅に掛かる分だけ段の幅を縮める
+        float gs0 = r.ps0, gs1 = r.ps1;
+        if (r.h10)
+            foreach (Transform dc in Group("Dan"))
+            {
+                if (!dc.gameObject.activeInHierarchy || !dc.name.Contains("_RoadEdge_") || !dc.name.Contains("_mikiri")) continue;
+                float m0 = float.MaxValue, m1 = float.MinValue; foreach (var v in EdoBuild.Body(dc, 4000)) { float sv = Vector2.Dot(new Vector2(v.x, v.z) - r.ea, r.ax); m0 = Mathf.Min(m0, sv); m1 = Mathf.Max(m1, sv); }
+                if (m1 <= gs0 || m0 >= gs1) continue;
+                if (m0 - gs0 > gs1 - m1) gs1 = Mathf.Min(gs1, m0); else gs0 = Mathf.Max(gs0, m1);
+                sb.AppendLine("  門の口の踏み段の端を見切り石 " + dc.name + " の面へ突き付けた(roadEdge 追記 2026-10-10h・abutOrder): 段の幅 s " + gs0.ToString("F2", inv) + "〜" + gs1.ToString("F2", inv));
+            }
+        float pm = 0.5f * (gs0 + gs1), road = RoadAtS(r, pm), drop = r.yTop - road; if (drop < 0.05f) { sb.AppendLine("  門の口の踏み段: 落差 " + drop.ToString("F2", inv) + " ── 置かない"); return sb.ToString(); }
         int n = Mathf.Max(1, Mathf.CeilToInt(drop / 0.30f - 1e-3f)); float keri = drop / n; Vector2 up = -r.outN;
-        float wid = r.ps1 - r.ps0; int across = Mathf.Max(1, Mathf.RoundToInt(wid / 1.818f));
+        float wid = gs1 - gs0; int across = Mathf.Max(1, Mathf.RoundToInt(wid / 1.818f));
         int made = 0, stacked = 0; float noseOut = float.MinValue;
         for (int i = 1; i <= n; i++)   // 最後(i = n)は上がり口の段石(天端 = 台の面)── 段が一つでも土の段を見せない
         {
@@ -4790,6 +4820,21 @@ public static class EdoOkabeYashikiBuilder
         }
         segs.RemoveAll(x => drop.Contains(x));
         return "  天端が前の地表より低い所に駒を置かない(sideEnd・sodeSlope 追記 2026-10-10d【硬】): 切った区間 " + nCut + "・置かない区間 " + nDrop + "\n" + sb;
+    }
+    /// <summary>指図 roadEdge・cuts 追記 2026-10-10h の見切り石の背の土 ── 0: 頭より下げる量・1: 平らの幅(一間 = ken)・2: 先の法 1:n。読めなければ NaN。</summary>
+    static float MikiriSoil(int which)
+    {
+        var inv = System.Globalization.CultureInfo.InvariantCulture; var all3 = new List<object>(A(Get(D, "terraces")) ?? new List<object>()); all3.AddRange(A(Get(D, "terraceWalls")) ?? new List<object>());
+        foreach (var o3 in all3) { var t3 = O(o3); foreach (var key3 in new[] { "roadEdge", "cuts" })
+        {
+            string tx = S(Get(t3, key3)) ?? ""; int i = tx.IndexOf("追記 2026-10-10h"); if (i < 0) continue; string t = tx.Substring(i);
+            var m0 = System.Text.RegularExpressions.Regex.Match(t, @"頭より\s*([0-9.]+)\s*以上低く"); var m2 = System.Text.RegularExpressions.Regex.Match(t, @"先は\s*1\s*:\s*([0-9.]+)");
+            if (!m0.Success) continue;
+            if (which == 0) return float.Parse(m0.Groups[1].Value, inv);
+            if (which == 1) return t.Contains("一間を平らに") ? C("ken") : float.NaN;
+            if (which == 2) return m2.Success ? float.Parse(m2.Groups[1].Value, inv) : float.NaN;
+        } }
+        return float.NaN;
     }
     /// <summary>指図 const.fillEdgeSlope「盛りの縁は 1:n より急にしない【硬】」の n(読めなければ NaN と ★)。当たる先: Stage3b の皮の設計の狙い(EdoBuild.SkinHeightSolve の 4a)。</summary>
     static float FillEdgeSlope(System.Text.StringBuilder sb)

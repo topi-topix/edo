@@ -237,6 +237,15 @@ public static partial class EdoBuild
             return v;
         };
         float capDrop = cc != null && !float.IsNaN(cc.capDrop) ? cc.capDrop : 0.02f;
+        // 見切り石(頭を見せる石・メッシュ名 Mikiri)の頭と外形 ── 背の土は頭より mikiriDrop 以上低く【硬】・mikiriFlat の内は平ら・先は 1:mikiriBatter【柔】(指図 10-10h)
+        var mkTop = new List<float>(); var mkHull = new List<Vector2[]>();
+        if (design != null && !float.IsNaN(design.mikiriDrop))
+            for (int k = 0; k < idx.gos.Count; k++)
+            {
+                var g = idx.gos[k]; if (g == null) continue; var mf = g.GetComponentInChildren<MeshFilter>(); if (mf == null || mf.sharedMesh == null || !mf.sharedMesh.name.Contains("Mikiri")) continue;
+                float tp = float.MinValue; foreach (var v in Body(g.transform, 999999)) tp = Mathf.Max(tp, v.y); mkTop.Add(tp); mkHull.Add(idx.hulls[k]);
+            }
+        int nMk = 0;
         float seatTol = Mathf.Max(0f, c.faceTol - 0.02f);   // 駒の底が y* の上 seatTol 以内なら据わっている(断面に入れる)── 指図 checks.gradeTol − 0.02(旧 sealFace と同じ許し)
         const float EMBED = 0.05f;
 
@@ -428,6 +437,12 @@ public static partial class EdoBuild
                             Lo(ff.y - ff.e, "平ら " + ff.name + " −e"); Hi(hl2, "平ら " + ff.name + " +e"); nFlat++;
                         }
                         if (!float.IsInfinity(buryAimV[0]) && buryAimV[0] > ys) ys = buryAimV[0];   // 埋める土の狙い(柔)
+                        for (int mi = 0; mi < mkTop.Count; mi++)
+                        {
+                            float dm = EdoGeom.PIP(mkHull[mi], p) ? 0f : EdgeDist(mkHull[mi], p); float y0 = mkTop[mi] - design.mikiriDrop;
+                            if (dm <= design.mikiriFlat) { Hi(y0, "見切り石の背の土 頭−" + design.mikiriDrop.ToString("F2", ci)); if (ys > y0) ys = y0; nMk++; }
+                            else if (!float.IsNaN(design.mikiriBatter) && design.mikiriBatter > 0f) { float ya = y0 + (dm - design.mikiriFlat) / design.mikiriBatter; if (ys > ya) ys = ya; }
+                        }
                         // 見え面の帯の上限は最後に(他の決まりの上限 hiOther を控えてから)── 二度目に前の地表を解いた皮で測り直す
                         float hiOther = hi; string hiOtherWhy = hiWhy;
                         if (fe.Count > 0)
@@ -508,7 +523,7 @@ public static partial class EdoBuild
         conflicts.Sort((u, v) => v.Key.CompareTo(u.Key));
         var sb = new System.Text.StringBuilder();
         sb.AppendLine("皮の高さを解いた(SkinHeightSolve・一点ごとの [lo, hi] と狙い y*): 節点 " + LO.Count + "・縁の点(地形に PIN)" + PIN.Count
-                      + "・断面に入った区間 " + nSec + "(底+0.05 " + nBot + ")・天端の上限 " + nTop + "(周りの断面の駒から " + nRing + ")・見え面の帯 " + nFace + "(前の地表を解いた皮で測り直して動いた " + nRe + ")・埋める駒の土 " + nBury + "(天井を緩めた " + nRelax + ")・天端の前の帯の天井 " + nCeil
+                      + "・断面に入った区間 " + nSec + "(底+0.05 " + nBot + ")・天端の上限 " + nTop + "(周りの断面の駒から " + nRing + ")・見え面の帯 " + nFace + "(前の地表を解いた皮で測り直して動いた " + nRe + ")・見切り石の背 " + nMk + "・埋める駒の土 " + nBury + "(天井を緩めた " + nRelax + ")・天端の前の帯の天井 " + nCeil
                       + "・裏石の帯の土 " + nSoil + "・平ら " + nFlat + "(縁の石垣の天端で止めた " + nFlatEdge + ")・足の縁の底 " + nEdgeBot + " / 狙いより上げた " + nClampUp + "・下げた " + nClampDn + "・尖り窪みの均し " + nSm);
         if (design != null && !float.IsNaN(design.fillSlope)) sb.AppendLine("  盛りの縁の法 1:" + design.fillSlope.ToString("0.0", ci) + "(const.fillEdgeSlope・y* へ): 上げた点 " + nFillUp + "・最大 " + fillMax.ToString("F2", ci) + " @(" + fillAt.x.ToString("F1", ci) + ", " + fillAt.z.ToString("F1", ci) + ")・法尻が面にかかる点(上げが gradeTol を超えるのに面 ── 野面石で受ける所・普請方へ)" + nFillFace);
         sb.AppendLine("  矛盾(lo > hi・硬 ── hi を採った): " + conflicts.Count + (conflicts.Count > 0 ? "(最大 " + conflicts[0].Key.ToString("F3", ci) + ")" : " ⭕"));

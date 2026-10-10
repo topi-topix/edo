@@ -101,4 +101,4 @@
 - [型A の嵩上げ石の継ぎ目と並べ焼き](mizo-a-kasa-stagger.md) — 下面ピボット・継ぎ目は両側の縁石と 0.2 ずらす(2026-10-10)
 - [番所が口に接する門長屋](nagayamon-bansho-beside-gate.md) — --bansho-mon・mon<gc> と mon<len−gc> の両方を焼く(2026-10-10)
 - [岡部の表の石段の袖は切石・0.2675 は 0.268](kuruwa-sode-2675-kiriishi.md) — 型は sode の文の「切石の袖」で分岐。打込接ぎは焼かない(2026-10-10)
-- [野面の継ぎ目の隙は折れが原因・重ねの端の版 Nozura2](nozura2-overlap-ends-and-fold-seams.md) — span で連ねると重ねの分離れる・坂の隅の駒は作れない(2026-10-11)
+- [野面の継ぎ目の隙は折れが原因・重ねの端の版 Nozura2](nozura2-overlap-ends-and-fold-seams.md) — span で連ねると重ねの分離れる・勾配の駒は剪断せず天端の列だけ線なり(2026-10-11)

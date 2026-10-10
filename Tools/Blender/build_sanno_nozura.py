@@ -404,7 +404,7 @@ def _orient_out(bm):
 
 
 def stone_obj(name, poly, key_rng, P, depth, face_prot=(-0.02, 0.045), double=None, crest=None, lift_ds=None, rough=None,
-              taper=None, taper_c=None):
+              taper=None, taper_c=None, chain_g=0.0, chain_band=None):
     """(s,u) の輪郭 → 野面の塊。P(s, u, d) が 3D を返す(d = 面から奥へ)。
     double = 厚み T なら両面を割肌にする(袖)。形の乱数は key_rng だけで決まる(端の石は左右で同じ)。
     crest = 天端の線の u(天端の列の石だけ渡す)⇒ 面から 0.13 奥の輪と背の輪の**上の縁(左端から右端まで上を回る点)を天端へ上げる**
@@ -426,8 +426,16 @@ def stone_obj(name, poly, key_rng, P, depth, face_prot=(-0.02, 0.045), double=No
     if crest is not None:
         # 上の縁 = 右端から左端まで上を回る点の列(斜めの石も、その走りの全幅で背の天端が天端の線に届く ──
         # 重心より上だけ上げると、斜めの石の低い肩の上に下の段の石の頭が 0.09 下がって覗いた)
-        iR = max(range(n), key=lambda i: (poly[i][0], poly[i][1]))
-        iL = min(range(n), key=lambda i: (poly[i][0], -poly[i][1]))
+        # chain_g = 天端の線の勾配(剪断しない勾配の駒): 上の縁の両端は線に沿う向き t = s(1+g²) + g·u で取る
+        # (u は線からの高さ。線に直交する脇の目地の下の角を「端」と取ると、脇の辺まで天端へ上げて隣の石に被さった)
+        tkey = lambda i: poly[i][0] * (1 + chain_g * chain_g) + chain_g * poly[i][1]
+        cand = range(n)
+        if chain_g:                # 脇の目地は線に直交で傾くので、端は石の丈の上 0.45 の点からだけ取る(下の角を端に取ると脇の辺まで上がる ── 0.60 で 32 駒に天端の穴)。chain_band = 石ごとの上書き(SLOPE_EDGE_BAND)
+            u_hi, u_lo = max(p[1] for p in poly), min(p[1] for p in poly)
+            band = chain_band if chain_band is not None else 0.45 * (u_hi - u_lo)
+            cand = [i for i in range(n) if poly[i][1] >= u_hi - band]
+        iR = max(cand, key=lambda i: (tkey(i), poly[i][1]))
+        iL = min(cand, key=lambda i: (tkey(i), -poly[i][1]))
         chains = []
         for step in (1, -1):
             c, i = [iR], iR
@@ -532,7 +540,7 @@ def stone_obj(name, poly, key_rng, P, depth, face_prot=(-0.02, 0.045), double=No
             faces.append(bm.faces.new((Sh[i], M[i], M[j], Sh[j])))
     if double is None and taper is not None:
         faces += _taper_back(bm, P, poly, taper, taper_c, cs, cu, prot, depth, crest, upper, rough_on, dB, d2, Mp, M,
-                             ring_s, ring_u, lift_ds)
+                             ring_s, ring_u, lift_ds, cap_top=(0.012 if chain_g else TAPER_CAP_TOP))
     elif double is None:
         ks = 0.97 if crest is not None else 0.80      # 天端の列は背でも幅を保つ(背の天端に隙を開けない)
         Bp = []
@@ -599,7 +607,8 @@ TAPER_BEND = 0.03         # 控えの途中の曲がり(m)
 TAPER_BULGE = (-0.10, 0.12)   # 脇の膨らみ(+)・くびれ(−)(半幅に対する比・片側ずつ)
 
 
-def _taper_back(bm, P_, poly, tr, taper_c, cs, cu, prot, depth, crest, upper, rough_on, dB, d2, Mp, M, ring_s, ring_u, lift_ds):
+def _taper_back(bm, P_, poly, tr, taper_c, cs, cu, prot, depth, crest, upper, rough_on, dB, d2, Mp, M, ring_s, ring_u, lift_ds,
+                cap_top=TAPER_CAP_TOP):
     """⭐ 見え面の輪 M(面から 0.13)より奥を**尻すぼみ・不整形**に起こす(2026-09-26 EDO-0437 施主指摘「表石の天端が綺麗に
     切り取られ過ぎている」── 真上から長方形に見えた: 背の輪を重心へ 0.97 縮めて真後ろへ押し出していた)。
     M → (天端の列は奥 0.19 の輪 R2 = 旧版と同じ)→ 途中の輪 T1・T2 → 背の輪 Bk → 背の丸み(芯の点 Cb)。
@@ -674,7 +683,7 @@ def _taper_back(bm, P_, poly, tr, taper_c, cs, cu, prot, depth, crest, upper, ro
     cs_b = sum(s_at(i, s, u, 1.0, u_at(i, u, 1.0)) for i, (s, u) in enumerate(poly)) / n
     cu_b = sum(u_at(i, u, 1.0) for i, (s, u) in enumerate(poly)) / n
     if crest is not None:
-        cu_b = crest - TAPER_CAP_TOP      # 天端の列: 背の丸みの芯を天端の帯に上げる(芯が石の半ばの高さだと、上の縁から芯へ
+        cu_b = crest - cap_top            # 天端の列(剪断しない勾配の駒は 0.012 ── 線が傾くと芯へ下る三角が背の天端の下がり 0.033 に出た): 背の丸みの芯を天端の帯に上げる(芯が石の半ばの高さだと、上の縁から芯へ
         #                                   緩く下る三角が天端の帯に 0.056 下がって見えた ⛔・負の勾配の駒で剪断が面を寝かせた・2026-09-26)
     Cb = bm.verts.new(P_(cs_b, cu_b, sum(db) / n + dome))
     faces = []
@@ -716,7 +725,7 @@ TOP_ROW = 0.25            # 輪郭の最高が天端の線から これ以内の
 
 
 def build_stones(cells, P, mats, depth_rng=(0.45, 0.75), double=None, face_prot=(-0.02, 0.045), tag="", crest=0.0,
-                 lift_ds=None):
+                 lift_ds=None, top_keys=None, chain_g=0.0, chain_band=None):
     """crest = 天端の線の u(None で揃えない)。天端の列の石(輪郭の最高 > crest − TOP_ROW)は上の縁を天端へ揃える(控えは他の段と同じ)。"""
     objs = []
     kir, dan = mats
@@ -724,12 +733,13 @@ def build_stones(cells, P, mats, depth_rng=(0.45, 0.75), double=None, face_prot=
         # ⭐ 端の石は key が左右で同じ ⇒ 形・控え・材・UV の位相まで同じ(継ぎ目で合わさる)
         rng = random.Random("nozura|%s|%s" % (tag, key))
         d = rng.uniform(*depth_rng)
-        top = crest is not None and max(p[1] for p in poly) > crest - TOP_ROW
+        top = crest is not None and ((key in top_keys) if top_keys is not None else max(p[1] for p in poly) > crest - TOP_ROW)
         o = stone_obj("st_" + key + kind, poly, rng, P, d, face_prot=face_prot, double=double,
                       crest=crest if top else None, lift_ds=lift_ds,
                       rough=random.Random("nozura-top|%s|%s" % (tag, key)) if (top and double is None) else None,
                       taper=random.Random("nozura-taper|%s|%s" % (tag, key)) if double is None else None,
-                      taper_c=((round(centroid(poly)[0] / L - 0.5) + 0.5) * L) if kind.startswith("B") else None)
+                      taper_c=((round(centroid(poly)[0] / L - 0.5) + 0.5) * L) if kind.startswith("B") else None,
+                      chain_g=chain_g, chain_band=(chain_band or {}).get(key))
         o.data.materials.append(kir if rng.random() < 0.7 else dan)
         box_uv(o, (rng.random(), rng.random()))
         objs.append(o)
@@ -1178,15 +1188,186 @@ def wall_cells(v, depth=DEEP):
     return _LAYOUT[key]
 
 
+# ------------------------------------------------------------------ 剪断しない勾配の駒(`Nozura2_*` の G≠0・2026-10-11 EDO-0502 第2版)
+# 施主「天端の段差がなくなったのは良いが、石が斜めに細長くなって石垣っぽくない」(G±0.45〜0.75 の剪断で石が平行四辺形に伸びた)。
+# ⇒ 石は G0 と同じ作り(水平の行・幅 0.25〜0.60・丈 0.26〜0.40・目地 0.022〜0.040)で**鉛直のまま**積み、天端の線だけ勾配で切る:
+#   - 天端の列: 線に沿って石を並べ直す(線の方向に幅 0.25〜0.60・線から下へ丈 0.26〜0.40・頭の円弧も線に直交の向き)。
+#   - 中の石: 水平の行(G0 と同じ割り方)を線の下 SLOPE_CB より下に置く。継ぎ目の間の Voronoi が天端の列との間を詰める。
+#   - 端の石の列: G0 の列そのもの(剪断せず、継ぎ目の天端の高さへ平行移動だけ)⇒ G0・他の勾配の駒と継ぎ目と重ねの所で頂点まで同じ。
+#     天端の線より上へ出る所(線が内へ下がる側の頭)だけ 3D で線の面で切る。
+#   - 床: 根入れ 0.20 の中を線なりに切るだけ(地中)。裏石・間詰め・目地の奥の板は旧のまま線なり(上面が天端に揃う)。
+SLOPE_CB = 0.36     # 天端の列の種の下で、中の石の種を置かない帯(線からの垂直距離)
+SLOPE_CW = (0.26, 0.42)   # 天端の列の石の線に沿う幅 ── 線に直交の丈とほぼ同じ(長いと線に沿って傾いた細長い石に見えた)
+SLOPE_CH = (0.28, 0.40)   # 天端の列の石の線に直交の丈
+SLOPE_HEAD = 0.05          # 天端の列の頭の下がり(線に直交)
+SLOPE_R = (0.35, 0.60)     # 天端の列の頭の円弧の半径
+SLOPE_CR0 = 0.08    # 天端の列の石を継ぎ目から離す距離(端の石の列の頭の上は端の石が持つ)
+SLOPE_EDGE_BAND = {   # 天端の列の上の縁の端を取る帯(線からの深さ m)の個別の上書き。既定は石の丈の 0.45
+    # G−350 a の S0(端の列の隣の番人の石): 頂が狭く(0.04)左の脇が端の石との目地で 0.29 下がる斜め ⇒ 0.45 では背の上の縁が頂だけで
+    # 背の天端が 0.033 下がった(許し 0.03)。0.32 で斜めの脇の下の角(線の 0.316 下)まで上の縁に入れる(右の脇の角 0.358 は入れない)
+    ("a", -0.35): {"S0": 0.32},
+}
+
+
+def _rot_head(poly, g, tc, j, R):
+    """線(w = g·s)に沿う座標で頭を円弧で切る(`head_arc` を線の向きへ回したもの)"""
+    k = math.hypot(1.0, g)
+    tn, nn = (1 / k, g / k), (-g / k, 1 / k)
+    loc = [(p[0] * tn[0] + p[1] * tn[1], p[0] * nn[0] + p[1] * nn[1]) for p in poly]
+    loc = head_arc(loc, tc, j, R)
+    return [(a * tn[0] + b * nn[0], a * tn[1] + b * nn[1]) for a, b in loc]
+
+
+def slope_cells(h, g, v):
+    """剪断しない勾配の駒の割り。返す (中の石 [(poly(s, u=天端からの上向き), 'I', key)], 天端の列の key の集合, 端の列 cols)。
+    割りは (s, w = Y − 中心の天端) の実の平面で起こし、天端の線からの u = w − g·s へ写して返す(wall_P が w に戻す ⇒ 形は剪断されない)。"""
+    depth = max(DEEP, h + BURY)
+    k = math.hypot(1.0, g)
+    tn, nn = (1 / k, g / k), (-g / k, 1 / k)
+    perp = lambda s, w: (w - g * s) / k                  # 線からの垂直距離(上が +)
+    gw, wr, rh, rr = 0.40, (0.25, 0.60), (0.26, 0.40), (0.16, 0.32)
+    cols, guards, bseeds = boundary_column("nozura-wall-B", depth, gw, 0.10, rh, HEAD, rr)
+    ends_abs, bpts, fixed = [], [], []
+    for side, off in (("B-", -L / 2), ("B+", L / 2)):
+        for poly, key in cols:
+            ends_abs.append([(p[0] + off, p[1] + g * off) for p in poly])
+        bpts += [(p[0] + off, p[1] + g * off) for p in bseeds]
+        for p in guards:
+            # 番人は端の石の脇の目地を決める(端の石は番人との Voronoi)⇒ 線より下にあるものは残す(落とすと端の石の脇に凹の隙)。
+            # 天端の帯(線から SLOPE_CB 以内)に入った番人は天端の列の石として扱う
+            q = (p[0] + off, p[1] + g * off)
+            if -L / 2 < q[0] < L / 2 and perp(*q) < -0.06 and q[1] - g * q[0] > -depth - 0.3:
+                fixed.append(q)
+    # 中の石: G0 と同じ水平の行(行の乱数は勾配と個体だけで決まる ⇒ 見付が違っても上の行は同じ)
+    rng = random.Random("nozura2-slope|%s|%+.3f" % (v, g))
+    var = []
+    u = abs(g) * L / 2 + 0.05
+    kk = 0
+    while u > -abs(g) * L / 2 - depth - 0.05:
+        h_ = rng.uniform(*rh)
+        uc = u - h_ / 2
+        s = -L / 2 - rng.uniform(0, 0.3) - (0.2 if kk % 2 else 0)
+        while s < L / 2 + 0.3:
+            w = rng.uniform(*wr)
+            sx = s + w / 2 + rng.uniform(-0.05, 0.05)
+            su = uc + rng.uniform(-0.05, 0.05)
+            if -L / 2 + gw * 1.3 < sx < L / 2 - gw * 1.3 and perp(sx, su) < -SLOPE_CB and su - g * sx > -depth - 0.05:
+                var.append((sx, su))
+            s += w
+        u -= h_
+        kk += 1
+    # 天端の列: 線に沿って並べる
+    rc = random.Random("nozura2-crest|%s|%+.3f" % (v, g))
+    crs = []
+    t0, tend = (-L / 2 + SLOPE_CR0) * k, (L / 2 - SLOPE_CR0) * k
+    ws = []
+    while sum(w_[0] for w_ in ws) < tend - t0:          # 線の全長を埋めるまで石を足し、幅を一様に縮めて端から端へ割り付ける(線の途中に空きを残さない)
+        ws.append((rc.uniform(*SLOPE_CW), rc.uniform(*SLOPE_CH), rc.uniform(-0.05, 0.05), rc.uniform(-0.05, 0.05)))
+    if len(ws) > 1 and sum(w for w, _, _, _ in ws) - (tend - t0) > 0.5 * ws[-1][0]:
+        ws.pop()                            # 縮めすぎるより一つ減らして伸ばす
+    f = (tend - t0) / sum(w for w, _, _, _ in ws)
+    t = t0
+    for w, h_, jt, jn in ws:
+        w *= f
+        tc = t + w / 2 + jt
+        nc = -h_ / 2 + jn
+        crs.append((tc * tn[0] + nc * nn[0], tc * tn[1] + nc * nn[1]))
+        t += w
+    band_g = [q for q in fixed if perp(*q) >= -SLOPE_CB]
+    crs = [c for c in crs if all(math.hypot(c[0] - q[0], c[1] - q[1]) > 0.22 for q in band_g)]
+    seeds = fixed + var + crs
+    n_body = len(fixed) + len(var)
+    top_i = set(range(n_body, len(seeds))) | set(i for i, q in enumerate(fixed) if perp(*q) >= -SLOPE_CB)
+    allp = seeds + bpts
+    rj = random.Random("nozura2-cell|%s|%+.3f" % (v, g))
+    wmin, wmax = -abs(g) * L / 2 - depth - 0.4, abs(g) * L / 2 + 0.3
+    cells, top = [], set()
+    for i, (sx, su) in enumerate(seeds):
+        gj = rj.uniform(0.022, 0.040)
+        # 頭の不揃いは G0(0〜0.16 下・R 0.16〜0.32)より浅く・丸く: 線が傾くと、頭と天端の線の間の上げ(背の天端へ上げる肩)が
+        # 正面から見える斜めの板になった(2026-10-11 試し焼き)
+        jh, R = -rj.uniform(0.0, SLOPE_HEAD), rj.uniform(*SLOPE_R)
+        poly = voronoi_cell(i, allp, gj, (sx - 1.0, sx + 1.0, wmin, wmax))
+        if len(poly) < 3:
+            continue
+        poly = clip(poly, (1, 0), L / 2 - 0.02)
+        poly = clip(poly, (-1, 0), L / 2 - 0.02)
+        for op in ends_abs:
+            if len(poly) < 3:
+                break
+            cx, cu = centroid(op)
+            if abs(cx - sx) < 1.0 and abs(cu - su) < 1.0:
+                poly = separate(poly, (sx, su), op, gj)
+        if len(poly) < 3:
+            continue
+        poly = clip(poly, (-g, 1.0), 0.0)                # 天端の線より上を落とす
+        if len(poly) < 3:
+            continue
+        poly = _rot_head(poly, g, sx * tn[0] + su * tn[1], jh, R)
+        if len(poly) < 3 or area(poly) < 0.008:
+            continue
+        rel = [(p[0], p[1] - g * p[0]) for p in poly]    # 天端の線からの u
+        rel = clip(rel, (0, -1), h + BURY)
+        if len(rel) < 3 or area(rel) < 0.004:
+            continue
+        key = "S%d" % i
+        if i in top_i or max(perp(*p) for p in poly) > -0.10:
+            top.add(key)
+        cells.append((rel, "I", key))
+    return cells, top, cols
+
+
+def slope_stones(h, g, v, mats):
+    """剪断しない勾配の駒の表の石(中の石 + 天端の列 + 端の石の列)。返す (objs, 石の数)"""
+    cells, top, cols = slope_cells(h, g, v)
+    objs = build_stones(cells, wall_P(h, g), mats, tag="slope-%s%+.3f" % (v, g), top_keys=top, chain_g=g,
+                        chain_band=SLOPE_EDGE_BAND.get((v, round(g, 3))))
+    for o in objs:                 # 背の丸みの芯が線の上へ 1cm 出る石があった(H0600 G−220 a)⇒ 線で頭を押さえる
+        for vv in o.data.vertices:
+            vv.co.z = min(vv.co.z, h - g * vv.co.x)
+        o.data.update()
+    n = len(cells)
+    co, no = (0.0, 0.0, h), (g, 0.0, 1.0)                # 天端の線の面(Blender: z = h − g·x_b)
+    for side, off in (("B-", -L / 2), ("B+", L / 2)):
+        cc = []
+        for poly, key in cols:
+            p2 = clip([(p[0] + off, p[1]) for p in poly], (0, -1), h + BURY)
+            if len(p2) >= 3 and area(p2) > 0.004:
+                cc.append((p2, side, key))
+        Pc = lambda s, u_, d, _o=off: (-s, -(BATTER * (-u_) - d), h + g * _o + u_)   # G0 の端の列を平行移動だけ
+        eo = build_stones(cc, Pc, mats, tag="wall")
+        # 線が内へ上がる側: 端の石の頭(継ぎ目の天端の 0.30 下まで)を内への上がり g·Δs だけ持ち上げる(継ぎ目の上では 0 ⇒ 継ぎ目は G0 と同じ)。
+        # 持ち上げないと背の天端が線から g·Δs 下がる(G±0.12〜0.35 で 0.032〜0.041 > crest の許し 0.03)。
+        zc = h + g * off
+        for o in eo:
+            for vv in o.data.vertices:
+                xu = -vv.co.x
+                rise = g * (xu - off)
+                if rise > 0 and (xu - off) * off < 0:
+                    wgt = min(1.0, max(0.0, 1.0 + (vv.co.z - zc) / 0.30))
+                    vv.co.z += rise * wgt
+            o.data.update()
+        for o in eo:
+            if any(vv.co.z - h + g * vv.co.x > 1e-4 for vv in o.data.vertices):
+                bm_cut_keep(o, co, no, chip=0.0)
+        objs += [o for o in eo if o.data.polygons]
+        n += len(cc)
+    return objs, n
+
+
 def make_wall(h, g, v):
     V.reset()
     mats = materials()
     cells = []
-    for poly, kind, key in wall_cells(v, h + BURY):
-        p2 = clip(poly, (0, -1), h + BURY)            # u >= −(h+BURY)
-        if len(p2) >= 3 and area(p2) > 0.004:
-            cells.append((p2, kind, key))
-    objs = build_stones(cells, wall_P(h, g), mats, tag="wall")
+    if FAMILY2 and abs(g) > 1e-9:
+        objs, ncells = slope_stones(h, g, v, mats)
+        cells = [None] * ncells
+    else:
+        for poly, kind, key in wall_cells(v, h + BURY):
+            p2 = clip(poly, (0, -1), h + BURY)            # u >= −(h+BURY)
+            if len(p2) >= 3 and area(p2) > 0.004:
+                cells.append((p2, kind, key))
+        objs = build_stones(cells, wall_P(h, g), mats, tag="wall")
     objs += wall_ura(h, g, v, mats)
     objs += wall_fill(objs, h, g, v, mats, -L / 2, L / 2)
     objs.append(backing("back", h, g, mats[1]))

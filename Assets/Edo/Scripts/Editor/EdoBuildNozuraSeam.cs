@@ -180,6 +180,7 @@ public static partial class EdoBuild
         foreach (Transform c in walls)
         {
             if (!c.gameObject.activeInHierarchy) continue; var mf = c.GetComponentInChildren<MeshFilter>(); if (mf == null || mf.sharedMesh == null || !mf.sharedMesh.name.Contains("Nozura")) continue;
+            if (c.name.Contains("_Tooshi")) continue;   // 入隅の通しの駒(PlaceNozuraNet・const.abutOrder 10-10o「土に埋め・根入れと同じ扱い」)── 見え面を持たない
             cc.Add(c.gameObject, mf.sharedMesh.name.Contains("_Kado"));
         }
         foreach (var fb in cc.list) if (!hullOf.ContainsKey(fb.go)) hullOf[fb.go] = cc.HullOf(fb.go);

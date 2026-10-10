@@ -289,12 +289,15 @@ public static partial class EdoBuild
     /// ③ 段鼻が面より坂下にある段だけ据える(面より奥の段の脇は土留めの中)。
     /// ④ 坂下の端は、最下段の袖の坂下の端へ同じ断面の駒を「端の面・内の面・天端」の三つを実メッシュで突き付けて継ぎ、
     ///   継いだ駒の坂下の端の天端 ≤ 足元の地盤 − <paramref name="sink"/> になったら止める【硬・小口を地上に見せない】。
+    /// ①' <paramref name="planRay"/>(袖を本線より先に据える所): 上端の相手を本線の**計画の見え面の線**で測る(光線 (原点, 向き) → 線までの距離・交わらなければ NaN)。
+    ///   天端は <paramref name="planCrest"/>(計画の天端)。⛔ 駒を測らない(まだ据わっていない)。
     /// ⛔ ピボット・bounds の中心で合わせない。当たる先: 土留めを切って張り出す屋敷の中の石段(岡部 K_Kuruwa)。
     /// 山王の石段の袖(Stage2_Kaidan)は段ごとの PlaceIshidanSodeByDepth のまま(①②④ は相手が切通し・返しなので使わない)。</summary>
     public static List<GameObject> PlaceIshidanSodeRow(IList<GameObject> dans, int side, System.Func<int, float, string> pathOf, IList<float> depths,
                                                        Transform parent, string name, float kasaTarget, float minKasa, IList<GameObject> walls,
                                                        float sink, System.Func<float, float, float> footAt, float neiri, List<string> warn,
-                                                       out SodeRowReport rep, int maxExt = 8)
+                                                       out SodeRowReport rep, int maxExt = 8,
+                                                       System.Func<Vector3, Vector3, float> planRay = null, float planCrest = float.NaN)
     {
         rep = new SodeRowReport(); rep.atFace = float.NaN; rep.overCrest = float.NaN; rep.endSink = float.NaN;
         var res = new List<GameObject>();
@@ -318,7 +321,19 @@ public static partial class EdoBuild
         System.Func<float, float> noseLine = f => tread[i1] + (noseF[i1] - f) * slope;
         // ① 上端の相手の面
         float fFace = float.NegativeInfinity, crest = float.NaN;
-        if (walls != null && walls.Count > 0)
+        if (planRay != null && !float.IsNaN(planCrest))
+        {   // ①' 上端の相手 = 本線の**計画の見え面の線**(区間の線と向き・天端の前の縁)── 駒より先に袖を据える所(指図 TW_Kado_Hokuto.cuts 追記 2026-10-10o
+            //   「袖の上端は本線の駒でなく、本線の計画の見え面の線で決める」【硬】── 据える順 段石 → 袖 → 本線 の循環を断つ)。光線は袖の線(小口の外 0.15 / 0.45)で坂上へ。
+            float fStart = noseF[0] + 1.0f;
+            foreach (float lat in new[] { 0.15f, 0.45f })
+            {
+                Vector3 o = right * (kog + lat) + fwd * fStart;
+                float h = planRay(o, -fwd); if (!float.IsNaN(h)) fFace = Mathf.Max(fFace, fStart - h);
+            }
+            rep.faceHit = !float.IsNegativeInfinity(fFace); crest = planCrest; rep.crest = crest;
+            if (!rep.faceHit) warn.Add(name + ": ⚠ 上端の相手(本線の計画の見え面の線)に袖の線が交わらない ── 上端は最上段で止める");
+        }
+        else if (walls != null && walls.Count > 0)
         {
             float fStart = noseF[0] + 1.0f;
             float y0 = tread[i1];

@@ -1082,6 +1082,13 @@ public static partial class EdoBuild
         public float[] flatEnd = { float.NaN, float.NaN };
         /// <summary>見え面の向き(水平の単位)を名指す ── 背の向きが指図・設計面で決まっている区間(袖の坂: 背 = 設計面の高い側)。zero なら地表で決める。</summary>
         public Vector2 face;
+        /// <summary>**入隅の通す側の延長の余り**(指図 const.abutOrder 追記 2026-10-10o【硬】「入隅は、先に据える壁を角の点から後の壁の背の側へ『後の壁の控え+0.3』以上通して止める」)。
+        /// この区間が入隅の通す側になった端で、線を角の点から先へ「後の壁の控え(焼いた直線の駒の控えの後端の最大)+ この値」以上通し、天端は同じ一直線で土に埋める。
+        /// NaN なら通さない(従前 ── 線の端点で止める)。<see cref="ApplyAbutOrder"/> が立てる。</summary>
+        public float passConcave = float.NaN;
+        /// <summary>端(0 = a / 1 = b)を**名指した駒の実面へ突き付けて止める**(見切り石・隅の駒・打ち切りを置かない)── 指図 TW_Kado_Hokuto.cuts 追記 2026-10-10o
+        /// 「口の両端の本線は石段の切石の袖の外の面に入隅で突き付けて止め」【硬】。無ければ null。</summary>
+        public List<GameObject>[] abutTo = new List<GameObject>[2];
         public float Len { get { return Vector2.Distance(a, b); } }
         public Vector2 Dir { get { return (b - a).normalized; } }
     }
@@ -1399,6 +1406,15 @@ public static partial class EdoBuild
             if (zb < -0.2f) { log.AppendLine("  野面の低い側を測る離れ = 天端の列の控え " + (-zb).ToString("F2") + "m(城の石垣の " + probe.ToString("F2") + "m に代えて)"); probe = -zb; }
             foreach (var v in bv) ctrlBack = Mathf.Max(ctrlBack, -v.z);   // 駒の控えの後端(全頂点・koshiEnd の小段の奥行の下限)
         }
+        // 入隅の通し(NozuraSeg.passConcave・const.abutOrder 10-10o)の「後の壁の控え」= 焼いた直線の駒(水平)の控えの後端の最大 ── 後の壁がどの段を据えても足りる
+        float ctrlMax = ctrlBack;
+        bool anyPass = false; foreach (var sg in segs) if (!float.IsNaN(sg.passConcave)) anyPass = true;
+        if (anyPass)
+            foreach (float hh in heights)
+            {
+                string pth = straight(hh, 0f, 0); if (string.IsNullOrEmpty(pth) || UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(pth) == null) continue;
+                foreach (var v in BodyAt(pth, Vector3.zero, 0f, true)) ctrlMax = Mathf.Max(ctrlMax, -v.z);
+            }
         Func<NozuraSeg, int, Vector2> endPt = (sg, e) => e == 0 ? sg.a : sg.b;
         // 区間の端の際(1間)の見え面
         Func<NozuraSeg, int, Vector2> faceNear = (sg, e) =>
@@ -1439,7 +1455,7 @@ public static partial class EdoBuild
             {
                 Vector2 ep = endPt(segs[k], e); bool joined = false;
                 for (int j = 0; j < segs.Count && !joined; j++) for (int f = 0; f < 2; f++) if (j != k && Vector2.Distance(ep, endPt(segs[j], f)) <= TOL) joined = true;
-                if (joined || segs[k].mikiriTo[e] != null || segs[k].noAbut[e]) continue;
+                if (joined || segs[k].mikiriTo[e] != null || segs[k].noAbut[e] || segs[k].abutTo[e] != null) continue;
                 bool near = false;
                 foreach (var g in pool) if (g != null && !near) foreach (var v in Body(g.transform, 400)) if (Vector2.Distance(new Vector2(v.x, v.z), ep) < 1.5f) { near = true; break; }
                 if (near) continue;
@@ -1580,7 +1596,7 @@ public static partial class EdoBuild
             float kiriH = heights[0];
             for (int k = 0; k < n; k++) for (int e = 0; e < 2; e++)
             {
-                if (link[k, e, 0] >= 0 || concave[k, e, 0] >= 0 || segs[k].mikiriTo[e] != null || segs[k].noAbut[e]) continue;
+                if (link[k, e, 0] >= 0 || concave[k, e, 0] >= 0 || segs[k].mikiriTo[e] != null || segs[k].noAbut[e] || segs[k].abutTo[e] != null) continue;
                 Vector2 ep = endPt(segs[k], e);
                 // 別の区間の走りの中に在る端(重ねて埋める run の下に入る上手の run の端 ── RunsByCrestGap)は納めない(第32巡: 返しの中ほどに見切り石が立った)
                 {
@@ -1834,7 +1850,7 @@ public static partial class EdoBuild
             w.straight = straight; w.kado = kado; w.dan = dan; w.kiri = kiri; w.heights = heights; w.faceGroundAt = faceGroundAt; w.kiriEnd = kiriEnd; w.noriEnd = noriEnd;
             string nm = segs[ch[0].Key].name; var names = new List<string>(); foreach (var kv in ch) if (!names.Contains(segs[kv.Key].name)) names.Add(segs[kv.Key].name);
             // 端の納め
-            var endDesc = new string[2];
+            var endDesc = new string[2]; var passEnds = new List<int[]>();   // (side, 区間, 端, 相手) ── 入隅の通す側で角から先へ通す端
             for (int side = 0; side < 2; side++)
             {
                 var kv = side == 0 ? ch[0] : ch[ch.Count - 1];
@@ -1856,7 +1872,16 @@ public static partial class EdoBuild
                         endDesc[side] = "入隅の可動側 → " + segs[j].name + " の見え面へ(駒 " + to.Count + ")" +
                                         (segs[k].movesAtConcave == segs[j].movesAtConcave && (concave[k, 0, 0] >= 0) == (concave[k, 1, 0] >= 0) && (concave[j, 0, 0] >= 0) == (concave[j, 1, 0] >= 0) ? " ⚠ 可動側を指図から決められず後の区間にした" : "");
                     }
-                    else { if (side == 0) w.startThrough = true; else w.endThrough = true; endDesc[side] = "入隅の通す側(" + segs[j].name + " が突き付く)"; }
+                    else
+                    {
+                        if (side == 0) w.startThrough = true; else w.endThrough = true; endDesc[side] = "入隅の通す側(" + segs[j].name + " が突き付く)";
+                        if (!float.IsNaN(segs[k].passConcave)) { passEnds.Add(new int[] { side, k, e, j }); endDesc[side] += "・角から先へ通す"; }
+                    }
+                }
+                else if (segs[k].abutTo[e] != null)
+                {   // 名指した駒の実面へ突き付けて止める(見切り石・隅の駒・打ち切りを置かない ── NozuraSeg.abutTo)
+                    foreach (var g in segs[k].abutTo[e]) if (g != null) to.Add(g);
+                    endDesc[side] = "名指した駒の実面へ突き付けて止める(駒 " + to.Count + ")";
                 }
                 else if (segs[k].mikiriTo[e] != null)
                 {
@@ -1937,6 +1962,60 @@ public static partial class EdoBuild
                 log.AppendLine("    " + rec); endRule.record.Add(rec);
                 if (tg == null) { endRule.unresolved++; continue; }
                 mine.Add(tg); res.Add(new KeyValuePair<GameObject, Vector2>(tg, te.fN)); segPieces[k].Add(tg); pool.Add(tg);
+            }
+            // ---- 入隅の通し(NozuraSeg.passConcave・指図 const.abutOrder 追記 2026-10-10o【硬】)── 通す側の端を角の点から後の壁の背の側へ
+            //   「後の壁の控え(ctrlMax)+ 余り」以上通して止める。天端は本線と同じ一直線(端の勾配のまま延ばす)・段は端の駒と同じ H・見え面は本線の向き。
+            //   置き方: 固定側 = この鎖の据わった駒(端の駒の実面へ突き付ける ── 始まりの相手)、可動側 = 通しの駒。通しの駒はこの鎖の駒に加え、
+            //   後の壁(可動側)はその見え面へ突き付ける(口 ≤0.02・相手へ入らない ── PlaceNozuraRun の入隅の可動側)。
+            //   硬い: 通しの駒の頂点が区画の外へ出れば退ける(endRule.parcel)。名 = 区間の名 + "_Tooshi" + 端(皮は土に埋める駒として扱う ── 埋没に数えない)。
+            //   当たる先: abutOrder を持つ網(岡部 Stage2b)の野面の入隅の通す側すべて。
+            foreach (var pe in passEnds)
+            {
+                int k = pe[1], e = pe[2], j = pe[3]; var sg = segs[k];
+                Vector2 ep = endPt(sg, e), outD = e == 1 ? sg.Dir : -sg.Dir;
+                Vector2 fN = faceNear(sg, e); if (fN == Vector2.zero) fN = new Vector2(outD.y, -outD.x);
+                float need = ctrlMax + sg.passConcave;
+                int np = Mathf.Max(1, Mathf.CeilToInt(need / (1.2f * W))); float ext = Mathf.Max(need, np * 0.85f * W + 0.01f);
+                float lI = Mathf.Min(1f, sg.Len), cE = sg.crestAt(e == 0 ? 0f : sg.Len), cIn = sg.crestAt(e == 0 ? lI : sg.Len - lI), gr = lI > 1e-3f ? (cE - cIn) / lI : 0f;
+                // 端の駒(角に最も近いこの鎖の駒)の H ── 焼いた駒のパスの "_H####" から
+                GameObject eg = null; float bd = float.MaxValue;
+                foreach (var g in mine) { if (g == null) continue; foreach (var v in Body(g.transform, 400)) { float d = Vector2.Distance(new Vector2(v.x, v.z), ep); if (d < bd) { bd = d; eg = g; } } }
+                float H = float.NaN;
+                if (eg != null)
+                {
+                    var src = UnityEditor.PrefabUtility.GetCorrespondingObjectFromOriginalSource(eg); string ap = src != null ? UnityEditor.AssetDatabase.GetAssetPath(src) : "";
+                    var mH = System.Text.RegularExpressions.Regex.Match(ap, @"_H([0-9]{4})"); if (mH.Success) H = int.Parse(mH.Groups[1].Value) / 1000f;
+                }
+                string tag = sg.name + " 端" + e + " × " + segs[j].name;
+                if (float.IsNaN(H)) { log.AppendLine("    ⛔ 入隅の通し " + tag + ": 端の駒の段が読めない(" + (eg == null ? "駒なし" : eg.name) + ")── 通さない"); if (endRule != null) endRule.unresolved++; continue; }
+                var pw = new NozuraWall { kadoAbut = kadoAbut };
+                pw.nodes.Add(ep); pw.nodes.Add(ep + outD * ext);
+                pw.crestAt = s => cE + gr * s; pw.faceAt = s => fN;
+                pw.fixHRanges.Add(new Vector3(-W, ext + W, H));
+                pw.footAt = (x, z) => cE - H;
+                pw.straight = straight; pw.kado = kado; pw.dan = dan; pw.kiri = kiri; pw.heights = heights; pw.faceGroundAt = faceGroundAt;
+                foreach (var g in mine) if (g != null) { var bb = RB(g); if (bb.SqrDistance(new Vector3(ep.x, bb.center.y, ep.y)) < 9f) pw.startTo.Add(g); }
+                pw.endThrough = true;
+                string pn = sg.name + "_Tooshi" + e;
+                var got2 = PlaceNozuraRun(pw, groundAt, probe, parent, pn, log);
+                bool outP = false;
+                if (endRule != null && endRule.parcel != null)
+                    foreach (var kv in got2) foreach (var v in Body(kv.Key.transform, 4000)) if (!EdoGeom.PIP(endRule.parcel, new Vector2(v.x, v.z)) && EdoGeom.DistToPolyEdge(endRule.parcel, new Vector2(v.x, v.z)) > 0.005f) { outP = true; break; }
+                if (outP)
+                {
+                    foreach (var kv in got2) if (kv.Key != null) UnityEngine.Object.DestroyImmediate(kv.Key);
+                    string rec0 = tag + ": 入隅の通し ⛔ 区画の外へ出る(通し " + ext.ToString("F2") + "m)── 通さない";
+                    log.AppendLine("    " + rec0); if (endRule != null) { endRule.record.Add(rec0); endRule.unresolved++; }
+                    continue;
+                }
+                int ip = 0;
+                foreach (var kv in got2)
+                {
+                    kv.Key.name = pn + "_" + (ip++).ToString("00");
+                    mine.Add(kv.Key); res.Add(kv); segPieces[k].Add(kv.Key); pool.Add(kv.Key);
+                }
+                string rec = tag + ": 入隅の通し(abutOrder 10-10o)角から " + ext.ToString("F2") + "m(後の壁の控え " + ctrlMax.ToString("F2") + " + " + sg.passConcave.ToString("F2") + " 以上)・天端 " + cE.ToString("F2") + (Mathf.Abs(gr) > 1e-4f ? "(勾配 " + gr.ToString("F3") + " のまま)" : "") + "・H " + H.ToString("F2") + "・駒 " + got2.Count;
+                log.AppendLine("    " + rec); if (endRule != null) endRule.record.Add(rec);
             }
             // 端の小口の沈み(NozuraSeg.endSink ── 指図 sodeSlope「小口を前の地表から 0.3 以上下へ」【硬】)── 端の駒の走りの最も外 0.15 の頂点の最高を
             //   見え面の前 0.5 の地表と比べて刷る(⛔ 寄せない ── 足りなければ ⛔ で記録)。当たる先: endSink を渡す区間(岡部 TW_Kado_Sode の低い端)
@@ -2265,10 +2344,15 @@ public static partial class EdoBuild
 
     /// <summary>**交わる所を据える順の型**(const.abutOrder【硬】・第90巡):「隅の駒 → 本線 → 返し・袖・端 の順に据え、後から据える方が先の方の見え面に突き付ける」。
     /// 端どうしが <paramref name="near"/> 以内で出会う区間の組のうち、順位(<paramref name="rank"/> ── 大きいほど後)の違う組で、後の区間を可動側(movesAtConcave)・先の区間を通す側にする。
+    /// <paramref name="passClear"/>(NaN でない時・const.abutOrder 追記 2026-10-10o【硬】): 全区間に <see cref="NozuraSeg.passConcave"/> を立て、
+    /// 入隅の通す側になった端を角の点から「後の壁の控え + passClear」以上通す(延ばす・据えるのは PlaceNozuraNet)。
     /// ⟶ 書き換えた区間の数。当たる先: 野面の土留めの網(返し・袖・端を持つ全ての run)。</summary>
-    public static int ApplyAbutOrder(List<NozuraSeg> segs, Func<NozuraSeg, int> rank, float near, System.Text.StringBuilder log)
+    public static int ApplyAbutOrder(List<NozuraSeg> segs, Func<NozuraSeg, int> rank, float near, System.Text.StringBuilder log, float passClear = float.NaN)
     {
         int n = 0;
+        // 入隅の通し(const.abutOrder 追記 2026-10-10o【硬】): 全ての入隅で、先に据える壁(通す側)を角の点から後の壁の背の側へ「後の壁の控え + passClear」以上通す。
+        //   通す側・可動側は据える側(PlaceNozuraNet)が決める ⇒ ここでは全区間に余りを持たせ、通す側になった端だけが延ばす。
+        if (!float.IsNaN(passClear)) foreach (var sg in segs) sg.passConcave = passClear;
         for (int i = 0; i < segs.Count; i++)
             for (int j = 0; j < segs.Count; j++)
             {

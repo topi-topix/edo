@@ -112,7 +112,7 @@ public static partial class EdoBuild
                 if (rep) repN++; else g = probe.At(q.x, q.y);
                 d.h[k] = g; d.ok[k] = !float.IsNaN(g);
             }
-        d.own = null;
+        d.ownKept = d.own; d.own = null;   // 区画の外は描き終えた ── 以後 own は null(従来どおり)。区画の内だけに掛ける決まり(盛りの縁の法・平らの帯)は ownKept で見る(第92巡)
         if (note != null) note.AppendLine("  区画の外の設計の節点を区画の外の地盤へ " + outN + "(うち区画の内・駒の下の節点を造成前に置き換えた " + repN + ")");
         return repN;
     }

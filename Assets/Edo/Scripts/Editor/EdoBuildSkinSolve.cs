@@ -195,7 +195,11 @@ public static partial class EdoBuild
             if (lR != null) foreach (int fi in lR) all.Add(new KeyValuePair<NozuraCrestCover.FaceBins, int>(wfR.list[fi], wfRPiece[fi]));
             foreach (var kvb in all)
             {
-                var fb = kvb.Key; int b; float d; if (!wf.FaceAt(fb, q, out b, out d) || Mathf.Abs(fb.crest[b] - fy) > c.faceTol) continue;
+                // 天端は割りの前後 ±0.5m の最高(第92巡: 見切り石の頭は荒い石で割りごとの天端が 15.68〜16.50 と揺れ、門の口の脇の割りが「受けでない」と読まれて
+                //   平ら 16.50 の帯が見切り石の見え面の前(見切り石と踏み段の間)まで入り土が盛り上がった)。当たる先: 受けの石垣・見切り石・踏み段の全ての帯。
+                var fb = kvb.Key; int b; float d; if (!wf.FaceAt(fb, q, out b, out d)) continue;
+                float crB = float.NaN; for (int bb2 = Mathf.Max(0, b - 5); bb2 <= Mathf.Min(fb.crest.Length - 1, b + 5); bb2++) if (!float.IsNaN(fb.crest[bb2]) && (float.IsNaN(crB) || fb.crest[bb2] > crB)) crB = fb.crest[bb2];
+                if (float.IsNaN(crB) || Mathf.Abs(crB - fy) > c.faceTol) continue;
                 if (d >= 0f)
                 {
                     // 天端の背の線まで(Kadonouchi.flat 追記 2026-10-10f【硬】「平らの輪郭は縁の石垣の天端の背の線で止め、見え面の上や外へ出さない」): 点の真下にその駒の石が在れば天端の上
@@ -213,12 +217,16 @@ public static partial class EdoBuild
             return false;
         };
         // 見え面の帯の当たり(帯の番号 fi・割り b・min(平面, 実の石) − 0.02)── 前の地表は二度目に解いた皮で測り直す
-        Action<Vector2, List<Vector3>, List<Vector3>> FaceEntries = (q2, hl, outL) =>
+        //   ⭐ 第92巡: 点が**別の駒の断面の中**(その駒が y* 〜 y* + seatTol で地盤を占める ── secK)なら、その点はこの駒の見え面の前でない(入隅で突き付いた駒の背の中・
+        //   上の石の下の閉じた袋)── 見え面の上限を掛けない。r91 の矛盾の最多(駒の底 × 見え面 239 ── End1 056f × kado3・Sode_4 066f × 007f・Kaeshi 134f × 037f)は
+        //   同じ段の入隅で、可動側の駒の背の中に通す側の見え面の帯が入っていた(⛔ 二段の重なりでない ── 底も天端も同じ)。当たる先: 野面・城の石垣の入隅すべて。
+        Action<Vector2, List<Vector3>, List<Vector3>, HashSet<int>> FaceEntries = (q2, hl, outL, secK) =>
         {
             outL.Clear();
             foreach (int fi in BinsAt(q2))
             {
                 int k = binPiece[fi]; if (k < 0 || IsBuried(k) || binHull[fi] == null) continue;
+                if (secK != null) { bool other = false; foreach (int ks in secK) if (ks != k) { other = true; break; } if (other) continue; }
                 var fb = wf.list[fi]; int b; float d; if (!wf.FaceAt(fb, q2, out b, out d) || d >= 0f) continue;
                 if (!EdoGeom.PIP(binHull[fi], q2)) continue;
                 float topK = float.NegativeInfinity; foreach (var hh in hl) if ((int)hh.x == k && Mathf.Abs(hh.z) > 0.02f && hh.y > topK) topK = hh.y;
@@ -250,11 +258,11 @@ public static partial class EdoBuild
         const float EMBED = 0.05f;
 
         var hits = new List<Vector3>(); var hitR = new List<Vector3>();
-        var owners = new HashSet<int>(); var owners0 = new HashSet<int>(); var why1 = new string[1];
+        var owners = new HashSet<int>(); var owners0 = new HashSet<int>(); var why1 = new string[1]; var secP = new HashSet<int>();
         var LO = new Dictionary<long, float>(); var HI = new Dictionary<long, float>(); var YS = new Dictionary<long, float>(); var LO0 = new Dictionary<long, float>();
         var BURYN = new HashSet<long>(); var FACE = new Dictionary<long, List<Vector3>>(); var FACEQ = new Dictionary<long, List<Vector2>>(); var feR = new List<Vector3>(); var HIO = new Dictionary<long, float>(); var HIOW = new Dictionary<long, string>(); var LOW = new Dictionary<long, string>();
         var conflicts = new List<KeyValuePair<float, string>>(); var pairN = new Dictionary<string, int>();
-        int nSec = 0, nTop = 0, nFace = 0, nBury = 0, nRelax = 0, nFlatEdge = 0, nRing = 0, nBot = 0, nEdgeBot = 0, nFlat = 0, nSoil = 0, nCeil = 0, nClampUp = 0, nClampDn = 0;
+        int nRim = 0, nSec = 0, nTop = 0, nFace = 0, nBury = 0, nRelax = 0, nFlatEdge = 0, nRing = 0, nBot = 0, nEdgeBot = 0, nFlat = 0, nSoil = 0, nCeil = 0, nClampUp = 0, nClampDn = 0;
         int[] D8i = { 1, -1, 0, 0, 1, 1, -1, -1 }, D8j = { 0, 0, 1, -1, 1, -1, 1, -1 };
 
         // 4a 盛りの縁の法(指図 const.fillEdgeSlope「盛りの縁は 1:n より急にしない」【硬】を設計の狙い y* へ ── 第87巡): 解く前に y* を全ての点で引き、
@@ -279,7 +287,7 @@ public static partial class EdoBuild
                             idx.Column(x, z, hp, null); if (hp.Count > 0) continue;   // 駒の中は伝えない
                             float y = c.Target(q); if (float.IsNaN(y)) y = c.probe.At(x, z);
                             Y0[k] = y; G[k] = y; seed[k] = true;
-                            bool inOwn = design.own == null || EdoGeom.PIP(design.own, q);
+                            var ownP = design.own ?? design.ownKept; bool inOwn = ownP == null || EdoGeom.PIP(ownP, q);   // 区画の内だけ盛る(第92巡: own が null で門の口の前の道を盛っていた)
                             float fy = c.FaceY(q); isFace[k] = !float.IsNaN(fy);
                             tgt[k] = inOwn;
                         }
@@ -334,8 +342,9 @@ public static partial class EdoBuild
                         if (ovOnly) { H[key] = orig - OV_SINK; SUNK.Add(key); continue; }   // 地形の木の升の上へ被せるだけの点(地形の下へ沈めて隠す)
 
                         var p = new Vector2(x, z);
-                        float ys = c.Target(p); if (float.IsNaN(ys)) ys = orig;
+                        float ys = c.Target(p); if (float.IsNaN(ys)) ys = orig; float ysT0 = ys;
                         { float yf; if (c.ysFill != null && c.ysFill.TryGetValue(key, out yf) && yf > ys) ys = yf; }   // 盛りの縁の法(4a)
+                        float ysT1 = ys;
                         float lo = float.NegativeInfinity, hi = float.PositiveInfinity; string loWhy = "", hiWhy = "";
                         Action<float, string> Lo = (v, w) => { if (v > lo) { lo = v; loWhy = w; } };
                         Action<float, string> Hi = (v, w) => { if (v < hi) { hi = v; hiWhy = w; } };
@@ -346,6 +355,7 @@ public static partial class EdoBuild
                             foreach (var ff in design.flats)
                             {
                                 if (ff.poly == null || (ff.exempt != null && ff.exempt(p)) || c.behindHigherWall(p, ff.y + ff.e) || c.inFrontOfRetainer(p, ff.y)) continue;
+                                { var ownF = design.own ?? design.ownKept; if (ownF != null && !EdoGeom.PIP(ownF, p)) continue; }   // 区画の外は今の地形(Target と同じ ── 第92巡: 平らの帯 bandMax が門の口の踏み段の前の道へ 16.50 を引いていた)
                                 bool inF = EdoGeom.PIP(ff.poly, p);
                                 if (!inF && ff.band)
                                 {
@@ -368,26 +378,33 @@ public static partial class EdoBuild
                         idx.Column(x, z, hits, null);
                         owners.Clear(); foreach (var hh in hits) owners.Add((int)hh.x);
                         owners0.Clear(); foreach (var hh in hits) owners0.Add((int)hh.x);
-                        bool sectioned = false;
+                        bool sectioned = false; secP.Clear();
                         foreach (int k in owners)
                         {
                             float sb0, st0; if (!SolidOf(hits, k, out sb0, out st0)) continue;
                             if (st0 < ys || sb0 > ys + seatTol) continue;
-                            sectioned = true; nSec++;
+                            sectioned = true; nSec++; secP.Add(k);
                             if (!float.IsInfinity(sb0)) { Lo(sb0 + EMBED, "駒の底+0.05〔" + idx.names[k] + "〕"); nBot++; }
                         }
                         // 見えている天端の上限 ── この点(縦の線の一番上)と、皮の三角形が渡る周り(0.125・0.25 の 8 方向)の点で。
                         //   周りは、その点の y* 〜 y* + seatTol の断面に入る駒(本当にその地盤に載る駒)だけ ── 隣の低い段の天端・陰の段は数えない(第86巡 (b))
                         { why1[0] = null; float v = VisCap(x, z, hits, why1, null); if (v < hi) { Hi(v, why1[0]); nTop++; } }
-                        var fe = new List<Vector3>(); FaceEntries(p, hits, fe); var feQ = new List<Vector2>(); foreach (var e0 in fe) feQ.Add(p);
+                        var fe = new List<Vector3>(); FaceEntries(p, hits, fe, secP); var feQ = new List<Vector2>(); foreach (var e0 in fe) feQ.Add(p);
                         buryAimV[0] = float.NegativeInfinity;
                         { why1[0] = null; float v = BuryLo(hits, why1); if (v > lo) { Lo(v, why1[0]); nBury++; } }
-                        float eb = float.NaN; string ebW = null; var secR = new HashSet<int>();
+                        float eb = float.NaN; string ebW = null; var secR = new HashSet<int>(); float freeMin = float.NaN;
                         for (int d = 0; d < 8; d++)
                             for (int sI = 1; sI <= 2; sI++)
                             {
                                 float qx = x + D8i[d] * step * 0.5f * sI, qz = z + D8j[d] * step * 0.5f * sI;
-                                idx.Column(qx, qz, hitR, null); if (hitR.Count == 0) continue;
+                                idx.Column(qx, qz, hitR, null);
+                                if (hitR.Count == 0)
+                                {   // 皮の隣の節点(一格子先)が部材の外 ── その狙いの高さ(縁の内の点の上限に使う)
+                                    if (sI == 2 && hits.Count > 0) { var qn = new Vector2(qx, qz); float yn = c.Target(qn); if (float.IsNaN(yn)) yn = c.probe.At(qx, qz);
+                                        float yfN; long kn = CK(gi + D8i[d], gj + D8j[d]); if (c.ysFill != null && c.ysFill.TryGetValue(kn, out yfN) && yfN > yn) yn = yfN;
+                                        if (float.IsNaN(freeMin) || yn < freeMin) freeMin = yn; }
+                                    continue;
+                                }
                                 owners.Clear(); foreach (var hh in hitR) owners.Add((int)hh.x);
                                 secR.Clear();
                                 foreach (int k in owners) { float sb1, st1; if (!SolidOf(hitR, k, out sb1, out st1)) continue; if (st1 >= ys && sb1 <= ys + seatTol) secR.Add(k);
@@ -396,7 +413,7 @@ public static partial class EdoBuild
                                 if (secR.Count > 0) { why1[0] = null; float v = VisCap(qx, qz, hitR, why1, w => secR.Contains(w)); if (v < hi) { Hi(v, "周り " + why1[0]); nRing++; } }
                                 { why1[0] = null; float v = BuryLo(hitR, why1); if (v > lo) { Lo(v, "周り " + why1[0]); nBury++; } }
                                 // 周りの見え面の帯の上限(第87巡: 断面と関係なく戻す ── 皮の三角形が渡る先の点で見え面の前へ土を出さない)
-                                FaceEntries(new Vector2(qx, qz), hitR, feR); foreach (var e0 in feR) { fe.Add(e0); feQ.Add(new Vector2(qx, qz)); }
+                                FaceEntries(new Vector2(qx, qz), hitR, feR, secR); foreach (var e0 in feR) { fe.Add(e0); feQ.Add(new Vector2(qx, qz)); }
                             }
                         if (!float.IsNaN(eb)) { Lo(eb, "足の縁の底〔" + ebW + "〕"); nEdgeBot++; }
                         // 野面の天端の前の帯(0〜front)の天井 = 天端 − capDrop・裏石の帯の上の土 ≥ 天端 + minSoil(指図 const.nozuraCrestCover)── 設計で埋める駒の帯は除く
@@ -436,12 +453,23 @@ public static partial class EdoBuild
                                 for (int hk = 0; hk < idx.hulls.Count; hk++) { var hb = idx.bounds[hk]; if (p.x < hb.x - ff.coverD || p.x > hb.z + ff.coverD || p.y < hb.y - ff.coverD || p.y > hb.w + ff.coverD) continue; if (EdoGeom.PIP(idx.hulls[hk], p) || EdgeDist(idx.hulls[hk], p) <= ff.coverD) { hl2 = ff.y + ff.coverH; break; } }
                             Lo(ff.y - ff.e, "平ら " + ff.name + " −e"); Hi(hl2, "平ら " + ff.name + " +e"); nFlat++;
                         }
+                        float ysT2 = ys;
                         if (!float.IsInfinity(buryAimV[0]) && buryAimV[0] > ys) ys = buryAimV[0];   // 埋める土の狙い(柔)
+                        float ysT3 = ys;
                         for (int mi = 0; mi < mkTop.Count; mi++)
                         {
                             float dm = EdoGeom.PIP(mkHull[mi], p) ? 0f : EdgeDist(mkHull[mi], p); float y0 = mkTop[mi] - design.mikiriDrop;
                             if (dm <= design.mikiriFlat) { Hi(y0, "見切り石の背の土 頭−" + design.mikiriDrop.ToString("F2", ci)); if (ys > y0) ys = y0; nMk++; }
                             else if (!float.IsNaN(design.mikiriBatter) && design.mikiriBatter > 0f) { float ya = y0 + (dm - design.mikiriFlat) / design.mikiriBatter; if (ys > ya) ys = ya; }
+                        }
+                        // ⭐ 部材の縁の内の点(第92巡・硬): 縦の線の一番上が帯で篩わない部材(石段・踏み段・樋口・溝など)で、皮の隣の節点(一格子先)が部材の外なら、
+                        //   この点は隣の外の地表の狙いより高くしない(底 + 0.05 の下限までは下げる)── 縁の内の節点が天端の下まで上がると、外の節点へ渡る皮の三角形が
+                        //   蹴込み・側面を抜けて部材の前に土の楔を立てる(r90/r91 の石段の右下の土の三角 ── 一段目の段石の内の節点 16.75・前の平ら 16.50)。
+                        //   当たる先: 皮が囲む全ての帯で篩わない部材の外周(野面・城の石垣は見え面の帯と小口の土が決める ── 掛けない)。
+                        if (!float.IsNaN(freeMin) && hits.Count > 0)
+                        {
+                            float gTop = float.NegativeInfinity; int gW = -1; foreach (var hh in hits) { if (Mathf.Abs(hh.z) > 0.02f && hh.y > gTop) { gTop = hh.y; gW = (int)hh.x; } }
+                            if (gW >= 0 && !idx.banded[gW] && !IsBuried(gW) && freeMin < hi) { float cap = Mathf.Max(freeMin, lo); if (cap < hi) { Hi(cap, "部材の縁の内 ≤ 外の地表〔" + idx.names[gW] + "〕"); nRim++; } }
                         }
                         // 見え面の帯の上限は最後に(他の決まりの上限 hiOther を控えてから)── 二度目に前の地表を解いた皮で測り直す
                         float hiOther = hi; string hiOtherWhy = hiWhy;
@@ -466,7 +494,7 @@ public static partial class EdoBuild
                         }
                         YS[key] = ys; H[key] = hgt; LO0[key] = lo;
                         if (SkinSolveTrace != null) foreach (var tq in SkinSolveTrace) if (Mathf.Abs(tq.x - x) <= step * 0.5f && Mathf.Abs(tq.y - z) <= step * 0.5f)
-                                    SkinSolveTraceLog.AppendLine("  (" + x.ToString("F2", ci) + ", " + z.ToString("F2", ci) + ") y* " + ys.ToString("F3", ci) + " lo " + lo.ToString("F3", ci) + "〔" + loWhy + "〕 hi " + hi.ToString("F3", ci) + "〔" + hiWhy + "〕 ⇒ " + hgt.ToString("F3", ci) + " 断面 " + sectioned + " 当たり " + hits.Count);
+                                    SkinSolveTraceLog.AppendLine("  (" + x.ToString("F2", ci) + ", " + z.ToString("F2", ci) + ") y* " + ys.ToString("F3", ci) + " lo " + lo.ToString("F3", ci) + "〔" + loWhy + "〕 hi " + hi.ToString("F3", ci) + "〔" + hiWhy + "〕 ⇒ " + hgt.ToString("F3", ci) + " 断面 " + sectioned + " 当たり " + hits.Count + " 〔狙いの経過 Target " + ysT0.ToString("F3", ci) + "・盛りの縁 " + ysT1.ToString("F3", ci) + "・平ら " + ysT2.ToString("F3", ci) + "・埋める土 " + ysT3.ToString("F3", ci) + "・区画の内 " + (design == null || design.own == null || EdoGeom.PIP(design.own, p)) + "・地形 " + orig.ToString("F3", ci) + "〕");
                         if (orig - hgt > r.maxLower) { r.maxLower = orig - hgt; r.lowerAt = new Vector3(x, hgt, z); }
                         if (hgt - orig > r.maxRaise) { r.maxRaise = hgt - orig; r.raiseAt = new Vector3(x, hgt, z); }
                     }
@@ -524,7 +552,7 @@ public static partial class EdoBuild
         var sb = new System.Text.StringBuilder();
         sb.AppendLine("皮の高さを解いた(SkinHeightSolve・一点ごとの [lo, hi] と狙い y*): 節点 " + LO.Count + "・縁の点(地形に PIN)" + PIN.Count
                       + "・断面に入った区間 " + nSec + "(底+0.05 " + nBot + ")・天端の上限 " + nTop + "(周りの断面の駒から " + nRing + ")・見え面の帯 " + nFace + "(前の地表を解いた皮で測り直して動いた " + nRe + ")・見切り石の背 " + nMk + "・埋める駒の土 " + nBury + "(天井を緩めた " + nRelax + ")・天端の前の帯の天井 " + nCeil
-                      + "・裏石の帯の土 " + nSoil + "・平ら " + nFlat + "(縁の石垣の天端で止めた " + nFlatEdge + ")・足の縁の底 " + nEdgeBot + " / 狙いより上げた " + nClampUp + "・下げた " + nClampDn + "・尖り窪みの均し " + nSm);
+                      + "・裏石の帯の土 " + nSoil + "・平ら " + nFlat + "(縁の石垣の天端で止めた " + nFlatEdge + ")・足の縁の底 " + nEdgeBot + "・部材の縁の内 " + nRim + " / 狙いより上げた " + nClampUp + "・下げた " + nClampDn + "・尖り窪みの均し " + nSm);
         if (design != null && !float.IsNaN(design.fillSlope)) sb.AppendLine("  盛りの縁の法 1:" + design.fillSlope.ToString("0.0", ci) + "(const.fillEdgeSlope・y* へ): 上げた点 " + nFillUp + "・最大 " + fillMax.ToString("F2", ci) + " @(" + fillAt.x.ToString("F1", ci) + ", " + fillAt.z.ToString("F1", ci) + ")・法尻が面にかかる点(上げが gradeTol を超えるのに面 ── 野面石で受ける所・普請方へ)" + nFillFace);
         sb.AppendLine("  矛盾(lo > hi・硬 ── hi を採った): " + conflicts.Count + (conflicts.Count > 0 ? "(最大 " + conflicts[0].Key.ToString("F3", ci) + ")" : " ⭕"));
         if (pairN.Count > 0)

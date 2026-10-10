@@ -4091,7 +4091,20 @@ public static class EdoOkabeYashikiBuilder
           if (dn != null) sb.AppendLine("  " + EdoBuild.NozuraSeamReport(rt.transform, dn, rt.transform.Find("EdgeSkin")).Replace("\n", "\n  "));
           if (dn != null && rt.transform.Find("EdgeSkin") != null) sb.AppendLine("  " + EdoBuild.NozuraSkinPlaneCheck(dn, rt.transform.Find("EdgeSkin")));
           if (rt.transform.Find("EdgeSkin") != null) sb.AppendLine("  " + SteepEdgeReport(rt.transform));
-          if (rt.transform.Find("EdgeSkin") != null) sb.AppendLine("  " + FlatReport(rt.transform, buriedParts)); }
+          if (rt.transform.Find("EdgeSkin") != null) sb.AppendLine("  " + FlatReport(rt.transform, buriedParts));
+          // 二段の重なり(const.abutOrder 追記 2026-10-10i【硬】「上の段の法尻は下の段の控えの後端 +c より内」)── 上の段 = 底が下の段の天端 − gradeTol 以上の駒(EdoBuild.NozuraCrestCover.TwoTierOverlaps)
+          if (dn != null)
+          {
+              string ao = S(Get(O(D["const"]), "abutOrder")) ?? ""; var mC = System.Text.RegularExpressions.Regex.Match(ao, @"控えの後端\s*\+\s*([0-9.]+)\s*より内");
+              if (!ao.Contains("追記 2026-10-10i") || !mC.Success) sb.AppendLine("  二段の重なり: ★ const.abutOrder 追記 2026-10-10i の「控えの後端 +c より内」が読めない ── 数えない");
+              else
+              {
+                  float clr = float.Parse(mC.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture); var tw = new EdoBuild.NozuraCrestCover(); var tl = new System.Text.StringBuilder();
+                  foreach (Transform c in dn) { if (!c.gameObject.activeInHierarchy) continue; var mfc = c.GetComponentInChildren<MeshFilter>(); if (mfc == null || mfc.sharedMesh == null || !mfc.sharedMesh.name.Contains("Nozura")) continue; bool kd = mfc.sharedMesh.name.Contains("_Kado"); try { tw.Add(c.gameObject, kd); } catch (System.Exception) { } }
+                  int nTT = tw.TwoTierOverlaps(tol, clr, tl);
+                  sb.AppendLine("  二段の重なり(abutOrder 10-10i・上の段の底 ≥ 下の段の天端 − " + tol.ToString("F2") + "・控えの後端 + " + clr.ToString("F2") + "・硬 0): " + nTT + (nTT > 0 ? " ⛔" : " ⭕") + "(野面の駒 " + tw.pieces + ")"); sb.Append(tl.ToString());
+              }
+          } }
         return sb.ToString();
     }
 
@@ -4338,7 +4351,9 @@ public static class EdoOkabeYashikiBuilder
     /// 段(天端 − 道)が欄の値を切る所で打ち切り【硬】・門の口(札の passage)は空けて踏み段。道 = 区画の線の外 0.5m の地形。⛔ 座標を書かない ── 毎回測る。</summary>
     class RoadEdgePlan { public bool ok, h10; public float mikiriDrop = float.NaN; public string why, terrace, trimNote; public int e; public Vector2 ea, ax, outN; public float yTop, cutDrop, fumi, ps0, ps1, sRun0, sRun1, batter, setback, neiri; public Transform host; public EdoPartSpec.Spec spec; public List<Vector2> spans = new List<Vector2>(); }
     static RoadEdgePlan _road;
-    static float RoadAtS(RoadEdgePlan r, float sAl) { var q = r.ea + r.ax * sAl + r.outN * 0.5f; return EdoBuild.Ground(q.x, q.y); }
+    /// <summary>道の高さ(線の外 0.5)── 皮が区画の外を描くのと同じ測り(EdoBuild.OutsideOwnGround: 区画の内の地形の節点は造成前の地盤へ)。
+    /// ⛔ 地形をそのまま引かない ── 2m 格子が台の 16.50 を線の外へ一次で引き、門の口の道を 16.23 と読んで踏み段が皮(道 15.85)の上に 0.25 浮いた(第92巡)。</summary>
+    static float RoadAtS(RoadEdgePlan r, float sAl) { var q = r.ea + r.ax * sAl + r.outN * 0.5f; bool rep; return EdoBuild.OutsideOwnGround(EdoBuild.T(), q.x, q.y, Poly, EdoBuild.BaseDem(), null, new Dictionary<long, float>(), out rep); }
     static RoadEdgePlan RoadEdgePlanOf()
     {
         var r = new RoadEdgePlan(); var inv = System.Globalization.CultureInfo.InvariantCulture; var root = GameObject.Find(GN); if (root == null) { r.why = "邸が無い"; return r; }
@@ -4662,16 +4677,30 @@ public static class EdoOkabeYashikiBuilder
                 var fcs = FlatFaces(null); Vector2 dJ = (jOn - far).normalized, pp = new Vector2(-dJ.y, dJ.x); float clip = 0f, Lf = Vector2.Distance(far, jOn);
                 // 追記 2026-10-10g【硬】: 頭は縁の石垣の天端の背の線から keepIn 以上内で止め、石垣の上に据えない ── 段の土留め(Dan)の駒の足形(凸包)から keepIn 以上離す(第90巡: Amaochi_000 × 023f)
                 float keepIn = float.NaN; { var m10g = System.Text.RegularExpressions.Regex.Match(fl, @"天端の背の線から\s*([0-9.]+)\s*以上内"); if (fl.Contains("追記 2026-10-10g") && m10g.Success) keepIn = float.Parse(m10g.Groups[1].Value, inv); }
-                var danH = new List<Vector2[]>();
-                if (!float.IsNaN(keepIn)) foreach (Transform dc in Group("Dan")) { if (!dc.gameObject.activeInHierarchy) continue; var p2 = new List<Vector2>(); foreach (var v in EdoBuild.Body(dc, 3000)) p2.Add(new Vector2(v.x, v.z)); if (p2.Count >= 3) danH.Add(EdoBuild.ConvexHull2(p2).ToArray()); }
+                // 追記 2026-10-10i【硬】(10-10g の 0.3 を改め): 頭は縁の石垣の**見え面の天端の線**から keepFront 以上内(⛔ 凸包の背の線から測らない ── 第91巡: 背の線から 0.3 で頭が溝 N39_1 の脇に出て 2.74 浮いた)・
+                //   **頭の底の全幅**(頭の駒の長さ × 幅)が平ら yF の帯の中(点を含む全ての面が yF ± 0.03 ── 小さい面だけで判じない)。満たさなければ溝を頭の側で縮める。
+                //   見え面の天端の線は EdoBuild.NozuraCrestCover.CrestFrontDist(天端が yF ± 0.1 の Dan の駒の割りごとの前の縁)。⚠ 欄は「023f」と名指すが、頭の脇の縁の石垣は 036f(Kado_Hokuto_1_0)── 型として全ての縁の石垣から測る。
+                float keepFront = float.NaN; bool fullW = false;
+                if (fl.Contains("追記 2026-10-10i")) { var m10i = System.Text.RegularExpressions.Regex.Match(fl, @"見え面の天端の線から\s*([0-9.]+)\s*以上内"); if (m10i.Success) { keepFront = float.Parse(m10i.Groups[1].Value, inv); keepIn = 0f; } fullW = fl.Contains("頭の底の全幅が平ら"); }
+                var danH = new List<Vector2[]>(); var cf = new EdoBuild.NozuraCrestCover();
+                if (!float.IsNaN(keepIn)) foreach (Transform dc in Group("Dan")) { if (!dc.gameObject.activeInHierarchy) continue; var p2 = new List<Vector2>(); foreach (var v in EdoBuild.Body(dc, 3000)) p2.Add(new Vector2(v.x, v.z)); if (p2.Count >= 3) danH.Add(EdoBuild.ConvexHull2(p2).ToArray());
+                    if (!float.IsNaN(keepFront)) { var mfd = dc.GetComponentInChildren<MeshFilter>(); bool kd = mfd != null && mfd.sharedMesh != null && mfd.sharedMesh.name.Contains("_Kado"); try { cf.Add(dc.gameObject, kd); } catch (System.Exception) { } } }
+                float headL = mp.len > 0.05f ? mp.len : 1f; float worstFront = float.PositiveInfinity; GameObject worstGo = null;
                 for (; clip < Lf - 1f; clip += 0.1f)
                 {
                     bool okE = true; var q0 = far + dJ * clip;
-                    foreach (var q in new[] { q0 + pp * halfW, q0 - pp * halfW, q0 }) { float fy = FaceYAt(fcs, q, "MizoP_"); if (float.IsNaN(fy) || Mathf.Abs(fy - yF) > 0.03f) { okE = false; break; } }
-                    if (okE && danH.Count > 0) foreach (var q in new[] { q0 + pp * halfW, q0 - pp * halfW, q0 - dJ * 0.0f }) foreach (var hh in danH) if (EdoGeom.PIP(hh, q) || EdoBuild.EdgeDistPublic(hh, q) < keepIn) { okE = false; break; }
+                    var qs = new List<Vector2> { q0 + pp * halfW, q0 - pp * halfW, q0 };
+                    if (fullW) foreach (float tt in new[] { 0.5f * headL, headL }) foreach (float ww in new[] { -halfW, 0f, halfW }) qs.Add(q0 + dJ * tt + pp * ww);
+                    foreach (var q in qs)
+                    {
+                        float fy = FaceYAt(fcs, q, "MizoP_"); if (float.IsNaN(fy) || Mathf.Abs(fy - yF) > 0.03f) { okE = false; break; }
+                        if (fullW && !AllFacesAt(fcs, q, yF, 0.03f, "MizoP_")) { okE = false; break; }
+                    }
+                    if (okE && danH.Count > 0) foreach (var q in qs) foreach (var hh in danH) if (EdoGeom.PIP(hh, q) || EdoBuild.EdgeDistPublic(hh, q) < keepIn) { okE = false; break; }
+                    if (okE && !float.IsNaN(keepFront)) { float wmin = float.PositiveInfinity; GameObject wg = null; foreach (var q in qs) { GameObject g0; float dq = cf.CrestFrontDist(q, yF, 0.1f, out g0); if (dq < wmin) { wmin = dq; wg = g0; } } worstFront = wmin; worstGo = wg; if (wmin < keepFront) okE = false; }
                     if (okE) break;
                 }
-                if (clip > 0f) sb.AppendLine("    背の雨落ちの頭を面 " + yF.ToString("F2", inv) + " の内まで " + clip.ToString("F1", inv) + "m 引いた(棟の妻の先は別の面)");
+                if (clip > 0f) sb.AppendLine("    背の雨落ちの頭を面 " + yF.ToString("F2", inv) + " の内まで " + clip.ToString("F1", inv) + "m 引いた(棟の妻の先は別の面" + (float.IsNaN(keepFront) ? "" : "・追記 10-10i: 縁の石垣の見え面の天端の線から " + (float.IsInfinity(worstFront) ? "-" : worstFront.ToString("F2", inv)) + " ≥ " + keepFront.ToString("F1", inv) + "【硬】〔" + (worstGo == null ? "-" : worstGo.name) + "〕" + (fullW ? "・頭の底の全幅 " + headL.ToString("F2", inv) + "×" + (2f * halfW).ToString("F2", inv) + " が平らの内" : "")) + ")");
                 line = new List<Vector2> { far + dJ * clip, jOn };
             }
             else
@@ -5673,6 +5702,18 @@ public static class EdoOkabeYashikiBuilder
 
     /// <summary>皮が高さを揃える**平らな面**(指図 terraces の poly を世界へ)。算出物 graded が面の中(縁から 1.5m 内)で面の高さから
     /// 0.05m を超えて外れる面(勾配の面・ramps)は除く ── 皮はそこを graded で描く。sb が null なら除いた面を刷らない。</summary>
+    /// <summary>点 q を含む全ての面(名が skipPrefix で始まる物を除く)が y ± tol か(一つも含まなければ false)── 頭の底の全幅が平らの帯の中かの検め(第92巡)。</summary>
+    static bool AllFacesAt(List<EdoBuild.SkinFace> faces, Vector2 q, float y, float tol, string skipPrefix)
+    {
+        int n = 0;
+        foreach (var f in faces)
+        {
+            if (f.poly == null || (skipPrefix != null && f.name != null && f.name.StartsWith(skipPrefix)) || !EdoGeom.PIP(f.poly, q)) continue;
+            if (Mathf.Abs(f.y - y) > tol) return false; n++;
+        }
+        return n > 0;
+    }
+
     static List<EdoBuild.SkinFace> FlatFaces(System.Text.StringBuilder sb)
     {
         // 面 = 指図 terraces(回転間グリッドの poly を世界へ)。⭐ 平らな面だけ ── 算出物 graded が面の中で面の高さから 0.05m を超えて

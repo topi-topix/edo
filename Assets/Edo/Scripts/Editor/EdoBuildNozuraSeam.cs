@@ -197,7 +197,7 @@ public static partial class EdoBuild
                 long k = ((long)fi << 20) | (long)b; List<float> gl; if (!gF.TryGetValue(k, out gl)) gF[k] = gl = new List<float>(); gl.Add(p.y);
             }
         }
-        int n = 0, nB = 0; float worst = 0f, worstB = 0f, worstV = 0f; Vector3 wAt = Vector3.zero; string wBy = "-"; var by = new Dictionary<string, int>();
+        int n = 0, nB = 0, nHid = 0; float worst = 0f, worstB = 0f, worstV = 0f; Vector3 wAt = Vector3.zero; string wBy = "-"; var by = new Dictionary<string, int>();
         foreach (var p in pts)
         {
             var q = new Vector2(p.x, p.z); float ex = float.NaN; string who = null; bool exBuried = false;
@@ -213,12 +213,22 @@ public static partial class EdoBuild
                 if (e > 1e-3f && (float.IsNaN(ex) || e > ex)) { ex = e; who = fb.go.name; exBuried = buriedFace; }
             }
             if (float.IsNaN(ex)) continue;
+            // 別の駒の中(第92巡): 頂点が別の野面の駒 B の外形の中で、B の見え面の平面より背(B の石の中・背の土)なら、who の見え面の前でも B に隠れる ──
+            //   同じ段の入隅で可動側の駒の背の中に通す側の見え面の帯が入る所(SkinHeightSolve が見え面の上限を外した点と同じ測り)。当たる先: 野面の入隅すべて。
+            bool hidByOther = false;
+            for (int fi = 0; fi < cc.list.Count && !hidByOther; fi++)
+            {
+                var fb = cc.list[fi]; if (fb.go == null || fb.go.name == who) continue; var hl = hullOf[fb.go]; int b; float d;
+                if (hl == null || !EdoGeom.PIP(hl, q) || !cc.FaceAt(fb, q, out b, out d)) continue;
+                if (d >= 0f ? p.y <= fb.crest[b] : p.y <= cc.FacePlaneY(fb, b, Vector2.Dot(q, fb.f)) - 0.02f) hidByOther = true;
+            }
+            if (hidByOther) { nHid++; continue; }
             n++; if (exBuried) { nB++; if (ex > worstB) worstB = ex; } else if (ex > worstV) worstV = ex;
             int c0; by.TryGetValue(who, out c0); by[who] = c0 + 1; if (ex > worst) { worst = ex; wAt = p; wBy = who; }
         }
         var l = new List<KeyValuePair<string, int>>(by); l.Sort((a, b2) => b2.Value.CompareTo(a.Value)); var top = new List<string>(); for (int i = 0; i < Mathf.Min(6, l.Count); i++) top.Add(l[i].Key + " " + l[i].Value);
         var ci = System.Globalization.CultureInfo.InvariantCulture;
-        return "皮の頂点が野面の見え面の平面より前(硬 0・平面 −0.02・根入れの土を除く): " + n + " / " + pts.Count + " 頂点" + (n > 0 ? "(最悪 +" + worst.ToString("F2", ci) + " @(" + wAt.x.ToString("F1", ci) + ", " + wAt.y.ToString("F2", ci) + ", " + wAt.z.ToString("F1", ci) + ")〔" + wBy + "〕・" + string.Join("・", top.ToArray()) + ") ⛔" : " ⭕") + (n > 0 ? " ── うち埋めた面(前の地表が天端から 0.36 以内)" + nB + "(最悪 +" + worstB.ToString("F2", ci) + ")・外すと " + (n - nB) + "(最悪 +" + worstV.ToString("F2", ci) + ")" : "");
+        return "皮の頂点が野面の見え面の平面より前(硬 0・平面 −0.02・根入れの土を除く): " + n + " / " + pts.Count + " 頂点" + (n > 0 ? "(最悪 +" + worst.ToString("F2", ci) + " @(" + wAt.x.ToString("F1", ci) + ", " + wAt.y.ToString("F2", ci) + ", " + wAt.z.ToString("F1", ci) + ")〔" + wBy + "〕・" + string.Join("・", top.ToArray()) + ") ⛔" : " ⭕") + (n > 0 ? " ── うち埋めた面(前の地表が天端から 0.36 以内)" + nB + "(最悪 +" + worstB.ToString("F2", ci) + ")・外すと " + (n - nB) + "(最悪 +" + worstV.ToString("F2", ci) + ")" : "") + "・別の駒の中に隠れて数えない " + nHid;
     }
 
     /// <summary>**縁の落差 &gt; 0.3 の土の面**(硬・EDO-0502 第72巡・指図 terraces[Kadonouchi].edgeRetain 追記 2026-10-09e「縁の落差が 0.3 を超える所は全部石垣の見え面で受け、土の面を見せない」)。

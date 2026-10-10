@@ -70,6 +70,8 @@ public static partial class EdoBuild
         /// 削る前の高さ(11〜13m)で芝を描き、観理院の崖の縁の石垣の前に横に通る板が浮いた(EDO-0477)。
         /// 当たる先: CutEdgeSkin に設計を渡す全邸(いまは山王社 Stage9)。</summary>
         public Vector2[] own;
+        /// <summary>区画の多角形の控え(<c>own</c> を null にした後も、区画の内だけに掛ける決まり ── 盛りの縁の法 4a・平らの帯 ── が見る)。第92巡: own を null にしたため 4a が門の口の前の道を 1:1.5 で盛っていた。</summary>
+        public Vector2[] ownKept;
         /// <summary>**法で受けない節点**(null なら無し・h と同じ並び)。立てた節点の周り(双一次の 4 点のどれか)の点は、面の外でも
         /// 最寄りの面の縁から法で受けず(OutsideY の切土の側の頭打ち)設計の地盤そのものを描く。⭐ 部材の小口に被せる土(岡部 TW_Kado_Sode の
         /// 低い端「高さ 0.15・長さ 0.25 の土を 1:1.5 で被せる」【硬】)は面(門の内 16.50)の縁の脇で面より高い ⇒ 法の頭打ちが面の高さへ
@@ -193,6 +195,64 @@ public static partial class EdoBuild
         }
         /// <summary>駒の外形(凸包)。無ければ null。</summary>
         public Vector2[] HullOf(GameObject go) { int i = pieceGo.IndexOf(go); return i < 0 ? null : pieceFaces[i].hull; }
+
+        /// <summary>**見え面の天端の線からの離れ**(第92巡・指図 Kadonouchi.flat 追記 2026-10-10i「頭は見え面の天端の線から 1.5 以上内」の測り)。
+        /// 点 q から、天端が yRef ± tol の帯(縁の石垣)の割りごとの天端の前の縁の点までの平面の距離の最小。帯が無ければ +∞。
+        /// ⛔ 駒の外形(凸包)からは測らない ── 凸包の背の線は控えの後端で、見え面の天端の線から 1.1〜1.5 奥(10-10g の 0.3 はそこから測って頭が溝の脇で浮いた)。
+        /// 当たる先: 平らな面の上に据える物の、縁の石垣からの離れ(背の雨落ちの頭・岡部 Kadonouchi)。</summary>
+        public float CrestFrontDist(Vector2 q, float yRef, float tol, out GameObject nearest)
+        {
+            nearest = null; float best = float.PositiveInfinity;
+            foreach (var fb in list)
+            {
+                if (fb.go == null || !fb.go.activeInHierarchy) continue;
+                for (int b = 0; b < fb.crest.Length; b++)
+                {
+                    if (float.IsNaN(fb.frontU[b]) || float.IsNaN(fb.crest[b]) || Mathf.Abs(fb.crest[b] - yRef) > tol) continue;
+                    var P = fb.t * (fb.a0 + (b + 0.5f) * BIN) + fb.f * fb.frontU[b]; float dd = (q - P).magnitude;
+                    if (dd < best) { best = dd; nearest = fb.go; }
+                }
+            }
+            return best;
+        }
+
+        /// <summary>**二段の重なり**(指図 const.abutOrder 追記 2026-10-10i【硬】「上の段の法尻は下の段の控えの後端 +clear より内・上の段の駒を下の段の見え面や天端の帯の上に載せない」の検め)。
+        /// 下の段 A の見え面ごとに、上の段 B(B の底 ≥ A の天端 − tierTol)の底の頂点(底 +0.3 以内)が A の法尻〜控えの後端 + clear の帯に入るかを数える。
+        /// 控えの後端 = A の天端 −0.3 までの頂点の、前の縁からの奥行の最大。⟶ 重なる (A, B) の組の数(log に組と最悪の奥行)。
+        /// ⭐ 同じ段で直交して突き付く入隅(底も天端も同じ)は二段でない ── B の底が A の天端より低ければ数えない。当たる先: 野面・城の石垣の全ての駒。</summary>
+        public int TwoTierOverlaps(float tierTol, float clear, System.Text.StringBuilder log)
+        {
+            int n = 0; var ci = System.Globalization.CultureInfo.InvariantCulture;
+            var topOf = new Dictionary<GameObject, float>(); var botV = new Dictionary<GameObject, List<Vector2>>();
+            foreach (var go in pieceGo)
+            {
+                if (go == null || !go.activeInHierarchy) continue; var vs = Body(go.transform, 999999); if (vs.Count == 0) continue;
+                float yb = float.MaxValue, yt = float.MinValue; foreach (var v in vs) { yb = Mathf.Min(yb, v.y); yt = Mathf.Max(yt, v.y); }
+                topOf[go] = yt; var l = new List<Vector2>(); foreach (var v in vs) if (v.y <= yb + 0.3f) l.Add(new Vector2(v.x, v.z)); botV[go] = l;
+            }
+            var seen = new HashSet<string>();
+            foreach (var fb in list)
+            {
+                var A = fb.go; float topA; if (A == null || !topOf.TryGetValue(A, out topA)) continue;
+                // 控えの後端(この面の奥行の最大)
+                float dBack = 0f; foreach (var v in Body(A.transform, 999999)) { if (v.y < topA - 0.3f) continue; int b0; float d0; if (FaceAt(fb, new Vector2(v.x, v.z), out b0, out d0) && d0 > dBack) dBack = d0; }
+                foreach (var kv in botV)
+                {
+                    var B = kv.Key; if (B == A) continue; float bB = bottomOf.ContainsKey(B) ? bottomOf[B] : float.NaN; if (float.IsNaN(bB) || bB < topA - tierTol) continue;
+                    float worst = float.NaN;
+                    foreach (var q in kv.Value)
+                    {
+                        int b; float d; if (!FaceAt(fb, q, out b, out d)) continue;
+                        float dToe = float.IsNaN(fb.footU[b]) ? -0.5f : fb.frontU[b] - fb.footU[b];
+                        if (d < dToe - 0.05f || d >= dBack + clear) continue;
+                        if (float.IsNaN(worst) || d < worst) worst = d;
+                    }
+                    if (float.IsNaN(worst)) continue; string key = A.name + "|" + B.name; if (!seen.Add(key)) continue; n++;
+                    if (log != null) log.AppendLine("      二段の重なり: 上 " + B.name + "(底 " + bB.ToString("F2", ci) + ")が下 " + A.name + "(天端 " + topA.ToString("F2", ci) + ")の見え面の天端の線から " + worst.ToString("+0.00;-0.00", ci) + "(控えの後端 " + dBack.ToString("F2", ci) + " + " + clear.ToString("F2", ci) + " より内に入る)");
+                }
+            }
+            return n;
+        }
 
         /// <summary>駒を足す(見え面は <see cref="WallFace"/>・隅の駒は <see cref="KadoFaces"/> の二面)。</summary>
         public void Add(GameObject go, bool kado) { Add(go, kado, kado); }

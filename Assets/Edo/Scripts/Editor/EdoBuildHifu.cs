@@ -96,6 +96,9 @@ public static partial class EdoBuild
         public float mikiriDrop = float.NaN, mikiriFlat = float.NaN, mikiriBatter = float.NaN;
         /// <summary>盛りの縁の法 1:n(指図 const.fillEdgeSlope「1:n より急にしない」【硬】)。NaN なら掛けない。</summary>
         public float fillSlope = float.NaN;
+        /// <summary>**石垣の足元の帯**(指図 const.toeBand「見え面の前 0.5 を法尻の高さで平らに・皮の頂点を見え面の平面より前・法尻 +0.2 より上へ出さない」【硬】・普請方 2026-10-10o・EDO-0502 第97巡)。
+        /// toeBandW = 帯の幅(見え面の法尻から前へ)・toeBandRise = 法尻からの上限。NaN なら掛けない。区画の外は掛けない(今の地形)。当たる先: 全ての石垣・野面の駒(帯で篩う駒)の足元。</summary>
+        public float toeBandW = float.NaN, toeBandRise = float.NaN;
     }
     /// <summary>平らな面。band 真なら輪郭の外で「縁から部材(石垣・石段)の見え面の足元まで」の帯も同じ高さ(第74巡・指図 flat 追記 2026-10-09g)── 帯 = 外の節点から縁と逆の向きへ bandMax 以内に部材の外形がある所。
     /// 部材の外形から coverD 以内は根入れを隠す土として y + coverH まで許す【硬】。</summary>

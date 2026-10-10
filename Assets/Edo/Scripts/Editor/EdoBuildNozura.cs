@@ -1212,6 +1212,9 @@ public static partial class EdoBuild
         /// <summary>名指しの積み止め(指図 returnEnd「端は積み止めで終える」・endKado「積み止めの H2400 で終える」)── ②〜④ を当てずに積み止めで終える。
         /// <see cref="tomeH"/> が NaN なら見付 + 根入れの規則で段を選ぶ。</summary>
         public bool tome; public float tomeH = float.NaN;
+        /// <summary>④ 差し込みを当てない(指図 TW_Nishi_Kado.ends 追記 2026-10-10o「前の地表が天端 −0.15 に届いた所で終える(④→①)」【硬】・第97巡)── 区間は据える前に
+        /// <see cref="TrimSegEndsAtFrontReach"/> で縮めてあり、端の見付は打ち切りの見付に収まる。</summary>
+        public bool noInsert;
         /// <summary>**積み止めの行く手の塀からの離れ**【硬】(指図 TW_Nishi_Kado.endKado 追記 2026-10-07「積み止めの駒は埋まる控えまで含めて区画の線の外へ 0・
         /// 駒の最も外の点を塀の内面から 0.3 以上内 ── 端を run に沿って内へ引く(目安 0.9・PlaceBest)」・EDO-0502 第45巡)。NaN なら当てない。
         /// 引き = 端を走りに沿って内へ戻す量。候補 0〜<see cref="tomePullMax"/>(0.1 刻み)を <see cref="tomePullAim"/>【柔】に近い順に試し、
@@ -1633,7 +1636,9 @@ public static partial class EdoBuild
                 // ④ 差し込み(指図 nozuraEndRule 追記2・①②より先・①を止めた邸でも当てる)【硬】: 端の先の見え面の線上の地盤が天端より高い端は、
                 //   天端 c0 のまま線を延ばし、線上の地盤が c0 + insertReach に届く所から insertTail 先で終える(端の小口は地中)。上限 insertMax。
                 //   延ばす先が塞がる(区画線・長屋の背から一間・据わった駒)か上限内で届かなければ ③。届いた所から先の区間の天端の土は根入れ(埋没に数えない)
-                if (endRule.insertMax > 0f && aheadD > 0f)
+                var spI = endRule.spec != null ? endRule.spec(segs[k], e) : null;
+                if (spI != null && spI.noInsert && aheadD > 0f) endRule.record.Add(segs[k].name + " 端" + e + ": ④を当てない〔" + spI.label + "〕");
+                if (endRule.insertMax > 0f && aheadD > 0f && !(spI != null && spI.noInsert))
                 {
                     float reach = float.NaN; string stopI = null;
                     for (float sx = 0.25f; sx <= endRule.insertMax + 1e-3f; sx += 0.25f)
@@ -2216,6 +2221,27 @@ public static partial class EdoBuild
         var a0 = seg.a; seg.a = a0 + t * keep0; seg.b = a0 + t * keep1;
         if (off > 0f) seg.crestAt = sl => crest0(sl + off);
         cutAt = lowAtB ? keep1 : keep0; return 1;
+    }
+
+    /// <summary>**前の地表が天端 − margin に届いた所で区間を終える**(両端から内へ ── 指図 TW_Nishi_Kado.ends 追記 2026-10-10o「辺24 の run は、前の地表が天端 −0.15 に届いた所で終える」【硬】・
+    /// EDO-0502 第97巡)。端から 0.1m ずつ内へ歩き、前の地表 ≥ 天端 − margin の間は切る。柔らかい条件は無い(届いた所 = 終わり)。
+    /// 据える前に縮める(TrimSegBelowFront と同じ型 ── ⛔ 据えた後に間引かない)。⟶ 0: 切らない・1: 切った(cut0/cut1 に両端の切り長)・2: 区間が残らない。
+    /// 当たる先: 前の地表が端で天端の近くまで上がる法尻の野面の土留め(岡部 TW_Nishi_Kado 辺24)。</summary>
+    public static int TrimSegEndsAtFrontReach(NozuraSeg seg, Func<Vector2, float> frontAt, float margin, out float cut0, out float cut1)
+    {
+        cut0 = 0f; cut1 = 0f; float L = Vector2.Distance(seg.a, seg.b); if (L < 1e-3f || seg.crestAt == null) return 0;
+        var t = (seg.b - seg.a) / L;
+        Func<float, bool> reached = sl => { float g = frontAt(seg.a + t * sl); return !float.IsNaN(g) && g >= seg.crestAt(sl) - margin; };
+        float keep0 = 0f, keep1 = L;
+        while (keep0 < L && reached(keep0)) keep0 += 0.1f;
+        while (keep1 > keep0 && reached(keep1)) keep1 -= 0.1f;
+        if (keep1 - keep0 < 0.05f) return 2;
+        if (keep0 <= 1e-4f && keep1 >= L - 1e-4f) return 0;
+        cut0 = keep0; cut1 = L - keep1;
+        var crest0 = seg.crestAt; float off = keep0; var a0 = seg.a;
+        seg.a = a0 + t * keep0; seg.b = a0 + t * keep1;
+        if (off > 0f) seg.crestAt = sl => crest0(sl + off);
+        return 1;
     }
 
     /// <summary>**相手の区間の線を越えて据えない**(突き付けの前の縮め ── 第89巡・岡部 指図 ends 追記 2026-10-10f【硬】「隅の駒の見え面に突き付け、隅の駒の天端の帯・見え面の上に駒を据えない」)。

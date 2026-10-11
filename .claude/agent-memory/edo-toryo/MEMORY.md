@@ -58,6 +58,7 @@
 - [区画の線を動かすと前の造成が隣に残る](prev-grade-left-in-neighbor-after-parcel-move.md) — Stage1_Grade(prev) が類型の区画も戻す。隣の塀が浮く恐れ
 - [均しの縁の節点・皮の PIN の被り・閉じの検め](pad-edge-nodes-outside-face-and-pinned-skin.md) — PadRim・PIN_TUCK・基壇を数える・積みを地表で測らない
 - [LevelPad に区画を渡すと段の土留めを越えて下の面を盛る](levelpad-crosses-terrace-wall.md) — 棟の建つ面の poly を渡す。均した後は heightmap の差を見る
+- [区画の外の道の線際の帯の均し](michi-narashi-outside-parcel.md) — Stage1 は区画の外を書かない・帯は外向きの片側で・base の s が動く
 - [造成は変わった段だけ流し直す](regrade-only-the-changed-block.md) — 全面だと築山と池が平らに戻り掘り直せない
 - [筋の最小−最大は全筋で浮く・門は皮の前に据わる・返しの外形の中は上げない](strip-min-max-leaves-float-and-gate-seat-before-skin.md) — 柱ごとに測る・SeatGamaeOn・TopLanding 面
 - [門長屋の口の芯はローカル +X で len/2−gc](nagaya-mon-gate-offset-axis.md) — 口の s から gc を出すのは据えた後の向き(sSign)で。奥の壁の抜けで測る
@@ -111,6 +112,7 @@
 - [法で切った段石・袖の差し替えの罠](batter-cut-parts-measure-and-check.md) — 突き合わせの幅は縮尺を見ない・袖の目地が偽の口・女坂の足は斜交で切れない
 - [積み止めの駒は FaceWallToLine で裏返る・継ぎ手は端の帯で・隅の返しの腕の向きと定尺](tome-piece-facing-and-joint.md) — 天端の差0は隠れた隣と比べた値。faceNear は seg.face を先に・armFixed+W/2
 - [勾配の駒は焼いた見付の帯の外で黙って落ちる・鈍い隅は Kado90 決め打ちだった](steep-grade-piece-only-low-h.md) — 049f は H4800 で G−660 無し。据える見付を先に測る
+- [Nozura2 は継ぎ目の線で連ねる・坂は勾配の連鎖](nozura2-joint-line-and-grade-chain.md) — 射影の端は重ねの先・crestOf は傾いた天端で高く読む
 - [二重折れの出隅は一つの駒](double-fold-kado-one-piece.md) — 中の区間の1駒が消え折れ2が黙って飛ぶ。PlaceRunKado2
 - [短い返しは票が割れて裏返る・袖は run の走る段だけ・別 run の出隅を芯で測ると入隅と誤る](short-return-tie-and-sode-extent.md) — RunLowHand/OverlapAlong/ShortSegConvexEnd。段の小口は中ほどで突き付け(跨ぐ段は解けない)
 - [野面 第3巡の測りの罠](nozura-round3-measure-traps.md) — 最も離れる向きの Contact は段石×隅 0.17 を見落とす・外形の中の面の無い点で皮が溝・法切り駒の見付は足元の面で
@@ -165,8 +167,7 @@
 - [練塀は下絵の seat で置かれ埋まる・天端の垣と S_Hei_20 の浮きは偽](dobei-seat-is-shitae-and-false-floats-r12.md) — 岡部 辺34 で 2.6m 埋没。浮きは光線の先着で確かめる・作業場の取り違え
 - [偶奇の多数決の内外判定は野面で偽のめり込み](parity-inside-test-false-intrusion.md) — 袖×SW の隅 0.234 は偽。当たり0の向きが在れば外
 - [悪化の申告はまず prefab を git で比べる](regression-claim-diff-prefab-first.md) — EDO-0437 の3件は駒が動いていなかった。郭の階の南の袖は EK の隅の腕の中(腕 −0.04 の隅が要る)
-- [Contact の筋は疎な駒で偽の隙(0.1 でも 0.25 でも)](contact-cell-too-fine-on-sparse-meshes.md) — 面どうしは光線で(KoguchiGap)。袖×段石の 0.015/0.020 は偽
-- [段石の浮きは袖に塞がれない端だけで数える](dan-float-read-behind-sode.md) — 底−地表は男坂で 0.43m 出るが袖の裏の空洞
+- [Contact の筋は疎な駒で偽の隙](contact-cell-too-fine-on-sparse-meshes.md)・[段石の浮きは袖に塞がれない端だけ](dan-float-read-behind-sode.md) — 面どうしは光線で・袖の裏の空洞
 - [当たりは棟の外形線の上で測らない](notch-seat-has-80mm-plate-under.md) — 線上は内と外を拾い分ける。廊下の側へ張り出す三角形だけに絞る
 - [実メッシュの当たりは紙より 0.08m 低い](mesh-atari-is-lower-than-paper.md) — 葺き厚と垂れ。5点の中央値で測る
 - [C#の検図関門が kansei を見ていなかった](csharp-review-gate-ignored-kansei.md) — python が⭕でも止まる。直した
@@ -182,8 +183,7 @@
 - [検査の浮き・子0は測り方の読み違いのことがある](qa-misreads-stack-and-single-mesh-gate.md) — 積みを地表で測る・一体の門・皮の前の垣。相手を床に入れて測り直す
 - [袖の脇の入りは見える地表で割る](sode-side-bite-below-skin.md) — 女坂の北の袖×回廊の出隅は全部 皮の下。MeasureSodeSideBites・裏の面の偽の入り
 - [退役した Stage が残ると検査が嘘の件数を出す](retired-stage-makes-fake-counts.md) — 449=1278−829 は別の母集団の引き算
-- [退ける門と検査は同じ測りで](machiya-clash-gate-weaker-than-check.md) — 門だけ屋根を外すと検査でめり込み。揃えた犠牲は駒1個だけ
-- [CheckScene は矩形の芯で測る](checkscene-center-vs-seat.md) — `seat` で据えた部材は永久に鳴る。⛔芯へ動かして0件にしない
+- [CheckScene は矩形の芯で測る](checkscene-center-vs-seat.md)・[退ける門と検査は同じ測りで](machiya-clash-gate-weaker-than-check.md) — `seat` で据えた部材は永久に鳴る。⛔芯へ動かして0件にしない・門だけ屋根を外さない
 - [天端の埋没の数えは法の根入れを拾う](crest-burial-count-picks-batter-face.md)・[UnderfloorGap は一体の駒で屋根を拾う](underfloorgap-picks-roof-on-one-mesh-parts.md) — 4m・5〜7m の偽。天端の帯だけ数える・底の頂点で測る
 - 山王の Stage の罠: [Stage0 は Keidai・Sando を退避](sanno-stage0-retires-live-groups.md)・[Stage7 の縁の木の重ね(解消)](sanno-stage7-edge-trees-duplicate.md)・[Stage6 は Clear の後に指紋](sanno-stage6-clears-before-fingerprint.md) — 建て直しは Stage1 から・bake を見張る
 - [門・柵の浮きは「床」で測る](gate-float-measure-on-bed.md) — 土留めの天端に載る隅は地表で嘘の浮き。座は上限・浮けば床へ。Stage9 の後に S4/5

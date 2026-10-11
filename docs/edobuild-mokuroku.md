@@ -1,6 +1,6 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 0f8d721a123e -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 d30a28045b4a -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
@@ -442,7 +442,7 @@ EdoBuild — 段の土留め(石垣・野面)を天端の折れ線へ据える(2
 | `EdoBuild.MachiyaRun(parent, A, B, outward, baseY, maguchiM, maxDepthM, gapC, gapHalf, prefix, leadPath, ours, keepInside, avoid, tally, seed=…, maguchiMix=…)` | `List<GameObject>` | 硬 面・区域 | <summary>表店の列。辺 A→B に、通りへ店先を向けた町屋を軒を接して並べる。 | TypologyBuilder.Machiya(Machiya) |
 | `EdoBuild.UraNagayaRun(parent, A, B, outward, baseY, insetM, cap, prefix, keepInside, avoid, dropped, wallGap, gapM, munewari=…)` | `List<GameObject>` | 床 | <summary>裏長屋(裏店)の列。表店の列の背後に、路地を挟んで棟を並べる。 | TypologyBuilder.Machiya(UraNagaya) |
 | `EdoBuild.MachiKidoKeisha(a, b, away)` | `float` | 硬 地面・区域 | 道を塞ぐ町木戸を、道の両側の角 a・b の間に据える。 | TypologyBuilder.Machiya(MachiKido) |
-| `EdoBuild.MachiKidoAcross(parent, path, a, b, away, name, note, keisha=…)` | `GameObject` |  | ⚠ 注釈なし | Assets(Munamon), TypologyBuilder.Machiya(MachiKido) |
+| `EdoBuild.MachiKidoAcross(parent, path, a, b, away, name, note, keisha=…)` | `GameObject` |  | ⚠ 注釈なし | Assets(MunamonSode), TypologyBuilder.Machiya(MachiKido) |
 | `EdoBuild.NorenVariants()` | `List<Dictionary<string, object>>` |  | `docs/Sashizu/noren.json` の店の一覧(EdoAssets.Eg.NorenSpec)。 | TypologyBuilder.Machiya(NorenKeysFor) |
 | `EdoBuild.HangNoren(houses, keys, seed)` | `string` |  | 表店に軒ごとの暖簾を掛ける。keys は掛けてよい店(noren.json の key・重複は軒数の比)。 | TypologyBuilder.Machiya(Machiya) |
 

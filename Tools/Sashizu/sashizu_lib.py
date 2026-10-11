@@ -745,6 +745,56 @@ def wall_caps(d, t, u, v, y2):
     return False
 
 
+def michi_narashi_spec(d):
+    """指図 `grading.michiNarashi`(区画線の外の道の線際の帯の均し・EDO-0502 施主 2026-10-11『均す』)を数へ読む。
+    欄が無ければ None。`band`(帯の幅 m)・`cross`(線上の高さで平らに保つ幅 m と、その先の擦り付けの勾配 1/n)は
+    文の数を読む ── 読めなければ ⛔ 例外(推し量って幅を作らない・規則19)。"""
+    g = (d.get("grading") or {}).get("michiNarashi")
+    if not g:
+        return None
+    mb = re.search(r"([0-9.]+)\s*m", str(g.get("band", "")))
+    mc = re.search(r"([0-9.]+)\s*m", str(g.get("cross", "")))
+    ms = re.search(r"1\s*/\s*([0-9.]+)", str(g.get("cross", "")))
+    if not (mb and mc and ms) or not g.get("lineProfile") or g.get("edge") is None:
+        raise ValueError("grading.michiNarashi の band / cross / lineProfile / edge が読めない")
+    prof = sorted((float(a), float(b)) for a, b in g["lineProfile"])
+    return {"edge": int(g["edge"]), "band": float(mb.group(1)), "flat": float(mc.group(1)),
+            "slope": 1.0 / float(ms.group(1)), "prof": prof}
+
+
+def michi_narashi_y(sp, poly, x, z, inside):
+    """区画線の外の道の線際の帯の**均した面**(世界 x, z)。帯の外・区画の中・辺の両端の外は None。
+    面 = 線上の高さ lineProfile(s)(線から flat m まで)、その先は slope の勾配で上る(今の地盤との min を取る側が擦り付けになる)。
+    ⛔ 盛らない ── 呼ぶ側が min(今の地盤, 面) を取る【硬】。s は辺の始まりの頂点 poly[edge] からの道のり。"""
+    if sp is None or inside:
+        return None
+    n = len(poly)
+    a, b = poly[sp["edge"] % n], poly[(sp["edge"] + 1) % n]
+    L = math.hypot(b[0] - a[0], b[1] - a[1]) or 1.0
+    tx, tz = (b[0] - a[0]) / L, (b[1] - a[1]) / L
+    s = (x - a[0]) * tx + (z - a[1]) * tz
+    if s < 0.0 or s > L:
+        return None
+    # 外向きの法線(区画の巡りで決める ── 辺の延長の上の、隣の辺の外の点を拾わない)
+    ar = sum(poly[i][0] * poly[(i + 1) % n][1] - poly[(i + 1) % n][0] * poly[i][1] for i in range(n))
+    ox, oz = (tz, -tx) if ar > 0 else (-tz, tx)
+    dd = (x - a[0]) * ox + (z - a[1]) * oz
+    if dd < 0.0 or dd > sp["band"]:
+        return None
+    pr = sp["prof"]
+    if s <= pr[0][0]:
+        y0 = pr[0][1]
+    elif s >= pr[-1][0]:
+        y0 = pr[-1][1]
+    else:
+        y0 = pr[-1][1]
+        for (s1, y1), (s2, y2) in zip(pr, pr[1:]):
+            if s1 <= s <= s2:
+                y0 = y1 + (y2 - y1) * (s - s1) / ((s2 - s1) or 1.0)
+                break
+    return y0 + max(0.0, dd - sp["flat"]) * sp["slope"]
+
+
 def graded_y(d, u, v, nat, in_parcel, walled=None):
     """**造成後の地盤**。段の中は段の高さ。段の外は法面(盛土 1:batterFill / 切土 1:batterCut)で
     現地形へ摺り付ける — 段の縁に垂直の段差を残さないため(2026-08-23 ユーザー指摘)。

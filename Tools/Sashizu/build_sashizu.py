@@ -332,6 +332,13 @@ class Model(object):
         if nat is None:
             return None
         if not self.in_parcel(u, v):
+            # ⭐ 区画線の外の道の線際の帯の均し(指図 grading.michiNarashi・EDO-0502 施主 2026-10-11『均す』)── 下げるだけ【硬】
+            if not hasattr(self, "_michi"):
+                self._michi = L.michi_narashi_spec(self.d)
+            if self._michi is not None:
+                ym = L.michi_narashi_y(self._michi, self.poly, *self.W(u, v), inside=False)
+                if ym is not None:
+                    return min(nat, ym)
             return nat
         if self._soil_d is not None:
             # ⚠ sashizu_soil の覚え書きはモジュールの中に一組しかない(壊し試しは指図を複製して Model を作り直す)。

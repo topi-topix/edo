@@ -128,14 +128,17 @@ public static partial class EdoBuild
         // 見付: 天端 − 見え面の足元(線から前へ 0.25 と 0.7)の地表の最小 ⇒ 焼いてある段のうち床がその下に入る最小
         Func<float, float, float, int, float> needH = (sa, sb2, top, si) =>
         {
-            float gmin = float.MaxValue;
+            // ⭐ top = NaN は**天端が線に沿って傾く駒**(勾配の駒 ── 床も天端と一緒に傾く): 見付 = 走りの各点の (天端の線 − 足元) の最大
+            //   (= 低い側の端の地盤で取る・2026-10-11 EDO-0502 第104巡)。top が数なら従前どおり 天端 − 足元の最小。
+            float need = float.MinValue;
             for (float s = sa; s <= sb2 + 1e-4f; s += Mathf.Max(0.1f, (sb2 - sa) / 6f))
             { int k = Mathf.Clamp(si < 0 ? segOf(s) : si, 0, m - 2); Vector2 q = at(Mathf.Clamp(s, 0f, L));
+              float t = float.IsNaN(top) ? w.crestAt(Mathf.Clamp(s, 0f, L)) : top; if (float.IsNaN(t)) continue;
               foreach (float off in new[] { 0.25f, 0.7f })
               { float x = q.x + face[k].x * off, z = q.y + face[k].y * off;
                 float g = w.footAt != null ? w.footAt(x, z) : float.NaN; if (float.IsNaN(g)) g = groundAt(x, z);
-                if (!float.IsNaN(g)) gmin = Mathf.Min(gmin, g); } }
-            float need = top - gmin;
+                if (!float.IsNaN(g)) need = Mathf.Max(need, t - g); } }
+            if (need == float.MinValue) need = float.IsNaN(top) ? 0f : top - float.MaxValue;
             foreach (var r in w.minHRanges) if (sb2 >= r.x && sa <= r.y) need = Mathf.Max(need, r.z);   // 端の隅の組の見付を揃える(kadoReturnUniform)
             { float midS = (sa + sb2) * 0.5f; foreach (var r in w.fixHRanges) if (midS >= r.x && midS <= r.y) return r.z; }   // 端の一駒の H を名指す(sodeSlope の低い端)
             foreach (var h in w.heights) if (h >= need - 1e-3f) return h;
@@ -158,6 +161,35 @@ public static partial class EdoBuild
         // 走りへの射影の [最小, 最大](天端の帯より下の全頂点)
         Func<GameObject, Vector2, Vector2, float[]> span = (g, o, d) =>
         { float a0 = float.MaxValue, a1 = float.MinValue; foreach (var v in Body(g.transform, 999999)) { float s = (v.x - o.x) * d.x + (v.z - o.y) * d.y; a0 = Mathf.Min(a0, s); a1 = Mathf.Max(a1, s); } return new[] { a0, a1 }; };
+        // ⭐ **重ねの端の版(Nozura2)は継ぎ目の線で連ねる**(2026-10-11・EDO-0502 第104巡・施主「石垣の部材の境目の隙間および段差」)。
+        //   Nozura2 は両端を継ぎ目の線(局所 X = ±0.909)から 0.02 + 0.026·深さ だけ隣の石へ延ばしてある(折れの凸の側に楔が開かない)。
+        //   実メッシュの走りの射影の端(span)で連ねると重ねの分(H4.8 で片側 0.15)だけ駒が離れる ⇒ 射影の端から 伸縮 × 重ねの最大(部材の札
+        //   EdoAssets.Own.Nozura2OverlapMax(焼いた見付))を内へ引いた所を継ぎ目の線とする(測った射影の端 − 札の重ね ── 基準点では置かない)。
+        //   旧の駒(Sanno_Nozura_*)は従前どおり射影の端。当たる先: Nozura2 を渡す野面の run すべて(いまは岡部 Stage2b・道の縁の野面)。
+        Func<string, float> bakedH = pth => { var mh = System.Text.RegularExpressions.Regex.Match(pth ?? "", @"_H(\d{4})_"); return mh.Success ? int.Parse(mh.Groups[1].Value) / 1000f : float.NaN; };
+        Func<GameObject, string, Vector2, Vector2, float[]> jspan = (g, pth, o, d) =>
+        {
+            var s2 = span(g, o, d); if (!EdoAssets.Own.IsNozura2(pth)) return s2;
+            float hb = bakedH(pth); if (float.IsNaN(hb)) return s2;
+            float ov = Mathf.Abs(g.transform.lossyScale.x) * EdoAssets.Own.Nozura2OverlapMax(hb);
+            return new[] { s2[0] + ov, s2[1] - ov };
+        };
+        bool isN2 = w.straight != null && EdoAssets.Own.IsNozura2(w.straight(1.2f, 0f, 0));
+        // 焼いた勾配(名の G・局所 +X へ・伸縮前)
+        Func<string, float> bakedG = pth => { var mg = System.Text.RegularExpressions.Regex.Match(pth ?? "", @"_G([+-]\d{3})_"); return mg.Success ? int.Parse(mg.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) / 1000f : 0f; };
+        // ⭐ 勾配の駒の天端は**勾配を差し引いて**測る ── 天端の帯の上位 40% を採る crestOf は、傾いた天端では高い側の筋に偏る(勾配 0.69 で +0.1 前後)。
+        //   局所 +X の世界の勾配(gW)で頂点の高さを駒の中ほどへ戻してから同じ帯の中央値を採る(= 中ほどの天端)。
+        Func<GameObject, float, float> crestOfG = (g, gW) =>
+        {
+            var cells = new Dictionary<long, float>();
+            Vector3 cc = RB(g).center; Vector3 ax = g.transform.right; Vector3 axh = new Vector3(ax.x, 0f, ax.z).normalized;
+            foreach (var v in Body(g.transform, 999999))
+            { float u = Vector3.Dot(v - cc, axh); if (Mathf.Abs(u) > 0.35f) continue; float y = v.y - gW * u;
+              long key = ((long)Mathf.FloorToInt(v.x / 0.2f) << 32) ^ (uint)Mathf.FloorToInt(v.z / 0.2f);
+              float y0; if (!cells.TryGetValue(key, out y0) || y > y0) cells[key] = y; }
+            var ys = new List<float>(cells.Values); ys.Sort(); if (ys.Count == 0) return float.NaN;
+            int k0 = (int)(ys.Count * 0.6f); var top = ys.GetRange(k0, ys.Count - k0); return top[top.Count / 2];
+        };
         // ⭐ 見え面は**駒の走りごと**に描かれた地表で測る(2026-09-26・EDO-0437)── 区間の途中で高低が入れ替わる土留め
         //   (山王 前庭の W・E)は区間の票が一つの向きしか取れず、半分の駒が土の側を向いた。城の石垣の駒ごとの flipLocal と同じ考え。
         //   票が無い(両側の地表の差が無い)所は区間の向きのまま。
@@ -335,12 +367,27 @@ public static partial class EdoBuild
             Vector2 X = new Vector2(fN.y, -fN.x);                 // 局所 +X(+Z = 見え面)
             bool rises = Vector2.Dot(X, dir[si]) * (hi - lo) > 0f;
             float yaw = Mathf.Atan2(-X.y, X.x) * Mathf.Rad2Deg; float mid = 0.5f * (lo + hi);
-            string path = w.dan(rises, idx);
-            var dg = Place(path, new Vector3(c.x, mid - 1.5f, c.y), yaw, Vector3.one, parent, name + "_dan");
-            seat(dg, mid, fN, c);
-            // 走りの位置: 中心を段の境へ(両切り口の中点)
-            var sp = span(dg, c, dir[si]); dg.transform.position -= new Vector3(dir[si].x, 0f, dir[si].y) * (0.5f * (sp[0] + sp[1]));
-            sp = span(dg, c, dir[si]);
+            string path; GameObject dg;
+            if (isN2)
+            {   // ⭐ 段の境は**勾配の直線の駒(Nozura2)**で継ぐ(2026-10-11・EDO-0502 第104巡)── 段の境の駒は H1.5 の一種しか焼いておらず、
+                //   見付の要る所(岡部 TW_KiriZaka_N/S の段の境)で足元に 0.43 の口が開いた。勾配 = 段の差 ÷ 一間に最も近い焼いた物・見付は走りの各点の最大。
+                //   当たる先: Nozura2 を渡す野面の run の段の境すべて(岡部)。
+                float hd = needH(ss - HALF, ss + HALF, float.NaN, si);
+                float xr = Vector2.Dot(X, dir[si]) >= 0f ? 1f : -1f;
+                path = w.straight(hd, xr * (hi - lo) / W, idx);
+                dg = Place(path, new Vector3(c.x, mid - hd, c.y), yaw, Vector3.one, parent, name + "_dan");
+                FaceWallToLine(dg, fN, c);
+                float gWd = bakedG(path); float cmd = crestOfG(dg, gWd); if (!float.IsNaN(cmd)) dg.transform.position += Vector3.up * (mid - cmd);
+            }
+            else
+            {
+                path = w.dan(rises, idx);
+                dg = Place(path, new Vector3(c.x, mid - 1.5f, c.y), yaw, Vector3.one, parent, name + "_dan");
+                seat(dg, mid, fN, c);
+            }
+            // 走りの位置: 中心を段の境へ(両切り口の中点 ── Nozura2 は継ぎ目の線の中点)
+            var sp = jspan(dg, path, c, dir[si]); dg.transform.position -= new Vector3(dir[si].x, 0f, dir[si].y) * (0.5f * (sp[0] + sp[1]));
+            sp = jspan(dg, path, c, dir[si]);
             fixedSpans.Add(new[] { ss + sp[0], ss + sp[1], -1, 1 });
             res.Add(new KeyValuePair<GameObject, Vector2>(dg, fN)); idx++;
             log.AppendLine("    段の境 s=" + ss.ToString("F2") + ": " + System.IO.Path.GetFileNameWithoutExtension(path) + "(天端 " + lo.ToString("F2") + "→" + hi.ToString("F2") + ")");
@@ -674,6 +721,11 @@ public static partial class EdoBuild
             // 始まり側から連ねる(相手へ入れる短い端は、固定の駒の側から)
             bool fromB = gi == 0 && abutEnd && len < 0.85f * W;
             float edge = fromB ? b : a;
+            // ⭐ 勾配の連鎖(Nozura2・2026-10-11 EDO-0502 第104巡): 前の駒の終わりの天端に次の駒の始まりの天端を合わせ、勾配は
+            //   「(次の継ぎ目の線の高さ − 今の天端)/ 駒の走り」に最も近い焼いた物 ⇒ 天端は継ぎ目で連続し、線との外れは一駒ごとに引き戻される。
+            //   従前(駒の中ほどを線へ・勾配は線の勾配に最も近い物)は、線の勾配が焼いた最大を超える坂(岡部 K_Dan1 の下の北 0.69)で継ぎ目ごとに段になった。
+            //   当たる先: Nozura2 を渡す野面の run の坂なりの区間すべて(岡部 主面の石段の脇・袖の坂・腰の返し・西の隅・東南)。
+            float chainEnd = float.NaN;
             for (int k = 0; k < N; k++)
             {
                 float sMid = fromB ? edge - 0.5f * W * sc : edge + 0.5f * W * sc;
@@ -682,19 +734,27 @@ public static partial class EdoBuild
                 Vector2 fN = faceOn(si, sMid - 0.5f * W * sc, sMid + 0.5f * W * sc);
                 if (Vector2.Dot(fN, face[si]) < 0f) flipped++;
                 var faceSave = face[si]; face[si] = fN;                  // 見付・打ち切りの向きもこの駒の見え面で
-                float h = needH(sMid - 0.5f * W * sc, sMid + 0.5f * W * sc, crest, si);
+                float h = needH(sMid - 0.5f * W * sc, sMid + 0.5f * W * sc, isN2 ? float.NaN : crest, si);
                 face[si] = faceSave;
                 Vector2 X = new Vector2(fN.y, -fN.x);
                 float gX = gradeX(sMid, 0.5f * W * sc, X, si);
-                foreach (var r in w.fixHRanges) if (sMid >= r.x && sMid <= r.y) gX = 0f;   // 名指した端の一駒は水平(sodeSlope の低い端 ── ⛔ 傾けて刺さない)
-                foreach (var r in w.flatRanges) if (sMid >= r.x && sMid <= r.y) gX = 0f;   // 名指した端の水平の範囲(sodeSlope の上端の取り付き ── 第63巡は PlaceBest が G−275 を選び 21.24→20.80 に傾いた)
+                bool flatHere = false;
+                foreach (var r in w.fixHRanges) if (sMid >= r.x && sMid <= r.y) { gX = 0f; flatHere = true; }   // 名指した端の一駒は水平(sodeSlope の低い端 ── ⛔ 傾けて刺さない)
+                foreach (var r in w.flatRanges) if (sMid >= r.x && sMid <= r.y) { gX = 0f; flatHere = true; }   // 名指した端の水平の範囲(sodeSlope の上端の取り付き ── 第63巡は PlaceBest が G−275 を選び 21.24→20.80 に傾いた)
+                float sgn2 = fromB ? -1f : 1f, sNext = edge + sgn2 * W * sc, xRun = Vector2.Dot(X, dir[si]) >= 0f ? 1f : -1f;
+                float prevC = float.IsNaN(chainEnd) ? w.crestAt(Mathf.Clamp(edge, 0f, L)) : chainEnd;
+                if (isN2 && !flatHere && !float.IsNaN(prevC))
+                {
+                    float cNext = w.crestAt(Mathf.Clamp(sNext, 0f, L));
+                    if (!float.IsNaN(cNext)) gX = xRun * (cNext - prevC) / (sNext - edge);
+                }
                 float yaw = Mathf.Atan2(-X.y, X.x) * Mathf.Rad2Deg;
                 bool kiriHere = (lastFree && k == N - 1 && !fromB) || (firstFree && k == 0 && !fromB);
                 // ⛔ 打ち切りの駒(見付 0.15 で頭が下がる)は端の見付が最も低い段で足りる所だけ ── 見付の要る端に置くと床が地表から浮く
                 //   (前庭の SE の東の端は天端 16.4・足元 14.5 で、打ち切りの駒が 1.47m 浮いた・2026-09-26)。許容0 の浮き ⇒ 見付の合う直線の駒で終える。
                 if (kiriHere && h > w.heights[0] + 1e-3f)
                 { log.AppendLine("    端の見付 " + h.ToString("F2") + " は打ち切りの駒では足りない ── 直線の駒で終える(端の切り口は地表の法で受ける)"); kiriHere = false; }
-                string path; GameObject g = null;
+                string path = null; GameObject g = null;
                 if (kiriHere && w.kiri != null)
                 {   // 打ち切り: 端へ向かって天端が下がる
                     bool towardPlus = Vector2.Dot(X, dir[si]) > 0f; bool endIsB = lastFree && k == N - 1;
@@ -716,17 +776,28 @@ public static partial class EdoBuild
                 {
                     path = w.straight(h, gX * sc, idx);
                     g = Place(path, new Vector3(c.x, crest - h, c.y), yaw, new Vector3(sc, 1f, 1f), parent, name + "_" + nPieces.ToString("000"));
-                    seat(g, crest, fN, c);
+                    if (isN2 && EdoAssets.Own.IsNozura2(path) && !float.IsNaN(prevC))
+                    {   // 連鎖: 中ほどの天端 = 前の終わりの天端 + 焼いた勾配 × 半走り(勾配を差し引いて測る)
+                        float gW = bakedG(path) / sc;                       // 局所 +X の世界の勾配
+                        float cMid = flatHere ? crest : prevC + xRun * gW * (sMid - edge);
+                        FaceWallToLine(g, fN, c);
+                        float cm = crestOfG(g, gW); if (!float.IsNaN(cm)) g.transform.position += Vector3.up * (cMid - cm);
+                        float cm2 = crestOfG(g, gW); if (!float.IsNaN(cm2)) worstCrest = Mathf.Max(worstCrest, Mathf.Abs(cm2 - w.crestAt(Mathf.Clamp(sMid, 0f, L))));
+                        chainEnd = cMid + xRun * gW * (sNext - sMid);
+                    }
+                    else { seat(g, crest, fN, c); chainEnd = float.NaN; }
                     // 焼いた勾配(ファイル名の G)と求めた勾配の差 × 半走り = 端の天端の外れ(狙い ±0.08)
                     var gm = System.Text.RegularExpressions.Regex.Match(path, @"_G([+-]\d{3})_");
                     if (gm.Success) { float gb = int.Parse(gm.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) / 1000f / sc;
                         worstGradeErr = Mathf.Max(worstGradeErr, Mathf.Abs(gb - gX) * 0.5f * W * sc); }
                 }
                 // 前の切り口へ突き付ける(実メッシュの走りへの射影)
-                var sp = span(g, P[si], dir[si]);
+                string gPath = path;
+                var sp = jspan(g, gPath, P[si], dir[si]);
                 float want = fromB ? (edge - s0[si]) - sp[1] : (edge - s0[si]) - sp[0];
                 g.transform.position += new Vector3(dir[si].x, 0f, dir[si].y) * want;
-                sp = span(g, P[si], dir[si]);
+                sp = jspan(g, gPath, P[si], dir[si]);
+                if (!EdoAssets.Own.IsNozura2(gPath)) chainEnd = float.NaN;   // 打ち切り・旧の駒の後は線から測り直す
                 float nextEdge = fromB ? s0[si] + sp[0] : s0[si] + sp[1];
                 edge = nextEdge; idx++; nPieces++;
                 res.Add(new KeyValuePair<GameObject, Vector2>(g, fN)); passPieces.Add(g);

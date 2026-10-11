@@ -72,7 +72,7 @@ public static class EdoOkabeYashikiBuilder
 
     /// <summary>読み直す。指図か算出物を差し替えたら必ず呼ぶ(Unity は静的を抱え続ける)。</summary>
     [MenuItem("Edo/岡部筑前守上屋敷/指図を読み直す")]
-    public static void Reload() { _topLanding.Clear(); _d = null; _impl = null; _runs = null; _frame = null; _graded = null; _flat = null; _rampProf = null; }
+    public static void Reload() { _topLanding.Clear(); _d = null; _impl = null; _runs = null; _frame = null; _graded = null; _michi = null; _michiRead = false; _flat = null; _rampProf = null; }
 
     static Dictionary<string, object> D
     {
@@ -311,6 +311,37 @@ public static class EdoOkabeYashikiBuilder
         }
     }
     static WGrid _graded;
+    /// <summary>区画線の外の道の線際の帯の均した面(算出物 michiNarashi ← 指図 grading.michiNarashi・EDO-0502 施主 2026-10-11『均す』)。
+    /// 帯の外は NaN。欄が無ければ null。Stage1 が区画の外のこの帯だけ min(今の地形, 面) で下げる(⛔ 盛らない【硬】)。</summary>
+    static WGrid _michi; static bool _michiRead;
+    static WGrid MichiNarashi
+    {
+        get
+        {
+            if (_michiRead) return _michi;
+            _michiRead = true;
+            var g = IMPL.ContainsKey("michiNarashi") ? O(IMPL["michiNarashi"]) : null;
+            if (g == null) return null;
+            var w = new WGrid { x0 = F(g["x0"]), z0 = F(g["z0"]), step = F(g["step"]), nx = (int)F(g["nx"]), nz = (int)F(g["nz"]) };
+            w.h = new float[w.nx * w.nz];
+            var rows = A(g["h"]);
+            if (rows == null || rows.Count != w.nz) throw new Exception("算出物 michiNarashi.h の行数が nz と合わない");
+            for (int j = 0; j < w.nz; j++)
+            {
+                var row = A(rows[j]);
+                if (row == null || row.Count != w.nx) throw new Exception("算出物 michiNarashi.h[" + j + "] の列数が nx と合わない");
+                for (int i = 0; i < w.nx; i++) w.h[j * w.nx + i] = row[i] == null ? float.NaN : Convert.ToSingle(row[i]);
+            }
+            _michi = w; return _michi;
+        }
+    }
+    /// <summary>帯の均した面の高さ。最も近い格子点が帯の外なら NaN(帯の縁で外へにじませない ── 帯の外の道は触らない【硬】)。</summary>
+    static float MichiNarashiAt(WGrid m, float x, float z)
+    {
+        int i = Mathf.RoundToInt((x - m.x0) / m.step), j = Mathf.RoundToInt((z - m.z0) / m.step);
+        if (i < 0 || i >= m.nx || j < 0 || j >= m.nz || float.IsNaN(m.h[j * m.nx + i])) return float.NaN;
+        return m.At(x, z);
+    }
     static WGrid Graded
     {
         get
@@ -463,11 +494,19 @@ public static class EdoOkabeYashikiBuilder
         var H = td.GetHeights(x0, z0, w, h);
         var P = Poly;
         int n = 0, hole = 0; float cmax = 0f, fmax = 0f;
+        var mn = MichiNarashi; int nMichi = 0; float mMax = 0f;
         for (int z = 0; z < h; z++)
             for (int x = 0; x < w; x++)
             {
                 var p = new Vector2(tp.x + (x0 + x) * ts.x / (hres - 1), tp.z + (z0 + z) * ts.z / (hres - 1));
-                if (!EdoGeom.PIP(P, p)) continue;            // ⛔ 敷地の外は一切触らない
+                if (!EdoGeom.PIP(P, p))
+                {   // ⛔ 敷地の外は触らない ── ただし道の線際の帯の均し(算出物 michiNarashi)の帯の中だけ、今の地形より低い所へ下げる【硬: 盛らない】
+                    if (mn == null) continue;
+                    float ym = MichiNarashiAt(mn, p.x, p.y); if (float.IsNaN(ym)) continue;
+                    float curM = H[z, x] * ts.y + tp.y;
+                    if (ym < curM - 1e-4f) { mMax = Mathf.Max(mMax, curM - ym); H[z, x] = (ym - tp.y) / ts.y; nMichi++; }
+                    continue;
+                }
                 float y = Graded.At(p.x, p.y);
                 if (float.IsNaN(y)) { hole++; continue; }    // 算出物に穴 — 触らずに数える
                 float cur = H[z, x] * ts.y + tp.y;
@@ -477,6 +516,7 @@ public static class EdoOkabeYashikiBuilder
         td.SetHeightsDelayLOD(x0, z0, H); td.SyncHeightmap();
         sb.AppendLine("造成 " + n + " セル(窓 " + w + "x" + h + ")｜今回の移動量: 下げ最大 "
                       + cmax.ToString("F2") + "m / 上げ最大 " + fmax.ToString("F2") + "m");
+        if (mn != null) sb.AppendLine("道の線際の帯の均し(区画の外・michiNarashi): 下げた升 " + nMichi + "・下げ最大 " + mMax.ToString("F2") + "m(盛り 0)");
         if (hole > 0)
             sb.AppendLine("★ 区画の中なのに算出物が null のセルが " + hole
                           + " — `graded` の格子が区画を覆いきっていない(生成器の窓を広げること)");
@@ -740,7 +780,7 @@ public static class EdoOkabeYashikiBuilder
             return lineD(q) < lineD(near) ? roadY(near) - curbH : roadY(near);
         };
         var got = EdoBuild.PlaceNozuraNet(segs, EdoBuild.Ground, faceAt, back + 0.3f, grp,
-            (h, g, i) => EdoAssets.Own.SannoNozura(h, g, i), (h, i) => EdoAssets.Own.SannoNozuraKado(h, i),
+            (h, g, i) => EdoAssets.Own.Nozura2(h, g, i), (h, i) => EdoAssets.Own.SannoNozuraKado(h, i),   // 直線の駒は重ねの端の版(EDO-0502 第104巡・継ぎ目の隙と段差)
             (up, i) => EdoAssets.Own.SannoNozuraDan(up, i), (up, i) => EdoAssets.Own.SannoNozuraKiri(up, i),
             null, heights.ToArray(), new List<GameObject>(), log);
         // 硬い・区域: 駒の実メッシュが区画の外へ出ないか
@@ -2956,7 +2996,7 @@ public static class EdoOkabeYashikiBuilder
             sb.Append(BackOfFullLine(deferBack, nozSegs));   // 背の台の石垣の両端(backOf<棟> 10-10o)── 区間の最後に足す(相手の鎖が先に据わる)
             sb.Append(SodesBeforeNet(grp, nozSegs, poolN));   // 段石 → 袖 → 本線(cuts 10-10o)── 袖を網の前に据え、口の両端の本線を袖の外の面へ
             var got = EdoBuild.PlaceNozuraNet(nozSegs, SkinGround, SkinGround, 1.2f, grp,
-                (h, g, i) => EdoAssets.Own.SannoNozura(h, g, i), (h, i) => EdoAssets.Own.SannoNozuraKado(h, i),
+                (h, g, i) => EdoAssets.Own.Nozura2(h, g, i), (h, i) => EdoAssets.Own.SannoNozuraKado(h, i),   // 直線の駒は重ねの端の版(EDO-0502 第104巡・継ぎ目の隙と段差)
                 (up, i) => EdoAssets.Own.SannoNozuraDan(up, i), (up, i) => EdoAssets.Own.SannoNozuraKiri(up, i),
                 EdoAssets.Own.SannoNozuraMikiriH, heights, poolN, log, null, EdoAssets.Own.SannoNozuraNoriEnd,   // 入隅の可動側の端は小口を相手の法で切った駒(型は EdoBuild・EDO-0502 第16巡)
                 null, endRule); EdoBuild.MikiriBackSoilCut = false;

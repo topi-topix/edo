@@ -59,7 +59,58 @@ def bake_graded(M, poly):
     return {"x0": x0, "z0": z0, "step": STEP, "nx": nx, "nz": nz, "holes": holes, "h": rows}
 
 
-OUT = 1.0          # 外の地盤を測る、区画線からの距離(m)
+OUT = 1.0          # 外の地盤を測る、区画線からの距離(m)── 隣家との境(道に面しない辺)
+# ⭐ 道に面する辺は区画線から道側 ROAD_OUT[0]〜ROAD_OUT[1] m の最小で測る(指図 grading.michiNarashi.roadRef【硬】・EDO-0502 2026-10-11)。
+#   OUT=1.0 は線際の盛土(三べ坂の隣の校庭の法の裾)を拾い、台の見えを最大 1.5m 小さく測っていた。
+ROAD_OUT = (2.0, 5.0)
+ROAD_WORDS = ("道", "街路", "坂")
+
+
+def _road_edge(d, e):
+    """辺 e が道に面するか(指図 edges[].neighbor の文 ── 道・街路・坂)。"""
+    for x in d.get("edges") or []:
+        if int(x.get("i", -1)) == e:
+            nb = str(x.get("neighbor", ""))
+            return any(w in nb for w in ROAD_WORDS) and "屋敷境" not in nb
+    return False
+
+
+def bake_michi_narashi(M, poly, d):
+    """道の線際の帯の均した面(指図 grading.michiNarashi)を世界の 0.5m 格子へ焼く。帯の外は null。
+    Unity の Stage1 が区画の外のこの帯だけ min(今の地形, 面) で下げる(⛔ 盛らない【硬】)。欄が無ければ None。"""
+    sp = L.michi_narashi_spec(d)
+    if sp is None:
+        return None
+    n = len(poly)
+    a, b = poly[sp["edge"] % n], poly[(sp["edge"] + 1) % n]
+    ln = math.hypot(b[0] - a[0], b[1] - a[1]) or 1.0
+    nx_, nz_ = -(b[1] - a[1]) / ln, (b[0] - a[0]) / ln
+    xs = [a[0], b[0], a[0] + nx_ * sp["band"], b[0] + nx_ * sp["band"], a[0] - nx_ * sp["band"], b[0] - nx_ * sp["band"]]
+    zs = [a[1], b[1], a[1] + nz_ * sp["band"], b[1] + nz_ * sp["band"], a[1] - nz_ * sp["band"], b[1] - nz_ * sp["band"]]
+    st = 0.5
+    x0, z0 = math.floor(min(xs)) - 1.0, math.floor(min(zs)) - 1.0
+    nx = int((max(xs) + 1.0 - x0) / st) + 1
+    nz = int((max(zs) + 1.0 - z0) / st) + 1
+    rows, cnt, cmax = [], 0, 0.0
+    for j in range(nz):
+        z = z0 + j * st
+        row = []
+        for i in range(nx):
+            x = x0 + i * st
+            u, v = M.UV(x, z)
+            y = L.michi_narashi_y(sp, poly, x, z, M.in_parcel(u, v))
+            if y is None:
+                row.append(None)
+                continue
+            cnt += 1
+            nat = M.nat(u, v)
+            if nat is not None:
+                cmax = max(cmax, nat - y)
+            row.append(round(float(y), 3))
+        rows.append(row)
+    return {"edge": sp["edge"], "band": sp["band"], "x0": x0, "z0": z0, "step": st, "nx": nx, "nz": nz,
+            "cells": cnt, "cutMaxOnRecon": round(cmax, 3), "h": rows,
+            "_": "区画線の外の帯の均した面 ── 地形へは min(今の地形, 面)。⛔ 盛らない"}
 
 
 def _edge_frame(M, poly, e):
@@ -82,12 +133,19 @@ def bake_base(M, poly, d):
         if not r.get("base"):
             continue
         a, (tx, tz), (nx, nz) = _edge_frame(M, poly, r["edge"])
+        offs = [ROAD_OUT[0] + 0.5 * k for k in range(int((ROAD_OUT[1] - ROAD_OUT[0]) / 0.5) + 1)] \
+            if _road_edge(d, r["edge"]) else [OUT]
 
         def ex(sv):
-            x = a[0] + tx * sv + nx * OUT
-            z = a[1] + tz * sv + nz * OUT
-            g = M.nat(*M.UV(x, z))
-            return BI.rseat(r, sv) - g if g is not None else 0.0
+            gs = []
+            for o in offs:
+                x = a[0] + tx * sv + nx * o
+                z = a[1] + tz * sv + nz * o
+                u, v = M.UV(x, z)
+                g = M.graded_y(u, v, M.nat(u, v))     # 区画の外は今の地盤(道の線際の帯は均した後)
+                if g is not None:
+                    gs.append(g)
+            return BI.rseat(r, sv) - min(gs) if gs else 0.0
         n = max(2, int((r["s1"] - r["s0"]) / 0.5))
         vs = [ex(r["s0"] + (r["s1"] - r["s0"]) * i / n) for i in range(n + 1)]
         segs, thin, cur = [], [], None
@@ -127,7 +185,8 @@ def bake():
     planting["points"].extend(trees)
     planting["notes"].extend(tnotes)
     return {"graded": graded, "corners": BI.bake_corners(poly, d, im), "base": bake_base(M, poly, d),
-            "planting": planting, "terraceWalls": bake_terrace_walls(M), "gardens": bake_gardens(M, d)}
+            "planting": planting, "terraceWalls": bake_terrace_walls(M), "gardens": bake_gardens(M, d),
+            "michiNarashi": bake_michi_narashi(M, poly, d)}
 
 
 def bake_terrace_walls(M):

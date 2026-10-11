@@ -2841,7 +2841,11 @@ public static class EdoAssets
         /// ── 辺0 の見え面は頂点から 1.97 で小口に止まり、その先を SE_Hei(天端 11.1)が続ける。どちらの腕が辺0 かは PlaceRunKado の yaw の解で選ぶ。
         ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 66.971 --h 4 --s 0.75 --render
         ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 78.367 --h 4 --s 0.75 --render
-        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 95.11 --h 4 --s 0.75 [--arms 2.0,0 | --arms 0,2.0] --render</summary>
+        /// **90**(2026-10-11 EDO-0502・grading.omoteNagayaDai.cornerP0 ── P0 の段の小口と台の妻の面の出隅。見付 1.2 = 12.3−11.1 だが
+        /// 両脇の直線材は倍率 0.75 の Castle Wall で実寸の丈 3.00 ⇒ PlaceRunKado は nbH 3.00 → 名の H0400 を引く。下の 1.80 は埋める)
+        /// X −1.50〜1.80 × Y 0〜3.00 × Z −1.80〜1.50(張り出し 1.80)。−90(M)は焼いていない。
+        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 95.11 --h 4 --s 0.75 [--arms 2.0,0 | --arms 0,2.0] --render
+        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 90 --h 4 --s 0.75 --render</summary>
         public static string IshigakiKadoS(float deg, float h, float s)
         {
             string p = IshigakiKado(deg, h);
@@ -4183,7 +4187,10 @@ public static class EdoAssets
         ///     ⛔ 入口の切り欠きは無い(溝の付かない口から地形の下の空が抜けるため)── 溝の駒は桝の外の面へ突き付ける。
         /// G2: 内法 0.90 角・外 1.20 角・底の天端 −1.80(指図 masuTop 26.65 − masuBottom 24.8)・石蓋2枚(0.9×0.5×0.15)は天端と面一。
         ///     −Z の蓋に切り欠き 0.20 角・その下の壁を −0.25 まで欠く(D5 の溝が入る口 ── 溝を付けないと空が抜ける)。
-        ///   blender --background --python Tools/Blender/build_doi_haisui.py -- masu --render</summary>
+        /// G0(EDO-0502 岡部 背の路地の暗渠 辺40 s44.021・落差 0.49 用の浅い桝): 内法 0.30 角・外 0.54 角・**天端 = ピボット(縁なし)**・
+        ///     +Z の壁に口 0.20 × 0.15(口の底 −0.20)・底の天端 −0.35(溜め 0.15)・底石の下端 −0.50・口の奥は石樋の筒 0.40 + 塞ぎ石(Z +0.715 まで)。
+        ///     肩に土の皮の輪(石の外面 −0.015 で +0.003 → 外へ 0.25 で −0.03 へ潜る・外 1.04 角)── 縁なしだと天端の面取りと地形の穴の縁の間から空が抜けるため。
+        ///   blender --background --python Tools/Blender/build_doi_haisui.py -- masu --render(G0 だけなら -- G0 --render)</summary>
         public static string DoiMasu(string kata) { return FuzokuyaDir + "Doi_Masu_" + kata.ToUpperInvariant() + ".fbx"; }
 
         /// <summary>**石組の段落ち 1段**(型 H・内法 0.60・野面石積みの側 天端 = 段の底 +0.50・平石の段鼻と水叩き)。

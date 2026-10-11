@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 432(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 434(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -329,6 +329,8 @@
 | `Own.Kado(part, deg, armIn, armOut, armFull)` | 関数 | 腕の短い隅(Kado と同じ留め継ぎ・同じ据え・同じ s)。 | BuildKado(KadoGauge), MatsudairaDewa(PlaceKado・RendBounds), OkabeYashiki(PlaceKado) |
 | `Own.IshigakiKado(deg, h)` | 関数 | 丈違いの石垣の隅(`Castle Wall` の留め継ぎ・丈 h m)。 | BuildKado(KadoArm), Doi(Stage2_Perimeter), OkabeYashiki(Stage2b_Dan), SannoSha(Stage3_Dodome) |
 | `Own.IshigakiKado(deg, h, armNegZ, armPosX)` | 関数 | 腕の短い石垣の隅(IshigakiKado と同じ留め継ぎ・同じ据え: position = 両腕の控えの線の交点 P・y = 天端 − h / yaw = 入りの run の駒の yaw / scale = 1)。 | BuildKado(KadoArm), Doi(Stage2_Perimeter), OkabeYashiki(Stage2b_Dan), SannoSha(Stage3_Dodome) |
+| `Own.IshigakiKadoS(deg, h, s)` | 関数 | 倍率 s の石垣の隅(外周の基壇 = `Castle Wall` を Vector3.one·s で並べた run の出隅・EDO-0502 岡部 const.kidan.corner.ge40)。 | — |
+| `Own.IshigakiKadoS(deg, h, s, armNegZ, armPosX)` | 関数 | IshigakiKadoS の腕を詰めた版(綴りは IshigakiKado と同じ・腕は素の cm)。 | — |
 | `Own.IshigakiKado2(deg1, deg2, mid, h, armNegZ, armPosX)` | 関数 | 二重折れの石垣の隅(`Castle Wall` の留め継ぎを二つ一体に)。 | BuildKado(PlaceRunKado), OkabeYashiki(Stage2b_Dan) |
 | `Own.IshigakiChoku(h)` | 関数 | 丈違いの城の石垣の直線の駒(`JC.CastleWall` 1 枚・走り 2.00 を丈 h m へ下へ継いだ物)。 | BuildDanIshigaki(CastleWallOfExpose) |
 | `Own.DobeiKiri(deg, faceLonger, cutAtMinusX=…)` | 関数 | 端を隣の辺の線で斜めに切った練塀の駒(`DobeiRun` の組 = `s_hei_center` 表裏2枚を実寸で 1 枚分・走り 2.990)。 | OkabeYashiki(KiriEnd・MiterOf) |

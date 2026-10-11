@@ -87,7 +87,12 @@ L_W = 0.50            # 蓋石の見込み(json wMin 0.45..wMax 0.6)
 _KATA_PENDING = {"G3": {"label": "石の桝(中・溝 E を受ける)", "inner": [0.9, 0.9],
                         "wall": {"kind": "切石4枚組", "t": 0.15}, "topAbove": 0.05, "topRef": "地盤",
                         "sumpBelowOutlet": 0.15,
-                        "lid": {"kind": "石蓋", "n": 2, "size": [0.9, 0.5], "t": 0.20, "notch": None}}}
+                        "lid": {"kind": "石蓋", "n": 2, "size": [0.9, 0.5], "t": 0.20, "notch": None}},
+                 # 岡部 EDO-0502: 背の路地の暗渠(辺40 s44.021)の浅い桝。路地と溝の落差が約 0.49 で G1 は深すぎる
+                 # (普請方 2026-10-11・確度 U)。口 0.20 × 0.15・口の底 −0.20・底の天端 −0.35(溜め 0.15)・天端 = 地盤。
+                 "G0": {"label": "石の桝(浅・路地の暗渠)", "inner": [0.30, 0.30],
+                        "wall": {"kind": "切石4枚組", "t": 0.12}, "topAbove": 0.0, "topRef": "地盤",
+                        "outlet": {"w": 0.20, "h": 0.15, "bottom": -0.20}, "sumpBelowOutlet": 0.15}}
 G1_FLOOR = -0.75      # G1 の底の天端(地盤から)= 吐き口の底 −0.60 − 溜め 0.15
 H_WALL_TOP = 0.50     # H の野面石の天端(段の底から・json hMin 0.45..hMax 0.6)
 
@@ -704,6 +709,47 @@ def tube(hw, y0, y1, z0, z1, rng, tw=0.08, plug=True):
         stone(-hw - tw, hw + tw, y0 - tw, y1 + tw, zz[0], zz[1], rng, ends=False, bev=0.006)
 
 
+def ring_skirt(o, lap=0.015, rise=0.003):
+    """**縁を出さない桝の肩の土の皮**(四角の輪)。内の縁 = 石の外面から lap 内(Y +rise ── 石の天端の面取りの溝を覆う)
+    → 外へ SKIRT 出て −0.03 へ潜る。⛔ 無いと天端の外の面取りと地形の穴の縁の間から地形の下の空が抜ける
+    (G0 の 1回目のレンダで向こうの辺にマゼンタの筋)。UV は芯で折り返すので各辺を芯で2枚に割る。"""
+    bm = bmesh.new()
+    uvl = bm.loops.layers.uv.new("UVMap")
+    ei, eo = o - lap, o + SKIRT
+    for k in range(4):
+        c, s_ = math.cos(k * math.pi / 2), math.sin(k * math.pi / 2)
+        rot = lambda u, w: (u * c - w * s_, u * s_ + w * c)      # 局所 (u=辺に沿う, w=外向き) → (X, Z)
+        for (u0, u1, ui0, ui1) in ((-eo, 0.0, -ei, 0.0), (0.0, eo, 0.0, ei)):
+            pts = [(rot(u0, eo), -0.03), (rot(u1, eo), -0.03), (rot(ui1, ei), rise), (rot(ui0, ei), rise)]
+            vs = [bm.verts.new(u2b(X, Y, Z)) for ((X, Z), Y) in pts]
+            f = bm.faces.new(vs)
+            f.normal_update()
+            if f.normal.z < 0.0:
+                f.normal_flip()
+            for lp in f.loops:
+                i = vs.index(lp.vert)
+                (X, Z), Y = pts[i]
+                lp[uvl].uv = uv_ground(X, Y, Z, X, SOIL)
+            # 内の縁の垂れ(石の中へ 0.03 潜る・桝の芯を向く)。⛔ 無いと石の天端と皮の 3mm の間を
+            # 内から斜めに抜けた光線が皮の下へ出る(G0 の 2回目のレンダで遠い辺と隅にマゼンタ)
+            dp = [(rot(ui0, ei), rise), (rot(ui1, ei), rise), (rot(ui1, ei), -0.03), (rot(ui0, ei), -0.03)]
+            dv = [bm.verts.new(u2b(X, Y, Z)) for ((X, Z), Y) in dp]
+            g_ = bm.faces.new(dv)
+            g_.normal_update()
+            cx, cz = rot((ui0 + ui1) * 0.5, ei)
+            if g_.normal.dot(Vector(u2b(-cx, 0.0, -cz))) < 0.0:
+                g_.normal_flip()
+            for lp in g_.loops:
+                (X, Z), Y = dp[dv.index(lp.vert)]
+                lp[uvl].uv = uv_ground(X, Y, Z, X, SOIL)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
+    o_ = DN._obj(_nm("kawa"), bm, [DN.mat(SOIL)])
+    for p_ in o_.data.polygons:
+        p_.use_smooth = False
+    _objs.append(o_)
+    return o_
+
+
 def masu(kind):
     """**型 G1 / G2 石の桝**(切石4枚組・天端 +0.05)。ピボット = 桝の芯・地盤の高さ。+Z = 吐き口の側。
     G1: 内法 0.45 角・底の天端 −0.75(吐き口の底 −0.60 − 溜め 0.15)・+Z に吐き口(埋樋の口 0.30 角)。
@@ -713,18 +759,36 @@ def masu(kind):
         を Z 側の壁の段で受け、−Z の蓋に切り欠き 0.20 角・その下の壁の天端を −0.25 まで欠く(D5 の溝が入る口)。
     G3: 内法 0.90 角・外 1.20 角・底と吐き口は G1 の取り方(底の天端 −0.75)・石蓋2枚(0.9 × 0.5 × 0.20)を
         G2 と同じ Z 側の壁の段で受ける・切り欠き無し(普請方 第45巡・溝 E を受ける中の桝)。
+    G0: 内法 0.30 角・外 0.54 角・天端 = ピボット(縁を出さない)・+Z に口 0.20 × 0.15(口の底 −0.20)・
+        底の天端 −0.35(溜め 0.15)。取り方は G1 と同じ(岡部の背の路地の暗渠・落差 0.49 用)。
+        筒の石は 0.045 ── G1 の 0.08 では口が浅くて筒の天端が地盤から 0.03 出る。
     吐き口の奥は石樋の短い筒 0.40 + 塞ぎ石(埋樋の本体は焼かない)。"""
     g = K.get(kind) or _KATA_PENDING[kind]
-    rng = random.Random(5330700 + {"G1": 1, "G2": 2, "G3": 3}[kind])
+    rng = random.Random(5330700 + {"G0": 0, "G1": 1, "G2": 2, "G3": 3}[kind])
     a = g["inner"][0] / 2.0
     t = g["wall"]["t"]
     top = g["topAbove"]
     o = a + t
-    floor = G1_FLOOR if kind in ("G1", "G3") else top - 1.85
+    floor = (G1_FLOOR if kind in ("G1", "G3") else
+             g["outlet"]["bottom"] - g["sumpBelowOutlet"] if kind == "G0" else top - 1.85)
     yb = floor - 0.15
     stone(-o, o, yb, floor, -o, o, rng, ends=False)                     # 底石
     out_bot = floor + 0.15
     hw = 0.15
+    if kind == "G0":
+        ol = g["outlet"]
+        hw, ob, ot = ol["w"] / 2.0, ol["bottom"], ol["bottom"] + ol["h"]
+        for s in (-1, 1):                                                 # X 側の壁(Z 全長)
+            X0, X1 = (-o, -a) if s < 0 else (a, o)
+            stone(X0, X1, floor, top, -o, o, rng, ends=False)
+        stone(-a, a, floor, top, -o, -a, rng, ends=False)                 # −Z の壁
+        stone(-a, a, floor, ob, a, o, rng, ends=False)                    # +Z の壁(口を避けて積む)
+        stone(-a, -hw, ob, ot, a, o, rng, ends=False)
+        stone(hw, a, ob, ot, a, o, rng, ends=False)
+        stone(-a, a, ot, top, a, o, rng, ends=False)
+        tube(hw, ob, ot, o, o + 0.40, rng, tw=0.045)
+        ring_skirt(o)
+        return "Doi_Masu_G0"
     if kind == "G1":
         for s in (-1, 1):                                                 # X 側の壁(Z 全長)
             X0, X1 = (-o, -a) if s < 0 else (a, o)
@@ -1010,6 +1074,7 @@ for d in E_DEPTHS:
     JOBS.append(("E", _mz(mizo_E, d, 1), "mizo"))
     JOBS.append(("F", _mz(mizo_E, d, 2), "mizo"))
 JOBS.append(("K", _mz(mizo_K), "mizo"))
+JOBS.append(("G0", _mz(masu, "G0"), "masu"))
 JOBS.append(("G1", _mz(masu, "G1"), "masu"))
 JOBS.append(("G2", _mz(masu, "G2"), "masu"))
 JOBS.append(("G3", _mz(masu, "G3"), "masu"))
@@ -1034,7 +1099,7 @@ JOBS.append(("N", _mz(mizunuki), "kuchi"))
 for L in sorted(set(round(RAMPS[n]["w"] + 0.30, 2) for n in ("R_Tsuyomon", "R_Tomomachi"))):
     JOBS.append(("O", _mz(mizukiri, L), "kuchi"))
 
-GROUPS = {"mizo": "ABCDEFK", "kasa": ("AK",), "fuchi": ("AF", "AH", "AFH"), "masu": ("G1", "G2", "G3"), "dan": "HI", "uke": "J", "kuchi": "LMNO"}
+GROUPS = {"mizo": "ABCDEFK", "kasa": ("AK",), "fuchi": ("AF", "AH", "AFH"), "masu": ("G0", "G1", "G2", "G3"), "dan": "HI", "uke": "J", "kuchi": "LMNO"}
 
 
 # ================================================================ 結線とレンダ

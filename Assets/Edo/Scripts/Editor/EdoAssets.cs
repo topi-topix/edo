@@ -1718,7 +1718,10 @@ public static class EdoAssets
         ///  / blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=34.7 --h=0.6,0.9,1.2 --render
         /// **33 × H0.60 / H0.90 / H1.20**(岡部 K_Dan2 の上端の脇 Side1_6_kado5 ほか・実の折れ 32.7° に Kado35 を据えて口 0.45〜0.48 が開いた ── 2026-10-11 EDO-0502。
         /// 同じ所の反対の脇は実の折れ 2.0° ⇒ 隅の駒を据えず <see cref="Nozura2"/> の直線の駒で継ぐ)
-        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=32.7 --h=0.6,0.9,1.2 --render</summary>
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=32.7 --h=0.6,0.9,1.2 --render
+        /// **39 × H4.80**(岡部 東の平場の縁の石垣 TW_Higashi_Se の辺40/41 の角・折れ 38.6°(区画の辺の折れ)・見付 3.55〜4.0 ⇒ 4.80 ── 2026-10-11 EDO-0502 第106巡。
+        /// 実寸 2.58×5.02×2.94。折れ &lt; 60° は裏の目地の底の板を留めの線まで延ばした(囲まれた穴 (−0.27, −0.82) を塞ぐ)。.meta は Kado59 の写し ⇒ remap 不要)
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=38.6 --h=4.8 --render</summary>
         public static string SannoNozuraKadoDeg(float deg, float h, int i)
         {
             int d = (int)System.Math.Round(deg);

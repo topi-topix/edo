@@ -30,6 +30,7 @@
     blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --family=2 --h=0.3,0.6,0.9,1.2,1.5,1.8,2.1,2.4,4.8 --grade=0.12,-0.12,0.22,-0.22,0.35,-0.35 --v=ab
     blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --family=2 --h=0.6,0.9,1.2,1.5,1.8,2.1,2.4,4.8 --grade=0.45,-0.45,0.55,-0.55,0.66,-0.66,0.75,-0.75 --v=ab   # 坂なりの線 1駒で最大 1.25 下がる所
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=32.7 --h=0.6,0.9,1.2 --render   # 岡部 K_Dan2 の上端の脇の実の折れ(Kado35 を据えていた・2026-10-11)
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=38.6 --h=4.8 --render   # 岡部 TW_Higashi_Se の辺40/41 の角(第106巡・2026-10-11)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- tome [--h=0.6,1.2,2.4] [--hand=P,M] [--render]   # 積み止めの駒(小口にも面石・両角が稜・岡部 nozuraEndRule 2026-10-07b・EDO-0502)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- crest [--dir=…] [--json=…]  # 全駒の背の天端の下がり(≤ 0.03)・頭の出(≤ 0)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- holes [--dir=…] [--json=…]  # 全駒を真上から見て天端に穴(裏・下の見える所)が 0 か
@@ -1867,8 +1868,11 @@ def kado_deg_ura(h, v, mats, phi):
     # 折れ < 90° では腕2 の先の裏石が腕1 の先の奥(面から 0.76〜1.0・留めの線の腕1 の側)を背から囲み、直線の駒では奥へ
     # 抜けていた裏石の目地が「囲まれた穴」になる(φ=79.1 で (−0.77, −0.91) に 0.11 角・a/b とも)⇒ その帯だけ底の板を奥へ延ばす。
     # 板は天端の 0.20 下・石の外形の内(腕1 の先の裏石は 1.04・腕2 の先の物は 1.09 まで)(2026-10-09 EDO-0502 第66巡)
+    # 折れ < 60° では囲まれた穴が留めの線の際まで来る(φ=38.6 で (−0.27, −0.82)・(−0.44, −0.81) ── 板の −0.55 の手前)⇒ 板を留めの線まで延ばす
+    # (留めの線の平面で腕1 の側だけ残すので腕2 へは出ない)。60° 以上(79 ほか焼いた駒)は従前の −0.55 のまま(2026-10-11 EDO-0502 Kado39)
     if phi < 90.0:
-        o = ura_floor("ura_floor_kd", wall_Q(h, 0.0), mats[1], -L / 2, -0.55, URA_FLOOR_D, KADO_DEG_FLOOR_D)
+        x1 = 0.0 if phi < 60.0 else -0.55
+        o = ura_floor("ura_floor_kd", wall_Q(h, 0.0), mats[1], -L / 2, x1, URA_FLOOR_D, KADO_DEG_FLOOR_D)
         bm_ = bmesh.new(); bm_.from_mesh(o.data)
         bmesh.ops.bisect_plane(bm_, geom=bm_.verts[:] + bm_.edges[:] + bm_.faces[:], dist=1e-6, plane_co=Vector((0, 0, 0)),
                                plane_no=Vector(_u2b(1.0 / nm, 0.0, -t / nm)), clear_outer=True, clear_inner=False)

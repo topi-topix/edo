@@ -6213,7 +6213,7 @@ public static class EdoOkabeYashikiBuilder
                 float sill = go.transform.TransformPoint(new Vector3(0f, mp.floor, 0.5f * (mp.zMin + mp.zMax))).y, rd1 = roadOn(eOut, c, 1.0f);
                 float outMax = float.MinValue, outSoil = float.MinValue; Vector2 e0 = EdgePt(eOut, 0f);
                 foreach (var mt in new[] { "rocks", "Gravel" }) foreach (var v in EdoBuild.BodyOfMat(go.transform, mt)) outMax = Mathf.Max(outMax, Vector2.Dot(new Vector2(v.x, v.z) - e0, on));   // 石(縁石・敷き石・底)
-                foreach (var v in EdoBuild.BodyOfMat(go.transform, "Soil")) outSoil = Mathf.Max(outSoil, Vector2.Dot(new Vector2(v.x, v.z) - e0, on));   // 地際の張り出し(土の板)
+                foreach (var v in EdoBuild.ApronBody(go.transform)) outSoil = Mathf.Max(outSoil, Vector2.Dot(new Vector2(v.x, v.z) - e0, on));   // 地際の張り出し(土の板)
                 bool kita = Mathf.Abs(sOut - sK) < 0.01f; float dS = sill - rd1;
                 outNote = "・吐き口 " + gn + "(辺" + eOut + " s" + sOut.ToString("0.##", inv) + "・" + System.IO.Path.GetFileNameWithoutExtension(pth) + "・+X を外へ " + (Vector2.Dot(new Vector2(go.transform.right.x, go.transform.right.z), on) > 0f ? "⭕" : "⛔")
                           + "): 敷き " + sill.ToString("F3", inv) + " − 線から 1m 外の道 " + rd1.ToString("F3", inv) + " = " + dS.ToString("+0.000;-0.000", inv)

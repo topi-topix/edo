@@ -108,3 +108,4 @@
 - [倍率 s の基壇の隅と縁石の作りの溝](kidan-scaled-kado-and-fuchi-mizo.md) — 隅は s を頂点へ焼く(_S075)・P0 は天端違い・AF は縁石を深く(2026-10-11)
 - [縁なしの桝の土の皮・倍率の隅の名は直線材の丈](flush-masu-skirt-and-scaled-kado-h.md) — 面取りの外から空・垂れで塞ぐ・1.2 の段でも H0400_S075(2026-10-11)
 - [天端=地表の細い溝に地形の鋸の歯](mizo-ago-terrain-sawtooth.md) — 地際の板 _Ago 出0.40・厚0.36・材は地形の塗りを世界XZで引く Hifu_KitaTerrain_World(2026-10-12)
+- [板の材の改名で "Soil" 探しが外れる・立った面の世界 UV](apron-mat-rename-and-vertical-skin-uv.md) — ApronBody・層の模様を高さで展開・0° の隅は --deg 0.001(2026-10-12)

@@ -361,10 +361,28 @@ Varyings SplatmapVert(Attributes v)
     o.uvMainAndLM.zw = v.texcoord * unity_LightmapST.xy + unity_LightmapST.zw;
 
     #ifndef TERRAIN_SPLAT_BASEPASS
+    #ifdef EDO_SKIN_WORLD_UV
+        // ⭐ 立った面(板の外の縁・端の面)は世界 XZ だけでは縦に一本の筋へ引き伸ばされる(r113_mizo_minami_ago)。
+        //   層の模様の座標だけ、面の水平の向き nh へ高さを展開する(縦の面を外へ寝かせた見え = 地面が縁から続いて下がる)。
+        //   重み w は傾き 30° 以下で 0(上面は地形と継ぎ目なしのまま)・55° 以上で 1。層の重み(_Control)は XZ のまま ⇒ 色の混ぜは地形と同じ。
+        float2 edoUV = v.texcoord;
+        {
+            float3 nW = TransformObjectToWorldNormal(v.normalOS);
+            float2 nh = nW.xz; float nl = length(nh);
+            float w = saturate((nl - 0.5) / 0.32);
+            float2 dirH = nl > 1e-4 ? nh / nl : float2(0.0, 0.0);
+            edoUV = (Attributes.positionWS.xz - dirH * (w * Attributes.positionWS.y) - _EdoTerrainRect.xy) * _EdoTerrainRect.zw;
+        }
+        o.uvSplat01.xy = TRANSFORM_TEX(edoUV, _Splat0);
+        o.uvSplat01.zw = TRANSFORM_TEX(edoUV, _Splat1);
+        o.uvSplat23.xy = TRANSFORM_TEX(edoUV, _Splat2);
+        o.uvSplat23.zw = TRANSFORM_TEX(edoUV, _Splat3);
+    #else
         o.uvSplat01.xy = TRANSFORM_TEX(v.texcoord, _Splat0);
         o.uvSplat01.zw = TRANSFORM_TEX(v.texcoord, _Splat1);
         o.uvSplat23.xy = TRANSFORM_TEX(v.texcoord, _Splat2);
         o.uvSplat23.zw = TRANSFORM_TEX(v.texcoord, _Splat3);
+    #endif
     #endif
 
 #if defined(DYNAMICLIGHTMAP_ON)

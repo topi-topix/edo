@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 440(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 441(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -353,7 +353,7 @@
 | `Own.GenMesh(name)` | 関数 | — | SolidMesh(Get・Save) |
 | `Own.SkinMatDir` | string | `Hifu` — 縁の皮(地形の穴の縁から部材の面までを描くメッシュ・`EdoBuild.CutEdgeSkin`)の材質の置き場。 | BuildHifu(SkinMaterials) |
 | `Own.SkinMat(terrain, pass)` | 関数 | — | BuildHifu(SkinMaterials) |
-| `Own.SkinWorldMat(terrain)` | 関数 | 部材の面を地形と同じ見えで描く材(シェーダ Edo/TerrainSkinWorld・メッシュの uv でなく世界 XZ で地形の塗りを引く・ 層 0〜3 を正規化した一枚)。 | BuildHifu(BindSkinLayers・SkinWorldMaterial) |
+| `Own.SkinWorldMat(terrain)` | 関数 | 部材の面を地形と同じ見えで描く材(シェーダ Edo/TerrainSkinWorld・メッシュの uv でなく世界 XZ で地形の塗りを引く・ 層 0〜3 を正規化した一枚)。 | BuildHifu(BindSkinLayers・SkinWorldMaterial), BuildMizo(MizoPieceOf) |
 | `Own.SkinWorldMatKita` | string | `Hifu_KitaTerrain_World` — FBX に焼く材の名(SkinWorldMat の細かい地形の版)。 | — |
 | `Own.MatsudairaOmotemon` | string | `Matsudaira_Omotemon.fbx` — 松江松平邸の表門 — 屋根なしの冠木門(角柱・冠木・内開きの板戸)。 | MatsudairaDewa(Stage5_Mon) |
 | `Own.Sodebei(len, kuguri=…)` | 関数 | 袖塀(長さ可変・潜り戸つき)— 表門の脇で外周を塞ぐ練塀。 | MatsudairaDewa(Stage5_Mon) |
@@ -455,6 +455,7 @@
 | `Own.MatsudairaIshidoi` | string | 石樋(松江松平 溝 MZ17 が土留めを抜ける所・EDO-0554)。 | MatsudairaDewa(PlaceMizo), OkabeYashiki(PlaceFrontAnkyo) |
 | `Own.MatsudairaIshibuta1m` | string | 石蓋つきの溝 1m(松江松平 溝 MZ16 の段の頭の前ほか・EDO-0554)。 | MatsudairaDewa(PlaceMizo) |
 | `Own.DoiMizo(kata, depth=…, ago=…)` | 関数 | 排水の溝 1m 駒(型 A/B/C/D/E/F/K)。 | OkabeYashiki(PlaceDrainFrontGutters・PlaceFrontGutters・PlaceMizoSections…), BuildHifu(BindSkinLayers), BuildMizo(MizoPieceOf) |
+| `Own.DoiMizoKoguchi` | string | 型 A の溝の小口の石(岡部 EDO-0502 第113巡・grading.omoteNagayaDai.mizo の Mizo_Hashi.end「P0 で小口の石で止める」)。 | — |
 | `Own.DoiMizoAKasa(h)` | 関数 | 型 A の外壁の嵩上げ石 1m 駒(岡部 EDO-0502・okabe_sashizu terraces[1].roadEdge 10-10n)。 | OkabeYashiki(PlaceFrontGutters) |
 | `Own.DoiMasu(kata)` | 関数 | 石の桝(型 G1 / G2・切石4枚組・天端 +0.05)。 | OkabeYashiki(PlaceOmoteGesuiLay・PlaceSeRojiAnkyo) |
 | `Own.DoiDanOchi(rise)` | 関数 | 石組の段落ち 1段(型 H・内法 0.60・野面石積みの側 天端 = 段の底 +0.50・平石の段鼻と水叩き)。 | — |

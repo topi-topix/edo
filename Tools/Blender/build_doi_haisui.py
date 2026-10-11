@@ -6,6 +6,7 @@
     blender --background --python Tools/Blender/build_doi_haisui.py -- AK --render   # 型 A の外壁の嵩上げ石(岡部 EDO-0502)
     blender --background --python Tools/Blender/build_doi_haisui.py -- fuchi --render  # 型 A の縁石の作り AF・吐き口 AH/AFH(岡部 EDO-0502)
     blender --background --python Tools/Blender/build_doi_haisui.py -- ago --render    # 型 A / AH の地際の張り出し _Ago(岡部 EDO-0502 第111巡)
+    blender --background --python Tools/Blender/build_doi_haisui.py -- koguchi --render   # 型 A の溝の小口の石(岡部 EDO-0502 第113巡・Mizo_Hashi の頭)
     BUZAI_OUT=/path/staging blender --background --python Tools/Blender/build_doi_haisui.py -- all
 
 【寸法の正典は `docs/Sashizu/doi_sashizu.json` の `drainKata`(型 A〜P)】⛔ ここに数字を書き写さない —
@@ -594,6 +595,25 @@ def ago_A(d, haki=False):
     return name.replace("_D", "_Ago_D")
 
 
+# ---- 溝の小口の石(岡部 EDO-0502 第113巡・Mizo_Hashi の頭を P0 で止める・部材方の既定・確度 U)----
+KOGUCHI_L = 0.12      # 走りの見込み(縁石の見付 0.12 と同じ)
+KOGUCHI_EMBED = 0.002 # 縁石の内の面へ潜る(継ぎ目に隙を作らない)
+KOGUCHI_BOT = -0.36   # 下端(最も深い版 D0.30 の縁石の下端 −0.35 より下 ⇒ どの深さの版でも底の口を塞ぐ)
+
+
+def koguchi_A():
+    """**型 A の溝の小口の石**(Doi_Mizo_A_Koguchi)。溝の断面(両縁石の内の面の間・玉砂利の底から縁石の天端まで)を塞ぐ切石1個。
+    ⭐ ピボットは A の 1m 駒と同じ(駒の中心・溝の芯・地盤)で、石は **局所 Z −0.50〜−0.38**(駒の −Z の端の面が石の外の面)
+    ⇒ 頭の駒と**同じ位置・同じ回転**で据えれば、駒の −Z の端を塞ぐ(外の面は駒の端の面のまま ── 区画の線を越えない)。
+    +Z の端を塞ぐときは同じ位置で局所 Y に 180° 回す。天端 = 縁石の天端(+0.02 から 0.002 下げて縁石と面一に見せる)。
+    深さの版を持たない(下端 −0.36 は全版の縁石の下端より深い・地中に埋まる)。板(_Ago)の端の面は駒の側で閉じている。"""
+    a = K["A"]; c = a["curb"]
+    hi, top = a["innerW"] / 2.0, c["topAbove"]
+    rng = random.Random(5331700)
+    stone(-hi - KOGUCHI_EMBED, hi + KOGUCHI_EMBED, KOGUCHI_BOT, top - 0.002, -HALF, -HALF + KOGUCHI_L, rng)
+    return "Doi_Mizo_A_Koguchi"
+
+
 KASA_HS = (0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45)
 KASA_COURSE = 0.25    # 1段の丈の上限(E の faceHMax と同じ)── 超えたら2段に積む
 KASA_JOINTS = (0.55, 0.05)   # 段ごとの継ぎ目(走り r)。A の縁石の継ぎ目 0.35/0.75 から左右どちらでも 0.2 ずらす
@@ -1151,6 +1171,7 @@ for d in A_DEPTHS:
 for d in A_DEPTHS:
     JOBS.append(("AG", _mz(ago_A, d), "ago"))
     JOBS.append(("AHG", _mz(ago_A, d, True), "ago"))
+JOBS.append(("AKG", _mz(koguchi_A), "koguchi"))
 JOBS.append(("B", _mz(mizo_B), "mizo"))
 for d in C_DEPTHS:
     JOBS.append(("C", _mz(mizo_C, d), "mizo"))
@@ -1185,7 +1206,7 @@ JOBS.append(("N", _mz(mizunuki), "kuchi"))
 for L in sorted(set(round(RAMPS[n]["w"] + 0.30, 2) for n in ("R_Tsuyomon", "R_Tomomachi"))):
     JOBS.append(("O", _mz(mizukiri, L), "kuchi"))
 
-GROUPS = {"mizo": "ABCDEFK", "kasa": ("AK",), "fuchi": ("AF", "AH", "AFH"), "ago": ("AG", "AHG"), "masu": ("G0", "G1", "G2", "G3"), "dan": "HI", "uke": "J", "kuchi": "LMNO"}
+GROUPS = {"mizo": "ABCDEFK", "kasa": ("AK",), "fuchi": ("AF", "AH", "AFH"), "ago": ("AG", "AHG"), "koguchi": ("AKG",), "masu": ("G0", "G1", "G2", "G3"), "dan": "HI", "uke": "J", "kuchi": "LMNO"}
 
 
 # ================================================================ 結線とレンダ
@@ -1476,6 +1497,38 @@ def ago_shots(o, name):
     return out
 
 
+def koguchi_shots(o, name, d=0.15):
+    """小口の石の検め(書き出さない)。A_Ago D0.15 の駒を 2 つ継ぎ、頭(−Z)を小口の石で塞いで 0.25m 格子の模型地形に据える。
+    背景はマゼンタ(溝の頭の奥へ空が抜けたら 1 画素でも見える)。視点は頭の外(道の側の斜め上)・真上・頭の正面。"""
+    saved = list(_objs)
+    _objs.clear()
+    ago_A(d)
+    mod = DN._finish(_objs, "_ago")
+    _objs.clear(); _objs.extend(saved)
+    hook()
+    terr = _mock_terrain(d)
+    extra = [mod, terr]
+    c2 = mod.copy(); c2.data = mod.data; c2.location = (0.0, -1.0, 0.0)
+    bpy.context.scene.collection.objects.link(c2); extra.append(c2)
+    os.makedirs(SHOT, exist_ok=True)
+    out = []
+    # 頭 = 局所 Z −0.5 = Blender y +0.5
+    views = (("3d", (1.6, 2.4, 1.1), (0.0, 0.3, -0.1), None),
+             ("front", (0.0, 3.0, 0.35), (0.0, 0.5, -0.1), 1.8),
+             ("in", (-1.4, 2.2, 0.9), (0.0, 0.3, -0.1), None),
+             ("top", (0.0, 0.0001, 4.0), (0.0, 0.0, 0.0), 2.6))
+    for tag, loc, at, ortho in views:
+        V.studio(loc, at, ortho_scale=ortho, res=(900, 640))
+        _magenta_sky()
+        p = os.path.join(SHOT, "doihaisui_%s_%s.png" % (name, tag))
+        V.render(p)
+        out.append(p)
+    for e in extra:
+        bpy.data.objects.remove(e, do_unlink=True)
+    bpy.context.view_layer.update()
+    return out
+
+
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     words = [a for a in argv if not a.startswith("--")] or ["all"]
@@ -1525,6 +1578,7 @@ def main():
                 hole = None
             for p in (kasa_shots(o, name) if grp == "kasa" else fuchi_shots(o, name) if grp == "fuchi"
                       else ago_shots(o, name) if grp == "ago"
+                      else koguchi_shots(o, name) if grp == "koguchi"
                       else shots(o, name, hole, tile, grp)):
                 print("RENDER " + p)
         V.export_fbx([o], os.path.join(OUT, name + ".fbx"))

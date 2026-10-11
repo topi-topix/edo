@@ -2739,7 +2739,8 @@ public static class EdoAssets
         /// 焼いてあるもの(Dobei = 練塀。腕は折れ点から ±2.26m・高さ 1.455m・s を掛けて据える。
         /// s=1.818 で据えれば片腕は世界で 4.10m):
         /// 00 00M 01 01M 02M 03 04M 06 07 07M 08 08M 09 09M 10M 11 11M 12 12M 13 14 14M 16 16M 18 18M 19 19M
-        /// 22 22M 27 31 35 35M 38M 39 41 62 62M 67 76M 78 88M 89M 91 95 95M ／
+        /// 22 22M 27 31 35 35M 38M 39 41 62 62M 67 76M 78 88M 89M 90 91 95 95M ／
+        /// (90 は岡部 P3 の出隅 S_Hei_01b × S_Hei_01c・EDO-0502 第113巡 2026-10-12。実寸 局所 X −2.26〜0.52 × Y 0〜1.455 × Z −0.52〜2.26・外面の張り出し 0.52)
         /// (02M〜89M のうち岡部の新しい区画の 23 本は整数の角で焼いた・EDO-0502 2026-10-03)
         /// Ishigaki 31・31M ／ Tsuijibei 31 ／ Nagaya 38M。無い角度は:
         ///   blender --background --python Tools/Blender/build_kado.py -- --part dobei --deg &lt;符号つき角度&gt; --render
@@ -2764,6 +2765,8 @@ public static class EdoAssets
         /// 第107巡(2026-10-11 EDO-0502・外周の基壇を甲の型へ据え直し、隅の外面の内寄せ fiK が 0.55(P11 は 1.05)へ動いた): **39_A226x40**(P2)/
         /// **35_A40x60**・**35_A40x65**(P3 ── fiK 0.52 を境に割れる)/ **09_A60x226**(P4。0.52 未満は既存 09_A65x226)/ **18M_A226x220**(P11)、
         /// 据え直す前の名 **35_A30x55**・**09_A55x226**(fiK ≈1.0)も。KadoArms を python で写した名の表は fiK 0.42〜0.63 で 39 は不変。
+        /// 第113巡(2026-10-12 EDO-0502・区画の改めで P2・P4 が 0° の分け目に・P3 が 90°): **00_A226x50**(P2)/ **00_A70x226**(P4)── 棟梁の「部材が無い」の名のまま。
+        /// ⚠ 0° は `--deg 0` だと生成器が M を付ける(deg &gt; 0 で素手)⇒ `--deg 0.001` で焼いた(名は 00・Kado(part, 0f) と一致)。
         ///   blender --background --python Tools/Blender/build_kado.py -- --part dobei --deg &lt;整数角&gt; --arms &lt;入り&gt;,&lt;出&gt; --render</summary>
         public static string Kado(string part, float deg, float armIn, float armOut, float armFull)
         {
@@ -2845,7 +2848,10 @@ public static class EdoAssets
         /// 両脇の直線材は倍率 0.75 の Castle Wall で実寸の丈 3.00 ⇒ PlaceRunKado は nbH 3.00 → 名の H0400 を引く。下の 1.80 は埋める)
         /// X −1.50〜1.80 × Y 0〜3.00 × Z −1.80〜1.50(張り出し 1.80)。−90(M)は焼いていない。
         ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 95.11 --h 4 --s 0.75 [--arms 2.0,0 | --arms 0,2.0] --render
-        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 90 --h 4 --s 0.75 --render</summary>
+        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 90 --h 4 --s 0.75 --render
+        /// **90 × S050**(2026-10-12 EDO-0502 第113巡・岡部 P3 = 辺2 S_Hei_01b × 辺3 S_Hei_01c の基壇 ── 算出物 base の s 0.5・天端 12.3 一直線・PlaceRunCorners の「要る丈 ≥ 2.00」)
+        /// 名 H0400_S050 = 実寸の丈 2.00・腕 1.00(辺2 3.0 / 辺3 3.8 に収まる)。X −1.00〜1.20 × Y 0〜2.00 × Z −1.20〜1.00(張り出し 1.20)。
+        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 90 --h 4 --s 0.5 --render</summary>
         public static string IshigakiKadoS(float deg, float h, float s)
         {
             string p = IshigakiKado(deg, h);
@@ -3034,6 +3040,8 @@ public static class EdoAssets
         /// 層 0〜3 を正規化した一枚)。材の名 = FBX の材名 <c>Hifu_&lt;地形&gt;_World</c>(FBX の .meta の externalObjects で結わえてある ⇒ remap 不要)。
         /// スプラットと原点は <c>EdoBuild.SkinWorldMaterial(t)</c>(メニュー `Edo/地形/地際の部材の材(世界UV)を細かい地形へ結わえ直す`)が焼く。
         /// 使う部材: 溝の地際の張り出し <see cref="DoiMizo"/>(ago = true)の板(KitaTerrain の上)。EDO-0502 第113巡。
+        /// ⭐ 立った面(板の外の縁・端の面)は層の模様の座標だけ面の水平の向きへ高さを展開する(傾き 30° 以下は 0・55° 以上で全部 ──
+        /// TerrainLitPassesStoch.hlsl SplatmapVert の EDO_SKIN_WORLD_UV)。世界 XZ のままだと縦の筋に引き伸ばされた(r113_mizo_minami_ago)。
         ///   blender --background --python Tools/Blender/build_doi_haisui.py -- ago --render</summary>
         public static string SkinWorldMat(string terrain) { return SkinMatDir + "/Hifu_" + terrain + "_World.mat"; }
         /// <summary>FBX に焼く材の名(<see cref="SkinWorldMat"/> の細かい地形の版)。</summary>
@@ -4185,6 +4193,15 @@ public static class EdoAssets
                 throw new System.ArgumentException("DoiMizo: 地際の張り出し(ago)は A / AH だけ(" + kata + ")");
             return FuzokuyaDir + "Doi_Mizo_" + k + (ago ? "_Ago" : "") + "_D" + d.ToString("0.00", DoiInv) + ".fbx";
         }
+
+        /// <summary>**型 A の溝の小口の石**(岡部 EDO-0502 第113巡・grading.omoteNagayaDai.mizo の Mizo_Hashi.end「P0 で小口の石で止める」)。
+        /// 溝の断面(両縁石の内の面の間・底から縁石の天端まで)を塞ぐ切石1個。⭐ **ピボットは A / A_Ago の 1m 駒と同じ**(駒の中心・溝の芯・地盤)で、
+        /// 石は局所 **Z −0.50〜−0.38**(外の面 = 駒の −Z の端の面)⇒ **頭の駒と同じ position・rotation で据える**だけで駒の −Z の端を塞ぐ
+        /// (外の面は駒の端の面のまま ── 区画の線を越えない【硬】は駒の端で守る)。+Z の端を塞ぐときは同じ position で rotation × Euler(0,180,0)。
+        /// 天端 +0.018(縁石の天端 +0.02 と面一)・下端 −0.36(全深さの版 D0.10〜0.30 の縁石の下端より深い ⇒ 深さの版なし・下は地中)・縁石の内の面へ 0.002 潜る。
+        /// 実寸 W 0.304 × H 0.378 × D 0.120。材 M_photoscanned_rocks_01(.meta は A の写し ⇒ remap 不要)。板(_Ago)の端の面は駒の側で閉じている。
+        ///   blender --background --python Tools/Blender/build_doi_haisui.py -- koguchi --render</summary>
+        public const string DoiMizoKoguchi = FuzokuyaDir + "Doi_Mizo_A_Koguchi.fbx";
 
         /// <summary>**型 A の外壁の嵩上げ石 1m 駒**(岡部 EDO-0502・okabe_sashizu terraces[1].roadEdge 10-10n)。
         /// A の外の縁石の天端に載せ、天端を道の地盤 +0.02 まで上げる。<paramref name="h"/> = 嵩上げの丈

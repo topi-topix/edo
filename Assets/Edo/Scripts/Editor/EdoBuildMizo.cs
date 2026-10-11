@@ -122,9 +122,19 @@ public static partial class EdoBuild
     }
 
     /// <summary>溝の駒の**地際の張り出し**(縁石の外の土の板 ── <c>EdoAssets.Own.DoiMizo(kata, d, ago: true)</c>・材 = 地形の塗りを世界 XZ で引く Hifu_KitaTerrain_World)の局所の実測(倍率の前・Y 回転 0)。
-    /// has = 材の名に "Soil" を含むサブメッシュがある / xBody = 張り出しの内の縁(土の頂点の |x| の最小 = 縁石の外の面)/ xOut = 外の縁(|x| の最大)/
+    /// has = 張り出しの材(<see cref="ApronBody"/> ── 名に "Soil" か "_World" を含む)のサブメッシュがある / xBody = 張り出しの内の縁(土の頂点の |x| の最小 = 縁石の外の面)/ xOut = 外の縁(|x| の最大)/
     /// topIn・topOut = 内の縁・外の縁の天端(各縁から 0.02 以内の土の頂点の最高)/ xInner = 溝の内法の半幅(底の高さ ±0.01 の石の頂点の |x| の最大)。左右対称の板を前提に |x| で測る。</summary>
     public class MizoApron { public bool has; public float xBody, xOut, topIn, topOut, xInner; }
+    /// <summary>溝の駒の**地際の張り出し(土の板)の頂点**(世界)。板の材は 2 代ある: 第112巡の FJG Soil(名に "Soil")と、第113巡からの
+    /// 地形の塗りを世界 XZ で引く <c>Hifu_&lt;地形&gt;_World</c>(<see cref="EdoAssets.Own.SkinWorldMat"/>)── どちらでも板と読む。
+    /// ⚠ 第113巡(e399f0e6)で材を替えたとき "Soil" だけを見ていた所が板を見失い、板の下の地面が溝の中と同じく駒の最下点まで下がって
+    /// 板の外の縁に 0.1〜0.3 の小口が立った(r113_mizo_minami_ago)。当たる先: <see cref="MizoApronOf"/>・岡部の吐き口の検め。</summary>
+    public static List<Vector3> ApronBody(Transform tr)
+    {
+        var L = BodyOfMat(tr, "Soil");
+        foreach (var v in BodyOfMat(tr, "_World")) L.Add(v);
+        return L;
+    }
     static readonly Dictionary<string, MizoApron> _mizoApronCache = new Dictionary<string, MizoApron>();
     /// <summary>溝の駒の地際の張り出しを一度だけ測る(<see cref="MizoApron"/>)。張り出しの無い駒は has = false。
     /// 当たる先: 張り出し付きの溝の駒の下の地面を下げる・両脇の帯を合わせるとき(<see cref="SinkGroundUnderMizo"/> / <see cref="FlushGroundToMizoTop"/>)。</summary>
@@ -140,7 +150,7 @@ public static partial class EdoBuild
             try
             {
                 var pts = new List<Vector3>();
-                foreach (var v in BodyOfMat(go.transform, "Soil")) pts.Add(v);
+                foreach (var v in ApronBody(go.transform)) pts.Add(v);
                 if (pts.Count > 0)
                 {
                     float a = float.MaxValue, b = float.MinValue; foreach (var p in pts) { float ax = Mathf.Abs(p.x); a = Mathf.Min(a, ax); b = Mathf.Max(b, ax); }

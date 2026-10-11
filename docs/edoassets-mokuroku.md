@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 421(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 427(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -247,6 +247,11 @@
 | `Own.NearestBaked(path, tol)` | 関数 | 綴りの数だけが違う焼いてある兄弟を引く(EDO-0430 2026-09-26)。 | BuildIshidan(CutStairEndsToBatter) |
 | `Own.IsSannoNozura(meshAssetPath)` | 関数 | メッシュの資産パスが山王の野面の乱積みの駒(1間・隅・切り・法切り・見切り ── `Sanno_Nozura_*`)か。 | SannoSha(AbutStairsToWalls) |
 | `Own.SannoNozura(h, grade, i)` | 関数 | 野面の乱積みの土留め — 1間の駒(山王社の前庭の縁。 | OkabeYashiki(PlaceCurb・RoadEdgePlanOf・SodeSlopeSegs…), BuildNozura(PlaceNozuraRun・SoilSideCrestShort), BuildRim(BridgeCorner), DoiBuilder.Dan(Stage4a_Dodome) ほか3 |
+| `Own.Nozura2(h, grade, i)` | 関数 | 野面の乱積みの直線の駒 — 重ねの端の版 `Nozura2_H&lt;見付mm&gt;_G&lt;勾配‰&gt;_&lt;a〜d&gt;`(2026-10-11 EDO-0502 岡部・施主「石垣の部材の境目の隙間および… | OkabeYashiki(PlaceCurb・Stage2b_Dan) |
+| `Own.Nozura2Dir` | string | `Nozura2` — Nozura2 の置き場。 | — |
+| `Own.Nozura2OverlapCrest` | float | Nozura2 の重ね: 継ぎ目の線(局所 X = ±0.909・伸縮前)から外へ延びる量 = Nozura2OverlapCrest + Nozura2OverlapPerDepth·(天端の線からの深さ)。 | — |
+| `Own.Nozura2OverlapMax(hBaked)` | 関数 | Nozura2 の重ねの最大(床の 0.20 下の根入れの底)= 0.02 + 0.026·(hBaked + 0.20)。 | BuildNozura(PlaceNozuraRun) |
+| `Own.IsNozura2(meshAssetPath)` | 関数 | メッシュの資産パスが重ねの端の版の野面の駒(`Nozura2_*`)か。 | BuildNozura(PlaceNozuraRun) |
 | `Own.SannoNozuraKiri(risesToPlusX, i)` | 関数 | 野面の乱積みの打ち切り — 根石一段が地中へ沈む駒(見付 0.2 未満で壁を終える所)。 | OkabeYashiki(PlaceCurb・Stage2b_Dan), DoiBuilder.Dan(Stage4a_Dodome), MatsudairaDewa(NozuraLines), SannoSha(Nozura) ほか1 |
 | `Own.SannoNozuraKado(h, i)` | 関数 | 野面の乱積みの出隅 90° の隅の駒(2026-09-25・山王 本殿の西の土留め `TW_Nozura_ShadenW` の帯の北西・南西の隅。 | OkabeYashiki(PlaceCurb・Stage2b_Dan), DoiBuilder.Dan(Stage4a_Dodome), MatsudairaDewa(NozuraLines), SannoSha(Nozura) ほか1 |
 | `Own.SannoNozuraKadoDeg(deg, h, i)` | 関数 | 野面の出隅の駒・折れ deg°(走りの向きの変わり。 | BuildNozura |
@@ -309,6 +314,7 @@
 | `Own.Kuri(wKen, dKen)` | 関数 | 庫裏(類型共用・寺と塔頭の台所兼住居)。 | TypologyBuilder.Jisha(JishaOmoya) |
 | `Own.Munamon(w, opened)` | 関数 | 通用口の棟門(岡部邸 `komon.Tsuyodo` — 袋小路に開く勝手口)。 | DoiBuilder.Mon(Stage3_Mon), OkabeYashiki(AssetByKey), Typology(GatePath) |
 | `Own.Munamon(w)` | 関数 | — | DoiBuilder.Mon(Stage3_Mon), OkabeYashiki(AssetByKey), Typology(GatePath) |
+| `Own.MunamonSode(w, sode, opened)` | 関数 | 両脇に短い板の袖を足した棟門(EDO-0502 2026-10-11・岡部の通用門 Tsuyomon)。 | — |
 | `Own.KabukimonNoSode` | string | 袖の無い冠木門(旗本屋敷の表門・類型 gate=kabukimon。 | Typology(GateChoices) |
 | `Own.MachiKido(haba)` | 関数 | 町木戸(町境・参道の口を夜に閉じる木戸。 | TypologyBuilder.Machiya(MachiKido・MachiyaFrontEdges), BuildMachiya(UraNagayaRun) |
 | `Own.MachiKido(haba, keisha)` | 関数 | 道の横断勾配に追従する町木戸。keisha = −X 端から +X 端への地面の下がり[m] (正 = +X が低い)。 | TypologyBuilder.Machiya(MachiKido・MachiyaFrontEdges), BuildMachiya(UraNagayaRun) |

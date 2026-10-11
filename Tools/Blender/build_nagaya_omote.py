@@ -688,7 +688,7 @@ def solve(Lm, cap_w, bay, ncap):
 def build(Lm, ends="both", name=None, floors=1, gate=None,
           ridge=None, doorh=None, bansho=0, kabuki=0.0, kuguri=None,
           bansho_out=None, gate_drop=0.0, body=False, miter=None, bansho_ux=-1,
-          gate_post=0.0, join_sill=False, miter_cut=None, bansho_mon=False):
+          gate_post=0.0, join_sill=False, miter_cut=None, bansho_mon=False, frac=None, wide=0.0):
     """miter_cut=(θL, θR)(`--miter-cut`)は**大きく外へ折れる角を二等分の面で切って留める**版(cut_miter_* の注)。
     body=True(`--body`)は **Lm = 躯体の長さ(両端の妻壁の外面どうし)**。破風(片側 0.322m)は
     躯体の外へ出る。中の窓割りは 1.5間 で通し、端数は両端の間で受ける(solve_body)。門口・潜り戸の
@@ -768,7 +768,42 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
     else:
         k, eps = solve(Lm, cap_w, bay, ncap)
         dlt = eps / 2.0
+    dlt_l = dlt_r = dlt
+    if frac is not None:
+        # `--frac <m> <L|R>`(EDO-0502 2026-10-11): 端数を**片方の端の間だけ**で持つ。割付は Lm − m の長さで
+        #   左右対称に解き(その長さが間で閉じる長さ)、m を指定の端(L = Unity 局所 −X / R = +X)の端の間へ足す。
+        #   反対の端は対称の版と同じ位相 ⇒ そちらで突き付ける隣と窓割り・海鼠の柄が続く。
+        if not body:
+            raise SystemExit("[nagaya] --frac は --body だけ")
+        fm, fside = frac
+        k, dlt = solve_body((Lm - fm) / ES + to_l + to_r, cap_w, KEN_BAY / ES)
+        dlt_l = dlt_r = dlt
+        if fside == "L":
+            dlt_l = dlt - fm / ES
+        else:
+            dlt_r = dlt - fm / ES
+        for d_ in (dlt_l, dlt_r):
+            if not (DLT_MIN - 0.15 <= d_ <= DLT_MAX + 0.15):
+                raise SystemExit("[nagaya] --frac %.3f: 端の間の詰め %.4f が範囲の外" % (fm, d_))
+        print("[nagaya] --frac %+.3fm を %s 端(Unity 局所 %sX)の間で持つ: 割付は %.3fm の対称 / δ_L %+.4f δ_R %+.4f"
+              % (fm, fside, "−" if fside == "L" else "+", Lm - fm, dlt_l, dlt_r))
+    wo = 0.0; mid = -1
+    if wide:
+        # `--wide <m>`(EDO-0502 2026-10-11 岡部の表門 11間): **真ん中の窓割り一つだけを m 広げる**。割付は Lm − m の
+        #   対称で解き(真ん中に窓が来る奇数本)、真ん中の窓割りの両脇の無地の壁を m/2 ずつ広げる。門口をその窓割りに
+        #   合わせて抜けば、口の両脇は 1.5間の窓割りのまま「部屋3間・番所1.5間・口2間・番所1.5間・部屋3間」で閉じる。
+        #   ⚠ 広げた所の一階は門口で抜ける前提(海鼠の柄は継ぎ目で揃わない)。二階は白壁と窓・屋根は瓦の周期で継ぐ。
+        if not body or frac is not None:
+            raise SystemExit("[nagaya] --wide は --body だけ・--frac と併せない")
+        k, dlt = solve_body((Lm - wide) / ES + to_l + to_r, cap_w, KEN_BAY / ES)
+        dlt_l = dlt_r = dlt
+        if k % 2 == 0:
+            raise SystemExit("[nagaya] --wide: 割付 %.3fm の窓割りが偶数本(%d)で真ん中に窓割りが無い" % (Lm - wide, k))
+        mid = k // 2; wo = wide / 2.0 / ES
+        print("[nagaya] --wide %.3fm: 割付は %.3fm の対称(窓割り %d 本)・真ん中 #%d を %.3fm に"
+              % (wide, Lm - wide, k, mid, KEN_BAY + wide))
     bw = bay - eps
+    xo = lambda i: (2.0 * wo if i > mid >= 0 else 0.0)     # 広げた窓割りより +X の側のずれ(obj)
     pier = 0.845 - eps
     print("[nagaya] L=%.3fm → bay %d 本 / pier の詰め ε=%+.4f (%.3fm) → 無地の壁 %.3fm"
           % (Lm, k, eps, eps * ES, pier * ES))
@@ -780,20 +815,33 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
     b0 = cwin - bay / 2.0 + eps / 2.0
     b1 = cwin + bay / 2.0 - eps / 2.0
     bay_src = V.join(mc, "bay_src")
+    wide_src = None
+    if mid >= 0:
+        if cwin + bay - win_hw <= b1 + wo + 1e-4:
+            raise SystemExit("[nagaya] --wide %.3fm: 広げた切り口が隣の窓の格子に掛かる" % wide)
+        wide_src = dup(bay_src, "wide_src")
+        slab(wide_src, b0 - wo, b1 + wo)
     slab(bay_src, b0, b1)
     for i in range(k):
-        c = dup(bay_src, "bay%02d" % i)
-        shift_x(c, i * bw - b0)
+        if i == mid:
+            # 広げる窓割り: 素の c から窓の両脇へ wo ずつ広く切った一切れ(隣の窓の格子までは届かない ── 上で検めた)
+            c = dup(wide_src, "bay%02d" % i)
+            shift_x(c, i * bw - (b0 - wo))
+        else:
+            c = dup(bay_src, "bay%02d" % i)
+            shift_x(c, i * bw + xo(i) - b0)
         pieces.append(c)
     bpy.data.objects.remove(bay_src, do_unlink=True)
+    if wide_src is not None:
+        bpy.data.objects.remove(wide_src, do_unlink=True)
 
     # --- 妻(左 = `r` の妻を −x 側に / 右 = `l` の妻を +x 側に)
     cap_r = V.join(mr, "capL")          # 妻が −x 側にある部材 → 走りの左端
     cap_l = V.join(ml, "capR")          # 妻が +x 側にある部材 → 走りの右端
-    xR = rwin + bay / 2.0 - dlt         # `r` の内側の切断面(従来は dlt = ε/2)
-    xL = lwin - bay / 2.0 + dlt         # `l` の内側の切断面
+    xR = rwin + bay / 2.0 - dlt_l       # `r` の内側の切断面(従来は dlt = ε/2)
+    xL = lwin - bay / 2.0 + dlt_r       # `l` の内側の切断面
     xb0 = r_n2 - xR                     # 躯体の端(obj・回す前)
-    xb1 = l_n2 + k * bw - xL
+    xb1 = l_n2 + k * bw + xo(k) - xL
     if ends in ("both", "left"):
         bisect_keep(cap_r, xR, False)   # 妻側(x ≤ xR)を残す
         shift_x(cap_r, -xR)
@@ -802,11 +850,17 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
         bpy.data.objects.remove(cap_r, do_unlink=True)
     if ends in ("both", "right"):
         bisect_keep(cap_l, xL, True)
-        shift_x(cap_l, k * bw - xL)
+        shift_x(cap_l, k * bw + xo(k) - xL)
         pieces.append(cap_l)
     else:
         bpy.data.objects.remove(cap_l, do_unlink=True)
 
+    if body and ends == "both":
+        # 窓の芯の並び(Unity 局所 −X の躯体の端から m)── 隣と窓割り・海鼠の位相が続くかを読む(EDO-0502 2026-10-11)
+        _w = [-bay / 2.0 + dlt_l] + [(i + 0.5) * bw + xo(i) + (wo if i == mid else 0.0) for i in range(k)] \
+             + [k * bw + xo(k) + bay / 2.0 - dlt_r]
+        print("[nagaya] 窓の芯(−X の躯体の端から m): " + " ".join("%.3f" % ((x - xb0) * ES) for x in _w)
+              + " / 躯体 %.3f" % ((xb1 - xb0) * ES))
     o = V.join(pieces, "nagaya")
     # 継ぎ目の頂点を溶かす(隣り合う切り口は平行移動で一致している)
     me = o.data
@@ -842,6 +896,8 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
     #   **同じ run の他の部材と基準が食い違う**(据える側は座 = 土台の底で置くので、
     #   建物ごと 0.38m 浮く)。⇒ ここで採った値を最後まで使う。
     z_base_ref = min(v.co.z for v in o.data.vertices)
+    print("[nagaya] 高さ(土台の底から m): 一階の窓 下段 %.3f〜 / 一階の天端(二階の帯の始め)%.3f / 窓の一番上(素)%.3f"
+          % ((z_win0 - z_base_ref) * ES, (z_roof_bot - z_base_ref) * ES, (z_win_top - z_base_ref) * ES))
 
     # --- 長屋門の門口(ユーザー裁定 2026-08-30)。**階を積み、棟を上げた後**に抜く。
     #   ⛔ 2026-09-04 まで積む前に抜いていた。`add_floor` は白壁の帯
@@ -918,7 +974,7 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
     # --- 両端の出格子番所(長屋門)。窓は x = (j+0.5)·bw に並ぶ(j = −1 … k)
     if bansho:
         bwid = bay - eps
-        cen = ([-bay * 0.5 + dlt, k * bw + bay * 0.5 - dlt] if body
+        cen = ([-bay * 0.5 + dlt_l, k * bw + xo(k) + bay * 0.5 - dlt_r] if body
                else [-bwid * 0.5, (k + 0.5) * bwid])
         # 片番所の端: 既定は cen[0](obj −X → 回して Blender +X → **Unity 局所 −X** = 街路から見て右)。
         # `--bansho-ux +1` で cen[1](**Unity 局所 +X** = 街路から見て左)。EDO-0533
@@ -929,7 +985,7 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
             #   窓の芯の並び = 端の間の窓 + 中の窓割り (i+0.5)·bw。口に掛からない窓のうち、口の両側で一番近いもの。
             if gate is None:
                 raise SystemExit("[nagaya] --bansho-mon は --gate と併せる")
-            wins = [cen[0]] + [(i + 0.5) * bw for i in range(k)] + [cen[1]] if body else \
+            wins = [cen[0]] + [(i + 0.5) * bw + xo(i) + (wo if i == mid else 0.0) for i in range(k)] + [cen[1]] if body else \
                    [cen[0]] + [(i + 0.5) * bwid for i in range(k)] + [cen[1]]
             lo = [x for x in wins if x + win_hw < gx0]
             hi = [x for x in wins if x - win_hw > gx1]
@@ -1034,7 +1090,9 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
                               + (" --kabuki %g" % kabuki if (gate and kabuki) else "")
                               + (" --gate-post %g" % gate_post if (gate and gate_post) else "")
                               + (" --join-sill" if join_sill else "")
-                              + (" --bansho-out %g" % bansho_out if (bansho and bansho_out) else ""),
+                              + (" --bansho-out %g" % bansho_out if (bansho and bansho_out) else "")
+                              + (" --wide %g" % wide if wide else "")
+                              + (" --frac %g %s" % tuple(frac) if frac is not None else ""),
                               (" --miter %g %g" % tuple(miter) if mit is not None else "")
                               + (" --miter-cut %g %g" % tuple(miter_cut) if miter_cut is not None else "")),
                     unitScale=1.0, yBottom=0.0, foot=[dict(x=x, y=z) for x, z in foot],
@@ -1324,9 +1382,16 @@ def main():
     if "--miter-cut" in argv:
         i = argv.index("--miter-cut")
         mcut = (float(argv[i + 1]), float(argv[i + 2]))
+    wide = float(argv[argv.index("--wide") + 1]) if "--wide" in argv else 0.0
+    frac = None
+    if "--frac" in argv:
+        i = argv.index("--frac")
+        frac = (float(argv[i + 1]), argv[i + 2].upper())
+        if frac[1] not in ("L", "R"):
+            raise SystemExit("[nagaya] --frac <m> <L|R>")
     skip = set()
     for f in ("--ends", "--name", "--floors", "--ridge", "--doorh", "--bansho",
-              "--kabuki", "--bansho-out", "--gate-drop", "--bansho-ux", "--gate-post"):
+              "--kabuki", "--bansho-out", "--gate-drop", "--bansho-ux", "--gate-post", "--wide"):
         if f in argv:
             skip.add(argv.index(f)); skip.add(argv.index(f) + 1)
     for f in ("--gate", "--kuguri"):
@@ -1337,6 +1402,8 @@ def main():
         i = argv.index("--miter"); skip.update((i, i + 1, i + 2))
     if "--miter-cut" in argv:
         i = argv.index("--miter-cut"); skip.update((i, i + 1, i + 2))
+    if "--frac" in argv:
+        i = argv.index("--frac"); skip.update((i, i + 1, i + 2))
     lens = [float(a) for i, a in enumerate(argv)
             if i not in skip and not a.startswith("--")]
     if not lens:
@@ -1348,7 +1415,7 @@ def main():
                                 kabuki=kabuki, kuguri=kuguri, bansho_out=bout,
                                 gate_drop=gdrop, body=body, miter=miter,
                                 bansho_ux=bux, gate_post=gpost, join_sill=('--join-sill' in argv),
-                                miter_cut=mcut, bansho_mon=('--bansho-mon' in argv))
+                                miter_cut=mcut, bansho_mon=('--bansho-mon' in argv), frac=frac, wide=wide)
         if do_render:
             shots(o, fmt(Lm) + ("" if gate is None else "_mon%s" % fmt(gate[0]))
                   + ("" if floors < 2 else "_%df" % floors)

@@ -2273,7 +2273,14 @@ public static class EdoAssets
         /// 破風はそこから外へ 0.322 ずつ出る ⇒ 隣と**妻壁の実面どうし**で突き付け、破風の重なりは埋めて隠す。
         /// 窓割りは 1.5間固定・端数は両端の間。札 = <c>Assets/Edo/Data/PartSpecs/&lt;名&gt;.json</c>(jambL/jambR.x = 躯体の端)。
         ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- &lt;長さm&gt; --body --floors 2 --render
-        /// 14.8(岡部 N40_1 の 14.803・門長屋 8間の余り 0.13 を寄せた棟・EDO-0502 2026-10-10)は `-- 14.803 --body --floors 2`。</summary>
+        /// 14.8(岡部 N40_1 の 14.803・門長屋 8間の余り 0.13 を寄せた棟・EDO-0502 2026-10-10)は `-- 14.803 --body --floors 2`。
+        /// <para>⭐ **端数を片方の端の間で持つ版 `--frac &lt;m&gt; &lt;L|R&gt;`**(EDO-0502 2026-10-11): 割付は len − m の対称で解き、m を局所 −X(L)/ +X(R)の
+        /// 端の間だけに足す ⇒ 反対の端は間で閉じた版と同じ窓割り。名は素の _kutai と同じ(札の source に --frac)── **据えの向きが局所 +X = s の増える向き**の前提
+        /// (岡部の外周はこの向き)。岡部 辺40・41 の割り直しで焼いた:
+        ///   12.47 = N41_0(7間 − 0.259 を角 P41 = s0 = −X の側): `-- 12.467 --body --floors 2 --frac -0.259 L`
+        ///   9.35 = N40_1(5間 + 0.259 を N40_2 = s1 = +X の側): `-- 9.349 --body --floors 2 --frac 0.259 R`
+        ///   15.61 = N41_5(8.5間 + 0.161 を角 P0 = s1 = +X の側): `-- 15.614 --body --floors 2 --frac 0.161 R`
+        ///   16.36 = N41_1〜3(9間)/ 15.45 = N41_4(8.5間)は対称のまま: `-- 16.362 --body --floors 2` / `-- 15.453 --body --floors 2`</para></summary>
         public static string NagayaOmote2FKutai(float len)
         {
             return "Assets/Edo/Models/Nagaya/Nagaya_Omote_" + Len2(len) + "_2f_kutai.fbx";
@@ -2293,7 +2300,11 @@ public static class EdoAssets
         ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- 5.46 --body --gate 3.52 2.4 2.8 --gate-drop 0.70 --floors 2 --render
         /// **14.54・mon4.54 / mon10・2f**: 岡部の表門 B(辺40 N40_0・8間・口の芯 s=10.0・EDO-0502 2026-10-10)。割りは隅の側から部屋3間・番所1.5間・門口2間・番所1.5間 ⇒
         /// 出格子は `--bansho-mon` で**口の両脇の窓**へ(両端でない)。向きで gc が割れるので両方焼いた(局所 +X が走りの向きなら 4.54)。素の全幅版 14.54_mon10_2f も同じ引数で。
-        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- 14.544 --body --gate 4.544 3.636 3.3 --floors 2 --ridge 8.5 --doorh 3.3 --kabuki 0.42 --bansho 2 --bansho-mon --render</summary>
+        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- 14.544 --body --gate 4.544 3.636 3.3 --floors 2 --ridge 8.5 --doorh 3.3 --kabuki 0.42 --bansho 2 --bansho-mon --render
+        /// **20・mon10・2f**: 岡部の表門 N40_0(11間 19.998・口の芯は一続きの真ん中・EDO-0502 施主 2026-10-11)。**棟は表長屋と同じ 7.183**(--ridge なし)。
+        /// 割り = 部屋3間・番所1.5間・口2間・番所1.5間・部屋3間 ⇒ `--wide 0.909` で真ん中の窓割りだけ 2間に広げ、口をそこへ抜く(窓は躯体の端から
+        /// 1.381/4.091/6.818 | 口 8.181〜11.817 | 13.181/15.908/18.617)。口は芯対称なので据えの向きに関わらず mon10。一階の天端 3.895・口の有効高 3.30+冠木 0.42 = 3.72。
+        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- 19.998 --body --floors 2 --wide 0.909 --gate 9.999 3.636 3.3 --doorh 3.3 --kabuki 0.42 --bansho 2 --bansho-mon --render</summary>
         public static string NagayaOmoteMonKutai(float len, float gateFromLeft, bool nikai)
         {
             return "Assets/Edo/Models/Nagaya/Nagaya_Omote_" + Len2(len)
@@ -2586,6 +2597,16 @@ public static class EdoAssets
             return MonDir + "Munamon_" + w.ToString("0.##") + (opened ? "_Open" : "") + ".fbx";
         }
         public static string Munamon(float w) { return Munamon(w, false); }
+        /// <summary>**両脇に短い板の袖を足した棟門**(EDO-0502 2026-10-11・岡部の通用門 Tsuyomon)。<see cref="Munamon(float,bool)"/> の本柱の外の面から
+        /// 両脇へ <paramref name="sode"/>[m] の袖板(竪板+目板+貫)と、長屋の妻に当たる方立(見付 0.09・見込 0.12)を、沓石の底 −0.26 から妻梁の下 2.84 まで。
+        /// 門と長屋の妻の離し 0.30(指図 komon[Tsuyomon].plan.bayRule)を塞ぐ。ピボット・向き・門口・屋根は素の棟門と同じ(据えも同じ・正面の面 = 札 front 0.24)。
+        /// 札の脇の面 jambL/R = **方立の外の面 ±(w/2 + 0.24 + sode)**(2.727/0.30 で ±1.9035)⇒ 長屋の妻面をここへ突き付ける。袖板は柱の芯の面(z ±0.02)。
+        /// 実寸 4.627(X) × 3.860(Y) × 2.592(Z)。材は素の棟門と同じ(wood / wall C / Foundation_A_01 / roof / roof ornaments)。⚠ 袖の寸法は仮置き【U】。
+        ///   blender --background --python Tools/Blender/build_munamon.py -- --w 2.727 --sode 0.30 --render</summary>
+        public static string MunamonSode(float w, float sode, bool opened)
+        {
+            return MonDir + "Munamon_" + w.ToString("0.##") + "_Sode" + sode.ToString("0.##") + (opened ? "_Open" : "") + ".fbx";
+        }
 
         /// <summary>**袖の無い冠木門**(旗本屋敷の表門・類型 gate=kabukimon。EDO-0491・施主裁定A 2026-09-30)。
         /// 在庫 <see cref="Eg.Kabukimon"/> は袖塀を抱えて ES 後 8.05m あり、狭い接道に載らない。

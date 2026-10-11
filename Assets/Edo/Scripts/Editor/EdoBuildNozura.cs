@@ -1912,7 +1912,27 @@ public static partial class EdoBuild
                 if (segs[ch[i - 1].Key].flow || segs[ch[i].Key].flow) continue;   // 流しの区間の両端は段でない(FlowStepJoints)
                 float st = cum[i]; if (Mathf.Abs(w.crestAt(st - 0.5f) - w.crestAt(st + 0.5f)) > 0.05f) w.steps.Add(st);
             }
-            foreach (var kv in ch) if (segs[kv.Key].footAt != null) { w.footAt = segs[kv.Key].footAt; break; }
+            // 鎖の足元: 区間ごとに足元を名指していれば**その点に最も近い区間の足元**で測る(⛔ 鎖の最初の足元で全区間を測らない ──
+            //   EDO-0502 第106巡: 石段の脇の返し(足元 = 段石の踏面)と継いだ TW_Higashi_Se の本線が段石の踏面 13.4〜14.0 を足元と読み、
+            //   見付が足りず駒の底が背の路地の床 12.4 の 1.0〜1.5 上で止まった)。名指しの無い区間は従前どおり最初の足元。
+            //   当たる先: 足元の違う区間を一本に継ぐ野面の鎖すべて(岡部 石段の脇の返し × 本線・背の台の石垣 × 妻の面)。
+            {
+                Func<float, float, float> first = null; var fsegs = new List<NozuraSeg>(); var fns = new HashSet<Func<float, float, float>>();
+                foreach (var kv in ch) { var sg = segs[kv.Key]; fsegs.Add(sg); if (sg.footAt != null) { if (first == null) first = sg.footAt; fns.Add(sg.footAt); } }
+                if (fns.Count <= 1) w.footAt = first;
+                else
+                    w.footAt = (x, z) =>
+                    {
+                        var q = new Vector2(x, z); NozuraSeg best = null; float bd = float.MaxValue;
+                        foreach (var sg in fsegs)
+                        {
+                            Vector2 ab = sg.b - sg.a; float L2 = ab.sqrMagnitude; float t = L2 < 1e-8f ? 0f : Mathf.Clamp01(Vector2.Dot(q - sg.a, ab) / L2);
+                            float d = Vector2.Distance(q, sg.a + ab * t); if (d < bd) { bd = d; best = sg; }
+                        }
+                        var f = best != null && best.footAt != null ? best.footAt : first;
+                        return f(x, z);
+                    };
+            }
             w.straight = straight; w.kado = kado; w.dan = dan; w.kiri = kiri; w.heights = heights; w.faceGroundAt = faceGroundAt; w.kiriEnd = kiriEnd; w.noriEnd = noriEnd;
             string nm = segs[ch[0].Key].name; var names = new List<string>(); foreach (var kv in ch) if (!names.Contains(segs[kv.Key].name)) names.Add(segs[kv.Key].name);
             // 端の納め

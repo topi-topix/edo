@@ -1,6 +1,6 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 c404906a5638 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 ebdbbbe354aa -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
@@ -139,7 +139,7 @@ EdoBuild — 段の土留め(石垣・野面)を天端の折れ線へ据える(2
 | `EdoBuild.ArcPoint(nodes, s, dir)` | `Vector2` |  | 折れ線の道のり s の点(世界 xz)と、その区間の向き。 | OkabeYashiki(KaidanAB・ProfSNodes・Stage2b_Dan…) |
 | `EdoBuild.GapFromPieces(nodes, gap, pieces, band, note)` | `Vector2` | 硬 面 | 土留めの口の端を、口を通る石段の実面で決める(EDO-0502 第8巡)。 | OkabeYashiki(Stage2b_Dan・StairGaps) |
 | `EdoBuild.GapReturnLine(p, axis, inward, crest, groundAt, maxLen, len)` | `List<Vector2>` | 硬 天端・床・面 | 口の端の返し(EDO-0502 第8巡・スキル unity-modular-stonewall の小口の作法)。 ⟶ 返す: 天端の前の縁の折れ線(2 点) | OkabeYashiki(Stage2b_Dan・StairGaps) |
-| `EdoBuild.FaceBatterOf(path)` | `float` | 天端・面 | 野面の駒の見え面の法(水平 / 鉛直)を駒の実メッシュから測る(2026-10-08 EDO-0502 第57巡)。 | OkabeYashiki(RoadEdgePlanOf・StairGaps) |
+| `EdoBuild.FaceBatterOf(path)` | `float` | 天端・面 | 野面の駒の見え面の法(水平 / 鉛直)を駒の実メッシュから測る(2026-10-08 EDO-0502 第57巡)。 | OkabeYashiki(RoadEdgePlanOf・SeRojiPlanOf・StairGaps) |
 | `EdoBuild.StairSideCrestLines(wallNodes, foot, up, halfW, crest, batter, surf, uEnd, tol, gapS, note)` | `List<Vector2>[]` | 硬・柔 天端・床・面・隅 | 石段の脇の見え面を石段の端の線へ(指図 kaidans[].sideFace・2026-10-08 EDO-0502 第57巡 施主指摘「門の内の石段が途中で幅が狭まって見える」)。 | OkabeYashiki(StairGaps) |
 
 ### 段違いの継ぎ目の下の積み下ろし(EDO-0502 第11巡)
@@ -1101,7 +1101,7 @@ EdoBuild — 造成(平場を採る)。2026-09-27・EDO-0477 P1(山王 Stage1_Gr
 | `EdoGeom.SignedArea(poly)` | `float` |  | 符号付き面積。CCW で正。 | OkabeYashiki(AllFacesAt・ProfSNodes・SkinGround…), TypologyBuilder.Jisha(JishaOmoya), TypologyBuilder.Keidai(NiwaKeidai) |
 | `EdoGeom.InwardNormal(poly, i)` | `Vector2` |  | 辺 i (poly[i]→poly[i+1]) の、多角形の内側を向く単位法線。 | DoiBuilder.Mizo(BuildHariOtoshi9・Stage9_Mizo), GotenTypoTest(Build), OkabeYashiki(OutNormal), Typology(Outward), TypologyBuilder.Jisha(JishaOmoya) |
 | `EdoGeom.DistToEdge(p, a, b)` | `float` | 区域 | 点 p から線分 ab への最短距離。 ⚠ 長さ0の線分では NaN を返してはいけない。 | SannoSha(KeepClearOfFlushWalls・OnFumotomichi・Stage4_Kakoi), DoiBuilder.Niwa(NearAny・SuhamaZone), TypologyBuilder.Niwa(NiwaChisen・NiwaTsubo), DoiBuilder.Mizo(Stage9_Mizo), OkabeYashiki(Stage2_Perimeter) ほか3 |
-| `EdoGeom.LineIntersect(p0, d0, p1, d1, fallback)` | `Vector2` |  | 点 p から多角形の外周(全辺)への最短距離。 | MatsudairaDewa(Stage2Fences・Stage2_Perimeter), OkabeYashiki(BackOfFullLine) |
+| `EdoGeom.LineIntersect(p0, d0, p1, d1, fallback)` | `Vector2` |  | 点 p から多角形の外周(全辺)への最短距離。 | MatsudairaDewa(Stage2Fences・Stage2_Perimeter), OkabeYashiki(BackOfFullLine・SeRojiPlanOf) |
 | `EdoGeom.ClipHalfPlane(poly, p0, n)` | `Vector2[]` |  | 多角形を半平面 dot(q − p0, n) ≤ 0 で切る(Sutherland–Hodgman)。 | OkabeYashiki(AllFacesAt) |
 | `EdoGeom.DistToPolyEdge(poly, p)` | `float` |  | ⚠ 注釈なし | OkabeYashiki(AllFacesAt・KiriEnd・MichiNarashiAt…), Typology(Candidates・Inner・Inspect…), DoiBuilder.Niwa(Ground・Mound・Niwa_A_Dokou…), TypologyBuilder.Jisha(JInside・JMinEdge・JishaOmoya), DoiBuilder.Dan(MeasureNozura・PlaceKaidansA) ほか8 |
 | `EdoGeom.HullXZ(pts)` | `int[]` | 区域 | 点集合の凸包の頂点インデックス(反時計回り・共線点は落とす)。 | PartSpec(Measure), Typology(BuildParcel), TypologyBuilder.Katte(Katte) |

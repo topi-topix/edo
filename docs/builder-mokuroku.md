@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 92・関数 878(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 93・関数 885(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -25,7 +25,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoDoiBuilder.cs](#edodoibuildercs) | 土井大隅守上屋敷(三河刈谷藩2万3千石・譜代・雁間)ビルダー。 | 15 | 89 |
 | [EdoMatsudairaDewaBuilder.Niwa.cs](#edomatsudairadewabuilderniwacs) | 松平出羽守上屋敷 — 庭の工程(池・築山・水の系・石組・点景・滝見口)。 | 9 | 30 |
 | [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 16 | 120 |
-| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 19 | 195 |
+| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 20 | 202 |
 | [EdoSannoShaBuilder.cs](#edosannoshabuildercs) | 山王権現社(日枝神社)本体+樹下家邸+山王門前町ビルダー (2026-08-11。観理院は 2026-09-26 に類型へ移し削除) | 1 | 31 |
 | [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 13 | 102 |
 | [EdoSanyashikiRebuild.cs](#edosanyashikirebuildcs) | 三屋敷(太田・加納・鍋島=松平肥前守)の区画を下書きv3へ更新 (2026-08-08) | 0 | 6 |
@@ -538,6 +538,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `Edo/岡部筑前守上屋敷/造成を検査 GradeQA` | `GradeQAMenu` | `GradeQA` |
 | `Edo/岡部筑前守上屋敷/2 外周(練塀・基壇・木柵・隅)` | `Stage2Menu` | `Stage2_Perimeter`, `ReviewGate`, `Group`, `Clear` |
 | `Edo/岡部筑前守上屋敷/2b 段の土留め(terraceWalls・天端の垣)` | `Stage2bMenu` | `Stage2b_Dan`, `ReviewGate`, `Stale`, `A` |
+| `Edo/岡部筑前守上屋敷/検: 背の路地を解く(据えない)` | `SeRojiReportMenu` | `SeRojiPlanOf`, `SeRojiReport`, `BackTrenchesFull`, `BackTrenches` |
 | `Edo/岡部筑前守上屋敷/3 主郭(棟・廊下・附属屋・井戸・結界・石段)` | `Stage3Menu` | `Stage3_Shukaku`, `Stage3c_SodeSlopeCheck`, `SkinGround` |
 | `Edo/岡部筑前守上屋敷/3b 縁の皮(段の土留めの足元の升に穴を開けて皮で描く)` | `Stage3bMenu` | `Stage3b_Hifu`, `ReviewGate`, `ImplTol`, `Group` |
 | `Edo/岡部筑前守上屋敷/4 庭(部材を据える・地形には触らない)` | `Stage4Menu` | `Stage4_Niwa`, `ReviewGate`, `Stale`, `RetireStaleGroup` |
@@ -615,6 +616,12 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `KeepToe(keepB, wallB, q, nw)` | `bool` |  | 法尻の土留めの背の小段(指図 terraceWalls[].toeBench を持つ欄 ── TW_Nishi_Kado・TW_Higashi_Minami・EDO-0502 第33巡)を、 据えた駒(Dan の「名_p… |
 | `ToeBenches(note)` | `List<EdoBuild.ToeBench>` |  | — |
 | `BackTrenches(sb)` | `List<BackTrench>` |  | 返しの石垣と溝を解く(Stage2b の据えと Stage3b の皮の設計の地盤が同じ答えを読む)。 |
+| `SeRoji()` | `SeRojiPlan` |  | この巡の解き(Stage2b が解いた物・domain reload の後は解き直す)。 |
+| `SeRojiWallName()` | `string` |  | 背の路地の奥の石垣の名(指図 seRoji.w「その先が TW_* の見え面の足元」)。 |
+| `SeRojiPlanOf()` | `SeRojiPlan` | 公 | 背の路地と TW_Higashi_Se を解く(指図 grading.seRoji・terraceWalls[TW_Higashi_Se]【硬】)。 |
+| `SeRojiPlan_Prof(f, s)` | `float` |  | — |
+| `SeRojiProfTxt(f)` | `string` |  | — |
+| `SeRojiReport()` | `string` | 公 | — |
 | `BackTrenchesFull()` | `List<BackTrench>` |  | 背の台の石垣を棟の背の全長に通す欄(backOf&lt;棟&gt; 追記 2026-10-10o)の溝。 |
 | `BackOfFullLine(list, nozSegs)` | `string` |  | 背の台の石垣を棟の背の全長に通す(指図 terraceWalls[].backOf&lt;棟&gt; 追記 2026-10-10o【硬】・EDO-0502 第98巡)。 |
 | `TrenchAt(ts, q)` | `float` |  | 点 q が溝(背の面から off の帯・止めの妻から返しの端 + off まで)の中なら溝の高さ、外なら NaN。 |

@@ -2387,11 +2387,37 @@ public static class EdoOkabeYashikiBuilder
         var sodeSlopeChk = new List<SodeSlopeCheck>();   // 袖の坂の硬い検め(天端と背の地盤の差)── 据えた後に測る
         // 返しと長屋の背の間の溝(BackTrenches)は長屋の実メッシュで解く ⇒ 外周(Stage2)の後に読み直す。溝は平らな面として SkinGround にも入る(FlatFaces)
         _flat = null; var trenches = BackTrenches(sb);
+        // ⭐ 背の路地(grading.seRoji)と TW_Higashi_Se(第106巡)── 長屋の実メッシュの背から解き、路地の床を地形へ切る(切るだけ)。線は下の欄の据えへ渡す
+        _seRoji = SeRojiPlanOf(); string seWall = SeRojiWallName();
+        if (_seRoji.ok)
+        {
+            sb.Append("  " + _seRoji.log.Replace("\n", "\n  ").TrimEnd(' '));
+            int cnT = 0; float cmT = 0f, cvT = 0f;
+            foreach (var f in _seRoji.faces)
+            {
+                // 面の矩形 = [背 −0.3, 足元 +0.3] × 0.5m ── 切りは背の線から帯の幅だけ(帯の奥は 1:0.1 で地山へ)
+                Vector2 a = f.poly[0], b = f.poly[1], inw = (f.poly[3] - f.poly[0]); float band = inw.magnitude; inw /= Mathf.Max(1e-4f, band);
+                float cm1, cv1; cnT += EdoBuild.CutAlongBack(Poly, a, b, inw, f.y, band, 0.1f, out cm1, out cv1); cmT = Mathf.Max(cmT, cm1); cvT += cv1;
+            }
+            AssetDatabase.SaveAssetIfDirty(EdoBuild.T().terrainData);
+            sb.AppendLine("  背の路地の床を地形で切った: 面 " + _seRoji.faces.Count + "・節点 " + cnT + "・切り 最大 " + cmT.ToString("F2") + "m・" + cvT.ToString("F0") + "m³(2m 格子は床を描けない ── 皮が面で描く)");
+        }
+        else sb.AppendLine("  ★ 背の路地が解けない: " + _seRoji.why + " ── " + (seWall ?? "TW_Higashi_Se") + " を建てない");
         foreach (var o in tws)
         {
             var w = O(o); if (w == null) continue;
             string nm = S(Get(w, "name")); string part = S(Get(w, "part"));
             var ln = A(Get(w, "line"));
+            Func<Vector2, Vector2, Vector2> seFace = null;
+            if ((ln == null || ln.Count < 2) && nm == seWall && _seRoji.ok)
+            {   // 算出物は線を持たない(座標は書かない ── 指図 line)⇒ 解いた線・天端・口で欄を組み直して下の据えへ(野面・fill・段は節点で)
+                var w2 = new Dictionary<string, object>(w); var ln2 = new List<object>(); foreach (var q in _seRoji.nodes) ln2.Add(new List<object> { (double)q.x, (double)q.y });
+                var tl2 = new List<object>(); foreach (var t in _seRoji.tops) tl2.Add((double)t);
+                w2["line"] = ln2; w2["tops"] = tl2; w2["top"] = (double)_seRoji.tops[0]; w2["mode"] = "fill"; w2["stepped"] = true; w2["kind"] = "石垣 野面"; w2.Remove("unresolved");
+                var gl2 = new List<object>(); if (!float.IsNaN(_seRoji.gap.x)) gl2.Add(new Dictionary<string, object> { { "s0", (double)_seRoji.gap.x }, { "s1", (double)_seRoji.gap.y }, { "by", "K_Tsuyo" } });
+                w2["gaps"] = gl2; w = w2; ln = ln2;
+                var spl = _seRoji; seFace = (pa, pb) => { Vector2 mid = (pa + pb) * 0.5f; float d40 = Vector2.Dot(mid - spl.ea40, spl.yd40), d41 = Vector2.Dot(mid - spl.ea41, spl.yd41); return d41 > d40 ? -spl.yd40 : -spl.yd41; };
+            }
             if (ln == null || ln.Count < 2) { skipped++; sb.AppendLine("  " + nm + (part != null ? "(" + part + ")" : "") + ": line=null ── 建てない(" + (S(Get(w, "unresolved")) ?? "線が無い") + ")"); continue; }
             var nodes = new List<Vector2>(); foreach (var q in ln) { var p = A(q); nodes.Add(new Vector2(F(p[0]), F(p[1]))); }
             var tops = new List<float>();
@@ -2399,7 +2425,7 @@ public static class EdoOkabeYashikiBuilder
             for (int i = 0; i < nodes.Count; i++) tops.Add(tl != null && i < tl.Count ? F(tl[i]) : F(Get(w, "top")));
             // ⭐ 線の先が長屋の背へ入り込むなら背から一間離して返し、高い側の妻の線で背まで閉じる(指図 terraceWalls[].return<run>・end・backOf<run>
             //   ── EDO-0502 第19巡)。溝は相手の面まで切る(地形 = CutAlongBack・皮の設計の地盤 = Stage3b が同じ BackTrenches を読む)。据えより先に。
-            Func<Vector2, Vector2, Vector2> trenchHint = null;
+            Func<Vector2, Vector2, Vector2> trenchHint = seFace;
             foreach (var tr in trenches)
             {
                 if (tr.wall != nm) continue;
@@ -2604,7 +2630,7 @@ public static class EdoOkabeYashikiBuilder
                     Vector2 a = nodes[i], b = nodes[i + 1]; float L = Vector2.Distance(a, b); if (L < 0.3f) { s0 += L; continue; }
                     // 袖(mode sode)は「段違いの run・各 run 一直線」(指図 TW_Kado_Sode.top)⇒ 区間の天端 = 始まりの節点の値で水平、段は節点で。
                     //   法尻の野面石(mode toe)は節点の値を道のりで一次(天端が地盤なりに下る)
-                    bool stepped = S(Get(w, "mode")) == "sode";
+                    bool stepped = S(Get(w, "mode")) == "sode" || Get(w, "stepped") != null;
                     float ta = tops[i], tb = stepped ? tops[i] : tops[i + 1];
                     var cuts = new List<Vector2> { new Vector2(0f, L) };
                     foreach (var g in gaps)
@@ -2692,6 +2718,12 @@ public static class EdoOkabeYashikiBuilder
         }
         // 野面の乱積み(城の石垣の実面へ端を突き付ける・pool)
         sb.Append(RoadEdgeSegs(nozSegs));   // 指図 Kadonouchi.roadEdge(道の側の腰石垣・第82巡)
+        if (_seRoji != null && _seRoji.ok && seWall != null)
+        {   // TW_Higashi_Se の見え面の足元 = 背の路地の床(⛔ 前の巡の皮で測らない ── 床は皮の前に切ったばかり)。口の脇の返しは StairGaps の足元のまま
+            var spl = _seRoji; int nf = 0;
+            foreach (var sg in nozSegs) if (sg.name.StartsWith(seWall + "_") && sg.footAt == null) { sg.footAt = (x, z) => { float y = spl.At(new Vector2(x, z)); return float.IsNaN(y) ? SkinGround(x, z) : y; }; nf++; }
+            sb.AppendLine("  " + seWall + ": 足元 = 背の路地の床 区間 " + nf);
+        }
         if (nozSegs.Count > 0)
         {
             var heights = new[] { 0.30f, 0.60f, 0.90f, 1.20f, 1.50f, 1.80f, 2.10f, 2.40f, 4.80f };
@@ -3280,6 +3312,243 @@ public static class EdoOkabeYashikiBuilder
               } }
         return res;
     }
+
+    // =====================================================================
+    // 背の路地(指図 grading.seRoji)と東の平場の縁の石垣(terraceWalls[TW_Higashi_Se])── EDO-0502 第106巡
+    // =====================================================================
+    /// <summary>背の路地と TW_Higashi_Se を**据えた長屋の実メッシュの背**から解いた物(Stage2b の据え・Stage3b の皮の設計の地盤・FlatFaces が同じ答えを読む)。</summary>
+    public class SeRojiPlan
+    {
+        public bool ok; public string why = "";
+        /// <summary>石垣の天端の前の縁の線(PlaceNozuraNet の線)と節点の天端(区間 i の天端 = tops[i]・段は節点で)。</summary>
+        public List<Vector2> nodes = new List<Vector2>(); public List<float> tops = new List<float>();
+        /// <summary>区間ごとの見え面(路地の側 = 辺の外向き)。</summary>
+        public List<Vector2> faceOf = new List<Vector2>();
+        /// <summary>K_Tsuyo の口の道のり(nodes の上)。無ければ NaN。</summary>
+        public Vector2 gap = new Vector2(float.NaN, float.NaN);
+        public Vector2 ea40, ax40, yd40, ea41, ax41, yd41; public float L40, back40, back41, foot40, foot41, crest40, crest41, s40a, s41b;
+        /// <summary>床の縦断(辺ごとの (s, y)・同じ s が二つなら段)。</summary>
+        public List<Vector2> f40 = new List<Vector2>(), f41 = new List<Vector2>();
+        public float tamari = float.NaN, tam0 = float.NaN, tam1 = float.NaN;
+        public List<EdoBuild.SkinFace> faces = new List<EdoBuild.SkinFace>();
+        public string log = "";
+        /// <summary>点 q の路地の床(帯の外は NaN)。帯 = 長屋の背 −0.3(棟の下)〜 見え面の足元 +0.3(石の下)。</summary>
+        public float At(Vector2 q)
+        {
+            if (!ok) return float.NaN;
+            float s40 = Vector2.Dot(q - ea40, ax40), d40 = Vector2.Dot(q - ea40, yd40), s41 = Vector2.Dot(q - ea41, ax41), d41 = Vector2.Dot(q - ea41, yd41);
+            bool in40 = s40 >= s40a - 0.05f && d40 >= back40 - 0.3f && d40 <= foot40 + 0.3f && d41 >= back41 - 0.3f;
+            bool in41 = s41 <= s41b + 0.05f && d41 >= back41 - 0.3f && d41 <= foot41 + 0.3f && d40 >= back40 - 0.3f;
+            if (!in40 && !in41) return float.NaN;
+            // 角は二つの帯が重なる ── 長屋 N41_0 の角の妻の線(二つの辺の二等分線・留め)で分ける: 辺40 の線に近い側が辺40
+            bool use40 = in40 && (!in41 || d41 > d40);
+            if (use40) return SeRojiPlan_Prof(f40, Mathf.Min(s40, L40));
+            if (!float.IsNaN(tamari) && s41 > tam0 && s41 < tam1) return tamari;
+            return SeRojiPlan_Prof(f41, Mathf.Max(s41, 0f));
+        }
+    }
+    static SeRojiPlan _seRoji;
+    /// <summary>この巡の解き(Stage2b が解いた物・domain reload の後は解き直す)。</summary>
+    static SeRojiPlan SeRoji() { if (_seRoji == null) _seRoji = SeRojiPlanOf(); return _seRoji; }
+    /// <summary>背の路地の奥の石垣の名(指図 seRoji.w「その先が TW_* の見え面の足元」)。</summary>
+    static string SeRojiWallName() { var gr = O(Get(D, "grading")); var sr = gr == null ? null : O(Get(gr, "seRoji")); var m = System.Text.RegularExpressions.Regex.Match(S(Get(sr, "w")) ?? "", @"(TW_[A-Za-z_]+)\s*の見え面の足元"); return m.Success ? m.Groups[1].Value : null; }
+
+    /// <summary>**背の路地と TW_Higashi_Se を解く**(指図 grading.seRoji・terraceWalls[TW_Higashi_Se]【硬】)。
+    /// ① 長屋の背 = 据えた長屋の実メッシュ(<see cref="EdoBuild.FaceOut"/>・座 +0.1〜+1.2 の帯)を辺ごとに最も奥 ── 指図 line「見え面の足元を長屋の背面から 一間+犬走り 0.3」
+    /// ⇒ 足元の線 = 背 + 1.818 + 0.3。② 石垣の線(PlaceNozuraNet は天端の前の縁を線へ寄せる)= 足元 + 法(野面の駒の実測 FaceBatterOf)× 辺の見付の最大
+    /// (⛔ 見付ごとに線を折らない ── 段の境で線が横へずれる。最大で取るので足元は狙いより奥へ出るだけで路地は狭まらない【柔: 足元の離れ】)。
+    /// ③ 天端は欄 runs[].top を behind の棟の妻の線(実メッシュの SpecBodySpanAlong)で区切る(段は節点で)。区切り2/3 の境は K_Tsuyo の口の中。
+    /// ④ 北の端は TW_Higashi_Hokuto の線の端点から始め(天端一つで継ぐ ── topNote)、N40_2 の背の頭(指図 north「背の頭 2.6m」)の妻 +2.6m で足元の線へ入る。
+    /// ⑤ 床の縦断は指図 floor の「s<道のり> … <高さ>」の組を読む(同じ s が二つなら段)。辺41 の南は fall「s80.812 の暗渠」・runs[].toe「12.15 から 1/100」から
+    /// s65.359 12.15 → 1/100 → s80.812 → 1/100 → 南の端(読んだ値だけで組む)。溜りは tsuyo「溜り 12.20」を妻の線の間に。
+    /// 当たる先: 背に路地と石垣を負う外周の長屋(岡部 辺40・41)。⛔ 座標を書かない ── 毎回測る。</summary>
+    public static SeRojiPlan SeRojiPlanOf()
+    {
+        var P = new SeRojiPlan(); var inv = System.Globalization.CultureInfo.InvariantCulture; var lg = new System.Text.StringBuilder();
+        var gr = O(Get(D, "grading")); var sr = gr == null ? null : O(Get(gr, "seRoji"));
+        Dictionary<string, object> tw = null;
+        foreach (var o in A(Get(D, "terraceWalls")) ?? new List<object>()) { var t = O(o); if (t != null && S(Get(t, "name")) == "TW_Higashi_Se") tw = t; }
+        if (sr == null || tw == null) { P.why = "指図に seRoji か TW_Higashi_Se が無い"; return P; }
+        string lineTxt = S(Get(tw, "line")) ?? "";
+        var mL = System.Text.RegularExpressions.Regex.Match(lineTxt, @"一間.*?\+\s*犬走り\s*([0-9.]+)");
+        if (!mL.Success) { P.why = "line の『一間+犬走り』が読めない"; return P; }
+        float inu = float.Parse(mL.Groups[1].Value, inv);
+        var root = GameObject.Find(GN); var kak = root == null ? null : root.transform.Find("Kakoi");
+        if (kak == null) { P.why = "Kakoi が無い"; return P; }
+        // 天端の区切り: behind の棟 → top
+        var topOf = new Dictionary<string, float>();
+        foreach (var o in A(Get(tw, "runs")) ?? new List<object>())
+        {
+            var r = O(o); if (r == null) continue; float t = F(Get(r, "top"));
+            foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(S(Get(r, "behind")) ?? "", @"N4[01]_[0-9]")) topOf[m.Value] = t;
+        }
+        // 長屋の背と妻
+        var spanOf = new Dictionary<string, Vector2>();
+        float bk40 = float.MinValue, bk41 = float.MinValue;
+        P.ea40 = EdgePt(40, 0f); P.ax40 = (EdgePt(40, 1f) - P.ea40).normalized; P.yd40 = -OutNormal(40); P.L40 = EdgeLen(40);
+        P.ea41 = EdgePt(41, 0f); P.ax41 = (EdgePt(41, 1f) - P.ea41).normalized; P.yd41 = -OutNormal(41);
+        foreach (var kv in topOf)
+        {
+            var nb = kak.Find(kv.Key); if (nb == null) { P.why = "長屋 " + kv.Key + " が無い"; return P; }
+            bool e40 = kv.Key.StartsWith("N40"); Vector2 ea = e40 ? P.ea40 : P.ea41, ax = e40 ? P.ax40 : P.ax41, yd = e40 ? P.yd40 : P.yd41;
+            float seat = nb.position.y;
+            float back = EdoBuild.FaceOut(nb.gameObject, ea, yd, seat + 0.1f, seat + 1.2f);
+            var sp = EdoBuild.SpecBodySpanAlong(nb.gameObject, ea, ax); if (float.IsNaN(sp.x)) sp = EdoBuild.BodySpanAlong(nb.gameObject, ea, ax);
+            if (float.IsNaN(back) || float.IsNaN(sp.x)) { P.why = kv.Key + " の背・妻を測れない"; return P; }
+            spanOf[kv.Key] = sp;
+            if (e40) bk40 = Mathf.Max(bk40, back); else bk41 = Mathf.Max(bk41, back);
+        }
+        P.back40 = bk40; P.back41 = bk41; P.foot40 = bk40 + ES + inu; P.foot41 = bk41 + ES + inu;
+        // 床の縦断
+        string fl = S(Get(sr, "floor")) ?? "";
+        foreach (var part in System.Text.RegularExpressions.Regex.Split(fl, @"(?=辺4[01]:)"))
+        {
+            bool is40 = part.StartsWith("辺40"), is41 = part.StartsWith("辺41"); if (!is40 && !is41) continue;
+            var lst = is40 ? P.f40 : P.f41;
+            foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(part, @"s(\d+(?:\.\d+)?)((?:(?!s\d)[^/。])*?)(1[0-9]\.\d{2})(?!\d)"))
+                lst.Add(new Vector2(float.Parse(m.Groups[1].Value, inv), float.Parse(m.Groups[3].Value, inv)));
+            if (is40) { var mk = System.Text.RegularExpressions.Regex.Match(part, @"角\s*(1\d\.\d\d)"); if (mk.Success) lst.Add(new Vector2(P.L40, float.Parse(mk.Groups[1].Value, inv))); }
+            if (is41) { var mt = System.Text.RegularExpressions.Regex.Match(part, @"溜り\s*(1\d\.\d\d)"); if (mt.Success) P.tamari = float.Parse(mt.Groups[1].Value, inv); }
+            lst.Sort((a, b) => a.x.CompareTo(b.x));   // 安定でない ── 段の二点は元の順(北の値が先)を保つため下で直す
+        }
+        // 段(同じ s の二点)は読んだ順(北 → 南)に並べ直す
+        {
+            var raw = new List<Vector2>();
+            foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(fl.Substring(Mathf.Max(0, fl.IndexOf("辺41:"))), @"s(\d+(?:\.\d+)?)((?:(?!s\d)[^/。])*?)(1[0-9]\.\d{2})(?!\d)"))
+                raw.Add(new Vector2(float.Parse(m.Groups[1].Value, inv), float.Parse(m.Groups[3].Value, inv)));
+            var idx = new List<int>(); for (int i = 0; i < raw.Count; i++) idx.Add(i);
+            idx.Sort((a, b) => raw[a].x != raw[b].x ? raw[a].x.CompareTo(raw[b].x) : a.CompareTo(b));
+            P.f41 = new List<Vector2>(); foreach (int i in idx) P.f41.Add(raw[i]);
+        }
+        // 辺41 の南(fall「s80.812 の暗渠」・toe「12.15 から 1/100」)── 読めた値だけで組む
+        {
+            string fall = S(Get(sr, "fall")) ?? "";
+            var mA = System.Text.RegularExpressions.Regex.Match(fall, @"(\d+\.\d+)〜南の端は北へ\s*[（(]s(\d+\.\d+)\s*の暗渠");
+            float sTail = P.f41.Count > 0 ? P.f41[P.f41.Count - 1].x : float.NaN, yTail = P.f41.Count > 0 ? P.f41[P.f41.Count - 1].y : float.NaN;
+            float grade = float.NaN;
+            foreach (var o in A(Get(tw, "runs")) ?? new List<object>()) { var r = O(o); var m = System.Text.RegularExpressions.Regex.Match(S(Get(r, "toe")) ?? "", @"([0-9.]+)\s*から\s*1/(\d+)"); if (m.Success && Mathf.Abs(float.Parse(m.Groups[1].Value, inv) - yTail) < 1e-3f) grade = 1f / float.Parse(m.Groups[2].Value, inv); }
+            Vector2 sp5; float sEnd = spanOf.TryGetValue("N41_5", out sp5) ? sp5.y : float.NaN;
+            if (mA.Success && !float.IsNaN(grade) && !float.IsNaN(sEnd))
+            {
+                float sLow = float.Parse(mA.Groups[2].Value, inv);
+                float yLow = yTail - (sLow - sTail) * grade;
+                P.f41.Add(new Vector2(sLow, yLow)); P.f41.Add(new Vector2(sEnd + 0.5f, yLow + (sEnd + 0.5f - sLow) * grade));
+                lg.Append("  南: s" + sTail.ToString("F3", inv) + " " + yTail.ToString("F2", inv) + " → 1/" + (1f / grade).ToString("F0", inv) + " → s" + sLow.ToString("F3", inv) + " " + yLow.ToString("F3", inv) + "(暗渠)→ 1/" + (1f / grade).ToString("F0", inv) + " → 南の端\n");
+            }
+            else lg.Append("  ★ 南の端の床が読めない(fall の暗渠・toe の勾配)── s" + sTail.ToString("F2", inv) + " の値のまま\n");
+        }
+        // 溜り = 通用門の妻の線の間(N41_0 の南の妻 〜 N41_1 の北の妻)
+        { Vector2 a, b; if (spanOf.TryGetValue("N41_0", out a) && spanOf.TryGetValue("N41_1", out b)) { P.tam0 = a.y; P.tam1 = b.x; } }
+        // 天端の見付の最大(辺ごと)と石垣の線
+        float batter = EdoBuild.FaceBatterOf(EdoAssets.Own.SannoNozura(4.8f, 0f, 0));
+        if (float.IsNaN(batter)) { P.why = "野面の駒の法が測れない"; return P; }
+        float h40 = 0f, h41 = 0f;
+        foreach (var kv in topOf)
+        {
+            var sp = spanOf[kv.Key]; bool e40 = kv.Key.StartsWith("N40");
+            for (float s = sp.x; s <= sp.y + 1e-3f; s += 0.5f)
+            {
+                float y = e40 ? SeRojiPlan_Prof(P.f40, s) : SeRojiPlan_Prof(P.f41, s);
+                if (!e40 && s > P.tam0 && s < P.tam1) continue;   // 溜りは石段の口
+                if (e40) h40 = Mathf.Max(h40, kv.Value - y); else h41 = Mathf.Max(h41, kv.Value - y);
+            }
+        }
+        P.crest40 = P.foot40 + batter * h40; P.crest41 = P.foot41 + batter * h41;
+        // 北の端: TW_Higashi_Hokuto の線の端点(路地の側の端)
+        Vector2 hk = new Vector2(float.NaN, float.NaN);
+        foreach (var o in A(Get(IMPL, "terraceWalls")) ?? new List<object>())
+        {
+            var w = O(o); if (w == null || S(Get(w, "name")) != "TW_Higashi_Hokuto") continue; var ln = A(Get(w, "line")); if (ln == null || ln.Count < 2) continue;
+            Vector2 p0 = new Vector2(F(A(ln[0])[0]), F(A(ln[0])[1])), p1 = new Vector2(F(A(ln[ln.Count - 1])[0]), F(A(ln[ln.Count - 1])[1]));
+            float s0 = Vector2.Dot(p0 - P.ea40, P.ax40), s1 = Vector2.Dot(p1 - P.ea40, P.ax40);
+            hk = s0 > s1 ? p0 : p1;
+        }
+        Vector2 sp2 = spanOf["N40_2"]; P.s40a = sp2.x;
+        Func<float, float, Vector2> W40 = (s, d) => P.ea40 + P.ax40 * s + P.yd40 * d;
+        Func<float, float, Vector2> W41 = (s, d) => P.ea41 + P.ax41 * s + P.yd41 * d;
+        var mN = System.Text.RegularExpressions.Regex.Match(S(Get(sr, "north")) ?? "", @"背の頭\s*([0-9.]+)m");
+        float head = mN.Success ? float.Parse(mN.Groups[1].Value, inv) : 0f;
+        // 角 = 二つの石垣の線の交わり
+        Vector2 C = EdoGeom.LineIntersect(W40(0f, P.crest40), P.ax40, W41(0f, P.crest41), P.ax41, new Vector2(float.NaN, float.NaN));
+        if (float.IsNaN(C.x)) { P.why = "角が解けない"; return P; }
+        Vector2 sp5b = spanOf["N41_5"]; P.s41b = sp5b.y;
+        var nodes = P.nodes; var tops = P.tops;
+        float tN = topOf["N40_2"];
+        if (!float.IsNaN(hk.x)) { nodes.Add(hk); tops.Add(tN); }
+        nodes.Add(W40(P.s40a + head, P.crest40)); tops.Add(tN);
+        nodes.Add(C); tops.Add(topOf["N41_0"]);
+        // 辺41 の区切り(天端の変わる妻の線)── 口の中(K_Tsuyo)は口の芯に節点
+        string[] seq = { "N41_0", "N41_1", "N41_2", "N41_3", "N41_4", "N41_5" };
+        for (int i = 0; i + 1 < seq.Length; i++)
+        {
+            float ta = topOf[seq[i]], tb = topOf[seq[i + 1]]; if (Mathf.Abs(ta - tb) < 1e-3f) continue;
+            float sB = (spanOf[seq[i]].y + spanOf[seq[i + 1]].x) * 0.5f;
+            nodes.Add(W41(sB, P.crest41)); tops.Add(tb);
+        }
+        // 南の端 = N41_5 の南の妻(返しは端の決め ② が隅の駒で背へ折る ── nozuraEndRule)
+        nodes.Add(W41(P.s41b, P.crest41)); tops.Add(tops[tops.Count - 1]);
+        for (int i = 0; i + 1 < nodes.Count; i++)
+        {
+            Vector2 mid = (nodes[i] + nodes[i + 1]) * 0.5f; float d40 = Vector2.Dot(mid - P.ea40, P.yd40), d41 = Vector2.Dot(mid - P.ea41, P.yd41);
+            P.faceOf.Add(d41 > d40 ? -P.yd40 : -P.yd41);
+        }
+        // 口(K_Tsuyo)= 溜りの妻の線の間を節点の道のりへ
+        if (!float.IsNaN(P.tam0))
+        {
+            float acc = 0f; Vector2 qa = W41(P.tam0, P.crest41), qb = W41(P.tam1, P.crest41);
+            for (int i = 0; i + 1 < nodes.Count; i++)
+            {
+                Vector2 a = nodes[i], b = nodes[i + 1]; float L = Vector2.Distance(a, b); Vector2 d = (b - a) / Mathf.Max(1e-4f, L);
+                float ua = Vector2.Dot(qa - a, d), ub = Vector2.Dot(qb - a, d);
+                if (ua >= -0.01f && ua <= L + 0.01f && Mathf.Abs(Vector2.Dot(qa - a, new Vector2(-d.y, d.x))) < 0.05f) P.gap = new Vector2(acc + Mathf.Min(ua, ub), acc + Mathf.Max(ua, ub));
+                acc += L;
+            }
+        }
+        // 皮の平らな面(床を 0.5m ごとの矩形に割る ── 段は面の境)
+        Func<List<Vector2>, float, float> pr = SeRojiPlan_Prof;
+        for (float s = P.s40a; s < P.L40 + P.foot41 + 1f; s += 0.5f)
+        {
+            float sm = Mathf.Min(s + 0.25f, P.L40); float y = pr(P.f40, sm);
+            P.faces.Add(new EdoBuild.SkinFace("SeRoji40_" + s.ToString("F1", inv), new[] { W40(s, P.back40 - 0.3f), W40(s + 0.5f, P.back40 - 0.3f), W40(s + 0.5f, P.foot40 + 0.3f), W40(s, P.foot40 + 0.3f) }, y));
+        }
+        for (float s = -P.foot40 - 1f; s < P.s41b; s += 0.5f)
+        {
+            float sm = s + 0.25f; float y = (!float.IsNaN(P.tamari) && sm > P.tam0 && sm < P.tam1) ? P.tamari : pr(P.f41, Mathf.Max(sm, 0f));
+            P.faces.Add(new EdoBuild.SkinFace("SeRoji41_" + s.ToString("F1", inv), new[] { W41(s, P.back41 - 0.3f), W41(s + 0.5f, P.back41 - 0.3f), W41(s + 0.5f, P.foot41 + 0.3f), W41(s, P.foot41 + 0.3f) }, y));
+        }
+        // 角の重なりは At と同じ規則で(辺40 の面は辺41 の側を、辺41 の面は辺40 の側を外す)
+        P.faces.RemoveAll(f =>
+        {
+            Vector2 c = (f.poly[0] + f.poly[2]) * 0.5f; float d40 = Vector2.Dot(c - P.ea40, P.yd40), d41 = Vector2.Dot(c - P.ea41, P.yd41);
+            bool is40 = f.name.StartsWith("SeRoji40");
+            if (is40) return d41 < P.back41 - 0.3f || d41 < d40;
+            return d40 < P.back40 - 0.3f || d40 <= d41 && Vector2.Dot(c - P.ea41, P.ax41) < 0f;
+        });
+        P.ok = true;
+        lg.Insert(0, "背の路地 seRoji: 背 辺40 " + P.back40.ToString("F3", inv) + " / 辺41 " + P.back41.ToString("F3", inv) + "m(長屋の実メッシュ)・見え面の足元 +" + (ES + inu).ToString("F3", inv)
+                 + "・法 " + batter.ToString("F3", inv) + " × 見付の最大 " + h40.ToString("F2", inv) + "/" + h41.ToString("F2", inv) + " ⇒ 天端の前の縁 " + P.crest40.ToString("F3", inv) + "/" + P.crest41.ToString("F3", inv)
+                 + "m・節点 " + nodes.Count + "・口 K_Tsuyo [" + P.gap.x.ToString("F2", inv) + "," + P.gap.y.ToString("F2", inv) + "]・溜り " + P.tamari.ToString("F2", inv) + " s" + P.tam0.ToString("F3", inv) + "〜" + P.tam1.ToString("F3", inv) + "\n"
+                 + "  床 辺40: " + SeRojiProfTxt(P.f40) + "\n  床 辺41: " + SeRojiProfTxt(P.f41) + "\n"
+                 + "  北の端 = TW_Higashi_Hokuto の端点 " + (float.IsNaN(hk.x) ? "無し" : "(" + hk.x.ToString("F2", inv) + "," + hk.y.ToString("F2", inv) + ") 離れ " + Vector2.Dot(hk - P.ea40, P.yd40).ToString("F2", inv)) + "・背の頭 " + head.ToString("F1", inv) + "m で線へ\n");
+        P.log = lg.ToString();
+        return P;
+    }
+    static float SeRojiPlan_Prof(List<Vector2> f, float s)
+    {
+        if (f.Count == 0) return float.NaN;
+        if (s <= f[0].x) return f[0].y;
+        for (int i = 0; i + 1 < f.Count; i++)
+        {
+            Vector2 a = f[i], b = f[i + 1];
+            if (s < a.x || s > b.x || b.x - a.x < 1e-4f) continue;
+            return Mathf.Lerp(a.y, b.y, (s - a.x) / (b.x - a.x));
+        }
+        return f[f.Count - 1].y;
+    }
+    static string SeRojiProfTxt(List<Vector2> f) { var inv = System.Globalization.CultureInfo.InvariantCulture; var l = new List<string>(); foreach (var v in f) l.Add("s" + v.x.ToString("F3", inv) + ":" + v.y.ToString("F3", inv)); return string.Join(" ", l.ToArray()); }
+    [MenuItem("Edo/岡部筑前守上屋敷/検: 背の路地を解く(据えない)")]
+    public static void SeRojiReportMenu() { var p = SeRojiPlanOf(); Debug.Log("[Okabe] " + (p.ok ? p.log : "★ 背の路地が解けない: " + p.why)); }
+    public static string SeRojiReport() { var p = SeRojiPlanOf(); return p.ok ? p.log : "★ " + p.why; }
 
     /// <summary>背の台の石垣を棟の背の全長に通す欄(backOf&lt;棟&gt; 追記 2026-10-10o)の溝。</summary>
     static List<BackTrench> BackTrenchesFull()
@@ -3985,6 +4254,16 @@ public static class EdoOkabeYashikiBuilder
                         if (!float.IsNaN(ty) && ty < gh[k] - 1e-4f) { gh[k] = ty; nt++; }
                     }
             if (trs.Count > 0) sb.AppendLine("  返しと長屋の背の間の溝を設計の地盤へ写した節点 " + nt + "(溝 " + trs.Count + ")");
+            var srp = SeRoji(); int nr2 = 0;
+            if (srp.ok)
+                for (int j = 0; j < dnz; j++)
+                    for (int i = 0; i < dnx; i++)
+                    {
+                        int k = j * dnx + i; if (!ok[k]) continue;
+                        float ty = srp.At(new Vector2(dx0 + i * dstep, dz0 + j * dstep));
+                        if (!float.IsNaN(ty) && ty < gh[k] - 1e-4f) { gh[k] = ty; nr2++; }
+                    }
+            sb.AppendLine("  背の路地の床を設計の地盤へ写した節点 " + nr2 + (srp.ok ? "" : "(★ 解けない: " + srp.why + ")"));
         }
         // ⭐ 池の岸の断面(指図 hosoku.zosei「gardens[NiwaShoin].hori」.danmen・EDO-0502 第61巡)を皮の格子で設計の地盤へ ──
         //   算出物 graded は 1m・地形は 2m 格子で、汀の外 2〜3m まで地表が水面より低く描かれ、水面が板のように浮いた(第60巡 縁の 1520/3203 点)。
@@ -6649,6 +6928,7 @@ public static class EdoOkabeYashikiBuilder
         }
         // ⭐ 返しの石垣と長屋の背の間の溝(BackTrenches・EDO-0502 第19巡)も平らな面 ── 門の内の面より小さいので入れ子の内の面として勝つ
         //   (皮は面積の小さい面を採る)。帯 = 背の面の 0.30 内(棟の下)から返しの見え面まで・止めの妻から返しの端 + 一間まで
+        { var srp = SeRoji(); if (srp.ok) { faces.AddRange(srp.faces); if (sb != null) sb.AppendLine("  面 背の路地 " + srp.faces.Count + "(0.5m ごと・床の縦断)"); } }
         foreach (var tr in BackTrenches(null))
         {
             float L = Vector2.Dot(tr.far - tr.stop, tr.along) + tr.off;

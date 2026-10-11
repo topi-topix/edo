@@ -113,6 +113,7 @@
 - [法で切った段石・袖の差し替えの罠](batter-cut-parts-measure-and-check.md) — 突き合わせの幅は縮尺を見ない・袖の目地が偽の口・女坂の足は斜交で切れない
 - [積み止めの駒は FaceWallToLine で裏返る・継ぎ手は端の帯で・隅の返しの腕の向きと定尺](tome-piece-facing-and-joint.md) — 天端の差0は隠れた隣と比べた値。faceNear は seg.face を先に・armFixed+W/2
 - [勾配の駒は焼いた見付の帯の外で黙って落ちる・鈍い隅は Kado90 決め打ちだった](steep-grade-piece-only-low-h.md) — 049f は H4800 で G−660 無し。据える見付を先に測る
+- [鎖の footAt は最初の区間の物・外周の基壇は全辺で裏返し](seroji-chain-foot-and-outer-base-inverted.md) — 背の路地の石垣の底が踏面で止まった。基壇の翻しは区域と裁定
 - [Nozura2 は継ぎ目の線で連ねる・坂は勾配の連鎖](nozura2-joint-line-and-grade-chain.md) — 射影の端は重ねの先・crestOf は傾いた天端で高く読む
 - [二重折れの出隅は一つの駒](double-fold-kado-one-piece.md) — 中の区間の1駒が消え折れ2が黙って飛ぶ。PlaceRunKado2
 - [短い返しは票が割れて裏返る・袖は run の走る段だけ・別 run の出隅を芯で測ると入隅と誤る](short-return-tie-and-sode-extent.md) — RunLowHand/OverlapAlong/ShortSegConvexEnd。段の小口は中ほどで突き付け(跨ぐ段は解けない)
@@ -153,7 +154,6 @@
 - [腰の端の小段は 1:1 の法で切りが 1.0 を超える・石段の a/b は従属値](koshi-end-cut-exceeds-on-1to1-slope.md) — koshiEnd は5端とも退く。KaidanAB が atS から解く
 - [天端の上へ土を載せる型は皮の節点で・隅は腕ごと](crest-cover-on-skin-nodes.md) — hold の双一次が表の石へ土を引く・0.25格子で帯の縁が潜る
 - [野面の段の境の駒は H1.50 だけ・継ぎ目の下が抜ける](nozura-dan-piece-fixed-height.md) — 直線は H4.8 まで選ぶ。StackDownAtNozuraSteps で積み下ろす
-
 - [皮を [lo,hi] で解く罠 (1)〜(40)](skin-solve-lo-hi-first-runs.md) — 野面は石の寄せ集め・陰を飛ばす・buryMin は硬い lo・袖が先は 2b の順と逆・足元の帯は歯に効かない・欄の「前の地表」は設計と描画の両方で刷る
 
 - [溜りの城の隅の返しは s=1.25 で収まらない・辺24 の端の名指しの矛盾](tamari-castle-return-and-p24-end-conflict.md) — 基壇の倍率と隅の駒の控え・impl の線の向きと Kado_P の位置を先に刷る

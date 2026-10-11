@@ -2761,6 +2761,9 @@ public static class EdoAssets
         /// 腕の長さは区画から `EdoBuild.KadoArms` が選ぶ(⛔ 邸ビルダーで決めない)。
         /// 焼いてあるもの(Dobei・EDO-0502 2026-10-03 岡部の南東の短い辺 2.06〜3.31m): **89M_A226x110**(P1)/ **39_A110x45**(P2)/
         /// **35_A45x65**(P3)/ **09_A65x226**(P4)。材 `s_heimap`(.meta は既存 Dobei_Kado の remap 済みを写した)。
+        /// 第107巡(2026-10-11 EDO-0502・外周の基壇を甲の型へ据え直し、隅の外面の内寄せ fiK が 0.55(P11 は 1.05)へ動いた): **39_A226x40**(P2)/
+        /// **35_A40x60**・**35_A40x65**(P3 ── fiK 0.52 を境に割れる)/ **09_A60x226**(P4。0.52 未満は既存 09_A65x226)/ **18M_A226x220**(P11)、
+        /// 据え直す前の名 **35_A30x55**・**09_A55x226**(fiK ≈1.0)も。KadoArms を python で写した名の表は fiK 0.42〜0.63 で 39 は不変。
         ///   blender --background --python Tools/Blender/build_kado.py -- --part dobei --deg &lt;整数角&gt; --arms &lt;入り&gt;,&lt;出&gt; --render</summary>
         public static string Kado(string part, float deg, float armIn, float armOut, float armFull)
         {

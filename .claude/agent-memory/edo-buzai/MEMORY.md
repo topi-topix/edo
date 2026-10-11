@@ -104,3 +104,4 @@
 - [野面の継ぎ目の隙は折れが原因・重ねの端の版 Nozura2](nozura2-overlap-ends-and-fold-seams.md) — span で連ねると重ねの分離れる・勾配の駒は剪断せず天端の列だけ線なり(2026-10-11)
 - [11間の門長屋の --wide と端数の --frac](okabe-11ken-gate-wide-bay-and-frac.md) — 端の窓は妻から 1.381 固定・口は真ん中の窓割りを 2間に・通用門の袖は --sode(2026-10-11)
 - [折れ 38.6° の隅は底の板を留めの線まで](kado39-sharp-fold-floor-to-miter.md) — φ<60 の囲まれた穴・H4800 隅の裏当たり4本は既存(2026-10-11)
+- [練塀の短い腕の名は fiK で割れる](dobei-kado-arms-by-fik-boundary.md) — KadoArms を python で写し境の両側を焼く・切り駒は隅が据われば不要(2026-10-11)

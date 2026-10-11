@@ -119,6 +119,7 @@
 - [二重折れの出隅は一つの駒](double-fold-kado-one-piece.md) — 中の区間の1駒が消え折れ2が黙って飛ぶ。PlaceRunKado2
 - [短い返しは票が割れて裏返る・袖は run の走る段だけ・別 run の出隅を芯で測ると入隅と誤る](short-return-tie-and-sode-extent.md) — RunLowHand/OverlapAlong/ShortSegConvexEnd。段の小口は中ほどで突き付け(跨ぐ段は解けない)
 - [野面 第3巡の測りの罠](nozura-round3-measure-traps.md) — 最も離れる向きの Contact は段石×隅 0.17 を見落とす・外形の中の面の無い点で皮が溝・法切り駒の見付は足元の面で
+- [面一の溝は深さが下流へ減らない・0.25m 格子の歯](mizo-flush-top-rigid-pieces.md) — 剛体の駒は底が天端と平行。版は外の側の縁石で選ぶ・傾いた駒の z は縁石の高さで写す
 - [溝の駒の深さは縁を含む・皮の後の溝は覆われる](mizo-piece-depth-includes-rim-and-skin-covers.md) — DoiMizo は名+0.02。実測で選ぶ・皮の前に置いて parts へ
 - [暗渠の蓋が測れない・足元を笠の裏と読む](ankyo-lid-and-foot-under-overhang.md) — MizoPieceOf は板で ok=偽。足元は LowestFootAt(厚み0.3・底の開いた腰)
 - [石段の前の鋸の歯は外形の中を底まで下げる枝](stair-hull-below-face-sawtooth.md) — 面の外に立つ段。推さず1回目の3bから SkinTrace を入れる(3b 37分)

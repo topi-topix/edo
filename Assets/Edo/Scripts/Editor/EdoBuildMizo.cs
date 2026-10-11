@@ -702,6 +702,234 @@ public static partial class EdoBuild
         return go;
     }
 
+    // ---------------------------------------------------------------- 天端の線で据える(施主 2026-10-11「溝の上面が地表の面と一致しているべき」・EDO-0502 第111巡)
+    /// <summary>天端の線で据える溝一本の設計(<see cref="LayMizoOnTopLine"/>)。line は**上流 → 下流**の溝の芯。</summary>
+    public class MizoTopSpec
+    {
+        public string name;
+        public List<Vector2> line;
+        /// <summary>地表(造成の面)── 外の壁の見え面から外へ <see cref="surfaceOff"/> の点で引く(呼び手が渡す)。</summary>
+        public Func<float, float, float> surfaceAt;
+        /// <summary>点 → 外の壁の側(水平・単位)。</summary>
+        public Func<Vector2, Vector2> outAt;
+        public float halfW, surfaceOff = 0.30f;
+        /// <summary>天端の線を滑らかにする窓の半幅[m](弧長の移動平均)。</summary>
+        public float smoothR = 1.5f;
+        /// <summary>天端の線の最小の下り(勾配)── 剛体の駒の底は天端と平行なので、天端が下り続ければ底も下り続ける。</summary>
+        public float minFall = 0.002f;
+        /// <summary>駒の型(部材の名)の深さの版。<see cref="tailVersions"/> は尻の駒(吐き口)だけ別の型 ── null なら無し。</summary>
+        public List<string> versions, tailVersions;
+        /// <summary>吐き口の駒は切った縁石(局所 +X)を外へ向ける。</summary>
+        public bool tailPlusXOut = true;
+        public float depthMin, depthTarget;
+        /// <summary>弧長 → 底の上限(柔 ── 満たせる版があれば深くする・無ければ刷る)。null なら無し。</summary>
+        public Func<float, float> bottomCapAt;
+        /// <summary>頭の底の上限(上流の溝の尻の底 ── 硬: 落とし先が低い)。NaN なら無し。</summary>
+        public float headBottomMax = float.NaN;
+        /// <summary>弧長 → 蓋を掛ける所(門の口)。null なら無し。蓋の下の駒は天端を蓋の厚だけ下げ、蓋の天端を地表へ。</summary>
+        public Func<float, bool> coverAt;
+        public float coverT, coverTol = 0.02f;
+        /// <summary>頭・尻の天端を相手の駒の天端へ合わせる(NaN なら地表のまま)。</summary>
+        public float headTop = float.NaN, tailTop = float.NaN;
+        /// <summary>天端の線の当てはめだけを下流へ延ばす線(続ける溝の芯)── 尻の天端が続ける溝の地表の起伏を分け持つ(継ぎ目で段を作らない)。null なら無し。</summary>
+        public List<Vector2> fitAfter;
+        public float pieceLen = 1f;
+    }
+    public class MizoTopRep
+    {
+        public List<GameObject> made = new List<GameObject>();
+        public HashSet<GameObject> covered = new HashSet<GameObject>();
+        /// <summary>蓋を掛けた弧長の範囲(駒の範囲の和)── 呼び手が蓋石を並べる。</summary>
+        public List<Vector2> coverSpans = new List<Vector2>();
+        /// <summary>底(駒の両端の当たり)── 落とし先の検め(背の路地の暗渠)へ渡す。</summary>
+        public MizoProfile prof;
+        public float length;
+        /// <summary>天端 − 地表(蓋の無い駒の両端の外の縁石の天端)・蓋の下は 蓋の天端の狙い − 地表。</summary>
+        public float devLo = float.MaxValue, devHi = float.MinValue;
+        /// <summary>隣の駒の天端の段差の最大(蓋の外)・蓋の縁の段差(蓋の下で見えない)。</summary>
+        public float stepMax, stepCover; public string stepAt = "-";
+        public int nRise; public float riseMax;
+        public float depthLo = float.MaxValue, depthHi = float.MinValue;
+        public float capOver; public string capAt = "-";
+        public int nDeep, nAutoCover, nNoCurb;
+        /// <summary>駒の中の底の下りの最小(勾配)。</summary>
+        public float fallMin = float.MaxValue;
+        public float topHead = float.NaN, topTail = float.NaN, botHead = float.NaN, botTail = float.NaN, headOver;
+        public List<string> notes = new List<string>();
+    }
+    /// <summary>駒の外の縁石の天端(世界)を、点 at に最も近い所(局所 z を駒の長さで切る)で測る。outDir = 外の壁の側。</summary>
+    public static float MizoCurbTopAt(GameObject g, Vector2 at, Vector2 outDir)
+    {
+        if (g == null) return float.NaN;
+        string pp = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(g); var mp = MizoPieceOf(pp); if (!mp.ok) return float.NaN;
+        Vector3 rx = g.transform.right; int side = Vector2.Dot(new Vector2(rx.x, rx.z), outDir) >= 0f ? 1 : -1;
+        float xa, xb, ct; if (!MizoCurbTop(pp, side, out xa, out xb, out ct)) return float.NaN;
+        // 傾いた駒: 点を縁石の高さで局所へ写す(高さ 0 で写すと勾配 × 高さだけ z がずれ、端の天端を読み違える ── 第111巡の初回で 0.02〜0.03 の偽の段差)
+        float y = RB(g).center.y, lz = 0f;
+        for (int it = 0; it < 3; it++)
+        {
+            var lp = g.transform.InverseTransformPoint(new Vector3(at.x, y, at.y)); lz = Mathf.Clamp(lp.z, mp.zMin, mp.zMax);
+            y = g.transform.TransformPoint(new Vector3(0.5f * (xa + xb), ct, lz)).y;
+        }
+        return y;
+    }
+
+    /// <summary>**溝を天端の線で据える**(施主 2026-10-11「側溝の上面がガタガタして高さが揃っていない」「溝の上面が地表の面と一致しているべき」)。
+    /// 置き方(oki-kata の4手): ① 固定側 = 地表(造成の面)── 外の壁の見え面の <see cref="MizoTopSpec.surfaceOff"/> 外で引き、弧長で移動平均して段を消し、
+    ///    上流 → 下流へ下り続ける線にする(単調の当てはめ + 最小の下り)= **天端の線**。頭・尻は相手の駒の天端へ寄せる(headTop / tailTop)。
+    /// ② 触れる所 = 駒の**外の縁石の天端**(実メッシュ <see cref="MizoCurbTop"/>)の両端を天端の線の上の二点へ ── 駒は勾配なりに傾き(剛体)、
+    ///    隣の駒とは同じ点を共有するので天端の段差は 0(尻の重ね駒は前の駒の弦の上から)。
+    /// ③ 深さ(版)は上流から順に: 底 = 天端 − 深さ が前の駒の底を越えない最も浅い版で、狙い(depthTarget)より浅くしない。
+    ///    ⭐ 剛体の駒の底は天端と平行 ── 地表から測った深さは**下流へ減らせない**(減らすと継ぎ目で底が上る)。だから頭の深さが全長を決める。
+    ///    蓋の下(門の口・版で届かない所【柔: 0.30 を超える所は蓋石の暗渠】)は天端を蓋の厚(± coverTol)だけ下げ、底が続く版を選ぶ ── 蓋の天端 = 地表。
+    /// ④ 測る: 天端 − 地表(駒の両端)・隣の天端の段差・底の上り・深さ・底の上限の越え。⛔ 狙いを関門にしない(柔は刷るだけ)。
+    /// 条件: 硬 = 底が一方向に下る・深さ ≥ depthMin・隣の天端の段差 ≤ 0.01(呼び手が刷る)/ 柔 = 深さの狙い・底の上限・天端 − 地表(地面は <see cref="FlushGroundToMizoTop"/> が天端へ合わせる)。
+    /// 当たる先: 道や庭の地表と面一に埋める石組の溝すべて(岡部 台の前の溝 D_N40_Mae・Mizo_*)。同じ型は D_N39_1_Mae(roadEdge の前の下水溝)・背の雨落ち・土井の溝(天端 = 地盤 + topAbove で据える型 ── <see cref="LayMizo"/>)へ移せる。</summary>
+    public static MizoTopRep LayMizoOnTopLine(Transform parent, string prefix, MizoTopSpec sp)
+    {
+        var rep = new MizoTopRep();
+        float L = PolylineLength(sp.line); rep.length = L;
+        if (L < 0.2f || sp.versions == null || sp.versions.Count == 0) return rep;
+        // ① 天端の線
+        var fl = new List<Vector2>(sp.line); if (sp.fitAfter != null) foreach (var v in sp.fitAfter) if (Vector2.Distance(fl[fl.Count - 1], v) > 1e-3f) fl.Add(v);
+        float Lf = PolylineLength(fl);
+        float ds = 0.25f; int n = Mathf.Max(2, Mathf.CeilToInt(Lf / ds) + 1);
+        var S = new float[n]; var G = new float[n]; int nL = 0;
+        for (int i = 0; i < n; i++)
+        {
+            S[i] = Lf * i / (n - 1); if (S[i] <= L + 1e-4f) nL = i;
+            Vector2 d; var q = PointAt(fl, S[i], out d); var o = sp.outAt(q);
+            var qs = q + o * (sp.halfW + sp.surfaceOff); G[i] = sp.surfaceAt(qs.x, qs.y);
+        }
+        for (int i = 0; i < n; i++) if (float.IsNaN(G[i])) { for (int k = 1; k < n; k++) { if (i - k >= 0 && !float.IsNaN(G[i - k])) { G[i] = G[i - k]; break; } if (i + k < n && !float.IsNaN(G[i + k])) { G[i] = G[i + k]; break; } } }
+        var Tm = new float[n];
+        for (int i = 0; i < n; i++) { float a = 0f; int c = 0; for (int j = 0; j < n; j++) if (Mathf.Abs(S[j] - S[i]) <= sp.smoothR + 1e-4f && !float.IsNaN(G[j])) { a += G[j]; c++; } Tm[i] = c > 0 ? a / c : G[i]; }
+        float bl = Mathf.Min(3f, 0.5f * L);
+        if (!float.IsNaN(sp.headTop)) { float dl = sp.headTop - Tm[0]; for (int i = 0; i < n; i++) Tm[i] += dl * Mathf.Max(0f, 1f - S[i] / bl); }
+        if (!float.IsNaN(sp.tailTop)) { float dl = sp.tailTop - Tm[nL]; for (int i = 0; i <= nL; i++) Tm[i] += dl * Mathf.Max(0f, 1f - (L - S[i]) / bl); }
+        // 下り続ける線へ(単調の当てはめ: 隣り合う塊の平均を下りの順に寄せる)
+        var bv = new List<float>(); var bc = new List<int>();
+        for (int i = 0; i < n; i++)
+        {
+            bv.Add(Tm[i]); bc.Add(1);
+            while (bv.Count >= 2 && bv[bv.Count - 2] < bv[bv.Count - 1])
+            { int k = bv.Count - 1; float v = (bv[k - 1] * bc[k - 1] + bv[k] * bc[k]) / (bc[k - 1] + bc[k]); bc[k - 1] += bc[k]; bv[k - 1] = v; bv.RemoveAt(k); bc.RemoveAt(k); }
+        }
+        var P = new float[n]; { int i = 0; for (int b = 0; b < bv.Count; b++) for (int k = 0; k < bc[b]; k++) P[i++] = bv[b]; }
+        // 最小の下り: 平らな塊を塊の中ほどを軸に傾ける(塊の頭は上げ・尻は下げる ── 片側へ寄せない)
+        for (int i = 1; i < n; i++) if (P[i] > P[i - 1] - sp.minFall * (S[i] - S[i - 1])) P[i] = P[i - 1] - sp.minFall * (S[i] - S[i - 1]);
+        { float sh = 0f; int c = 0; for (int i = 0; i < n; i++) { sh += Tm[i] - P[i]; c++; } sh /= Mathf.Max(1, c); if (float.IsNaN(sp.headTop) && float.IsNaN(sp.tailTop)) for (int i = 0; i < n; i++) P[i] += sh; }
+        // 相手の駒の天端(頭・尻)を越えない/下回らない ── 継ぎ目の段差 0(どちらも下り続ける線との min / max なので下り続けるまま)
+        if (!float.IsNaN(sp.headTop)) for (int i = 0; i < n; i++) P[i] = Mathf.Min(P[i], sp.headTop - sp.minFall * S[i]);
+        if (!float.IsNaN(sp.tailTop)) for (int i = 0; i <= nL; i++) P[i] = Mathf.Max(P[i], sp.tailTop + sp.minFall * (S[nL] - S[i]));
+        Func<float, float> Pat = ss =>
+        {
+            if (ss <= 0f) return P[0];
+            float f = Mathf.Min(ss, Lf) / Lf * (n - 1); int i = Mathf.Min(n - 2, (int)f); return Mathf.Lerp(P[i], P[i + 1], f - i);
+        };
+        Func<float, float> Gat = ss =>
+        {
+            float f = Mathf.Clamp(ss, 0f, Lf) / Lf * (n - 1); int i = Mathf.Min(n - 2, (int)f); return Mathf.Lerp(G[i], G[i + 1], f - i);
+        };
+        // 版の実測(外の縁石の天端 − 溝の底)
+        //   両側の縁石の天端の低い方(外の側は据えてから決まる ── 低い方で選べば実の深さは要るだけ以上)
+        Func<string, float> depthOf = p => { var m = MizoPieceOf(p); float xa, xb, c1, c2; if (!m.ok) return float.NaN; bool o1 = MizoCurbTop(p, 1, out xa, out xb, out c1), o2 = MizoCurbTop(p, -1, out xa, out xb, out c2);
+                                             return (o1 && o2 ? Mathf.Min(c1, c2) : o1 ? c1 : o2 ? c2 : m.top) - m.floor; };
+        var vs = new List<KeyValuePair<string, float>>(); foreach (var p in sp.versions) { float d = depthOf(p); if (!float.IsNaN(d)) vs.Add(new KeyValuePair<string, float>(p, d)); }
+        vs.Sort((a, b) => a.Value.CompareTo(b.Value));
+        var vt = new List<KeyValuePair<string, float>>(); if (sp.tailVersions != null) foreach (var p in sp.tailVersions) { float d = depthOf(p); if (!float.IsNaN(d)) vt.Add(new KeyValuePair<string, float>(p, d)); }
+        vt.Sort((a, b) => a.Value.CompareTo(b.Value));
+        if (vs.Count == 0) { rep.notes.Add("駒の版が測れない"); return rep; }
+        float vMax = vs[vs.Count - 1].Value;
+        var spans = MizoPieceSpans(L, sp.pieceLen);
+        float pS0 = 0f, pS1 = 0f, pTA = 0f, pTB = 0f, pBA = 0f, pBB = 0f; bool havePrev = false; GameObject prevGo = null; bool prevCov = false;
+        var botPts = new List<Vector2>();
+        for (int q = 0; q < spans.Count; q++)
+        {
+            float s0 = spans[q].x, s1 = spans[q].y; bool tail = q == spans.Count - 1 && vt.Count > 0;
+            Vector2 dd; var pA = PointAt(sp.line, s0, out dd); var pB = PointAt(sp.line, s1, out dd);
+            float tA = Pat(s0), tB = Pat(s1);
+            if (havePrev && s0 < pS1 - 1e-3f) tA = Mathf.Lerp(pTA, pTB, (s0 - pS0) / Mathf.Max(1e-4f, pS1 - pS0));   // 尻の重ね駒は前の駒の弦の上から
+            bool cov = false; if (sp.coverAt != null) for (float u = s0 + 0.05f; u <= s1 - 0.05f + 1e-4f; u += 0.1f) if (sp.coverAt(u)) { cov = true; break; }
+            // 続きの要る深さ(天端の線から底まで)
+            float need = sp.depthMin;
+            if (havePrev) { float pb = Mathf.Lerp(pBA, pBB, Mathf.Clamp01((s0 - pS0) / Mathf.Max(1e-4f, pS1 - pS0))); need = Mathf.Max(need, tA - pb); }
+            else if (!float.IsNaN(sp.headBottomMax)) need = Mathf.Max(need, tA - sp.headBottomMax);
+            float needCap = need;
+            if (sp.bottomCapAt != null) { float c0 = sp.bottomCapAt(s0), c1 = sp.bottomCapAt(s1); if (!float.IsNaN(c0)) needCap = Mathf.Max(needCap, tA - c0); if (!float.IsNaN(c1)) needCap = Mathf.Max(needCap, tB - c1); }
+            // 外の側(局所 ±X)は水平の向きで先に決める(傾きは右の向きを変えない)── 版の深さはその側の縁石で測る(両側の縁石の天端は 0.4mm 違い、低い方で選ぶと一駒ごとに天端が沈み続けた・第111巡)
+            var oM = sp.outAt(0.5f * (pA + pB)); var hd = new Vector3(pB.x - pA.x, 0f, pB.y - pA.y); if (hd.sqrMagnitude < 1e-8f) hd = new Vector3(dd.x, 0f, dd.y);
+            var rxH = Quaternion.LookRotation(hd.normalized, Vector3.up) * Vector3.right; int side = Vector2.Dot(new Vector2(rxH.x, rxH.z), oM) >= 0f ? 1 : -1; bool flip = false;
+            if (tail && sp.tailPlusXOut && side < 0) { flip = true; side = 1; }
+            var V0 = tail ? vt : vs; var V = new List<KeyValuePair<string, float>>();
+            foreach (var kv in V0) { var m = MizoPieceOf(kv.Key); float xa0, xb0, c0; V.Add(new KeyValuePair<string, float>(kv.Key, (MizoCurbTop(kv.Key, side, out xa0, out xb0, out c0) ? c0 : m.top) - m.floor)); }
+            float vM = V[V.Count - 1].Value;
+            if (!cov && need > vM + 1e-3f && sp.coverAt != null && !tail) { cov = true; rep.nAutoCover++; }
+            string path = null; float dep = 0f, sink = 0f;
+            if (!cov)
+            {
+                float want = Mathf.Max(needCap <= vM + 1e-3f ? needCap : need, tail ? need : sp.depthTarget);
+                foreach (var kv in V) if (kv.Value >= want - 0.003f) { path = kv.Key; dep = kv.Value; break; }   // 版の実測の刻みの誤差 3mm までは浅い版のまま天端を下げて続ける(下)
+                if (path == null) { foreach (var kv in V) if (kv.Value >= need - 0.003f) { path = kv.Key; dep = kv.Value; break; } }
+                if (path == null) { path = V[V.Count - 1].Key; dep = V[V.Count - 1].Value; }
+                // 版が要る深さに僅かに届かない(版の実測の刻み・吐き口の型の深さ違い)── 天端を継ぎ目の段差の上限 0.01 までは下げて底を続ける
+                if (dep < need) { if (need - dep <= 0.01f + 1e-4f) sink = need - dep; else rep.nDeep++; }
+            }
+            else
+            {
+                float lo = sp.coverT - sp.coverTol, hi = sp.coverT + sp.coverTol;
+                foreach (var kv in V) if (kv.Value >= sp.depthMin - 1e-3f && need - kv.Value <= hi + 1e-3f) { path = kv.Key; dep = kv.Value; break; }
+                if (path == null) { path = V[V.Count - 1].Key; dep = V[V.Count - 1].Value; rep.nDeep++; }
+                sink = Mathf.Clamp(need - dep, lo, hi);
+            }
+            float cA = tA - sink, cB = tB - sink;
+            // ② 据える: 外の縁石の天端の両端を (pA, cA)・(pB, cB) へ
+            var mp = MizoPieceOf(path);
+            var A3 = new Vector3(pA.x, cA, pA.y); var B3 = new Vector3(pB.x, cB, pB.y); var f = B3 - A3; if (f.sqrMagnitude < 1e-8f) f = new Vector3(dd.x, 0f, dd.y);
+            var rot = Quaternion.LookRotation(flip ? -f.normalized : f.normalized, Vector3.up);
+            float xa, xb, ct; if (!MizoCurbTop(path, side, out xa, out xb, out ct)) { ct = mp.top; rep.nNoCurb++; }
+            string nm = prefix + "_" + q.ToString("000");
+            var go = Place(path, 0.5f * (A3 + B3), 0f, Vector3.one, parent, nm);
+            go.transform.rotation = rot;
+            float zc = 0.5f * (mp.zMin + mp.zMax);
+            var w = go.transform.TransformPoint(new Vector3(0f, ct, zc)); go.transform.position += 0.5f * (A3 + B3) - w;
+            float bA = cA - (ct - mp.floor), bB = cB - (ct - mp.floor);   // 実の外の側の縁石で測った深さ(版の選びは両側の低い方)
+            // ④ 測る
+            if (havePrev && prevGo != null)
+            {
+                float tPrev = MizoCurbTopAt(prevGo, pA, oM), tCur = MizoCurbTopAt(go, pA, oM);
+                if (!float.IsNaN(tPrev) && !float.IsNaN(tCur))
+                {
+                    float st = Mathf.Abs(tCur - tPrev);
+                    if (cov != prevCov) rep.stepCover = Mathf.Max(rep.stepCover, st);
+                    else if (st > rep.stepMax) { rep.stepMax = st; rep.stepAt = nm; }
+                }
+                float pb = Mathf.Lerp(pBA, pBB, Mathf.Clamp01((s0 - pS0) / Mathf.Max(1e-4f, pS1 - pS0)));
+                if (bA > pb + 1e-4f) { rep.nRise++; rep.riseMax = Mathf.Max(rep.riseMax, bA - pb); }
+            }
+            if (bB > bA + 1e-4f) { rep.nRise++; rep.riseMax = Mathf.Max(rep.riseMax, bB - bA); }
+            if (s1 - s0 > 0.3f) rep.fallMin = Mathf.Min(rep.fallMin, (bA - bB) / (s1 - s0));
+            float tot = dep + sink; rep.depthLo = Mathf.Min(rep.depthLo, tot); rep.depthHi = Mathf.Max(rep.depthHi, tot);
+            foreach (var kv in new[] { new Vector2(s0, cov ? cA + sp.coverT : cA), new Vector2(s1, cov ? cB + sp.coverT : cB) }) { float dv = kv.y - Gat(kv.x); rep.devLo = Mathf.Min(rep.devLo, dv); rep.devHi = Mathf.Max(rep.devHi, dv); }
+            if (sp.bottomCapAt != null) foreach (var kv in new[] { new Vector2(s0, bA), new Vector2(s1, bB) }) { float c = sp.bottomCapAt(kv.x); if (!float.IsNaN(c) && kv.y - c > rep.capOver) { rep.capOver = kv.y - c; rep.capAt = nm; } }
+            if (q == 0) { rep.topHead = cA; rep.botHead = bA; if (!float.IsNaN(sp.headBottomMax)) rep.headOver = bA - sp.headBottomMax; }
+            rep.topTail = cB; rep.botTail = bB;
+            botPts.Add(new Vector2(s0, bA)); botPts.Add(new Vector2(s1, bB));
+            rep.made.Add(go); if (cov) rep.covered.Add(go);
+            if (cov) { if (rep.coverSpans.Count > 0 && s0 <= rep.coverSpans[rep.coverSpans.Count - 1].y + 1e-3f && prevCov) rep.coverSpans[rep.coverSpans.Count - 1] = new Vector2(rep.coverSpans[rep.coverSpans.Count - 1].x, s1); else rep.coverSpans.Add(new Vector2(s0, s1)); }
+            pS0 = s0; pS1 = s1; pTA = tA; pTB = tB; pBA = bA; pBB = bB; havePrev = true; prevGo = go; prevCov = cov;
+        }
+        // 底(弧長の順・同じ所は低い方)
+        botPts.Sort((a, b) => a.x.CompareTo(b.x));
+        var ss2 = new List<float>(); var bb2 = new List<float>();
+        foreach (var bp in botPts) { if (ss2.Count > 0 && Mathf.Abs(bp.x - ss2[ss2.Count - 1]) < 1e-3f) { bb2[bb2.Count - 1] = Mathf.Min(bb2[bb2.Count - 1], bp.y); continue; } ss2.Add(bp.x); bb2.Add(bp.y); }
+        var pr = new MizoProfile { length = L, halfW = sp.halfW, pieceLen = sp.pieceLen, chord = true, s = ss2.ToArray(), bottom = bb2.ToArray(), ground = new float[ss2.Count], p = new Vector2[ss2.Count] };
+        for (int i = 0; i < ss2.Count; i++) { Vector2 d; pr.p[i] = PointAt(sp.line, ss2[i], out d); pr.ground[i] = Gat(ss2[i]); }
+        pr.ok = rep.nRise == 0; if (!pr.ok) pr.hard = "底が上る所 " + rep.nRise + "(最大 " + rep.riseMax.ToString("F3") + ")";
+        rep.prof = pr;
+        return rep;
+    }
+
     // ---------------------------------------------------------------- 区間を桝で割る(土井 D2 seg1 の欄 masuPitchMaxM・masuAt・segMasu ── 2026-10-06 EDO-0533)
     /// <summary>桝で割った区間の一つ(上流 → 下流の底)と、その尻を受ける桝。</summary>
     public class MasuCut

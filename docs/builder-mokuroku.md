@@ -673,7 +673,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `MizoAByDepth(need, topAbove)` | `string` |  | DoiMizo 型 A のうち実測の深さ ≤ need + topAbove の最も深い駒(第80巡: 名の深さで選ぶと縁 0.02 の分だけ天端が浮いて落ちた)。 |
 | `FaceYAt(faces, q, skipPrefix)` | `float` |  | 点 q を含む面のうち面積の最も小さい物の高さ(皮と同じ選び方)。 |
 | `PlaceFrontGutters()` | `string` |  | 長屋の前の下水溝(指図 terraces[].roadEdge 追記 2026-10-10m・runs[].front・drains D_&lt;棟&gt;_Mae・普請方・EDO-0502 第95巡)。 |
-| `PlaceMizoSections()` | `string` |  | 台の前の溝の区間(指図 grading.omoteNagayaDai.mizo.sections ── Mizo_Kita / Mizo_Minami / Mizo_Hashi・outlets・EDO-0502 第108… |
+| `PlaceMizoSections()` | `string` |  | 台の前の溝の区間(指図 grading.omoteNagayaDai.mizo ── sections Mizo_Kita / Mizo_Minami / Mizo_Hashi・outlets・outerTop/topL… |
 | `LidEdge(q)` | `int` |  | 点に最も近い区画の辺(蓋石を線の内へ寄せる向き)。 |
 | `PlaceSeRojiAnkyo()` | `string` |  | 背の路地の暗渠(指図 drains[D_SeRoji].make ── flow・masu・kuchi・toi・at・table・order・EDO-0502 第109巡)。 |
 | `PlaceDrainFrontGutters()` | `string` |  | 長屋の前の下水溝(drains の route で名指す型)(指図 drains[].route「&lt;棟&gt;/&lt;棟&gt; の前の全長(s a→b)に区画の内の石組の下水溝(型A)」・普請方 2026-10… |

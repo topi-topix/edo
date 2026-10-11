@@ -520,12 +520,15 @@ AGO_T = 0.36          # 天端からの厚さ(歯の深さ 0.25 + 余裕・吐�
 AGO_LAP = 0.015       # 縁石の中へ潜る(天端の外の面取り 0.012 を覆う)
 AGO_RISE = 0.003      # 内の縁の天端からの持ち上げ(ring_skirt と同じ)
 AGO_FALL = 0.03       # 外の縁の天端からの下がり(地形の下へ潜る)
+AGO_MAT = "Hifu_KitaTerrain_World"   # 板の材(第113巡): 世界 XZ で地形の塗りをそのまま引く材(Edo/TerrainSkinWorld・EdoAssets.Own.SkinWorldMat)。
+#   ⛔ FJG Soil を貼らない ── 据えると落葉混じりの橙の帯に見え、まわりの地形の塗り(芝・土の混ぜ)と色が違った(r112_mizo_kita)。
+#   uv は使われない(シェーダが世界 XZ から引く)が、Blender のレンダ用に Soil の矩形のまま残す。
 
 
 def ago_side(s, xc, top, zsegs):
     """**地際の張り出し(片側)**。xc = 縁石の外面の |X|・s = ±1。断面 (X, Y) の閉じた四角形
     内の縁 (xc−LAP, top+RISE) → 外の縁 (xc+W, top−FALL) → (xc+W, top−T) → (xc−LAP, top−T) を
-    zsegs の各区間 [z0, z1] へ押し出す(端の面も閉じる)。材は土(FJG Soil・8m 周期・Z=0 で折り返す)。
+    zsegs の各区間 [z0, z1] へ押し出す(端の面も閉じる)。材は AGO_MAT(地形の塗りを世界 XZ で引く・uv は飾り)。
     ⚠ 上面の UV は |Z| で折り返す ⇒ Z=0 を跨ぐ区間は呼ぶ側で割る。"""
     prof = [(xc - AGO_LAP, top + AGO_RISE), (xc + AGO_W, top - AGO_FALL),
             (xc + AGO_W, top - AGO_T), (xc - AGO_LAP, top - AGO_T)]
@@ -554,7 +557,14 @@ def ago_side(s, xc, top, zsegs):
         for lp in f.loops:
             c = lp.vert.co
             lp[uvl].uv = uv(-c.x, c.z, -c.y, n)
-    o = DN._obj(_nm("ago"), bm, [DN.mat(SOIL)])
+    am = DN.mat(AGO_MAT)
+    # Blender のレンダだけの見え(芝と土の混ぜの平均の色)。Unity では材の名で Hifu_KitaTerrain_World.mat に結わえる。
+    am.use_nodes = True
+    bsdf = am.node_tree.nodes.get("Principled BSDF")
+    if bsdf is not None:
+        bsdf.inputs["Base Color"].default_value = (0.20, 0.17, 0.08, 1.0)
+        bsdf.inputs["Roughness"].default_value = 1.0
+    o = DN._obj(_nm("ago"), bm, [am])
     DN._outward(o)
     for p_ in o.data.polygons:
         p_.use_smooth = False
@@ -1497,7 +1507,7 @@ def main():
         mn, mx = V.bbox([o])
         tris = sum(len(p.vertices) - 2 for p in o.data.polygons)
         mats = [m.name for m in o.data.materials]
-        bad = [m for m in mats if m not in (ROCK, SOIL, GRAVEL, WOOD)]
+        bad = [m for m in mats if m not in (ROCK, SOIL, GRAVEL, WOOD, AGO_MAT)]
         row = (name, mx.x - mn.x, mx.z - mn.z, mx.y - mn.y, mn.z, mx.z, -mx.y, -mn.y, tris, mats)
         rows.append(row)
         print("[haisui] %-30s Unity W(X)=%.3f H(Y)=%.3f D(Z)=%.3f  Y %.3f..%.3f  Z %.3f..%.3f  tri=%d  材=%s%s"

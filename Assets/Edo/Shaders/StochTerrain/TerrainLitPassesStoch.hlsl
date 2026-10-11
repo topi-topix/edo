@@ -6,6 +6,14 @@
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/GBufferOutput.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DBuffer.hlsl"
 
+#ifdef EDO_SKIN_WORLD_UV
+// ⭐ 部材の面を地形と同じ見えで描く(Edo/TerrainSkinWorld だけが定義する・EDO-0502 第113巡)。
+//   メッシュの uv は使わず、世界 XZ を地形の正規化座標へ写す: uv = (xz − 地形の原点) / 地形の大きさ。
+//   xy = 地形の原点 (x, z)・zw = 1 / 地形の大きさ (x, z)。材質に焼く(EdoBuild.SkinWorldMaterial)。
+//   ⛔ 地形そのもの(TerrainLitStochastic)はこれを定義しない ⇒ 地形の描き方は変わらない。
+float4 _EdoTerrainRect;
+#endif
+
 struct Attributes
 {
     float4 positionOS : POSITION;
@@ -345,6 +353,10 @@ Varyings SplatmapVert(Attributes v)
 
     VertexPositionInputs Attributes = GetVertexPositionInputs(v.positionOS.xyz);
 
+    #ifdef EDO_SKIN_WORLD_UV
+        v.texcoord = (Attributes.positionWS.xz - _EdoTerrainRect.xy) * _EdoTerrainRect.zw;
+    #endif
+
     o.uvMainAndLM.xy = v.texcoord;
     o.uvMainAndLM.zw = v.texcoord * unity_LightmapST.xy + unity_LightmapST.zw;
 
@@ -451,6 +463,14 @@ void SplatmapFragment(
 
     float2 splatUV = (IN.uvMainAndLM.xy * (_Control_TexelSize.zw - 1.0f) + 0.5f) * _Control_TexelSize.xy;
     half4 splatControl = SAMPLE_TEXTURE2D(_Control, sampler_Control, splatUV);
+#ifdef EDO_SKIN_WORLD_UV
+    // 部材の面は足し込みのパス(層 4〜7)を持たない一枚の材 ⇒ 層 0〜3 の重みで正規化して暗くならないようにする
+    //(層 4〜 の白洲・苔が効く所では、その分を 0〜3 に配り直した色になる)。重みが無ければ層 0。
+    {
+        half sw = dot(splatControl, 1.0h);
+        splatControl = sw > 0.001h ? splatControl / sw : half4(1.0h, 0.0h, 0.0h, 0.0h);
+    }
+#endif
 
     half alpha = dot(splatControl, 1.0h);
 #ifdef _TERRAIN_BLEND_HEIGHT

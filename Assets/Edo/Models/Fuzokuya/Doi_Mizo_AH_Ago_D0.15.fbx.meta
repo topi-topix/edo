@@ -7,8 +7,8 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
-      name: M_FJG_Terrain_Ground_Soil_01
-    second: {fileID: 2100000, guid: aa85e13dd275ba54a9d13a26fb199ad2, type: 2}
+      name: Hifu_KitaTerrain_World
+    second: {fileID: 2100000, guid: dd3464474f27480cae45d3244adcaeb8, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule

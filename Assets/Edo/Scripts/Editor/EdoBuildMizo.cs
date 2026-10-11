@@ -121,7 +121,7 @@ public static partial class EdoBuild
         return r;
     }
 
-    /// <summary>溝の駒の**地際の張り出し**(縁石の外の土の板 ── <c>EdoAssets.Own.DoiMizo(kata, d, ago: true)</c>・材 = 地形の土)の局所の実測(倍率の前・Y 回転 0)。
+    /// <summary>溝の駒の**地際の張り出し**(縁石の外の土の板 ── <c>EdoAssets.Own.DoiMizo(kata, d, ago: true)</c>・材 = 地形の塗りを世界 XZ で引く Hifu_KitaTerrain_World)の局所の実測(倍率の前・Y 回転 0)。
     /// has = 材の名に "Soil" を含むサブメッシュがある / xBody = 張り出しの内の縁(土の頂点の |x| の最小 = 縁石の外の面)/ xOut = 外の縁(|x| の最大)/
     /// topIn・topOut = 内の縁・外の縁の天端(各縁から 0.02 以内の土の頂点の最高)/ xInner = 溝の内法の半幅(底の高さ ±0.01 の石の頂点の |x| の最大)。左右対称の板を前提に |x| で測る。</summary>
     public class MizoApron { public bool has; public float xBody, xOut, topIn, topOut, xInner; }

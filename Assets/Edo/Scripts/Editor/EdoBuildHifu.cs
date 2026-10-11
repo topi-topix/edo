@@ -40,7 +40,7 @@ public static partial class EdoBuild
     /// <summary>皮の GameObject の名の頭。<see cref="Drawn"/> はこの名の MeshFilter を皮と読む。</summary>
     public const string SKIN_PREFIX = "EdgeSkin_";
     /// <summary>皮のシェーダ(地形の本体・足し込みの写しに、層の値を Properties として足した物・Assets/Edo/Shaders/StochTerrain/)。</summary>
-    const string SKIN_SHADER_BASE = "Edo/TerrainSkinStochastic", SKIN_SHADER_ADD = "Edo/TerrainSkinAdd";
+    const string SKIN_SHADER_BASE = "Edo/TerrainSkinStochastic", SKIN_SHADER_ADD = "Edo/TerrainSkinAdd", SKIN_SHADER_WORLD = "Edo/TerrainSkinWorld";
 
     /// <summary>皮の中で高さを揃える造成の面(世界 XZ の多角形と面の高さ)。</summary>
     public struct SkinFace
@@ -3295,48 +3295,88 @@ public static partial class EdoBuild
             }
             mat.shader = shader;
             mat.enableInstancing = false;
-            mat.SetTexture("_Control", td.GetAlphamapTexture(p));
-            mat.SetTextureScale("_Control", Vector2.one); mat.SetTextureOffset("_Control", Vector2.zero);
-            mat.SetVector("_Control_ST", new Vector4(1, 1, 0, 0));
-            bool anyNormal = false;
-            for (int s = 0; s < 4; s++)
-            {
-                int li = p * 4 + s;
-                var L = li < layers.Length ? layers[li] : null;
-                string si = s.ToString();
-                if (L == null)
-                {
-                    mat.SetTexture("_Splat" + si, null); mat.SetTexture("_Normal" + si, null); mat.SetTexture("_Mask" + si, null);
-                    continue;
-                }
-                mat.SetTexture("_Splat" + si, L.diffuseTexture);
-                var st = new Vector4(td.size.x / L.tileSize.x, td.size.z / L.tileSize.y, L.tileOffset.x / L.tileSize.x, L.tileOffset.y / L.tileSize.y);
-                mat.SetTextureScale("_Splat" + si, new Vector2(st.x, st.y)); mat.SetTextureOffset("_Splat" + si, new Vector2(st.z, st.w));
-                mat.SetVector("_Splat" + si + "_ST", st);
-                mat.SetTexture("_Normal" + si, L.normalMapTexture); if (L.normalMapTexture != null) anyNormal = true;
-                mat.SetFloat("_NormalScale" + si, L.normalScale);
-                mat.SetTexture("_Mask" + si, L.maskMapTexture);
-                mat.SetFloat("_LayerHasMask" + si, L.maskMapTexture != null ? 1f : 0f);
-                mat.SetFloat("_Metallic" + si, L.metallic); mat.SetFloat("_Smoothness" + si, L.smoothness);
-                // 滑らかさ = 層の定数(_SmoothnessSource 2)。⛔ 層の設定(赤坂は DiffuseAlphaChannel = 1)をそのまま写さない ──
-                //   α = 1 の土や芝が艶を持ち、空を映して白く光った。定数にすると地形と同じ見えになる(2026-09-24 並べて撮って確認)。
-                mat.SetFloat("_SmoothnessSource" + si, 2f);
-                var dr = L.diffuseRemapMax; dr.w = 1f;
-                mat.SetVector("_DiffuseRemapScale" + si, dr);
-                mat.SetVector("_MaskMapRemapOffset" + si, L.maskMapRemapMin);
-                mat.SetVector("_MaskMapRemapScale" + si, L.maskMapRemapMax - L.maskMapRemapMin);
-                mat.SetFloat("_DiffuseHasAlpha" + si, 0f);
-            }
-            mat.SetFloat("_NumLayersCount", layers.Length);
-            if (anyNormal) mat.EnableKeyword("_NORMALMAP"); else mat.DisableKeyword("_NORMALMAP");
-            mat.DisableKeyword("_ALPHATEST_ON");
-            mat.DisableKeyword("_TERRAIN_INSTANCED_PERPIXEL_NORMAL");
-            mat.SetFloat("_EnableInstancedPerPixelNormal", 0f);
+            BindSkinLayers(mat, td, p);
             EditorUtility.SetDirty(mat);
             outp[p] = mat;
         }
         AssetDatabase.SaveAssets();
         return outp;
+    }
+
+    /// <summary>皮の材質に地形の層 p*4〜p*4+3 とスプラット(alphamapTextures[p])を地形と同じ名で結わえる
+    /// (<see cref="SkinMaterials"/> と <see cref="SkinWorldMaterial"/> の共用)。</summary>
+    static void BindSkinLayers(Material mat, TerrainData td, int p)
+    {
+        var layers = td.terrainLayers;
+        mat.SetTexture("_Control", td.GetAlphamapTexture(p));
+        mat.SetTextureScale("_Control", Vector2.one); mat.SetTextureOffset("_Control", Vector2.zero);
+        mat.SetVector("_Control_ST", new Vector4(1, 1, 0, 0));
+        bool anyNormal = false;
+        for (int s = 0; s < 4; s++)
+        {
+            int li = p * 4 + s;
+            var L = li < layers.Length ? layers[li] : null;
+            string si = s.ToString();
+            if (L == null)
+            {
+                mat.SetTexture("_Splat" + si, null); mat.SetTexture("_Normal" + si, null); mat.SetTexture("_Mask" + si, null);
+                continue;
+            }
+            mat.SetTexture("_Splat" + si, L.diffuseTexture);
+            var st = new Vector4(td.size.x / L.tileSize.x, td.size.z / L.tileSize.y, L.tileOffset.x / L.tileSize.x, L.tileOffset.y / L.tileSize.y);
+            mat.SetTextureScale("_Splat" + si, new Vector2(st.x, st.y)); mat.SetTextureOffset("_Splat" + si, new Vector2(st.z, st.w));
+            mat.SetVector("_Splat" + si + "_ST", st);
+            mat.SetTexture("_Normal" + si, L.normalMapTexture); if (L.normalMapTexture != null) anyNormal = true;
+            mat.SetFloat("_NormalScale" + si, L.normalScale);
+            mat.SetTexture("_Mask" + si, L.maskMapTexture);
+            mat.SetFloat("_LayerHasMask" + si, L.maskMapTexture != null ? 1f : 0f);
+            mat.SetFloat("_Metallic" + si, L.metallic); mat.SetFloat("_Smoothness" + si, L.smoothness);
+            // 滑らかさ = 層の定数(_SmoothnessSource 2)。⛔ 層の設定(赤坂は DiffuseAlphaChannel = 1)をそのまま写さない ──
+            //   α = 1 の土や芝が艶を持ち、空を映して白く光った。定数にすると地形と同じ見えになる(2026-09-24 並べて撮って確認)。
+            mat.SetFloat("_SmoothnessSource" + si, 2f);
+            var dr = L.diffuseRemapMax; dr.w = 1f;
+            mat.SetVector("_DiffuseRemapScale" + si, dr);
+            mat.SetVector("_MaskMapRemapOffset" + si, L.maskMapRemapMin);
+            mat.SetVector("_MaskMapRemapScale" + si, L.maskMapRemapMax - L.maskMapRemapMin);
+            mat.SetFloat("_DiffuseHasAlpha" + si, 0f);
+        }
+        mat.SetFloat("_NumLayersCount", layers.Length);
+        if (anyNormal) mat.EnableKeyword("_NORMALMAP"); else mat.DisableKeyword("_NORMALMAP");
+        mat.DisableKeyword("_ALPHATEST_ON");
+        mat.DisableKeyword("_TERRAIN_INSTANCED_PERPIXEL_NORMAL");
+        mat.SetFloat("_EnableInstancedPerPixelNormal", 0f);
+    }
+
+    /// <summary>**部材の面を地形と同じ見えで描く材**(世界 XZ の UV・層 0〜3 を正規化して一枚で描く・<c>Edo/TerrainSkinWorld</c>)を
+    /// 地形 <paramref name="t"/> に結わえ直す(資産 <see cref="EdoAssets.Own.SkinWorldMat"/>・FBX の材名と同名 ⇒ .meta で結わえてあり remap 不要)。
+    /// 結わえるもの: スプラット(alphamapTextures[0])・層 0〜3 の肌と大きさ・地形の原点と大きさ(_EdoTerrainRect)。
+    /// ⚠ 地形を動かした・層を入れ替えた・地形の資産を作り直した後は呼び直す(塗り直しだけなら不要 ── 同じテクスチャ)。
+    /// 当たる先: 溝の地際の張り出し <see cref="EdoAssets.Own.DoiMizo"/>(ago)の板の全面(岡部・土井・松江松平 = KitaTerrain の上)。EDO-0502 第113巡。</summary>
+    public static Material SkinWorldMaterial(Terrain t)
+    {
+        var td = t.terrainData;
+        string path = EdoAssets.Own.SkinWorldMat(t.name);
+        var shader = Shader.Find(SKIN_SHADER_WORLD);
+        if (shader == null) throw new Exception("世界 UV の皮のシェーダが無い: " + SKIN_SHADER_WORLD);
+        var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (mat == null) { mat = new Material(shader); AssetDatabase.CreateAsset(mat, path); }
+        mat.shader = shader;
+        mat.enableInstancing = false;
+        BindSkinLayers(mat, td, 0);
+        Vector3 o = t.transform.position, sz = td.size;
+        mat.SetVector("_EdoTerrainRect", new Vector4(o.x, o.z, 1f / sz.x, 1f / sz.z));
+        EditorUtility.SetDirty(mat);
+        AssetDatabase.SaveAssetIfDirty(mat);
+        return mat;
+    }
+
+    [MenuItem("Edo/地形/地際の部材の材(世界UV)を細かい地形へ結わえ直す")]
+    static void SkinWorldMaterialMenu()
+    {
+        var t = FineTerrain();
+        if (t == null) { Debug.LogWarning("[地際の材] 細かい地形(KitaTerrain)がシーンに無い"); return; }
+        var m = SkinWorldMaterial(t);
+        Debug.Log("[地際の材] " + AssetDatabase.GetAssetPath(m) + " を " + t.name + " に結わえた(原点 " + t.transform.position.x.ToString("F2") + ", " + t.transform.position.z.ToString("F2") + "・大きさ " + t.terrainData.size.x + ")");
     }
 
     // ------------------------------------------------------------ 描かれた地表

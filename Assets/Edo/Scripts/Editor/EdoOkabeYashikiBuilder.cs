@@ -5898,6 +5898,8 @@ public static class EdoOkabeYashikiBuilder
         var grp = Group("SecMizo"); Clear(grp); var kg = Group("SecMizoKasa"); Clear(kg); var lg = Group("SecMizoFuta"); Clear(lg);
         _secMizoTail.Clear(); _secMizoProf.Clear(); _secMizoLine.Clear(); _secMizoOutlet.Clear();
         var mz = O(Get(O(Get(O(Get(D, "grading")), "omoteNagayaDai")), "mizo")); if (mz == null) return "";
+        // 地際の張り出しの板の材(Hifu_KitaTerrain_World)を細かい地形のスプラット・原点へ結わえ直す(結わえないと _Control が既定の赤 = 層 0 の土一色)。EDO-0502 第113巡
+        if (MizoAgo) { var ft = EdoBuild.FineTerrain(); if (ft != null) EdoBuild.SkinWorldMaterial(ft); }
         var RX = (System.Func<string, string, System.Text.RegularExpressions.Match>)((t, p) => System.Text.RegularExpressions.Regex.Match(t ?? "", p));
         string otT = S(Get(mz, "outerTop")) ?? "";
         var mBand = RX(otT, @"幅\s*([0-9.]+)\s*m\s*の帯"); var mDp = RX(S(Get(mz, "depth")), @"([0-9.]+)\s*以上【硬】"); var mDt = RX(S(Get(mz, "depth")), @"([0-9.]+)\s*前後を狙う");

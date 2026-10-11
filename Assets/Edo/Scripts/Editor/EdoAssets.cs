@@ -3030,6 +3030,15 @@ public static class EdoAssets
         public const string SkinMatDir = "Assets/Edo/Materials/Hifu";
         public static string SkinMat(string terrain, int pass) { return SkinMatDir + "/Hifu_" + terrain + "_" + pass + ".mat"; }
 
+        /// <summary>**部材の面を地形と同じ見えで描く材**(シェーダ <c>Edo/TerrainSkinWorld</c>・メッシュの uv でなく世界 XZ で地形の塗りを引く・
+        /// 層 0〜3 を正規化した一枚)。材の名 = FBX の材名 <c>Hifu_&lt;地形&gt;_World</c>(FBX の .meta の externalObjects で結わえてある ⇒ remap 不要)。
+        /// スプラットと原点は <c>EdoBuild.SkinWorldMaterial(t)</c>(メニュー `Edo/地形/地際の部材の材(世界UV)を細かい地形へ結わえ直す`)が焼く。
+        /// 使う部材: 溝の地際の張り出し <see cref="DoiMizo"/>(ago = true)の板(KitaTerrain の上)。EDO-0502 第113巡。
+        ///   blender --background --python Tools/Blender/build_doi_haisui.py -- ago --render</summary>
+        public static string SkinWorldMat(string terrain) { return SkinMatDir + "/Hifu_" + terrain + "_World.mat"; }
+        /// <summary>FBX に焼く材の名(<see cref="SkinWorldMat"/> の細かい地形の版)。</summary>
+        public const string SkinWorldMatKita = "Hifu_KitaTerrain_World";
+
         /// <summary>松江松平邸の表門 — **屋根なしの冠木門**(角柱・冠木・内開きの板戸)。
         /// 姿は温古写真集11(88005761・明治初撮影)の実見【A】+『日本案内記 関東篇』昭和5年【A】。
         /// ⚠ 切妻小屋根を載せる前案は 2026-08-23 に撤回済み。**屋根なしが正**。
@@ -4154,9 +4163,10 @@ public static class EdoAssets
         /// <paramref name="ago"/> = true で **地際の張り出し付きの版**(A / AH のみ・`Doi_Mizo_A_Ago_D*` / `Doi_Mizo_AH_Ago_D*`)。
         /// 岡部 EDO-0502 第111巡: 天端を地表と面一に据え 0.25m 格子の地形の溝の中の節点を下げると、縁石の外に地形の三角形の
         /// 鋸の歯(深さ ≤0.25)が立つ ⇒ 両側の縁石の外へ土の板(出 0.40・天端 = 縁石の天端 +0.003 → 外の縁で −0.03・
-        /// 厚さ 0.36・材 = 地形と同じ Soil)を張り、歯をその下に隠す。溝・石は A / AH と同じ(同じ乱数)。左右対称 ⇒ 向きを選ばない。
+        /// 厚さ 0.36)を張り、歯をその下に隠す。材 = <see cref="SkinWorldMat"/>(`Hifu_KitaTerrain_World`・世界 XZ で地形の塗りをそのまま引く ──
+        /// 第113巡: FJG Soil の板は据えると落葉混じりの橙の帯に見えた)。溝・石は A / AH と同じ(同じ乱数)。左右対称 ⇒ 向きを選ばない。
         /// AH は +X の口の幅だけ板を切り、口の敷き石を板の外の縁(芯から 0.67)まで延ばす。
-        /// 実寸 W 1.340 × H 0.363(D0.30 は 0.373)× D 1.000・ピボットは A と同じ。.meta は A の写し + Soil ⇒ remap 不要。
+        /// 実寸 W 1.340 × H 0.363(D0.30 は 0.373)× D 1.000・ピボットは A と同じ。.meta は A の写し + Hifu_KitaTerrain_World ⇒ remap 不要(材の結わえ直しはメニュー `Edo/地形/地際の部材の材(世界UV)を細かい地形へ結わえ直す`)。
         ///   blender --background --python Tools/Blender/build_doi_haisui.py -- ago --render</summary>
         public static string DoiMizo(string kata, float depth = 0f, bool ago = false)
         {

@@ -71,6 +71,41 @@ public static partial class EdoBuild
         public List<Vector2> flatRanges = new List<Vector2>();
     }
 
+    /// <summary>**野面の見え面の足元の前の地盤**(2026-10-11 EDO-0502 第107巡)。線 <paramref name="q"/> は天端の前の縁 ── 法尻は
+    /// 法 <paramref name="batter"/> ×(天端 − 足元)だけ見え面の側 <paramref name="face"/> へ出る。法尻から <paramref name="off"/> 前の地盤を
+    /// 不動点で求める(足元 g → 法尻 b·(t − g) → その前の g' … 3 回・見た中の最も低い値)。<paramref name="footAt"/>(指図の足元の面)が NaN なら
+    /// <paramref name="groundAt"/>。batter が NaN か 0 なら従前どおり線から off。
+    /// 硬い: 見付は法尻の前で取る(⛔ 法の下の地盤で見付を取らない ── 足元を切り下げた所で底が浮く)。
+    /// 当たる先: PlaceNozuraRun の見付・PlaceNozuraNet の端の見付(endExpose)・積み止めの見付 ── 野面の土留めすべて(岡部・山王・土井。各邸を流し直すと
+    /// 足元の前が下る所で駒が深く根入れする側へ変わる)。</summary>
+    public static float FootAhead(Func<float, float, float> footAt, Func<float, float, float> groundAt, Vector2 q, Vector2 face, float off, float top, float batter)
+    {
+        float d = off, gMin = float.NaN;
+        for (int it = 0; it < 4; it++)
+        {
+            float x = q.x + face.x * d, z = q.y + face.y * d;
+            float g = footAt != null ? footAt(x, z) : float.NaN; if (float.IsNaN(g)) g = groundAt(x, z);
+            if (float.IsNaN(g)) break;
+            gMin = float.IsNaN(gMin) ? g : Mathf.Min(gMin, g);
+            if (float.IsNaN(batter) || batter <= 1e-4f || float.IsNaN(top)) break;
+            float d2 = off + batter * Mathf.Max(0f, top - g);
+            if (Mathf.Abs(d2 - d) < 0.02f) break;
+            d = d2;
+        }
+        return gMin;
+    }
+
+    static readonly Dictionary<string, float> _nozBatter = new Dictionary<string, float>();
+    /// <summary>run の直線の駒の見え面の法(<see cref="FaceBatterOf"/> を H4.8 の駒で一度だけ測る)。測れなければ NaN。</summary>
+    static float NozuraBatter(NozuraWall w)
+    {
+        if (w == null || w.straight == null) return float.NaN;
+        string p = null; try { p = w.straight(4.8f, 0f, 0); } catch { p = null; }
+        if (string.IsNullOrEmpty(p)) return float.NaN;
+        float b; if (_nozBatter.TryGetValue(p, out b)) return b;
+        b = FaceBatterOf(p); _nozBatter[p] = b; return b;
+    }
+
     /// <summary>**名指した見え面は「側」だけ採り、向きは区間の線の法線にする**(2026-10-09・EDO-0502 第64巡・施主「石垣の部材のつなぎ目で段差」)。
     /// 指図・ビルダーが名指す見え面(<see cref="NozuraSeg.face"/> ── 石段の芯へ・背の逆)は区間の線と直交するとは限らない。
     /// 石段の脇の返しは天端の線が石段の軸から 2〜9° 振れる(見付が段ごとに 0.3 増え、法 3分で天端の前の縁が 0.09 ずつ退く ── StairSideCrestLines)のに、
@@ -125,7 +160,11 @@ public static partial class EdoBuild
         float L = s0[m - 1];
         Func<float, int> segOf = s => { for (int i = 0; i + 1 < m; i++) if (s <= s0[i + 1] + 1e-4f) return i; return m - 2; };
         Func<float, Vector2> at = s => { int i = segOf(s); return P[i] + dir[i] * (s - s0[i]); };
-        // 見付: 天端 − 見え面の足元(線から前へ 0.25 と 0.7)の地表の最小 ⇒ 焼いてある段のうち床がその下に入る最小
+        // 見付: 天端 − 見え面の足元の前(法尻から前へ 0.25 と 0.7)の地表の最小 ⇒ 焼いてある段のうち床がその下に入る最小
+        //   ⭐ 線は天端の前の縁 ── 法尻はそこから 法 ×(天端 − 足元)前に出る(H4.8 で 1.4m)。線から 0.25/0.7 で測ると法の下(見え面の裏の地盤)を
+        //   読み、足元を切り下げた所(背の路地の床)で見付を 1m 少なく取って駒の底が浮き、皮が浮いた底の下を埋めて見え面の前に土の板が立った
+        //   (岡部 TW_Higashi_Se 15 駒・+0.06〜+0.93・2026-10-11 EDO-0502 第107巡)⇒ <see cref="FootAhead"/> で法尻の前を測る。
+        float batterW = NozuraBatter(w);
         Func<float, float, float, int, float> needH = (sa, sb2, top, si) =>
         {
             // ⭐ top = NaN は**天端が線に沿って傾く駒**(勾配の駒 ── 床も天端と一緒に傾く): 見付 = 走りの各点の (天端の線 − 足元) の最大
@@ -135,8 +174,7 @@ public static partial class EdoBuild
             { int k = Mathf.Clamp(si < 0 ? segOf(s) : si, 0, m - 2); Vector2 q = at(Mathf.Clamp(s, 0f, L));
               float t = float.IsNaN(top) ? w.crestAt(Mathf.Clamp(s, 0f, L)) : top; if (float.IsNaN(t)) continue;
               foreach (float off in new[] { 0.25f, 0.7f })
-              { float x = q.x + face[k].x * off, z = q.y + face[k].y * off;
-                float g = w.footAt != null ? w.footAt(x, z) : float.NaN; if (float.IsNaN(g)) g = groundAt(x, z);
+              { float g = FootAhead(w.footAt, groundAt, q, face[k], off, t, batterW);
                 if (!float.IsNaN(g)) need = Mathf.Max(need, t - g); } }
             if (need == float.MinValue) need = float.IsNaN(top) ? 0f : top - float.MaxValue;
             foreach (var r in w.minHRanges) if (sb2 >= r.x && sa <= r.y) need = Mathf.Max(need, r.z);   // 端の隅の組の見付を揃える(kadoReturnUniform)
@@ -1498,6 +1536,7 @@ public static partial class EdoBuild
             return lo;
         };
         // 端の見付 = 端の駒が受け持つ走り(端から内へ 1.2W)で PlaceNozuraRun の needH と同じに測る(天端は走りの各点・足元は線の前 0.25/0.7 の最小の逆 = 最大の見付)
+        float batN = NozuraBatter(new NozuraWall { straight = straight });   // 法尻の前で見付を取る(FootAhead)
         Func<NozuraSeg, int, Vector2, float> endExpose = (sg, e, fN0) =>
         {
             Vector2 ep0 = endPt(sg, e), aw = e == 1 ? sg.Dir : -sg.Dir; float h = float.MinValue;
@@ -1506,8 +1545,8 @@ public static partial class EdoBuild
                 Vector2 q2 = ep0 - aw * Mathf.Min(s2, sg.Len); float cq = sg.crestAt(e == 0 ? Mathf.Min(s2, sg.Len) : Mathf.Max(0f, sg.Len - s2));
                 foreach (float off in new[] { 0.25f, 0.7f })
                 {
-                    Vector2 q3 = q2 + fN0 * off; float fy = sg.footAt != null ? sg.footAt(q3.x, q3.y) : float.NaN;
-                    if (float.IsNaN(fy)) fy = groundAt(q3.x, q3.y); if (!float.IsNaN(fy)) h = Mathf.Max(h, cq - fy);
+                    float fy = FootAhead(sg.footAt, groundAt, q2, fN0, off, cq, batN);
+                    if (!float.IsNaN(fy)) h = Mathf.Max(h, cq - fy);
                 }
             }
             return h == float.MinValue ? float.NaN : h;
@@ -1615,7 +1654,7 @@ public static partial class EdoBuild
             {
                 Vector2 q2 = ep - away * s2; float cq = sg.crestAt(e == 0 ? s2 : sg.Len - s2);
                 foreach (float off in new[] { 0.25f, 0.7f })
-                { Vector2 q3 = q2 + fN * off; float fy = sg.footAt != null ? sg.footAt(q3.x, q3.y) : float.NaN; if (float.IsNaN(fy)) fy = groundAt(q3.x, q3.y); if (!float.IsNaN(fy)) hT = Mathf.Max(hT, cq - fy); }
+                { float fy = FootAhead(sg.footAt, groundAt, q2, fN, off, cq, batN); if (!float.IsNaN(fy)) hT = Mathf.Max(hT, cq - fy); }
             }
             if (hT == float.MinValue) return "・積み止め ⛔ 端の見付が測れない(③ のまま)";
             float need = hT + endRule.tomeNeiri;

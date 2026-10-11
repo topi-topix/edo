@@ -136,6 +136,13 @@ public static partial class EdoBuild
     /// 返り値 = 動かした量(xz)。測れなければ false(note に理由)。</summary>
     public static bool KadoFace(Transform kc, Vector2[] poly, int e1, Func<int, Vector2> outNormal,
                                 float target, float wallT, out Vector2 moved, out string note)
+    { return KadoFace(kc, poly, e1, outNormal, target, target, wallT, out moved, out note); }
+
+    /// <summary><see cref="KadoFace(Transform, Vector2[], int, Func{int, Vector2}, float, float, out Vector2, out string)"/> の、腕ごとに外面の目標が違う版
+    /// (<paramref name="target1"/> = 辺 e1 の腕・<paramref name="target2"/> = 辺 e1+1 の腕。2026-10-11 EDO-0502 第107巡 ── 岡部の外周は辺ごとに法肩の控えが違い、
+    /// 外面 = 線から c + 犬走り)。平行移動の 2 元 1 次で両腕を各自の線へ【硬: 面の残差】。当たる先: 辺ごとに外面の線が違う隅すべて(岡部 練塀の留めの隅)。</summary>
+    public static bool KadoFace(Transform kc, Vector2[] poly, int e1, Func<int, Vector2> outNormal,
+                                float target1, float target2, float wallT, out Vector2 moved, out string note)
     {
         moved = Vector2.zero; note = null;
         int n = poly.Length, e2 = (e1 + 1) % n;
@@ -158,7 +165,7 @@ public static partial class EdoBuild
             if (d2 >= 0f && Mathf.Abs(d1 - d2 * cosT) <= armThresh) best2 = Mathf.Max(best2, Vector2.Dot(rel, kn2));
         }
         if (best1 == float.MinValue || best2 == float.MinValue) { note = "両辺の壁体を判別できず"; return false; }
-        float r1 = target - best1, r2 = target - best2;
+        float r1 = target1 - best1, r2 = target2 - best2;
         float det = kn1.x * kn2.y - kn1.y * kn2.x;
         if (Mathf.Abs(det) >= ExactSolveDet)
         {

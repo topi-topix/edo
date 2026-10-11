@@ -31,6 +31,9 @@ public static partial class EdoBuild
         /// <summary>true なら低い側を地表で測らず <see cref="lowHint"/> に従う(口の返し ── 見え面は口の内と決まっている。
         /// 地表で測ると返しの裏(本体の石垣の法の下)の方が低く出て裏返る・EDO-0502 第8巡)。</summary>
         public bool lowForce;
+        /// <summary>駒の一様な倍率(既定 1)。城の石垣の駒を run の倍率 s で据える所(岡部 外周の基壇 ── 壁高 4.0s・天端幅 1.4s・底厚 2.4s)。
+        /// 見付は <see cref="pathOfH"/> へ 見付 ÷ scale で渡す(焼いた丈は倍率 1 の値)。走り・送りは呼び手が scale を掛けて渡す。</summary>
+        public float scale = 1f;
     }
 
     /// <summary>**見付に合う丈の城の石垣の直線の駒**(2026-10-03・EDO-0502)。見付 ≤ 4.00(+0.01)なら素の <c>JC.CastleWall</c>、
@@ -150,7 +153,8 @@ public static partial class EdoBuild
                         float gy = groundAt(p.x, p.y); if (!float.IsNaN(gy)) gMin = Mathf.Min(gMin, gy);
                     }
                     float expose = gMin == float.MaxValue ? 0f : crest - gMin;
-                    string path = w.pathOfH(expose);
+                    float wsc = w.scale > 0f ? w.scale : 1f;
+                    string path = w.pathOfH(expose / wsc);
                     if (path == null) continue;
                     float psi = Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg - (w.runAlongX ? 90f : 0f);
                     GameObject go = null; float bot = 0f;
@@ -160,7 +164,7 @@ public static partial class EdoBuild
                     //   据えた駒の実メッシュで足元の出(見え面の側へ天端の縁から最も出る量)を測り、その 0.3m 前の地表で丈を選び直す(1 回)。
                     for (int attempt = 0; attempt < 2; attempt++)
                     {
-                        go = Place(path, new Vector3(mid.x, crest, mid.y), psi, Vector3.one, parent, w.name + "_" + q + "_" + ci + "_" + i.ToString("00"));
+                        go = Place(path, new Vector3(mid.x, crest, mid.y), psi, Vector3.one * wsc, parent, w.name + "_" + q + "_" + ci + "_" + i.ToString("00"));
                         if (go == null) break;
                         // 見え面を低い側へ・天端の前の縁を線へ(実メッシュ)
                         FaceWallToLine(go, lowN, a);
@@ -179,7 +183,7 @@ public static partial class EdoBuild
                         }
                         if (g2 == float.MaxValue || g2 >= gMin - 0.01f) break;
                         gMin = g2; expose = crest - gMin;
-                        string p2n = w.pathOfH(expose);
+                        string p2n = w.pathOfH(expose / wsc);
                         if (p2n == null || p2n == path) break;
                         UnityEngine.Object.DestroyImmediate(go); go = null; path = p2n;
                     }

@@ -125,7 +125,7 @@
 
 | 名 | 種 | 中身・注釈の一文目 | 使っている所 |
 |---|---|---|---|
-| `JC.CastleWall` | string | `Castle Wall.prefab` | OkabeYashiki(Pivot・PlaceIshigaki・Stage2b_Dan), MatsudairaDewa(DaidokoromonGamae・Stage3_Ishigaki), BuildDanIshigaki(CastleWallOfExpose), BuildIshidan ほか4 |
+| `JC.CastleWall` | string | `Castle Wall.prefab` | MatsudairaDewa(DaidokoromonGamae・Stage3_Ishigaki), OkabeYashiki(Pivot・Stage2b_Dan), BuildDanIshigaki(CastleWallOfExpose), BuildIshidan ほか4 |
 | `JC.CastleWallCorner` | string | `Castle Wall Corner.prefab` | Yamato |
 | `JC.CastleWall4x12Mesh` | string | `Castle Wall 4x12.fbx` | IshigakiFit |
 | `JC.GateDoorCastleL` | string | `Gate Castle Door L.fbx` — 小門用(1.5×2.8)。対で開口 3.0m ちょうど。 | — |

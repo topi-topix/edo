@@ -143,6 +143,7 @@
 - [袖の背の小段は段の境の脇だけ 0.4 余る](sode-back-bench-cap-conflict.md) — 上限でも格子でもなかった。狙いと描画を同じ点で並べてから名指す
 - [皮を足す邸は土留めを皮の地表で据える](wall-seat-on-skin-ground-not-grid.md) — 格子の盛りに載せたまま削ると 0.5m 浮く。岡部 3b は約5分
 - [見付を天端の縁の 0.3m 前で測ると法の駒の下を読む](expose-measured-under-batter.md) — 丈不足で浮き、皮が歯形へ盛り土の歯。足元の出の前で測る
+- [野面の見付も線の 0.25/0.7 前は法の下・基壇を甲の型へ](nozura-need-h-under-batter-and-kidan-koh.md) — 底の浮きと土の板は同じ原因。FootAhead・CastleSec の scale/datumIn/insetKey
 - [端を切った練塀の駒は片方の端にしか合わない](dobei-kiri-hand-and-radian.md) — 849_L は SE_Hei の始めで手が逆。Atan2 はラジアン
 - [相手の無い端の口は区画の線の楔](free-run-end-at-oblique-parcel-corner.md) — 岡部 辺0/辺24。伸ばすと区域侵犯・斜めの小口の部材
 - [壁の口から張り出す石段は浮く・yAt が地盤と違う](stair-out-of-wall-and-yat-mismatch.md) — StackDownToGround・LevelPad で中央値へ

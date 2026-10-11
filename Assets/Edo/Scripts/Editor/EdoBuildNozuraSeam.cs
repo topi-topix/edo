@@ -59,6 +59,8 @@ public static partial class EdoBuild
             for (int i = 0; i < ws.Count; i++) for (int j = i + 1; j < ws.Count; j++)
             {
                 var a = ws[i]; var b = ws[j]; var ba = wb[i]; ba.Expand(0.05f); if (!ba.Intersects(wb[j])) continue;
+                // 奥を通す埋めた駒(_Tooshi・const.abutOrder「土に埋め・根入れと同じ扱い」)は継ぎ目の対にしない ── 見え面を持たず、表の駒の背で重なるだけ(第105巡)
+                if (a.name.Contains("_Tooshi") || b.name.Contains("_Tooshi")) continue;
                 GameObject s = straight[a] ? a : (straight[b] ? b : null); if (s == null) continue;
                 Vector2 f = fOf[s];
                 float ang = Vector2.Angle(fOf[a], fOf[b]);

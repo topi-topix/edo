@@ -99,6 +99,7 @@
 - [張り出す石段の袖の笠は入隅の天端で潰れる・垣の口の端は 0.2 ずれる](stair-sode-crest-vs-kasa-and-fence-gap-end.md) — K_Kuruwa 笠 0.003。PlaceIshidanSodeRow・PlaceCrestFence の許し 0.3
 - [法の返しの見え面を石段の端の線へ](battered-side-face-on-stair-end-line.md) — 天端の線を法×(天端−踏面)退けて斜めに・短い残りを捨てると隅が立たない・丈は踏面で
 - [石垣の隅は区間の端ごとに・T 字の継ぎ目・二段築の下段](run-corners-seams-and-tiers.md) — PlaceRunCorners/PlaceTierBelow。控えは外向きの駒で・基壇の向きは低い地盤で測り直す
+- [WallFace の薄い軸は深い野面で走りを取る・座だけ下げると長屋の背が埋まる](wallface-thin-axis-fails-on-deep-nozura.md) — 札の局所Z+FaceSide。背の受けと同じ巡で建てる
 - [野面の網の罠](nozura-net-face-crest-end.md) — 見え面は設計面と天端の列の控えで・端の行は口の地表・端の光線は前の地表まで・打ち切りは低い端だけ
 - [斜めの取り合いは相手の面の法線で測る・法の楔](oblique-contact-and-batter-wedge.md) — 走りの筋では −0.27 の嘘。入隅の鉛直な小口は縮めても法へ入る
 - [皮の土の箱は小段の端の法の回り込み・溝の尾根は 1m 格子](bench-end-slope-spills-and-3b-opposite-wall.md) — RaycastAll と BackBenchAt を点で刷る
@@ -152,7 +153,6 @@
 - [腰の端の小段は 1:1 の法で切りが 1.0 を超える・石段の a/b は従属値](koshi-end-cut-exceeds-on-1to1-slope.md) — koshiEnd は5端とも退く。KaidanAB が atS から解く
 - [天端の上へ土を載せる型は皮の節点で・隅は腕ごと](crest-cover-on-skin-nodes.md) — hold の双一次が表の石へ土を引く・0.25格子で帯の縁が潜る
 - [野面の段の境の駒は H1.50 だけ・継ぎ目の下が抜ける](nozura-dan-piece-fixed-height.md) — 直線は H4.8 まで選ぶ。StackDownAtNozuraSteps で積み下ろす
-- [地形の前後の差は資産の写しから採れる](terrain-diff-from-asset-copy.md)・[検証レンダの構図は残らない](render-camera-poses-not-kept.md) — int16 の塊を行で探す・構図は cams.txt
 
 - [皮を [lo,hi] で解く罠 (1)〜(40)](skin-solve-lo-hi-first-runs.md) — 野面は石の寄せ集め・陰を飛ばす・buryMin は硬い lo・袖が先は 2b の順と逆・足元の帯は歯に効かない・欄の「前の地表」は設計と描画の両方で刷る
 
@@ -162,7 +162,7 @@
 
 ## 測り方・関門
 
-- [検査役の execute_code の全文は MCP の log に残る](qa-code-in-mcp-log.md) — 同じ測りで刷り直すときはそこから抜く(自分の前巡の流し方も)
+- [検査役の execute_code の全文は MCP の log に残る](qa-code-in-mcp-log.md)・[地形の前後の差は資産の写しから採れる](terrain-diff-from-asset-copy.md)・[検証レンダの構図は残らない](render-camera-poses-not-kept.md) — 測りは log から抜く・int16 の塊・構図は cams.txt
 - [長屋の軒を躯体の前の面と読む](nagaya-eaves-read-as-body-front.md) — _kutai は材1つで BodyExRoof が軒を残す。前の面は一階の帯で(N39_1 の 0.27 は軒)
 - [練塀は下絵の seat で置かれ埋まる・天端の垣と S_Hei_20 の浮きは偽](dobei-seat-is-shitae-and-false-floats-r12.md) — 岡部 辺34 で 2.6m 埋没。浮きは光線の先着で確かめる・作業場の取り違え
 - [偶奇の多数決の内外判定は野面で偽のめり込み](parity-inside-test-false-intrusion.md) — 袖×SW の隅 0.234 は偽。当たり0の向きが在れば外
@@ -197,5 +197,4 @@
 - [皮の段プレハブのメッシュが消えると S1 が穴を塞がず 4b が空の皮](skin-mesh-missing-leaves-holes-open.md) — S1 の塞いだ升が前の巡の穴の数と違えば 4b の前に止まる
 - [線の上の基壇・柵は区画外に出る](line-sitting-pieces-pivot-out.md) — float 0.25mm・端の控え・芯置き。材 null の一体駒は屋根を躯体と数える
 - [区画の辺に沿う城の石垣・長屋の4つの罠](castle-run-along-parcel-edge-traps.md) — s の丸めは VTX_TOL・90°超の出隅は PullAlongInside・駒の実長>送り・疎な駒は筋 1.0
-- [隅の腕は短辺を越えて区画外へ出る](kado-arm-overruns-short-edge.md) — 岡部 P2〜P4 が 0.7〜1.3m 外。閉じの検査は見ない・駒の頂点を PIP
-- [旧案の一括削除は分類器が止める](bulk-delete-denied-by-auto-mode.md) — 施主の指示でも役経由は不可。一覧まで出して施主の許可を仰ぐ
+- [隅の腕は短辺を越えて区画外へ出る](kado-arm-overruns-short-edge.md)・[旧案の一括削除は分類器が止める](bulk-delete-denied-by-auto-mode.md) — 岡部 P2〜P4 が外・駒の頂点を PIP / 役経由の一括削除は不可

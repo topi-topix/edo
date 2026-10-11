@@ -834,11 +834,37 @@ public static partial class EdoBuild
     /// <summary>**石垣の駒の見え面の向き**(世界 XZ の単位)。見え面の軸は部材ごとに違う(Castle Wall は局所 ±X・野面の駒は局所 ±Z)
     /// ⇒ 両軸で法の出(<see cref="BatterOut"/>)を測り、出の大きい軸の <see cref="FaceSide"/> を採る(2026-09-25・EDO-0430)。
     /// 当たる先: 土留めの見え面の向き・天端の帯の数え(TuckUnderCrest の faces)を要る全て。</summary>
+    /// <summary>駒が**野面の直線の駒**(`Sanno_Nozura_*`・`Nozura2_*` のうち隅 `_Kado` を除く ── 見え面が局所 ±Z の札)か。メッシュの資産名で見る。</summary>
+    public static bool IsNozuraStraightPiece(GameObject piece)
+    {
+        if (piece == null) return false;
+        foreach (var mf in piece.GetComponentsInChildren<MeshFilter>(true))
+        {
+            if (mf.sharedMesh == null) continue;
+            var p = UnityEditor.AssetDatabase.GetAssetPath(mf.sharedMesh);
+            if (string.IsNullOrEmpty(p)) continue;
+            if (!(EdoAssets.Own.IsSannoNozura(p) || EdoAssets.Own.IsNozura2(p))) return false;
+            return System.IO.Path.GetFileName(p).IndexOf("_Kado", StringComparison.Ordinal) < 0;
+        }
+        return false;
+    }
     public static Vector2 WallFace(GameObject piece)
     {
         // ⭐ 見え面は駒の**薄い向き**(走りを横切る向き)にある。法の出が両軸で出るとき(打ち切りの駒は走りの向きに天端が下がり、
         //   下の帯が走りの向きへ張り出して「法の出」に化ける ── 2026-09-25 EDO-0430 野面の打ち切り W_017f)は薄い軸を採る。
-        var tr = piece.transform; var vs = Body(tr, 999999);
+        var tr = piece.transform;
+        // ⭐ **野面の駒(1間・打ち切り・留め・法切り・Nozura2)の見え面は局所 ±Z**(部材の札・2026-10-11 EDO-0502 第105巡)。
+        //   深い見付の駒(Nozura2_H4800: 走り 2.12・奥行 2.61)は「薄い軸」が走りの向きになり、見え面を走りと取り違えた
+        //   (岡部 48 駒中 46・留め 3 駒 ⇒ 皮の上限「見え面 −0.02」が隣の駒の天端の裏石の帯に掛かり、皮が石の面へ乗った)。
+        //   ⇒ 軸は札(局所 Z)で決め、± だけを実メッシュ(FaceSide = 下の帯が前へ出る側)で測る。隅の駒(_Kado)は従前(対角)。
+        //   当たる先: 野面を据える全ての邸(岡部 Stage2b・山王の前庭/本殿の西の土留め・土井の野面)と、この向きを読む
+        //   NozuraCrestCover・SkinHeightSolve・NozuraSkinPlaneCheck・WallFaceRise・DanIshigaki の控え。
+        if (IsNozuraStraightPiece(piece))
+        {
+            var az = new Vector2(tr.forward.x, tr.forward.z);
+            if (az.sqrMagnitude > 1e-6f) return FaceSide(new List<GameObject> { piece }, az.normalized);
+        }
+        var vs = Body(tr, 999999);
         Vector2 f = Vector2.zero; float bestOut = float.MinValue; Vector2 thinF = Vector2.zero; float thinOut = float.NaN, thinW = float.MaxValue;
         foreach (var a3 in new[] { tr.right, tr.forward })
         {

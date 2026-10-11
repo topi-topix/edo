@@ -339,8 +339,40 @@ public static class EdoOkabeYashikiBuilder
     static float MichiNarashiAt(WGrid m, float x, float z)
     {
         int i = Mathf.RoundToInt((x - m.x0) / m.step), j = Mathf.RoundToInt((z - m.z0) / m.step);
-        if (i < 0 || i >= m.nx || j < 0 || j >= m.nz || float.IsNaN(m.h[j * m.nx + i])) return float.NaN;
+        if (i < 0 || i >= m.nx || j < 0 || j >= m.nz) return float.NaN;
+        if (float.IsNaN(m.h[j * m.nx + i]))
+        {   // ⭐ 区画線の際(線の外 1 升以内)は、最も近い格子点が線の内(帯の外)に落ちても帯の面で取る(第105巡【硬: 盛らない】)──
+            //   線の 0.08 外の地形の節点(-379.9, 1010.1)= 12.87 が帯の値を持たず残り、三べ坂の石垣の足元に +1.89 の土の歯を立てた。
+            //   帯の道側の縁(4m 外)は従前どおり最も近い格子点で切る(縁の外へにじませない)。
+            var q = new Vector2(x, z); if (EdoGeom.PIP(Poly, q) || EdoGeom.DistToPolyEdge(Poly, q) > m.step) return float.NaN;
+        }
         return m.At(x, z);
+    }
+    /// <summary>**区画の外の足元を描く「造成前の地盤」**(皮・外周の石垣の足元の検め用)── base_dem に、区画の内で線から
+    /// <see cref="MICHI_UNDER"/> 以内の点は、最も近い線の点の 0.3m 外の道の線際の帯の均した面(michiNarashi)との min を採る【硬: 盛らない】。
+    /// ⭐ 第105巡: 三べ坂(辺41)の外周の石垣は線の内の節点(造成前の地盤 12.46〜12.70)を下に持ち、線の外の均した道(10.4)へ 2m 格子で
+    /// 一次に描かれて、足から 0.3m 前の地面が道より最大 +1.89 高かった。OutsideFootExcess は線の内の節点を base_dem に置き換えて
+    /// 測っていたので上がりを 0 と読み、皮に渡さなかった。帯の無い辺は base_dem のまま(従前どおり)。当たる先: 道の線際を均す邸の外周の石垣(いまは岡部 辺41)。</summary>
+    const float MICHI_UNDER = 2.5f;
+    static Func<float, float, float> OutsideBase()
+    {
+        var bd = EdoBuild.BaseDem(); var mn = MichiNarashi; if (mn == null) return bd;
+        var P = Poly;
+        return (x, z) =>
+        {
+            float b = bd(x, z); var p = new Vector2(x, z);
+            if (!EdoGeom.PIP(P, p)) return b;
+            float best = float.MaxValue; Vector2 c = p;
+            for (int i = 0; i < P.Length; i++)
+            {
+                Vector2 A = P[i], B = P[(i + 1) % P.Length], ab = B - A; float L2 = ab.sqrMagnitude; if (L2 < 1e-8f) continue;
+                float t = Mathf.Clamp01(Vector2.Dot(p - A, ab) / L2); var cc = A + ab * t; float d = (p - cc).sqrMagnitude;
+                if (d < best) { best = d; c = cc; }
+            }
+            if (best > MICHI_UNDER * MICHI_UNDER || best < 1e-8f) return b;
+            var o = c + (c - p).normalized * 0.3f; float m = MichiNarashiAt(mn, o.x, o.y);
+            return float.IsNaN(m) ? b : (float.IsNaN(b) ? m : Mathf.Min(b, m));
+        };
     }
     static WGrid Graded
     {
@@ -1801,7 +1833,16 @@ public static class EdoOkabeYashikiBuilder
             float sPos = F(k["s"]), w = F(k["w"]);
             if (!Has(k, "sill")) { sb.AppendLine("★ 小門 " + nm + ": 指図に sill が無い"); continue; }
             float sill = F(k["sill"]);
-            string path = AssetByKey(Has(k, "asset") ? S(k["asset"]) : "Munamon", w, 0f);
+            string assetKey = Has(k, "asset") ? S(k["asset"]) : "Munamon";
+            // ⭐ 指図 komon[].sode「門の方立と短い板の袖で閉じる」なら袖つきの棟門(EdoAssets.Own.MunamonSode)── 袖の幅 = plan.bayRule の「妻の離し」(第105巡・施主 2026-10-11)。
+            //   札の脇の面 jambL/R は方立の外の面 ⇒ 隣の長屋の妻をここへ突き付ける(隙 0【硬】)。当たる先: 長屋の妻の間に立つ小門(岡部 Tsuyomon)
+            if (!Has(k, "asset") && (S(Get(k, "sode")) ?? "").Contains("方立と短い板の袖"))
+            {
+                var mB = System.Text.RegularExpressions.Regex.Match(S(Get(O(Get(k, "plan")), "bayRule")) ?? "", @"妻の離し\s*([0-9.]+)");
+                if (mB.Success) assetKey = "MunamonSode(" + w.ToString(System.Globalization.CultureInfo.InvariantCulture) + "," + mB.Groups[1].Value + ")";
+                else sb.AppendLine("★ 小門 " + nm + ": sode は板の袖だが plan.bayRule の妻の離しが読めない ── 素の棟門のまま");
+            }
+            string path = AssetByKey(assetKey, w, 0f);
             if (path == null || AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
             { sb.AppendLine("★ 小門 " + nm + "(" + S(k["kind"]) + " 門口 " + w.ToString("0.##")
                           + "m): 部材が無い " + (path ?? "(asset の指定なし)")); continue; }
@@ -3815,7 +3856,7 @@ public static class EdoOkabeYashikiBuilder
         //   皮は渡された駒しか知らない ── 段の土留め 辺24 の穴の升が外周の基壇の石垣 IG_S_Hei_21 の見え面に掛かり、皮が設計の地盤
         //   (法で 7.6 → 11)を石垣の見え面の上に描いて、2m おきの土の三角(最大 +2.33m)を立てた。天端の帯で篩う(見え面の前へ皮を出さない)。
         //   当たる先: 段の土留めと外周の石垣が取り合う所(岡部の西の辺24・南の辺)。
-        var ig = root == null ? null : root.transform.Find("Ishigaki");
+        var ig = root == null ? null : root.transform.Find("Ishigaki"); var outBase = OutsideBase();
         if (ig != null)
             foreach (Transform c in ig)
             {
@@ -3826,7 +3867,7 @@ public static class EdoOkabeYashikiBuilder
                 //   見え面は区画の線の外へ出て、線の内の節点(台の天端の側 16.4)から線の外の節点(12.7)まで一次で描かれ、
                 //   東の長屋の台(IG_N40_2・N41)の見え面の前に高さ最大 2.9m の土の楔が鋸の歯に立った。許しは皮の描きの許し(0.10)。
                 Vector2 fa;
-                if (!near && EdoBuild.OutsideFootExcess(c.gameObject, Poly, EdoBuild.BaseDem(), out fa) > 0.10f) { near = true; igOut++; }
+                if (!near && EdoBuild.OutsideFootExcess(c.gameObject, Poly, outBase, out fa) > 0.10f) { near = true; igOut++; }
                 if (near) { parts.Add(c.gameObject); band.Add(c.gameObject); igN++; }
             }
         if (kai != null)
@@ -4178,7 +4219,7 @@ public static class EdoOkabeYashikiBuilder
             crestCover = crestCover
         };
         // ⭐ 区画の外の節点は区画の外の地盤(今の地形・区画の内と駒の下の節点は造成前)で持たせる(EDO-0502 第29巡)── 外周の石垣の見え面の前
-        EdoBuild.DesignOutsideOwn(design, parts, sb);
+        { var bk = design.baseAt; design.baseAt = OutsideBase(); EdoBuild.DesignOutsideOwn(design, parts, sb); design.baseAt = bk; }   // 区画の外の描きだけ道の線際の均しを見る(OutsideBase・第105巡)
         if (EdoBuild.SkinTrace != null)
             for (int k = 0; k < gh.Length; k++) if (hold[k]) EdoBuild.SkinTraceLog.AppendLine("  小口の土の節点 #" + k + " 皮へ渡す前 " + design.h[k].ToString("F3") + " ok " + design.ok[k]);
         // ⭐ 部材に埋まった地形の木(幹の足が土留め・石垣・石段の外形の中)は先に退ける(EdoBuild.RetireTreesInParts・硬い)──
@@ -7233,6 +7274,7 @@ public static class EdoOkabeYashikiBuilder
             case "Noshibei":   return EdoAssets.Own.Noshibei(a0 > 0f ? a0 : wKen);
             // ---- 門・木戸
             case "Munamon":    return wKen > 0f ? EdoAssets.Own.Munamon(wKen, false) : null;
+            case "MunamonSode": return (a0 > 0f ? a0 : wKen) > 0f ? EdoAssets.Own.MunamonSode(a0 > 0f ? a0 : wKen, a1, false) : null;
             // ⚠ 木戸の**X の実寸は開口より柱2本ぶん広い**(2.727→3.197 / 2.909→3.379)。
             //    塀の run はその**実寸の外側**に取り付く(開口の値で継ぐと 0.47m 食い込む)
             case "Kido":       return (a0 > 0f ? a0 : wKen) > 0f

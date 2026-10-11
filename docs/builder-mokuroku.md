@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 94・関数 934(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 94・関数 935(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -25,7 +25,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoDoiBuilder.cs](#edodoibuildercs) | 土井大隅守上屋敷(三河刈谷藩2万3千石・譜代・雁間)ビルダー。 | 15 | 89 |
 | [EdoMatsudairaDewaBuilder.Niwa.cs](#edomatsudairadewabuilderniwacs) | 松平出羽守上屋敷 — 庭の工程(池・築山・水の系・石組・点景・滝見口)。 | 9 | 30 |
 | [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 16 | 120 |
-| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 21 | 251 |
+| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 21 | 252 |
 | [EdoSannoShaBuilder.cs](#edosannoshabuildercs) | 山王権現社(日枝神社)本体+樹下家邸+山王門前町ビルダー (2026-08-11。観理院は 2026-09-26 に類型へ移し削除) | 1 | 31 |
 | [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 13 | 102 |
 | [EdoSanyashikiRebuild.cs](#edosanyashikirebuildcs) | 三屋敷(太田・加納・鍋島=松平肥前守)の区画を下書きv3へ更新 (2026-08-08) | 0 | 6 |
@@ -597,7 +597,8 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `Stage2_Perimeter_()` | `string` |  | — |
 | `MiterOf(kutaiPath, r, sSign, warn)` | `string` |  | 区画の角で留めた表長屋の版(EDO-0502 2026-10-03)を引く。 |
 | `JoinEndToNagaya(kak, r, atStart, sEnd, wait)` | `bool` |  | 練塀の端を隣の辺の線で斜めに切った駒の据え場所(EDO-0502 2026-10-03・部材の約束は EdoAssets.Own.DobeiKiri)。 |
-| `PlaceTomeBashira(kak, r, rs0, rs1, wait)` | `int` |  | 練塀の留め柱(指図 runs[].tomeBashira ── face「東の面を長屋 X の背の面に接して立てる【硬: 隙0】。 |
+| `PrePlaceTomeForKado(kak)` | `string` |  | 留め柱を隅の駒より先に据え、柱で止まる辺の腕の先の範囲を取る(第116巡 ── 第115巡 P2 の腕が辺1 を 0.75 越えて長屋 N41_5 の妻と柱を貫いた)。 |
+| `PlaceTomeBashira(kak, r, rs0, rs1, wait)` | `int` |  | — |
 | `ButtMissingKado(kak, kadoLo, kadoHi)` | `string` |  | 練塀の隅の駒が焼けていない出隅(算出物 corners の part = Dobei・Kado_&lt;id&gt; が据わらない)を突き付けで仮に納める: 入りの run は出の run の外面の線まで(s = L −… |
 | `KiriEnd(r, atStart, sEnd)` | `KeyValuePair<string, Vector3>` |  | — |
 | `PlaceOmoteNagaya(kak, wait)` | `string` |  | 外周の表長屋と表門。⭕ 2026-09-04 裁定12=A(二階・棟 7.183 / 表門の棟 8.5)。 |

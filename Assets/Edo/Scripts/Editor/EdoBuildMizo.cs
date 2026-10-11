@@ -2678,7 +2678,7 @@ public static partial class EdoBuild
 
     /// <summary>段落ち・落としの並べ(返り値)。rises = 段ごとの実測の 1段・tailY = 尻の底(段の後の高さ)。
     /// overlap = 踏面が駒より短いときの段の駒どうしの重ねの最大[m](柔・0 = 重ねない)/ headOut = 頭の駒が線の頭より上流へ出る量[m]。</summary>
-    public class StepRun { public bool ok = true; public string hard = "", soft = ""; public int steps; public float headY, tailY, pitch, length, overlap, headOut; public List<float> rises = new List<float>(); public List<GameObject> pieces = new List<GameObject>(); }
+    public class StepRun { public bool ok = true; public string hard = "", soft = ""; public int steps; public float headY, tailY, pitch, length, overlap, headOut, wallH, rimLo = float.NaN, rimHi = float.NaN; public List<float> rises = new List<float>(); public List<GameObject> pieces = new List<GameObject>(); }
 
     static GameObject SeatAt(Transform parent, string path, string name, Vector2 at, float yaw, Vector3 localRef, float y)
     {
@@ -2755,6 +2755,76 @@ public static partial class EdoBuild
             if (go != null) R.pieces.Add(go);
             y -= sp.Rise;
         }
+        return R;
+    }
+
+    /// <summary>**型 H 石組の段落ちを地表なりに埋めて並べる**(施主 2026-10-11「溝の上面が地表の面と一致しているべき」・EDO-0502 第116巡)。
+    /// <see cref="LayDanOchi"/> は踏面を等分して段の数で落とすので、駒の側の天端(底 + 実測の壁の丈 ≈0.49)が斜面の地表から 0.3〜0.5 立った(第115巡の写真)。
+    /// 置き方(oki-kata の4手): ① 固定側 = 頭の底 <paramref name="headY"/>(上流の溝の尻の底)と地表(<paramref name="groundAt"/>)。
+    /// ② 触れる所 = 駒の**側の天端**(平らな駒の実メッシュの天端 − 底 = 壁の丈)を地表へ ── 狙いの底 = 地表 − 壁の丈。
+    /// ③ 上流から 0.25 刻みに歩き、今の底が狙いより 0.125 以上高く、前の段鼻から駒の長さ以上離れたら、その所に段を一つ置く
+    ///    (1段 = 差を 0.05 刻みに・実測の 1段 ≤ <paramref name="riseMax"/>【硬】・底 ≥ <paramref name="tailMin"/>【硬】)。段の間は平らな駒で埋める。
+    /// ④ 測る: 側の天端 − 地表(駒の継ぎ目ごと・据えた直後)を rimLo/rimHi に ── 残りは <see cref="FlushGroundToStepTop"/> が帯の地面を天端へ合わせる。
+    /// 柔: 頭・尻の継ぎ目は相手の溝の深さと壁の丈が違う(型A は 0.10〜0.30・型H は 0.49)── 継ぎ目の駒は天端が地表より立つ(⚠ と実測で名乗る・部材の側の話)。
+    /// 当たる先: 斜面の溝の段落ち(岡部 D_MinamiHei の main・east)。土井 D9/D10/D11 の <see cref="LayDanOchi"/> も同じ置き方へ移せる。</summary>
+    public static StepRun LayDanOchiOnGround(Transform parent, string prefix, Vector2 p0, Vector2 p1, float headY, Func<Vector2, float> groundAt, float tailMin, float riseMax, Func<float, string> pathOfRise)
+    {
+        var R = new StepRun { headY = headY };
+        float L = Vector2.Distance(p0, p1); R.length = L; if (L < 0.3f) { R.ok = false; R.hard += "平面の長さが 0.3m に満たない・"; return R; }
+        string flat = pathOfRise(0f); var mf = MizoPieceOf(flat); if (!mf.ok) { R.ok = false; R.hard += "平らな駒が測れない " + (flat ?? "(名が無い)") + "・"; return R; }
+        float wallH = mf.top - mf.floor; R.wallH = wallH;
+        // 焼いた 1段 のうち実測が上限以下の最大
+        float rCap = 0f; for (float r = 0.15f; r <= 0.451f; r += 0.05f) { var sp0 = StepPieceOf(pathOfRise(r)); if (sp0.ok && sp0.Rise <= riseMax + 1e-4f) rCap = r; }
+        if (rCap < 0.149f) { R.ok = false; R.hard += "1段 ≤ " + riseMax.ToString("F2") + " の段の駒が無い・"; return R; }
+        Vector2 dir = (p1 - p0).normalized; float yaw = Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg;
+        var steps = new List<KeyValuePair<float, string>>(); var sps = new List<StepPiece>(); var floors = new List<float> { headY };
+        float f = headY, last = float.NegativeInfinity, pLen = StepPieceOf(pathOfRise(0.15f)).Len;
+        for (float s = 0f; s <= L - 0.25f + 1e-4f; s += 0.25f)
+        {
+            if (s - last < pLen - 1e-3f) continue;
+            float g = groundAt(p0 + dir * Mathf.Min(L, s + 0.375f)); if (float.IsNaN(g)) continue;
+            float tgt = g - wallH; if (!float.IsNaN(tailMin)) tgt = Mathf.Max(tgt, tailMin);
+            float e = f - tgt; if (e < 0.125f) continue;
+            float r = Mathf.Clamp(Mathf.Floor((e + 0.025f) / 0.05f + 1e-3f) * 0.05f, 0.15f, rCap);
+            StepPiece sp = null; string path = null;
+            for (; r >= 0.149f; r -= 0.05f) { path = pathOfRise(r); sp = StepPieceOf(path); if (!sp.ok) continue; if (float.IsNaN(tailMin) || f - sp.Rise >= tailMin - 1e-4f) break; }
+            if (r < 0.149f || sp == null || !sp.ok) break;
+            steps.Add(new KeyValuePair<float, string>(s, path)); sps.Add(sp); R.rises.Add(sp.Rise); f -= sp.Rise; floors.Add(f); last = s;
+        }
+        R.steps = steps.Count; R.tailY = f; R.pitch = steps.Count > 0 ? L / steps.Count : L;
+        // 据える: 段の駒は段鼻(実測の upper・noseZ)を (s, 前の底) へ。間は平らな駒(端は引き戻して重ねる)
+        int nm = 0;
+        Action<float, float, float> fill = (a, b, yy) =>
+        {
+            float lf = mf.len; if (b - a < 0.02f) return;
+            int n = Mathf.Max(1, Mathf.CeilToInt((b - a) / lf - 1e-3f));
+            for (int i = 0; i < n; i++)
+            {
+                float sc = Mathf.Min(a + lf * (i + 0.5f), b - lf * 0.5f);
+                var go = SeatAt(parent, flat, prefix + "_F" + (nm++).ToString("00"), p0 + dir * sc, yaw, new Vector3(0f, mf.floor, 0.5f * (mf.zMin + mf.zMax)), yy);
+                if (go != null) R.pieces.Add(go);
+            }
+        };
+        float cov = 0f;
+        for (int k = 0; k < steps.Count; k++)
+        {
+            var sp = sps[k]; float sN = steps[k].Key, up0 = sN - (sp.noseZ - sp.zMin), dn1 = sN + (sp.zMax - sp.noseZ);
+            fill(cov, up0, floors[k]);
+            var go = SeatAt(parent, steps[k].Value, prefix + "_D" + k.ToString("00"), p0 + dir * sN, yaw, new Vector3(0f, sp.upper, sp.noseZ), floors[k]);
+            if (go != null) R.pieces.Add(go);
+            cov = Mathf.Max(cov, dn1);
+        }
+        fill(cov, L, f);
+        // 側の天端 − 地表(据えた直後・地面を合わせる前)
+        R.rimLo = float.MaxValue; R.rimHi = float.MinValue;
+        for (float s = 0.125f; s <= L; s += 0.25f)
+        {
+            int k = 0; while (k < steps.Count && steps[k].Key <= s) k++;
+            float g = groundAt(p0 + dir * s); if (float.IsNaN(g)) continue; float d = floors[k] + wallH - g;
+            R.rimLo = Mathf.Min(R.rimLo, d); R.rimHi = Mathf.Max(R.rimHi, d);
+        }
+        if (!float.IsNaN(tailMin) && Mathf.Abs(f - tailMin) < 1e-3f && R.rimHi > 0.05f)
+            R.soft += "尻の底は下限 " + tailMin.ToString("F2") + " で止まる ── 側の天端が地表より最大 " + R.rimHi.ToString("F2") + " 立つ(壁の丈 " + wallH.ToString("F2") + " の駒しか無い)・";
         return R;
     }
 

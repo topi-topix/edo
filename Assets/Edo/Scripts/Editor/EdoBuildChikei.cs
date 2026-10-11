@@ -283,6 +283,67 @@ public static partial class EdoBuild
         return "溝の両脇 " + band.ToString("0.00") + "m の地面を縁石の天端へ合わせた: 駒 " + nPiece + "・上げた節点 " + nUp + "(最大 " + mUp.ToString("F3") + ")・下げた節点 " + nDown + "(最大 " + mDown.ToString("F3") + ")" + (nApronAll > 0 ? "・うち地際の張り出しの駒 " + nApronAll + "(帯は板の外の縁から・高さは板の外の縁の天端)" : "") + "(地形 " + t.name + ")";
     }
 
+    /// <summary>**段落ちの駒(型H)の両脇の地面を駒の側の天端へ合わせる**(<see cref="FlushGroundToMizoTop"/> の段落ち版・EDO-0502 第116巡)。
+    /// 段落ちの駒は側の天端が駒の中で段になる(上の底 +0.49 → 下の底 +0.49)ので、縁石の天端一つ(<see cref="MizoCurbTop"/>)では読めない ──
+    /// 駒の実メッシュの側の壁(|x| ≥ 0.30)の頂点の最も高い所を局所 z の 0.05 刻みで測り(側ごと)、駒の外形の外 <paramref name="band"/> 以内の節点をその局所 z の天端へ(上げも下げも)。
+    /// 二つの駒の帯に入る節点は外形に近い方。外形の中は触らない(<see cref="SinkGroundUnderMizo"/> が下げる)。帯の外は触らない【硬】。書くのは <see cref="T"/>。
+    /// 当たる先: Doi_DanOchi_* を地表に埋める所すべて(岡部 D_MinamiHei・土井 D9/D10/D11 を移すとき)。</summary>
+    public static string FlushGroundToStepTop(IEnumerable<GameObject> pieces, float band = 0.30f, string undoPath = null)
+    {
+        var t = T(); var td = t.terrainData; var org = t.transform.position; int R = td.heightmapResolution; float hs = td.size.x / (R - 1);
+        var want = new Dictionary<long, Vector2>(); int nPiece = 0; var prof = new Dictionary<string, SortedDictionary<int, float>[]>();
+        foreach (var g in pieces)
+        {
+            if (g == null || !g.activeInHierarchy) continue;
+            string path = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(g); if (string.IsNullOrEmpty(path) || !System.IO.Path.GetFileName(path).StartsWith("Doi_DanOchi_", StringComparison.Ordinal)) continue;
+            var sp = StepPieceOf(path); if (!sp.ok) continue;
+            SortedDictionary<int, float>[] pr;
+            if (!prof.TryGetValue(path, out pr))
+            {
+                pr = new[] { new SortedDictionary<int, float>(), new SortedDictionary<int, float>() }; var V = new List<Vector3>(); var Tr = new List<int>(); LocalMesh(path, V, Tr);
+                float xw = 0.5f * sp.xMax;
+                foreach (var v in V) { if (Mathf.Abs(v.x) < xw) continue; var d = pr[v.x > 0f ? 1 : 0]; int b = Mathf.FloorToInt(v.z / 0.05f); float o; if (!d.TryGetValue(b, out o) || v.y > o) d[b] = v.y; }
+                prof[path] = pr;
+            }
+            nPiece++;
+            var l2w = g.transform.localToWorldMatrix; var w2l = g.transform.worldToLocalMatrix;
+            float x0 = float.MaxValue, x1 = float.MinValue, z0 = float.MaxValue, z1 = float.MinValue;
+            foreach (var lx in new[] { sp.xMin - band, sp.xMax + band }) foreach (var lz in new[] { sp.zMin, sp.zMax }) { var w = l2w.MultiplyPoint3x4(new Vector3(lx, 0f, lz)); x0 = Mathf.Min(x0, w.x); x1 = Mathf.Max(x1, w.x); z0 = Mathf.Min(z0, w.z); z1 = Mathf.Max(z1, w.z); }
+            int i0 = Mathf.Max(0, Mathf.FloorToInt((x0 - org.x) / hs)), i1 = Mathf.Min(R - 1, Mathf.CeilToInt((x1 - org.x) / hs));
+            int j0 = Mathf.Max(0, Mathf.FloorToInt((z0 - org.z) / hs)), j1 = Mathf.Min(R - 1, Mathf.CeilToInt((z1 - org.z) / hs));
+            for (int j = j0; j <= j1; j++)
+                for (int i = i0; i <= i1; i++)
+                {
+                    var lp = w2l.MultiplyPoint3x4(new Vector3(org.x + i * hs, g.transform.position.y, org.z + j * hs));
+                    if (lp.z < sp.zMin - 1e-4f || lp.z > sp.zMax + 1e-4f) continue;
+                    float ex; int side; if (lp.x > sp.xMax) { ex = lp.x - sp.xMax; side = 1; } else if (lp.x < sp.xMin) { ex = sp.xMin - lp.x; side = 0; } else continue;
+                    if (ex > band + 1e-4f) continue;
+                    var d = pr[side]; if (d.Count == 0) d = pr[1 - side]; int b0 = Mathf.FloorToInt(lp.z / 0.05f); float top = float.NaN; int bd = int.MaxValue;
+                    foreach (var kv in d) { int dd = Mathf.Abs(kv.Key - b0); if (dd < bd || (dd == bd && kv.Value > top)) { bd = dd; top = kv.Value; } }
+                    if (float.IsNaN(top)) continue;
+                    float y = l2w.MultiplyPoint3x4(new Vector3(lp.x, top, lp.z)).y;
+                    long k = ((long)i << 32) ^ (uint)j; Vector2 cur; if (!want.TryGetValue(k, out cur) || ex < cur.y) want[k] = new Vector2(y, ex);
+                }
+        }
+        int nUp = 0, nDown = 0; float mUp = 0f, mDown = 0f; var undo = new List<float[]>();
+        if (want.Count > 0)
+        {
+            int i0 = int.MaxValue, i1 = int.MinValue, j0 = int.MaxValue, j1 = int.MinValue;
+            foreach (var k in want.Keys) { int i = (int)(k >> 32), j = (int)(uint)(k & 0xffffffff); i0 = Mathf.Min(i0, i); i1 = Mathf.Max(i1, i); j0 = Mathf.Min(j0, j); j1 = Mathf.Max(j1, j); }
+            var H = td.GetHeights(i0, j0, i1 - i0 + 1, j1 - j0 + 1);
+            foreach (var kv in want)
+            {
+                int i = (int)(kv.Key >> 32), j = (int)(uint)(kv.Key & 0xffffffff);
+                float cur = H[j - j0, i - i0] * td.size.y + org.y, y = kv.Value.x; if (Mathf.Abs(y - cur) < 1e-4f) continue;
+                if (y > cur) { nUp++; mUp = Mathf.Max(mUp, y - cur); } else { nDown++; mDown = Mathf.Max(mDown, cur - y); }
+                H[j - j0, i - i0] = (y - org.y) / td.size.y; undo.Add(new[] { i, j, H[j - j0, i - i0], (cur - org.y) / td.size.y });
+            }
+            if (undo.Count > 0) { td.SetHeights(i0, j0, H); AssetDatabase.SaveAssetIfDirty(td); }
+        }
+        WriteUndo(undoPath, t.name, undo);
+        return "段落ちの両脇 " + band.ToString("0.00") + "m の地面を駒の側の天端へ合わせた: 駒 " + nPiece + "・上げた節点 " + nUp + "(最大 " + mUp.ToString("F3") + ")・下げた節点 " + nDown + "(最大 " + mDown.ToString("F3") + ")(地形 " + t.name + ")";
+    }
+
     /// <summary>下げた節点の控えを足す(地形の名・数・[i, j, 下げた値, 元の値]… の塊を追記)。</summary>
     static void WriteUndo(string undoPath, string terrainName, List<float[]> undo)
     {

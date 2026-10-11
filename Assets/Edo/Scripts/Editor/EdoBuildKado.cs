@@ -79,6 +79,24 @@ public static partial class EdoBuild
                                 float scale, float armFullLocal, float faceDepthLocal, float faceIn, float bodyIn,
                                 float stepLocal, float minArm, out Vector2 armsLocal, out string note)
     {
+        float wallT = bodyIn - faceIn;
+        return KadoArms(poly, vertex, isKado, outNormal, scale, armFullLocal, faceDepthLocal, (e, k) => faceIn, wallT, stepLocal, minArm, null, out armsLocal, out note);
+    }
+
+    /// <summary><see cref="KadoArms(Vector2[], int, Func{int, bool}, Func{int, Vector2}, float, float, float, float, float, float, float, out Vector2, out string)"/> の
+    /// **頂点ごとの控え**と**隅でない端の止め**を持つ版(2026-10-12 EDO-0502 第116巡)。
+    /// <para><paramref name="faceInAt"/>(辺 e・頂点 k → その辺の頂点 k の側の外面の控え)── 据え点 = 両辺の外面の線(控え + 部材の控え)の**交点**
+    /// (<see cref="KadoFace"/> が据える所)。辺ごとに控えが違う隅(犬走り 0 の辺 × c+0.3 の辺)では、据え点は辺に沿って (d_相手 − d_自分·cosδ)/sinδ だけ動く。
+    /// ⛔ 両辺の控えの深い方を一つ取って tan(δ/2) で割らない(第115巡: 岡部 P3 は辺2 0.41 × 辺3 0.72 で据え点が 0.31 ずれ、辺3 に 0.31 の口)。
+    /// ⛔ 呼んだ頂点の控えを相手の頂点にも使わない(同じ辺を両端が違う控えで割り、辺2 で 0.23 重なった)。一つの辺は、どちらの頂点から呼んでも同じ割りになる。</para>
+    /// <para><paramref name="freeEnd"/>(辺 e → 隅でない端の頂点から測った、腕の先を置いてよい範囲 (tMin, tMax)・NaN = 止め無し)。
+    /// 隅でない端が留め柱・長屋の妻で止まるなら、腕の先は [tMin, tMax](例: 柱の近い面 〜 柱の遠い面 − 重ね)に入れる【硬: 越えない】。
+    /// ⛔ 止めを渡さないと入隅の先へ腕が伸びてよい扱い(相手の辺に塀が続く前提)── 第115巡 P2 の腕が辺1 を 0.75 越え、長屋 N41_5 の妻と留め柱を貫いた。
+    /// 当たる先: 練塀の短い辺の隅すべて(岡部 P2〜P4・土井・松江松平の短い辺は同じ関数 ── 定数の控えなら旧い版と同じ値)。</para></summary>
+    public static bool KadoArms(Vector2[] poly, int vertex, Func<int, bool> isKado, Func<int, Vector2> outNormal,
+                                float scale, float armFullLocal, float faceDepthLocal, Func<int, int, float> faceInAt, float wallT,
+                                float stepLocal, float minArm, Func<int, Vector2> freeEnd, out Vector2 armsLocal, out string note)
+    {
         int n = poly.Length;
         int v = ((vertex % n) + n) % n;
         Func<int, int> W = k => ((k % n) + n) % n;
@@ -90,7 +108,16 @@ public static partial class EdoBuild
         };
         Func<int, float> tanH = k =>
             (convex(k) ? 1f : -1f) * Mathf.Tan(Mathf.Abs(KadoDeg(poly, W(k))) * 0.5f * Mathf.Deg2Rad);
-        float pivotIn = faceIn + faceDepthLocal * scale, fullW = armFullLocal * scale;
+        // 頂点 k の符号付きの折れ(出隅 +・入隅 −)
+        Func<int, float> dlt = k => (convex(k) ? 1f : -1f) * Mathf.Abs(KadoDeg(poly, W(k))) * Mathf.Deg2Rad;
+        // 頂点 k で、辺 eThis の d 内寄せ線と相手の辺 eOther の d' 内寄せ線の交点の、eThis に沿った頂点からの距離(辺の内向き = +)
+        Func<int, float, float, float> along = (k, dThis, dOther) =>
+        {
+            float d = dlt(k), sn = Mathf.Sin(d);
+            if (Mathf.Abs(sn) < 0.05f) return 0.5f * (dThis + dOther) * Mathf.Tan(0.5f * d);
+            return (dOther - dThis * Mathf.Cos(d)) / sn;
+        };
+        float fdW = faceDepthLocal * scale, fullW = armFullLocal * scale;
         string nt = null;
         // 辺 e(始点 i → 終点 j)の (始点の隅の出の腕, 終点の隅の入りの腕)
         Func<int, Vector2> edge = e =>
@@ -98,17 +125,30 @@ public static partial class EdoBuild
             int i = W(e), j = W(e + 1);
             float L = (poly[j] - poly[i]).magnitude;
             bool ki = isKado(i), kj = isKado(j);
-            float si = ki ? pivotIn * tanH(i) : 0f, sj = kj ? pivotIn * tanH(j) : 0f;
-            float maxI = L - (convex(j) ? faceIn : bodyIn) * tanH(j) - si;
-            float maxJ = L - (convex(i) ? faceIn : bodyIn) * tanH(i) - sj;
-            if ((!ki || fullW <= maxI) && (!kj || fullW <= maxJ)) return new Vector2(armFullLocal, armFullLocal);
-            float need = L - si - sj, share = (ki && kj) ? need * 0.5f : need;
+            float fEi = faceInAt(W(e), i), fPi = faceInAt(W(e - 1), i), fEj = faceInAt(W(e), j), fNj = faceInAt(W(e + 1), j);
+            float si = ki ? along(i, fEi + fdW, fPi + fdW) : 0f, sj = kj ? along(j, fEj + fdW, fNj + fdW) : 0f;
+            float maxI = L - (convex(j) ? along(j, fEj, fNj) : along(j, fEj + wallT, fNj + wallT)) - si;
+            float maxJ = L - (convex(i) ? along(i, fEi, fPi) : along(i, fEi + wallT, fPi + wallT)) - sj;
+            float need = L - si - sj;
+            // 隅でない端の止め(留め柱・長屋の妻): 腕の先を [tMin, tMax] に入れる【硬】
+            Vector2 fe = freeEnd != null && (ki != kj) ? freeEnd(W(e)) : new Vector2(float.NaN, float.NaN);
+            bool stop = !float.IsNaN(fe.x);
+            if (stop)
+            {
+                if (kj) { maxJ = L - fe.x - sj; need = L - fe.y - sj; }
+                else { maxI = L - fe.x - si; need = L - fe.y - si; }
+            }
+            if (!stop && (!ki || fullW <= maxI) && (!kj || fullW <= maxJ)) return new Vector2(armFullLocal, armFullLocal);
+            if (stop && (kj ? fullW <= maxJ && fullW >= need : fullW <= maxI && fullW >= need)) return new Vector2(armFullLocal, armFullLocal);
+            float share = (ki && kj) ? need * 0.5f : need;
             Func<float, float, float> pick = (mx, want) => Mathf.Min(armFullLocal,
                 Mathf.Min(Mathf.Floor(mx / scale / stepLocal + 1e-4f) * stepLocal,
                           Mathf.Ceil(want / scale / stepLocal - 1e-4f) * stepLocal));
             float aI = ki ? pick(maxI, share) : 0f, aJ = kj ? pick(maxJ, share) : 0f;
             if ((aI + aJ) * scale < need - 1e-3f)
                 nt = (nt == null ? "" : nt + " / ") + "辺" + e + " 腕の間に隙 " + (need - (aI + aJ) * scale).ToString("F2") + "m";
+            if (stop && (aI + aJ) * scale > (kj ? maxJ : maxI) + 1e-3f)
+                nt = (nt == null ? "" : nt + " / ") + "辺" + e + " 止めの範囲に刻みが入らない(腕 " + ((aI + aJ) * scale).ToString("F3") + " > 上限 " + (kj ? maxJ : maxI).ToString("F3") + ")";
             return new Vector2(aI, aJ);
         };
         armsLocal = new Vector2(edge(v - 1).y, edge(v).x);

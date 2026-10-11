@@ -164,7 +164,7 @@
 - [入隅の先の練塀は長屋の背の裏へ回る・門の前の土の塊は溜りの面](concave-corner-wall-behind-nagaya-back.md) — 岡部 P1 0.34 の口(c 実測 0.5)・TsuyoTamari が線まで 12.2・graded は seatRule を読まない
 - [倍率の基壇の隅は丈 0.5 刻みで引かれない・名指しの腕の版は面が変わると辺を越える](scaled-kado-height-and-named-arm-parts.md) — S042 が「焼いていない」・Stage1 の 1m 造成の ⚠ と Reload
 - [路地の南の帯が隣へ盛る・隅の駒の床の下の足を掘る](roji-south-band-spill-and-buried-toe-sink.md) — 帯は区画の線で切る(perimeterRetain は隣を戻さない)・Sink に floorMin
-- [KadoArms は頂点ごとの faceIn で同じ辺の腕が食い違う・隅でない端は上限なし](kadoarms-per-vertex-facein-and-free-end.md) — 辺3 に 0.31 の口・P2 の腕が P1 を 0.75 越えた。0.5 の駒で塞ぐ
+- [KadoArms の据え点は両辺の外面の線の交点](kadoarms-pivot-is-line-intersection.md)・[頂点ごとの faceIn・隅でない端](kadoarms-per-vertex-facein-and-free-end.md) — P3 の 0.31 の口・P2 の腕は freeEnd で柱の中へ・型H の壁 0.49・旧い皮の穴 3343
 
 ## 測り方・関門
 - [検査役の execute_code の全文は MCP の log に残る](qa-code-in-mcp-log.md)・[地形の前後の差は資産の写しから採れる](terrain-diff-from-asset-copy.md)・[検証レンダの構図は残らない](render-camera-poses-not-kept.md) — 測りは log から抜く・int16 の塊・構図は cams.txt
@@ -196,6 +196,5 @@
 - [見え面の足元の山形は外形の中の節点](wall-foot-ridge-from-nodes-under-hull.md) — 皮が近くの点を地形のまま描いた。CleanAt・差で混ぜる・Stage9 は6回走る
 - [盛土の床・基壇の向き・設計面の縁の溝](fill-only-floor-and-base-facing.md) — fillOnly を皮の面にしない・BlockOutward・DesignOut は地形で埋める
 - [総当たりの計測は Unity を1時間ふさぐ](brute-force-measure-hangs-unity.md) — 升の索引+印で打つ。RayToBodies は1呼び出し100本まで・mesh.vertices を輪の中で呼ばない(四度目 10-05)
-- [落とした後の Stage9 は空の皮](unity-kill-leaves-holes-without-skin.md)・[皮の段プレハブのメッシュが消える](skin-mesh-missing-leaves-holes-open.md) — 穴は地形・皮はシーン / S1 の塞いだ升を前の巡と比べる
-- [線の上の基壇・柵は区画外に出る](line-sitting-pieces-pivot-out.md)・[区画の辺に沿う城の石垣の罠](castle-run-along-parcel-edge-traps.md) — 端の控え・芯置き / VTX_TOL・PullAlongInside・駒の実長>送り
+- [落とした後の Stage9 は空の皮](unity-kill-leaves-holes-without-skin.md)・[皮の段プレハブのメッシュが消える](skin-mesh-missing-leaves-holes-open.md) — 穴は地形・皮はシーン / S1 の塞いだ升を前の巡と比べる / [線の上の基壇・柵は区画外に出る](line-sitting-pieces-pivot-out.md)・[区画の辺に沿う城の石垣の罠](castle-run-along-parcel-edge-traps.md) — 端の控え・芯置き / VTX_TOL・PullAlongInside・駒の実長>送り
 - [隅の腕は短辺を越えて区画外へ出る](kado-arm-overruns-short-edge.md)・[旧案の一括削除は分類器が止める](bulk-delete-denied-by-auto-mode.md) — 岡部 P2〜P4 が外・駒の頂点を PIP / 役経由の一括削除は不可 / [短い組の c・丈の高い端の駒](castle-run-short-group-c-and-tall-foot.md) — 辺の線で c・一つずつ内へ

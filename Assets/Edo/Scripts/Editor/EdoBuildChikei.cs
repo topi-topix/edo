@@ -110,6 +110,7 @@ public static partial class EdoBuild
         if (string.IsNullOrEmpty(path)) return false;
         string f = System.IO.Path.GetFileNameWithoutExtension(path);
         if (f.StartsWith("Doi_Masu_", StringComparison.Ordinal)) return true;
+        if (f.StartsWith("Doi_DanOchi_", StringComparison.Ordinal)) return true;   // 型H の段落ち(駒が底と壁を持つ ── 第115巡 岡部 D_MinamiHei)
         return f.StartsWith("Doi_Mizo_", StringComparison.Ordinal) && f.IndexOf("Kasa", StringComparison.Ordinal) < 0;
     }
 

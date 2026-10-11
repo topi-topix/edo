@@ -2463,6 +2463,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: IG_N39_0_0_0_0_0_03
       objectReference: {fileID: 0}
+    - target: {fileID: 145410, guid: d481c04554325644fbd3ca3d83a32f4b, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 448168, guid: d481c04554325644fbd3ca3d83a32f4b, type: 3}
       propertyPath: m_LocalScale.x
       value: 0.75
@@ -2906,6 +2910,10 @@ PrefabInstance:
     - target: {fileID: 145410, guid: d481c04554325644fbd3ca3d83a32f4b, type: 3}
       propertyPath: m_Name
       value: IG_N39_0_0_0_0_0_04
+      objectReference: {fileID: 0}
+    - target: {fileID: 145410, guid: d481c04554325644fbd3ca3d83a32f4b, type: 3}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 448168, guid: d481c04554325644fbd3ca3d83a32f4b, type: 3}
       propertyPath: m_LocalScale.x
@@ -6458,6 +6466,10 @@ PrefabInstance:
     - target: {fileID: 145410, guid: d481c04554325644fbd3ca3d83a32f4b, type: 3}
       propertyPath: m_Name
       value: IG_N39_0_0_0_0_0_11
+      objectReference: {fileID: 0}
+    - target: {fileID: 145410, guid: d481c04554325644fbd3ca3d83a32f4b, type: 3}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 448168, guid: d481c04554325644fbd3ca3d83a32f4b, type: 3}
       propertyPath: m_LocalScale.x
@@ -13785,6 +13797,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: IG_N39_0_0_0_0_0_02
       objectReference: {fileID: 0}
+    - target: {fileID: 145410, guid: d481c04554325644fbd3ca3d83a32f4b, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 448168, guid: d481c04554325644fbd3ca3d83a32f4b, type: 3}
       propertyPath: m_LocalScale.x
       value: 0.75
@@ -15338,6 +15354,10 @@ PrefabInstance:
     - target: {fileID: 145410, guid: d481c04554325644fbd3ca3d83a32f4b, type: 3}
       propertyPath: m_Name
       value: IG_N39_0_0_0_0_0_05
+      objectReference: {fileID: 0}
+    - target: {fileID: 145410, guid: d481c04554325644fbd3ca3d83a32f4b, type: 3}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 448168, guid: d481c04554325644fbd3ca3d83a32f4b, type: 3}
       propertyPath: m_LocalScale.x
@@ -25403,6 +25423,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: IG_N39_0_0_0_0_0_10
       objectReference: {fileID: 0}
+    - target: {fileID: 145410, guid: d481c04554325644fbd3ca3d83a32f4b, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 448168, guid: d481c04554325644fbd3ca3d83a32f4b, type: 3}
       propertyPath: m_LocalScale.x
       value: 0.75
@@ -25550,6 +25574,10 @@ PrefabInstance:
     - target: {fileID: 145410, guid: d481c04554325644fbd3ca3d83a32f4b, type: 3}
       propertyPath: m_Name
       value: IG_N39_0_0_0_0_0_09
+      objectReference: {fileID: 0}
+    - target: {fileID: 145410, guid: d481c04554325644fbd3ca3d83a32f4b, type: 3}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 448168, guid: d481c04554325644fbd3ca3d83a32f4b, type: 3}
       propertyPath: m_LocalScale.x
@@ -34703,6 +34731,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: IG_N39_0_0_0_0_0_07
       objectReference: {fileID: 0}
+    - target: {fileID: 145410, guid: d481c04554325644fbd3ca3d83a32f4b, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 448168, guid: d481c04554325644fbd3ca3d83a32f4b, type: 3}
       propertyPath: m_LocalScale.x
       value: 0.75
@@ -39365,6 +39397,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: IG_N39_0_0_0_0_0_08
       objectReference: {fileID: 0}
+    - target: {fileID: 145410, guid: d481c04554325644fbd3ca3d83a32f4b, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 448168, guid: d481c04554325644fbd3ca3d83a32f4b, type: 3}
       propertyPath: m_LocalScale.x
       value: 0.75
@@ -40400,6 +40436,10 @@ PrefabInstance:
     - target: {fileID: 145410, guid: d481c04554325644fbd3ca3d83a32f4b, type: 3}
       propertyPath: m_Name
       value: IG_N39_0_0_0_0_0_06
+      objectReference: {fileID: 0}
+    - target: {fileID: 145410, guid: d481c04554325644fbd3ca3d83a32f4b, type: 3}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 448168, guid: d481c04554325644fbd3ca3d83a32f4b, type: 3}
       propertyPath: m_LocalScale.x

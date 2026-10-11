@@ -454,11 +454,11 @@
 | `Own.DoiOtoshimizo` | string | 水尻の石敷きの落とし溝 — 1m モジュール。 | MatsudairaDewa(PlaceMizo) |
 | `Own.MatsudairaIshidoi` | string | 石樋(松江松平 溝 MZ17 が土留めを抜ける所・EDO-0554)。 | MatsudairaDewa(PlaceMizo), OkabeYashiki(PlaceFrontAnkyo) |
 | `Own.MatsudairaIshibuta1m` | string | 石蓋つきの溝 1m(松江松平 溝 MZ16 の段の頭の前ほか・EDO-0554)。 | MatsudairaDewa(PlaceMizo) |
-| `Own.DoiMizo(kata, depth=…, ago=…)` | 関数 | 排水の溝 1m 駒(型 A/B/C/D/E/F/K)。 | OkabeYashiki(PlaceDrainFrontGutters・PlaceFrontGutters・PlaceMizoSections…), BuildHifu(BindSkinLayers), BuildMizo(MizoPieceOf) |
+| `Own.DoiMizo(kata, depth=…, ago=…)` | 関数 | 排水の溝 1m 駒(型 A/B/C/D/E/F/K)。 | OkabeYashiki(PlaceDrainFrontGutters・PlaceFrontGutters・PlaceMinamiHei…), BuildHifu(BindSkinLayers), BuildMizo(MizoPieceOf) |
 | `Own.DoiMizoKoguchi` | string | 型 A の溝の小口の石(岡部 EDO-0502 第113巡・grading.omoteNagayaDai.mizo の Mizo_Hashi.end「P0 で小口の石で止める」)。 | OkabeYashiki(PlaceMizoSections) |
 | `Own.DoiMizoAKasa(h)` | 関数 | 型 A の外壁の嵩上げ石 1m 駒(岡部 EDO-0502・okabe_sashizu terraces[1].roadEdge 10-10n)。 | OkabeYashiki(PlaceFrontGutters) |
-| `Own.DoiMasu(kata)` | 関数 | 石の桝(型 G1 / G2・切石4枚組・天端 +0.05)。 | OkabeYashiki(PlaceOmoteGesuiLay・PlaceSeRojiAnkyo) |
-| `Own.DoiDanOchi(rise)` | 関数 | 石組の段落ち 1段(型 H・内法 0.60・野面石積みの側 天端 = 段の底 +0.50・平石の段鼻と水叩き)。 | — |
+| `Own.DoiMasu(kata)` | 関数 | 石の桝(型 G1 / G2・切石4枚組・天端 +0.05)。 | OkabeYashiki(PlaceMinamiHei・PlaceOmoteGesuiLay・PlaceSeRojiAnkyo) |
+| `Own.DoiDanOchi(rise)` | 関数 | 石組の段落ち 1段(型 H・内法 0.60・野面石積みの側 天端 = 段の底 +0.50・平石の段鼻と水叩き)。 | OkabeYashiki(PlaceMinamiHei) |
 | `Own.DoiHariOtoshi(rise, nori=…)` | 関数 | 張り石の落とし 1段(型 I・法面を縦に・幅 0.60・平石 t0.12・両脇の縁石 w0.12 天端 +0.06)。 | — |
 | `Own.DoiMizutataki` | string | 法尻の玉石の水叩き 0.90 角・窪み 0.10(型 I の apron)。 | — |
 | `Own.DoiTamaUke` | string | 玉石の受け(型 J)2 × 3間(X 3.636 × Z 5.454)・窪み 0.30・玉石 0.15〜0.30・縁は野面石を半ば埋める。 | — |

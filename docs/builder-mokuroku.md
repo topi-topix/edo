@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 94・関数 926(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 94・関数 934(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -25,7 +25,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoDoiBuilder.cs](#edodoibuildercs) | 土井大隅守上屋敷(三河刈谷藩2万3千石・譜代・雁間)ビルダー。 | 15 | 89 |
 | [EdoMatsudairaDewaBuilder.Niwa.cs](#edomatsudairadewabuilderniwacs) | 松平出羽守上屋敷 — 庭の工程(池・築山・水の系・石組・点景・滝見口)。 | 9 | 30 |
 | [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 16 | 120 |
-| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 21 | 243 |
+| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 21 | 251 |
 | [EdoSannoShaBuilder.cs](#edosannoshabuildercs) | 山王権現社(日枝神社)本体+樹下家邸+山王門前町ビルダー (2026-08-11。観理院は 2026-09-26 に類型へ移し削除) | 1 | 31 |
 | [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 13 | 102 |
 | [EdoSanyashikiRebuild.cs](#edosanyashikirebuildcs) | 三屋敷(太田・加納・鍋島=松平肥前守)の区画を下書きv3へ更新 (2026-08-08) | 0 | 6 |
@@ -637,7 +637,11 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `SeRojiWallName()` | `string` |  | 背の路地の奥の石垣の名(指図 seRoji.w「その先が TW_* の見え面の足元」)。 |
 | `SeRojiPlanOf()` | `SeRojiPlan` | 公 | 背の路地と TW_Higashi_Se を解く(指図 grading.seRoji・terraceWalls[TW_Higashi_Se]【硬】)。 |
 | `SeRojiSouthExtend(P)` | `string` |  | 背の路地の南の延長(指図 grading.seRoji.south「南の端は塞がず、路地の床のまま南の練塀(S_Hei_01 系)の内の足元まで通す【硬】・床 12.15〜12.25・北へ 1/100【柔】」 ・施主裁定… |
-| `SeRojiHeiFoot()` | `string` |  | 練塀の内の足元の帯(指図 grading.seRoji.heiFoot「辺a・b の練塀の内面に沿って幅 w の帯を y にする【硬: 浮き0】。 |
+| `SeRojiHeiFoot(write=…)` | `string` |  | 練塀の内の足元の帯(指図 grading.seRoji.heiFootSpec【硬】・第115巡 ── 第114巡の文の読み(heiFoot の正規表現)から構造の欄へ替えた)。 |
+| `DrainByName(nm)` | `Dictionary<string, object>` |  | drains[D_MinamiHei] を引く(無ければ null)。 |
+| `SeRojiNiwaFill(spl)` | `string` |  | 角の庭の窪みを盛る(指図 drains[D_MinamiHei].niwa「角の庭は全面 a 以上【硬】・どの点からも庭の溝へ下り窪み無し【硬】・高い順に 足元の帯 ≥ 庭 ≥ 溝の天端」・第115巡)。 |
+| `NiwaFilledKeys(yMin)` | `HashSet<long>` |  | 角の庭として盛った節点(Stage2b の SeRojiNiwaFill)── Stage3d の駒の下の下げの下限。 |
+| `NodeKey(x, z)` | `long` |  | — |
 | `SeRojiSouthKadoReport(spl)` | `string` |  | TW_Higashi_Se の南の端の隅の駒(terraceWalls[].southKado・seRoji.southKado)の据わりを刷る: 天端・根入れ(床 − 底)・丈・見え面から 1.0 以内の床 −0.02… |
 | `ClipIn()` | `float` |  | 床・帯の多角形を区画の線から内へ切る幅(指図 grading.seRoji.clipOrder「区画の線から半升(0.125)内で切る」)。 |
 | `SeRojiPlan_Prof(f, s)` | `float` |  | — |
@@ -687,6 +691,10 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `PlaceFrontGutters()` | `string` |  | 長屋の前の下水溝(指図 terraces[].roadEdge 追記 2026-10-10m・runs[].front・drains D_&lt;棟&gt;_Mae・普請方・EDO-0502 第95巡)。 |
 | `PlaceMizoSections()` | `string` |  | 台の前の溝の区間(指図 grading.omoteNagayaDai.mizo ── sections Mizo_Kita / Mizo_Minami / Mizo_Hashi・outlets・outerTop/topL… |
 | `LidEdge(q)` | `int` |  | 点に最も近い区画の辺(蓋石を線の内へ寄せる向き)。 |
+| `FootLinesOn(edges)` | `Dictionary<int, EdoBuild.FootLine>` |  | 辺ごとの練塀の内面の線(実メッシュ ── 練塀・隅の駒・留め柱の頂点を一番近い辺へ)。 |
+| `RXm(t, pat)` | `System.Text.RegularExpressions.Match` |  | 二本の線(点 + 向き)の交点。平行なら NaN。 |
+| `LineX(a0, d0, a1, d1)` | `Vector2` |  | — |
+| `PlaceMinamiHei()` | `string` |  | 南の練塀の内の溝 D_MinamiHei(指図 drains[D_MinamiHei] の segs・第115巡 ── 普請方の設計 2026-10-12)。 |
 | `PlaceSeRojiAnkyo()` | `string` |  | 背の路地の暗渠(指図 drains[D_SeRoji].make ── flow・masu・kuchi・toi・at・table・order・EDO-0502 第109巡)。 |
 | `PlaceDrainFrontGutters()` | `string` |  | 長屋の前の下水溝(drains の route で名指す型)(指図 drains[].route「&lt;棟&gt;/&lt;棟&gt; の前の全長(s a→b)に区画の内の石組の下水溝(型A)」・普請方 2026-10… |
 | `PlaceFrontAnkyo(run, T, tailBottom, sTail, tailPiece)` | `string` |  | 前の下水溝の尻の暗渠(指図 drains D_&lt;棟&gt;_Mae の route ── 普請方 2026-10-10n・EDO-0502 第96巡)。 |

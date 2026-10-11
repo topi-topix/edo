@@ -77,7 +77,7 @@
 | `Goten.ShojiHalf` | string | — | — |
 | `Goten.WallPlaster` | string | — | GotenKit(Mune) |
 | `Goten.WallRenji` | string | — | — |
-| `Goten.Column` | string | — | GotenKit(Mune・Roka) |
+| `Goten.Column` | string | 柱 0.182 角 × 丈 2.727(Village Kit `column A` × S・材 `wood`)。 | GotenKit(Mune・Roka) |
 | `Goten.Beam` | string | — | GotenKit(Roka) |
 | `Goten.Tatami` | string | — | GotenKit(Mune) |
 | `Goten.FloorBoard` | string | — | GotenKit(Mune・Roka), BuildNiwa(IsEngawaPiece) |

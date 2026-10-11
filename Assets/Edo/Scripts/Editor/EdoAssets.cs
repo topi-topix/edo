@@ -141,6 +141,11 @@ public static class EdoAssets
         public const string ShojiHalf   = P + "Goten_ShojiHalf.fbx";     // 障子 半間1枚
         public const string WallPlaster = P + "Goten_WallPlaster_1ken.fbx"; // 白壁(外周)
         public const string WallRenji   = P + "Goten_WallRenji_1ken.fbx";   // 連子窓
+        /// <summary>柱 0.182 角 × 丈 2.727(Village Kit `column A` × S・材 `wood`)。メッシュは Blender で角(X 最小・奥行の一端)が原点 ⇒ 据えは実メッシュで測る。
+        /// ⭐ **練塀の留め柱にも使う**(岡部 runs[S_Hei_01].tomeBashira・EDO-0502 2026-10-12 ── 6寸角の新造は不要と判じた)。
+        /// 天端 = 練塀の座(seat)+ 2.274(= 駒 s_hei_center の壁の天端 1.306 × ES・座 −0.10 の駒の下端から 2.374)で笠の下に納まる。
+        /// そのとき下端は座 −0.453 ⇒ 路地の床 −0.05 より下へ根が埋まる(余りは地中)。
+        ///   blender --background --python Tools/Blender/build_goten_parts.py</summary>
         public const string Column      = P + "Goten_Column.fbx";
         public const string Beam        = P + "Goten_Beam_1ken.fbx";
         public const string Tatami      = P + "Goten_Tatami_1ken.fbx";   // 一間角=江戸間2畳
@@ -2851,7 +2856,10 @@ public static class EdoAssets
         ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 90 --h 4 --s 0.75 --render
         /// **90 × S050**(2026-10-12 EDO-0502 第113巡・岡部 P3 = 辺2 S_Hei_01b × 辺3 S_Hei_01c の基壇 ── 算出物 base の s 0.5・天端 12.3 一直線・PlaceRunCorners の「要る丈 ≥ 2.00」)
         /// 名 H0400_S050 = 実寸の丈 2.00・腕 1.00(辺2 3.0 / 辺3 3.8 に収まる)。X −1.00〜1.20 × Y 0〜2.00 × Z −1.20〜1.00(張り出し 1.20)。
-        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 90 --h 4 --s 0.5 --render</summary>
+        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 90 --h 4 --s 0.5 --render
+        /// **90 × S042**(2026-10-12 EDO-0502・岡部 P3 の辺2/3 の基壇 S_Hei_01c・01d の s 0.42 ── runs[25].kadoEnd・S050 は仮の据えだった)
+        /// 名 H0400_S042 = 実寸の丈 1.68・腕 0.84。X −0.84〜1.008 × Y 0〜1.68 × Z −1.008〜0.84(張り出し 1.008)。据えは S050 と同じ。
+        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 90 --h 4 --s 0.42 --render</summary>
         public static string IshigakiKadoS(float deg, float h, float s)
         {
             string p = IshigakiKado(deg, h);

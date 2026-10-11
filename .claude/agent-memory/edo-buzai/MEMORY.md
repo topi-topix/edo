@@ -109,3 +109,4 @@
 - [縁なしの桝の土の皮・倍率の隅の名は直線材の丈](flush-masu-skirt-and-scaled-kado-h.md) — 面取りの外から空・垂れで塞ぐ・1.2 の段でも H0400_S075(2026-10-11)
 - [天端=地表の細い溝に地形の鋸の歯](mizo-ago-terrain-sawtooth.md) — 地際の板 _Ago 出0.40・厚0.36・材は地形の塗りを世界XZで引く Hifu_KitaTerrain_World(2026-10-12)
 - [板の材の改名で "Soil" 探しが外れる・立った面の世界 UV](apron-mat-rename-and-vertical-skin-uv.md) — ApronBody・層の模様を高さで展開・0° の隅は --deg 0.001(2026-10-12)
+- [練塀の留め柱は Goten_Column・笠の下は座+2.274](tomebashira-goten-column-and-dobei-kasa.md) — 6寸角は新造不要・角が原点・S042 は .meta の guid 替え(2026-10-12)

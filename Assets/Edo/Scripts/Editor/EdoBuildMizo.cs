@@ -121,6 +121,42 @@ public static partial class EdoBuild
         return r;
     }
 
+    /// <summary>溝の駒の**地際の張り出し**(縁石の外の土の板 ── <c>EdoAssets.Own.DoiMizo(kata, d, ago: true)</c>・材 = 地形の土)の局所の実測(倍率の前・Y 回転 0)。
+    /// has = 材の名に "Soil" を含むサブメッシュがある / xBody = 張り出しの内の縁(土の頂点の |x| の最小 = 縁石の外の面)/ xOut = 外の縁(|x| の最大)/
+    /// topIn・topOut = 内の縁・外の縁の天端(各縁から 0.02 以内の土の頂点の最高)/ xInner = 溝の内法の半幅(底の高さ ±0.01 の石の頂点の |x| の最大)。左右対称の板を前提に |x| で測る。</summary>
+    public class MizoApron { public bool has; public float xBody, xOut, topIn, topOut, xInner; }
+    static readonly Dictionary<string, MizoApron> _mizoApronCache = new Dictionary<string, MizoApron>();
+    /// <summary>溝の駒の地際の張り出しを一度だけ測る(<see cref="MizoApron"/>)。張り出しの無い駒は has = false。
+    /// 当たる先: 張り出し付きの溝の駒の下の地面を下げる・両脇の帯を合わせるとき(<see cref="SinkGroundUnderMizo"/> / <see cref="FlushGroundToMizoTop"/>)。</summary>
+    public static MizoApron MizoApronOf(string path)
+    {
+        MizoApron got; if (string.IsNullOrEmpty(path)) return new MizoApron();
+        if (_mizoApronCache.TryGetValue(path, out got)) return got;
+        var r = new MizoApron(); var pf = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+        if (pf != null)
+        {
+            var go = (GameObject)PrefabUtility.InstantiatePrefab(pf);
+            go.transform.position = Vector3.zero; go.transform.rotation = Quaternion.identity; go.transform.localScale = Vector3.one;
+            try
+            {
+                var pts = new List<Vector3>();
+                foreach (var v in BodyOfMat(go.transform, "Soil")) pts.Add(v);
+                if (pts.Count > 0)
+                {
+                    float a = float.MaxValue, b = float.MinValue; foreach (var p in pts) { float ax = Mathf.Abs(p.x); a = Mathf.Min(a, ax); b = Mathf.Max(b, ax); }
+                    float ti = float.MinValue, to = float.MinValue;
+                    foreach (var p in pts) { float ax = Mathf.Abs(p.x); if (ax <= a + 0.02f) ti = Mathf.Max(ti, p.y); if (ax >= b - 0.02f) to = Mathf.Max(to, p.y); }
+                    r.has = b - a > 0.05f; r.xBody = a; r.xOut = b; r.topIn = ti; r.topOut = to;
+                    var mp = MizoPieceOf(path); float xi = 0f;
+                    if (mp.ok) foreach (var v in BodyOfMat(go.transform, null)) if (Mathf.Abs(v.y - mp.floor) < 0.01f && Mathf.Abs(v.x) < a - 0.01f) xi = Mathf.Max(xi, Mathf.Abs(v.x));
+                    r.xInner = xi > 0.01f ? xi : 0.5f * a;
+                }
+            }
+            finally { UnityEngine.Object.DestroyImmediate(go); }
+        }
+        _mizoApronCache[path] = r; return r;
+    }
+
     // ---------------------------------------------------------------- 線: 軒先
     /// <summary>**軒先の外周** = 屋根の実メッシュの、棟の軸 <paramref name="ax"/> と直交軸での外形の矩形(世界 XZ・反時計回り)。
     /// 屋根の見分けはメッシュ名・材の名(<see cref="IsRoofLabel"/>)。屋根と名乗るメッシュが無い一体の駒は、

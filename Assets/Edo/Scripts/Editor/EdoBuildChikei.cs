@@ -115,16 +115,23 @@ public static partial class EdoBuild
 
     /// <summary>**溝・桝の駒の下の地面を駒の底より下げる**(施主裁定 2026-10-11:溝は部材が底と壁を持つ・穴は開けない)。
     /// 駒ごとに札(<see cref="MizoPieceOf"/> ── 実メッシュを一度測った外形と最下点)を据えた姿へ写し、外形の中の地形の節点を
-    /// 「その点の駒の最下点 − <paramref name="below"/>」へ下げる(⛔ 上げない・外形の外は触らない)。
+    /// 「その点の駒の最下点 − <paramref name="below"/>」へ下げる(⛔ 上げない ── 地際の張り出しの板の下だけの節点を除く・外形の外は触らない)。
     /// 【硬】溝の中に地面を出さない。⚠ 外形の縁から次の節点(≤ 1 升)までは地面が駒の外面へ下りる ── 縁石が外へ張り出す駒(部材の話)で隠れる。
+    /// ⭐ 地際の張り出し付きの駒(<see cref="MizoApronOf"/> ── 縁石の外の土の板・岡部 第112巡)は、張り出しの下(|x| > 縁石の外の面)の節点を
+    /// **真上の駒の上面 − <paramref name="below"/>**(光線で測る ── 土の板・吐き口の敷き石)へ下げる。駒の最下点(= 板の下面)まで下げると、
+    /// 板の外の縁の外に 0.25m 格子の三角形の溝(深さ ≈ 板の厚 0.36)が立つ。溝の中(|x| ≤ 縁石の外の面)は従前どおり最下点 − below。
+    /// 板の下だけの節点(どの駒の溝の中にも当たらない)は、低ければ板の上面 − below まで**上げる**(板の下は見えない・板が地面から浮く所で板の縁の前に歯を立てない)。
+    /// 縁石に近い板の下の節点は、溝の中の節点(最下点 − below)と結ぶ三角形が内法の壁で溝の底を越えない高さまで下げる(格子の対角 hs·√2 で見積もる・溝の中へ地面を出さない【硬】)。
+    /// 蓋を掛けた駒(<paramref name="coverTop"/> ── 門の口の暗渠。天端を蓋の厚だけ下げたので板は地表の下に埋まる)は、板の下を**蓋の天端 − below** までしか下げない
+    /// (板は土に埋め、地面は蓋の天端に揃える ── 板の上面まで下げると、蓋の脇に板が 0.15 沈んだ帯と鋸の歯が見えた・第112巡の2回目)。
     /// 書くのは <see cref="T"/>(邸の Stage が名指した地形)。⟶ 下げた節点の数・駒の数・下げの最大。
     /// 当たる先: 溝・桝を据える邸すべて(岡部 Stage3d・土井 S9・松江松平)。</summary>
-    public static string SinkGroundUnderMizo(IEnumerable<GameObject> pieces, float below = 0.03f, string undoPath = null)
+    public static string SinkGroundUnderMizo(IEnumerable<GameObject> pieces, float below = 0.03f, string undoPath = null, IDictionary<GameObject, float> coverTop = null)
     {
         var undo = new List<float[]>();
         var t = T(); var td = t.terrainData; var org = t.transform.position; int R = td.heightmapResolution;
         float hs = td.size.x / (R - 1);
-        int nPiece = 0, nNode = 0, nSkip = 0; float mx = 0f;
+        int nPiece = 0, nNode = 0, nSkip = 0, nApron = 0, nApronNode = 0, nApronDeep = 0, nUpA = 0; float mx = 0f, mUp = 0f; var chan = new HashSet<long>();
         var low = new Dictionary<long, float>();
         foreach (var g in pieces)
         {
@@ -135,6 +142,9 @@ public static partial class EdoBuild
             var sp = MizoPieceOf(path); if (!sp.ok) { nSkip++; continue; }
             nPiece++;
             var l2w = g.transform.localToWorldMatrix; var w2l = g.transform.worldToLocalMatrix;
+            var apr = MizoApronOf(path); var apMc = new List<MeshCollider>();
+            if (apr.has) { nApron++; foreach (var mf in g.GetComponentsInChildren<MeshFilter>()) { if (mf.sharedMesh == null) continue; var mc = mf.gameObject.AddComponent<MeshCollider>(); mc.sharedMesh = mf.sharedMesh; apMc.Add(mc); } Physics.SyncTransforms(); }
+            try {
             float x0 = float.MaxValue, x1 = float.MinValue, z0 = float.MaxValue, z1 = float.MinValue;
             foreach (var lx in new[] { sp.xMin, sp.xMax }) foreach (var lz in new[] { sp.zMin, sp.zMax })
                 {
@@ -152,10 +162,29 @@ public static partial class EdoBuild
                     var dv = b - a; if (Mathf.Abs(dv.y) < 1e-6f) continue;
                     float tt = (sp.bottom - a.y) / dv.y; var lp = a + dv * tt;
                     if (lp.x < sp.xMin - 1e-4f || lp.x > sp.xMax + 1e-4f || lp.z < sp.zMin - 1e-4f || lp.z > sp.zMax + 1e-4f) continue;
-                    float yb = l2w.MultiplyPoint3x4(new Vector3(lp.x, sp.bottom, lp.z)).y - below;
+                    float yb = l2w.MultiplyPoint3x4(new Vector3(lp.x, sp.bottom, lp.z)).y - below; bool apronOnly = false;
+                    if (apr.has && Mathf.Abs(lp.x) > apr.xBody - 0.005f)
+                    {   // 張り出しの下: 真上の駒の上面(土の板・敷き石)− below
+                        float top = float.MinValue; var ray = new Ray(new Vector3(wp.x, RB(g).max.y + 1f, wp.z), Vector3.down); RaycastHit hh;
+                        foreach (var mc in apMc) if (mc.Raycast(ray, out hh, RB(g).size.y + 2f)) top = Mathf.Max(top, hh.point.y);
+                        float cv; if (coverTop != null && coverTop.TryGetValue(g, out cv)) top = Mathf.Max(top, cv);
+                        if (top > float.MinValue)
+                        {
+                            yb = top - below; nApronNode++; apronOnly = true;
+                            // 溝の中へ地面を出さない【硬】: 板の下の節点と溝の中の節点(最下点 − below・格子の対角まで)を結ぶ三角形が溝の内法の壁(xInner)で底を越えないよう、縁石に近い節点は下げる
+                            float xN = Mathf.Abs(lp.x), dd = hs * 1.4143f, run = xN - apr.xInner;
+                            if (run < dd)
+                            {
+                                float yC = sp.bottom - below, ratio = dd / (dd - run), lim = sp.floor + (sp.floor - yC) * (ratio - 1f);
+                                float yl = l2w.MultiplyPoint3x4(new Vector3(lp.x, lim, lp.z)).y; if (yl < yb) { yb = yl; nApronDeep++; }
+                            }
+                        }
+                    }
                     long k = ((long)i << 32) ^ (uint)j; float cur;
                     if (!low.TryGetValue(k, out cur) || yb < cur) low[k] = yb;
+                    if (!apronOnly) chan.Add(k);
                 }
+            } finally { foreach (var mc in apMc) if (mc != null) UnityEngine.Object.DestroyImmediate(mc); }
         }
         if (low.Count > 0)
         {
@@ -166,15 +195,20 @@ public static partial class EdoBuild
             {
                 int i = (int)(kv.Key >> 32), j = (int)(uint)(kv.Key & 0xffffffff);
                 float cur = H[j - j0, i - i0] * td.size.y + org.y;
-                if (kv.Value >= cur - 1e-4f) continue;
+                if (kv.Value >= cur - 1e-4f)
+                {   // 板の下だけの節点(どの駒の溝の中にも当たらない)は板の上面 − below まで上げる ── 板が地面から浮いた所で、板の下の低い節点と帯の節点の三角形が板の縁の前に鋸の歯を立てた(第112巡の4回目・D_N40_Mae の頭)
+                    if (chan.Contains(kv.Key) || kv.Value <= cur + 1e-4f) continue;
+                    mUp = Mathf.Max(mUp, kv.Value - cur); H[j - j0, i - i0] = (kv.Value - org.y) / td.size.y; nUpA++;
+                    undo.Add(new[] { i, j, H[j - j0, i - i0], (cur - org.y) / td.size.y }); continue;
+                }
                 mx = Mathf.Max(mx, cur - kv.Value); H[j - j0, i - i0] = (kv.Value - org.y) / td.size.y; nNode++;
                 undo.Add(new[] { i, j, H[j - j0, i - i0], (cur - org.y) / td.size.y });
             }
-            if (nNode > 0) { td.SetHeights(i0, j0, H); AssetDatabase.SaveAssetIfDirty(td); }
+            if (nNode + nUpA > 0) { td.SetHeights(i0, j0, H); AssetDatabase.SaveAssetIfDirty(td); }
         }
         WriteUndo(undoPath, t.name, undo);
         return "溝・桝の下の地面を駒の底 −" + below.ToString("0.00") + " へ下げた: 駒 " + nPiece + "・節点 " + nNode + "・下げの最大 " + mx.ToString("F2")
-               + "m(地形 " + t.name + "・升 " + hs.ToString("0.###") + "m" + (nSkip > 0 ? "・札の測れない駒 " + nSkip : "") + ")";
+               + "m(地形 " + t.name + "・升 " + hs.ToString("0.###") + "m" + (nSkip > 0 ? "・札の測れない駒 " + nSkip : "") + (nApron > 0 ? "・地際の張り出しの駒 " + nApron + "(板の下の節点 " + nApronNode + " は板の上面 −" + below.ToString("0.00") + " まで・うち溝の中へ三角形を出さないよう深くした " + nApronDeep + "・板の下だけの節点で板の上面 −" + below.ToString("0.00") + " まで上げた " + nUpA + "(最大 " + mUp.ToString("F2") + "))" : "") + ")";
     }
 
     /// <summary>**溝の両脇の地面を溝の縁石の天端へ合わせる**(施主 2026-10-11「溝の上面が地表の面と一致しているべき」・指図 grading.omoteNagayaDai.mizo.outerTop
@@ -189,7 +223,7 @@ public static partial class EdoBuild
     {
         var t = T(); var td = t.terrainData; var org = t.transform.position; int R = td.heightmapResolution; float hs = td.size.x / (R - 1);
         var want = new Dictionary<long, Vector3>();   // 節点 → (高さ, 外形からの距離, 上げるだけ)
-        int nPiece = 0;
+        int nPiece = 0, nApronAll = 0;
         foreach (var g in pieces)
         {
             if (g == null || !g.activeInHierarchy) continue;
@@ -200,11 +234,14 @@ public static partial class EdoBuild
             if (!okP && !okN) continue;
             if (!okP) { xaP = -xbN; xbP = -xaN; ctP = ctN; } if (!okN) { xaN = -xbP; xbN = -xaP; ctN = ctP; }
             nPiece++;
+            // 地際の張り出し付きの駒(第112巡): 溝の縁 = 板の外の縁 ── 帯は板の外の縁から band、高さは板の外の縁の天端へ(板の下は SinkGroundUnderMizo が板の上面より下げる)。
+            //   ⛔ 帯を縁石から測って板の下に収めると、道の節点(板の縁 +0.03〜0.06)と板の下の節点の三角形が板の上へ鋸の歯に被った(第112巡の1回目)。
+            var apr = MizoApronOf(path); float bandE = band; if (apr.has) nApronAll++;
             float cov = float.NaN; bool hasCov = coverTop != null && coverTop.TryGetValue(g, out cov);
             var l2w = g.transform.localToWorldMatrix; var w2l = g.transform.worldToLocalMatrix;
             int outSide = 0; if (outAt != null) { var c3 = RB(g).center; var od = outAt(new Vector2(c3.x, c3.z)); var rx3 = g.transform.right; outSide = Vector2.Dot(new Vector2(rx3.x, rx3.z), od) >= 0f ? 1 : -1; }
             float x0 = float.MaxValue, x1 = float.MinValue, z0 = float.MaxValue, z1 = float.MinValue;
-            foreach (var lx in new[] { mp.xMin - band, mp.xMax + band }) foreach (var lz in new[] { mp.zMin, mp.zMax })
+            foreach (var lx in new[] { mp.xMin - bandE, mp.xMax + bandE }) foreach (var lz in new[] { mp.zMin, mp.zMax })
                 { var w = l2w.MultiplyPoint3x4(new Vector3(lx, ctP, lz)); x0 = Mathf.Min(x0, w.x); x1 = Mathf.Max(x1, w.x); z0 = Mathf.Min(z0, w.z); z1 = Mathf.Max(z1, w.z); }
             int i0 = Mathf.Max(0, Mathf.FloorToInt((x0 - org.x) / hs)), i1 = Mathf.Min(R - 1, Mathf.CeilToInt((x1 - org.x) / hs));
             int j0 = Mathf.Max(0, Mathf.FloorToInt((z0 - org.z) / hs)), j1 = Mathf.Min(R - 1, Mathf.CeilToInt((z1 - org.z) / hs));
@@ -216,8 +253,9 @@ public static partial class EdoBuild
                     var lp = a + dv * ((ctP - a.y) / dv.y);
                     if (lp.z < mp.zMin - 1e-4f || lp.z > mp.zMax + 1e-4f) continue;
                     float ex; int side; if (lp.x > mp.xMax) { ex = lp.x - mp.xMax; side = 1; } else if (lp.x < mp.xMin) { ex = mp.xMin - lp.x; side = -1; } else continue;
-                    if (ex > band + 1e-4f) continue;
-                    float y = hasCov ? cov : l2w.MultiplyPoint3x4(new Vector3(side > 0 ? 0.5f * (xaP + xbP) : 0.5f * (xaN + xbN), side > 0 ? ctP : ctN, lp.z)).y;
+                    if (ex > bandE + 1e-4f) continue;
+                    float y = hasCov ? cov : apr.has ? l2w.MultiplyPoint3x4(new Vector3(side * apr.xOut, apr.topOut, lp.z)).y
+                                                    : l2w.MultiplyPoint3x4(new Vector3(side > 0 ? 0.5f * (xaP + xbP) : 0.5f * (xaN + xbN), side > 0 ? ctP : ctN, lp.z)).y;
                     long k = ((long)i << 32) ^ (uint)j; Vector3 cur;
                     bool raiseOnly = outSide != 0 && side != outSide;   // 内の側(台の石垣の根)は根を埋める側へだけ ── 下げない
                     if (!want.TryGetValue(k, out cur) || ex < cur.y) want[k] = new Vector3(y, ex, raiseOnly ? 1f : 0f);
@@ -241,7 +279,7 @@ public static partial class EdoBuild
             if (undo.Count > 0) { td.SetHeights(i0, j0, H); AssetDatabase.SaveAssetIfDirty(td); }
         }
         WriteUndo(undoPath, t.name, undo);
-        return "溝の両脇 " + band.ToString("0.00") + "m の地面を縁石の天端へ合わせた: 駒 " + nPiece + "・上げた節点 " + nUp + "(最大 " + mUp.ToString("F3") + ")・下げた節点 " + nDown + "(最大 " + mDown.ToString("F3") + ")(地形 " + t.name + ")";
+        return "溝の両脇 " + band.ToString("0.00") + "m の地面を縁石の天端へ合わせた: 駒 " + nPiece + "・上げた節点 " + nUp + "(最大 " + mUp.ToString("F3") + ")・下げた節点 " + nDown + "(最大 " + mDown.ToString("F3") + ")" + (nApronAll > 0 ? "・うち地際の張り出しの駒 " + nApronAll + "(帯は板の外の縁から・高さは板の外の縁の天端)" : "") + "(地形 " + t.name + ")";
     }
 
     /// <summary>下げた節点の控えを足す(地形の名・数・[i, j, 下げた値, 元の値]… の塊を追記)。</summary>

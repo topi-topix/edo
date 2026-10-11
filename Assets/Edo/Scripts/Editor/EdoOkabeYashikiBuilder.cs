@@ -4440,7 +4440,7 @@ public static class EdoOkabeYashikiBuilder
         sb.AppendLine("  " + StackCurbOnSkin());
         sb.AppendLine("  " + SeatMonOnSkin());
         // ⭐ 下げは据え直しの後(練塀・垣の床は駒の下を下げる前の地面で測る ── 先に下げると法の見え面の下の節点を床と読み、垣が 1.5m 沈んだ・第110巡)
-        sb.AppendLine("  " + EdoBuild.SinkGroundUnderMizo(pcs, 0.03f, SinkUndoPath));
+        sb.AppendLine("  " + EdoBuild.SinkGroundUnderMizo(pcs, 0.03f, SinkUndoPath, _mizoCoverTop));
         {   // 石垣・段の土留めの見え面から土を覗かせない(駒の下の地面を面より下げる・EdoBuild.SinkGroundUnderParts)
             var walls = new List<GameObject>(); var rt = GameObject.Find(GN).transform;
             foreach (var gm in new[] { "Dan", "Ishigaki" }) { var g = rt.Find(gm); if (g != null) foreach (Transform c in g) if (c.gameObject.activeInHierarchy) walls.Add(c.gameObject); }
@@ -5877,6 +5877,11 @@ public static class EdoOkabeYashikiBuilder
         return sb.ToString();
     }
 
+    /// <summary>台の前の溝(D_N40_Mae・Mizo_*)は**地際の張り出し付きの版**(<c>EdoAssets.Own.DoiMizo(kata, d, ago: true)</c>・縁石の外へ土の板 0.40)で据える
+    /// ── 第111巡で天端を地表と面一にした後、0.25m 格子の地形が縁石の外に立てた鋸の歯を板の下に隠す(EDO-0502 第112巡・普請奉行の指示 2026-10-11)。
+    /// 溝・石は A / AH と同じ・据え方(天端の線・傾け)も同じ。板の下の地面は <see cref="EdoBuild.SinkGroundUnderMizo"/> が板の上面より下げる。</summary>
+    const bool MizoAgo = true;
+
     /// <summary>**台の前の溝の区間**(指図 grading.omoteNagayaDai.mizo ── sections Mizo_Kita / Mizo_Minami / Mizo_Hashi・outlets・outerTop/topLine/depth/fall・EDO-0502 第108〜111巡)。
     /// ⭐ 第111巡(施主 2026-10-11「側溝の上面がガタガタ」「溝の上面が地表の面と一致しているべき」): 縁石の作り AF/AFH と嵩上げ石は廃止。全区間 型A を
     /// **天端の線**で据える(<see cref="EdoBuild.LayMizoOnTopLine"/>)── 線 = 外の壁の見え面の 0.30 外の造成の面を滑らかにして下り続けさせた線・駒は勾配なりに傾け・
@@ -5915,7 +5920,7 @@ public static class EdoOkabeYashikiBuilder
         System.Func<string, List<string>> vers = k =>
         {
             var l = new List<string>();
-            for (float dd = 0.10f; dd <= 0.30f + 1e-4f; dd += 0.05f) { string pth = EdoAssets.Own.DoiMizo(k, (float)System.Math.Round(dd, 2)); if (EdoBuild.MizoPieceOf(pth).ok) l.Add(pth); }
+            for (float dd = 0.10f; dd <= 0.30f + 1e-4f; dd += 0.05f) { string pth = EdoAssets.Own.DoiMizo(k, (float)System.Math.Round(dd, 2), MizoAgo); if (EdoBuild.MizoPieceOf(pth).ok) l.Add(pth); }
             return l;
         };
         var vA = vers("A"); var vAH = vers("AH");
@@ -5989,13 +5994,16 @@ public static class EdoOkabeYashikiBuilder
                 string pth = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(go); var mp = EdoBuild.MizoPieceOf(pth);
                 Vector2 c = EdgePt(eOut, sOut) - OutNormal(eOut) * dC, on = OutNormal(eOut);
                 float sill = go.transform.TransformPoint(new Vector3(0f, mp.floor, 0.5f * (mp.zMin + mp.zMax))).y, rd1 = roadOn(eOut, c, 1.0f);
-                float outMax = float.MinValue; Vector2 e0 = EdgePt(eOut, 0f); foreach (var v in EdoBuild.Body(go.transform, 20000)) outMax = Mathf.Max(outMax, Vector2.Dot(new Vector2(v.x, v.z) - e0, on));
+                float outMax = float.MinValue, outSoil = float.MinValue; Vector2 e0 = EdgePt(eOut, 0f);
+                foreach (var mt in new[] { "rocks", "Gravel" }) foreach (var v in EdoBuild.BodyOfMat(go.transform, mt)) outMax = Mathf.Max(outMax, Vector2.Dot(new Vector2(v.x, v.z) - e0, on));   // 石(縁石・敷き石・底)
+                foreach (var v in EdoBuild.BodyOfMat(go.transform, "Soil")) outSoil = Mathf.Max(outSoil, Vector2.Dot(new Vector2(v.x, v.z) - e0, on));   // 地際の張り出し(土の板)
                 bool kita = Mathf.Abs(sOut - sK) < 0.01f; float dS = sill - rd1;
                 outNote = "・吐き口 " + gn + "(辺" + eOut + " s" + sOut.ToString("0.##", inv) + "・" + System.IO.Path.GetFileNameWithoutExtension(pth) + "・+X を外へ " + (Vector2.Dot(new Vector2(go.transform.right.x, go.transform.right.z), on) > 0f ? "⭕" : "⛔")
                           + "): 敷き " + sill.ToString("F3", inv) + " − 線から 1m 外の道 " + rd1.ToString("F3", inv) + " = " + dS.ToString("+0.000;-0.000", inv)
                           + (kita ? (dS >= sillKUp - 1e-3f ? " ⭕" : " ⛔(kita_s44『+" + sillKUp.ToString("F2", inv) + " 以上【硬】』── 天端 = 地表と深さ ≥" + depthMin.ToString("F2", inv) + " とは両立しない ⇒ 差し戻し)")
                                   : (dS >= -sillMDown - 1e-3f ? " ⭕(柔 ≥ −" + sillMDown.ToString("F2", inv) + ")" : " ⚠(柔 ≥ −" + sillMDown.ToString("F2", inv) + ")"))
-                          + "・駒の外の面 − 区画の線 " + outMax.ToString("+0.000;-0.000", inv) + (outMax <= 0.001f ? " ⭕" : " ⛔(区画の外【硬】)");
+                          + "・駒の石の外の面 − 区画の線 " + outMax.ToString("+0.000;-0.000", inv) + (outMax <= 0.001f ? " ⭕" : " ⛔(区画の外【硬】)")
+                          + (outSoil > float.MinValue ? "・地際の張り出し(土の板)の外の縁 − 区画の線 " + outSoil.ToString("+0.000;-0.000", inv) + (outSoil <= 0.001f ? " ⭕" : " ⚠(道の側へ出る)") : "");
                 _secMizoTail[nm] = new Vector3(sOut, rep.botTail, sill);
             }
             else if (og != null)
@@ -6254,7 +6262,7 @@ public static class EdoOkabeYashikiBuilder
                 if (zaDrop.TryGetValue(nm, out zd)) c = segs[k].w - zd; if (a < 0.5f) c = float.IsNaN(c) ? headZa : Mathf.Min(c, headZa);
                 return c;
             };
-            var vA = new List<string>(); for (float dd = 0.10f; dd <= 0.30f + 1e-4f; dd += 0.05f) { string pth = EdoAssets.Own.DoiMizo("A", (float)System.Math.Round(dd, 2)); if (EdoBuild.MizoPieceOf(pth).ok) vA.Add(pth); }
+            var vA = new List<string>(); for (float dd = 0.10f; dd <= 0.30f + 1e-4f; dd += 0.05f) { string pth = EdoAssets.Own.DoiMizo("A", (float)System.Math.Round(dd, 2), MizoAgo); if (EdoBuild.MizoPieceOf(pth).ok) vA.Add(pth); }
             var spec = new EdoBuild.MizoTopSpec { name = dn, line = line, surfaceAt = surf, outAt = q => on, halfW = halfW, surfaceOff = band, versions = vA,
                                                   depthMin = depthMin, depthTarget = Mathf.Max(depthTgt, depthFromOuter), bottomCapAt = capAt, coverAt = gateSpans.Count > 0 ? (System.Func<float, bool>)(a => inGate(a + sHead)) : null, coverT = lidT,
                                                   fitAfter = new List<Vector2> { line[line.Count - 1], line[line.Count - 1] + ax * 8f } };   // 尻は Mizo_Kita へ同じ線で続く(route)── 天端の線の当てはめを続ける溝の地表まで延ばす

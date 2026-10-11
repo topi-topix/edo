@@ -1200,3 +1200,62 @@ def bake_niwa_trees(M, d, graded):
                 notes.append("⛔ 庭木 %s %s: %d/%d 本 ── 残り %d 本は位置が文でしか書かれていない(`%s`)── 撒かない"
                              % (gz, lay, got, n, n - got, where))
     return pts, notes
+
+
+# ---------------------------------------------------------------- 0.25m の造成の面(2 進)
+# ⭐ 施主裁定 2026-10-11(EDO-0502): 皮(EdgeSkin・SkinHeightSolve)をやめ、北の3邸を覆う 0.25m 格子の地形へ移る。
+#   地面の高さの出どころは**造成の面だけ**(graded_y)── 部材の形から推し量らない。90万点を json に入れると重いので 2 進で焼く。
+#   置き場は C# の `EdoAssets.Sashizu.OkabeGradedBin`(同じ名をここにも書く ── C# 側が正)。
+#   書式(リトルエンディアン): b"EDOG" / int32 版 1 / 64 字の指図の sha256(ascii)/ float32 x0, z0, step, yBase / int32 nx, nz /
+#   int16 × nx·nz(行 = z・(y − yBase)×1000 ・ −32768 = null)。
+GRADED_BIN = os.path.join(B.DOC, "okabe_graded.bin")
+BIN_STEP = 0.25
+
+
+def bake_graded_bin(path=GRADED_BIN, step=BIN_STEP):
+    import struct
+    import time
+    t0 = time.time()
+    M = B.Model(EST)
+    poly = BI.parcel_poly(EST)
+    sash_p = os.path.join(B.DOC, EST + "_sashizu.json")
+    sha = BI.sha256(sash_p)
+    xs = [p[0] for p in poly]
+    zs = [p[1] for p in poly]
+    x0 = float(math.floor(min(xs) - MARGIN))
+    z0 = float(math.floor(min(zs) - MARGIN))
+    nx = int(round((max(xs) + MARGIN - x0) / step)) + 1
+    nz = int(round((max(zs) + MARGIN - z0) / step)) + 1
+    vals = []
+    lo, hi, holes = 1e9, -1e9, 0
+    for j in range(nz):
+        z = z0 + j * step
+        for i in range(nx):
+            x = x0 + i * step
+            u, v = M.UV(x, z)
+            y = M.graded_y(u, v, M.nat(u, v))
+            if y is None:
+                if M.in_parcel(u, v):
+                    holes += 1
+                vals.append(None)
+            else:
+                y = float(y)
+                vals.append(y)
+                lo, hi = min(lo, y), max(hi, y)
+    ybase = math.floor(lo) if lo < 1e9 else 0.0
+    if hi - ybase > 32.0:
+        raise SystemExit("造成の面の高さの幅が 32m を超える(int16 の mm に入らない)")
+    buf = bytearray()
+    buf += b"EDOG" + struct.pack("<i", 1) + sha.encode("ascii")
+    buf += struct.pack("<ffff", x0, z0, step, ybase) + struct.pack("<ii", nx, nz)
+    buf += struct.pack("<%dh" % len(vals), *[-32768 if v is None else int(round((v - ybase) * 1000)) for v in vals])
+    with open(path, "wb") as f:
+        f.write(buf)
+    print("焼いた %s  %dx%d(%.2fm)・%d 点・区画の中の null %d・高さ %.2f〜%.2f・%.1f 秒・%.1f MB"
+          % (os.path.relpath(path, B.ROOT if hasattr(B, "ROOT") else "."), nx, nz, step, nx * nz, holes, lo, hi,
+             time.time() - t0, len(buf) / 1e6))
+
+
+if __name__ == "__main__":
+    if "--graded-bin" in sys.argv:
+        bake_graded_bin()

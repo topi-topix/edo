@@ -184,6 +184,12 @@ public static class EdoOkabeYashikiBuilder
     // 区画と辺(座標は parcels.json が正典 — 規則11)
     // =====================================================================
     public static Vector2[] Poly { get { return EdoParcels.Get(ParcelId); } }
+    /// <summary>Stage の間だけ地形を岡部の芯の地形(北の3邸の細かい地形・2026-10-11)へ名指す(EdoBuild.TerrainFocus)。</summary>
+    static IDisposable OnKita()
+    {
+        var P = Poly; Vector2 c = Vector2.zero; foreach (var q in P) c += q; c /= Mathf.Max(1, P.Length);
+        return EdoBuild.TerrainFocus(c);
+    }
 
     public static float EdgeLen(int e)
     {
@@ -389,6 +395,7 @@ public static class EdoOkabeYashikiBuilder
     {
         get
         {
+            if (_graded == null && (_graded = GradedBin()) != null) return _graded;
             if (_graded == null)
             {
                 var g = O(IMPL["graded"]);
@@ -413,6 +420,29 @@ public static class EdoOkabeYashikiBuilder
                 _graded = w;
             }
             return _graded;
+        }
+    }
+
+    /// <summary>何から造成の面を読んだか(報告に出す)。</summary>
+    static string _gradedFrom = "";
+    /// <summary>**0.25m の造成の面**(施主裁定 2026-10-11・EDO-0502)── `python3 Tools/Sashizu/impl_okabe.py --graded-bin` が焼く 2 進
+    /// (<see cref="EdoAssets.Chikei.OkabeGradedBin"/>)。指図の sha256 が算出物の src と食い違えば ⚠ を出して読まない(算出物の 1m へ戻る)。</summary>
+    static WGrid GradedBin()
+    {
+        string p = Path.Combine(ProjRoot, EdoAssets.Chikei.OkabeGradedBin);
+        if (!File.Exists(p)) { _gradedFrom = "⚠ 0.25m の造成の面が無い ── 算出物の 1m で造成(`python3 Tools/Sashizu/impl_okabe.py --graded-bin`)"; return null; }
+        using (var br = new BinaryReader(File.OpenRead(p)))
+        {
+            var mg = new string(br.ReadChars(4)); int ver = br.ReadInt32(); string sha = new string(br.ReadChars(64));
+            if (mg != "EDOG" || ver != 1) { _gradedFrom = "⚠ 0.25m の造成の面の書式が違う ── 読まない"; return null; }
+            string want = EdoQaVerdict.Sha256Hex(Path.Combine(ProjRoot, SashizuRel));
+            if (!string.Equals(sha, want, StringComparison.OrdinalIgnoreCase)) { _gradedFrom = "⚠ 0.25m の造成の面が古い指図から焼かれている(" + sha.Substring(0, 12) + " / 今 " + want.Substring(0, 12) + ")── 算出物の 1m で造成。焼き直すこと"; return null; }
+            var w = new WGrid { x0 = br.ReadSingle(), z0 = br.ReadSingle(), step = br.ReadSingle() };
+            float yb = br.ReadSingle(); w.nx = br.ReadInt32(); w.nz = br.ReadInt32();
+            w.h = new float[w.nx * w.nz];
+            for (int k = 0; k < w.h.Length; k++) { short v = br.ReadInt16(); w.h[k] = v == short.MinValue ? float.NaN : yb + v * 0.001f; }
+            _gradedFrom = "造成の面 " + EdoAssets.Chikei.OkabeGradedBin + "(" + w.nx + "×" + w.nz + "・" + w.step + "m)";
+            return w;
         }
     }
 
@@ -463,6 +493,10 @@ public static class EdoOkabeYashikiBuilder
 
     static readonly string BakDir = "UserData/Backups/Okabe";
     static string BakPath { get { return Path.Combine(ProjRoot, BakDir + "/heightmap_pre.bin"); } }
+    /// <summary>Stage3d が溝の下で下げた地形の節点の控え(据え直しの前に戻す)。</summary>
+    static string SinkUndoPath { get { return Path.Combine(ProjRoot, BakDir + "/mizo_sink.bin"); } }
+    /// <summary>Stage3d が桝の口に開けた穴の控え(据え直しの前に塞ぐ)。</summary>
+    static string HoleUndoPath { get { return Path.Combine(ProjRoot, BakDir + "/masu_holes.bin"); } }
 
     // =====================================================================
     // Stage0 — ハイトマップの退避(地形の編集は Undo の外)
@@ -473,10 +507,11 @@ public static class EdoOkabeYashikiBuilder
     /// <summary>着工前の地形を .bin へ。**無いときだけ書く**。
     /// ⚠ 走るたび上書きすると、造成済みの(壊れた)地形がバックアップに化ける
     ///   — 旧版で実際に起きた(2026-08-16 の退避は既に造成後だった)。</summary>
-    public static string Stage0_Backup()
+    public static string Stage0_Backup() { using (OnKita()) return Stage0_Backup_(); }
+    static string Stage0_Backup_()
     {
         if (File.Exists(BakPath)) return "退避: 既にある(上書きしない) " + BakDir;
-        var t = Terrain.activeTerrain; var td = t.terrainData;
+        var t = EdoBuild.T(); var td = t.terrainData;
         int hres = td.heightmapResolution; Vector3 tp = t.transform.position, ts = td.size;
         int x0, z0, w, h; Window(out x0, out z0, out w, out h);
         var H = td.GetHeights(x0, z0, w, h);
@@ -496,7 +531,7 @@ public static class EdoOkabeYashikiBuilder
     /// ⚠ 退避と造成で窓を揃えないと、造成した外側を退避から戻せない。</summary>
     static void Window(out int x0, out int z0, out int w, out int h)
     {
-        var t = Terrain.activeTerrain; var td = t.terrainData;
+        var t = EdoBuild.T(); var td = t.terrainData;
         int hres = td.heightmapResolution; Vector3 tp = t.transform.position, ts = td.size;
         float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
         foreach (var p in Poly)
@@ -521,12 +556,13 @@ public static class EdoOkabeYashikiBuilder
     [MenuItem("Edo/岡部筑前守上屋敷/1 造成(指図の面へ)")]
     public static void Stage1Menu() { Debug.Log("[Okabe] " + Stage1_Grade()); }
 
-    public static string Stage1_Grade()
+    public static string Stage1_Grade() { using (OnKita()) return Stage1_Grade_(); }
+    static string Stage1_Grade_()
     {
         var gate = ReviewGate(); if (gate != null) return gate;
         var sb = new System.Text.StringBuilder();
         sb.AppendLine(Stage0_Backup());
-        var t = Terrain.activeTerrain; var td = t.terrainData;
+        var t = EdoBuild.T(); var td = t.terrainData;
         int hres = td.heightmapResolution; Vector3 tp = t.transform.position, ts = td.size;
         int x0, z0, w, h; Window(out x0, out z0, out w, out h);
         // ⭐ 縁の皮(Stage3b)を先に外して穴を塞ぐ ── 皮は駒の今の位置に合わせて起こす物で、造成・据え直しの後は古い(EdoBuild.ClearEdgeSkins)
@@ -534,8 +570,12 @@ public static class EdoOkabeYashikiBuilder
             var rootG = GameObject.Find(GN); var es = rootG == null ? null : rootG.transform.Find("EdgeSkin");
             if (es != null && es.childCount > 0) sb.AppendLine("縁の皮を外して塞いだ升 " + EdoBuild.ClearEdgeSkins(Group("EdgeSkin")) + "(3 の後に 3b で起こし直す)");
         }
+        // ⭐ 線の外の 2m 格子の写しの波及(細かい地形は大地形を写して起こした ── 線の内の高い節点から線の外 2m まで斜めに描かれる)を造成前の地盤へ戻す
+        //   (const.perimeterRetain【硬】「線の外へ岡部の造成が波及していれば造成前の地盤(base_dem)へ戻す」・道の線際の均しより前に)
+        if (EdoBuild.TerrainCell(t) < 1f) sb.AppendLine(RestorePerimeterSpill_(2.0f));
         var H = td.GetHeights(x0, z0, w, h);
         var P = Poly;
+        var G0 = Graded; sb.AppendLine(_gradedFrom + "・地形 " + t.name + "(" + EdoBuild.TerrainCell(t).ToString("0.###") + "m)");
         int n = 0, hole = 0; float cmax = 0f, fmax = 0f;
         var mn = MichiNarashi; int nMichi = 0; float mMax = 0f;
         for (int z = 0; z < h; z++)
@@ -728,7 +768,7 @@ public static class EdoOkabeYashikiBuilder
         var sb = new System.Text.StringBuilder();
         var f = Grid; float ken = C("ken");
         float bf = C("batterFill"), bc = C("batterCut");
-        var t = Terrain.activeTerrain; float cell = t.terrainData.size.x / (t.terrainData.heightmapResolution - 1);
+        var t = EdoBuild.T(); float cell = t.terrainData.size.x / (t.terrainData.heightmapResolution - 1);
         foreach (var o in A(Get(D, "ramps")) ?? new List<object>())
         {
             var r = O(o); if (r == null) continue;
@@ -882,10 +922,11 @@ public static class EdoOkabeYashikiBuilder
     }
 
     /// <summary><paramref name="badAt"/> が null でなければ超過の節点(x, z, 地形−設計面)を入れて返す(測りの内訳)。</summary>
-    public static string GradeQA(List<Vector3> badAt)
+    public static string GradeQA(List<Vector3> badAt) { using (OnKita()) return GradeQA_(badAt); }
+    static string GradeQA_(List<Vector3> badAt)
     {
         float TOL = ImplTol("gradeTol", 0.30f);
-        var t = Terrain.activeTerrain; var td = t.terrainData;
+        var t = EdoBuild.T(); var td = t.terrainData;
         int hres = td.heightmapResolution; Vector3 tp = t.transform.position, ts = td.size;
         int x0, z0, w, h; Window(out x0, out z0, out w, out h);
         var H = td.GetHeights(x0, z0, w, h);
@@ -1018,7 +1059,8 @@ public static class EdoOkabeYashikiBuilder
     [MenuItem("Edo/岡部筑前守上屋敷/2 外周(練塀・基壇・木柵・隅)")]
     public static void Stage2Menu() { Debug.Log("[Okabe] " + Stage2_Perimeter()); }
 
-    public static string Stage2_Perimeter()
+    public static string Stage2_Perimeter() { using (OnKita()) return Stage2_Perimeter_(); }
+    static string Stage2_Perimeter_()
     {
         var gate = ReviewGate(); if (gate != null) return gate;
         var sb = new System.Text.StringBuilder();
@@ -2514,7 +2556,8 @@ public static class EdoOkabeYashikiBuilder
     [MenuItem("Edo/岡部筑前守上屋敷/2b 段の土留め(terraceWalls・天端の垣)")]
     public static void Stage2bMenu() { Debug.Log("[Okabe] " + Stage2b_Dan()); }
 
-    public static string Stage2b_Dan()
+    public static string Stage2b_Dan() { using (OnKita()) return Stage2b_Dan_(); }
+    static string Stage2b_Dan_()
     {
         var gate = ReviewGate(); if (gate != null) return gate;
         var sb = new System.Text.StringBuilder("段の土留め(terraceWalls):\n");
@@ -4197,7 +4240,8 @@ public static class EdoOkabeYashikiBuilder
     /// <see cref="SkinGround"/>(前の巡の皮)で測るので、背の小段を描き直した巡は古い皮を読む ⇒ Stage3b(皮)の後にこれを流す。測りは Stage2b と同じ
     /// (線の 0.25m おき・天端 = 線から背へ天端の奥行の帯・走りの ±0.15 の駒の頂点の最高・背 = 奥行 + 0.1 の描かれた地表)。読むだけ(駒も地形も触らない)。
     /// 当たる先: sodeSlope を持つ袖(岡部 TW_Kado_Sode)。</summary>
-    public static string Stage3c_SodeSlopeCheck()
+    public static string Stage3c_SodeSlopeCheck() { using (OnKita()) return Stage3c_SodeSlopeCheck_(); }
+    static string Stage3c_SodeSlopeCheck_()
     {
         var sb = new System.Text.StringBuilder();
         var root = GameObject.Find(GN); var dan = root == null ? null : root.transform.Find("Dan");
@@ -4230,7 +4274,8 @@ public static class EdoOkabeYashikiBuilder
         return sb.ToString();
     }
 
-    public static string Stage3_Shukaku()
+    public static string Stage3_Shukaku() { using (OnKita()) return Stage3_Shukaku_(); }
+    static string Stage3_Shukaku_()
     {
         var gate = ReviewGate(); if (gate != null) return gate;
         var sb = new System.Text.StringBuilder();
@@ -4258,10 +4303,181 @@ public static class EdoOkabeYashikiBuilder
     //   ⚠ 造成(1)・据え直し(2・2b・3)の後は皮が古い ── 1 は冒頭で皮を外すので、流したら必ずこれを 3 の後に流し直す。
     //   当たる先: 段の石垣・土留め(算出物 terraceWalls)を持つ全邸 ── いまは山王社(Stage9)と岡部(ここ)。
     // =====================================================================
-    [MenuItem("Edo/岡部筑前守上屋敷/3b 縁の皮(段の土留めの足元の升に穴を開けて皮で描く)")]
-    public static void Stage3bMenu() { Debug.Log("[Okabe] " + Stage3b_Hifu()); }
+    [MenuItem("Edo/岡部筑前守上屋敷/3b 溝を据え、溝の下の地面を下げる(皮は退役 2026-10-11)")]
+    public static void Stage3bMenu() { Debug.Log("[Okabe] " + Stage3d_Mizo()); }
 
-    public static string Stage3b_Hifu()
+    /// <summary>**池の岸の断面**(指図 hosoku.zosei「gardens[NiwaShoin].hori」.danmen・EDO-0502 第61巡)を格子 gh(dx0/dz0/dstep・dnx×dnz)へ書く。
+    /// 旧 Stage3b は皮の設計の格子へ、2026-10-11 からは Stage3d が細かい地形の節点へ(PondBankToTerrain)。⟶ 帯の外形(描く区域)。</summary>
+    static List<Vector2[]> PondBankDesign(float[] gh, bool[] ok, float dx0, float dz0, float dstep, int dnx, int dnz, System.Text.StringBuilder sb)
+    {
+        var drawAreas = new List<Vector2[]>();
+        {
+            var GL = A(Get(IMPL, "gardens")) ?? new List<object>();
+            Dictionary<string, object> hori = null;
+            System.Action<object> fh = null;
+            fh = o => { var d0 = o as Dictionary<string, object>; if (d0 != null) { foreach (var kv in d0) { if (kv.Key.EndsWith("].hori") && kv.Value is Dictionary<string, object>) hori = (Dictionary<string, object>)kv.Value; else if (hori == null) fh(kv.Value); } return; } var l0 = o as List<object>; if (l0 != null) foreach (var v in l0) if (hori == null) fh(v); };
+            fh(D);
+            System.Func<string, string, float> rx2 = (txt, pat) => { var m = System.Text.RegularExpressions.Regex.Match(txt ?? "", pat); return m.Success ? float.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) : float.NaN; };
+            var dm = hori == null ? null : O(Get(hori, "danmen"));
+            string tS = dm == null ? null : S(Get(dm, "州浜")), tI = dm == null ? null : S(Get(dm, "石組")), tR = dm == null ? null : S(Get(dm, "乱杭"));
+            float bank = hori == null ? float.NaN : F(Get(hori, "bank"));
+            float sLand = rx2(tS, @"陸\s*([0-9.]+)\s*m"), sLandB = rx2(tS, @"陸[^、]*1\s*:\s*([0-9.]+)"), sWat = rx2(tS, @"水中\s*([0-9.]+)\s*m"), sWatB = rx2(tS, @"水中[^、]*1\s*:\s*([0-9.]+)"), sFar = rx2(tS, @"以遠\s*1\s*:\s*([0-9.]+)");
+            float iShelf = rx2(tI, @"棚\s*([0-9.]+)"), iW = rx2(tI, @"幅\s*([0-9.]+)"), iFar = rx2(tI, @"1\s*:\s*([0-9.]+)");
+            float rUp = rx2(tR, @"立ち上げ\s*([0-9.]+)"), rFar = rx2(tR, @"1\s*:\s*([0-9.]+)");
+            var miss = new List<string>();
+            foreach (var kv in new[] { new KeyValuePair<string, float>("岸 bank", bank), new KeyValuePair<string, float>("州浜の陸の幅", sLand), new KeyValuePair<string, float>("州浜の陸の法", sLandB), new KeyValuePair<string, float>("州浜の水中の幅", sWat),
+                                       new KeyValuePair<string, float>("州浜の水中の法", sWatB), new KeyValuePair<string, float>("州浜の以遠の法", sFar), new KeyValuePair<string, float>("石組の棚", iShelf), new KeyValuePair<string, float>("石組の棚の幅", iW),
+                                       new KeyValuePair<string, float>("石組の法", iFar), new KeyValuePair<string, float>("乱杭の立ち上げ", rUp), new KeyValuePair<string, float>("乱杭の法", rFar) })
+                if (float.IsNaN(kv.Value)) miss.Add(kv.Key);
+            foreach (var o in GL)
+            {
+                var mg = O(o); if (!(S(Get(mg, "kind")) ?? "").StartsWith("汀線")) continue;
+                if (miss.Count > 0) { sb.AppendLine("  ★ 池の岸の断面: 指図から読めない(" + string.Join("・", miss.ToArray()) + ")── 皮で描かない"); break; }
+                var wl = A(Get(mg, "world")); if (wl == null || wl.Count < 3) continue;
+                float wy = F(mg["y"]), bed = F(Get(mg, "bedY")); string zone = S(Get(mg, "zone"));
+                var ring = new Vector2[wl.Count]; for (int i = 0; i < wl.Count; i++) { var q = A(wl[i]); ring[i] = new Vector2(F(q[0]), F(q[1])); }
+                // 護岸の区間の折れ線と型(0 州浜・1 石組・2 乱杭)
+                var segs = new List<KeyValuePair<int, Vector2[]>>();
+                foreach (var o2 in GL)
+                {
+                    var g2 = O(o2); if (S(Get(g2, "zone")) != zone) continue; string k2 = S(Get(g2, "kind")) ?? "";
+                    int ty = k2.StartsWith("石組護岸") ? 1 : k2.StartsWith("乱杭") ? 2 : k2.StartsWith("州浜") ? 0 : -1; if (ty < 0) continue;
+                    var w2 = A(Get(g2, "world")); if (w2 == null || w2.Count < 2) continue;
+                    var pl = new Vector2[w2.Count]; for (int i = 0; i < w2.Count; i++) { var q = A(w2[i]); pl[i] = new Vector2(F(q[0]), F(q[1])); }
+                    segs.Add(new KeyValuePair<int, Vector2[]>(ty, pl));
+                }
+                System.Func<Vector2[], Vector2, bool, float> distPl = (pl, q, closed) => { float best = float.MaxValue; int n = pl.Length; for (int i = 0; i < (closed ? n : n - 1); i++) best = Mathf.Min(best, DistSeg(q, pl[i], pl[(i + 1) % n])); return best; };
+                float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
+                foreach (var q in ring) { mnx = Mathf.Min(mnx, q.x); mxx = Mathf.Max(mxx, q.x); mnz = Mathf.Min(mnz, q.y); mxz = Mathf.Max(mxz, q.y); }
+                const float BANDG = 3f, STONE_IN = 0.3f; int nUp = 0, nDn = 0;   // STONE_IN: 石組の石の半幅の最小(長軸 0.45〜1.2 の半分 ≥ 0.22)より少し広く ── 石の足の下に隠れる
+                int i0 = Mathf.Max(0, Mathf.FloorToInt((mnx - BANDG - dx0) / dstep)), i1 = Mathf.Min(dnx - 1, Mathf.CeilToInt((mxx + BANDG - dx0) / dstep));
+                int j0 = Mathf.Max(0, Mathf.FloorToInt((mnz - BANDG - dz0) / dstep)), j1 = Mathf.Min(dnz - 1, Mathf.CeilToInt((mxz + BANDG - dz0) / dstep));
+                for (int j = j0; j <= j1; j++)
+                    for (int i = i0; i <= i1; i++)
+                    {
+                        int k = j * dnx + i; if (!ok[k]) continue;
+                        var q = new Vector2(dx0 + i * dstep, dz0 + j * dstep);
+                        float dd = distPl(ring, q, true); if (dd > BANDG) continue;
+                        bool inside = EdoGeom.PIP(ring, q); float d = inside ? -dd : dd;
+                        int ty = 0; float bt = 1.5f; foreach (var sg in segs) { float e = distPl(sg.Value, q, false) - Mathf.Abs(d); if (e < bt) { bt = e; ty = sg.Key; } }
+                        float v = gh[k], y;
+                        if (d >= 0f) y = Mathf.Max(v, ty == 0 ? Mathf.Min(bank, wy + d / sLandB) : bank);
+                        else
+                        {
+                            if (v > wy + 0.01f) continue;   // 中島・岩島の盛りは触らない
+                            float u = -d;
+                            if (ty == 0) y = u <= sWat ? wy - u / sWatB : wy - sWat / sWatB - (u - sWat) / sFar;
+                            else if (u <= STONE_IN) y = bank;   // 石組・乱杭: 汀の線から内へ STONE_IN は石・杭の足の下(岸の高さ ── 水面の縁を地表で囲む【硬】)
+                            else if (ty == 1) y = u - STONE_IN <= iW ? iShelf : iShelf - (u - STONE_IN - iW) / iFar;
+                            else y = rUp - (u - STONE_IN) / rFar;
+                            y = Mathf.Max(y, bed);
+                        }
+                        if (Mathf.Abs(y - v) < 1e-3f) continue;
+                        if (y > v) nUp++; else nDn++;
+                        gh[k] = y;
+                    }
+                // 帯の外形(汀線の外接を BANDG 広げた矩形 ── 描くかは CutEdgeSkin が升ごとに設計と地形の差で決める)
+                drawAreas.Add(new[] { new Vector2(mnx - BANDG, mnz - BANDG), new Vector2(mxx + BANDG, mnz - BANDG), new Vector2(mxx + BANDG, mxz + BANDG), new Vector2(mnx - BANDG, mxz + BANDG) });
+                sb.AppendLine("  池の岸の断面 " + S(mg["name"]) + ": 汀の帯 ±" + BANDG.ToString("F0") + "m を皮の格子 " + dstep.ToString("F2") + "m で ── 上げた節点 " + nUp + "・下げた節点 " + nDn
+                    + "(岸 " + bank.ToString("F2") + "・水面 " + wy.ToString("F2") + "・底 " + bed.ToString("F2") + "・型 州浜/石組/乱杭 = 護岸の区間 " + segs.Count + ")");
+            }
+        }
+        return drawAreas;
+    }
+
+    /// <summary>池の岸の断面を細かい地形へ(2026-10-11・皮の代わり)。⛔ 地形の節点を読み、同じ式で書く(PondBankDesign)。</summary>
+    static string PondBankToTerrain()
+    {
+        var sb = new System.Text.StringBuilder();
+        var t = EdoBuild.T(); var td = t.terrainData; var org = t.transform.position; int R = td.heightmapResolution; float hs = td.size.x / (R - 1);
+        int x0, z0, w, h; Window(out x0, out z0, out w, out h);
+        var H = td.GetHeights(x0, z0, w, h);
+        var gh = new float[w * h]; var ok = new bool[w * h];
+        for (int j = 0; j < h; j++) for (int i = 0; i < w; i++) { gh[j * w + i] = H[j, i] * td.size.y + org.y; ok[j * w + i] = true; }
+        var old = (float[])gh.Clone();
+        PondBankDesign(gh, ok, org.x + x0 * hs, org.z + z0 * hs, hs, w, h, sb);
+        int n = 0; for (int k = 0; k < gh.Length; k++) if (Mathf.Abs(gh[k] - old[k]) > 1e-4f) { H[k / w, k % w] = (gh[k] - org.y) / td.size.y; n++; }
+        if (n > 0) { td.SetHeights(x0, z0, H); AssetDatabase.SaveAssetIfDirty(td); }
+        return sb.ToString().Replace("皮の格子", "地形の格子") + "  (地形へ書いた節点 " + n + ")\n";
+    }
+
+    /// <summary>溝・桝の群(Stage3d が据え、溝の下の地面を下げる)。</summary>
+    static readonly string[] MizoGroups = { "BackMizo", "OmoteGesui", "FrontMizo", "FrontMizoKasa", "FrontAnkyo", "GateSteps", "DrainMizo", "DrainMizoKasa", "DrainMizoFuta", "SecMizo", "SecMizoKasa", "SecMizoFuta", "SeRojiAnkyo" };
+
+    /// <summary>**3d 溝**(施主裁定 2026-10-11・EDO-0502: 皮をやめ 0.25m の細かい地形へ移った)── Stage3b の皮を外し、皮の前に据えていた溝・桝を据え、
+    /// 溝・桝の駒の下の地面を駒の底より下げる(EdoBuild.SinkGroundUnderMizo・⛔ 穴は開けない)。その後に練塀・垣・縁・門を床へ据え直す(従前 3b の末尾と同じ手)。
+    /// ⛔ 地面の高さを部材の形から推し量らない ── 地面は造成の面(okabe_graded.bin)と指図どおりの均しだけ。溝の下げは溝の部材の札で決める(駒の底 − 0.03)。</summary>
+    public static string Stage3d_Mizo() { using (OnKita()) return Stage3d_Mizo_(); }
+    static string Stage3d_Mizo_()
+    {
+        var gate = ReviewGate(); if (gate != null) return gate;
+        var sb = new System.Text.StringBuilder("溝(皮なし・細かい地形):\n");
+        var es = GameObject.Find(GN) == null ? null : GameObject.Find(GN).transform.Find("EdgeSkin");
+        if (es != null && es.childCount > 0) sb.AppendLine("  縁の皮を外した(塞いだ升 " + EdoBuild.ClearEdgeSkins(Group("EdgeSkin")) + ")");
+        sb.AppendLine("  前の巡の桝の口の穴を塞いだ 升 " + EdoBuild.RestoreHoles(HoleUndoPath));
+        sb.AppendLine("  前の巡で溝の下へ下げた地面を戻した 節点 " + EdoBuild.RestoreSunkGround(SinkUndoPath) + "(溝は地面で据えるので、下げたまま据え直すと沈む)");
+        sb.Append(PlaceOmoteGesui());
+        sb.Append(PlaceBackGutters());
+        sb.Append(PlaceFrontGutters());
+        sb.Append(PlaceDrainFrontGutters());
+        sb.Append(PlaceMizoSections());
+        sb.Append(PlaceSeRojiAnkyo());
+        sb.Append(PondBankToTerrain());
+        var pcs = new List<GameObject>();
+        foreach (var gm in MizoGroups) foreach (Transform c in Group(gm)) if (c.gameObject.activeInHierarchy) pcs.Add(c.gameObject);
+        sb.AppendLine("  " + SeatHeiOnBed(Group("Kakoi")));
+        sb.AppendLine("  " + SeatKakiOnBed());
+        sb.AppendLine("  " + StackCurbOnSkin());
+        sb.AppendLine("  " + SeatMonOnSkin());
+        // ⭐ 下げは据え直しの後(練塀・垣の床は駒の下を下げる前の地面で測る ── 先に下げると法の見え面の下の節点を床と読み、垣が 1.5m 沈んだ・第110巡)
+        sb.AppendLine("  " + EdoBuild.SinkGroundUnderMizo(pcs, 0.03f, SinkUndoPath));
+        {   // 石垣・段の土留めの見え面から土を覗かせない(駒の下の地面を面より下げる・EdoBuild.SinkGroundUnderParts)
+            var walls = new List<GameObject>(); var rt = GameObject.Find(GN).transform;
+            foreach (var gm in new[] { "Dan", "Ishigaki" }) { var g = rt.Find(gm); if (g != null) foreach (Transform c in g) if (c.gameObject.activeInHierarchy) walls.Add(c.gameObject); }
+            sb.AppendLine("  " + EdoBuild.SinkGroundUnderParts(walls, 0.05f, SinkUndoPath));
+        }
+        sb.AppendLine("  " + EdoBuild.HoleUnderMasu(pcs, 0.05f, HoleUndoPath));
+        return sb.ToString();
+    }
+
+    /// <summary>**地面と駒の取り合いの表**(皮なし・2026-10-11)── 第109巡まで Stage3b が皮の後に刷っていた二つの表を、描かれた地表(細かい地形)で刷る:
+    /// ① 地表と駒の隙・地表が駒の天端に被る(EdoBuild.SkinGapTable・同じ部材の組: 段の土留め・溝・段の土留めに接する外周の石垣・石段)
+    /// ② 野面の見え面の土(EdoBuild.NozuraSeamReport・光線)。⛔ 直さない ── 測るだけ。</summary>
+    [MenuItem("Edo/岡部筑前守上屋敷/検: 地面と駒の取り合い(皮なし)")]
+    public static void GroundQAMenu() { Debug.Log("[Okabe] " + GroundQA()); }
+    public static string GroundQA() { using (OnKita()) return GroundQA_(); }
+    static string GroundQA_()
+    {
+        var sb = new System.Text.StringBuilder("地面と駒の取り合い(皮なし・地形 " + EdoBuild.T().name + "):\n");
+        float tol = ImplTol("gradeTol", 0.30f);
+        var root = GameObject.Find(GN); if (root == null) return sb + "  ⛔ " + GN + " が無い";
+        var parts = new List<GameObject>(); var danB = new List<Bounds>();
+        var dn = root.transform.Find("Dan");
+        if (dn != null) foreach (Transform c in dn) if (c.gameObject.activeInHierarchy) { parts.Add(c.gameObject); danB.Add(EdoBuild.RB(c.gameObject)); }
+        foreach (var gm in MizoGroups) { var g = root.transform.Find(gm); if (g != null) foreach (Transform c in g) if (c.gameObject.activeInHierarchy) parts.Add(c.gameObject); }
+        var ig = root.transform.Find("Ishigaki"); int igN = 0;
+        if (ig != null)
+            foreach (Transform c in ig)
+            {
+                if (!c.gameObject.activeInHierarchy) continue;
+                var b = EdoBuild.RB(c.gameObject); if (b.size == Vector3.zero) continue; b.Expand(1f);
+                foreach (var db in danB) if (db.Intersects(b)) { parts.Add(c.gameObject); igN++; break; }
+            }
+        var kai = root.transform.Find("Fuzoku/Kaidan"); int stN = 0;
+        if (kai != null)
+            foreach (var r in kai.GetComponentsInChildren<MeshRenderer>())
+            {
+                var b = r.bounds; b.Expand(4f);
+                foreach (var db in danB) if (db.Intersects(b)) { parts.Add(r.gameObject); stN++; break; }
+            }
+        sb.AppendLine("  部材 " + parts.Count + "(段の土留めに接する外周の石垣 " + igN + "・石段 " + stN + ")");
+        sb.Append(EdoBuild.SkinGapTable(parts, FlatFaces(null), tol));
+        if (dn != null) sb.AppendLine("  " + EdoBuild.NozuraSeamReport(root.transform, dn, null).Replace("\n", "\n  "));
+        return sb.ToString();
+    }
+
+    public static string Stage3b_Hifu() { using (OnKita()) return Stage3b_Hifu_(); }
+    static string Stage3b_Hifu_()
     {
         var gate = ReviewGate(); if (gate != null) return gate;
         var sb = new System.Text.StringBuilder("縁の皮:\n");
@@ -4432,78 +4648,7 @@ public static class EdoOkabeYashikiBuilder
         //   汀線からの符号付きの距離 d(陸 +)で: 陸は max(設計, 州浜なら 水面 + d/5 ≤ 岸・石組/乱杭なら 岸)、水の中は 型の棚と法(底 bedY で止める)。
         //   型 = 最寄りの護岸の区間(石組護岸・州浜・乱杭)の折れ線が 1.5m 以内ならその型、無ければ州浜。中島(設計 > 水面)は触らない。
         //   描くのは帯 |d| ≤ 3m(drawAreas として CutEdgeSkin に渡す)。当たる先: 算出物の汀線を持つ庭(岡部 書院の泉水)。
-        var drawAreas = new List<Vector2[]>();
-        {
-            var GL = A(Get(IMPL, "gardens")) ?? new List<object>();
-            Dictionary<string, object> hori = null;
-            System.Action<object> fh = null;
-            fh = o => { var d0 = o as Dictionary<string, object>; if (d0 != null) { foreach (var kv in d0) { if (kv.Key.EndsWith("].hori") && kv.Value is Dictionary<string, object>) hori = (Dictionary<string, object>)kv.Value; else if (hori == null) fh(kv.Value); } return; } var l0 = o as List<object>; if (l0 != null) foreach (var v in l0) if (hori == null) fh(v); };
-            fh(D);
-            System.Func<string, string, float> rx2 = (txt, pat) => { var m = System.Text.RegularExpressions.Regex.Match(txt ?? "", pat); return m.Success ? float.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) : float.NaN; };
-            var dm = hori == null ? null : O(Get(hori, "danmen"));
-            string tS = dm == null ? null : S(Get(dm, "州浜")), tI = dm == null ? null : S(Get(dm, "石組")), tR = dm == null ? null : S(Get(dm, "乱杭"));
-            float bank = hori == null ? float.NaN : F(Get(hori, "bank"));
-            float sLand = rx2(tS, @"陸\s*([0-9.]+)\s*m"), sLandB = rx2(tS, @"陸[^、]*1\s*:\s*([0-9.]+)"), sWat = rx2(tS, @"水中\s*([0-9.]+)\s*m"), sWatB = rx2(tS, @"水中[^、]*1\s*:\s*([0-9.]+)"), sFar = rx2(tS, @"以遠\s*1\s*:\s*([0-9.]+)");
-            float iShelf = rx2(tI, @"棚\s*([0-9.]+)"), iW = rx2(tI, @"幅\s*([0-9.]+)"), iFar = rx2(tI, @"1\s*:\s*([0-9.]+)");
-            float rUp = rx2(tR, @"立ち上げ\s*([0-9.]+)"), rFar = rx2(tR, @"1\s*:\s*([0-9.]+)");
-            var miss = new List<string>();
-            foreach (var kv in new[] { new KeyValuePair<string, float>("岸 bank", bank), new KeyValuePair<string, float>("州浜の陸の幅", sLand), new KeyValuePair<string, float>("州浜の陸の法", sLandB), new KeyValuePair<string, float>("州浜の水中の幅", sWat),
-                                       new KeyValuePair<string, float>("州浜の水中の法", sWatB), new KeyValuePair<string, float>("州浜の以遠の法", sFar), new KeyValuePair<string, float>("石組の棚", iShelf), new KeyValuePair<string, float>("石組の棚の幅", iW),
-                                       new KeyValuePair<string, float>("石組の法", iFar), new KeyValuePair<string, float>("乱杭の立ち上げ", rUp), new KeyValuePair<string, float>("乱杭の法", rFar) })
-                if (float.IsNaN(kv.Value)) miss.Add(kv.Key);
-            foreach (var o in GL)
-            {
-                var mg = O(o); if (!(S(Get(mg, "kind")) ?? "").StartsWith("汀線")) continue;
-                if (miss.Count > 0) { sb.AppendLine("  ★ 池の岸の断面: 指図から読めない(" + string.Join("・", miss.ToArray()) + ")── 皮で描かない"); break; }
-                var wl = A(Get(mg, "world")); if (wl == null || wl.Count < 3) continue;
-                float wy = F(mg["y"]), bed = F(Get(mg, "bedY")); string zone = S(Get(mg, "zone"));
-                var ring = new Vector2[wl.Count]; for (int i = 0; i < wl.Count; i++) { var q = A(wl[i]); ring[i] = new Vector2(F(q[0]), F(q[1])); }
-                // 護岸の区間の折れ線と型(0 州浜・1 石組・2 乱杭)
-                var segs = new List<KeyValuePair<int, Vector2[]>>();
-                foreach (var o2 in GL)
-                {
-                    var g2 = O(o2); if (S(Get(g2, "zone")) != zone) continue; string k2 = S(Get(g2, "kind")) ?? "";
-                    int ty = k2.StartsWith("石組護岸") ? 1 : k2.StartsWith("乱杭") ? 2 : k2.StartsWith("州浜") ? 0 : -1; if (ty < 0) continue;
-                    var w2 = A(Get(g2, "world")); if (w2 == null || w2.Count < 2) continue;
-                    var pl = new Vector2[w2.Count]; for (int i = 0; i < w2.Count; i++) { var q = A(w2[i]); pl[i] = new Vector2(F(q[0]), F(q[1])); }
-                    segs.Add(new KeyValuePair<int, Vector2[]>(ty, pl));
-                }
-                System.Func<Vector2[], Vector2, bool, float> distPl = (pl, q, closed) => { float best = float.MaxValue; int n = pl.Length; for (int i = 0; i < (closed ? n : n - 1); i++) best = Mathf.Min(best, DistSeg(q, pl[i], pl[(i + 1) % n])); return best; };
-                float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
-                foreach (var q in ring) { mnx = Mathf.Min(mnx, q.x); mxx = Mathf.Max(mxx, q.x); mnz = Mathf.Min(mnz, q.y); mxz = Mathf.Max(mxz, q.y); }
-                const float BANDG = 3f, STONE_IN = 0.3f; int nUp = 0, nDn = 0;   // STONE_IN: 石組の石の半幅の最小(長軸 0.45〜1.2 の半分 ≥ 0.22)より少し広く ── 石の足の下に隠れる
-                int i0 = Mathf.Max(0, Mathf.FloorToInt((mnx - BANDG - dx0) / dstep)), i1 = Mathf.Min(dnx - 1, Mathf.CeilToInt((mxx + BANDG - dx0) / dstep));
-                int j0 = Mathf.Max(0, Mathf.FloorToInt((mnz - BANDG - dz0) / dstep)), j1 = Mathf.Min(dnz - 1, Mathf.CeilToInt((mxz + BANDG - dz0) / dstep));
-                for (int j = j0; j <= j1; j++)
-                    for (int i = i0; i <= i1; i++)
-                    {
-                        int k = j * dnx + i; if (!ok[k]) continue;
-                        var q = new Vector2(dx0 + i * dstep, dz0 + j * dstep);
-                        float dd = distPl(ring, q, true); if (dd > BANDG) continue;
-                        bool inside = EdoGeom.PIP(ring, q); float d = inside ? -dd : dd;
-                        int ty = 0; float bt = 1.5f; foreach (var sg in segs) { float e = distPl(sg.Value, q, false) - Mathf.Abs(d); if (e < bt) { bt = e; ty = sg.Key; } }
-                        float v = gh[k], y;
-                        if (d >= 0f) y = Mathf.Max(v, ty == 0 ? Mathf.Min(bank, wy + d / sLandB) : bank);
-                        else
-                        {
-                            if (v > wy + 0.01f) continue;   // 中島・岩島の盛りは触らない
-                            float u = -d;
-                            if (ty == 0) y = u <= sWat ? wy - u / sWatB : wy - sWat / sWatB - (u - sWat) / sFar;
-                            else if (u <= STONE_IN) y = bank;   // 石組・乱杭: 汀の線から内へ STONE_IN は石・杭の足の下(岸の高さ ── 水面の縁を地表で囲む【硬】)
-                            else if (ty == 1) y = u - STONE_IN <= iW ? iShelf : iShelf - (u - STONE_IN - iW) / iFar;
-                            else y = rUp - (u - STONE_IN) / rFar;
-                            y = Mathf.Max(y, bed);
-                        }
-                        if (Mathf.Abs(y - v) < 1e-3f) continue;
-                        if (y > v) nUp++; else nDn++;
-                        gh[k] = y;
-                    }
-                // 帯の外形(汀線の外接を BANDG 広げた矩形 ── 描くかは CutEdgeSkin が升ごとに設計と地形の差で決める)
-                drawAreas.Add(new[] { new Vector2(mnx - BANDG, mnz - BANDG), new Vector2(mxx + BANDG, mnz - BANDG), new Vector2(mxx + BANDG, mxz + BANDG), new Vector2(mnx - BANDG, mxz + BANDG) });
-                sb.AppendLine("  池の岸の断面 " + S(mg["name"]) + ": 汀の帯 ±" + BANDG.ToString("F0") + "m を皮の格子 " + dstep.ToString("F2") + "m で ── 上げた節点 " + nUp + "・下げた節点 " + nDn
-                    + "(岸 " + bank.ToString("F2") + "・水面 " + wy.ToString("F2") + "・底 " + bed.ToString("F2") + "・型 州浜/石組/乱杭 = 護岸の区間 " + segs.Count + ")");
-            }
-        }
+        var drawAreas = PondBankDesign(gh, ok, dx0, dz0, dstep, dnx, dnz, sb);
         // 背の小段(StairSideAndEndBacks の #side・#endsBack)も描く区域へ ── 小段 + 先の法(盛りの上限 ÷ 法)まで
         foreach (var kv in SodeBenches(null))
         {
@@ -4537,7 +4682,7 @@ public static class EdoOkabeYashikiBuilder
             float bfP = C("batterFill"), bcP = C("batterCut");
             // ⭐ 平らに取る幅は**地形の升**(Stage3 の LevelPad と同じ・2026-10-07 第46巡)。⛔ 皮の格子(dstep 0.25)で取ると平らな縁が足あと + 0.25 しか無く、
             //   設計の格子と皮の格子のずれで縁の外の法の節点が混ざり、厩の NE の隅が皮で +0.032 埋まった(地形の節点は 0 なのに)。
-            var tdP = Terrain.activeTerrain.terrainData; float padCell = tdP.size.x / (tdP.heightmapResolution - 1);
+            var tdP = EdoBuild.T().terrainData; float padCell = tdP.size.x / (tdP.heightmapResolution - 1);
             if (pads3.Count > 0)
                 for (int j = 0; j < dnz; j++)
                     for (int i = 0; i < dnx; i++)
@@ -6446,7 +6591,8 @@ public static class EdoOkabeYashikiBuilder
     /// 当たる先: sodeSlope を持つ袖(岡部 TW_Kado_Sode)。</summary>
     /// <summary>**線の外へ波及した造成を造成前の地盤へ戻す**(const.perimeterRetain【硬】・第90巡)。区画の線の外 <paramref name="band"/> 以内で、他の区画の内でない(道の側の)
     /// 地形の節点のうち、造成前の地盤(base_dem)と 0.3 を超えて違う物を base_dem へ戻す。⚠ 地形の編集は Undo の外 ── 呼ぶ前に退避を取る。⟶ 戻した節点の数の報告。</summary>
-    public static string RestorePerimeterSpill(float band)
+    public static string RestorePerimeterSpill(float band) { using (OnKita()) return RestorePerimeterSpill_(band); }
+    static string RestorePerimeterSpill_(float band)
     {
         string pr = S(Get(O(D["const"]), "perimeterRetain")); if (pr == null || !pr.Contains("造成前の地盤")) return "  ★ const.perimeterRetain が無い ── 戻さない";
         var t = EdoBuild.T(); var td = t.terrainData; var org = t.transform.position; int R = td.heightmapResolution; float hs = td.size.x / (R - 1);
@@ -9124,7 +9270,8 @@ public static class EdoOkabeYashikiBuilder
     [MenuItem("Edo/岡部筑前守上屋敷/4 庭(部材を据える・地形には触らない)")]
     public static void Stage4Menu() { Debug.Log("[Okabe] " + Stage4_Niwa()); }
 
-    public static string Stage4_Niwa()
+    public static string Stage4_Niwa() { using (OnKita()) return Stage4_Niwa_(); }
+    static string Stage4_Niwa_()
     {
         var gate = ReviewGate(); if (gate != null) return gate;
         var wait = new List<string>();
@@ -9356,7 +9503,7 @@ public static class EdoOkabeYashikiBuilder
     /// ⛔⛔ **区画の外は 1 セルも塗らない。**塗った数と、外に掛かって捨てた数の両方を出す。</summary>
     static string PaintSplat(List<object> items, List<string> wait)
     {
-        var t = Terrain.activeTerrain; var td = t.terrainData;
+        var t = EdoBuild.T(); var td = t.terrainData;
         var layers = td.terrainLayers;
         // 層の名 → 地形の層の番号。⛔ 番号を書かない
         var idx = new Dictionary<string, int>();
@@ -9860,7 +10007,8 @@ public static class EdoOkabeYashikiBuilder
     [MenuItem("Edo/岡部筑前守上屋敷/5 西の斜面(林・松・帯・汀)")]
     public static void Stage5Menu() { Debug.Log("[Okabe] " + Stage5_Nishi()); }
 
-    public static string Stage5_Nishi()
+    public static string Stage5_Nishi() { using (OnKita()) return Stage5_Nishi_(); }
+    static string Stage5_Nishi_()
     {
         var gate = ReviewGate(); if (gate != null) return gate;
         var sb = new System.Text.StringBuilder();
@@ -10265,7 +10413,8 @@ public static class EdoOkabeYashikiBuilder
     /// ⚠ ②が 0 でない=欠陥、ではない。表門・表長屋・通用口は裁定3=B で次巡に回してある。
     ///   ②の「建っている物」= Kakoi・Mon・Fences・Ishigaki(基壇の石垣)の活きている駒。
     ///   ⛔ だからといって数字を出さないと「据えたつもり」が見えなくなる。</summary>
-    public static string ClosureQA()
+    public static string ClosureQA() { using (OnKita()) return ClosureQA_(); }
+    static string ClosureQA_()
     {
         var P = Poly; int n = P.Length;
         var ops = Openings();
@@ -10324,7 +10473,8 @@ public static class EdoOkabeYashikiBuilder
 
     /// <summary>**開口の上に囲いが載っていないか。**指図は run の `s` で既に開口を避けてあるので、
     /// ここが 0 でなければ**指図か区画のどちらかが動いた**合図(実装は開口を切り直さない)。</summary>
-    public static string OpeningQA()
+    public static string OpeningQA() { using (OnKita()) return OpeningQA_(); }
+    static string OpeningQA_()
     {
         var sb = new System.Text.StringBuilder("開口と run\n");
         int bad = 0;
@@ -10797,7 +10947,8 @@ public static class EdoOkabeYashikiBuilder
     [MenuItem("Edo/岡部筑前守上屋敷/S1→S5 を通す")]
     public static void RunAllMenu() { Debug.Log("[Okabe] " + RunAll()); }
 
-    public static string RunAll()
+    public static string RunAll() { using (OnKita()) return RunAll_(); }
+    static string RunAll_()
     {
         Reload();
         var sb = new System.Text.StringBuilder();
@@ -10809,7 +10960,7 @@ public static class EdoOkabeYashikiBuilder
         sb.AppendLine(ClosureQA());
         sb.AppendLine(Stage2b_Dan());
         sb.AppendLine(Stage3_Shukaku());
-        sb.AppendLine(Stage3b_Hifu());      // 皮は駒と造成が決まった後(1 が冒頭で外す)
+        sb.AppendLine(Stage3d_Mizo());      // 皮は退役(2026-10-11)── 溝を据えて溝の下の地面を下げる
         sb.AppendLine(Stage4_Niwa());
         sb.AppendLine(Stage5_Nishi());
         return sb.ToString();

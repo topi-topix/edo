@@ -56,7 +56,7 @@ public static class EdoYashikiPrefab
 
     /// <summary>シーンに置いたままにするルート(地形・水・プレイヤー・オーバーレイ等)。</summary>
     static readonly HashSet<string> KeepInScene = new HashSet<string>{
-        "ModernTerrain", "Water", "Player", "SpawnPoint", "GeoAnchors", "Directional Light",
+        "ModernTerrain", "KitaTerrain", "Water", "Player", "SpawnPoint", "GeoAnchors", "Directional Light",
         "PostVolume", "OldMapOverlay", "ModernMapOverlay", "Castle_Standin",
         "TempFences", "TempLineup", "Main Camera",
     };

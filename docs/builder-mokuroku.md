@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 93・関数 890(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 94・関数 913(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -25,7 +25,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoDoiBuilder.cs](#edodoibuildercs) | 土井大隅守上屋敷(三河刈谷藩2万3千石・譜代・雁間)ビルダー。 | 15 | 89 |
 | [EdoMatsudairaDewaBuilder.Niwa.cs](#edomatsudairadewabuilderniwacs) | 松平出羽守上屋敷 — 庭の工程(池・築山・水の系・石組・点景・滝見口)。 | 9 | 30 |
 | [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 16 | 120 |
-| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 20 | 207 |
+| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 21 | 230 |
 | [EdoSannoShaBuilder.cs](#edosannoshabuildercs) | 山王権現社(日枝神社)本体+樹下家邸+山王門前町ビルダー (2026-08-11。観理院は 2026-09-26 に類型へ移し削除) | 1 | 31 |
 | [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 13 | 102 |
 | [EdoSanyashikiRebuild.cs](#edosanyashikirebuildcs) | 三屋敷(太田・加納・鍋島=松平肥前守)の区画を下書きv3へ更新 (2026-08-08) | 0 | 6 |
@@ -533,21 +533,22 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | メニュー | 関数 | 呼ぶ関数(Stage) |
 |---|---|---|
 | `Edo/岡部筑前守上屋敷/指図を読み直す` | `Reload` | `Clear` |
-| `Edo/岡部筑前守上屋敷/0 ハイトマップを退避` | `Stage0Menu` | `Stage0_Backup`, `Window` |
-| `Edo/岡部筑前守上屋敷/1 造成(指図の面へ)` | `Stage1Menu` | `Stage1_Grade`, `ReviewGate`, `Stage0_Backup`, `Window` |
+| `Edo/岡部筑前守上屋敷/0 ハイトマップを退避` | `Stage0Menu` | `Stage0_Backup`, `OnKita`, `Stage0_Backup_`, `Window` |
+| `Edo/岡部筑前守上屋敷/1 造成(指図の面へ)` | `Stage1Menu` | `Stage1_Grade`, `OnKita`, `Stage1_Grade_`, `ReviewGate` |
 | `Edo/岡部筑前守上屋敷/造成を検査 GradeQA` | `GradeQAMenu` | `GradeQA` |
-| `Edo/岡部筑前守上屋敷/2 外周(練塀・基壇・木柵・隅)` | `Stage2Menu` | `Stage2_Perimeter`, `ReviewGate`, `Group`, `Clear` |
-| `Edo/岡部筑前守上屋敷/2b 段の土留め(terraceWalls・天端の垣)` | `Stage2bMenu` | `Stage2b_Dan`, `ReviewGate`, `Stale`, `A` |
+| `Edo/岡部筑前守上屋敷/2 外周(練塀・基壇・木柵・隅)` | `Stage2Menu` | `Stage2_Perimeter`, `OnKita`, `Stage2_Perimeter_`, `ReviewGate` |
+| `Edo/岡部筑前守上屋敷/2b 段の土留め(terraceWalls・天端の垣)` | `Stage2bMenu` | `Stage2b_Dan`, `OnKita`, `Stage2b_Dan_`, `ReviewGate` |
 | `Edo/岡部筑前守上屋敷/検: 背の路地を解く(据えない)` | `SeRojiReportMenu` | `SeRojiPlanOf`, `SeRojiReport`, `BackTrenchesFull`, `BackTrenches` |
-| `Edo/岡部筑前守上屋敷/3 主郭(棟・廊下・附属屋・井戸・結界・石段)` | `Stage3Menu` | `Stage3_Shukaku`, `Stage3c_SodeSlopeCheck`, `SkinGround` |
-| `Edo/岡部筑前守上屋敷/3b 縁の皮(段の土留めの足元の升に穴を開けて皮で描く)` | `Stage3bMenu` | `Stage3b_Hifu`, `ReviewGate`, `ImplTol`, `Group` |
-| `Edo/岡部筑前守上屋敷/4 庭(部材を据える・地形には触らない)` | `Stage4Menu` | `Stage4_Niwa`, `ReviewGate`, `Stale`, `RetireStaleGroup` |
-| `Edo/岡部筑前守上屋敷/5 西の斜面(林・松・帯・汀)` | `Stage5Menu` | `Stage5_Nishi`, `ReviewGate`, `Stale`, `RetireStaleGroup` |
-| `Edo/岡部筑前守上屋敷/外周の閉じを検査 ClosureQA` | `ClosureQAMenu` | `ClosureQA`, `Openings` |
-| `Edo/岡部筑前守上屋敷/開口と run の食い違いを検査 OpeningQA` | `OpeningQAMenu` | `OpeningQA`, `Openings` |
+| `Edo/岡部筑前守上屋敷/3 主郭(棟・廊下・附属屋・井戸・結界・石段)` | `Stage3Menu` | `Stage3_Shukaku`, `Stage3c_SodeSlopeCheck`, `OnKita`, `Stage3c_SodeSlopeCheck_` |
+| `Edo/岡部筑前守上屋敷/3b 溝を据え、溝の下の地面を下げる(皮は退役 2026-10-11)` | `Stage3bMenu` | `Stage3d_Mizo`, `PondBankDesign`, `A`, `Get` |
+| `Edo/岡部筑前守上屋敷/検: 地面と駒の取り合い(皮なし)` | `GroundQAMenu` | `GroundQA`, `OnKita`, `GroundQA_`, `ImplTol` |
+| `Edo/岡部筑前守上屋敷/4 庭(部材を据える・地形には触らない)` | `Stage4Menu` | `Stage4_Niwa`, `OnKita`, `Stage4_Niwa_`, `ReviewGate` |
+| `Edo/岡部筑前守上屋敷/5 西の斜面(林・松・帯・汀)` | `Stage5Menu` | `Stage5_Nishi`, `OnKita`, `Stage5_Nishi_`, `ReviewGate` |
+| `Edo/岡部筑前守上屋敷/外周の閉じを検査 ClosureQA` | `ClosureQAMenu` | `ClosureQA`, `OnKita`, `ClosureQA_` |
+| `Edo/岡部筑前守上屋敷/開口と run の食い違いを検査 OpeningQA` | `OpeningQAMenu` | `OpeningQA`, `OnKita`, `OpeningQA_`, `Openings` |
 | `Edo/岡部筑前守上屋敷/区画と指図の座標を突き合わせる` | `ParcelQAMenu` | `ParcelQA`, `A`, `Get` |
 | `Edo/岡部筑前守上屋敷/算出物を検める` | `ImplQAMenu` | `ImplQA`, `Reload` |
-| `Edo/岡部筑前守上屋敷/S1→S5 を通す` | `RunAllMenu` | `RunAll`, `Reload`, `ParcelQA`, `Stage1_Grade` |
+| `Edo/岡部筑前守上屋敷/S1→S5 を通す` | `RunAllMenu` | `RunAll`, `OnKita`, `RunAll_`, `Reload` |
 | `Edo/岡部筑前守上屋敷/隅部材のマテリアルをremap` | `RemapKadoMaterials` | `RemapDir`, `BindDonorMaterials`, `RemapKadoMaterialsCommon` |
 | `Edo/共通/隅部材のマテリアルをremap` | `RemapKadoMaterialsCommon` | `RemapKadoMaterials`, `BindDonorMaterials` |
 | `Edo/岡部筑前守上屋敷/新造部材のマテリアルをremap` | `RemapOkabeShinzoMenu` | `RemapOkabeShinzo` |
@@ -564,11 +565,13 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `Has(d, k)` | `bool` |  | — |
 | `Get(d, k)` | `object` |  | — |
 | `C(key)` | `float` | 公 | 指図の `const` の値。⛔ 無ければ例外(発明しない・既定値で埋めない)。 |
+| `OnKita()` | `IDisposable` |  | Stage の間だけ地形を岡部の芯の地形(北の3邸の細かい地形・2026-10-11)へ名指す(EdoBuild.TerrainFocus)。 |
 | `EdgeLen(e)` | `float` | 公 | — |
 | `EdgePt(e, s)` | `Vector2` | 公 | 辺 e の始点から走り s[m] の世界座標。 |
 | `OutNormal(e)` | `Vector2` | 公 | 辺 e の外向き単位法線。符号付き面積から決めるので凹みのある区画でも全辺で一貫する。 |
 | `MichiNarashiAt(m, x, z)` | `float` |  | 帯の均した面の高さ。最も近い格子点が帯の外なら NaN(帯の縁で外へにじませない ── 帯の外の道は触らない【硬】)。 |
 | `OutsideBase()` | `Func<float, float, float>` |  | — |
+| `GradedBin()` | `WGrid` |  | 0.25m の造成の面(施主裁定 2026-10-11・EDO-0502)── `python3 Tools/Sashizu/impl_okabe.py --graded-bin` が焼く 2 進 (EdoAssets.… |
 | `DesignY(p)` | `float` | 公 | 敷地内の一点の造成後の高さ[m]。区画の外は NaN。 |
 | `Stale(col)` | `bool` |  | 算出物の欄がいまの指図から焼かれていない(`baked.carried` に名がある = 前の指図のまま据え置き)か。 |
 | `RetireStaleGroup(child, col)` | `string` |  | 据え置きの欄から前に建てた群を退ける(SetActive(false)・消さない)。 |
@@ -576,8 +579,10 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `Group(child)` | `Transform` |  | 群を辿る(無ければ作る)。⭐ 中身は共通の一本道 EdoYashikiPrefab.Group。 |
 | `Clear(t)` | `void` |  | — |
 | `Stage0_Backup()` | `string` | 公 | 着工前の地形を .bin へ。無いときだけ書く。 |
+| `Stage0_Backup_()` | `string` |  | — |
 | `Window(x0, z0, w, h)` | `void` |  | 造成とその検査が使う窓。区画の外接矩形 + 余白。 |
 | `Stage1_Grade()` | `string` | 公 | — |
+| `Stage1_Grade_()` | `string` |  | — |
 | `ProfSNodes(r, f, note)` | `KeyValuePair<Vector2[], float[]>` |  | 坂の縦断 `profS`([s, y] の並び・同じ s に二つの高さ = 石段)と芯 `pts` から、均す芯の節点(世界 xz)と高さを起こす(EDO-0502 第8巡)。 |
 | `RampAxis(r, pts, ys, width, note)` | `bool` |  | 指図の坂 r の芯(世界 xz)・芯の高さ・路盤の幅を読む(GradeRamps と造成QA が同じ読みを使う)。 |
 | `GradeRamps()` | `string` |  | 折れ線の坂の路盤(案1・EDO-0502)。 |
@@ -585,7 +590,9 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `GradeQA()` | `string` | 公 | 敷地内の全セルで ／地形 − 設計面／ を測る。 |
 | `ServicePads()` | `List<PadAx>` |  | 勾配の面(指図 service[].yFrom)の上に据わった附属屋の棟の下の均しの範囲(足あと = EdoBuild.BodyFootWorld・高さ = 据わった躯体の底・ 面 = TerracePolyAt)。 |
 | `GradeQA(badAt)` | `string` | 公 | badAt が null でなければ超過の節点(x, z, 地形−設計面)を入れて返す(測りの内訳)。 |
+| `GradeQA_(badAt)` | `string` |  | — |
 | `Stage2_Perimeter()` | `string` | 公 | — |
+| `Stage2_Perimeter_()` | `string` |  | — |
 | `MiterOf(kutaiPath, r, sSign, warn)` | `string` |  | 区画の角で留めた表長屋の版(EDO-0502 2026-10-03)を引く。 |
 | `KiriEnd(r, atStart, sEnd)` | `KeyValuePair<string, Vector3>` |  | 練塀の端を隣の辺の線で斜めに切った駒の据え場所(EDO-0502 2026-10-03・部材の約束は EdoAssets.Own.DobeiKiri)。 |
 | `PlaceOmoteNagaya(kak, wait)` | `string` |  | 外周の表長屋と表門。⭕ 2026-09-04 裁定12=A(二階・棟 7.183 / 表門の棟 8.5)。 |
@@ -615,6 +622,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `PivotUV(u0, v0, u1, v1)` | `Vector2` | 公 | — |
 | `Pivot(o, kind)` | `Vector2` | 公 | 突き合わせが読む据え付け点(世界座標)。 |
 | `Stage2b_Dan()` | `string` | 公 | — |
+| `Stage2b_Dan_()` | `string` |  | — |
 | `KeepToe(keepB, wallB, q, nw)` | `bool` |  | 法尻の土留めの背の小段(指図 terraceWalls[].toeBench を持つ欄 ── TW_Nishi_Kado・TW_Higashi_Minami・EDO-0502 第33巡)を、 据えた駒(Dan の「名_p… |
 | `ToeBenches(note)` | `List<EdoBuild.ToeBench>` |  | — |
 | `BackTrenches(sb)` | `List<BackTrench>` |  | 返しの石垣と溝を解く(Stage2b の据えと Stage3b の皮の設計の地盤が同じ答えを読む)。 |
@@ -633,8 +641,17 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `EndDecisions(nm, w, nodes, tops, sb, rets)` | `void` |  | 段の土留めの両端の決め(指図 terraceWalls[].ends・EDO-0502 第20巡 TW_Minami_Koshi)。 |
 | `PlaceDanKaki(fgrp, walls, wallOf, lineOf, topOf, gapOf)` | `string` |  | 天端の垣を、指図 terraceWalls[].fenceOnTop の型で据える(置き方は EdoBuild.PlaceCrestFence)。 |
 | `Stage3c_SodeSlopeCheck()` | `string` | 公 | 袖の坂の硬い検めを皮の後に測り直す(指図 sodeSlope「天端と背の地盤の差 ≤ x」【硬】・EDO-0502 第45巡)。 |
+| `Stage3c_SodeSlopeCheck_()` | `string` |  | — |
 | `Stage3_Shukaku()` | `string` | 公 | — |
+| `Stage3_Shukaku_()` | `string` |  | — |
+| `PondBankDesign(gh, ok, dx0, dz0, dstep, dnx, dnz, sb)` | `List<Vector2[]>` |  | 池の岸の断面(指図 hosoku.zosei「gardens[NiwaShoin].hori」.danmen・EDO-0502 第61巡)を格子 gh(dx0/dz0/dstep・dnx×dnz)へ書く。 |
+| `PondBankToTerrain()` | `string` |  | 池の岸の断面を細かい地形へ(2026-10-11・皮の代わり)。 |
+| `Stage3d_Mizo()` | `string` | 公 | 3d 溝(施主裁定 2026-10-11・EDO-0502: 皮をやめ 0.25m の細かい地形へ移った)── Stage3b の皮を外し、皮の前に据えていた溝・桝を据え、 溝・桝の駒の下の地面を駒の底より下げる(Edo… |
+| `Stage3d_Mizo_()` | `string` |  | — |
+| `GroundQA()` | `string` | 公 | — |
+| `GroundQA_()` | `string` |  | — |
 | `Stage3b_Hifu()` | `string` | 公 | — |
+| `Stage3b_Hifu_()` | `string` |  | — |
 | `NozuraCrestCoverOf(sb, buried=…)` | `EdoBuild.NozuraCrestCover` |  | 野面の石垣の天端の裏石の帯を土で覆う型(EdoBuild.NozuraCrestCover)を、段の土留め(Dan)の野面の駒から起こす (指図 const.nozuraCrestCover・普請方の設計 2026-10… |
 | `SteepEdgeReport(root)` | `string` |  | 算出物 graded の写しに、坂の路盤(ramps[] の芯・幅・縦断)の帯の中だけ今の地形(GradeRamps の均し)を写す(EDO-0502 第8巡)。 |
 | `FlatReport(root, buried)` | `string` |  | 面の平らの検め(指図 terraces[].flat「面は y、外れ ±e【硬】」・普請方 2026-10-09f・第73巡)。 |
@@ -663,6 +680,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `PlaceFrontAnkyo(run, T, tailBottom, sTail, tailPiece)` | `string` |  | 前の下水溝の尻の暗渠(指図 drains D_&lt;棟&gt;_Mae の route ── 普請方 2026-10-10n・EDO-0502 第96巡)。 |
 | `PlaceBackGutters()` | `string` |  | — |
 | `RestorePerimeterSpill(band)` | `string` | 公 | 袖の坂(指図 terraceWalls[].sodeSlope・普請方の設計 2026-10-07・EDO-0502 第41〜42巡)── 袖の天端を段にせず、背の法 + off の坂の一続きの線にする (上端 cap… |
+| `RestorePerimeterSpill_(band)` | `string` |  | — |
 | `TrimRunsToPartners(segs)` | `string` |  | 指図 ends 追記 2026-10-10f【硬】(第89巡): 「突き付け」を名指す run の端が、別の run の区間の線を越えていれば交点まで縮める(EdoBuild.TrimSegToPartnerLine)─… |
 | `CutEndsMikiri(segs)` | `string` |  | 指図 cuts 追記 2026-10-10f【硬】(第89巡): 「〜が切る口の両端は見切り石で納め、隅の駒を口に置かない」── その欄の run の区間の端のうち、名指しの石段の駒から 1.5m 以内の端に見切り石を名… |
 | `TrimRunsBelowFront(segs)` | `string` |  | 指図 sideEnd・sodeSlope 追記 2026-10-10d【硬】の打ち切り(第87巡)── 欄が「flat の帯の中に駒を置かない」を持つ run(sodeSlope = 欄の名・sideEnd = 欄の名… |
@@ -707,6 +725,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `PlaceKaidanAB(grp, k, wait)` | `int` |  | — |
 | `PlaceSando(wait)` | `string` |  | 参道(表門の軸を通る白洲)。⭕ 屋根を架けない(2026-08-19 ユーザー裁定 — 前庭は開けた白洲で、屋根は式台・車寄せまで)。 |
 | `Stage4_Niwa()` | `string` | 公 | — |
+| `Stage4_Niwa_()` | `string` |  | — |
 | `AnkyoReport()` | `string` |  | 水抜きの溝が道を通る区間(暗渠)を測る(案1・EDO-0502・指図 gardens[].mizu.outflow.crossings)。 |
 | `PlaceWaterSurface(items, wait)` | `string` |  | 池の水面だけを張る(2026-09-04 普請奉行の裁定)。 |
 | `PaintSplat(items, wait)` | `string` |  | 地表を塗る(2026-09-04 指図方が `layer` を宣言した分)。 |
@@ -722,6 +741,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `StableHash(s2)` | `int` |  | 名前から決まる安定した非負の整数。⛔ 乱数ではない — 何度流しても同じ物が出る。 |
 | `NaturalHeight(path, parent)` | `float` |  | 部材の素の丈[m]。⭐ 中身は共通の一本 EdoBuild.PlantNaturalHeight(EDO-0533 で移した)。 |
 | `Stage5_Nishi()` | `string` | 公 | — |
+| `Stage5_Nishi_()` | `string` |  | — |
 | `PlantFromImpl(wait)` | `string` |  | 生成器が撒いた散布点を据えるだけ。 期待する欄は impl.planting[](素の配列。 |
 | `PlaceTesuri(wait)` | `string` |  | 勝手の道が法肩の竹垣の外(池側)を通る区間の落下止め (2026-09-03 ユーザー裁定1=A)。 |
 | `PlaceKuiretsu(wait)` | `string` |  | 汀線に沿う松の丸太杭。⭐ 本数は汀線の実長から算出する(⛔ 辺5の長さを流用しない — 2026-09-03 庭方4巡目)。 |
@@ -731,7 +751,9 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `HostedGate(run, s, w, label)` | `bool` |  | 門長屋の口(辺 e の走り s・幅 w)。 |
 | `Openings()` | `List<float[]>` |  | 指図の開口(表門・通用口)。辺と s の区間で返す。 |
 | `ClosureQA()` | `string` | 公 | 外周が全周で閉じているかを辺ごとに数字で出す。 |
+| `ClosureQA_()` | `string` |  | — |
 | `OpeningQA()` | `string` | 公 | 開口の上に囲いが載っていないか。指図は run の `s` で既に開口を避けてあるので、 ここが 0 でなければ指図か区画のどちらかが動いた合図(実装は開口を切り直さない)。 |
+| `OpeningQA_()` | `string` |  | — |
 | `ParcelQA()` | `string` | 公 | 区画の正典(parcels.json)と指図の同期コピーが一致しているか。 |
 | `ImplQA()` | `string` | 公 | 算出物 `okabe_impl.json` の自己検査。 ⟶ 返す: 人が読む報告 |
 | `TerraceRingDist(uv)` | `float` |  | 点(グリッド座標)から段の輪郭(外輪・抜き・keeps)までの最短距離[間]。 |
@@ -739,6 +761,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `DistSeg(p, a, b)` | `float` |  | — |
 | `HeightRange(zone, role, species, name, lo, hi)` | `bool` |  | 指図が宣言している丈の範囲を引く。⛔ 宣言の無い層に既定の範囲を当てない — 当てると「検査を通った」ことになるが、実際には何も検めていない。 |
 | `RunAll()` | `string` | 公 | — |
+| `RunAll_()` | `string` |  | — |
 | `BindDonorMaterials()` | `string` |  | 素材の提供元からマテリアルを直接結ぶ。 ⚠ `SearchAndRemapMaterials` は独立した .mat しか探さない。 |
 | `RemapOkabeShinzo()` | `string` | 公 | — |
 | `RemapDir(dir)` | `int` |  | — |

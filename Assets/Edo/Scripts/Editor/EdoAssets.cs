@@ -4406,6 +4406,20 @@ public static class EdoAssets
         public const string GateKinds = Dir + "gate_kinds.json";
     }
 
+    /// <summary>**北の3邸の細かい地形**(施主裁定 2026-10-11・EDO-0502)。皮(EdgeSkin)をやめ、岡部・土井・松江松平を覆う
+    /// 512m 四方・0.25m 格子の地形を一枚置く。大地形(ModernTerrain)はこの範囲を 2m 格子揃えで穴抜きする。→ <see cref="EdoChikei"/></summary>
+    public static class Chikei
+    {
+        /// <summary>地形の資産(heightmap 2049²)。<c>Edo/地形/北の3邸の細かい地形を起こす</c> が起こす。</summary>
+        public const string KitaData   = "Assets/Edo/Terrain/KitaTerrain.asset";
+        /// <summary>地形の GameObject のプレハブ(赤坂・作業場へ据える)。</summary>
+        public const string KitaPrefab = "Assets/Edo/Terrain/KitaTerrain.prefab";
+        /// <summary>シーンの中の名(作業場が持ち込み・プレハブの切り出しが残す)。</summary>
+        public const string KitaName   = "KitaTerrain";
+        /// <summary>岡部の造成の面の 0.25m の焼き(2 進・`python3 Tools/Sashizu/impl_okabe.py --graded-bin`)。</summary>
+        public const string OkabeGradedBin = "docs/Sashizu/okabe_graded.bin";
+    }
+
     /// <summary>シーン。</summary>
     public static class Scenes
     {

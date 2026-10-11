@@ -31,28 +31,46 @@ public static partial class EdoBuild
     /// <summary>アクティブな Terrain (最初の1枚)。無ければ例外。⭐ 掴んだ物が生きていれば再走査しない。</summary>
     public static Terrain T()
     {
+        var f = _focus;
+        if (f != null && f.gameObject.activeInHierarchy) return f;   // ⭐ 邸の Stage が TerrainFocus で名指した地形(北の3邸の細かい地形)
         var c = _terrain;
         if (c != null && c.gameObject.activeInHierarchy) return c;
+        // ⚠ 地形が二枚(大地形+北の3邸の細かい地形・2026-10-11)になったので**一番大きい物**を既定にする(探す順は決まらない)。
+        Terrain best = null;
         foreach (var t in UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsSortMode.None))
-            if (t.gameObject.activeInHierarchy) { _terrain = t; return t; }
+            if (t.gameObject.activeInHierarchy && t.terrainData != null && (best == null || t.terrainData.size.x > best.terrainData.size.x)) best = t;
+        if (best != null) { _terrain = best; return best; }
         throw new Exception("no active terrain");
     }
 
     /// <summary>**地表を何度も引くための掴み。**Terrain と原点の y を一度だけ掴み、以後は `SampleHeight` だけを叩く。
     /// ⭐ 駒の全頂点を引く所(<see cref="Contact(GameObject,out Vector3,out int,float,int)"/>)で使う。
     /// ⛔ 1 巡のあいだに Terrain を動かす所では使わない(掴んだ原点の y が古くなる)。</summary>
+    /// ⭐ 2026-10-11: 細かい地形(北の3邸)の矩形の中はそちらを引く(<see cref="TerrainAt"/> と同じ選び方)。
     public struct GroundProbe
     {
         readonly Terrain t; readonly float y0;
-        public GroundProbe(Terrain terrain) { t = terrain; y0 = terrain.transform.position.y; }
-        public float At(float x, float z) { return t.SampleHeight(new Vector3(x, 0f, z)) + y0; }
+        readonly Terrain fine; readonly float fy0; readonly Rect fr;
+        public GroundProbe(Terrain terrain)
+        {
+            t = terrain; y0 = terrain.transform.position.y;
+            fine = FineTerrain(); fy0 = 0f; fr = new Rect();
+            if (fine != null) { fy0 = fine.transform.position.y; fr = TerrainRect(fine); }
+        }
+        public float At(float x, float z)
+        {
+            if (fine != null && fr.Contains(new Vector2(x, z))) return fine.SampleHeight(new Vector3(x, 0f, z)) + fy0;
+            if (fine == t) return TerrainAt(x, z).SampleHeight(new Vector3(x, 0f, z)) + TerrainAt(x, z).transform.position.y;   // 細かい地形を名指したまま矩形の外を引いた
+            return t.SampleHeight(new Vector3(x, 0f, z)) + y0;
+        }
     }
 
     /// <summary>地表の引き手を一つ作る。<see cref="GroundProbe"/> を見よ。</summary>
     public static GroundProbe Probe() { return new GroundProbe(T()); }
 
-    /// <summary>live terrain の標高 (m)。⚠ 造成が乗る作業面 — 造成前の地盤は docs/Sashizu/base_dem.json が正典。</summary>
-    public static float Ground(float x, float z) { var t = T(); return t.SampleHeight(new Vector3(x, 0, z)) + t.transform.position.y; }
+    /// <summary>live terrain の標高 (m)。⚠ 造成が乗る作業面 — 造成前の地盤は docs/Sashizu/base_dem.json が正典。
+    /// ⭐ 座標から地形を引く(<see cref="TerrainAt"/>・2026-10-11 北の3邸の細かい地形)。</summary>
+    public static float Ground(float x, float z) { var t = TerrainAt(x, z); return t.SampleHeight(new Vector3(x, 0, z)) + t.transform.position.y; }
 
     static GameObject Load(string path)
     {

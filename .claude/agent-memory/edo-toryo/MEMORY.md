@@ -4,17 +4,16 @@
 
 ## Unity MCP の罠
 
+- [北の3邸は 0.25m の KitaTerrain・皮は退役](kita-fine-terrain-move.md) — T() は名指し(TerrainFocus)・測る execute_code も focus で囲む・3b は溝も据えていた
 - [書き戻しは必ずタイムアウトする](pitfall-writeback-mcp-timeout.md) — 大きい邸のプレハブ。⛔再送せず mtime で判定
 - [domain reload 後に bridge が消える](pitfall-bridge-drops-after-domain-reload.md) — 約2分。status と Editor.log で見る・古い port で「instances なし」が一回おき
 - [再生中に建てるとシーンは消える](playmode-discards-scene-edits.md) — isPlaying を先に聞く。資産(プレハブ・地形)への書き込みだけ残る
 - [30秒を超える execute_code は6回走る](akasaka-open-resent-six-times.md) — 赤坂・作業場を開く・重い計測。menu の赤坂へ戻すも6回開く・計測は割ってファイルへ
 - [execute_code の replay は履歴の番号](execute-code-replay-index-is-history.md) — index=0 で前の Stage が再び走った。⛔replay せず送り直す
 - [SkinGapTable の計測は6回走り、その間に claim が移ると空振る](skin-gap-table-reruns-and-lost-scene.md) — 78秒×6。頭で GN の有無を返させる
-- [タイムアウト後は read_console で待つ・池の斑は水を消して切り分け](wait-on-timeout-with-cheap-mcp.md) — sleep は門番が止める。軽い MCP は main thread が空くまで返らない
-- [長い Stage は印のファイルで再送を止める・狙いだけの Converge は2巡](long-run-guard-and-soft-only-converge.md) — delayCall は発火せず。active scene を先に聞く
+- [タイムアウト後は read_console で待つ・池の斑は水を消して切り分け](wait-on-timeout-with-cheap-mcp.md)・[長い Stage は印のファイルで再送を止める・狙いだけの Converge は2巡](long-run-guard-and-soft-only-converge.md) — sleep は門番が止める。軽い MCP は main thread が空くまで返らない / delayCall は発火せず。active scene を先に聞く
 - [隅部材の remap の menu は Kado 89 本を再 import して何巡も回る](remap-menu-reimports-all-kado.md) — 新しい FBX が少なければ1本ずつ remap
-- [start --unity が通っても claim が付いていないことがある](pitfall-unity-claim-not-verified.md) — status で「資源: unity」を見るまで MCP を叩かない・渡された直後の引き取り(compile_wait 前に読み直す)
-- [claim が無い巡は .cs も保存しない](cs-edit-is-not-claim-free.md) — 1行で他人の bridge が2分落ちる。用意は scratchpad の OLD/NEW 指示書へ
+- [start --unity が通っても claim が付いていないことがある](pitfall-unity-claim-not-verified.md)・[claim が無い巡は .cs も保存しない](cs-edit-is-not-claim-free.md) — status で「資源: unity」を見るまで MCP を叩かない・渡された直後の引き取り(compile_wait 前に読み直す) / 1行で他人の bridge が2分落ちる。用意は scratchpad の OLD/NEW 指示書へ
 - [[MenuItem] の直下に関数を差すとメニューが化ける・子の印は親と動く](menuitem-drift-and-child-mark-moves.md) — 「4 囲い」が柵を建てていなかった。印 _axis が 0.117 ずれた
 - [delayCall は他窓の reload で消える・指図の同時書き](delaycall-lost-and-shared-sashizu.md) — Stage は直に呼ぶ。流す前に指図の sha と impl の src を見る・着手前に kansei の reopen を見る
 - [別セッションの赤い .cs で Editor アセンブリが焼けない](editor-dll-blocked-by-other-session.md) — dll の mtime が止まり CPU も静か。⛔refresh を繰り返さず console の error を読む
@@ -171,8 +170,7 @@
 - [偶奇の多数決の内外判定は野面で偽のめり込み](parity-inside-test-false-intrusion.md) — 袖×SW の隅 0.234 は偽。当たり0の向きが在れば外
 - [悪化の申告はまず prefab を git で比べる](regression-claim-diff-prefab-first.md) — EDO-0437 の3件は駒が動いていなかった。郭の階の南の袖は EK の隅の腕の中(腕 −0.04 の隅が要る)
 - [Contact の筋は疎な駒で偽の隙](contact-cell-too-fine-on-sparse-meshes.md)・[段石の浮きは袖に塞がれない端だけ](dan-float-read-behind-sode.md) — 面どうしは光線で・袖の裏の空洞
-- [当たりは棟の外形線の上で測らない](notch-seat-has-80mm-plate-under.md) — 線上は内と外を拾い分ける。廊下の側へ張り出す三角形だけに絞る
-- [実メッシュの当たりは紙より 0.08m 低い](mesh-atari-is-lower-than-paper.md) — 葺き厚と垂れ。5点の中央値で測る
+- [当たりは棟の外形線の上で測らない](notch-seat-has-80mm-plate-under.md)・[実メッシュの当たりは紙より 0.08m 低い](mesh-atari-is-lower-than-paper.md) — 線上は内と外を拾い分ける。廊下の側へ張り出す三角形だけに絞る / 葺き厚と垂れ。5点の中央値で測る
 - [C#の検図関門が kansei を見ていなかった](csharp-review-gate-ignored-kansei.md) — python が⭕でも止まる。直した
 - [bake_impl は指紋違いで焼ける欄まで書かない](bake-impl-carried-src.md) — 欄を足したら carriedSrc を残す。半分だけ焼かない
 - [面の輪郭ぎわの残差は物差しの話](terrace-rim-residual-is-the-ruler.md) — 失敗点が全部1セル以内なら造成の欠陥でない。均すと段が埋まり崖に盛土
@@ -196,7 +194,6 @@
 - [見え面の足元の山形は外形の中の節点](wall-foot-ridge-from-nodes-under-hull.md) — 皮が近くの点を地形のまま描いた。CleanAt・差で混ぜる・Stage9 は6回走る
 - [盛土の床・基壇の向き・設計面の縁の溝](fill-only-floor-and-base-facing.md) — fillOnly を皮の面にしない・BlockOutward・DesignOut は地形で埋める
 - [総当たりの計測は Unity を1時間ふさぐ](brute-force-measure-hangs-unity.md) — 升の索引+印で打つ。RayToBodies は1呼び出し100本まで・mesh.vertices を輪の中で呼ばない(四度目 10-05)
-- [落とした後の Stage9 は空の皮を焼く](unity-kill-leaves-holes-without-skin.md) — 穴は地形・皮はシーン。null の皮には最新の資産を差してから流す
-- [皮の段プレハブのメッシュが消えると S1 が穴を塞がず 4b が空の皮](skin-mesh-missing-leaves-holes-open.md) — S1 の塞いだ升が前の巡の穴の数と違えば 4b の前に止まる
+- [落とした後の Stage9 は空の皮](unity-kill-leaves-holes-without-skin.md)・[皮の段プレハブのメッシュが消える](skin-mesh-missing-leaves-holes-open.md) — 穴は地形・皮はシーン / S1 の塞いだ升を前の巡と比べる
 - [線の上の基壇・柵は区画外に出る](line-sitting-pieces-pivot-out.md)・[区画の辺に沿う城の石垣の罠](castle-run-along-parcel-edge-traps.md) — 端の控え・芯置き / VTX_TOL・PullAlongInside・駒の実長>送り
 - [隅の腕は短辺を越えて区画外へ出る](kado-arm-overruns-short-edge.md)・[旧案の一括削除は分類器が止める](bulk-delete-denied-by-auto-mode.md) — 岡部 P2〜P4 が外・駒の頂点を PIP / 役経由の一括削除は不可 / [短い組の c・丈の高い端の駒](castle-run-short-group-c-and-tall-foot.md) — 辺の線で c・一つずつ内へ

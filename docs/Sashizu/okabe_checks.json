@@ -1,9 +1,9 @@
 {
  "_": "図の機械検査の結果。生成器が毎回書き、kansei_gate.py --init が読んで赤なら止める(EDO-0291)。⛔ 手で書かない — 図を焼き直せば入れ替わる。",
  "estate": "okabe",
- "at": "2026-10-11T22:54:41+09:00",
- "sashizu_sha": "e60228b13bd0cba9",
- "ng": 3,
+ "at": "2026-10-12T00:26:54+09:00",
+ "sashizu_sha": "dabe7dec0f01d06c",
+ "ng": 4,
  "na": 6,
  "rows": [
   {
@@ -117,8 +117,8 @@
   {
    "id": "C19",
    "what": "区画の正典一致 — polygon が parcels.json の okabe(頂点 42 / 指図 42)と同じ輪郭",
-   "res": "輪郭の最大ずれ 0.000 m",
-   "status": "ok"
+   "res": "輪郭の最大ずれ 1.910 m",
+   "status": "ng"
   },
   {
    "id": "C20",

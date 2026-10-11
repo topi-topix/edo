@@ -77,7 +77,8 @@ public static partial class EdoBuild
     /// 当たる先: 区画の線に沿って建つ城の石垣の基壇・腰石垣の全て(土井 boundaryPlinth。岡部 PlaceIshigaki(外周の基壇)は
     /// ピボットを線に置く旧い据えのまま ── 移し替えは別票)。</summary>
     public static CastleRun PlaceCastleRun(IList<CastleSec> secs, Vector2[] poly, Func<float, float, float> groundAt, Transform parent,
-                                           System.Text.StringBuilder log, float maxInset = 2.5f, float tol = 0.001f, float stepLap = -1f, float kadoMinTurn = 40f)
+                                           System.Text.StringBuilder log, float maxInset = 2.5f, float tol = 0.001f, float stepLap = -1f, float kadoMinTurn = 40f,
+                                           ICollection<int> kadoSkip = null)
     {
         var res = new CastleRun();
         if (secs == null || secs.Count == 0 || poly == null) return res;
@@ -206,7 +207,9 @@ public static partial class EdoBuild
                     float tv = Turn(hi ? (e + 1) % n : e);
                     float de2 = ins.ContainsKey(KeyOf(nb)) ? ins[KeyOf(nb)] : 0f;
                     if (Mathf.Abs(tv) < 30f && Mathf.Abs(de2 - de) > 1e-3f) return bisect(nb, hi);
-                    if (tv > 1f && tv < kadoMinTurn) return hi ? A(e) + d * Len(e) - o * de : A(e) - o * de;
+                    //   ⭐ kadoSkip の頂点(隅の駒を受けられない出隅 ── 両脇の天端か倍率が違う・2026-10-11 EDO-0502 第109巡)も同じく頂点の走りへ。
+                    //     交点で閉じると隅の駒が来ないまま根石の端が頂点の手前で止まる。当たる先: PlaceCastleRun の呼び手が隅の駒を据える邸(岡部 P0)。
+                    if (tv > 1f && (tv < kadoMinTurn || (kadoSkip != null && kadoSkip.Contains(hi ? (e + 1) % n : e)))) return hi ? A(e) + d * Len(e) - o * de : A(e) - o * de;
                     return meet(nb, p);
                 };
                 // 頂点で天端の違う区間が浅い折れ(< 30°)で続く = 折れのある段の継ぎ目: 高い方は交点から stepLap(無ければ 0.03)だけ先へ、

@@ -329,8 +329,8 @@
 | `Own.Kado(part, deg, armIn, armOut, armFull)` | 関数 | 腕の短い隅(Kado と同じ留め継ぎ・同じ据え・同じ s)。 | BuildKado(KadoGauge), MatsudairaDewa(PlaceKado・RendBounds), OkabeYashiki(PlaceKado) |
 | `Own.IshigakiKado(deg, h)` | 関数 | 丈違いの石垣の隅(`Castle Wall` の留め継ぎ・丈 h m)。 | BuildKado(KadoArm), Doi(Stage2_Perimeter), OkabeYashiki(Stage2b_Dan), SannoSha(Stage3_Dodome) |
 | `Own.IshigakiKado(deg, h, armNegZ, armPosX)` | 関数 | 腕の短い石垣の隅(IshigakiKado と同じ留め継ぎ・同じ据え: position = 両腕の控えの線の交点 P・y = 天端 − h / yaw = 入りの run の駒の yaw / scale = 1)。 | BuildKado(KadoArm), Doi(Stage2_Perimeter), OkabeYashiki(Stage2b_Dan), SannoSha(Stage3_Dodome) |
-| `Own.IshigakiKadoS(deg, h, s)` | 関数 | 倍率 s の石垣の隅(外周の基壇 = `Castle Wall` を Vector3.one·s で並べた run の出隅・EDO-0502 岡部 const.kidan.corner.ge40)。 | — |
-| `Own.IshigakiKadoS(deg, h, s, armNegZ, armPosX)` | 関数 | IshigakiKadoS の腕を詰めた版(綴りは IshigakiKado と同じ・腕は素の cm)。 | — |
+| `Own.IshigakiKadoS(deg, h, s)` | 関数 | 倍率 s の石垣の隅(外周の基壇 = `Castle Wall` を Vector3.one·s で並べた run の出隅・EDO-0502 岡部 const.kidan.corner.ge40)。 | OkabeYashiki(PlaceIshigaki) |
+| `Own.IshigakiKadoS(deg, h, s, armNegZ, armPosX)` | 関数 | IshigakiKadoS の腕を詰めた版(綴りは IshigakiKado と同じ・腕は素の cm)。 | OkabeYashiki(PlaceIshigaki) |
 | `Own.IshigakiKado2(deg1, deg2, mid, h, armNegZ, armPosX)` | 関数 | 二重折れの石垣の隅(`Castle Wall` の留め継ぎを二つ一体に)。 | BuildKado(PlaceRunKado), OkabeYashiki(Stage2b_Dan) |
 | `Own.IshigakiChoku(h)` | 関数 | 丈違いの城の石垣の直線の駒(`JC.CastleWall` 1 枚・走り 2.00 を丈 h m へ下へ継いだ物)。 | BuildDanIshigaki(CastleWallOfExpose) |
 | `Own.DobeiKiri(deg, faceLonger, cutAtMinusX=…)` | 関数 | 端を隣の辺の線で斜めに切った練塀の駒(`DobeiRun` の組 = `s_hei_center` 表裏2枚を実寸で 1 枚分・走り 2.990)。 | OkabeYashiki(KiriEnd・MiterOf) |
@@ -452,9 +452,9 @@
 | `Own.DoiOtoshimizo` | string | 水尻の石敷きの落とし溝 — 1m モジュール。 | MatsudairaDewa(PlaceMizo) |
 | `Own.MatsudairaIshidoi` | string | 石樋(松江松平 溝 MZ17 が土留めを抜ける所・EDO-0554)。 | MatsudairaDewa(PlaceMizo), OkabeYashiki(PlaceFrontAnkyo) |
 | `Own.MatsudairaIshibuta1m` | string | 石蓋つきの溝 1m(松江松平 溝 MZ16 の段の頭の前ほか・EDO-0554)。 | MatsudairaDewa(PlaceMizo) |
-| `Own.DoiMizo(kata, depth=…)` | 関数 | 排水の溝 1m 駒(型 A/B/C/D/E/F/K)。 | OkabeYashiki(S2F) |
+| `Own.DoiMizo(kata, depth=…)` | 関数 | 排水の溝 1m 駒(型 A/B/C/D/E/F/K)。 | OkabeYashiki(PlaceMizoSections・S2F) |
 | `Own.DoiMizoAKasa(h)` | 関数 | 型 A の外壁の嵩上げ石 1m 駒(岡部 EDO-0502・okabe_sashizu terraces[1].roadEdge 10-10n)。 | OkabeYashiki(PlaceDrainFrontGutters・PlaceFrontGutters・PlaceMizoSections) |
-| `Own.DoiMasu(kata)` | 関数 | 石の桝(型 G1 / G2・切石4枚組・天端 +0.05)。 | OkabeYashiki(PlaceOmoteGesuiLay) |
+| `Own.DoiMasu(kata)` | 関数 | 石の桝(型 G1 / G2・切石4枚組・天端 +0.05)。 | OkabeYashiki(PlaceOmoteGesuiLay・PlaceSeRojiAnkyo) |
 | `Own.DoiDanOchi(rise)` | 関数 | 石組の段落ち 1段(型 H・内法 0.60・野面石積みの側 天端 = 段の底 +0.50・平石の段鼻と水叩き)。 | — |
 | `Own.DoiHariOtoshi(rise, nori=…)` | 関数 | 張り石の落とし 1段(型 I・法面を縦に・幅 0.60・平石 t0.12・両脇の縁石 w0.12 天端 +0.06)。 | — |
 | `Own.DoiMizutataki` | string | 法尻の玉石の水叩き 0.90 角・窪み 0.10(型 I の apron)。 | — |

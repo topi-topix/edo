@@ -21,6 +21,7 @@
 - [外周の石垣の見え面は区画の外・隣の棟の均しが節点を奪う](outer-wall-face-outside-parcel-and-shared-pads.md) — 皮の own が 2m 格子のまま描く。LevelPad は低い順
 - [欄の上書きの直後は算出物の指紋で Stage1 が止まる](impl-fingerprint-after-yat-overwrite.md) — 食い違い0なら bake_impl --write。長い流しは印+txt で待つ
 - [作業場が前の窓の邸で dirty・旧い退避は前の案の造成前](koba-left-dirty-by-other-window.md) — UnwrittenIn を最初に見る。他邸の書き戻しは分類器が止める→返す
+- [.cs の保存直後の Stage は古い DLL で走る・再起動で皮が null](stage-run-on-stale-dll-after-edit.md) — 25 分の 3b が空振り。Stage の前に compile_wait・3b の後は先に書き戻す
 
 ## 部材の据え方
 
@@ -59,6 +60,7 @@
 - [均しの縁の節点・皮の PIN の被り・閉じの検め](pad-edge-nodes-outside-face-and-pinned-skin.md) — PadRim・PIN_TUCK・基壇を数える・積みを地表で測らない
 - [LevelPad に区画を渡すと段の土留めを越えて下の面を盛る](levelpad-crosses-terrace-wall.md) — 棟の建つ面の poly を渡す。均した後は heightmap の差を見る
 - [区画の外の道の線際の帯の均し](michi-narashi-outside-parcel.md) — Stage1 は区画の外を書かない・帯は外向きの片側で・base の s が動く
+- [皮の解きの区画の外の狙いが造成前の道を描く](outside-target-reads-pregrade-road.md) — 均した道に 1:1 の土の棚 +1.8。Target を今の地形と min・SkinSolveTrace で見る
 - [造成は変わった段だけ流し直す](regrade-only-the-changed-block.md) — 全面だと築山と池が平らに戻り掘り直せない
 - [筋の最小−最大は全筋で浮く・門は皮の前に据わる・返しの外形の中は上げない](strip-min-max-leaves-float-and-gate-seat-before-skin.md) — 柱ごとに測る・SeatGamaeOn・TopLanding 面
 - [門長屋の口の芯はローカル +X で len/2−gc](nagaya-mon-gate-offset-axis.md) — 口の s から gc を出すのは据えた後の向き(sSign)で。奥の壁の抜けで測る
@@ -156,7 +158,7 @@
 - [天端の上へ土を載せる型は皮の節点で・隅は腕ごと](crest-cover-on-skin-nodes.md) — hold の双一次が表の石へ土を引く・0.25格子で帯の縁が潜る
 - [野面の段の境の駒は H1.50 だけ・継ぎ目の下が抜ける](nozura-dan-piece-fixed-height.md) — 直線は H4.8 まで選ぶ。StackDownAtNozuraSteps で積み下ろす
 - [皮を [lo,hi] で解く罠 (1)〜(40)](skin-solve-lo-hi-first-runs.md) — 野面は石の寄せ集め・陰を飛ばす・buryMin は硬い lo・袖が先は 2b の順と逆・足元の帯は歯に効かない・欄の「前の地表」は設計と描画の両方で刷る
-
+- [倍率版の石垣の隅・坂の座の天端の刻み・AF の底・N40_2/3 の基壇が溝の上](scaled-kado-and-mizo-outlets-r109.md) — pathOf は実寸の丈・armPathOf は渡さない・底は欄の線へ max で戻す
 - [溜りの城の隅の返しは s=1.25 で収まらない・辺24 の端の名指しの矛盾](tamari-castle-return-and-p24-end-conflict.md) — 基壇の倍率と隅の駒の控え・impl の線の向きと Kado_P の位置を先に刷る
 - [入隅の通しは検めで外す・袖の上端の相手は常に空だった](concave-pass-and-sode-first.md) — _Tooshi を平面の検めから外す・cuts の長文と == ・笠 0
 - [座の面は凸包で背の外へ出る・網の区間は足した順に据わる](za-hull-and-back-wall-order.md) — Za_ を背の線で切る・相手の鎖を先にするなら最後に足す・長屋は pool の間引きで拾えない

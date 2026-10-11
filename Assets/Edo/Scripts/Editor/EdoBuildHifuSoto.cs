@@ -110,6 +110,11 @@ public static partial class EdoBuild
                 int k = j * d.nx + i; outN++;
                 bool rep; float g = OutsideOwnGround(t, q.x, q.y, d.own, d.baseAt, inP, cache, out rep);
                 if (rep) repN++; else g = probe.At(q.x, q.y);
+                //   ⭐ 区画の外の点そのものの地盤(baseAt を点で引く)との min【硬: 盛らない】(2026-10-11 EDO-0502 第109巡)── 2m 格子の双一次は
+                //   線の内の節点(造成前の三べ坂の高まり 12.2〜12.5・線から 2.5m より奥)を線の外へ引き、台の前の溝の外(道)に線から 1:1 で
+                //   下る土の棚(線の外 0.45 で道 +1.5・辺41 s45〜62)を立てた。点の地盤(岡部 OutsideBase = base_dem・道の線際の均し・今の地形の min)は
+                //   その楔を持たない。当たる先: DesignOutsideOwn を通す邸(いまは岡部 Stage3b)── 外の点が線の内の高い節点に引かれる所だけ下がる。
+                if (!float.IsNaN(g)) { float gp = d.baseAt(q.x, q.y); if (!float.IsNaN(gp) && gp < g) g = gp; }
                 d.h[k] = g; d.ok[k] = !float.IsNaN(g);
             }
         d.ownKept = d.own; d.own = null;   // 区画の外は描き終えた ── 以後 own は null(従来どおり)。区画の内だけに掛ける決まり(盛りの縁の法・平らの帯)は ownKept で見る(第92巡)

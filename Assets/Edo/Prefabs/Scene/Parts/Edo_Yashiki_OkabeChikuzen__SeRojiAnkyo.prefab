@@ -1,0 +1,411 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &6918962938008147344
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 3027162364255216821}
+  m_Layer: 0
+  m_Name: Edo_Yashiki_OkabeChikuzen__SeRojiAnkyo
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &3027162364255216821
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6918962938008147344}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 1027845716080081831}
+  - {fileID: 6751485906342215063}
+  - {fileID: 702742478685914272}
+  - {fileID: 4951767579233087766}
+  - {fileID: 1564752827249600518}
+  - {fileID: 4875931155118161948}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1001 &705127006775368780
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 3027162364255216821}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -386.19873
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.28
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1021.32245
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.7414497
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.67100847
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_Name
+      value: SeRoji_Masu_41_32.635
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+--- !u!4 &1027845716080081831 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+  m_PrefabInstance: {fileID: 705127006775368780}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &1029668393719669579
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 3027162364255216821}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -383.00262
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.397333
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 989.35785
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.7414497
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.67100847
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_Name
+      value: SeRoji_Masu_41_65.359
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+--- !u!4 &702742478685914272 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+  m_PrefabInstance: {fileID: 1029668393719669579}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &1314390398843310061
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 3027162364255216821}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -381.40552
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.93547
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 973.3845
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.7414497
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.67100847
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+      propertyPath: m_Name
+      value: SeRoji_Masu_41_80.812
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+--- !u!4 &1564752827249600518 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: fe6fd2ba14dd84e0481ed23b6029e3d8, type: 3}
+  m_PrefabInstance: {fileID: 1314390398843310061}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &4842089907529094909
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 3027162364255216821}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -378.72754
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 10.707463
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 989.78534
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.7414497
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.67100847
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_Name
+      value: SeRoji_Hakiguchi_41_65.359
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 5844b2768787f477d8576e1061030284, type: 3}
+--- !u!4 &4951767579233087766 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+  m_PrefabInstance: {fileID: 4842089907529094909}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &4909047770946037751
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 3027162364255216821}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -377.2395
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 10.646217
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 973.8011
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.7414497
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.67100847
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_Name
+      value: SeRoji_Hakiguchi_41_80.812
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 5844b2768787f477d8576e1061030284, type: 3}
+--- !u!4 &4875931155118161948 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+  m_PrefabInstance: {fileID: 4909047770946037751}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &6501123995342477948
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 3027162364255216821}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -381.7624
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.058799
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1021.76605
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.7414497
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.67100847
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 5844b2768787f477d8576e1061030284, type: 3}
+      propertyPath: m_Name
+      value: SeRoji_Hakiguchi_41_32.635
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 5844b2768787f477d8576e1061030284, type: 3}
+--- !u!4 &6751485906342215063 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 5844b2768787f477d8576e1061030284, type: 3}
+  m_PrefabInstance: {fileID: 6501123995342477948}
+  m_PrefabAsset: {fileID: 0}

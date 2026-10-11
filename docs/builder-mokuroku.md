@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 93・関数 888(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 93・関数 890(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -25,7 +25,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoDoiBuilder.cs](#edodoibuildercs) | 土井大隅守上屋敷(三河刈谷藩2万3千石・譜代・雁間)ビルダー。 | 15 | 89 |
 | [EdoMatsudairaDewaBuilder.Niwa.cs](#edomatsudairadewabuilderniwacs) | 松平出羽守上屋敷 — 庭の工程(池・築山・水の系・石組・点景・滝見口)。 | 9 | 30 |
 | [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 16 | 120 |
-| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 20 | 205 |
+| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 20 | 207 |
 | [EdoSannoShaBuilder.cs](#edosannoshabuildercs) | 山王権現社(日枝神社)本体+樹下家邸+山王門前町ビルダー (2026-08-11。観理院は 2026-09-26 に類型へ移し削除) | 1 | 31 |
 | [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 13 | 102 |
 | [EdoSanyashikiRebuild.cs](#edosanyashikirebuildcs) | 三屋敷(太田・加納・鍋島=松平肥前守)の区画を下書きv3へ更新 (2026-08-08) | 0 | 6 |
@@ -656,7 +656,9 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `MizoAByDepth(need, topAbove)` | `string` |  | DoiMizo 型 A のうち実測の深さ ≤ need + topAbove の最も深い駒(第80巡: 名の深さで選ぶと縁 0.02 の分だけ天端が浮いて落ちた)。 |
 | `FaceYAt(faces, q, skipPrefix)` | `float` |  | 点 q を含む面のうち面積の最も小さい物の高さ(皮と同じ選び方)。 |
 | `PlaceFrontGutters()` | `string` |  | 長屋の前の下水溝(指図 terraces[].roadEdge 追記 2026-10-10m・runs[].front・drains D_&lt;棟&gt;_Mae・普請方・EDO-0502 第95巡)。 |
-| `PlaceMizoSections()` | `string` |  | 台の前の溝の区間(指図 grading.omoteNagayaDai.mizo.sections ── Mizo_Kita / Mizo_Minami / Mizo_Hashi・EDO-0502 第108巡)。 |
+| `PlaceMizoSections()` | `string` |  | 台の前の溝の区間(指図 grading.omoteNagayaDai.mizo.sections ── Mizo_Kita / Mizo_Minami / Mizo_Hashi・outlets・EDO-0502 第108… |
+| `LidEdge(q)` | `int` |  | 点に最も近い区画の辺(蓋石を線の内へ寄せる向き)。 |
+| `PlaceSeRojiAnkyo()` | `string` |  | 背の路地の暗渠(指図 drains[D_SeRoji].make ── flow・masu・kuchi・toi・at・table・order・EDO-0502 第109巡)。 |
 | `PlaceDrainFrontGutters()` | `string` |  | 長屋の前の下水溝(drains の route で名指す型)(指図 drains[].route「&lt;棟&gt;/&lt;棟&gt; の前の全長(s a→b)に区画の内の石組の下水溝(型A)」・普請方 2026-10… |
 | `PlaceFrontAnkyo(run, T, tailBottom, sTail, tailPiece)` | `string` |  | 前の下水溝の尻の暗渠(指図 drains D_&lt;棟&gt;_Mae の route ── 普請方 2026-10-10n・EDO-0502 第96巡)。 |
 | `PlaceBackGutters()` | `string` |  | — |

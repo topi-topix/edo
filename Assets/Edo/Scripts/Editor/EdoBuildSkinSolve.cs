@@ -62,7 +62,12 @@ public static partial class EdoBuild
             { var ownT = design == null ? null : (design.own ?? design.ownKept);
               if (ownT != null && !EdoGeom.PIP(ownT, q))
               {
-                  if (design.baseAt != null) { bool rep; float g = OutsideOwnGround(T(), q.x, q.y, ownT, design.baseAt, null, outCache, out rep); if (rep && !float.IsNaN(g)) return g; }
+                  //   ⭐ 今の地形(probe)との min【硬: 盛らない】(第109巡)── 造成前の地盤(base_dem)は道を均す前の三べ坂の高まり 12.2〜12.5 を持ち、
+                  //   2m 格子の双一次が線の内の節点からそれを線の外へ引いて、台の前の溝の外の道に線から 1:1 で下る土の棚(線の外 0.45 で道 +1.5・
+                  //   辺41 s45〜62)を立てた。道は Stage1 が均して今の地形が持つ(区画の外は盛らない)。今の地形が線の内の台を引く所(第94巡の 16.56)は
+                  //   造成前の側が低いので、低い方を採れば両方の楔を持たない。当たる先: SkinHeightSolve を流す邸の区画の外の点(いまは岡部)。
+                  if (design.baseAt != null) { bool rep; float g = OutsideOwnGround(T(), q.x, q.y, ownT, design.baseAt, null, outCache, out rep);
+                      if (rep && !float.IsNaN(g)) { float gp = probe.At(q.x, q.y); return float.IsNaN(gp) ? g : Mathf.Min(g, gp); } }
                   return probe.At(q.x, q.y);
               } }
             float y = FaceY(q);

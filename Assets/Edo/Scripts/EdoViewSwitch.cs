@@ -43,6 +43,7 @@ public class EdoViewSwitch : MonoBehaviour
 
     void Update()
     {
+        if (EdoAppFlow.BlocksGameplay) return;   // 一時停止・開始画面のあいだは切り替えない
         var kb = Keyboard.current;
         if (kb != null && kb.vKey.wasPressedThisFrame)
         {

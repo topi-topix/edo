@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 427(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 432(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -492,7 +492,8 @@
 
 | 名 | 種 | 中身・注釈の一文目 | 使っている所 |
 |---|---|---|---|
-| `Scenes.Akasaka` | string | `Akasaka.unity` — 本番の一枚。 | Koba(BackToAkasaka・Harvest・OnCompile…), AppBuild(Build・OnProcessScene・OnlyAkasaka) |
+| `Scenes.Akasaka` | string | `Akasaka.unity` — 本番の一枚。 | AppBuild(EnsureBootScene・EnsureMenu・OnProcessScene…), Koba(BackToAkasaka・Harvest・OnCompile…) |
+| `Scenes.Boot` | string | `Boot.unity` — アプリの最初の一枚 — 開始画面を出し、赤坂を裏で読む(EdoAppFlow)。 | AppBuild(EnsureBootScene・EnsureMenu) |
 | `Scenes.Koba` | string | `Koba.unity` — 作業場 — 建て直しの輪を回す軽いシーン(地形+光+対象邸+20m 以内の隣)。 | Koba(Open・Shitateru) |
 
 ## App
@@ -502,5 +503,9 @@
 | `App.BuildDir` | string | `Builds` — 書き出し先(gitignore の Builds/)。 | AppBuild(Build) |
 | `App.PcRPAsset` | string | `PC_RPAsset.asset` — エディタの URP 資産(App の複写元)。 | AppBuild(EnsureAppPipeline) |
 | `App.RPAsset` | string | `App_RPAsset.asset` — アプリだけが使う URP 資産(品質 App)。 | AppBuild(EnsureAppPipeline) |
+| `App.Uxml` | string | `EdoApp.uxml` — アプリの画面一式(開始・操作の説明・読み込み・一時停止)。 | AppBuild(EnsureBootScene) |
+| `App.RuntimeTheme` | string | `EdoRuntimeTheme.tss` — UI Toolkit の実行時の既定の見た目(Unity の既定を読むだけ)。 | AppBuild(EnsureBootScene) |
+| `App.PanelSettings` | string | `EdoPanelSettings.asset` — 画面の置き方(1920×1080 基準で画面へ合わせる)。 | AppBuild(EnsureBootScene) |
+| `App.TitleImage` | string | `Title.jpg` — 開始画面の背景の一枚(Edo/書き出し/開始画面の絵を撮る)。 | AppBuild(EnsureBootScene・RenderTitleImage) |
 | `App.EditorOnlyRoots` | string[] | 図の上の置き場 — 書き出しから外すルート。 | AppBuild(OnProcessScene) |
 | `App.MeshLodModels` | string[] | 遠くで面を自動で間引く(Mesh LOD)模型。 | AppBuild(DropInactive・Reimport) |

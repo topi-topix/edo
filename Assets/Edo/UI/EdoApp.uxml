@@ -1,0 +1,64 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <!-- アプリの画面一式(EDO-0450)。開始・操作の説明・読み込み・一時停止の四枚を重ね、EdoAppFlow が一枚ずつ出す。 -->
+    <Style src="EdoApp.uss" />
+    <ui:VisualElement name="app-root" class="app-root" picking-mode="Ignore">
+
+        <!-- 開始画面 -->
+        <ui:VisualElement name="title-screen" class="screen">
+            <ui:VisualElement name="title-bg" class="backdrop" />
+            <ui:VisualElement class="shade-left" />
+            <ui:VisualElement class="title-column">
+                <ui:Label text="安政三年" class="kicker" />
+                <ui:Label text="江戸・赤坂" class="title" />
+                <ui:Label text="一八五六年の町を歩く" class="subtitle" />
+                <ui:VisualElement class="menu">
+                    <ui:Button name="title-start" text="はじめる" class="menu-button menu-button--primary" />
+                    <ui:Button name="title-help" text="操作の説明" class="menu-button" />
+                    <ui:Button name="title-quit" text="終わる" class="menu-button" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:Label name="title-preload" class="preload-status" />
+        </ui:VisualElement>
+
+        <!-- 操作の説明(開始画面からも一時停止からも開く) -->
+        <ui:VisualElement name="help-screen" class="screen screen--dim">
+            <ui:VisualElement class="panel">
+                <ui:Label text="操作の説明" class="panel-title" />
+                <ui:VisualElement class="keys">
+                    <ui:VisualElement class="key-row"><ui:Label text="W A S D" class="key" /><ui:Label text="歩く" class="key-desc" /></ui:VisualElement>
+                    <ui:VisualElement class="key-row"><ui:Label text="マウス" class="key" /><ui:Label text="見回す" class="key-desc" /></ui:VisualElement>
+                    <ui:VisualElement class="key-row"><ui:Label text="Shift" class="key" /><ui:Label text="押しながら歩くと走る" class="key-desc" /></ui:VisualElement>
+                    <ui:VisualElement class="key-row"><ui:Label text="Space" class="key" /><ui:Label text="跳ぶ" class="key-desc" /></ui:VisualElement>
+                    <ui:VisualElement class="key-row"><ui:Label text="V" class="key" /><ui:Label text="背後から見る ⇄ 目線で見る" class="key-desc" /></ui:VisualElement>
+                    <ui:VisualElement class="key-row"><ui:Label text="Esc" class="key" /><ui:Label text="一時停止(続ける・開始画面へ戻る・終わる)" class="key-desc" /></ui:VisualElement>
+                </ui:VisualElement>
+                <ui:Button name="help-back" text="戻る" class="menu-button menu-button--primary" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- 読み込み -->
+        <ui:VisualElement name="loading-screen" class="screen">
+            <ui:VisualElement name="loading-bg" class="backdrop backdrop--faint" />
+            <ui:VisualElement class="loading-column">
+                <ui:Label text="江戸・赤坂" class="loading-title" />
+                <ui:VisualElement class="bar">
+                    <ui:VisualElement name="loading-fill" class="bar-fill" />
+                </ui:VisualElement>
+                <ui:Label name="loading-state" class="loading-state" />
+                <ui:Label name="loading-time" class="loading-time" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- 一時停止 -->
+        <ui:VisualElement name="pause-screen" class="screen screen--dim">
+            <ui:VisualElement class="panel panel--narrow">
+                <ui:Label text="一時停止" class="panel-title" />
+                <ui:Button name="pause-resume" text="続ける" class="menu-button menu-button--primary" />
+                <ui:Button name="pause-help" text="操作の説明" class="menu-button" />
+                <ui:Button name="pause-title" text="開始画面へ戻る" class="menu-button" />
+                <ui:Button name="pause-quit" text="終わる" class="menu-button" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+    </ui:VisualElement>
+</ui:UXML>

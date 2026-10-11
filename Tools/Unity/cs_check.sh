@@ -19,8 +19,11 @@ cd $P
 refs=()
 for d in $U/Resources/Scripting/NetStandard/ref/2.1.0/*.dll $U/Resources/Scripting/NetStandard/Extensions/2.0.0/*.dll(N); do refs+=("-r:$d"); done
 for d in $U/Resources/Scripting/Managed/UnityEngine/*.dll; do refs+=("-r:$d"); done
+# ⭐ ゲーム側(Assembly-CSharp)は古い DLL を参照せず、ソースから一緒に通す ── 新しく足したゲーム側の型
+#    (例: EdoAppFlow)を Editor の C# が使うと、Unity がまだ組んでいない DLL には居ないので偽の CS0246 が出て、
+#    compile_wait がそこで止まり Unity のコンパイルまで届かなかった(2026-10-11 EDO-0450)。
 for d in $P/Library/ScriptAssemblies/*.dll; do
-  case "$(basename $d)" in Assembly-CSharp-Editor.dll) continue;; esac
+  case "$(basename $d)" in Assembly-CSharp-Editor.dll|Assembly-CSharp.dll) continue;; esac
   refs+=("-r:$d")
 done
 # ⭐ 札の試験(Assets/Edo/Scripts/Editor/Tests・EDO-0491)は NUnit を読む ── 同梱の nunit を参照に足す(Unity でも自動参照される)
@@ -29,6 +32,13 @@ for d in $P/Library/PackageCache/com.unity.ext.nunit@*/net472/unity-custom/nunit
 for d in $U/Resources/Scripting/NetStandard/compat/2.1.0/shims/netfx/mscorlib.dll(N); do refs+=("-r:$d"); done
 # ⚠ 行で割る — 空白を含むフォルダ(`Starter Assets`)で語に割ると CS2001 の偽の誤りが出る(2026-09-26)
 srcs=(${(f)"$(find Assets -path '*/Editor/*' -name '*.cs')"})
+# Assembly-CSharp のソース = Editor の外・asmdef の外・Plugins / Standard Assets(firstpass)の外
+asmroots=(${(f)"$(find Assets -name '*.asmdef' -exec dirname {} \;)"})
+for f in ${(f)"$(find Assets -name '*.cs' -not -path '*/Editor/*' -not -path 'Assets/Plugins/*' -not -path 'Assets/Standard Assets/*')"}; do
+  skip=0
+  for r in $asmroots; do [[ $f == $r/* ]] && { skip=1; break; }; done
+  (( skip )) || srcs+=("$f")
+done
 $DN exec $CSC -nologo -target:library -nostdlib+ -langversion:9.0 -define:UNITY_EDITOR -out:$OUT "${refs[@]}" "${srcs[@]}" 2>&1 | grep -v "warning CS" || true
 # C# の目録(据え方・邸ビルダー・部材の名)が C# と食い違っていれば知らせる(EDO-0456)。止めはしない。
 python3 $P/Tools/Unity/edobuild_mokuroku.py --check 2>/dev/null || true

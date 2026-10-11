@@ -4361,6 +4361,10 @@ public static class EdoAssets
         /// <summary>本番の一枚。</summary>
         public const string Akasaka = "Assets/Edo/Scenes/Akasaka.unity";
 
+        /// <summary>アプリの最初の一枚 — 開始画面を出し、赤坂を裏で読む(<c>EdoAppFlow</c>)。
+        /// 中身は <c>EdoAppBuild.EnsureBootScene</c> が起こす。</summary>
+        public const string Boot = "Assets/Edo/Scenes/Boot.unity";
+
         /// <summary>作業場 — 建て直しの輪を回す軽いシーン(地形+光+対象邸+20m 以内の隣)。
         /// `Edo/普請/作業場を仕立てる` が赤坂から起こす。中身は使い捨てなので gitignore。
         /// → <see cref="EdoKoba"/></summary>
@@ -4376,6 +4380,14 @@ public static class EdoAssets
         public const string PcRPAsset = "Assets/Settings/PC_RPAsset.asset";
         /// <summary>アプリだけが使う URP 資産(品質 App)。GPU Resident Drawer とオクルージョンカリングを入れる。</summary>
         public const string RPAsset   = "Assets/Edo/Settings/App_RPAsset.asset";
+        /// <summary>アプリの画面一式(開始・操作の説明・読み込み・一時停止)。見た目は同じ置き場の EdoApp.uss。</summary>
+        public const string Uxml          = "Assets/Edo/UI/EdoApp.uxml";
+        /// <summary>UI Toolkit の実行時の既定の見た目(Unity の既定を読むだけ)。</summary>
+        public const string RuntimeTheme  = "Assets/Edo/UI/EdoRuntimeTheme.tss";
+        /// <summary>画面の置き方(1920×1080 基準で画面へ合わせる)。<c>EdoAppBuild.EnsureBootScene</c> が起こす。</summary>
+        public const string PanelSettings = "Assets/Edo/UI/EdoPanelSettings.asset";
+        /// <summary>開始画面の背景の一枚(Edo/書き出し/開始画面の絵を撮る)。</summary>
+        public const string TitleImage    = "Assets/Edo/UI/Title.jpg";
         /// <summary>図の上の置き場 — 書き出しから外すルート。</summary>
         public static readonly string[] EditorOnlyRoots = { "ModernMapOverlay", "OldMapOverlay", "GeoAnchors" };
         /// <summary>遠くで面を自動で間引く(Mesh LOD)模型。2026-09-27 の赤坂の実測で三角形の多い順:

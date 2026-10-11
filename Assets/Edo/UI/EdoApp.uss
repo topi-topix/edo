@@ -1,0 +1,148 @@
+/* アプリの画面一式の見た目(EDO-0450)。寸法は 1920×1080 を基準に PanelSettings が画面へ合わせる。 */
+
+:root {
+    --ink: rgb(238, 232, 220);
+    --ink-dim: rgb(184, 178, 168);
+    --accent: rgb(214, 152, 78);
+    --accent-hover: rgb(232, 176, 104);
+    --night: rgb(18, 18, 21);
+    --panel: rgba(22, 22, 26, 0.92);
+    --line: rgba(238, 232, 220, 0.18);
+}
+
+.app-root {
+    position: absolute;
+    left: 0; top: 0; right: 0; bottom: 0;
+    color: var(--ink);
+}
+
+.screen {
+    position: absolute;
+    left: 0; top: 0; right: 0; bottom: 0;
+    display: none;
+}
+.screen--shown { display: flex; }
+.screen--dim {
+    background-color: rgba(0, 0, 0, 0.55);
+    align-items: center;
+    justify-content: center;
+}
+
+.backdrop {
+    position: absolute;
+    left: 0; top: 0; right: 0; bottom: 0;
+    background-color: var(--night);
+    -unity-background-scale-mode: scale-and-crop;
+}
+.backdrop--faint { opacity: 0.35; }
+
+/* 題字の下に敷く左からの影(絵の上でも字が読めるように) */
+.shade-left {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 62%;
+    background-color: rgba(0, 0, 0, 0.55);
+}
+
+.title-column {
+    position: absolute;
+    left: 140px; top: 0; bottom: 0;
+    justify-content: center;
+}
+.kicker { font-size: 34px; color: var(--accent); letter-spacing: 12px; margin-bottom: 4px; }
+.title { font-size: 112px; -unity-font-style: bold; letter-spacing: 8px; }
+.subtitle { font-size: 28px; color: var(--ink-dim); margin-top: 6px; margin-bottom: 72px; letter-spacing: 4px; }
+
+.menu { width: 420px; }
+
+.menu-button {
+    height: 72px;
+    margin: 0 0 16px 0;
+    padding: 0 28px;
+    font-size: 30px;
+    -unity-text-align: middle-left;
+    color: var(--ink);
+    background-color: rgba(255, 255, 255, 0.06);
+    border-width: 1px;
+    border-color: var(--line);
+    border-radius: 6px;
+    transition-property: background-color, border-color, translate;
+    transition-duration: 0.12s;
+}
+.menu-button:hover, .menu-button:focus {
+    background-color: rgba(255, 255, 255, 0.14);
+    border-color: var(--accent);
+    translate: 6px 0;
+}
+.menu-button:active { background-color: rgba(255, 255, 255, 0.2); }
+.menu-button--primary {
+    background-color: var(--accent);
+    border-color: var(--accent);
+    color: var(--night);
+    -unity-font-style: bold;
+}
+.menu-button--primary:hover, .menu-button--primary:focus {
+    background-color: var(--accent-hover);
+    border-color: var(--ink);
+}
+
+.preload-status {
+    position: absolute;
+    right: 56px; bottom: 40px;
+    font-size: 22px;
+    color: var(--ink-dim);
+}
+
+/* 説明と一時停止の板 */
+.panel {
+    width: 860px;
+    padding: 48px 56px 40px 56px;
+    background-color: var(--panel);
+    border-width: 1px;
+    border-color: var(--line);
+    border-radius: 10px;
+}
+.panel--narrow { width: 520px; }
+.panel-title { font-size: 44px; -unity-font-style: bold; margin-bottom: 32px; }
+
+.keys { margin-bottom: 36px; }
+.key-row {
+    flex-direction: row;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom-width: 1px;
+    border-color: var(--line);
+}
+.key {
+    width: 200px;
+    margin-right: 32px;
+    padding: 8px 0;
+    font-size: 26px;
+    -unity-text-align: middle-center;
+    -unity-font-style: bold;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+}
+.key-desc { font-size: 28px; flex-shrink: 1; white-space: normal; }
+
+/* 読み込み */
+.loading-column {
+    position: absolute;
+    left: 0; right: 0; top: 0; bottom: 0;
+    align-items: center;
+    justify-content: center;
+}
+.loading-title { font-size: 56px; -unity-font-style: bold; letter-spacing: 6px; margin-bottom: 40px; }
+.bar {
+    width: 760px; height: 12px;
+    background-color: rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    overflow: hidden;
+}
+.bar-fill {
+    width: 0%; height: 100%;
+    background-color: var(--accent);
+    border-radius: 6px;
+}
+.loading-state { font-size: 30px; margin-top: 28px; }
+.loading-time { font-size: 24px; color: var(--ink-dim); margin-top: 10px; }

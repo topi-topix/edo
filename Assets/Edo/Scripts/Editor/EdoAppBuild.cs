@@ -23,7 +23,8 @@ using UnityEngine.SceneManagement;
 ///   3. **区域ごとの読み込み** — 図の上の置き場が要らないもの(古地図・現代地図の重ね・測地の目印・非表示の撤去物)を
 ///      書き出しから外す。読み込み単位の分割(追加シーン)は実測で要るとなってから(<see cref="EdoAppSceneStrip"/> 冒頭)。
 ///
-/// ⛔ 書き出し一覧は赤坂の一枚だけ(SampleScene は外す)。
+/// ⛔ 書き出し一覧は開始画面(Boot)と赤坂の二枚だけ(SampleScene は外す)。Boot が開始画面を出し、赤坂を裏で読む
+///   (<see cref="EnsureBootScene"/>・<c>EdoAppFlow</c>・画面は <c>Assets/Edo/UI/</c>)。
 /// </summary>
 public static class EdoAppBuild
 {
@@ -44,16 +45,142 @@ public static class EdoAppBuild
     [MenuItem("Edo/書き出し/Windows アプリ", false, 901)]
     static void BuildWin() => Build(BuildTarget.StandaloneWindows64);
 
-    [MenuItem("Edo/書き出し/アプリ用の画質を整える", false, 920)]
-    static void EnsureMenu() { EnsureAppQuality(); OnlyAkasaka(); Debug.Log("[書き出し] 画質 App と書き出し一覧を整えた"); }
+    [MenuItem("Edo/書き出し/アプリ用の画質と開始画面を整える", false, 920)]
+    static void EnsureMenu() { EnsureAppQuality(); EnsureBootScene(); SetBuildScenes(); Debug.Log("[書き出し] 画質 App と書き出し一覧を整えた"); }
 
-    /// <summary>書き出し一覧を赤坂の一枚だけにする。</summary>
-    public static void OnlyAkasaka()
+    static readonly string[] BuildScenes = { EdoAssets.Scenes.Boot, EdoAssets.Scenes.Akasaka };
+
+    /// <summary>書き出し一覧を 開始画面 → 赤坂 の二枚だけにする(最初の一枚がアプリの起動で開く)。</summary>
+    public static void SetBuildScenes()
     {
-        var want = new[] { new EditorBuildSettingsScene(EdoAssets.Scenes.Akasaka, true) };
         var cur = EditorBuildSettings.scenes;
-        if (cur.Length == 1 && cur[0].path == EdoAssets.Scenes.Akasaka && cur[0].enabled) return;
+        bool same = cur.Length == BuildScenes.Length;
+        for (int i = 0; same && i < cur.Length; i++) same = cur[i].path == BuildScenes[i] && cur[i].enabled;
+        if (same) return;
+        var want = new EditorBuildSettingsScene[BuildScenes.Length];
+        for (int i = 0; i < want.Length; i++) want[i] = new EditorBuildSettingsScene(BuildScenes[i], true);
         EditorBuildSettings.scenes = want;
+    }
+
+    /// <summary>
+    /// アプリの最初の一枚(開始画面)を起こし、中身を毎回そろえる: 黒地のカメラ + 画面一式(UIDocument)+ <c>EdoAppFlow</c>。
+    /// 画面の置き方(PanelSettings)も無ければ起こす。開いているシーンには触らない(追加で開いて保存し、すぐ閉じる)。
+    /// </summary>
+    public static void EnsureBootScene()
+    {
+        var panel = EnsurePanelSettings();
+        var uxml = AssetDatabase.LoadAssetAtPath<UnityEngine.UIElements.VisualTreeAsset>(EdoAssets.App.Uxml);
+        var titleImage = AssetDatabase.LoadAssetAtPath<Texture2D>(EdoAssets.App.TitleImage);
+        if (uxml == null) { Debug.LogError($"[書き出し] 画面一式が無い: {EdoAssets.App.Uxml}"); return; }
+
+        bool existed = File.Exists(EdoAssets.Scenes.Boot);
+        var sc = existed
+            ? UnityEditor.SceneManagement.EditorSceneManager.OpenScene(EdoAssets.Scenes.Boot, UnityEditor.SceneManagement.OpenSceneMode.Additive)
+            : UnityEditor.SceneManagement.EditorSceneManager.NewScene(
+                UnityEditor.SceneManagement.NewSceneSetup.EmptyScene, UnityEditor.SceneManagement.NewSceneMode.Additive);
+        try
+        {
+            Camera cam = null; EdoAppFlow flow = null;
+            foreach (var go in sc.GetRootGameObjects())
+            {
+                if (cam == null) cam = go.GetComponent<Camera>();
+                if (flow == null) flow = go.GetComponent<EdoAppFlow>();
+            }
+            if (cam == null)
+            {
+                var g = new GameObject("BootCamera");
+                SceneManager.MoveGameObjectToScene(g, sc);
+                cam = g.AddComponent<Camera>();
+            }
+            cam.clearFlags = CameraClearFlags.SolidColor;
+            cam.backgroundColor = new Color(0.07f, 0.07f, 0.08f);
+            cam.cullingMask = 0;
+            if (flow == null)
+            {
+                var g = new GameObject("EdoApp");
+                SceneManager.MoveGameObjectToScene(g, sc);
+                flow = g.AddComponent<EdoAppFlow>();   // UIDocument は RequireComponent で付く
+            }
+            var doc = flow.GetComponent<UnityEngine.UIElements.UIDocument>();
+            doc.panelSettings = panel;
+            doc.visualTreeAsset = uxml;
+            flow.sceneName = Path.GetFileNameWithoutExtension(EdoAssets.Scenes.Akasaka);
+            flow.titleImage = titleImage;
+            if (titleImage == null) Debug.LogWarning($"[書き出し] 開始画面の絵が無い({EdoAssets.App.TitleImage})— 無地で出す。赤坂を開いて Edo/書き出し/開始画面の絵を撮る");
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(sc);
+            UnityEditor.SceneManagement.EditorSceneManager.SaveScene(sc, EdoAssets.Scenes.Boot);
+        }
+        finally { UnityEditor.SceneManagement.EditorSceneManager.CloseScene(sc, true); }
+        if (!existed) Debug.Log($"[書き出し] 開始画面の一枚を起こした → {EdoAssets.Scenes.Boot}");
+    }
+
+    /// <summary>画面の置き方: 1920×1080 を基準に画面の大きさへ合わせる(縦横の比が違えば短い方に揃える)。</summary>
+    static UnityEngine.UIElements.PanelSettings EnsurePanelSettings()
+    {
+        var ps = AssetDatabase.LoadAssetAtPath<UnityEngine.UIElements.PanelSettings>(EdoAssets.App.PanelSettings);
+        if (ps == null)
+        {
+            ps = ScriptableObject.CreateInstance<UnityEngine.UIElements.PanelSettings>();
+            AssetDatabase.CreateAsset(ps, EdoAssets.App.PanelSettings);
+        }
+        ps.themeStyleSheet = AssetDatabase.LoadAssetAtPath<UnityEngine.UIElements.ThemeStyleSheet>(EdoAssets.App.RuntimeTheme);
+        ps.scaleMode = UnityEngine.UIElements.PanelScaleMode.ScaleWithScreenSize;
+        ps.referenceResolution = new Vector2Int(1920, 1080);
+        ps.screenMatchMode = UnityEngine.UIElements.PanelScreenMatchMode.MatchWidthOrHeight;
+        ps.match = 0.5f;
+        ps.sortingOrder = 100;
+        EditorUtility.SetDirty(ps);
+        AssetDatabase.SaveAssetIfDirty(ps);
+        return ps;
+    }
+
+    /// <summary>
+    /// 開始画面の背景を撮る — 赤坂を開いた状態で、始まりの位置(SpawnPoint)の目の高さから向きのまま 1920×1080 で撮り
+    /// <see cref="EdoAssets.App.TitleImage"/> へ書く。撮り直しはこれを押し直すだけ(次の書き出しで開始画面に入る)。
+    /// </summary>
+    [MenuItem("Edo/書き出し/開始画面の絵を撮る(赤坂を開いて)", false, 921)]
+    public static void RenderTitleImage()
+    {
+        var sp = GameObject.Find("SpawnPoint");
+        if (sp == null || SceneManager.GetActiveScene().path != EdoAssets.Scenes.Akasaka)
+        { Debug.LogError("[書き出し] 赤坂を開いてから撮る(SpawnPoint が要る)"); return; }
+
+        const int W = 1920, H = 1080;
+        var p = sp.transform.position;
+        var terrain = Terrain.activeTerrain;
+        float ground = p.y;
+        if (Physics.Raycast(p + Vector3.up * 200f, Vector3.down, out var hit, 400f)) ground = hit.point.y;
+        else if (terrain != null) ground = terrain.SampleHeight(p) + terrain.transform.position.y;
+
+        var g = new GameObject("TitleShot");
+        try
+        {
+            var cam = g.AddComponent<Camera>();
+            g.transform.SetPositionAndRotation(new Vector3(p.x, ground + 1.6f, p.z), Quaternion.Euler(-4f, sp.transform.eulerAngles.y, 0f));
+            cam.fieldOfView = 55f;
+            cam.nearClipPlane = 0.1f; cam.farClipPlane = 3000f;
+            cam.clearFlags = CameraClearFlags.Skybox;
+            var rt = new RenderTexture(W, H, 24);
+            cam.targetTexture = rt; cam.Render();
+            RenderTexture.active = rt;
+            var tx = new Texture2D(W, H, TextureFormat.RGB24, false);
+            tx.ReadPixels(new Rect(0, 0, W, H), 0, 0); tx.Apply();
+            RenderTexture.active = null; cam.targetTexture = null;
+            File.WriteAllBytes(EdoAssets.App.TitleImage, tx.EncodeToJPG(90));
+            Object.DestroyImmediate(rt); Object.DestroyImmediate(tx);
+        }
+        finally { Object.DestroyImmediate(g); }
+
+        AssetDatabase.ImportAsset(EdoAssets.App.TitleImage);
+        if (AssetImporter.GetAtPath(EdoAssets.App.TitleImage) is TextureImporter ti)
+        {
+            ti.textureType = TextureImporterType.Default;
+            ti.mipmapEnabled = false;
+            ti.maxTextureSize = 2048;
+            ti.npotScale = TextureImporterNPOTScale.None;
+            ti.SaveAndReimport();
+        }
+        Debug.Log($"[書き出し] 開始画面の絵を撮った → {EdoAssets.App.TitleImage}");
     }
 
     public static BuildReport Build(BuildTarget target)
@@ -72,7 +199,8 @@ public static class EdoAppBuild
             Debug.LogError($"[書き出し] 断った: 開いているシーン {sc.path} に未保存の変更がある(持ち主の窓が保存か破棄を決めてから)");
             return null;
         }
-        OnlyAkasaka();
+        EnsureBootScene();
+        SetBuildScenes();
         int app = EnsureAppQuality();
 
         // アプリだけ App 品質で起きるよう、書き出す間だけ既定の品質を差し替えて戻す(エディタの品質は触らない)
@@ -92,7 +220,7 @@ public static class EdoAppBuild
             var sub = target == BuildTarget.StandaloneOSX ? "Mac/EdoAkasaka.app" : "Windows/EdoAkasaka.exe";
             var opt = new BuildPlayerOptions
             {
-                scenes = new[] { EdoAssets.Scenes.Akasaka },
+                scenes = BuildScenes,
                 target = target,
                 locationPathName = Path.Combine(EdoAssets.App.BuildDir, sub),
                 options = BuildOptions.None,

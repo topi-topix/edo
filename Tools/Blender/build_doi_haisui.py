@@ -4,6 +4,7 @@
     blender --background --python Tools/Blender/build_doi_haisui.py -- mizo masu --render
     blender --background --python Tools/Blender/build_doi_haisui.py -- A E F    # 型ごと(深さの版は全部)
     blender --background --python Tools/Blender/build_doi_haisui.py -- AK --render   # 型 A の外壁の嵩上げ石(岡部 EDO-0502)
+    blender --background --python Tools/Blender/build_doi_haisui.py -- fuchi --render  # 型 A の縁石の作り AF・吐き口 AH/AFH(岡部 EDO-0502)
     BUZAI_OUT=/path/staging blender --background --python Tools/Blender/build_doi_haisui.py -- all
 
 【寸法の正典は `docs/Sashizu/doi_sashizu.json` の `drainKata`(型 A〜P)】⛔ ここに数字を書き写さない —
@@ -471,20 +472,38 @@ def kui(X, top, Z, L=0.40, d=0.05):
 
 
 # ================================================================ 型 A〜F・K(溝の 1m 駒)
-def mizo_A(d):
+FUCHI_DROP = 0.55     # 縁石の作り(AF)の縁石の下端 = 天端 − 0.55(道より 0.45 上まで見せて 0.10 根入れ・岡部 EDO-0502・確度 U)
+HAKI_W = None         # 吐き口(AH/AFH)の口の幅 = 型 A の内法(json innerW)── None なら内法
+
+
+def mizo_A(d, fuchi=False, haki=False):
     """**型 A 切石の雨落ち溝**。内法 0.30・縁石 0.12 × 丈 0.24(天端 +0.02)・外幅 0.54・底は玉砂利。
-    深さ d = 地盤 − 玉砂利の天端。縁石の下端は min(−0.22, −d−0.05)(深い版は内面に土を見せない)。"""
+    深さ d = 地盤 − 玉砂利の天端。縁石の下端は min(−0.22, −d−0.05)(深い版は内面に土を見せない)。
+
+    fuchi=True(**AF 縁石の作り**・岡部 EDO-0502 grading.omoteNagayaDai.mizo の Mizo_Minami / Mizo_Hashi):
+      両側の縁石を天端 −FUCHI_DROP まで下ろす ── 道が溝の底より低く、外の壁を道より 0.30〜0.45 上に見せる所。
+      天端・内法・底・継ぎ目は A と同じ(A と継いで並ぶ)。左右対称なので向きを選ばない。
+    haki=True(**AH / AFH 吐き口**): +X の縁石を駒の芯で内法の幅だけ切り、口の底に敷き石(天端 = 底 −d・
+      見付は縁石と同じ 0.12 ── 区画の線を越えない)を入れる。口 = +X(据える側が +X を道へ向ける)。
+      底は平ら・Z に対称 ⇒ 二つの溝が両側から落ち合う所(s76)にも、一つの溝の尻(s44)にも同じ駒で据わる。"""
     a = K["A"]; c = a["curb"]
-    rng = random.Random(5330100 + int(d * 1000))
+    rng = random.Random(5330100 + int(d * 1000) + (7 if fuchi else 0) + (13 if haki else 0))
     hi, cw, top = a["innerW"] / 2.0, c["w"], c["topAbove"]
-    cb = min(top - c["h"], -d - 0.05)
+    cb = top - FUCHI_DROP if fuchi else min(top - c["h"], -d - 0.05)
+    nw = (HAKI_W or a["innerW"]) / 2.0
     for s, j in ((-1, 0.35), (1, 0.75)):
         X0, X1 = (-hi - cw, -hi) if s < 0 else (hi, hi + cw)
         tp = top - rng.uniform(0.0, 0.004)
         uvo = (PLAIN[0] + rng.uniform(0, 0.02), PLAIN[1] + rng.uniform(0, 0.015))
+        if haki and s > 0:
+            # 口の両脇の石(駒の端の稜は取らない・口の側は取る)と口の敷き石
+            stone(X0, X1, cb, tp, -HALF, -nw, rng, uvo=uvo)
+            stone(X0, X1, cb, tp - rng.uniform(0.0, 0.003), nw, HALF, rng)
+            stone(X0, X1, cb, -d, -nw, nw, rng, ends=False)
+            continue
         course([j], lambda r0, r1, w: run_stone(r0, r1, w, X0, X1, cb, tp, rng, uvo=uvo))
     surface([(-hi, -d), (0.0, -d), (hi, -d)], [GRAVEL, GRAVEL], uvfn=uv_ground)
-    return "Doi_Mizo_A_D%.2f" % d
+    return "Doi_Mizo_A%s%s_D%.2f" % ("F" if fuchi else "", "H" if haki else "", d)
 
 
 KASA_HS = (0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45)
@@ -978,6 +997,10 @@ for d in A_DEPTHS:
     JOBS.append(("A", _mz(mizo_A, d), "mizo"))
 for h in KASA_HS:
     JOBS.append(("AK", _mz(kasa_A, h), "kasa"))
+for d in A_DEPTHS:
+    JOBS.append(("AF", _mz(mizo_A, d, True, False), "fuchi"))
+    JOBS.append(("AH", _mz(mizo_A, d, False, True), "fuchi"))
+    JOBS.append(("AFH", _mz(mizo_A, d, True, True), "fuchi"))
 JOBS.append(("B", _mz(mizo_B), "mizo"))
 for d in C_DEPTHS:
     JOBS.append(("C", _mz(mizo_C, d), "mizo"))
@@ -1011,7 +1034,7 @@ JOBS.append(("N", _mz(mizunuki), "kuchi"))
 for L in sorted(set(round(RAMPS[n]["w"] + 0.30, 2) for n in ("R_Tsuyomon", "R_Tomomachi"))):
     JOBS.append(("O", _mz(mizukiri, L), "kuchi"))
 
-GROUPS = {"mizo": "ABCDEFK", "kasa": ("AK",), "masu": ("G1", "G2", "G3"), "dan": "HI", "uke": "J", "kuchi": "LMNO"}
+GROUPS = {"mizo": "ABCDEFK", "kasa": ("AK",), "fuchi": ("AF", "AH", "AFH"), "masu": ("G1", "G2", "G3"), "dan": "HI", "uke": "J", "kuchi": "LMNO"}
 
 
 # ================================================================ 結線とレンダ
@@ -1165,6 +1188,63 @@ def kasa_shots(o, name):
     return out
 
 
+def fuchi_shots(o, name):
+    """縁石の作り(AF)・吐き口(AH/AFH)の検め(書き出さない)。吐き口は前後に同じ深さの AF / A を継いで並べる
+    (AF は自分の写しを並べる)。地面は道の側(+X の外)を天端 −0.40(AF の見せ)/ −0.02(A)に、溝の内の側(−X の外)を天端 −0.02 に。
+    背景はマゼンタ(穴が見えたら Unity で空が抜ける)。3d = 道の側から口と外の壁 / koguchi = 下流からの断面 / top = 真上。"""
+    fuchi = "_AF" in name
+    d = float(name.rsplit("_D", 1)[1])
+    nb = None
+    if "H_D" in name:
+        saved = list(_objs)
+        _objs.clear()
+        mizo_A(d, fuchi, False)
+        nb = DN._finish(_objs, "_nb")
+        _objs.clear(); _objs.extend(saved)
+    hook()
+    extra = [nb] if nb is not None else []
+    for k in (-1, 1):
+        src = nb if nb is not None else o
+        cc = src.copy(); cc.data = src.data
+        cc.location = (0.0, -k * 1.0, 0.0)
+        bpy.context.scene.collection.objects.link(cc)
+        cc.hide_render = False
+        extra.append(cc)
+    if nb is not None:
+        nb.hide_render = True
+    a = K["A"]; c = a["curb"]
+    xo = a["innerW"] / 2.0 + c["w"]
+    top = c["topAbove"]
+    road = top - (0.40 if fuchi else 0.02)
+    gm = bpy.data.materials.new("_ground_render")
+    gm.use_nodes = True
+    gm.node_tree.nodes["Principled BSDF"].inputs['Base Color'].default_value = (0.30, 0.26, 0.20, 1)
+    R = 4.0
+    for (a0, a1, y) in ((xo, R, road), (-R, -xo, top - 0.02)):
+        bpy.ops.mesh.primitive_plane_add(size=1.0)
+        g = bpy.context.active_object
+        g.scale = (a1 - a0, 2 * R, 1.0)
+        bx, by, _ = u2b((a0 + a1) * 0.5, 0, 0)
+        g.location = (bx, by, y - 0.001)
+        g.data.materials.append(gm)
+        extra.append(g)
+    os.makedirs(SHOT, exist_ok=True)
+    out = []
+    bxo, _, _ = u2b(xo, 0, 0)
+    for tag, loc, at, ortho in (("3d", (bxo - 1.8, -1.6, 1.1), (0.0, 0.0, -0.15), None),
+                                ("koguchi", (0.0, -6.0, -0.15), (0.0, 0.0, -0.15), 1.4),
+                                ("top", (0.0, 1e-4, 4.0), (0.0, 0.0, 0.0), 2.4)):
+        V.studio(loc, at, ortho_scale=ortho, res=(900, 640))
+        _magenta_sky()
+        p = os.path.join(SHOT, "doihaisui_%s_%s.png" % (name, tag))
+        V.render(p)
+        out.append(p)
+    for e in extra:
+        bpy.data.objects.remove(e, do_unlink=True)
+    bpy.context.view_layer.update()
+    return out
+
+
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     words = [a for a in argv if not a.startswith("--")] or ["all"]
@@ -1212,7 +1292,8 @@ def main():
                 hole = (-oo, oo, -oo, oo)
             elif name.startswith(("Doi_Ankyo", "Doi_Mizunuki")):
                 hole = None
-            for p in (kasa_shots(o, name) if grp == "kasa" else shots(o, name, hole, tile, grp)):
+            for p in (kasa_shots(o, name) if grp == "kasa" else fuchi_shots(o, name) if grp == "fuchi"
+                      else shots(o, name, hole, tile, grp)):
                 print("RENDER " + p)
         V.export_fbx([o], os.path.join(OUT, name + ".fbx"))
         print("[haisui] 書き出し " + os.path.join(OUT, name + ".fbx"))

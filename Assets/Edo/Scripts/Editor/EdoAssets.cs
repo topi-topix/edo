@@ -2827,6 +2827,35 @@ public static class EdoAssets
             if (az == 200 && ax == 200) return p;
             return p.Substring(0, p.Length - 4) + "_A" + az + "x" + ax + ".fbx";
         }
+        /// <summary>**倍率 s の石垣の隅**(外周の基壇 = `Castle Wall` を Vector3.one·s で並べた run の出隅・EDO-0502 岡部 const.kidan.corner.ge40)。
+        /// <see cref="IshigakiKado(float,float)"/> を原点(折れ点・足元・内面)で一様に s 倍して頂点へ焼いた物 ── 角は変わらず、留めも面も
+        /// 倍率 s の直線材と一致する。**名の H と腕 A は素の(倍率 1 の)寸法**: 実寸の丈 = h·s・腕 = 2.00·s。綴り `_H0400_S075`(腕を詰めた版は `_H0400_S075_A200x0`)。
+        /// 据え: <see cref="IshigakiKado(float,float)"/> と同じ position = 両腕の控えの線の交点 P / **y = 天端 − h·s** / yaw = 入りの run の駒の yaw / **scale = 1**(⛔ s を二重に掛けない)。
+        /// PlaceRunKado へは pathOf = (deg, hReal) =&gt; IshigakiKadoS(deg, hReal / s, s) で渡す(実寸の丈 3.00 → 名の H0400)。
+        /// 材 `stone wall`(.meta は素の隅の写し ⇒ remap 不要)。
+        /// 焼いたもの(2026-10-11 EDO-0502 第108巡の差し戻し・s 0.75・H0400 = 実寸 3.00):
+        /// **67**(P12 S_Hei_08 × N12_0・66.971°・天端 19.1)実寸 局所 X −1.38〜1.80 × Y 0〜3.00 × Z −1.50〜2.24(張り出し 2.24)/
+        /// **78**(P24 S_Hei_20 × S_Hei_21・78.367°・天端 11.02)X −1.47〜1.80 × Z −1.50〜2.07 /
+        /// **95**(P0 N41_5 × SE_Hei・95.110°)X −1.65〜1.80 × Z −1.50〜1.97。⚠ P0 は両脇の天端が違う(N41_5 12.3 / SE_Hei 11.1)・倍率も 0.75/0.25 ──
+        /// 高い側(N41_5)の倍率で焼いた。辺0 の側の腕を P で切った **A200x0 / A0x200**(+X の腕 / −Z の腕を 0 = P の直角の面で切り小口で塞いだ)も焼いた
+        /// ── 辺0 の見え面は頂点から 1.97 で小口に止まり、その先を SE_Hei(天端 11.1)が続ける。どちらの腕が辺0 かは PlaceRunKado の yaw の解で選ぶ。
+        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 66.971 --h 4 --s 0.75 --render
+        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 78.367 --h 4 --s 0.75 --render
+        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 95.11 --h 4 --s 0.75 [--arms 2.0,0 | --arms 0,2.0] --render</summary>
+        public static string IshigakiKadoS(float deg, float h, float s)
+        {
+            string p = IshigakiKado(deg, h);
+            if (UnityEngine.Mathf.Abs(s - 1f) < 1e-4f) return p;
+            return p.Substring(0, p.Length - 4) + "_S" + UnityEngine.Mathf.RoundToInt(s * 100f).ToString("000") + ".fbx";
+        }
+        /// <summary><see cref="IshigakiKadoS(float,float,float)"/> の腕を詰めた版(綴りは <see cref="IshigakiKado(float,float,float,float)"/> と同じ・腕は素の cm)。</summary>
+        public static string IshigakiKadoS(float deg, float h, float s, float armNegZ, float armPosX)
+        {
+            int az = UnityEngine.Mathf.RoundToInt(armNegZ * 100f), ax = UnityEngine.Mathf.RoundToInt(armPosX * 100f);
+            string p = IshigakiKadoS(deg, h, s);
+            if (az == 200 && ax == 200) return p;
+            return p.Substring(0, p.Length - 4) + "_A" + az + "x" + ax + ".fbx";
+        }
         // EDO-0502: **A19x200**(40.219° × 4.00/4.50): 岡部 TW_Kado_Shumen の P1 ── −Z の腕が石段 K_Dan の口まで 0.19。上の 4m は H0400 と頂点一致。
         //   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 40.219 --h 4.5 --arms 0.19,2.0 --render
         //   IshigakiKado2 の **H4.50** 版も同じ(--h 4.5)。
@@ -4108,19 +4137,28 @@ public static class EdoAssets
         /// E 1.09〜1.18(**+X = 割石の空積み**・−X = 石垣の根固め・法尻の側の土の法と野面石1段)/
         /// F 1.05(両側の空積み・内法 0.45)/ K 0.61(杉板の側・蓋板の天端 = 路面 0)。D(Z) はどれも 1.000。
         /// E の向きを逆にするときは yaw 180°(上流と下流が入れ替わるので、溝の向きに意味がある所は X 鏡像で据える)。
-        ///   blender --background --python Tools/Blender/build_doi_haisui.py -- mizo --render</summary>
+        /// **AF = 型 A の縁石の作り**(岡部 EDO-0502 grading.omoteNagayaDai.mizo の Mizo_Minami / Mizo_Hashi ── 道が溝の底より低く、外の壁を道より
+        /// 0.30〜0.45 上に見せる所)。A と天端 +0.02・内法・幅 0.54・底・継ぎ目まで同じで、**両側の縁石の下端だけ天端 −0.55**(Y −0.53)まで下ろした物
+        /// (道より 0.45 上まで見せて 0.10 根入れ・確度 U)。左右対称 ⇒ 向きを選ばない。⛔ 嵩上げ石(DoiMizoAKasa)は要らない ── 天端は駒の天端のまま、
+        /// 据える高さ(ピボット = 外の壁の天端 −0.02)を max(道 + 0.30, 底 + 0.15) −0.02 から解く(深さ = ピボット − 底)。
+        /// **AH / AFH = 吐き口**(A / AF の 1m 駒で、**+X の縁石**を駒の芯で内法 0.30 の幅だけ切り、口に敷き石 ── 天端 = 底(−d)・見付 0.12 で区画の線を越えない)。
+        /// 底は平ら・Z に対称 ⇒ 一つの溝の尻(Mizo_Kita s44 = AH)にも、二つの溝が両側から落ち合う所(Mizo_Minami × Mizo_Hashi の s76 = AFH)にも
+        /// 同じ駒が据わる。⚠ 口 = +X ── yaw は +X を区画の外(道)へ向けて解く(+Z の下流の約束はこの駒だけ外れる)。前後の駒とは端で突き付ける(継ぎ目は A と同じ)。
+        /// 実寸 W 0.540 × H 0.550(AF・AFH)/ 0.24〜0.37(AH = A と同じ)× D 1.000。材は A と同じ(.meta は A の写し ⇒ remap 不要)。
+        ///   blender --background --python Tools/Blender/build_doi_haisui.py -- mizo --render
+        ///   blender --background --python Tools/Blender/build_doi_haisui.py -- fuchi --render   (AF / AH / AFH の全深さ)</summary>
         public static string DoiMizo(string kata, float depth = 0f)
         {
             string k = kata.ToUpperInvariant();
             float d;
             switch (k)
             {
-                case "A": d = DoiSnap(depth > 0f ? depth : 0.15f, 0.10f, 0.30f, 0.05f); break;
+                case "A": case "AF": case "AH": case "AFH": d = DoiSnap(depth > 0f ? depth : 0.15f, 0.10f, 0.30f, 0.05f); break;
                 case "C": d = DoiSnap(depth > 0f ? depth : 0.10f, 0.10f, 0.15f, 0.05f); break;
                 case "D": d = DoiSnap(depth > 0f ? depth : 0.30f, 0.20f, 0.45f, 0.05f); break;
                 case "E": case "F": d = DoiSnap(depth > 0f ? depth : 0.45f, 0.30f, 0.60f, 0.15f); break;
                 case "B": case "K": return FuzokuyaDir + "Doi_Mizo_" + k + ".fbx";
-                default: throw new System.ArgumentException("DoiMizo: 型は A/B/C/D/E/F/K(" + kata + ")");
+                default: throw new System.ArgumentException("DoiMizo: 型は A/AF/AH/AFH/B/C/D/E/F/K(" + kata + ")");
             }
             return FuzokuyaDir + "Doi_Mizo_" + k + "_D" + d.ToString("0.00", DoiInv) + ".fbx";
         }

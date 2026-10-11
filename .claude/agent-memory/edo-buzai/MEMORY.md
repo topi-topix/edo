@@ -105,3 +105,4 @@
 - [11間の門長屋の --wide と端数の --frac](okabe-11ken-gate-wide-bay-and-frac.md) — 端の窓は妻から 1.381 固定・口は真ん中の窓割りを 2間に・通用門の袖は --sode(2026-10-11)
 - [折れ 38.6° の隅は底の板を留めの線まで](kado39-sharp-fold-floor-to-miter.md) — φ<60 の囲まれた穴・H4800 隅の裏当たり4本は既存(2026-10-11)
 - [練塀の短い腕の名は fiK で割れる](dobei-kado-arms-by-fik-boundary.md) — KadoArms を python で写し境の両側を焼く・切り駒は隅が据われば不要(2026-10-11)
+- [倍率 s の基壇の隅と縁石の作りの溝](kidan-scaled-kado-and-fuchi-mizo.md) — 隅は s を頂点へ焼く(_S075)・P0 は天端違い・AF は縁石を深く(2026-10-11)

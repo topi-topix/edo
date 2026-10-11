@@ -9,6 +9,8 @@
     blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 90 --h 5 --render
         # 丈違い(石垣だけ)。素の 4m の下へ 1m の段を勾配のまま継ぎ足す → Ishigaki_Kado_90_H0500
     blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 100.212 --h 4 --render
+    blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 66.971 --h 4 --s 0.75 --render
+        # 倍率 s の run の隅(EDO-0502 岡部 外周の基壇)→ _H0400_S075(名の H・A は素の寸法・実寸は × s)
         # 鈍い出隅(EDO-0502 岡部 TW_Kado_Hokuto の返し)。折れは区画 okabe の辺39 と impl の線から小数のまま・名は丸めた度
         # → Ishigaki_Kado_100_H0400。張り出し 2.87 > 1 モジュールなので −Y に 2 枚積んで切る(n_neg は自動)
     blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 90 --h 4 --arms 1.59,2.0 --render
@@ -69,6 +71,9 @@ import vklib as V
 FLIP_THK = False        # --flipthk で立てる。書き出し名に T が付く
 H_OUT = None            # --h で立てる(石垣だけ)。丈を m で。書き出し名に _H<cm4桁> が付く
 ARMS = None             # --arms aZ,aX で立てる(石垣・練塀)。腕の長さ m。書き出し名に _A<cm>x<cm> が付く
+SCALE = None            # --s で立てる(石垣だけ)。倍率 s を一様に焼き込む。書き出し名に _S<s×100 の3桁> が付く
+                        #   (EDO-0502 外周の基壇 = 倍率 s の Castle Wall を一様に縮めて並べた run の出隅)。
+                        #   ⭐ 名の H と A は**素の(倍率 1 の)寸法**のまま ── 実寸は × s。ピボットも同じ規約(原点で縮める)
 
 ROOT = V.REPO
 JC   = os.path.join(ROOT, "Assets/Japanese Castle")
@@ -563,7 +568,7 @@ def build(part, deg, arms=None):
             armA = cut_arm(_dup(full, "armA_s"), ARMS[0], ymax)
             armB = mirror_across(cut_arm(_dup(full, "armB_s"), ARMS[1], ymax), n)
         bpy.data.objects.remove(full, do_unlink=True)
-    o = V.join([armA, armB], "%s_%02d%s%s%s" % (p["out"], round(abs(deg)), "" if deg > 0 else "M", "T" if FLIP_THK else "", hsuf() + asuf()))
+    o = V.join([armA, armB], "%s_%02d%s%s%s" % (p["out"], round(abs(deg)), "" if deg > 0 else "M", "T" if FLIP_THK else "", hsuf() + ssuf() + asuf()))
     if mune is not None:
         hip = hip_ridge(o, mune, n)
         bpy.data.objects.remove(mune, do_unlink=True)
@@ -601,6 +606,14 @@ def build(part, deg, arms=None):
     bm.to_mesh(me); bm.free(); me.update()
 
     V.set_origin(o, (0, 0, 0))
+    if SCALE is not None:
+        # 倍率 s の run の隅(EDO-0502): 原点(折れ点・足元・内面)で一様に縮める。直線材は Unity で Vector3.one·s を
+        #   掛けて並べてあるので、同じ s を頂点へ焼けば留めも面も一致する(角は一様な縮みで変わらない)。
+        if part != "ishigaki":
+            raise SystemExit("[kado] --s は石垣だけ")
+        for v in me.vertices:
+            v.co *= SCALE
+        me.update()
     xs = [v.co.x for v in me.vertices]; ys = [v.co.y for v in me.vertices]
     zs = [v.co.z for v in me.vertices]
     print("[kado] %s Δ=%.1f°  出来上がり x[%.2f,%.2f] y[%.2f,%.2f] z[%.2f,%.2f]  面=%d"
@@ -608,7 +621,7 @@ def build(part, deg, arms=None):
     print("[kado]   外面の張り出し(折れ点より先) = %.3f m" % max(0.0, -min(ys)))
 
     hand = ("" if deg > 0 else "M") + ("T" if FLIP_THK else "")
-    path = os.path.join(OUT, "%s_%02d%s%s.fbx" % (p["out"], round(abs(deg)), hand, hsuf() + asuf()))
+    path = os.path.join(OUT, "%s_%02d%s%s.fbx" % (p["out"], round(abs(deg)), hand, hsuf() + ssuf() + asuf()))
     V.export_fbx([o], path)
     print("[kado] wrote %s" % path)
     return o, path
@@ -874,13 +887,20 @@ def hsuf():
     return "" if H_OUT is None else "_H%04d" % int(round(H_OUT * 100))
 
 
+def ssuf():
+    """倍率の接尾辞(`_S075`)。名の H・A は素の寸法のまま。"""
+    return "" if SCALE is None else "_S%03d" % int(round(SCALE * 100))
+
+
 def main():
-    global FLIP_THK, H_OUT, ARMS
+    global FLIP_THK, H_OUT, ARMS, SCALE
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     do_render = "--render" in argv
     FLIP_THK = "--flipthk" in argv
     if "--h" in argv:
         H_OUT = float(argv[argv.index("--h") + 1])
+    if "--s" in argv:
+        SCALE = float(argv[argv.index("--s") + 1])
     if "--arms" in argv:
         ARMS = tuple(float(t) for t in argv[argv.index("--arms") + 1].split(","))
         assert len(ARMS) == 2, "--arms aZ,aX"
@@ -919,7 +939,7 @@ def main():
             # ⚠ 鏡像(M)は同じ |deg| なので、hand を名に入れないと非鏡像の検証画像を上書きする
             hand = "" if deg > 0 else "M"
             V.render(os.path.join(os.environ.get("BUZAI_SHOTS", os.path.join(ROOT, "Screenshots")),
-                                  "kado_%s_%02d%s%s.png" % (part, round(abs(deg)), hand, hsuf() + asuf())))
+                                  "kado_%s_%02d%s%s.png" % (part, round(abs(deg)), hand, hsuf() + ssuf() + asuf())))
 
 
 main()

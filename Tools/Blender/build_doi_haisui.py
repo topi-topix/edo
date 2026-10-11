@@ -7,6 +7,7 @@
     blender --background --python Tools/Blender/build_doi_haisui.py -- fuchi --render  # 型 A の縁石の作り AF・吐き口 AH/AFH(岡部 EDO-0502)
     blender --background --python Tools/Blender/build_doi_haisui.py -- ago --render    # 型 A / AH の地際の張り出し _Ago(岡部 EDO-0502 第111巡)
     blender --background --python Tools/Blender/build_doi_haisui.py -- koguchi --render   # 型 A の溝の小口の石(岡部 EDO-0502 第113巡・Mizo_Hashi の頭)
+    blender --background --python Tools/Blender/build_doi_haisui.py -- HG --render    # 型 H の壁の浅い版 _Ago(天端 0.10〜0.30・岡部 EDO-0502 第116巡)
     BUZAI_OUT=/path/staging blender --background --python Tools/Blender/build_doi_haisui.py -- all
 
 【寸法の正典は `docs/Sashizu/doi_sashizu.json` の `drainKata`(型 A〜P)】⛔ ここに数字を書き写さない —
@@ -97,6 +98,8 @@ _KATA_PENDING = {"G3": {"label": "石の桝(中・溝 E を受ける)", "inner":
                         "outlet": {"w": 0.20, "h": 0.15, "bottom": -0.20}, "sumpBelowOutlet": 0.15}}
 G1_FLOOR = -0.75      # G1 の底の天端(地盤から)= 吐き口の底 −0.60 − 溜め 0.15
 H_WALL_TOP = 0.50     # H の野面石の天端(段の底から・json hMin 0.45..hMax 0.6)
+H_WT = (0.10, 0.15, 0.20, 0.25, 0.30)   # 壁の浅い版の天端(段の底から・岡部 EDO-0502 第116巡・確度 U)
+H_AGO_LAP = 0.03      # 浅い版の張り出しの縁が壁の中へ潜る(野面石の面取り 0.028 を覆う)
 
 
 def u2b(X, Y, Z):
@@ -526,13 +529,14 @@ AGO_MAT = "Hifu_KitaTerrain_World"   # 板の材(第113巡): 世界 XZ で地形
 #   uv は使われない(シェーダが世界 XZ から引く)が、Blender のレンダ用に Soil の矩形のまま残す。
 
 
-def ago_side(s, xc, top, zsegs):
+def ago_side(s, xc, top, zsegs, lap=None):
     """**地際の張り出し(片側)**。xc = 縁石の外面の |X|・s = ±1。断面 (X, Y) の閉じた四角形
     内の縁 (xc−LAP, top+RISE) → 外の縁 (xc+W, top−FALL) → (xc+W, top−T) → (xc−LAP, top−T) を
     zsegs の各区間 [z0, z1] へ押し出す(端の面も閉じる)。材は AGO_MAT(地形の塗りを世界 XZ で引く・uv は飾り)。
     ⚠ 上面の UV は |Z| で折り返す ⇒ Z=0 を跨ぐ区間は呼ぶ側で割る。"""
-    prof = [(xc - AGO_LAP, top + AGO_RISE), (xc + AGO_W, top - AGO_FALL),
-            (xc + AGO_W, top - AGO_T), (xc - AGO_LAP, top - AGO_T)]
+    lap = AGO_LAP if lap is None else lap
+    prof = [(xc - lap, top + AGO_RISE), (xc + AGO_W, top - AGO_FALL),
+            (xc + AGO_W, top - AGO_T), (xc - lap, top - AGO_T)]
     bm = bmesh.new()
     uvl = bm.loops.layers.uv.new("UVMap")
 
@@ -940,12 +944,22 @@ def masu(kind):
 
 
 # ================================================================ H 石組の段落ち
-def danochi(rise):
+def danochi(rise, wt=None, ago=False):
     """**型 H 石組の段落ち 1段**(内法 0.60・野面石の側・平石の段鼻と水叩き)。駒の長さ 0.50。
     ピボット = **段鼻の線の芯・段鼻の天端(上の底)**。駒は Z −0.12(段鼻)… +0.38(水叩きの終わり)。
-    rise = 0 は**平らな駒**(Z −0.25..+0.25・ピボット = 中心・底の天端)── 踏面の残りを埋める。"""
+    rise = 0 は**平らな駒**(Z −0.25..+0.25・ピボット = 中心・底の天端)── 踏面の残りを埋める。
+
+    wt = 側の野面石の天端(段の底から)。None = 素の H_WALL_TOP 0.50。
+    **壁の浅い版**(岡部 EDO-0502 第116巡・小段の溝の頭を地表と面一に据える・確度 U): wt 0.10〜0.30(H_WT)。
+      底・段鼻・蹴込み・水叩き・落差・継ぎ目は素の H と同じ石(同じ乱数)── 壁の丈だけ違う。
+      丈(下端 底 −0.16 から)が 0.36 未満は 1 段積み(0.13 の段を 2 つ重ねると薄い板に見える)。
+      天端の揺れは 0.008 まで(素は 0.02 ── 張り出しの縁の下に段が覗く)。
+    ago=True: 両側の壁の外面へ地際の土の板 _Ago(型 A_Ago と同じ断面・材 Hifu_KitaTerrain_World)を
+      踏面ごとの天端で張る(段鼻の線 Z=0 で割る)。縁は壁の外の面取り 0.028 を覆うよう 0.03 潜る。"""
     h = K["H"]
     rng = random.Random(5330800 + int(rise * 1000))
+    wtop = H_WALL_TOP if wt is None else wt
+    jit = 0.02 if wt is None else 0.008
     hi = h["innerW"] / 2.0
     t = 0.10
     if rise <= 1e-6:
@@ -971,9 +985,12 @@ def danochi(rise):
     segs = [(z0, 0.0, 0.0), (0.0, z1, -rise)] if rise > 1e-6 else [(z0, z1, 0.0)]
     for s in (-1, 1):
         for (za, zb, yb) in segs:
-            ybot, ytop = yb - t - 0.06, yb + H_WALL_TOP
+            ybot, ytop = yb - t - 0.06, yb + wtop
             ym = ybot + (ytop - ybot) * rng.uniform(0.45, 0.55)
-            for (y0, y1) in ((ybot, ym - 0.004), (ym + 0.004, ytop - rng.uniform(0.0, 0.02))):
+            lays = ((ybot, ym - 0.004), (ym + 0.004, ytop - rng.uniform(0.0, jit)))
+            if ytop - ybot < 0.36 - 1e-6:
+                lays = ((ybot, lays[1][1]),)
+            for (y0, y1) in lays:
                 L = zb - za
                 cuts = [za, zb]
                 if L > 0.30:
@@ -987,7 +1004,15 @@ def danochi(rise):
                     else:
                         X0, X1 = hi + inset, hi + 0.30
                     stone(X0, X1, y0, y1, ca, cb, rng, bev=0.028, ends=False)
-    return "Doi_DanOchi_R%.2f" % rise
+    if ago:
+        for s in (-1, 1):
+            for (za, zb, yb) in segs:
+                for (p, q) in ((za, min(zb, 0.0)), (max(za, 0.0), zb)):
+                    if q - p > 1e-6:
+                        ago_side(s, hi + 0.30, yb + wtop, ((p, q),), lap=H_AGO_LAP)
+    if wt is None:
+        return "Doi_DanOchi_R%.2f" % rise
+    return "Doi_DanOchi%s_R%.2f_H%.2f" % ("_Ago" if ago else "", rise, wt)
 
 
 # ================================================================ I 張り石の落とし・水叩き
@@ -1188,6 +1213,10 @@ JOBS.append(("G3", _mz(masu, "G3"), "masu"))
 JOBS.append(("H", _mz(danochi, 0.0), "dan"))
 for r in H_RISES:
     JOBS.append(("H", _mz(danochi, r), "dan"))
+for w in H_WT:
+    JOBS.append(("HG", _mz(danochi, 0.0, w, True), "danago"))
+    for r in H_RISES:
+        JOBS.append(("HG", _mz(danochi, r, w, True), "danago"))
 for nori in I_NORI:
     for r in I_RISES:
         JOBS.append(("I", _mz(hari_otoshi, r, nori), "dan"))
@@ -1206,7 +1235,7 @@ JOBS.append(("N", _mz(mizunuki), "kuchi"))
 for L in sorted(set(round(RAMPS[n]["w"] + 0.30, 2) for n in ("R_Tsuyomon", "R_Tomomachi"))):
     JOBS.append(("O", _mz(mizukiri, L), "kuchi"))
 
-GROUPS = {"mizo": "ABCDEFK", "kasa": ("AK",), "fuchi": ("AF", "AH", "AFH"), "ago": ("AG", "AHG"), "koguchi": ("AKG",), "masu": ("G0", "G1", "G2", "G3"), "dan": "HI", "uke": "J", "kuchi": "LMNO"}
+GROUPS = {"mizo": "ABCDEFK", "kasa": ("AK",), "fuchi": ("AF", "AH", "AFH"), "ago": ("AG", "AHG"), "koguchi": ("AKG",), "masu": ("G0", "G1", "G2", "G3"), "dan": "HI", "danago": ("HG",), "uke": "J", "kuchi": "LMNO"}
 
 
 # ================================================================ 結線とレンダ
@@ -1497,6 +1526,101 @@ def ago_shots(o, name):
     return out
 
 
+def danago_shots(o, name):
+    """壁の浅い段落ち(_Ago)の検め(書き出さない)。平ら・段・平ら・段・平らの 5 駒を踏面 1.0 で継ぎ、
+    傾けた 0.25m 格子の模型地形(溝の外は駒の壁の天端 = 地表と面一・溝の中は底 −0.05)に据える。背景はマゼンタ。
+    before = 張り出しの無い同じ丈の版を同じ模型に据えた姿。"""
+    rise = float(name.split("_R")[1].split("_")[0])
+    wt = float(name.rsplit("_H", 1)[1])
+    r = rise if rise > 1e-6 else 0.30
+    saved = list(_objs)
+    built = {}
+    for key, rr, ag in (("st_g", r, True), ("fl_g", 0.0, True), ("st_p", r, False), ("fl_p", 0.0, False)):
+        if rr == rise and ag:
+            built[key] = o
+            continue
+        _objs.clear()
+        danochi(rr, wt, ag)
+        built[key] = DN._finish(_objs, "_" + key)
+    _objs.clear(); _objs.extend(saved)
+    hook()
+    # (種, Unity Z, Unity Y)
+    chain = (("fl", -0.37, 0.0), ("st", 0.0, 0.0), ("fl", 0.63, -r), ("st", 1.0, -r), ("fl", 1.63, -2 * r))
+    hi = K["H"]["innerW"] / 2.0 + 0.30
+    def bed(Z):
+        return 0.0 if Z < 0.0 else (-r if Z < 1.0 else -2 * r)
+    # 模型地形
+    t = math.radians(27.0); cell = 0.25; R = 3.0
+    n = int(R * 2 / cell) + 1
+    bm = bmesh.new(); g = {}
+    for i in range(-n, n + 1):
+        for k in range(-n, n + 1):
+            u, w = i * cell + 0.07, k * cell + 0.11
+            X, Z = u * math.cos(t) - w * math.sin(t), u * math.sin(t) + w * math.cos(t)
+            if abs(X) > R or Z < -2.2 or Z > 3.4:
+                continue
+            Z0 = Z - 0.5
+            # 溝の中の節点は前後 1 升の低い方の底へ(段の上の節点を高いまま残すと、下の踏面に三角形が被さる)
+            Y = (min(bed(Z - cell), bed(Z + cell)) - 0.05) if abs(X) <= hi else bed(Z) + wt   # bed は駒の並びの座標(Z)
+            g[(i, k)] = bm.verts.new(u2b(X, Y, Z0))
+    for (i, k), v in g.items():
+        q = [g.get(key) for key in ((i, k), (i + 1, k), (i + 1, k + 1), (i, k + 1))]
+        if all(q):
+            bm.faces.new((q[0], q[1], q[2])); bm.faces.new((q[0], q[2], q[3]))
+    for f in bm.faces:
+        f.normal_update()
+        if f.normal.z < 0.0:
+            f.normal_flip()
+    gm = bpy.data.materials.new("_mock_dan")
+    gm.use_nodes = True
+    gm.node_tree.nodes["Principled BSDF"].inputs['Base Color'].default_value = (0.20, 0.17, 0.08, 1)
+    terr = DN._obj("_mock_dan", bm, [gm])
+    extra = [terr] + [v for k, v in built.items() if v is not o]
+    sets = {"g": [], "p": []}
+    for kind, Z, Y in chain:
+        for gp in ("g", "p"):
+            src = built[kind + "_" + gp]
+            cc = src.copy(); cc.data = src.data
+            bx, by, bz = u2b(0.0, Y, Z - 0.5)
+            cc.location = (bx, by, bz)
+            bpy.context.scene.collection.objects.link(cc)
+            extra.append(cc); sets[gp].append(cc)
+    for src in built.values():
+        src.hide_render = True
+    os.makedirs(SHOT, exist_ok=True)
+    out = []
+    views = (("3d", u2b(-2.2, 2.4, -1.9), u2b(0.0, -0.35, 0.3), None),
+             ("near", u2b(-1.2, 1.3, -0.6), u2b(0.25, -0.30, 0.2), None),
+             ("top", (0.0, 1e-4 - 0.0, 5.0), u2b(0.0, 0.0, 0.0), 3.6))
+    for which in ("g", "p"):
+        for gp, lst in sets.items():
+            for ob in lst:
+                ob.hide_render = (gp != which)
+        for tag, loc, at, ortho in views:
+            if which == "p" and tag == "top":
+                continue
+            V.studio(loc, at, ortho_scale=ortho, res=(900, 640))
+            _magenta_sky()
+            p = os.path.join(SHOT, "doihaisui_%s_%s%s.png" % (name, tag, "" if which == "g" else "_before"))
+            V.render(p)
+            out.append(p)
+    # 地形を外した姿(駒の形・張り出しの縁・段鼻の小口を見る)
+    for gp, lst in sets.items():
+        for ob in lst:
+            ob.hide_render = (gp != "g")
+    terr.hide_render = True
+    V.studio(u2b(-1.9, 1.6, -1.3), u2b(0.0, -0.3, 0.5), res=(900, 640))
+    _magenta_sky()
+    p = os.path.join(SHOT, "doihaisui_%s_bare.png" % name)
+    V.render(p)
+    out.append(p)
+    for e in extra:
+        bpy.data.objects.remove(e, do_unlink=True)
+    o.hide_render = False
+    bpy.context.view_layer.update()
+    return out
+
+
 def koguchi_shots(o, name, d=0.15):
     """小口の石の検め(書き出さない)。A_Ago D0.15 の駒を 2 つ継ぎ、頭(−Z)を小口の石で塞いで 0.25m 格子の模型地形に据える。
     背景はマゼンタ(溝の頭の奥へ空が抜けたら 1 画素でも見える)。視点は頭の外(道の側の斜め上)・真上・頭の正面。"""
@@ -1578,6 +1702,7 @@ def main():
                 hole = None
             for p in (kasa_shots(o, name) if grp == "kasa" else fuchi_shots(o, name) if grp == "fuchi"
                       else ago_shots(o, name) if grp == "ago"
+                      else danago_shots(o, name) if grp == "danago"
                       else koguchi_shots(o, name) if grp == "koguchi"
                       else shots(o, name, hole, tile, grp)):
                 print("RENDER " + p)

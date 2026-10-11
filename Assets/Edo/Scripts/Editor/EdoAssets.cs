@@ -2775,6 +2775,10 @@ public static class EdoAssets
         /// 第114巡(2026-10-12 EDO-0502・00_A226x50 / 素の 90 は腕 4.1m が辺 3.0〜3.8 を越えて N41_5 と P4 の隅へ入った): **00_A226x60**(P2)/ **90_A50x70**(P3)── 棟梁の KadoArms の名のまま。
         ///   実寸(局所): 00_A226x60 X −0.32〜0.52 × Y 0〜1.455 × Z −0.60〜2.26 ／ 90_A50x70 X −0.70〜0.52 × Y 0〜1.455 × Z −0.52〜0.50(世界は ×1.818)。
         ///   blender --background --python Tools/Blender/build_kado.py -- --part dobei --deg 0.001 --arms 2.26,0.60 --render ／ … --deg 90 --arms 0.50,0.70 --render
+        /// 第116巡(2026-10-12 EDO-0502・KadoArms の据え点を両辺の外面の線の交点へ・留め柱で止まる端は柱の中に腕の先): **00_A180x50**(P2)/
+        /// **90_A50x80**(P3)/ **00_A80x226**(P4)── 棟梁の KadoArms の名のまま。.meta は 00_A226x60 の写し(guid 替え・remap 不要)。
+        ///   実寸(局所): 00_A180x50 X −0.32〜0.52 × Y 0〜1.455 × Z −0.50〜1.80 ／ 90_A50x80 X −0.80〜0.52 × Z −0.52〜0.50 ／ 00_A80x226 X −0.32〜0.52 × Z −0.80〜2.26(世界は ×1.818)。
+        ///   blender --background --python Tools/Blender/build_kado.py -- --part dobei --deg 0.001 --arms 1.80,0.50 --render ／ … --deg 90 --arms 0.50,0.80 ／ … --deg 0.001 --arms 0.80,2.26
         ///   blender --background --python Tools/Blender/build_kado.py -- --part dobei --deg &lt;整数角&gt; --arms &lt;入り&gt;,&lt;出&gt; --render</summary>
         public static string Kado(string part, float deg, float armIn, float armOut, float armFull)
         {
@@ -4249,6 +4253,24 @@ public static class EdoAssets
         {
             float r = rise <= 0.01f ? 0f : DoiSnap(rise, 0.15f, 0.45f, 0.05f);
             return FuzokuyaDir + "Doi_DanOchi_R" + r.ToString("0.00", DoiInv) + ".fbx";
+        }
+
+        /// <summary>**壁の浅い段落ち**(型 H と同じ底・段鼻・蹴込み・水叩き・落差・継ぎ目・同じ石 ── 側の野面石の丈だけ違う・岡部 EDO-0502 第116巡)。
+        /// <paramref name="wallTop"/> = 側の野面石の天端 − 段の底(0.10〜0.30・0.05 刻みに丸める)。溝の天端を地表と面一に据える所
+        /// (素の H は 0.50 で、小段の溝の頭で地表より 0.66 沈んだ)。両側の壁の外面へ**地際の土の板 _Ago**(型 A_Ago と同じ断面:
+        /// 出 0.40・厚 0.36・縁は壁の中へ 0.03 潜り天端 +0.003・外の縁 −0.03・材 `Hifu_KitaTerrain_World`)を踏面ごとの天端で張る
+        /// ⇒ 0.25m 格子の地形の鋸の歯を隠し、A_Ago と並べて地際の見えが揃う(⛔ 板の無い浅い版は焼いていない)。
+        /// 丈(下端 = 底 −0.16)が 0.36 未満(wallTop ≤ 0.15)は 1 段積み。天端の揺れは 0.008 まで。
+        /// ピボット・Z の範囲は <see cref="DoiDanOchi(float)"/> と同じ(段 Z −0.12..+0.38・平ら Z ±0.25)。実寸 W 2.00(板込み・壁の外面は ±0.60)×
+        /// H 0.36〜0.91 × D 0.50。Y の上端 = wallTop + 0.003(板の内の縁)。材は岩と _World ⇒ .meta は Doi_Mizo_A_Ago の写し(remap 不要・
+        /// _Control は <c>EdoBuild.SkinWorldMaterial</c> で建てる度に結わえる)。wallTop ≤ 0 は素の H(<see cref="DoiDanOchi(float)"/>)。
+        ///   blender --background --python Tools/Blender/build_doi_haisui.py -- HG --render(1 本だけ撮るなら --only Doi_DanOchi_Ago_R0.30_H0.20)</summary>
+        public static string DoiDanOchi(float rise, float wallTop)
+        {
+            if (wallTop <= 0f) return DoiDanOchi(rise);
+            float r = rise <= 0.01f ? 0f : DoiSnap(rise, 0.15f, 0.45f, 0.05f);
+            float w = DoiSnap(wallTop, 0.10f, 0.30f, 0.05f);
+            return FuzokuyaDir + "Doi_DanOchi_Ago_R" + r.ToString("0.00", DoiInv) + "_H" + w.ToString("0.00", DoiInv) + ".fbx";
         }
 
         /// <summary>**張り石の落とし 1段**(型 I・法面を縦に・幅 0.60・平石 t0.12・両脇の縁石 w0.12 天端 +0.06)。

@@ -110,3 +110,4 @@
 - [天端=地表の細い溝に地形の鋸の歯](mizo-ago-terrain-sawtooth.md) — 地際の板 _Ago 出0.40・厚0.36・材は地形の塗りを世界XZで引く Hifu_KitaTerrain_World(2026-10-12)
 - [板の材の改名で "Soil" 探しが外れる・立った面の世界 UV](apron-mat-rename-and-vertical-skin-uv.md) — ApronBody・層の模様を高さで展開・0° の隅は --deg 0.001(2026-10-12)
 - [練塀の留め柱は Goten_Column・笠の下は座+2.274](tomebashira-goten-column-and-dobei-kasa.md) — 6寸角は新造不要・角が原点・S042 は .meta の guid 替え(2026-10-12)
+- [型H の壁の浅い版と模型地形の座標](danochi-shallow-wall-ago.md) — 同じ石で壁だけ浅く・板は踏面ごと・模型の bed は並びの座標で(2026-10-12)

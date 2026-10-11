@@ -5,6 +5,7 @@
     blender --background --python Tools/Blender/build_doi_haisui.py -- A E F    # 型ごと(深さの版は全部)
     blender --background --python Tools/Blender/build_doi_haisui.py -- AK --render   # 型 A の外壁の嵩上げ石(岡部 EDO-0502)
     blender --background --python Tools/Blender/build_doi_haisui.py -- fuchi --render  # 型 A の縁石の作り AF・吐き口 AH/AFH(岡部 EDO-0502)
+    blender --background --python Tools/Blender/build_doi_haisui.py -- ago --render    # 型 A / AH の地際の張り出し _Ago(岡部 EDO-0502 第111巡)
     BUZAI_OUT=/path/staging blender --background --python Tools/Blender/build_doi_haisui.py -- all
 
 【寸法の正典は `docs/Sashizu/doi_sashizu.json` の `drainKata`(型 A〜P)】⛔ ここに数字を書き写さない —
@@ -509,6 +510,78 @@ def mizo_A(d, fuchi=False, haki=False):
         course([j], lambda r0, r1, w: run_stone(r0, r1, w, X0, X1, cb, tp, rng, uvo=uvo))
     surface([(-hi, -d), (0.0, -d), (hi, -d)], [GRAVEL, GRAVEL], uvfn=uv_ground)
     return "Doi_Mizo_A%s%s_D%.2f" % ("F" if fuchi else "", "H" if haki else "", d)
+
+
+# ---- 地際の張り出し(_Ago・岡部 EDO-0502 第111巡・部材方の既定・確度 U)----
+# 0.25m 格子の地形で溝の中の節点を下げると、縁石の外の帯の節点との三角形が外の面の前に鋸の歯
+# (深さ ≤0.25・ピッチ 0.25)を立てる。縁石の外へ地際の土の板を張り、歯をその下に隠す。
+AGO_W = 0.40          # 縁石の外面から外への出(格子の対角 0.354 を覆う)
+AGO_T = 0.36          # 天端からの厚さ(歯の深さ 0.25 + 余裕・吐き口の底 −0.30 より深く)
+AGO_LAP = 0.015       # 縁石の中へ潜る(天端の外の面取り 0.012 を覆う)
+AGO_RISE = 0.003      # 内の縁の天端からの持ち上げ(ring_skirt と同じ)
+AGO_FALL = 0.03       # 外の縁の天端からの下がり(地形の下へ潜る)
+
+
+def ago_side(s, xc, top, zsegs):
+    """**地際の張り出し(片側)**。xc = 縁石の外面の |X|・s = ±1。断面 (X, Y) の閉じた四角形
+    内の縁 (xc−LAP, top+RISE) → 外の縁 (xc+W, top−FALL) → (xc+W, top−T) → (xc−LAP, top−T) を
+    zsegs の各区間 [z0, z1] へ押し出す(端の面も閉じる)。材は土(FJG Soil・8m 周期・Z=0 で折り返す)。
+    ⚠ 上面の UV は |Z| で折り返す ⇒ Z=0 を跨ぐ区間は呼ぶ側で割る。"""
+    prof = [(xc - AGO_LAP, top + AGO_RISE), (xc + AGO_W, top - AGO_FALL),
+            (xc + AGO_W, top - AGO_T), (xc - AGO_LAP, top - AGO_T)]
+    bm = bmesh.new()
+    uvl = bm.loops.layers.uv.new("UVMap")
+
+    def uv(X, Y, Z, n):
+        if abs(n[1]) >= max(abs(n[0]), abs(n[2])):      # 上・下の面
+            return (0.008 + abs(X) / 8.0, 0.900 + abs(Z) / 8.0)
+        if abs(n[0]) >= abs(n[2]):                       # 外の縁の垂れ
+            return (0.008 + abs(Z) / 8.0, 0.900 + (top - Y) / 8.0)
+        return (0.008 + abs(X) / 8.0, 0.900 + (top - Y) / 8.0)   # 端の面
+
+    for z0, z1 in zsegs:
+        r0 = [bm.verts.new(u2b(s * x, y, z0)) for (x, y) in prof]
+        r1 = [bm.verts.new(u2b(s * x, y, z1)) for (x, y) in prof]
+        fs = [bm.faces.new(r0), bm.faces.new(list(reversed(r1)))]
+        for i in range(4):
+            j = (i + 1) % 4
+            fs.append(bm.faces.new((r0[i], r0[j], r1[j], r1[i])))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    for f in bm.faces:
+        f.normal_update()
+        # Blender の法線 → Unity (nx, ny, nz) = (−x, z, −y)
+        n = (-f.normal.x, f.normal.z, -f.normal.y)
+        for lp in f.loops:
+            c = lp.vert.co
+            lp[uvl].uv = uv(-c.x, c.z, -c.y, n)
+    o = DN._obj(_nm("ago"), bm, [DN.mat(SOIL)])
+    DN._outward(o)
+    for p_ in o.data.polygons:
+        p_.use_smooth = False
+    _objs.append(o)
+    return o
+
+
+def ago_A(d, haki=False):
+    """**型 A / AH に地際の張り出しを足した版**(Doi_Mizo_A_Ago_D* / Doi_Mizo_AH_Ago_D*)。
+    溝そのものは mizo_A と同じ乱数で同じ石(継いで並べると A と見分けがつかない)。両側の縁石の外へ
+    土の板(出 AGO_W・天端 = 縁石の天端・厚さ AGO_T)── 左右対称 ⇒ 向きを選ばない。
+    内(台の石垣の側)にも張る: 石垣の根にめり込むのは構わない(埋めて隠す)。片側だけにすると
+    向きが意味を持ち、据える側が取り違える。
+    haki=True: +X の口の幅だけ板を切り、口の敷き石を板の外の縁まで延ばす(口の両脇は板の小口が溝の壁になる)。"""
+    name = mizo_A(d, False, haki)
+    a = K["A"]; c = a["curb"]
+    xc, top = a["innerW"] / 2.0 + c["w"], c["topAbove"]
+    ago_side(-1, xc, top, ((-HALF, 0.0), (0.0, HALF)))
+    if haki:
+        nw = (HAKI_W or a["innerW"]) / 2.0
+        ago_side(1, xc, top, ((-HALF, -nw), (nw, HALF)))
+        rng = random.Random(5331300 + int(d * 1000))
+        cb = min(top - c["h"], -d - 0.05)
+        stone(xc - 0.002, xc + AGO_W, min(cb, top - AGO_T), -d, -nw, nw, rng, ends=False)
+    else:
+        ago_side(1, xc, top, ((-HALF, 0.0), (0.0, HALF)))
+    return name.replace("_D", "_Ago_D")
 
 
 KASA_HS = (0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45)
@@ -1065,6 +1138,9 @@ for d in A_DEPTHS:
     JOBS.append(("AF", _mz(mizo_A, d, True, False), "fuchi"))
     JOBS.append(("AH", _mz(mizo_A, d, False, True), "fuchi"))
     JOBS.append(("AFH", _mz(mizo_A, d, True, True), "fuchi"))
+for d in A_DEPTHS:
+    JOBS.append(("AG", _mz(ago_A, d), "ago"))
+    JOBS.append(("AHG", _mz(ago_A, d, True), "ago"))
 JOBS.append(("B", _mz(mizo_B), "mizo"))
 for d in C_DEPTHS:
     JOBS.append(("C", _mz(mizo_C, d), "mizo"))
@@ -1099,7 +1175,7 @@ JOBS.append(("N", _mz(mizunuki), "kuchi"))
 for L in sorted(set(round(RAMPS[n]["w"] + 0.30, 2) for n in ("R_Tsuyomon", "R_Tomomachi"))):
     JOBS.append(("O", _mz(mizukiri, L), "kuchi"))
 
-GROUPS = {"mizo": "ABCDEFK", "kasa": ("AK",), "fuchi": ("AF", "AH", "AFH"), "masu": ("G0", "G1", "G2", "G3"), "dan": "HI", "uke": "J", "kuchi": "LMNO"}
+GROUPS = {"mizo": "ABCDEFK", "kasa": ("AK",), "fuchi": ("AF", "AH", "AFH"), "ago": ("AG", "AHG"), "masu": ("G0", "G1", "G2", "G3"), "dan": "HI", "uke": "J", "kuchi": "LMNO"}
 
 
 # ================================================================ 結線とレンダ
@@ -1310,6 +1386,86 @@ def fuchi_shots(o, name):
     return out
 
 
+def _mock_terrain(d, theta=27.0, cell=0.25, R=3.0):
+    """**0.25m 格子の地形の模型**(検め用・書き出さない)。格子を溝の走りから theta 傾け、溝の全幅の中の節点を
+    底 −d−0.05 へ下げ、他は縁石の天端(= 地表と面一に据えた高さ)に置く ── Unity の Stage3d と同じ作り。"""
+    a = K["A"]; c = a["curb"]
+    xc, top = a["innerW"] / 2.0 + c["w"], c["topAbove"]
+    t = math.radians(theta)
+    n = int(R * 2 / cell) + 1
+    bm = bmesh.new()
+    g = {}
+    for i in range(-n, n + 1):
+        for k in range(-n, n + 1):
+            u, w = i * cell + 0.07, k * cell + 0.11
+            X, Z = u * math.cos(t) - w * math.sin(t), u * math.sin(t) + w * math.cos(t)
+            if abs(X) > R or abs(Z) > R:
+                continue
+            Y = (-d - 0.05) if abs(X) <= xc else top
+            g[(i, k)] = bm.verts.new(u2b(X, Y, Z))
+    for (i, k), v in g.items():
+        q = [g.get(key) for key in ((i, k), (i + 1, k), (i + 1, k + 1), (i, k + 1))]
+        if all(q):
+            bm.faces.new((q[0], q[1], q[2])); bm.faces.new((q[0], q[2], q[3]))
+    uvl = bm.loops.layers.uv.new("UVMap")
+    for f in bm.faces:
+        f.normal_update()
+        if f.normal.z < 0.0:
+            f.normal_flip()
+        for lp in f.loops:      # 地形と同じ土(張り出しと同じ式 ── 見分けがつかないかを見る)
+            lp[uvl].uv = (0.008 + abs(lp.vert.co.x) / 8.0, 0.900 + abs(lp.vert.co.y) / 8.0)
+    o = DN._obj("_mock", bm, [DN.mat(SOIL)])
+    return o
+
+
+def ago_shots(o, name):
+    """張り出しの検め(書き出さない)。3 駒を継ぎ、傾けた 0.25m 格子の地形の模型(溝の中の節点を下げた物)に据える。
+    背景はマゼンタ。before = 張り出しの無い A / AH を同じ模型に据えた姿(比べ)。"""
+    d = float(name.rsplit("_D", 1)[1])
+    haki = "_AH_" in name
+    saved = list(_objs)
+    _objs.clear()
+    mizo_A(d, False, haki)
+    plain = DN._finish(_objs, "_plain")
+    _objs.clear(); _objs.extend(saved)
+    hook()
+    terr = _mock_terrain(d)
+    extra = [plain, terr]
+    sets = {}
+    for src in (o, plain):
+        sets[src.name] = [src]
+        for k in (-1, 1):
+            cc = src.copy(); cc.data = src.data
+            cc.location = (0.0, -k * 1.0, 0.0)
+            bpy.context.scene.collection.objects.link(cc)
+            extra.append(cc)
+            sets[src.name].append(cc)
+    os.makedirs(SHOT, exist_ok=True)
+    out = []
+    bxo, _, _ = u2b(0.67, 0, 0)
+    views = (("3d", (bxo - 1.9, -1.4, 0.75), (bxo, 0.2, -0.05), None),
+             ("near", (bxo - 1.0, -0.9, 0.95), (bxo + 0.25, 0.2, -0.10), None),
+             ("3d_in", (-bxo + 1.9, 1.3, 0.75), (-bxo, -0.2, -0.05), None),
+             ("top", (0.0, 1e-4, 4.0), (0.0, 0.0, 0.0), 2.6))
+    for which, objs_on in (("", o.name), ("before", plain.name)):
+        for nm_, lst in sets.items():
+            for ob in lst:
+                ob.hide_render = (nm_ != objs_on)
+        for tag, loc, at, ortho in views:
+            if which and tag not in ("3d", "near"):
+                continue
+            V.studio(loc, at, ortho_scale=ortho, res=(900, 640))
+            _magenta_sky()
+            p = os.path.join(SHOT, "doihaisui_%s_%s%s.png" % (name, tag, "_" + which if which else ""))
+            V.render(p)
+            out.append(p)
+    o.hide_render = False
+    for e in extra:
+        bpy.data.objects.remove(e, do_unlink=True)
+    bpy.context.view_layer.update()
+    return out
+
+
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     words = [a for a in argv if not a.startswith("--")] or ["all"]
@@ -1358,6 +1514,7 @@ def main():
             elif name.startswith(("Doi_Ankyo", "Doi_Mizunuki")):
                 hole = None
             for p in (kasa_shots(o, name) if grp == "kasa" else fuchi_shots(o, name) if grp == "fuchi"
+                      else ago_shots(o, name) if grp == "ago"
                       else shots(o, name, hole, tile, grp)):
                 print("RENDER " + p)
         V.export_fbx([o], os.path.join(OUT, name + ".fbx"))

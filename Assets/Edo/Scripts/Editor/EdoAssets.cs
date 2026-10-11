@@ -4150,8 +4150,15 @@ public static class EdoAssets
         /// 同じ駒が据わる。⚠ 口 = +X ── yaw は +X を区画の外(道)へ向けて解く(+Z の下流の約束はこの駒だけ外れる)。前後の駒とは端で突き付ける(継ぎ目は A と同じ)。
         /// 実寸 W 0.540 × H 0.550(AF・AFH)/ 0.24〜0.37(AH = A と同じ)× D 1.000。材は A と同じ(.meta は A の写し ⇒ remap 不要)。
         ///   blender --background --python Tools/Blender/build_doi_haisui.py -- mizo --render
-        ///   blender --background --python Tools/Blender/build_doi_haisui.py -- fuchi --render   (AF / AH / AFH の全深さ)</summary>
-        public static string DoiMizo(string kata, float depth = 0f)
+        ///   blender --background --python Tools/Blender/build_doi_haisui.py -- fuchi --render   (AF / AH / AFH の全深さ)
+        /// <paramref name="ago"/> = true で **地際の張り出し付きの版**(A / AH のみ・`Doi_Mizo_A_Ago_D*` / `Doi_Mizo_AH_Ago_D*`)。
+        /// 岡部 EDO-0502 第111巡: 天端を地表と面一に据え 0.25m 格子の地形の溝の中の節点を下げると、縁石の外に地形の三角形の
+        /// 鋸の歯(深さ ≤0.25)が立つ ⇒ 両側の縁石の外へ土の板(出 0.40・天端 = 縁石の天端 +0.003 → 外の縁で −0.03・
+        /// 厚さ 0.36・材 = 地形と同じ Soil)を張り、歯をその下に隠す。溝・石は A / AH と同じ(同じ乱数)。左右対称 ⇒ 向きを選ばない。
+        /// AH は +X の口の幅だけ板を切り、口の敷き石を板の外の縁(芯から 0.67)まで延ばす。
+        /// 実寸 W 1.340 × H 0.363(D0.30 は 0.373)× D 1.000・ピボットは A と同じ。.meta は A の写し + Soil ⇒ remap 不要。
+        ///   blender --background --python Tools/Blender/build_doi_haisui.py -- ago --render</summary>
+        public static string DoiMizo(string kata, float depth = 0f, bool ago = false)
         {
             string k = kata.ToUpperInvariant();
             float d;
@@ -4164,7 +4171,9 @@ public static class EdoAssets
                 case "B": case "K": return FuzokuyaDir + "Doi_Mizo_" + k + ".fbx";
                 default: throw new System.ArgumentException("DoiMizo: 型は A/AF/AH/AFH/B/C/D/E/F/K(" + kata + ")");
             }
-            return FuzokuyaDir + "Doi_Mizo_" + k + "_D" + d.ToString("0.00", DoiInv) + ".fbx";
+            if (ago && k != "A" && k != "AH")
+                throw new System.ArgumentException("DoiMizo: 地際の張り出し(ago)は A / AH だけ(" + kata + ")");
+            return FuzokuyaDir + "Doi_Mizo_" + k + (ago ? "_Ago" : "") + "_D" + d.ToString("0.00", DoiInv) + ".fbx";
         }
 
         /// <summary>**型 A の外壁の嵩上げ石 1m 駒**(岡部 EDO-0502・okabe_sashizu terraces[1].roadEdge 10-10n)。

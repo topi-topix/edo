@@ -162,6 +162,8 @@
 - [入隅の通しは検めで外す・袖の上端の相手は常に空だった](concave-pass-and-sode-first.md) — _Tooshi を平面の検めから外す・cuts の長文と == ・笠 0
 - [座の面は凸包で背の外へ出る・網の区間は足した順に据わる](za-hull-and-back-wall-order.md) — Za_ を背の線で切る・相手の鎖を先にするなら最後に足す・長屋は pool の間引きで拾えない
 - [入隅の先の練塀は長屋の背の裏へ回る・門の前の土の塊は溜りの面](concave-corner-wall-behind-nagaya-back.md) — 岡部 P1 0.34 の口(c 実測 0.5)・TsuyoTamari が線まで 12.2・graded は seatRule を読まない
+- [倍率の基壇の隅は丈 0.5 刻みで引かれない・名指しの腕の版は面が変わると辺を越える](scaled-kado-height-and-named-arm-parts.md) — S042 が「焼いていない」・Stage1 の 1m 造成の ⚠ と Reload
+- [路地の南の帯が隣へ盛る・隅の駒の床の下の足を掘る](roji-south-band-spill-and-buried-toe-sink.md) — 帯は区画の線で切る(perimeterRetain は隣を戻さない)・Sink に floorMin
 
 ## 測り方・関門
 - [検査役の execute_code の全文は MCP の log に残る](qa-code-in-mcp-log.md)・[地形の前後の差は資産の写しから採れる](terrain-diff-from-asset-copy.md)・[検証レンダの構図は残らない](render-camera-poses-not-kept.md) — 測りは log から抜く・int16 の塊・構図は cams.txt

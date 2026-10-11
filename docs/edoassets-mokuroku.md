@@ -77,7 +77,7 @@
 | `Goten.ShojiHalf` | string | — | — |
 | `Goten.WallPlaster` | string | — | GotenKit(Mune) |
 | `Goten.WallRenji` | string | — | — |
-| `Goten.Column` | string | 柱 0.182 角 × 丈 2.727(Village Kit `column A` × S・材 `wood`)。 | GotenKit(Mune・Roka) |
+| `Goten.Column` | string | 柱 0.182 角 × 丈 2.727(Village Kit `column A` × S・材 `wood`)。 | GotenKit(Mune・Roka), OkabeYashiki(JoinEndToNagaya・PlaceTomeBashira) |
 | `Goten.Beam` | string | — | GotenKit(Roka) |
 | `Goten.Tatami` | string | — | GotenKit(Mune) |
 | `Goten.FloorBoard` | string | — | GotenKit(Mune・Roka), BuildNiwa(IsEngawaPiece) |
@@ -455,7 +455,7 @@
 | `Own.MatsudairaIshidoi` | string | 石樋(松江松平 溝 MZ17 が土留めを抜ける所・EDO-0554)。 | MatsudairaDewa(PlaceMizo), OkabeYashiki(PlaceFrontAnkyo) |
 | `Own.MatsudairaIshibuta1m` | string | 石蓋つきの溝 1m(松江松平 溝 MZ16 の段の頭の前ほか・EDO-0554)。 | MatsudairaDewa(PlaceMizo) |
 | `Own.DoiMizo(kata, depth=…, ago=…)` | 関数 | 排水の溝 1m 駒(型 A/B/C/D/E/F/K)。 | OkabeYashiki(PlaceDrainFrontGutters・PlaceFrontGutters・PlaceMizoSections…), BuildHifu(BindSkinLayers), BuildMizo(MizoPieceOf) |
-| `Own.DoiMizoKoguchi` | string | 型 A の溝の小口の石(岡部 EDO-0502 第113巡・grading.omoteNagayaDai.mizo の Mizo_Hashi.end「P0 で小口の石で止める」)。 | — |
+| `Own.DoiMizoKoguchi` | string | 型 A の溝の小口の石(岡部 EDO-0502 第113巡・grading.omoteNagayaDai.mizo の Mizo_Hashi.end「P0 で小口の石で止める」)。 | OkabeYashiki(PlaceMizoSections) |
 | `Own.DoiMizoAKasa(h)` | 関数 | 型 A の外壁の嵩上げ石 1m 駒(岡部 EDO-0502・okabe_sashizu terraces[1].roadEdge 10-10n)。 | OkabeYashiki(PlaceFrontGutters) |
 | `Own.DoiMasu(kata)` | 関数 | 石の桝(型 G1 / G2・切石4枚組・天端 +0.05)。 | OkabeYashiki(PlaceOmoteGesuiLay・PlaceSeRojiAnkyo) |
 | `Own.DoiDanOchi(rise)` | 関数 | 石組の段落ち 1段(型 H・内法 0.60・野面石積みの側 天端 = 段の底 +0.50・平石の段鼻と水叩き)。 | — |

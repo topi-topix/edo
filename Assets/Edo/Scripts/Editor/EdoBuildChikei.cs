@@ -324,7 +324,12 @@ public static partial class EdoBuild
     /// ⚠ 0.25m の格子では、造成の面の段(上の面 → 下の面)が石垣の線と法の見え面の間の節点に掛かり、見え面の前に土が立つ(第110巡 TW_Higashi_Se で 1.3m)。
     /// 【硬】駒の外形の外の節点は触らない・上げない。測るのは駒の実メッシュの上向きの面(真上からの光線)。書くのは <see cref="T"/>。
     /// 当たる先: 法のある石垣・土留めを細かい地形の上に据える邸すべて(岡部 Stage3d・土井・松江松平を移すとき)。</summary>
-    public static string SinkGroundUnderParts(IEnumerable<GameObject> parts, float below = 0.05f, string undoPath = null)
+    public static string SinkGroundUnderParts(IEnumerable<GameObject> parts, float below = 0.05f, string undoPath = null) { return SinkGroundUnderParts(parts, below, undoPath, null); }
+    /// <summary><see cref="SinkGroundUnderParts(IEnumerable{GameObject},float,string)"/> に**下げの下限**を足した物 ── <paramref name="floorMin"/>(x, z)が NaN でない節点は
+    /// その値より下げない(指図 grading.seRoji.southKado「石垣の見え面から 1.0 以内に 床 −0.02 より低い升を残さない【硬】」・岡部 第114巡)。
+    /// 法の駒の足が床の下へ根入れで埋まる所(隅の駒の稜は見え面の線より前へ出る)では、真上から最初に当たる面が床の下の足 ⇒ 下げると床に穴が開いた(r113 kado6 で 10.8)。
+    /// 当たる先: 法のある石垣の足元に設計の床(路地・犬走り)を持つ所すべて(岡部 TW_Higashi_Se の背の路地。土井・松江松平を細かい地形へ移すときの同じ型)。</summary>
+    public static string SinkGroundUnderParts(IEnumerable<GameObject> parts, float below, string undoPath, Func<float, float, float> floorMin)
     {
         var t = T(); var td = t.terrainData; var org = t.transform.position; int R = td.heightmapResolution; float hs = td.size.x / (R - 1);
         var tmp = new List<MeshCollider>(); var bounds = new List<Bounds>();
@@ -338,7 +343,7 @@ public static partial class EdoBuild
             }
         }
         Physics.SyncTransforms();
-        var low = new Dictionary<long, float>();
+        var low = new Dictionary<long, float>(); int nFloor = 0;
         try
         {
             for (int b = 0; b < tmp.Count; b++)
@@ -352,6 +357,7 @@ public static partial class EdoBuild
                         RaycastHit h;
                         if (!tmp[b].Raycast(new Ray(new Vector3(org.x + i * hs, bb.max.y + 1f, org.z + j * hs), Vector3.down), out h, bb.size.y + 2f)) continue;
                         float y = h.point.y - below; long k = ((long)i << 32) ^ (uint)j; float cur;
+                        if (floorMin != null) { float fm = floorMin(org.x + i * hs, org.z + j * hs); if (!float.IsNaN(fm) && y < fm) { y = fm; nFloor++; } }
                         if (!low.TryGetValue(k, out cur) || y < cur) low[k] = y;
                     }
             }
@@ -374,7 +380,7 @@ public static partial class EdoBuild
             if (n > 0) { td.SetHeights(i0, j0, H); AssetDatabase.SaveAssetIfDirty(td); }
         }
         WriteUndo(undoPath, t.name, undo);
-        return "駒の下の地面を駒の面 −" + below.ToString("0.00") + " へ下げた: 駒の面 " + tmp.Count + "・節点 " + n + "・下げの最大 " + mx.ToString("F2") + "m(地形 " + t.name + ")";
+        return "駒の下の地面を駒の面 −" + below.ToString("0.00") + " へ下げた: 駒の面 " + tmp.Count + "・節点 " + n + "・下げの最大 " + mx.ToString("F2") + "m(地形 " + t.name + ")" + (floorMin != null ? "・床の下限で止めた当たり " + nFloor : "");
     }
 
     /// <summary>**桝の口に地形の穴を開ける**(施主裁定 2026-10-11「穴は桝の口など、ごく一部だけ」)── 0.25m の格子では 0.5m 角の桝の中を

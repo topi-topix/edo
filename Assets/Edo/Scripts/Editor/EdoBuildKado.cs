@@ -329,6 +329,8 @@ public static partial class EdoBuild
             float hp = Mathf.Round(nbH * 2f) / 2f; string pp = have(pathOf(degR, hp), hp);
             if (Mathf.Abs(hp - nbH) < 0.05f && pp != null)
             { path = pp; h = hp; }
+            // ⭐ 倍率の版(丈 4.0·s)は 0.5 刻みに乗らない(岡部 P3 の s 0.42 = 実寸の丈 1.68・第114巡)── 両脇の丈そのもの(0.01 刻み)でも引く
+            if (path == null) { float h1 = Mathf.Round(nbH * 100f) / 100f; string p1 = have(pathOf(degR, h1), h1); if (p1 != null) { path = p1; h = h1; } }
         }
         if (path == null)
         for (float hh = 4.0f; hh <= 8.01f; hh += 0.5f)

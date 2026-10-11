@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 94・関数 919(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 94・関数 926(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -25,7 +25,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoDoiBuilder.cs](#edodoibuildercs) | 土井大隅守上屋敷(三河刈谷藩2万3千石・譜代・雁間)ビルダー。 | 15 | 89 |
 | [EdoMatsudairaDewaBuilder.Niwa.cs](#edomatsudairadewabuilderniwacs) | 松平出羽守上屋敷 — 庭の工程(池・築山・水の系・石組・点景・滝見口)。 | 9 | 30 |
 | [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 16 | 120 |
-| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 21 | 236 |
+| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 21 | 243 |
 | [EdoSannoShaBuilder.cs](#edosannoshabuildercs) | 山王権現社(日枝神社)本体+樹下家邸+山王門前町ビルダー (2026-08-11。観理院は 2026-09-26 に類型へ移し削除) | 1 | 31 |
 | [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 13 | 102 |
 | [EdoSanyashikiRebuild.cs](#edosanyashikirebuildcs) | 三屋敷(太田・加納・鍋島=松平肥前守)の区画を下書きv3へ更新 (2026-08-08) | 0 | 6 |
@@ -597,11 +597,13 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `Stage2_Perimeter_()` | `string` |  | — |
 | `MiterOf(kutaiPath, r, sSign, warn)` | `string` |  | 区画の角で留めた表長屋の版(EDO-0502 2026-10-03)を引く。 |
 | `JoinEndToNagaya(kak, r, atStart, sEnd, wait)` | `bool` |  | 練塀の端を隣の辺の線で斜めに切った駒の据え場所(EDO-0502 2026-10-03・部材の約束は EdoAssets.Own.DobeiKiri)。 |
+| `PlaceTomeBashira(kak, r, rs0, rs1, wait)` | `int` |  | 練塀の留め柱(指図 runs[].tomeBashira ── face「東の面を長屋 X の背の面に接して立てる【硬: 隙0】。 |
 | `ButtMissingKado(kak, kadoLo, kadoHi)` | `string` |  | 練塀の隅の駒が焼けていない出隅(算出物 corners の part = Dobei・Kado_&lt;id&gt; が据わらない)を突き付けで仮に納める: 入りの run は出の run の外面の線まで(s = L −… |
 | `KiriEnd(r, atStart, sEnd)` | `KeyValuePair<string, Vector3>` |  | — |
 | `PlaceOmoteNagaya(kak, wait)` | `string` |  | 外周の表長屋と表門。⭕ 2026-09-04 裁定12=A(二階・棟 7.183 / 表門の棟 8.5)。 |
 | `GateInNagaya(kak, r, call, nikai, gS, gW, label, wait)` | `string` |  | 門長屋の口の向きを検めて、要れば引き直す(案1・EDO-0502)。 |
 | `RunText(run, key)` | `string` |  | 指図 runs[] の欄 key(無ければ null)。 |
+| `NamedCornerPart(v, prefix)` | `string` |  | 頂点 v の隅の駒を指図が名指していれば、その部材の名(拡張子なし・prefix で始まる物)。 |
 | `FrontGutterWidth()` | `float` |  | 前の下水溝の駒(石組の溝 型A ── 背の雨落ち・表門脇の下水と同じ型)の実測の全幅[m](外の壁を含む)。 |
 | `FrontForGutter(go, r)` | `string` |  | 長屋の前の面を、前の下水溝の分だけ区画の線の内へ(指図 runs[].front「前の面を、区画の線から『前の下水溝+外の壁』だけ内へ寄せる」【硬】・座は変えない【硬】・ 普請方 2026-10-10m・EDO-0502… |
 | `PlaceNagayaPiece(kak, name, path, edge, sMid, seat, call, wait, lastH)` | `bool` |  | — |
@@ -611,6 +613,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `SeatHeiOnBed(kak)` | `string` |  | 練塀(表裏の f/b を一組)・隅 Kado_*・端を切った Kiri_* を、床 = 描かれた地表と基壇 IG_* の天端の高い方 (EdoBuild.Bed)へ組ごと据える(EdoBuild.SinkGroupToB… |
 | `KidanC(e, s)` | `float` |  | 辺 e・走り s の run の法肩の控え c(基壇の無い run は辺の最大・基壇の無い辺は 0 ── 法肩が無く外面は線から犬走り)。 |
 | `FaceIn(e, s)` | `float` |  | 囲い(練塀・長屋・門)の外面の、区画の線から内への離れ = 法肩の控え c + 犬走り(const.kidan.faces「+c+inubashiri」)。 |
+| `RunInu(e, s)` | `float` |  | 辺 e・走り s の run の犬走り ── 既定は const.inubashiri。 |
 | `PlaceIshigaki()` | `string` |  | 外周の基壇(城の石垣・const.kidan 甲の型 ── 普請方の設計 2026-10-11 を普請奉行が採った)。 |
 | `PlaceKomon()` | `string` |  | — |
 | `FaceOut(go, e)` | `float` |  | 据えた現物の外面(辺 e の区画線から外向きへの最大の張り出し[m])。 |
@@ -634,6 +637,9 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `SeRojiWallName()` | `string` |  | 背の路地の奥の石垣の名(指図 seRoji.w「その先が TW_* の見え面の足元」)。 |
 | `SeRojiPlanOf()` | `SeRojiPlan` | 公 | 背の路地と TW_Higashi_Se を解く(指図 grading.seRoji・terraceWalls[TW_Higashi_Se]【硬】)。 |
 | `SeRojiSouthExtend(P)` | `string` |  | 背の路地の南の延長(指図 grading.seRoji.south「南の端は塞がず、路地の床のまま南の練塀(S_Hei_01 系)の内の足元まで通す【硬】・床 12.15〜12.25・北へ 1/100【柔】」 ・施主裁定… |
+| `SeRojiHeiFoot()` | `string` |  | 練塀の内の足元の帯(指図 grading.seRoji.heiFoot「辺a・b の練塀の内面に沿って幅 w の帯を y にする【硬: 浮き0】。 |
+| `SeRojiSouthKadoReport(spl)` | `string` |  | TW_Higashi_Se の南の端の隅の駒(terraceWalls[].southKado・seRoji.southKado)の据わりを刷る: 天端・根入れ(床 − 底)・丈・見え面から 1.0 以内の床 −0.02… |
+| `ClipIn()` | `float` |  | 床・帯の多角形を区画の線から内へ切る幅(指図 grading.seRoji.clipOrder「区画の線から半升(0.125)内で切る」)。 |
 | `SeRojiPlan_Prof(f, s)` | `float` |  | — |
 | `SeRojiProfTxt(f)` | `string` |  | — |
 | `SeRojiReport()` | `string` | 公 | — |
@@ -687,6 +693,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `PlaceBackGutters()` | `string` |  | — |
 | `RestorePerimeterSpill(band)` | `string` | 公 | 袖の坂(指図 terraceWalls[].sodeSlope・普請方の設計 2026-10-07・EDO-0502 第41〜42巡)── 袖の天端を段にせず、背の法 + off の坂の一続きの線にする (上端 cap… |
 | `RestorePerimeterSpill_(band)` | `string` |  | — |
+| `RestorePerimeterSpill_(band, lowerOnly)` | `string` |  | <param name="lowerOnly">盛りの波及だけを戻す(基準 = base_dem と道の線際の均し michiNarashi の低い方より 0.3 を超えて高い節点を基準へ)── 造成の後に呼ぶとき(se… |
 | `TrimRunsToPartners(segs)` | `string` |  | 指図 ends 追記 2026-10-10f【硬】(第89巡): 「突き付け」を名指す run の端が、別の run の区間の線を越えていれば交点まで縮める(EdoBuild.TrimSegToPartnerLine)─… |
 | `CutEndsMikiri(segs)` | `string` |  | 指図 cuts 追記 2026-10-10f【硬】(第89巡): 「〜が切る口の両端は見切り石で納め、隅の駒を口に置かない」── その欄の run の区間の端のうち、名指しの石段の駒から 1.5m 以内の端に見切り石を名… |
 | `TrimRunsBelowFront(segs)` | `string` |  | 指図 sideEnd・sodeSlope 追記 2026-10-10d【硬】の打ち切り(第87巡)── 欄が「flat の帯の中に駒を置かない」を持つ run(sodeSlope = 欄の名・sideEnd = 欄の名… |

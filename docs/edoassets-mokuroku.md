@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 438(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 440(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -218,7 +218,7 @@
 | `Own.SannoKura(nuKen, nvKen, ewMm, nsMm)` | 関数 | 山王社の御蔵 — 土蔵造・置屋根【`bom` 行33】。 | — |
 | `Own.SannoDan(keri, fumi, w, i)` | 関数 | 山王社の段石(石段の一段)。蹴上 keri / 踏面 fumi / 幅 w[m]、 個体 i の偶奇で a / b を振る(⛔ 片方だけを53段並べない — 目地が一直線に立つ)。 | DoiBuilder.Dan(MeasureNozura・PlaceKaidansA), SannoSha(Dan), BuildKatte(SlopeStepsAt), TypologyBuilder.Katte(Katte) |
 | `Own.SannoDanNearest(width, i)` | 関数 | 幅が最も近い焼けた段石(SannoDan の綴りの物の中から・個体 i の偶奇で a / b)。 | MatsudairaDewa(PlaceAgari), SannoSha(Stage5b_Fumiishi) |
-| `Own.SannoDanNearestKeri(keri, fumi, width, i)` | 関数 | 蹴上が最も近い焼けた段石(SannoDan の綴りの物の中から・踏面 fumi ±0.01 に限る・個体 i の偶奇で a / b)。 | OkabeYashiki(PlaceGateSteps・PlaceKaidanAB) |
+| `Own.SannoDanNearestKeri(keri, fumi, width, i)` | 関数 | 蹴上が最も近い焼けた段石(SannoDan の綴りの物の中から・踏面 fumi ±0.01 に限る・個体 i の偶奇で a / b)。 | OkabeYashiki(PlaceGateSteps・PlaceKaidanAB・PlaceKomonFront…) |
 | `Own.SannoDanSpec(path, keri, fumi, width)` | 関数 | SannoDan の綴りから札の寸法(蹴上・踏面・幅)を読む。 | BuildKatte(PlaceDanStone), OkabeYashiki(PlaceKaidanAB) |
 | `Own.IshidanSode(keri, fumi, i)` | 関数 | 石段の袖(袖石垣)の1段ぶんの駒 — どの石段にも使える汎用の型(寸法は蹴上 keri・踏面 fumi[m] から従属)。 | BuildIshidan(FitObliqueEnd・PlaceIshidanSode), SannoSha(AbutStairsToWalls・Stage2_Kaidan), OkabeYashiki(PlaceKaidanSodes) |
 | `Own.ISHIDAN_SODE_DEPTH_STD` | float | 袖の丈(天端の線から下端まで)の既定 2.20 = 最大見付 1.74 + 根入れ 0.46。 | BuildIshidan(MiterIshidanSode), SannoSha(Stage2_Kaidan) |
@@ -353,6 +353,8 @@
 | `Own.GenMesh(name)` | 関数 | — | SolidMesh(Get・Save) |
 | `Own.SkinMatDir` | string | `Hifu` — 縁の皮(地形の穴の縁から部材の面までを描くメッシュ・`EdoBuild.CutEdgeSkin`)の材質の置き場。 | BuildHifu(SkinMaterials) |
 | `Own.SkinMat(terrain, pass)` | 関数 | — | BuildHifu(SkinMaterials) |
+| `Own.SkinWorldMat(terrain)` | 関数 | 部材の面を地形と同じ見えで描く材(シェーダ Edo/TerrainSkinWorld・メッシュの uv でなく世界 XZ で地形の塗りを引く・ 層 0〜3 を正規化した一枚)。 | BuildHifu(BindSkinLayers・SkinWorldMaterial) |
+| `Own.SkinWorldMatKita` | string | `Hifu_KitaTerrain_World` — FBX に焼く材の名(SkinWorldMat の細かい地形の版)。 | — |
 | `Own.MatsudairaOmotemon` | string | `Matsudaira_Omotemon.fbx` — 松江松平邸の表門 — 屋根なしの冠木門(角柱・冠木・内開きの板戸)。 | MatsudairaDewa(Stage5_Mon) |
 | `Own.Sodebei(len, kuguri=…)` | 関数 | 袖塀(長さ可変・潜り戸つき)— 表門の脇で外周を塞ぐ練塀。 | MatsudairaDewa(Stage5_Mon) |
 | `Own.Dobei2m` | string | `Dobei2m.fbx` — 練塀(築地塀)の一体物 — 腰の下見板・貫・白漆喰・本瓦の両流れが1駒に焼いてある (`Tools/Blender/build_dobei.py`)。 | BuildRun(NeribeiRun・NeribeiStepRun), BuildRim(FenceFaceOffsets), Doi(Stage2_Perimeter), DoiBuilder.Mon(Stage3_Mon) ほか1 |
@@ -452,7 +454,7 @@
 | `Own.DoiOtoshimizo` | string | 水尻の石敷きの落とし溝 — 1m モジュール。 | MatsudairaDewa(PlaceMizo) |
 | `Own.MatsudairaIshidoi` | string | 石樋(松江松平 溝 MZ17 が土留めを抜ける所・EDO-0554)。 | MatsudairaDewa(PlaceMizo), OkabeYashiki(PlaceFrontAnkyo) |
 | `Own.MatsudairaIshibuta1m` | string | 石蓋つきの溝 1m(松江松平 溝 MZ16 の段の頭の前ほか・EDO-0554)。 | MatsudairaDewa(PlaceMizo) |
-| `Own.DoiMizo(kata, depth=…, ago=…)` | 関数 | 排水の溝 1m 駒(型 A/B/C/D/E/F/K)。 | OkabeYashiki(PlaceDrainFrontGutters・PlaceFrontGutters・PlaceMizoSections…), BuildMizo(MizoPieceOf) |
+| `Own.DoiMizo(kata, depth=…, ago=…)` | 関数 | 排水の溝 1m 駒(型 A/B/C/D/E/F/K)。 | OkabeYashiki(PlaceDrainFrontGutters・PlaceFrontGutters・PlaceMizoSections…), BuildHifu(BindSkinLayers), BuildMizo(MizoPieceOf) |
 | `Own.DoiMizoAKasa(h)` | 関数 | 型 A の外壁の嵩上げ石 1m 駒(岡部 EDO-0502・okabe_sashizu terraces[1].roadEdge 10-10n)。 | OkabeYashiki(PlaceFrontGutters) |
 | `Own.DoiMasu(kata)` | 関数 | 石の桝(型 G1 / G2・切石4枚組・天端 +0.05)。 | OkabeYashiki(PlaceOmoteGesuiLay・PlaceSeRojiAnkyo) |
 | `Own.DoiDanOchi(rise)` | 関数 | 石組の段落ち 1段(型 H・内法 0.60・野面石積みの側 天端 = 段の底 +0.50・平石の段鼻と水叩き)。 | — |

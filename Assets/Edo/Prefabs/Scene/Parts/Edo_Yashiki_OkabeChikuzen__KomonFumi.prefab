@@ -1,0 +1,435 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &6766158179582725499
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8179223942045388822}
+  m_Layer: 0
+  m_Name: Edo_Yashiki_OkabeChikuzen__KomonFumi
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8179223942045388822
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6766158179582725499}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 8991308046429856246}
+  - {fileID: 1986864885162350499}
+  - {fileID: 8878697559862024913}
+  - {fileID: 943283872071859090}
+  - {fileID: 9089086869704761454}
+  - {fileID: 491252786237792542}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1001 &97951862009005813
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 8179223942045388822}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 0.75
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -384.02185
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.72
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1039.211
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.74144644
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.67101204
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_Name
+      value: Fumi_Tsuyomon_2_1_tsumi0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+--- !u!4 &491252786237792542 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+  m_PrefabInstance: {fileID: 97951862009005813}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &764924546121718905
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 8179223942045388822}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 0.75
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -384.15753
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.72
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1040.5677
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.74144644
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.67101204
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_Name
+      value: Fumi_Tsuyomon_2_0_tsumi0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+--- !u!4 &943283872071859090 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+  m_PrefabInstance: {fileID: 764924546121718905}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &2024502634336088136
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 8179223942045388822}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 9009c30c4a094819bde6f9f9287bd3fd, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 0.75
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 9009c30c4a094819bde6f9f9287bd3fd, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -383.57407
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 9009c30c4a094819bde6f9f9287bd3fd, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.869289
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 9009c30c4a094819bde6f9f9287bd3fd, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1039.2557
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 9009c30c4a094819bde6f9f9287bd3fd, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.74144644
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 9009c30c4a094819bde6f9f9287bd3fd, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 9009c30c4a094819bde6f9f9287bd3fd, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.67101204
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 9009c30c4a094819bde6f9f9287bd3fd, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 9009c30c4a094819bde6f9f9287bd3fd, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 9009c30c4a094819bde6f9f9287bd3fd, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 9009c30c4a094819bde6f9f9287bd3fd, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 9009c30c4a094819bde6f9f9287bd3fd, type: 3}
+      propertyPath: m_Name
+      value: Fumi_Tsuyomon_1_1
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 9009c30c4a094819bde6f9f9287bd3fd, type: 3}
+--- !u!4 &1986864885162350499 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 9009c30c4a094819bde6f9f9287bd3fd, type: 3}
+  m_PrefabInstance: {fileID: 2024502634336088136}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &8766350302410835845
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 8179223942045388822}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 0.75
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -384.02185
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.2
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1039.211
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.74144644
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.67101204
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_Name
+      value: Fumi_Tsuyomon_2_1
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+--- !u!4 &9089086869704761454 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+  m_PrefabInstance: {fileID: 8766350302410835845}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &8884813142713779741
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 8179223942045388822}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 9009c30c4a094819bde6f9f9287bd3fd, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 0.75
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 9009c30c4a094819bde6f9f9287bd3fd, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -383.70975
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 9009c30c4a094819bde6f9f9287bd3fd, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.869289
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 9009c30c4a094819bde6f9f9287bd3fd, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1040.6124
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 9009c30c4a094819bde6f9f9287bd3fd, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.74144644
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 9009c30c4a094819bde6f9f9287bd3fd, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 9009c30c4a094819bde6f9f9287bd3fd, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.67101204
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 9009c30c4a094819bde6f9f9287bd3fd, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 9009c30c4a094819bde6f9f9287bd3fd, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 9009c30c4a094819bde6f9f9287bd3fd, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 9009c30c4a094819bde6f9f9287bd3fd, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 9009c30c4a094819bde6f9f9287bd3fd, type: 3}
+      propertyPath: m_Name
+      value: Fumi_Tsuyomon_1_0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 9009c30c4a094819bde6f9f9287bd3fd, type: 3}
+--- !u!4 &8991308046429856246 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 9009c30c4a094819bde6f9f9287bd3fd, type: 3}
+  m_PrefabInstance: {fileID: 8884813142713779741}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &8988552769468726586
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 8179223942045388822}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 0.75
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -384.15753
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.2
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1040.5677
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.74144644
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.67101204
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+      propertyPath: m_Name
+      value: Fumi_Tsuyomon_2_0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+--- !u!4 &8878697559862024913 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: c7c889d7e3864c0ca934a70c1b510674, type: 3}
+  m_PrefabInstance: {fileID: 8988552769468726586}
+  m_PrefabAsset: {fileID: 0}

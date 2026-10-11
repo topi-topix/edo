@@ -3,7 +3,6 @@
 実装中に踏んだ非自明な罠だけ。手順はスキル、不変則は CLAUDE.md、指図は docs/Sashizu が正典。
 
 ## Unity MCP の罠
-
 - [北の3邸は 0.25m の KitaTerrain・皮は退役](kita-fine-terrain-move.md) — T() は名指し(TerrainFocus)・測る execute_code も focus で囲む・3b は溝も据えていた
 - [書き戻しは必ずタイムアウトする](pitfall-writeback-mcp-timeout.md) — 大きい邸のプレハブ。⛔再送せず mtime で判定
 - [domain reload 後に bridge が消える](pitfall-bridge-drops-after-domain-reload.md) — 約2分。status と Editor.log で見る・古い port で「instances なし」が一回おき
@@ -23,7 +22,6 @@
 - [.cs の保存直後の Stage は古い DLL で走る・再起動で皮が null](stage-run-on-stale-dll-after-edit.md) — 25 分の 3b が空振り。Stage の前に compile_wait・3b の後は先に書き戻す
 
 ## 部材の据え方
-
 - [表門を別の辺へ移す巡の3つの止め](gate-move-parts-bake-and-host-coupling.md) — 新造FBXの有無・fall(axis形)を graded が焼かない・gate.host を N39_0 と読む関数
 - [腰石垣・下水の棟を gate.host で取らない](gate-host-vs-koshi-host-split.md) — roadEdge の名指しで・口の無い棟は Mid/NaN・下水の入口は口の脇でしか測れない
 - [隅の縦の土の帯は法の見え面の上の皮](skin-over-battered-face-vertical-strips.md) — 画素から光線で名指す。外形の中の節点を真下の石の面−0.02へ(Ceiling)
@@ -163,9 +161,9 @@
 - [溜りの城の隅の返しは s=1.25 で収まらない・辺24 の端の名指しの矛盾](tamari-castle-return-and-p24-end-conflict.md) — 基壇の倍率と隅の駒の控え・impl の線の向きと Kado_P の位置を先に刷る
 - [入隅の通しは検めで外す・袖の上端の相手は常に空だった](concave-pass-and-sode-first.md) — _Tooshi を平面の検めから外す・cuts の長文と == ・笠 0
 - [座の面は凸包で背の外へ出る・網の区間は足した順に据わる](za-hull-and-back-wall-order.md) — Za_ を背の線で切る・相手の鎖を先にするなら最後に足す・長屋は pool の間引きで拾えない
+- [入隅の先の練塀は長屋の背の裏へ回る・門の前の土の塊は溜りの面](concave-corner-wall-behind-nagaya-back.md) — 岡部 P1 0.34 の口(c 実測 0.5)・TsuyoTamari が線まで 12.2・graded は seatRule を読まない
 
 ## 測り方・関門
-
 - [検査役の execute_code の全文は MCP の log に残る](qa-code-in-mcp-log.md)・[地形の前後の差は資産の写しから採れる](terrain-diff-from-asset-copy.md)・[検証レンダの構図は残らない](render-camera-poses-not-kept.md) — 測りは log から抜く・int16 の塊・構図は cams.txt
 - [長屋の軒を躯体の前の面と読む](nagaya-eaves-read-as-body-front.md) — _kutai は材1つで BodyExRoof が軒を残す。前の面は一階の帯で(N39_1 の 0.27 は軒)
 - [練塀は下絵の seat で置かれ埋まる・天端の垣と S_Hei_20 の浮きは偽](dobei-seat-is-shitae-and-false-floats-r12.md) — 岡部 辺34 で 2.6m 埋没。浮きは光線の先着で確かめる・作業場の取り違え
@@ -182,7 +180,6 @@
 - [並びの区画のログの浮きは後の造成で古くなる](typology-log-stale-after-neighbor-regrade.md) — 共有辺の地表が動く。建て終えてから数え直す
 
 ## 検査の読み方
-
 - [検査の浮き・子0は測り方の読み違いのことがある](qa-misreads-stack-and-single-mesh-gate.md) — 積みを地表で測る・一体の門・皮の前の垣。相手を床に入れて測り直す
 - [袖の脇の入りは見える地表で割る](sode-side-bite-below-skin.md) — 女坂の北の袖×回廊の出隅は全部 皮の下。MeasureSodeSideBites・裏の面の偽の入り
 - [退役した Stage が残ると検査が嘘の件数を出す](retired-stage-makes-fake-counts.md) — 449=1278−829 は別の母集団の引き算

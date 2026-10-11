@@ -291,6 +291,34 @@ public static partial class EdoBuild
         { bw.Write(terrainName); bw.Write(undo.Count); foreach (var u in undo) { bw.Write((int)u[0]); bw.Write((int)u[1]); bw.Write(u[2]); bw.Write(u[3]); } }
     }
 
+    /// <summary>**多角形の中の地形の節点を、指図の面の高さへ切り盛りする**(2026-10-12 EDO-0502 第113巡)。
+    /// <paramref name="poly"/>(世界 xz)の中の節点を <paramref name="yAt"/>(節点の点 → 面の高さ・NaN = 触らない)へ ── 上げも下げもする。
+    /// 法は付けない(多角形の外は触らない【硬】)── 面の縁の段は呼び手の多角形の取り方(石垣・塀の下へ入れる)で隠す。
+    /// 書くのは <see cref="T"/>(邸の Stage が名指した地形)。⟶ 書いた節点の数(上げ・下げの最大は out)。
+    /// 当たる先: 指図が「床のまま通す」「道の面のまま」と面の高さを名指す狭い所(岡部 背の路地の南の延長・通用門の前)。</summary>
+    public static int GroundToPoly(Vector2[] poly, Func<Vector2, float> yAt, out float maxUp, out float maxDown)
+    {
+        maxUp = 0f; maxDown = 0f; if (poly == null || poly.Length < 3) return 0;
+        var t = T(); var td = t.terrainData; var org = t.transform.position; int R = td.heightmapResolution; float hs = td.size.x / (R - 1);
+        float x0 = float.MaxValue, x1 = float.MinValue, z0 = float.MaxValue, z1 = float.MinValue;
+        foreach (var p in poly) { x0 = Mathf.Min(x0, p.x); x1 = Mathf.Max(x1, p.x); z0 = Mathf.Min(z0, p.y); z1 = Mathf.Max(z1, p.y); }
+        int i0 = Mathf.Max(0, Mathf.FloorToInt((x0 - org.x) / hs)), i1 = Mathf.Min(R - 1, Mathf.CeilToInt((x1 - org.x) / hs));
+        int j0 = Mathf.Max(0, Mathf.FloorToInt((z0 - org.z) / hs)), j1 = Mathf.Min(R - 1, Mathf.CeilToInt((z1 - org.z) / hs));
+        if (i1 < i0 || j1 < j0) return 0;
+        var H = td.GetHeights(i0, j0, i1 - i0 + 1, j1 - j0 + 1); int n = 0;
+        for (int j = j0; j <= j1; j++)
+            for (int i = i0; i <= i1; i++)
+            {
+                var q = new Vector2(org.x + i * hs, org.z + j * hs); if (!EdoGeom.PIP(poly, q)) continue;
+                float y = yAt(q); if (float.IsNaN(y)) continue;
+                float cur = H[j - j0, i - i0] * td.size.y + org.y; if (Mathf.Abs(y - cur) < 1e-4f) continue;
+                if (y > cur) maxUp = Mathf.Max(maxUp, y - cur); else maxDown = Mathf.Max(maxDown, cur - y);
+                H[j - j0, i - i0] = (y - org.y) / td.size.y; n++;
+            }
+        if (n > 0) { td.SetHeights(i0, j0, H); AssetDatabase.SaveAssetIfDirty(td); }
+        return n;
+    }
+
     /// <summary>**駒の下の地面を駒の上の面より下げる**(石垣・段の土留め・基壇)── 地形の節点の真上に駒の面があれば、その節点を「面 − <paramref name="below"/>」以下へ。
     /// 駒の下の地面は見えない所なので、高さの出どころ(造成の面)は変えない ── 駒の面から地面が覗かない(見え面への土の被り)ようにするだけ。
     /// ⚠ 0.25m の格子では、造成の面の段(上の面 → 下の面)が石垣の線と法の見え面の間の節点に掛かり、見え面の前に土が立つ(第110巡 TW_Higashi_Se で 1.3m)。

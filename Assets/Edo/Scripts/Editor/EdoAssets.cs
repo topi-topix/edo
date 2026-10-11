@@ -2772,6 +2772,9 @@ public static class EdoAssets
         /// 据え直す前の名 **35_A30x55**・**09_A55x226**(fiK ≈1.0)も。KadoArms を python で写した名の表は fiK 0.42〜0.63 で 39 は不変。
         /// 第113巡(2026-10-12 EDO-0502・区画の改めで P2・P4 が 0° の分け目に・P3 が 90°): **00_A226x50**(P2)/ **00_A70x226**(P4)── 棟梁の「部材が無い」の名のまま。
         /// ⚠ 0° は `--deg 0` だと生成器が M を付ける(deg &gt; 0 で素手)⇒ `--deg 0.001` で焼いた(名は 00・Kado(part, 0f) と一致)。
+        /// 第114巡(2026-10-12 EDO-0502・00_A226x50 / 素の 90 は腕 4.1m が辺 3.0〜3.8 を越えて N41_5 と P4 の隅へ入った): **00_A226x60**(P2)/ **90_A50x70**(P3)── 棟梁の KadoArms の名のまま。
+        ///   実寸(局所): 00_A226x60 X −0.32〜0.52 × Y 0〜1.455 × Z −0.60〜2.26 ／ 90_A50x70 X −0.70〜0.52 × Y 0〜1.455 × Z −0.52〜0.50(世界は ×1.818)。
+        ///   blender --background --python Tools/Blender/build_kado.py -- --part dobei --deg 0.001 --arms 2.26,0.60 --render ／ … --deg 90 --arms 0.50,0.70 --render
         ///   blender --background --python Tools/Blender/build_kado.py -- --part dobei --deg &lt;整数角&gt; --arms &lt;入り&gt;,&lt;出&gt; --render</summary>
         public static string Kado(string part, float deg, float armIn, float armOut, float armFull)
         {

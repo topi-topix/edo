@@ -45,6 +45,8 @@ public static partial class EdoBuild
         public Dictionary<string, List<GameObject>> segs = new Dictionary<string, List<GameObject>>();
         public float worstFloat = float.NegativeInfinity, worstOutside;
         public int buried;
+        /// <summary>駒ひとつだけ内へ寄せた量の最大[m](法の足が線を越える丈の高い駒・天端の前の縁の段【柔】)。</summary>
+        public float worstStepIn;
     }
 
     /// <summary>区間の端が区画の頂点に在るとみなす離れ[m] ── 指図の s は 0.01 で丸めてある(辺13 の長さ 77.26 と実の 77.264)。</summary>
@@ -75,7 +77,7 @@ public static partial class EdoBuild
     /// 当たる先: 区画の線に沿って建つ城の石垣の基壇・腰石垣の全て(土井 boundaryPlinth。岡部 PlaceIshigaki(外周の基壇)は
     /// ピボットを線に置く旧い据えのまま ── 移し替えは別票)。</summary>
     public static CastleRun PlaceCastleRun(IList<CastleSec> secs, Vector2[] poly, Func<float, float, float> groundAt, Transform parent,
-                                           System.Text.StringBuilder log, float maxInset = 2.5f, float tol = 0.001f, float stepLap = -1f)
+                                           System.Text.StringBuilder log, float maxInset = 2.5f, float tol = 0.001f, float stepLap = -1f, float kadoMinTurn = 40f)
     {
         var res = new CastleRun();
         if (secs == null || secs.Count == 0 || poly == null) return res;
@@ -186,6 +188,27 @@ public static partial class EdoBuild
                     float t = (w.x * d2.y - w.y * d2.x) / den;
                     return A(e) - o * de + d * t;
                 };
+                // ⭐ 頂点の端の納め(const.kidan.corner・普請方の設計 2026-10-11 EDO-0502 第108巡):
+                //   ・折れ < 30° で控え c が違う辺 ⇒ 控えた線どうしの交点で閉じない(ほぼ平行で交点が数 m 先へ飛ぶ)── 頂点を通る二等分の面で突き付ける
+                //   ・出隅の折れ < kadoMinTurn(既定 40°・隅の駒を置かない折れ)⇒ 端を頂点の走り(s = 辺の端)へ ── 根石の外面が頂点で交わり、
+                //     二つの躯体で隅を覆う(③a が駒の実長まで走りに沿って引き、根石の端を頂点で止める)。交点で閉じると根石の端が頂点の手前
+                //     c·tan(φ/2) で止まり、足元に口が開いた。
+                //   ・それ以外(入隅・隅の駒を受ける出隅)は従来どおり交点。当たる先: PlaceCastleRun を通る全ての外周の基壇(土井・岡部)。
+                Func<CastleSec, bool, Vector2> bisect = (nb, hi) =>
+                {
+                    Vector2 V = hi ? A(e) + d * Len(e) : A(e); Vector2 dn = hi ? Dir(nb.edge) : Dir(nb.edge);
+                    Vector2 nbd = (d + dn); if (nbd.sqrMagnitude < 1e-8f) nbd = d; nbd.Normalize();
+                    float t = Vector2.Dot(V - A(e) + o * de, nbd) / Mathf.Max(1e-4f, Vector2.Dot(d, nbd));
+                    return A(e) - o * de + d * t;
+                };
+                Func<CastleSec, bool, Vector2, Vector2> joinPt = (nb, hi, p) =>
+                {
+                    float tv = Turn(hi ? (e + 1) % n : e);
+                    float de2 = ins.ContainsKey(KeyOf(nb)) ? ins[KeyOf(nb)] : 0f;
+                    if (Mathf.Abs(tv) < 30f && Mathf.Abs(de2 - de) > 1e-3f) return bisect(nb, hi);
+                    if (tv > 1f && tv < kadoMinTurn) return hi ? A(e) + d * Len(e) - o * de : A(e) - o * de;
+                    return meet(nb, p);
+                };
                 // 頂点で天端の違う区間が浅い折れ(< 30°)で続く = 折れのある段の継ぎ目: 高い方は交点から stepLap(無ければ 0.03)だけ先へ、
                 //   低い方は交点から奥へ 1.4m 延ばして高い方の面の裏へ食い込ませる(隅の駒は置かない ── PlaceRunKado・普請方の設計 2026-10-07 土井 辺14/15)
                 float stepCornerLap = stepLap >= 0f ? stepLap : 0.03f;
@@ -193,15 +216,15 @@ public static partial class EdoBuild
                 if (s.s1 >= Len(e) - VTX_TOL)
                 {
                     var nx = merged.Find(x => x.edge == (e + 1) % n && x.s0 <= VTX_TOL);
-                    if (nx != null && Mathf.Abs(Turn((e + 1) % n)) < 30f && Mathf.Abs(nx.crest - s.crest) > 1e-3f) { b = meet(nx, b); float ce = cornerExt(nx); b += d * (ce > 0f ? ce : 1.4f); if (final) log?.AppendLine("  城の石垣 " + s.name + ": 頂点" + ((e + 1) % n) + " の折れのある段の継ぎ目 ── 尻を交点から " + (ce > 0f ? ce : 1.4f).ToString("F2") + "m 先へ(" + (ce > 0f ? "高い方の天端を届かせる" : "低い方を高い方の面の裏へ") + ")"); }
-                    else if (nx != null) b = meet(nx, b);
+                    if (nx != null && Mathf.Abs(Turn((e + 1) % n)) < 30f && Mathf.Abs(nx.crest - s.crest) > 1e-3f) { b = joinPt(nx, true, b); float ce = cornerExt(nx); b += d * (ce > 0f ? ce : 1.4f); if (final) log?.AppendLine("  城の石垣 " + s.name + ": 頂点" + ((e + 1) % n) + " の折れのある段の継ぎ目 ── 尻を交点から " + (ce > 0f ? ce : 1.4f).ToString("F2") + "m 先へ(" + (ce > 0f ? "高い方の天端を届かせる" : "低い方を高い方の面の裏へ") + ")"); }
+                    else if (nx != null) b = joinPt(nx, true, b);
                     else { float tr = freeTrim(e, (e + 1) % n, de); b -= d * tr; if (final && tr > 0.011f) log?.AppendLine("  城の石垣 " + s.name + ": 相手の無い出隅の端を " + tr.ToString("F2") + "m 詰めた(小口が隣の辺の線を越えない)"); }
                 }
                 if (s.s0 <= VTX_TOL)
                 {
                     var pv = merged.Find(x => (x.edge + 1) % n == e && x.s1 >= Len(x.edge) - VTX_TOL);
-                    if (pv != null && Mathf.Abs(Turn(e)) < 30f && Mathf.Abs(pv.crest - s.crest) > 1e-3f) { a = meet(pv, a); float ce = cornerExt(pv); a -= d * (ce > 0f ? ce : 1.4f); if (final) log?.AppendLine("  城の石垣 " + s.name + ": 頂点" + e + " の折れのある段の継ぎ目 ── 頭を交点から " + (ce > 0f ? ce : 1.4f).ToString("F2") + "m 手前へ(" + (ce > 0f ? "高い方の天端を届かせる" : "低い方を高い方の面の裏へ") + ")"); }
-                    else if (pv != null) a = meet(pv, a);
+                    if (pv != null && Mathf.Abs(Turn(e)) < 30f && Mathf.Abs(pv.crest - s.crest) > 1e-3f) { a = joinPt(pv, false, a); float ce = cornerExt(pv); a -= d * (ce > 0f ? ce : 1.4f); if (final) log?.AppendLine("  城の石垣 " + s.name + ": 頂点" + e + " の折れのある段の継ぎ目 ── 頭を交点から " + (ce > 0f ? ce : 1.4f).ToString("F2") + "m 手前へ(" + (ce > 0f ? "高い方の天端を届かせる" : "低い方を高い方の面の裏へ") + ")"); }
+                    else if (pv != null) a = joinPt(pv, false, a);
                     else { float tr = freeTrim(e, e, de); a += d * tr; if (final && tr > 0.011f) log?.AppendLine("  城の石垣 " + s.name + ": 相手の無い出隅の端を " + tr.ToString("F2") + "m 詰めた(小口が隣の辺の線を越えない)"); }
                 }
                 { float lp; if (lapLo.TryGetValue(s, out lp)) a -= d * lp; if (lapHi.TryGetValue(s, out lp)) b += d * lp; }
@@ -273,15 +296,18 @@ public static partial class EdoBuild
                 var c = RB(go).center; float sc = Vector2.Dot(new Vector2(c.x, c.z) - A(ke), Dir(ke));
                 return sc > m0 && sc < m1;
             });
-            if (mid.Count == 0) mid = kv.Value;
-            float before; float dpush = InsetRunToPoly(mid, poly, -o, maxInset, out before, 0.005f, tol);
+            // ⭐ 中ほどの駒が無い短い組は、区画の多角形でなく**辺の線への出**で控えを取る(const.kidan.corner.cFrom【硬】「端の駒の都合で組ごと控えない」)。
+            //   ⛔ 端の駒ごと多角形へ押すと、隣の辺を跨ぐ端の駒の都合で組の c が 0.5→1.22(岡部 S_Hei_04)・0.25→0.685(S_Hei_01c)に膨れ、
+            //   根石の外面が基準線から 0.16〜0.72 内へ外れた(第107巡)。端の駒は ③a が走りに沿って引く。
+            bool noMid = mid.Count == 0; if (noMid) mid = kv.Value;
+            float before = 0f; float dpush = noMid ? float.NaN : InsetRunToPoly(mid, poly, -o, maxInset, out before, 0.005f, tol);
             float ins0 = float.IsNaN(dpush) ? maxInset : dpush;
             if (float.IsNaN(dpush))
             {   // 区画の多角形では収まらない(短い組で、頂点の端の駒しか無い)⇒ 辺の線への出だけで控えを取り、端は ③a が走りに沿って引く
                 float mx = float.MinValue;
                 foreach (var go in mid) foreach (var v in Body(go.transform, 999999)) { var q = new Vector2(v.x, v.z) - A(ke); float sv = Vector2.Dot(q, Dir(ke)); if (sv < 0.3f || sv > Len(ke) - 0.3f) continue; mx = Mathf.Max(mx, Vector2.Dot(q, o)); }
                 if (mx != float.MinValue) { ins0 = Mathf.Max(0f, Mathf.Ceil((mx - tol) / 0.005f) * 0.005f); dpush = 0f; foreach (var go in mid) go.transform.position -= new Vector3(o.x, 0f, o.y) * ins0; }
-                log?.AppendLine("  ⚠ 城の石垣 " + kv.Key + ": 区画の多角形では " + maxInset.ToString("F1") + "m 控えても収まらない ⇒ 辺の線への出で控え " + ins0.ToString("F3") + "(端は走りに沿って引く)");
+                log?.AppendLine((noMid ? "  城の石垣 " + kv.Key + ": 中ほどの駒が無い短い組" : "  ⚠ 城の石垣 " + kv.Key + ": 区画の多角形では " + maxInset.ToString("F1") + "m 控えても収まらない") + " ⇒ 辺の線への出で控え " + ins0.ToString("F3") + "(端は走りに沿って引く)");
             }
             // ⭐ 基準線が区画の線の内(溝の内の縁)なら、根石の外面(全頂点)をその線まで ── 押した後の駒で外への最大を測り、越えた分だけ控えを足す【硬】
             float dIn = keyDatum[kv.Key], extra = 0f;
@@ -341,7 +367,8 @@ public static partial class EdoBuild
             if (!atHi && !atLo) continue;
             var mine = new List<GameObject>(); foreach (var nm in members[s]) mine.AddRange(res.bySec[nm]);
             mine.RemoveAll(g => g == null);
-            float pullMax = Mathf.Max(1.0f, 2.0f * (s.scale > 0f ? s.scale : 1f));
+            // 引く上限 = 駒の実長(走りへの射影の幅)── const.kidan.corner.deku「最大で駒1つの実長まで引く」
+            Func<GameObject, float> lenOf = g => { float lo = float.MaxValue, hi = float.MinValue; foreach (var v in Body(g.transform, 999999)) { float t = v.x * d.x + v.z * d.y; lo = Mathf.Min(lo, t); hi = Mathf.Max(hi, t); } return hi > lo ? hi - lo : 2.0f * (s.scale > 0f ? s.scale : 1f); };
             var ends2 = new List<bool>(); if (atHi) ends2.Add(true); if (atLo) ends2.Add(false);
             foreach (bool isHi in ends2)
             {
@@ -349,7 +376,7 @@ public static partial class EdoBuild
                 order.Sort((g1, g2) => { float a1 = Vector2.Dot(new Vector2(RB(g1).center.x, RB(g1).center.z), d), a2 = Vector2.Dot(new Vector2(RB(g2).center.x, RB(g2).center.z), d); return isHi ? a2.CompareTo(a1) : a1.CompareTo(a2); });
                 for (int k = 0; k < Mathf.Min(3, order.Count); k++)
                 {
-                    var endP = order[k];
+                    var endP = order[k]; float pullMax = lenOf(endP);
                     float before; float pl = PullAlongInside(new List<GameObject> { endP }, poly, isHi ? -d : d, pullMax, out before, 0f, 0.005f, tol);
                     if (before <= tol) break;
                     log?.AppendLine("  城の石垣 " + endP.name + ": 頂点の端の駒が " + before.ToString("F3") + "m 区画の外 ⇒ 走りに沿って " + (float.IsNaN(pl) ? pullMax.ToString("F1") + "m 引いても収まらない ★" : pl.ToString("F3") + "m 引いた(隣の駒と重なる)"));
@@ -363,22 +390,28 @@ public static partial class EdoBuild
         foreach (var kv in byEdge2)
         {
             int ke = keyEdge[kv.Key]; string lab = kv.Key.StartsWith("e") ? "辺" + ke : kv.Key + "(辺" + ke + ")";
-            float before; float dpush = InsetRunToPoly(kv.Value, poly, -PolyEdgeOut(poly, ke), 0.5f, out before, 0.005f, tol);
+            // ⛔ 組ごと内へ控えない(const.kidan.corner.cFrom【硬】)── 越える駒は ③a で引けなかった端の駒だけのはず ⇒ 測るだけで、越える駒を退ける(★)。
+            float before; float dpush = InsetRunToPoly(kv.Value, poly, -PolyEdgeOut(poly, ke), 0f, out before, 0.005f, tol);
             if (before > tol)
             {
                 if (float.IsNaN(dpush))
                 {   // 硬い(区域 許容0)⇒ まだ外へ出る駒は退ける(建てない)── 退けた後の外を測り直す
-                    var gone = new List<string>(); float rest = 0f;
+                    var gone = new List<string>(); float rest = 0f; var stepIn = new List<string>();
                     foreach (var go in kv.Value)
                     {
                         if (go == null) continue; var vs = Body(go.transform, 999999); float o = 0f;
                         foreach (var v in vs) { var q = new Vector2(v.x, v.z); if (!EdoGeom.PIP(poly, q)) o = Mathf.Max(o, EdoGeom.DistToPolyEdge(poly, q)); }
                         if (o <= tol) continue;
+                        // ⭐ 駒ひとつだけ内へ(その駒の根石が区画の線に着く最小)── 足元が低く丈の高い駒は法の足が線を越える(岡部 S_Hei_02 の頭の 4 駒 0.017〜0.164・第108巡)。
+                        //   組ごとは控えない【硬】⇒ その駒の天端の前の縁だけが内へ段になる(法肩の一直線は【柔】⇒ ⚠ と量)。退けると隅に口が開く(許容0)。
+                        float b1; float dp1 = InsetRunToPoly(new List<GameObject> { go }, poly, -PolyEdgeOut(poly, ke), 0.75f, out b1, 0.005f, tol);
+                        if (!float.IsNaN(dp1)) { stepIn.Add(go.name + " " + dp1.ToString("F3")); res.worstStepIn = Mathf.Max(res.worstStepIn, dp1); continue; }
                         gone.Add(go.name + " " + o.ToString("F3")); res.pieces.Remove(go); foreach (var l in res.bySec.Values) l.Remove(go); foreach (var l in res.segs.Values) l.Remove(go);
                         UnityEngine.Object.DestroyImmediate(go);
                     }
                     kv.Value.RemoveAll(g => g == null);
-                    log?.AppendLine("  ★ 城の石垣 " + lab + ": 据え直しても " + before.ToString("F3") + "m 区画の外 ── 0.5m 引いても収まらない ⇒ 外へ出る駒を退けた(硬い・区域)" + gone.Count + ": " + string.Join(" / ", gone.ToArray()));
+                    if (stepIn.Count > 0) log?.AppendLine("  ⚠ 城の石垣 " + lab + ": 法の足が区画の線を越える駒 " + stepIn.Count + " を一つずつ内へ(天端の前の縁が段になる【柔】): " + string.Join(" / ", stepIn.ToArray()));
+                    if (gone.Count > 0) log?.AppendLine("  ★ 城の石垣 " + lab + ": 据え直しても " + before.ToString("F3") + "m 区画の外(組ごとは控えない)⇒ 外へ出る駒を退けた(硬い・区域)" + gone.Count + ": " + string.Join(" / ", gone.ToArray()));
                     res.worstOutside = Mathf.Max(res.worstOutside, rest);
                 }
                 else

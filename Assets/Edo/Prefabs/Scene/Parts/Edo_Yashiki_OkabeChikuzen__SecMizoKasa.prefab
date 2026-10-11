@@ -1,0 +1,4191 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &8472318449765000765
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 60550889948333415}
+  m_Layer: 0
+  m_Name: Edo_Yashiki_OkabeChikuzen__SecMizoKasa
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &60550889948333415
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8472318449765000765}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 8695025368466032236}
+  - {fileID: 7875310162627235470}
+  - {fileID: 2861609752365147431}
+  - {fileID: 1446975083440775277}
+  - {fileID: 4072866191845817889}
+  - {fileID: 7794152492874007926}
+  - {fileID: 1738106359129584609}
+  - {fileID: 4708158394120840007}
+  - {fileID: 1727495602598993295}
+  - {fileID: 5771493026336359992}
+  - {fileID: 6668880542027204621}
+  - {fileID: 3825372764897008364}
+  - {fileID: 166596454536140480}
+  - {fileID: 1216350322301757397}
+  - {fileID: 2655282299217610128}
+  - {fileID: 9124650247302537843}
+  - {fileID: 8547357589755542404}
+  - {fileID: 8522855455738585747}
+  - {fileID: 2914240994931857820}
+  - {fileID: 8933902248894219879}
+  - {fileID: 8909487163130059196}
+  - {fileID: 6736109282519295414}
+  - {fileID: 1027294287178546568}
+  - {fileID: 3959885471298243989}
+  - {fileID: 4316036336615670164}
+  - {fileID: 8526938729264105361}
+  - {fileID: 484138536686369022}
+  - {fileID: 7944638529032574211}
+  - {fileID: 2454276546229500871}
+  - {fileID: 4297110145013983585}
+  - {fileID: 1839167982459023374}
+  - {fileID: 2856555651220755005}
+  - {fileID: 7665836422103062253}
+  - {fileID: 7315637289325210718}
+  - {fileID: 1927645302845346312}
+  - {fileID: 7319230738466841744}
+  - {fileID: 5830648036563302539}
+  - {fileID: 1362575805730638115}
+  - {fileID: 5705042945709380584}
+  - {fileID: 6987507479592724310}
+  - {fileID: 375015879824881242}
+  - {fileID: 2380063481615267634}
+  - {fileID: 5777604612416112194}
+  - {fileID: 1764992517373228030}
+  - {fileID: 6272684833903503385}
+  - {fileID: 1684623344567407011}
+  - {fileID: 3872832401971370289}
+  - {fileID: 5842560617729694102}
+  - {fileID: 5811215588277933198}
+  - {fileID: 706235042092318130}
+  - {fileID: 4326665875365664680}
+  - {fileID: 7501258276255069255}
+  - {fileID: 6940453750093614383}
+  - {fileID: 8058433091556637297}
+  - {fileID: 5507142872157249703}
+  - {fileID: 8107676591991316679}
+  - {fileID: 9106838991374912976}
+  - {fileID: 8854419160314376480}
+  - {fileID: 2029234738653322581}
+  - {fileID: 854692950227747628}
+  - {fileID: 5138914552655258487}
+  - {fileID: 4134065031608234985}
+  - {fileID: 6041929122837679522}
+  - {fileID: 9212577847199473959}
+  - {fileID: 7955283546303812924}
+  - {fileID: 1227415324549329680}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1001 &86333731999702805
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -386.42746
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.06285
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1056.29
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.37705502
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.006079662
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9260506
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.014931706
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_026_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &484138536686369022 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 86333731999702805}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &197854410794783153
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 731573410c02946469805bee647729f5, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -383.32788
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 731573410c02946469805bee647729f5, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.509995
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 731573410c02946469805bee647729f5, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1042.9646
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 731573410c02946469805bee647729f5, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.049612943
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 731573410c02946469805bee647729f5, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0043995744
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 731573410c02946469805bee647729f5, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.99485487
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 731573410c02946469805bee647729f5, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.0882217
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 731573410c02946469805bee647729f5, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 731573410c02946469805bee647729f5, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 731573410c02946469805bee647729f5, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 731573410c02946469805bee647729f5, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_040_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 731573410c02946469805bee647729f5, type: 3}
+--- !u!4 &375015879824881242 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 731573410c02946469805bee647729f5, type: 3}
+  m_PrefabInstance: {fileID: 197854410794783153}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &415852798606455083
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -396.20892
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.4363785
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1066.3099
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.37708923
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0018853262
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.92616343
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.0046305223
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_012_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+--- !u!4 &166596454536140480 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+  m_PrefabInstance: {fileID: 415852798606455083}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &705683928965306979
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -389.22205
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.158764
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1059.1528
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.37708983
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0050999555
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.92607796
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.012524752
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_022_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &1027294287178546568 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 705683928965306979}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &889113243516560583
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -380.94183
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 10.980736
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1019.1022
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.04980225
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.00048938155
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.99871075
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.009813826
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_064_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &854692950227747628 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 889113243516560583}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &1028989476315404889
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -381.93668
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.182044
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1029.0516
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.049803063
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0006745374
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.99866724
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.013526044
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_054_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &706235042092318130 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 1028989476315404889}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &1185560938674862692
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -399.0028
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.673975
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1069.1719
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.3771196
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.001885537
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9261511
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.0046306057
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_008_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &1727495602598993295 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 1185560938674862692}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &1218863051792987720
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -382.3348
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.3137665
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1033.0334
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.04980094
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.000248961
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9987467
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.0049928576
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_050_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &1684623344567407011 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 1218863051792987720}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &1413577578583246726
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -402.49445
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.876729
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1072.7485
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.37710935
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0018853464
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.92615527
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.0046302844
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_003_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &1446975083440775277 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 1413577578583246726}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &1540914988634386120
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -383.62814
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.65703
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1045.9678
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.049804084
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0005941747
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.99868774
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.011914585
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_037_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &1362575805730638115 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 1540914988634386120}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &1621892632049308923
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -380.3448
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 10.822508
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1013.13165
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.049801577
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.00055392133
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9986972
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.011108076
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_070_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &1227415324549329680 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 1621892632049308923}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &1687690223615934526
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -395.5095
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.420774
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1065.5934
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.3771032
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.003990467
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9261108
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.0098000085
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_013_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &1216350322301757397 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 1687690223615934526}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &1991702930086771390
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -381.0414
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 10.995581
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1020.0984
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.049822133
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.00024909648
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9987456
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.004993444
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_063_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &2029234738653322581 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 1991702930086771390}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &2110752597650535907
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -383.9265
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.741464
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1048.9517
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.049800437
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0008465519
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9986146
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.016975336
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_034_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &1927645302845346312 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 2110752597650535907}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &2165300084386863077
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -384.3244
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.898232
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1052.9308
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.04980585
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0010386375
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9985413
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.020823304
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_030_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &1839167982459023374 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 2165300084386863077}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &2275522855820678154
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -400.3999
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.693974
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1070.603
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.37704974
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0018849641
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9261795
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.0046301987
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_006_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+--- !u!4 &1738106359129584609 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+  m_PrefabInstance: {fileID: 2275522855820678154}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &2302529264307508245
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -382.53372
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.383415
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1035.023
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.049807012
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.00024902163
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9987464
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.0049934625
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_048_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &1764992517373228030 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 2302529264307508245}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &2318860434844202454
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -384.2249
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.857317
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1051.936
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.04979762
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.000998514
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9985581
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.020022528
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_031_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &2856555651220755005 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 2318860434844202454}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &2322946556715188940
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -403.19302
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.886729
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1073.4641
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.3771196
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0018853574
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9261511
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.0046301647
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_002_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &2861609752365147431 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 2322946556715188940}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &2545602874226958971
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -394.81015
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.395002
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1064.877
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.37707078
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0057148817
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9260605
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.014035366
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_014_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &2655282299217610128 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 2545602874226958971}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &2703829928279383084
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -385.0334
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.987267
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1054.8475
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.3677154
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.009938249
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9295458
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.02512285
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_028_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &2454276546229500871 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 2703829928279383084}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &2777901134419054809
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -382.7327
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.453579
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1037.0127
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.049807012
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.00024902163
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9987464
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.0049934625
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_046_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &2380063481615267634 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 2777901134419054809}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &3457585579161960055
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -392.01627
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.2678995
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1062.0151
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.37707096
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.004991734
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9260898
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.012259745
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_018_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &2914240994931857820 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 3457585579161960055}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &3566551453001263742
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -388.5239
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.1339
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1058.4376
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.37706965
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0042793923
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9261154
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.010510554
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_023_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &3959885471298243989 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 3566551453001263742}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &3617984730707607258
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -382.23532
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.303649
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1032.0382
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.049822103
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.00025491658
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.998745
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.005110115
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_051_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &3872832401971370289 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 3617984730707607258}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &3647015466307599623
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -396.9013
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.483098
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1067.0192
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.37679115
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.015848337
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.92534447
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.03892122
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_011_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+--- !u!4 &3825372764897008364 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 43c245c245bec487785c8e4e62163f4b, type: 3}
+  m_PrefabInstance: {fileID: 3647015466307599623}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &4287953295978590275
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -381.83716
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.154634
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1028.0566
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.04981797
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0006904311
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9986622
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.0138405375
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_055_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &4326665875365664680 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 4287953295978590275}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &4334960474886262410
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -384.51315
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.939708
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1053.9312
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.13843645
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0029436476
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9901432
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.02105394
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_029_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &4297110145013983585 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 4334960474886262410}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &4354731607934543487
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -387.82544
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.111669
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1057.722
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.377102
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.004104055
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9261078
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.010078965
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_024_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &4316036336615670164 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 4354731607934543487}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &4527700111742080002
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -380.7427
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 10.926017
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1017.11084
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.049814206
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.00074519555
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9986465
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.014939251
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_066_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &4134065031608234985 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 4527700111742080002}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &4543854146210994634
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -401.7963
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.813789
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1072.0333
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.3770993
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0018853364
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9261594
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.0046304036
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_004_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &4072866191845817889 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 4543854146210994634}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &4673521399252862108
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -380.8422
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 10.95593
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1018.10596
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.049799092
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0007442835
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.99864745
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.014925509
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_065_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &5138914552655258487 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 4673521399252862108}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &5105960888656315564
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -399.7014
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.683975
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1069.8875
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.37715903
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.001885719
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.92613506
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.0046304883
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_007_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &4708158394120840007 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 5105960888656315564}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &5235112583352448003
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -383.5287
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.634125
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1044.9729
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.04981368
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0005467792
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.99869823
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.010962198
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_038_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &5705042945709380584 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 5235112583352448003}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &5469608823364552524
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -381.43918
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.044479
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1024.0765
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.049800072
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0006757612
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.99866706
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.013551395
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_059_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &5507142872157249703 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 5469608823364552524}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &5802805528424943602
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -382.4343
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.323766
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1034.0286
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.049807012
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.00024904538
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9987464
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.004993939
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_049_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &6272684833903503385 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 5802805528424943602}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &6076349838292593225
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -380.6432
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 10.895269
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1016.11566
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.049801435
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.00078558514
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.99863464
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.01575281
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_067_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &6041929122837679522 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 6076349838292593225}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &6241505918115806845
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -382.13565
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.237002
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1031.0415
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.04980239
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.000722496
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.99865377
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.014487726
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_052_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &5842560617729694102 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 6241505918115806845}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &6282289159666774885
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -382.03616
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.209046
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1030.0468
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.04979705
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.00066984165
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9986688
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.013433525
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_053_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &5811215588277933198 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 6282289159666774885}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &6296074070086803296
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -383.72763
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.681449
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1046.9626
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.049797677
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.00062188855
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9986813
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.012471836
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_036_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &5830648036563302539 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 6296074070086803296}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &6310333804323086803
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -398.3031
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.608151
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1068.4551
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.37705803
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.005205516
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9260868
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.012785193
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_009_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &5771493026336359992 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 6310333804323086803}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &6315337185608720809
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -382.6332
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.393415
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1036.0181
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.04981606
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.00024903583
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9987459
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.0049928385
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_047_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &5777604612416112194 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 6315337185608720809}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &6553246319215592029
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -389.92087
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.184577
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1059.8685
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.37713534
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.004629705
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9260768
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.011368499
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_021_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &6736109282519295414 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 6553246319215592029}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &6558972755846803430
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -397.60114
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.559742
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1067.7361
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.37690237
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.012936845
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9256176
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.03177102
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_010_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &6668880542027204621 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 6558972755846803430}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &7065272774568823733
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -384.0259
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.778013
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1049.946
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.049807154
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0009742203
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9985674
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.019531826
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_033_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &7315637289325210718 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 7065272774568823733}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &7068849240752178043
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -383.82706
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.709198
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1047.9569
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.049801823
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0007606261
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9986424
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.015252322
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_035_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &7319230738466841744 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 7068849240752178043}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &7454060420265869501
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -383.42917
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.612179
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1043.9778
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.04980464
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.00054617826
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.99869883
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.010952144
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_039_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &6987507479592724310 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 7454060420265869501}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &7483795746419305156
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -381.63818
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.099382
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1026.0663
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.04980245
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.00071848586
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9986549
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.0144073125
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_057_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &6940453750093614383 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 7483795746419305156}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &7521001821184269722
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -381.5387
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.0715065
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1025.0717
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.049818244
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.00067013485
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9986677
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.013433673
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_058_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &8058433091556637297 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 7521001821184269722}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &7623397742402024168
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -385.7289
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.030556
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1055.5745
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.37707508
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.006094279
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9260418
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.014966666
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_027_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &7944638529032574211 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 7623397742402024168}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &7632582404419334871
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -380.44427
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 10.844756
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1014.12665
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.049816698
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0005541116
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.99869645
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.011108511
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_069_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &7955283546303812924 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 7632582404419334871}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &7692149964714469733
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -403.89154
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.8967285
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1074.1797
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.3770993
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.001885516
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9261594
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.0046308446
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_001_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &7875310162627235470 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 7692149964714469733}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &7755441657109439133
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -401.0981
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.753624
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1071.3182
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.37715903
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0018858989
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.92613506
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.0046309303
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_005_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &7794152492874007926 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 7755441657109439133}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &7919646882652565766
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -384.12543
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.817421
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1050.941
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.049797837
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0009876791
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.99856246
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.019805264
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_032_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &7665836422103062253 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 7919646882652565766}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &8039888325883532204
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -381.73767
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.127297
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1027.0616
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.049797036
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0006710516
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9986685
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.013457791
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_056_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &7501258276255069255 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 8039888325883532204}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &8148393865030884463
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -393.412
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.348137
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1063.4448
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.37703606
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0081579825
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.92594594
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.020034824
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_016_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &8547357589755542404 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 8148393865030884463}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &8200486048626705784
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -392.71326
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.30377
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1062.729
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.3770566
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.008559337
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9259122
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.02101858
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_017_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &8522855455738585747 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 8200486048626705784}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &8205414372402765946
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -387.12686
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.089898
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1057.0065
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.37709174
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0041042115
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.926112
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.010079668
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_025_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &8526938729264105361 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 8205414372402765946}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &8579068780239980332
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -381.3399
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.025763
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1023.0835
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.04980399
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.00025813363
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9987456
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.0051764897
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_060_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &8107676591991316679 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 8579068780239980332}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &8670308619818387148
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -380.54376
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 10.867697
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1015.1216
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.04980118
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0005885971
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.99868923
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.011803447
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_068_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &9212577847199473959 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 8670308619818387148}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &8731349874724341144
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -394.11328
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.374892
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1064.1632
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.3770993
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.001885516
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9261594
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.0046308446
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_015_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &9124650247302537843 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 8731349874724341144}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &8785191010036181563
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -381.24042
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.015579
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1022.08844
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.049804036
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.00024899162
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9987465
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.00499316
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_061_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &9106838991374912976 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 8785191010036181563}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &8948197415047429719
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -390.6192
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.210013
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1060.584
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.3770218
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.004962006
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9261109
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.0121886
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_020_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &8909487163130059196 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 8948197415047429719}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &8966985439673721228
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -391.31732
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.238901
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1061.2992
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.3770776
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.005934061
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.926048
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.014573194
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_019_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &8933902248894219879 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 8966985439673721228}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &9037473402118346443
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -381.14093
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 11.00558
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1021.09344
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.049804036
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.00024901537
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9987465
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.004993636
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_062_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &8854419160314376480 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 9037473402118346443}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &9160417283994083719
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 60550889948333415}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -404.59012
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 12.906729
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1074.8954
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.37710935
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.0018853464
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.92615527
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.0046302844
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+      propertyPath: m_Name
+      value: Mizo_Kita_000_Kasa
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+--- !u!4 &8695025368466032236 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a8c5aaf4c6ee14ca39b9876b6452d41b, type: 3}
+  m_PrefabInstance: {fileID: 9160417283994083719}
+  m_PrefabAsset: {fileID: 0}

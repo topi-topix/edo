@@ -196,6 +196,5 @@
 - [総当たりの計測は Unity を1時間ふさぐ](brute-force-measure-hangs-unity.md) — 升の索引+印で打つ。RayToBodies は1呼び出し100本まで・mesh.vertices を輪の中で呼ばない(四度目 10-05)
 - [落とした後の Stage9 は空の皮を焼く](unity-kill-leaves-holes-without-skin.md) — 穴は地形・皮はシーン。null の皮には最新の資産を差してから流す
 - [皮の段プレハブのメッシュが消えると S1 が穴を塞がず 4b が空の皮](skin-mesh-missing-leaves-holes-open.md) — S1 の塞いだ升が前の巡の穴の数と違えば 4b の前に止まる
-- [線の上の基壇・柵は区画外に出る](line-sitting-pieces-pivot-out.md) — float 0.25mm・端の控え・芯置き。材 null の一体駒は屋根を躯体と数える
-- [区画の辺に沿う城の石垣・長屋の4つの罠](castle-run-along-parcel-edge-traps.md) — s の丸めは VTX_TOL・90°超の出隅は PullAlongInside・駒の実長>送り・疎な駒は筋 1.0
-- [隅の腕は短辺を越えて区画外へ出る](kado-arm-overruns-short-edge.md)・[旧案の一括削除は分類器が止める](bulk-delete-denied-by-auto-mode.md) — 岡部 P2〜P4 が外・駒の頂点を PIP / 役経由の一括削除は不可
+- [線の上の基壇・柵は区画外に出る](line-sitting-pieces-pivot-out.md)・[区画の辺に沿う城の石垣の罠](castle-run-along-parcel-edge-traps.md) — 端の控え・芯置き / VTX_TOL・PullAlongInside・駒の実長>送り
+- [隅の腕は短辺を越えて区画外へ出る](kado-arm-overruns-short-edge.md)・[旧案の一括削除は分類器が止める](bulk-delete-denied-by-auto-mode.md) — 岡部 P2〜P4 が外・駒の頂点を PIP / 役経由の一括削除は不可 / [短い組の c・丈の高い端の駒](castle-run-short-group-c-and-tall-foot.md) — 辺の線で c・一つずつ内へ

@@ -340,6 +340,13 @@ class Model(object):
                 if ym is not None:
                     return min(nat, ym)
             return nat
+        # ⭐ 道に面する辺の線際の帯(指図 grading.omoteNagayaDai.frontBand・EDO-0502 第108巡)── 線から内へ帯の幅を「線上の地盤 + up」に【硬】
+        if not hasattr(self, "_fband"):
+            self._fband = L.front_band_spec(self.d)
+        if self._fband is not None:
+            yb = L.front_band_y(self._fband, self.poly, *self.W(u, v), self.dem.at)
+            if yb is not None:
+                return yb
         if self._soil_d is not None:
             # ⚠ sashizu_soil の覚え書きはモジュールの中に一組しかない(壊し試しは指図を複製して Model を作り直す)。
             #   別の Model が使った後は、自分の地形と指図で空から解き直す。

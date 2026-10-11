@@ -762,6 +762,75 @@ def michi_narashi_spec(d):
             "slope": 1.0 / float(ms.group(1)), "prof": prof}
 
 
+def front_band_spec(d):
+    """指図 `grading.omoteNagayaDai.frontBand`(道に面する辺の線際の帯・EDO-0502 第108巡 普請方の設計 2026-10-11)を数へ読む。
+    欄が無ければ None。文の数(帯の幅・線上の地盤への足し・辺と s の範囲と線上の地盤の出所・門の口)を読む ──
+    読めなければ ⛔ 例外(推し量って帯を作らない・規則19)。"""
+    g = ((d.get("grading") or {}).get("omoteNagayaDai") or {}).get("frontBand")
+    if not g:
+        return None
+    what, ref, exc = str(g.get("what", "")), str(g.get("lineRef", "")), str(g.get("except", ""))
+    mb = re.search(r"内へ\s*([0-9.]+)\s*m", what)
+    mu = re.search(r"線上の地盤\s*\+\s*([0-9.]+)", what)
+    ents = []
+    for m in re.finditer(r"辺\s*(\d+)\s*(?:s\s*([0-9.]+)\s*〜\s*([0-9.]+))?\s*は\s*(grading\.michiNarashi\.lineProfile|線上の\s*base_dem)", ref):
+        ents.append({"edge": int(m.group(1)), "s0": float(m.group(2)) if m.group(2) else None,
+                     "s1": float(m.group(3)) if m.group(3) else None,
+                     "src": "michi" if "michiNarashi" in m.group(4) else "dem"})
+    gates = [(int(m.group(1)), float(m.group(2)), float(m.group(3)))
+             for m in re.finditer(r"辺\s*(\d+)\s*s\s*([0-9.]+)\s*〜\s*([0-9.]+)", exc)]
+    if not (mb and mu and ents):
+        raise ValueError("grading.omoteNagayaDai.frontBand の what(内へ m・線上の地盤 +)/ lineRef が読めない")
+    mi = michi_narashi_spec(d) if any(e["src"] == "michi" for e in ents) else None
+    if any(e["src"] == "michi" for e in ents) and mi is None:
+        raise ValueError("frontBand が grading.michiNarashi.lineProfile を名指すが欄が無い")
+    return {"band": float(mb.group(1)), "up": float(mu.group(1)), "ents": ents, "gates": gates, "michi": mi}
+
+
+def front_band_y(sp, poly, x, z, dem_at):
+    """区画の内の線際の帯の地盤(世界 x, z)= 線上の地盤 + up。帯の外・門の口は None。角で二辺の帯が重なれば低い方。
+    `dem_at(x, z)` = 造成前の地盤(base_dem)。s は辺の始まりの頂点からの道のり。"""
+    if sp is None:
+        return None
+    n = len(poly)
+    ar = sum(poly[i][0] * poly[(i + 1) % n][1] - poly[(i + 1) % n][0] * poly[i][1] for i in range(n))
+    best = None
+    for e in sp["ents"]:
+        a, b = poly[e["edge"] % n], poly[(e["edge"] + 1) % n]
+        Ln = math.hypot(b[0] - a[0], b[1] - a[1]) or 1.0
+        tx, tz = (b[0] - a[0]) / Ln, (b[1] - a[1]) / Ln
+        s = (x - a[0]) * tx + (z - a[1]) * tz
+        s0 = 0.0 if e["s0"] is None else e["s0"]
+        s1 = Ln if e["s1"] is None else min(Ln, e["s1"])
+        if s < s0 - 1e-6 or s > s1 + 1e-6:
+            continue
+        ix, iz = (-tz, tx) if ar > 0 else (tz, -tx)            # 内向き
+        dd = (x - a[0]) * ix + (z - a[1]) * iz
+        if dd < 0.0 or dd > sp["band"]:
+            continue
+        if any(ge == e["edge"] and g0 <= s <= g1 for ge, g0, g1 in sp["gates"]):
+            continue
+        if e["src"] == "michi":
+            pr = sp["michi"]["prof"]
+            if s <= pr[0][0]:
+                y0 = pr[0][1]
+            elif s >= pr[-1][0]:
+                y0 = pr[-1][1]
+            else:
+                y0 = pr[-1][1]
+                for (q1, y1), (q2, y2) in zip(pr, pr[1:]):
+                    if q1 <= s <= q2:
+                        y0 = y1 + (y2 - y1) * (s - q1) / ((q2 - q1) or 1.0)
+                        break
+        else:
+            y0 = dem_at(a[0] + tx * s, a[1] + tz * s)
+            if y0 is None:
+                continue
+        y = y0 + sp["up"]
+        best = y if best is None else min(best, y)
+    return best
+
+
 def michi_narashi_y(sp, poly, x, z, inside):
     """区画線の外の道の線際の帯の**均した面**(世界 x, z)。帯の外・区画の中・辺の両端の外は None。
     面 = 線上の高さ lineProfile(s)(線から flat m まで)、その先は slope の勾配で上る(今の地盤との min を取る側が擦り付けになる)。

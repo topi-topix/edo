@@ -1,6 +1,6 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 c9ab0f9f32e6 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 72c0eb7e5677 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
@@ -478,7 +478,7 @@ EdoBuild — 道の造成(縦断を設計して道の面を均す)。2026-09-30�
 | `EdoBuild.MidlineBetween(ra, rb, gap)` | `List<Vector2>` |  | 二つの矩形の向き合う辺の中心線(向き合う辺どうしの重なる区間だけ)。 | DoiBuilder.Mizo(Stage9_Mizo) |
 | `EdoBuild.OffsetPolyline(pl, d, toward)` | `List<Vector2>` |  | 折れ線を d だけ横へずらす。向きは各区間の左法線 × 符号で、符号は最初の区間で toward の側。 | DoiBuilder.Mizo(Stage9_Mizo), TypologyBuilder.Rim(Rim) |
 | `EdoBuild.PolylineLength(pl)` | `float` |  | ⚠ 注釈なし | DoiBuilder.Mizo(Stage9_Mizo) |
-| `EdoBuild.PointAt(pl, s, dir)` | `Vector2` |  | ⚠ 注釈なし | OkabeYashiki(PlaceDrainFrontGutters・PlaceFrontAnkyo), DoiBuilder.Mizo(Stage9_Mizo) |
+| `EdoBuild.PointAt(pl, s, dir)` | `Vector2` |  | ⚠ 注釈なし | OkabeYashiki(PlaceDrainFrontGutters・PlaceFrontAnkyo・PlaceMizoSections), DoiBuilder.Mizo(Stage9_Mizo) |
 | `EdoBuild.NearestS(pl, p, dist)` | `float` |  | 折れ線の上で点に最も近い所の弧長と距離。 | DoiBuilder.Mizo(BuildHariOtoshi9・Stage9_Mizo) |
 | `EdoBuild.PolylineCross(a, b, at, sA)` | `bool` |  | 二つの折れ線の交点(最初の一つ)。無ければ false。 | DoiBuilder.Mizo(Stage9_Mizo) |
 | `EdoBuild.WallFaceLine(pieces, towardPoint, yLo, yHi, step, normal, why, fromTop=…)` | `List<Vector2>` | 天端・面 | 駒の列(一本の走り)の面の線を実メッシュから採る。 | DoiBuilder.Mizo(Stage9_Mizo) |
@@ -490,7 +490,7 @@ EdoBuild — 道の造成(縦断を設計して道の面を均す)。2026-09-30�
 | `EdoBuild.SolveMizoBottom(sp, ds=…)` | `MizoProfile` | 硬・柔 地面・天端 | 溝の底を解く(硬い条件を式で満たす)。各点の底の候補 = 駒が覆う矩形の地面の最低 + topAbove − 深さ(深さの決まった駒はその深さ・ 選べる駒は depthMin)。 | OkabeYashiki(PlaceBackGutters・PlaceDrainFrontGutters・PlaceFrontGutters…), DoiBuilder.Mizo(Stage9_Mizo) |
 | `EdoBuild.LayMizo(parent, prefix, pr, pathAt, missing, missWhy, groundAt=…, hardFail=…)` | `List<GameObject>` | 硬 地面・天端 | 1m の駒を線に並べる。駒ごとに: 平面 = 線の上(部材の作法: 溝の芯・+Z が下流)/ 向き = 区間の向き / 傾き = 底の勾配(駒の前後の底の差)/ 高さ = 駒の実測の溝の底を解いた底へ当てる(⛔ ピボット… | OkabeYashiki(PlaceBackGutters・PlaceDrainFrontGutters・PlaceFrontAnkyo…), DoiBuilder.Mizo(Stage9_Mizo) |
 | `EdoBuild.MizoCurbTop(path, side, xA, xB, top)` | `bool` | 天端 | 溝の駒の片側の縁石の天端の帯(局所 x の範囲と天端の高さ)を実メッシュで測る。 | OkabeYashiki(PlaceFrontGutters) |
-| `EdoBuild.LayMizoKasa(parent, pieces, outDir, targetTop, pathForH, hMin, hMax, hStep, hardFail)` | `List<GameObject>` | 硬・柔 天端・床 | 溝の外の壁の嵩上げ(溝の駒の片側の縁石の天端に嵩上げ石を載せ、天端を狙いの高さへ ── 岡部 roadEdge 追記 2026-10-10n・EDO-0502 第96巡)。 | OkabeYashiki(PlaceDrainFrontGutters・PlaceFrontGutters) |
+| `EdoBuild.LayMizoKasa(parent, pieces, outDir, targetTop, pathForH, hMin, hMax, hStep, hardFail)` | `List<GameObject>` | 硬・柔 天端・床 | 溝の外の壁の嵩上げ(溝の駒の片側の縁石の天端に嵩上げ石を載せ、天端を狙いの高さへ ── 岡部 roadEdge 追記 2026-10-10n・EDO-0502 第96巡)。 | OkabeYashiki(PlaceDrainFrontGutters・PlaceFrontGutters・PlaceMizoSections) |
 | `EdoBuild.PlaceMasu(parent, name, path, at, outDir, topWant, floorMax, floor, sink)` | `GameObject` | 柔 天端 | 桝を据える。平面 = at(溝の出合い)・向き = 出る溝の向き。 | DoiBuilder.Mizo(Stage9_Mizo) |
 | `MasuCut`(class) | — | | 桝で割った区間の一つ(上流 → 下流の底)と、その尻を受ける桝。 | |
 | `MasuSplitRep`(class) | — | | (注釈なし) | |
@@ -501,7 +501,7 @@ EdoBuild — 道の造成(縦断を設計して道の面を均す)。2026-09-30�
 | `EdoBuild.PushLineOffFeet(line, feet, need, maxPush, pushedMax, pushedSegs, stuck, stuckWhy=…)` | `List<Vector2>` | 柔 | 溝の線を据わった駒の足から逃がす(雨落ちの線 ── 狙いは軒先の鉛直下・硬は「溝の外形が足に掛からない」・2026-10-06 EDO-0533 第18巡)。 | DoiBuilder.Mizo(Stage9_Mizo) |
 | `EdoBuild.StandingFeetXZ(root, groundAt, touch=…, minTall=…, skip=…, near=…, maxThin=…, compact=…)` | `List<Vector2>` | 地面・床 | 地面に立つ駒の足の平面の点(SplitMizoAtMasu の feet)。 | DoiBuilder.Mizo(Stage9_Mizo) |
 | `EdoBuild.UzumiToiMouth(from, outBottom, slopeMin, dropMin, recv, at, tailBottom, len, recvBottom, recvLine, why)` | `bool` | 床 | 埋樋(焼かない)の口の所: 桝の出口(底 outBottom)から受ける溝の底の点へ真っ直ぐ勾配 slopeMin で下ろし、 受ける溝の底がその埋樋の尻の底より dropMin 以上低くなる最初の所(受ける溝の上流から… | DoiBuilder.Mizo(Stage9_Mizo) |
-| `EdoBuild.LayFutaishi(parent, name, path, at, flowDir, under, groundAt, off)` | `GameObject` | 天端 | 蓋石を溝の天端に載せる。平面 = 溝の芯の上(長さは溝を横切る向き = 局所 X)。 | DoiBuilder.Mizo(Stage9_Mizo), OkabeYashiki(PlaceDrainFrontGutters) |
+| `EdoBuild.LayFutaishi(parent, name, path, at, flowDir, under, groundAt, off)` | `GameObject` | 天端 | 蓋石を溝の天端に載せる。平面 = 溝の芯の上(長さは溝を横切る向き = 局所 X)。 | OkabeYashiki(PlaceDrainFrontGutters・PlaceMizoSections), DoiBuilder.Mizo(Stage9_Mizo) |
 | `AnkyoRep`(class) | — | | LayAnkyoUnder の答え。 | |
 | `EdoBuild.ConvexHull2(pts)` | `List<Vector2>` |  | XZ の点の凸包(反時計回り・Andrew の単調連鎖)。 | OkabeYashiki(AllFacesAt・FaceFootHulls・FlatReport…) |
 | `EdoBuild.ConvexOverlap(a, b, eps=…)` | `bool` |  | 二つの凸多角形(XZ)が eps を超えて重なるか(分離軸)。 | DoiBuilder.Mizo(MasuPlannedChecks9・Stage9_Mizo) |
@@ -922,7 +922,7 @@ EdoBuild — 城の石垣の直線 run を区画の辺に沿って据える(外�
 | `CastleRun`(class) | — | | PlaceCastleRun の答え。 | |
 | `EdoBuild.VTX_TOL` | `float` | 区域 | 区間の端が区画の頂点に在るとみなす離れ[m] ── 指図の s は 0.01 で丸めてある(辺13 の長さ 77.26 と実の 77.264)。 | — |
 | `EdoBuild.PolyEdgeOut(poly, e)` | `Vector2` | 区域 | 区画の辺 e の外向き(内外判定で決める ── 重心で決めると凹みのある区画で裏返る)。 | — |
-| `EdoBuild.PlaceCastleRun(secs, poly, groundAt, parent, log, maxInset=…, tol=…, stepLap=…)` | `CastleRun` | 硬・柔 地面・天端・床・隅・区域 | 城の石垣の直線 run を区画の辺に沿って据える(外周の基壇・腰石垣)。 | Doi(Stage2_Perimeter), DoiBuilder.Mon(Stage3_Mon), OkabeYashiki(PlaceIshigaki) |
+| `EdoBuild.PlaceCastleRun(secs, poly, groundAt, parent, log, maxInset=…, tol=…, stepLap=…, kadoMinTurn=…)` | `CastleRun` | 硬・柔 地面・天端・床・隅・区域 | 城の石垣の直線 run を区画の辺に沿って据える(外周の基壇・腰石垣)。 | Doi(Stage2_Perimeter), DoiBuilder.Mon(Stage3_Mon), OkabeYashiki(PlaceIshigaki) |
 | `EdoBuild.PullAlongInside(gos, poly, along, maxPull, before, bandH=…, step=…, tol=…)` | `float` | 硬 隅・区域 | 硬い(許容0)・区域: 駒の組 gos を走り along に沿って一緒に引き、実メッシュが 区画の多角形の外へ出ない最小の量に納める(区画の頂点の端で、走りに直角な小口が隣の辺を跨ぐ駒 ── 出隅の折れが 90° を超… ⟶ 返す: 引いた量[m](0 = 元から内・maxPull で収まらなければ動かさず NaN) | DoiBuilder.Mon(BuildBackPlinth・Stage3_Mon), Doi(Stage2_Perimeter) |
 | `EdoBuild.CastleCrestExposure(pieces, outward, groundAt, step=…)` | `Vector4` | 地面・天端・面 | 据えた城の石垣の区間の天端(実測の最上点)と見付(天端 − 見え面の足元の前の地表)の [最小, 最大] を測る。 ⟶ 返す: (天端の最小, 天端の最大, 見付の最小, 見付の最大) | DoiBuilder.Mon(BuildBackPlinth・Stage3_Mon), Doi(Stage2_Perimeter) |
 | `BackSec`(class) | — | | PlaceCastleBack の一区間 = 基壇に載る一棟(長屋・門)の背。 | |

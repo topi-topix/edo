@@ -111,6 +111,8 @@ def rseat(r, s):
     b = r.get("seat1", r.get("seat"))
     if r["s1"] <= r["s0"]:
         return a
+    if r.get("seatBreakS") is not None:                # 段の座(岡部 S_Hei_02・2026-10-12): 段の手前は seat0・先は seat1 の平ら
+        return a if s < r["seatBreakS"] else b
     t = (s - r["s0"]) / (r["s1"] - r["s0"])
     return a + (b - a) * max(0.0, min(1.0, t))
 

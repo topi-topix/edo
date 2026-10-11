@@ -2980,6 +2980,8 @@ def _tw_seat_at(P, runs_on, es, p, K):
     s0, s1 = r.get("s0", 0.0), r.get("s1", 0.0)
     y0 = r.get("seat0") if r.get("seat0") is not None else r["seat"]
     y1 = r.get("seat1") if r.get("seat1") is not None else r["seat"]
+    if r.get("seatBreakS") is not None:                # 段の座(bake_impl.rseat と同じ)
+        return float(y0) if sm < r["seatBreakS"] else float(y1)
     f = 0.0 if s1 - s0 < 1e-9 else max(0.0, min(1.0, (sm - s0) / (s1 - s0)))
     return float(y0) + (float(y1) - float(y0)) * f
 

@@ -20,6 +20,7 @@
 - [欄の上書きの直後は算出物の指紋で Stage1 が止まる](impl-fingerprint-after-yat-overwrite.md) — 食い違い0なら bake_impl --write。長い流しは印+txt で待つ
 - [作業場が前の窓の邸で dirty・旧い退避は前の案の造成前](koba-left-dirty-by-other-window.md) — UnwrittenIn を最初に見る。他邸の書き戻しは分類器が止める→返す
 - [岡部の外周は S1→S2→S2b→S3d で流す・一枚物の練塀の測り](okabe-perimeter-rerun-order-and-neribei-measure.md) — S2 だけだと基壇が変わり 3d が 2.9m 掘る・2b は60〜90分・継ぎ目は ±0.004 の光線 / [指図を書き換えた直後の S1 は 1m で造成する](graded-bin-stale-after-sashizu-commit.md) — bin を焼き直し _graded を捨てる・隅の座は古い
+- [芯線と天端の線(heiLine)の罠](heiline-stretch-and-tenba-r120.md) — d は c の後・床は区間の組で・線は同じドメインだけ(S2〜3d を続けて)・足は 0.91〜1.60・継ぎ目の切り欠きを埋める
 - [.cs の保存直後の Stage は古い DLL で走る・再起動で皮が null](stage-run-on-stale-dll-after-edit.md) — 25 分の 3b が空振り。Stage の前に compile_wait・3b の後は先に書き戻す
 
 ## 部材の据え方
@@ -187,8 +188,7 @@
 - [検査の浮き・子0は測り方の読み違いのことがある](qa-misreads-stack-and-single-mesh-gate.md) — 積みを地表で測る・一体の門・皮の前の垣。相手を床に入れて測り直す
 - [袖の脇の入りは見える地表で割る](sode-side-bite-below-skin.md) — 女坂の北の袖×回廊の出隅は全部 皮の下。MeasureSodeSideBites・裏の面の偽の入り
 - [退役した Stage が残ると検査が嘘の件数を出す](retired-stage-makes-fake-counts.md) — 449=1278−829 は別の母集団の引き算
-- [CheckScene は矩形の芯で測る](checkscene-center-vs-seat.md)・[退ける門と検査は同じ測りで](machiya-clash-gate-weaker-than-check.md) — `seat` で据えた部材は永久に鳴る。⛔芯へ動かして0件にしない・門だけ屋根を外さない
-- [天端の埋没の数えは法の根入れを拾う](crest-burial-count-picks-batter-face.md)・[UnderfloorGap は一体の駒で屋根を拾う](underfloorgap-picks-roof-on-one-mesh-parts.md) — 4m・5〜7m の偽。天端の帯だけ数える・底の頂点で測る
+- [CheckScene は矩形の芯で測る](checkscene-center-vs-seat.md)・[退ける門と検査は同じ測りで](machiya-clash-gate-weaker-than-check.md) — `seat` で据えた部材は永久に鳴る。⛔芯へ動かして0件にしない・門だけ屋根を外さない / [天端の埋没の数えは法の根入れを拾う](crest-burial-count-picks-batter-face.md)・[UnderfloorGap は一体の駒で屋根を拾う](underfloorgap-picks-roof-on-one-mesh-parts.md) — 4m・5〜7m の偽。天端の帯だけ数える・底の頂点で測る
 - 山王の Stage の罠: [Stage0 は Keidai・Sando を退避](sanno-stage0-retires-live-groups.md)・[Stage7 の縁の木の重ね(解消)](sanno-stage7-edge-trees-duplicate.md)・[Stage6 は Clear の後に指紋](sanno-stage6-clears-before-fingerprint.md) — 建て直しは Stage1 から・bake を見張る
 - [門・柵の浮きは「床」で測る](gate-float-measure-on-bed.md) — 土留めの天端に載る隅は地表で嘘の浮き。座は上限・浮けば床へ。Stage9 の後に S4/5
 - [社叢QAのカメラ②は赤坂では宝蔵院の門の中](sanno-shaso-qa-camera2-inside-gate.md) — 撮る間だけ門+十坊の板塀 3_4f/4b ほか計52個を消す。カメラは動かさない

@@ -1136,6 +1136,8 @@ public static partial class EdoBuild
 
     // ---------- 練塀 run(一枚物の閉じた断面・EDO-0502 2026-10-12 施主裁定「案1」) ----------
     /// <summary>練塀の屋根の群(走りの寸法に入れない ── 鬼瓦・袖瓦は端の柱の外へ出る)。</summary>
+    /// <summary>練塀の壁面の群(外面を測る ── 腰の笠 ishigaki・屋根を除く)。岡部 WallFace と同じ名。</summary>
+    public static readonly HashSet<string> NeribeiWallParts = new HashSet<string> { "hei", "shitami", "koshi", "namako", "namako2", "n_namako", "dodai", "n_dodai", "hashira2" };
     static readonly HashSet<string> NeribeiRoofParts = new HashSet<string> { "yane", "noki", "taruki", "keta", "mune", "onigawara", "keraba", "sumimune", "tome_ita" };
     /// <summary>**練塀を一枚物 <see cref="EdoAssets.Own.Neribei"/> で建てる**(施主裁定 2026-10-12「案1」・EDO-0502)。<see cref="DobeiRun"/>(在庫 s_hei_center を
     /// 表裏 2 枚 0.20 ずらし)の置き換え ── 小口は断面で塞ぎ、冠瓦は一筋、厚み 0.40(腰 0.69)。⛔ DobeiRun は他邸のために残す(邸ごとに呼び分ける)。
@@ -1148,7 +1150,7 @@ public static partial class EdoBuild
     /// 当たる先: 岡部の外周の練塀(Stage2)── 他邸は未適用(広げるときは DobeiRun の呼び手をこれへ替え、隅を NeribeiKado・scale 1 へ)。</para>
     /// 名 = prefix_番号(表裏の f/b を付けない)。</summary>
     public static List<GameObject> NeribeiPanelRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward, string prefix,
-        float flatBase, bool endAtA, bool endAtB, float latOff, out string note)
+        float flatBase, bool endAtA, bool endAtB, float latOff, out string note, float faceIn = float.NaN, float sink = 0.10f)
     {
         var made = new List<GameObject>(); note = null;
         Vector2 dir = (B - A).normalized; float L = (B - A).magnitude;
@@ -1191,13 +1193,179 @@ public static partial class EdoBuild
             if (go == null) { note = (note == null ? "" : note + " / ") + "駒が無い " + path; continue; }
             float mn, mx;
             ButtOnRun(go, A, dir, outward, latOff, cur, out mn, out mx, body);
+            if (!float.IsNaN(faceIn))
+            {   // ⭐ 外面を据える時に線へ(天端の線・芯線 const.heiLine): 壁面の群(NeribeiWallParts)の最も外を A−B の線から faceIn 内へ ── ⛔ 後で寄せる関数を足さない
+                float wmn, wmx; ProjExtent(go, outward, float.MinValue, float.MaxValue, nm => NeribeiWallParts.Contains(nm), out wmn, out wmx);
+                if (wmx > wmn) { float sh = (Vector2.Dot(A, outward) - faceIn) - wmx; go.transform.position += new Vector3(outward.x * sh, 0f, outward.y * sh); }
+            }
             cur = mx;
-            SeatBottom(go, flatBase - 0.10f);
+            SeatBottom(go, flatBase - sink);   // 既定は座 −0.10 の根入れ ── 天端の線(const.heiLine)の駒は座ちょうど(sink 0・台の石垣の天端へ隙0【硬】・⛔ 後で床へ上げない)
             made.Add(go);
         }
         float resid = cur - (a0 + L);
         if (Mathf.Abs(resid) > 0.01f) note = (note == null ? "" : note + " / ") + "走りの端の残差 " + resid.ToString("+0.000;-0.000") + "m";
         return made;
+    }
+
+    // ---------- 塀の芯線と天端の線(施主裁定 2026-10-12 案A・岡部 const.heiLine・EDO-0502 第120巡) ----------
+    /// <summary>頂点 <paramref name="v"/>(辺 v−1 と辺 v の間)の折れ[度](符号つき・左回り +)。</summary>
+    public static float VertexBendDeg(Vector2[] poly, int v)
+    {
+        int n = poly.Length; var a = poly[((v - 1) % n + n) % n]; var b = poly[(v % n + n) % n]; var c = poly[((v + 1) % n + n) % n];
+        return Vector2.SignedAngle(b - a, c - b);
+    }
+
+    /// <summary>**一続き(stretch)ごとの塀の外面の控え d**(施主裁定 2026-10-12 案A・const.heiLine.d)。辺 <paramref name="e0"/>〜<paramref name="e1"/>(連番)を、
+    /// 隣の辺との折れが <paramref name="bigDeg"/> 以上の頂点(大きな隅)で一続きに割り、各一続きで d = 辺の c(<paramref name="edgeC"/>)の最大 + <paramref name="inu"/>。
+    /// 返す配列は [e − e0]。硬い(一続きの中で外面の横ずれ 0 ── 同じ d の平行線は折れ &lt; bigDeg の頂点で二等分の線で交わり面の段が出ない)。
+    /// 外面が法肩より外へ出ない【硬】は d ≥ c + inu で全辺が満たす(note に辺ごとの c・d・犬走りの幅 d − c を刷る)。範囲の両端が大きな隅でなければ ⚠(一続きが範囲で切れる)。
+    /// ⛔ 部材の基準点を使わない ── 線を決めるだけ(外面は呼び手が実メッシュで寄せる)。当たる先: 岡部 辺19〜24(試し)── 外周の残り・他邸は未適用。</summary>
+    public static float[] HeiStretchSetback(Vector2[] poly, int e0, int e1, float bigDeg, Func<int, float> edgeC, float inu, out string note)
+    {
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        int m = e1 - e0 + 1; var d = new float[m]; var sb = new System.Text.StringBuilder();
+        if (Mathf.Abs(VertexBendDeg(poly, e0)) < bigDeg) sb.Append("⚠ 範囲の始め P" + e0 + " は大きな隅でない(折れ " + VertexBendDeg(poly, e0).ToString("F2", inv) + "°)── 一続きが範囲で切れる / ");
+        if (Mathf.Abs(VertexBendDeg(poly, e1 + 1)) < bigDeg) sb.Append("⚠ 範囲の終わり P" + (e1 + 1) + " は大きな隅でない(折れ " + VertexBendDeg(poly, e1 + 1).ToString("F2", inv) + "°)── 一続きが範囲で切れる / ");
+        int a = 0;
+        while (a < m)
+        {
+            int b = a; while (b + 1 < m && Mathf.Abs(VertexBendDeg(poly, e0 + b + 1)) < bigDeg) b++;
+            float cMax = 0f; for (int k = a; k <= b; k++) cMax = Mathf.Max(cMax, edgeC(e0 + k));
+            float dd = cMax + inu; for (int k = a; k <= b; k++) d[k] = dd;
+            sb.Append("一続き 辺" + (e0 + a) + "〜" + (e0 + b) + "(P" + (e0 + a) + "〜P" + (e0 + b + 1) + ")d " + dd.ToString("F3", inv) + " = c の最大 " + cMax.ToString("F3", inv) + " + " + inu.ToString("F2", inv) + "[");
+            for (int k = a; k <= b; k++) sb.Append((k > a ? " " : "") + "辺" + (e0 + k) + " c " + edgeC(e0 + k).ToString("F2", inv) + " 犬走り " + (dd - edgeC(e0 + k)).ToString("F2", inv)
+                                                 + (k < b ? " |P" + (e0 + k + 1) + " " + VertexBendDeg(poly, e0 + k + 1).ToString("+0.00;-0.00", inv) + "°|" : ""));
+            sb.Append("] ");
+            a = b + 1;
+        }
+        note = sb.ToString(); return d;
+    }
+
+    /// <summary>天端の線の一区間(<see cref="HeiTenbaSteps"/>)── 辺 edge の走り s0〜s1 を座 seat の平らで据える。sec = 線の上の区間の通し番号(頂点を跨ぐ区間は辺ごとに二つの行で同じ番号)。
+    /// bury = 区間の中の地盤 − 座の最大(座は区間の地盤の最小 ⇒ 高い側が埋まる量 ── 据えは埋めて隠す)。</summary>
+    public struct HeiSec { public int edge, sec; public float s0, s1, seat, bury, t0, t1; }
+
+    /// <summary>**塀の天端の線を一続きの範囲で一本に決め、段の点を地形から選ぶ**(施主裁定 2026-10-12 案A・const.heiLine.tenba / stepAt)。
+    /// 線 = 辺 e0〜e1 を区画の線から内へ d[e] + 塀の芯(<paramref name="coreIn"/>)で控えた芯線。地盤 <paramref name="ground"/>(造成後の面)を 0.25 ごとに芯と足の内の縁の低い方で引き、
+    /// 区間を平らな座で割る ── 座 = 区間の地盤の最小(浮き 0・高い側は根入れで埋める)。区間の選びは最短路(DP): 費用 = 段 1 つ(頂点での段は <paramref name="vertexStepCost"/>)
+    /// + <paramref name="lambda"/> × 埋まる量の面積 / 駒一枚の走り。【硬】区間の中の起伏(埋まる量)≤ <paramref name="tol"/>・隅の塊(頂点 v の腕の実端面の間 v − armIn[k] 〜 v + armOut[k]、
+    /// k = v − e0 ── 呼び手が据えた隅の駒の腕で測る)の中では段を切らない(段は塊の端 = 隅の腕の端で切る ⇒ 隅は低い側でも高い側でも一つの区間に入る)・塊の端から minLen 未満でも切らない・
+    /// 範囲の両端の区間は <paramref name="minEndLen"/> 以上(自由端の棟止めが入る)・ほかは <paramref name="minLen"/> 以上。tol で割り切れない所は最短の区間で ⚠。
+    /// 段の点の外では天端の段 0(区間の中の座は一つ)。値(tol・lambda・minLen)は棟梁が選ぶ柔らかい値(確度 P)── 選んだ段の点と座は note に刷る。
+    /// ⛔ 部材の基準点を使わない(線と高さを決めるだけ ── 据えは NeribeiPanelRun・床は呼び手)。当たる先: 岡部 辺19〜24(試し)── 外周の残り・他邸は未適用。</summary>
+    public static List<HeiSec> HeiTenbaSteps(Vector2[] poly, int e0, int e1, float[] d, float coreIn, Func<float, float, float> ground,
+        float[] armIn, float[] armOut, float tol, float lambda, float minLen, float minEndLen, float vertexStepCost, out string note)
+    {
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        int n = poly.Length; const float DS = 0.25f;
+        // 線の上の点(0.25 ごと + 隅の腕の端)。隅の塊 = 頂点 v の [v − armIn, v + armOut](隅の駒の腕の実端面の間 ── 一つの駒なので中で段を切らない)
+        var ts = new List<float>(); var ys = new List<float>(); var eAt = new List<int>(); var sAt = new List<float>(); var vT = new List<float>();
+        var blk = new List<Vector2>();   // 隅の塊の [lo, hi](t)
+        float T0 = 0f;
+        for (int e = e0; e <= e1; e++)
+        {
+            int k = e - e0; Vector2 a = poly[e % n], b = poly[(e + 1) % n]; float L = (b - a).magnitude; Vector2 u = (b - a) / L, inw = EdoGeom.InwardNormal(poly, e % n);
+            var ss = new List<float>(); int ns = Mathf.Max(1, Mathf.RoundToInt(L / DS));
+            for (int q = (e == e0 ? 0 : 1); q <= ns; q++) ss.Add(L * q / ns);
+            float aIn0 = e > e0 && armOut != null ? armOut[k] : 0f, aOut1 = e < e1 && armIn != null ? armIn[k + 1] : 0f;   // この辺の始めの隅の腕(辺 e の側)・終わりの隅の腕
+            if (aIn0 > 0.01f && aIn0 < L) ss.Add(aIn0);
+            if (aOut1 > 0.01f && L - aOut1 > 0f) ss.Add(L - aOut1);
+            ss.Sort();
+            float last = float.NaN;
+            foreach (var sv in ss)
+            {
+                if (!float.IsNaN(last) && sv - last < 0.02f) continue; last = sv;
+                //   ⭐ 地盤は芯と足の内の縁で引く(芯 d + coreIn・内面 d + 2·coreIn の低い方 ── 第120巡: 芯の線だけで座を取ると、内へ下がる所で足の内の縁が 0.17〜0.24 浮いた〔辺19 s 3.1〜3.3〕)。
+                //   ⛔ 外面では引かない ── 足の外の半分は台の石垣の天端(= 座)に載り、外面の下の造成の面は法肩の法で 0.7 低い(辺23 s18: 外面 10.74・芯 11.47)⇒ 座が 0.6 下がった(第120巡の試し)
+                float gy = float.NaN;
+                for (int w = 1; w <= 2; w++) { var p = a + u * sv + inw * (d[k] + coreIn * w); float g = ground(p.x, p.y); if (!float.IsNaN(g)) gy = float.IsNaN(gy) ? g : Mathf.Min(gy, g); }
+                ts.Add(T0 + sv); ys.Add(gy); eAt.Add(e); sAt.Add(sv);
+            }
+            if (e > e0) { float lo = T0 - (armIn != null ? armIn[k] : 0f), hi = T0 + aIn0; blk.Add(new Vector2(lo, hi)); }
+            T0 += L; if (e < e1) vT.Add(T0);
+        }
+        // 引けない点(NaN)は隣の値で埋める(造成の面の外 ── 区画の内では起きない見込み)
+        int nNan = 0; for (int i = 0; i < ys.Count; i++) if (float.IsNaN(ys[i])) { nNan++; ys[i] = i > 0 ? ys[i - 1] : 0f; }
+        int N = ts.Count; float P = EdoAssets.Own.NeribeiP;
+        // 段を切れる点: 隅の塊の端(費用 vertexStepCost = 隅に寄せる)・塊の外で塊の端から minLen 以上離れた点。塊の中・塊の端から minLen 未満は切らない【硬】
+        Func<float, bool> atV = t => { foreach (var bl in blk) if (Mathf.Abs(t - bl.x) < 0.01f || Mathf.Abs(t - bl.y) < 0.01f) return true; return false; };
+        Func<float, bool> nearV = t =>
+        {
+            foreach (var bl in blk)
+            {
+                if (Mathf.Abs(t - bl.x) < 0.01f || Mathf.Abs(t - bl.y) < 0.01f) return false;
+                if (t > bl.x - minLen && t < bl.y + minLen) return true;
+            }
+            return false;
+        };
+        var best = new double[N]; var prev = new int[N]; for (int i = 0; i < N; i++) { best[i] = double.MaxValue; prev[i] = -1; } best[0] = 0;
+        int forced = 0;
+        for (int j = 1; j < N; j++)
+        {
+            if (j != N - 1 && nearV(ts[j])) continue;
+            float mn = ys[j], mx = ys[j];
+            for (int i = j - 1; i >= 0; i--)
+            {
+                mn = Mathf.Min(mn, ys[i]); mx = Mathf.Max(mx, ys[i]);
+                if (mx - mn > tol) break;
+                if (best[i] == double.MaxValue) continue;
+                float L = ts[j] - ts[i]; bool end = i == 0 || j == N - 1;
+                if (L < (end ? minEndLen : minLen) - 1e-4f && !(i == 0 && j == N - 1)) continue;
+                double bur = 0; for (int k = i; k <= j; k++) bur += ys[k] - mn; bur *= DS;
+                double c = best[i] + (i == 0 ? 0.0 : (atV(ts[i]) ? vertexStepCost : 1.0)) + lambda * bur / P;
+                if (c < best[j]) { best[j] = c; prev[j] = i; }
+            }
+            if (best[j] == double.MaxValue)
+            {   // tol で割り切れない(急な落ち・頂点の腕の中・端の最短)── 最短の長さを満たす最も近い届く点から繋ぐ ⚠(大きな費用 ⇒ 要る時だけ選ばれる)
+                for (int i = j - 1; i >= 0; i--)
+                {
+                    if (best[i] == double.MaxValue) continue;
+                    float L = ts[j] - ts[i]; bool end = i == 0 || j == N - 1;
+                    if (L < (end ? minEndLen : minLen) - 1e-4f && i > 0) continue;
+                    best[j] = best[i] + 1000.0; prev[j] = i; break;
+                }
+            }
+        }
+        var secs = new List<HeiSec>(); var list = new List<KeyValuePair<int, int>>();
+        for (int j = N - 1; j > 0 && prev[j] >= 0; j = prev[j]) list.Add(new KeyValuePair<int, int>(prev[j], j));
+        list.Reverse();
+        var sb = new System.Text.StringBuilder(); int sec = 0;
+        foreach (var kv in list)
+        {
+            int i = kv.Key, j = kv.Value; float mn = float.MaxValue, mx = float.MinValue; for (int k = i; k <= j; k++) { mn = Mathf.Min(mn, ys[k]); mx = Mathf.Max(mx, ys[k]); }
+            float seat = Mathf.Round(mn * 1000f) / 1000f; if (mx - mn > tol + 1e-3f) forced++;
+            // 辺ごとに割る(頂点を跨ぐ区間は二つの行・同じ sec)
+            int ka = i;
+            while (ka < j)
+            {
+                int e = eAt[ka + 1]; int kb = ka + 1; while (kb < j && eAt[kb + 1] == e) kb++;
+                float s0 = eAt[ka] == e ? sAt[ka] : 0f, s1 = sAt[kb];
+                secs.Add(new HeiSec { edge = e, sec = sec, s0 = s0, s1 = s1, seat = seat, bury = mx - mn, t0 = ts[i], t1 = ts[j] });
+                ka = kb;
+            }
+            int eS = eAt[Mathf.Min(i + 1, j)]; float sS = eAt[i] == eS ? sAt[i] : 0f;
+            sb.Append("[" + sec + "] t " + ts[i].ToString("F2", inv) + "〜" + ts[j].ToString("F2", inv) + "(辺" + eS + " s " + sS.ToString("F2", inv) + "〜辺" + eAt[j] + " s " + sAt[j].ToString("F2", inv)
+                      + ")座 " + seat.ToString("F3", inv) + "・埋まり ≤" + (mx - mn).ToString("F2", inv) + (mx - mn > tol + 1e-3f ? " ⚠" : "") + "; ");
+            sec++;
+        }
+        note = "天端の線 " + sec + " 区間(段 " + Mathf.Max(0, sec - 1) + ")・起伏の上限 " + tol.ToString("F2", inv) + "・頂点 " + vT.Count + (forced > 0 ? "・⚠ 上限で割り切れず最短で繋いだ所 " + forced : "") + (nNan > 0 ? "・⚠ 地盤が引けない点 " + nNan : "") + "\n    " + sb.ToString();
+        return secs;
+    }
+
+    /// <summary>**隅の駒の腕が頂点 <paramref name="V"/> から辺に沿って届く長さ**(実メッシュ・第120巡)── 頂点の各点を入りの辺の走り <paramref name="uIn"/>(頂点へ向かう向き)と
+    /// 出の辺の走り <paramref name="uOut"/>(頂点から出る向き)へ射影し、二等分の線のどちら側か(頂点から戻る長さ と 出る長さ の大きい方)で腕を分け、各腕の最大を返す。
+    /// 天端の線(<see cref="HeiTenbaSteps"/>)の隅の塊を、練塀の隅だけでなく**台の石垣の隅の駒**の腕まで広げるのに使う(⛔ 台の石垣の隅の腕の上で段を切ると、高い側の練塀の底が
+    /// 低い側の座で据えた隅の石の上で浮く ── 岡部 P24 で 0.59)。⛔ 部材の基準点を使わない(頂点だけ)。当たる先: 天端の線を当てる辺の頂点の隅の駒すべて。</summary>
+    public static bool KadoReach(GameObject piece, Vector2 V, Vector2 uIn, Vector2 uOut, out float reachIn, out float reachOut)
+    {
+        reachIn = 0f; reachOut = 0f; int nv = 0;
+        foreach (var w in Body(piece.transform, 999999))
+        {
+            Vector2 q = new Vector2(w.x, w.z) - V; float tIn = -Vector2.Dot(q, uIn), tOut = Vector2.Dot(q, uOut);
+            if (tIn >= tOut) reachIn = Mathf.Max(reachIn, tIn); else reachOut = Mathf.Max(reachOut, tOut);
+            nv++;
+        }
+        return nv > 0;
     }
 
     static readonly Dictionary<string, float> _neribeiW = new Dictionary<string, float>();

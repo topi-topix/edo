@@ -470,8 +470,13 @@ public static partial class EdoBuild
     /// 座で据えた塀の足の下に残る浮きを地面で埋める(岡部 指図 heiFootSpec.order「帯と床を先に焼く → 練塀を run の座で据える(座より下げない)→ 足を測る」・第119巡)。
     /// 足 = 駒の壁体(屋根の材を除く)の下向きの面のうち、駒の最下点から <paramref name="footBand"/> 以内の物 ── 節点の真下から上へ光線を打ち(節点と前後左右 <paramref name="margin"/>)、
     /// 足に当たれば その高さ + bury を下限に。⛔ 下げない・⛔ <paramref name="keep"/>(溝・桝の外接)の中は触らない(溝の中に土を入れない)・<paramref name="allow"/> が偽の節点は触らない(区画の外)。
-    /// 硬い(浮き0)。当たる先: 細かい地形の上に座で据えた塀(岡部 練塀・隅 ── 一枚物の腰 0.69 の内外の縁)。地面の高さの出どころは造成の面のまま ── 足の下と縁の一升だけ。</summary>
-    public static string FillUnderFoot(IEnumerable<GameObject> pieces, float footBand, float bury, float margin, IList<Bounds> keep, Func<Vector2, bool> allow, string undoPath = null, float edgeCap = 0.10f)
+    /// 硬い(浮き0)。当たる先: 細かい地形の上に座で据えた塀(岡部 練塀・隅 ── 一枚物の腰 0.69 の内外の縁)。地面の高さの出どころは造成の面のまま ── 足の下と縁の一升だけ。
+    /// <para>⭐ <paramref name="allowUnderFoot"/>(節点, 足の底)── 足の凸包の中の節点だけ <paramref name="allow"/> に代えて引く(第120巡 2026-10-12: 台の石垣の継ぎ目の切り欠き
+    /// 〔段の点で二つの駒の天端の端が落ちる V〕の底の石の面を「石垣の駒の下」と読んで上げず、岡部 Kado_P24 の足の下に 1.04 の穴が残った ── 足の底を支えていない石の上は、
+    /// 足に覆われる限り土で埋めてよい)。縁の節点(凸包の外・<paramref name="margin"/> 以内)は従来どおり <paramref name="allow"/>。</para>
+    /// <para>⚠ 縁の節点の上げの上限 <paramref name="edgeCap"/> が小さいと、0.25m の格子で足の縁が二つの節点の間に落ちる所で、双一次の地表が縁で足の底を割る
+    /// (第120巡: 岡部 辺19 の内の縁で 0.04 浮いた・上限 0.10 では届かなかった ⇒ 岡部は 0.30)。</para></summary>
+    public static string FillUnderFoot(IEnumerable<GameObject> pieces, float footBand, float bury, float margin, IList<Bounds> keep, Func<Vector2, bool> allow, string undoPath = null, float edgeCap = 0.10f, Func<Vector2, float, bool> allowUnderFoot = null)
     {
         // ⚠ 一枚物の練塀は底の面を持たない(閉じた断面は小口と側だけ ── 下からの光線は当たらない・第119巡の初回で 0 節点)⇒ 足 = 壁体の頂点のうち最下点から footBand 以内の物の
         //   水平の凸包(直線の駒は腰の矩形・隅の L 字は内の入りの三角を含む ── 小さく埋まるだけ)
@@ -496,7 +501,8 @@ public static partial class EdoBuild
                     var q = new Vector2(org.x + i * hs, org.z + j * hs);
                     bool inHull = EdoGeom.PIP(hull, q);
                     if (!inHull && EdgeDistPublic(hull, q) > margin + 1e-4f) continue;
-                    if (allow != null && !allow(q)) { nOut++; continue; }
+                    bool okq = inHull && allowUnderFoot != null ? allowUnderFoot(q, yb) : (allow == null || allow(q));
+                    if (!okq) { nOut++; continue; }
                     bool kp = false; if (keep != null) foreach (var kb in keep) if (q.x >= kb.min.x && q.x <= kb.max.x && q.y >= kb.min.z && q.y <= kb.max.z) { kp = true; break; }
                     if (kp) { nKeep++; continue; }
                     long k2 = ((long)i << 32) ^ (uint)j; float y = yb + bury, cur;

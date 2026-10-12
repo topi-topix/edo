@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 94・関数 940(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 94・関数 951(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -25,7 +25,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoDoiBuilder.cs](#edodoibuildercs) | 土井大隅守上屋敷(三河刈谷藩2万3千石・譜代・雁間)ビルダー。 | 15 | 89 |
 | [EdoMatsudairaDewaBuilder.Niwa.cs](#edomatsudairadewabuilderniwacs) | 松平出羽守上屋敷 — 庭の工程(池・築山・水の系・石組・点景・滝見口)。 | 9 | 30 |
 | [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 16 | 120 |
-| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 21 | 257 |
+| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 21 | 268 |
 | [EdoSannoShaBuilder.cs](#edosannoshabuildercs) | 山王権現社(日枝神社)本体+樹下家邸+山王門前町ビルダー (2026-08-11。観理院は 2026-09-26 に類型へ移し削除) | 1 | 31 |
 | [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 13 | 102 |
 | [EdoSanyashikiRebuild.cs](#edosanyashikirebuildcs) | 三屋敷(太田・加納・鍋島=松平肥前守)の区画を下書きv3へ更新 (2026-08-08) | 0 | 6 |
@@ -596,6 +596,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `Stage2_Perimeter()` | `string` | 公 | — |
 | `Stage2_Perimeter_()` | `string` |  | — |
 | `HeiRun(kak, a, b, outw, name, seat, endA, endB, wait)` | `void` |  | 岡部の練塀の駒(施主裁定 2026-10-12「案1」・EDO-0502 第118巡)── 一枚物の閉じた断面 EdoBuild.NeribeiPanelRun (旧 EdoBuild.DobeiRun の表裏 2 枚は… |
+| `HeiRun(kak, a, b, outw, name, seat, endA, endB, faceIn, wait)` | `void` |  | faceIn: 天端の線・芯線の run(const.heiLine)── 外面を線から faceIn 内へ据える時に実メッシュの壁面で合わせる(⛔ 後で AlignInubashiri で寄せない)。 |
 | `JoinEndToGable(kak, r, atStart, sEnd, wait)` | `bool` |  | 辺の端の練塀が隣の辺の長屋の妻へ斜めに当たる端(旧い KiriEnd が長屋の妻で切った端)を、直角の端のまま妻の面へ厚みの全幅で突き込む (JoinEndToNagaya と同じ光線 3×7 ── 最も奥の当たり +… |
 | `MiterOf(kutaiPath, r, sSign, warn)` | `string` |  | 区画の角で留めた表長屋の版(EDO-0502 2026-10-03)を引く。 |
 | `JoinEndToNagaya(kak, r, atStart, sEnd, wait)` | `bool` |  | 練塀の端を隣の辺の線で斜めに切った駒の据え場所(EDO-0502 2026-10-03・部材の約束は EdoAssets.Own.DobeiKiri)。 |
@@ -615,8 +616,17 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `SeatMonOnSkin()` | `string` |  | 通用口(Mon の駒)を皮の後の描かれた地表へ据え直す(置き方は EdoBuild.SeatGamaeOn)。 |
 | `SeatKakiOnBed()` | `string` |  | 天端の垣 DanKaki を皮の後の据わる床(描かれた地表と土留め Ishigaki・Dan の上向きの面の高い方)で据え直す (置き方は EdoBuild.ReseatCrestFence)。 |
 | `SeatHeiOnBed(kak)` | `string` |  | 練塀(表裏の f/b を一組)・隅 Kado_*・端を切った Kiri_* を、床 = 描かれた地表と基壇 IG_* の天端の高い方 (EdoBuild.Bed)へ組ごと据える(EdoBuild.SinkGroupToB… |
+| `SeatHeiOnBed(kak, withMizo)` | `string` |  | withMizo: 床に溝・桝の駒の上面も数える(第119巡 ── 地面を焼き切った後に据える 3d では、腰の内の縁が溝の縁石の上に掛かる)。 |
+| `HeiLinePieceKey(r, c)` | `string` |  | 天端の線(const.heiLine)の区間ごとに床へ組ごと据える鍵 ── 同じ区間の駒は一つの組で動く(⛔ 駒ごとに床へ据えると区間の中に天端の段が出る【硬 ≤0.01】)。 |
+| `HeiLineKadoKey(nm)` | `string` |  | 隅の駒 Kado_P{v} の天端の線の鍵 ── 頂点が区間の中(頂点で段を切らない)ならその区間、頂点が段の点なら低い側の区間(隅の底は腕に続く直線の低い方 ── SeatKadoToRuns と同じ決め・座で止める)… |
 | `KidanC(e, s)` | `float` |  | 辺 e・走り s の run の法肩の控え c(基壇の無い run は辺の最大・基壇の無い辺は 0 ── 法肩が無く外面は線から犬走り)。 |
 | `FaceIn(e, s)` | `float` |  | 囲い(練塀・長屋・門)の外面の、区画の線から内への離れ = 法肩の控え c + 犬走り(const.kidan.faces「+c+inubashiri」)。 |
+| `ClearHeiLine()` | `void` |  | — |
+| `HeiLineFace()` | `string` |  | 外周の練塀の芯線を一続きに決める(指図 const.heiLine・施主裁定 2026-10-12 案A・第120巡)── 欄を EdoBuild へ渡すだけ(規則21): 範囲 = heiLine.trial の「辺… |
+| `HeiLineTenba(kadoLo, kadoHi)` | `string` |  | 天端の線を一続きの範囲で一本に決める(const.heiLine.tenba / stepAt)── EdoBuild.HeiTenbaSteps へ芯線の控え d・造成の面(Graded)・ 据えた隅の腕の実端面(ka… |
+| `OnHeiLine(r)` | `bool` |  | run が天端の線・芯線の上か(新しい決め方の経路 ── 後合わせの規則 AlignInubashiri・KeepInsidePoly・SeatKadoToRuns・2m 割りを通らない)。 |
+| `SeatHeiLineKado(kak)` | `string` |  | 芯線の頂点の隅を天端の線の座へ据える(const.heiLine・第120巡)── 天端の線を解いた直後に一度だけ: 隅の壁体の底(実メッシュ BodyExRoof)を、隅の入る区間 (HeiLineKadoKey =… |
+| `OnHeiLineVertex(v)` | `bool` |  | 頂点 v の両脇の辺が芯線(const.heiLine)の上か(隅の駒を据える時に一続きの控え d で面を合わせる ── FitKado・SeatKadoToRuns を通らない)。 |
 | `RunInu(e, s)` | `float` |  | 辺 e・走り s の run の犬走り ── 既定は const.inubashiri。 |
 | `PlaceIshigaki()` | `string` |  | 外周の基壇(城の石垣・const.kidan 甲の型 ── 普請方の設計 2026-10-11 を普請奉行が採った)。 |
 | `PlaceKomon()` | `string` |  | — |
@@ -626,6 +636,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `MeasureHeight(path, parent)` | `float` |  | — |
 | `FitKado(kak, lo, hi)` | `string` |  | 据えた隅の両腕の外面を犬走りへ寄せ、腕の実端面を測る。 |
 | `SeatKadoToRuns(kak)` | `string` |  | 練塀の隅の駒の高さを、両腕に突き付けた直線の駒の底の低い方へ(第119巡)。 |
+| `SeatKadoToRuns(kak, lowerOnly)` | `string` |  | lowerOnly: 下げるだけ(床へ据えた後 ── 上げると浮く・3d の地面の後・第119巡)。 |
 | `PlaceKado(parent)` | `string` |  | 隅部材を据える。折れ角は区画が決めるもので毎回違うので決め打ちしない。 |
 | `AlignInubashiri()` | `string` | 公 | 石垣の法肩から犬走りを残して囲いを据え直す。 |
 | `YawU()` | `float` | 公 | ローカル +X を +u へ向ける yaw。 |

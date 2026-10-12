@@ -252,7 +252,9 @@ public static partial class EdoBuild
             moved = km * d;
             if (Mathf.Abs(r1 - r2) > 0.05f) note = "折れ角が浅い(det=" + det.ToString("F3") + ")・両腕の面が " + Mathf.Abs(r1 - r2).ToString("F2") + "m 食い違う";
         }
-        if (moved.sqrMagnitude > 0.02f * 0.02f) kc.position += new Vector3(moved.x, 0f, moved.y);
+        //   ⭐ 寄せの不感帯は 1mm(第120巡 2026-10-12: 0.02 の不感帯で岡部 P20〔折れ 1.48°〕の隅が 0.014/0.020 内へ残り、直線の駒〔外面 1.050〕と横に 2cm ずれた ──
+        //   一続きの中の外面の横ずれ ≤0.01【硬】を不感帯が破っていた)。当たる先: KadoFace で据える隅すべて(岡部 練塀の隅 25 基・松江松平の土塀の隅)── 2cm 未満の寄せが効くようになるだけ。
+        if (moved.sqrMagnitude > 0.001f * 0.001f) kc.position += new Vector3(moved.x, 0f, moved.y);
         return true;
     }
 

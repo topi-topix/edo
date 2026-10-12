@@ -577,6 +577,52 @@ public static partial class EdoBuild
         return "足の下の地面を足の底 +" + bury.ToString("0.00") + " へ上げた(上げるだけ・足の凸包 + 縁 " + margin.ToString("0.00") + "): 駒 " + nPc + "・足の下の節点 " + want.Count + "・上げた " + n + "・最大 " + mx.ToString("F2") + "m・溝の外接で除いた " + nKeep + "・区画の外で除いた " + nOut;
     }
 
+    /// <summary>**台の石垣の天端の上に載った土を天端の下へ下げる**(下げるだけ・第122巡 2026-10-13 岡部 const.heiLine.kidanCrest【硬】「台の天端に土の楔を見せない」)。
+    /// 0.25m の格子では、塀の足の下の地面(内の帯・座より高い)の節点が台の天端の上の一升に掛かり、双一次の地表が天端の上へ斜めに出る(塀の外の縁の前 0.07 の帯で 0.3〜0.8)。
+    /// 段の所は上の踏み面の土が下の天端の上へこぼれる(0.8)。節点の真上に石の駒の**平らな天端**(前後左右 <paramref name="probe"/> の天端の差がどれも
+    /// <paramref name="flatTol"/> 以内 ── 法の見え面は除く)があり、地面がその天端 − <paramref name="below"/> より高ければ下げる。<paramref name="allow"/> が偽の節点は触らない。
+    /// 硬い(土の楔 0)。⛔ 上げない。当たる先: 天端の線の台の石垣(岡部の外周)── 石垣の天端が地表に接する所すべてに効く。</summary>
+    public static string LowerSoilOnCrest(IList<GameObject> stones, Func<Vector2, bool> allow, float below = 0.02f, float probe = 0.08f, float flatTol = 0.04f, string undoPath = null)
+    {
+        var t = T(); var td = t.terrainData; var org = t.transform.position; int R = td.heightmapResolution; float hs = td.size.x / (R - 1);
+        var pt = new PartTops(stones); var want = new Dictionary<long, float>();
+        foreach (var g in stones)
+        {
+            if (g == null || !g.activeInHierarchy) continue; var b = RB(g);
+            int i0 = Mathf.Max(0, Mathf.CeilToInt((b.min.x - org.x) / hs)), i1 = Mathf.Min(R - 1, Mathf.FloorToInt((b.max.x - org.x) / hs));
+            int j0 = Mathf.Max(0, Mathf.CeilToInt((b.min.z - org.z) / hs)), j1 = Mathf.Min(R - 1, Mathf.FloorToInt((b.max.z - org.z) / hs));
+            for (int j = j0; j <= j1; j++)
+                for (int i = i0; i <= i1; i++)
+                {
+                    long k = ((long)i << 32) ^ (uint)j; if (want.ContainsKey(k)) continue;
+                    var q = new Vector2(org.x + i * hs, org.z + j * hs); if (allow != null && !allow(q)) continue;
+                    string who; float st = pt.Top(q.x, q.y, out who); if (float.IsNaN(st)) continue;
+                    bool flat = true;
+                    foreach (var d in new[] { new Vector2(probe, 0f), new Vector2(-probe, 0f), new Vector2(0f, probe), new Vector2(0f, -probe) })
+                    { string w2; float s2 = pt.Top(q.x + d.x, q.y + d.y, out w2); if (float.IsNaN(s2) || Mathf.Abs(s2 - st) > flatTol) { flat = false; break; } }
+                    if (!flat) continue;
+                    want[k] = st - below;
+                }
+        }
+        int n = 0; float mx = 0f; var undo = new List<float[]>();
+        if (want.Count > 0)
+        {
+            int i0 = int.MaxValue, i1 = int.MinValue, j0 = int.MaxValue, j1 = int.MinValue;
+            foreach (var k in want.Keys) { int i = (int)(k >> 32), j = (int)(uint)(k & 0xffffffff); i0 = Mathf.Min(i0, i); i1 = Mathf.Max(i1, i); j0 = Mathf.Min(j0, j); j1 = Mathf.Max(j1, j); }
+            var H = td.GetHeights(i0, j0, i1 - i0 + 1, j1 - j0 + 1);
+            foreach (var kv in want)
+            {
+                int i = (int)(kv.Key >> 32), j = (int)(uint)(kv.Key & 0xffffffff);
+                float cur = H[j - j0, i - i0] * td.size.y + org.y;
+                if (kv.Value >= cur - 1e-4f) continue;
+                mx = Mathf.Max(mx, cur - kv.Value); undo.Add(new[] { i, j, (kv.Value - org.y) / td.size.y, H[j - j0, i - i0] }); H[j - j0, i - i0] = (kv.Value - org.y) / td.size.y; n++;
+            }
+            if (n > 0) { td.SetHeights(i0, j0, H); AssetDatabase.SaveAssetIfDirty(td); }
+        }
+        if (undoPath != null) WriteUndo(undoPath, t.name, undo);
+        return "台の天端の上の土を天端 −" + below.ToString("0.00") + " へ下げた(平らな天端の真上の節点 " + want.Count + "・下げた " + n + "・最大 " + mx.ToString("F2") + "m)";
+    }
+
     /// <summary>**桝の口に地形の穴を開ける**(施主裁定 2026-10-11「穴は桝の口など、ごく一部だけ」)── 0.25m の格子では 0.5m 角の桝の中を
     /// 節点の下げだけで空けられない(縁の節点が口の上へ土を張る)。桝(Doi_Masu_*)の駒の外形を縁から <paramref name="inset"/> 縮めた中に
     /// 芯の入る升だけを穴にする(外形の外は開けない ── 桝の外に地の底を見せない)。控えを <paramref name="undoPath"/> へ書く(<see cref="RestoreHoles"/>)。

@@ -5845,6 +5845,15 @@ public static class EdoOkabeYashikiBuilder
                 //   あれば、縁の上げを止めない(土は台の天端で受ける ⇒ 土の柱にならない)
                 (q, y) => { for (int k8 = 0; k8 < 8; k8++) { float an = k8 * Mathf.PI / 4f; float px = q.x + 0.35f * Mathf.Cos(an), pz = q.y + 0.35f * Mathf.Sin(an); float bt = stoneBed.At(px, pz), g8 = EdoBuild.Ground(px, pz); if (!float.IsNaN(bt) && !float.IsNaN(g8) && bt > g8 + 0.02f && bt >= y - 0.10f) return true; } return false; }));
         }
+        {   // ⭐ 台の天端の上に土を載せない(const.heiLine.kidanCrest【硬】「台の天端に土の楔を見せない」・第122巡)── 足の下を上げた後に、外周の基壇の平らな天端の真上の節点を天端 −0.02 へ
+            //   (0.25 格子で塀の外の縁の前と段の所に 0.3〜0.8 の土の帯が天端に載っていた)。区画の外・線際は触らない
+            var igs3 = new List<GameObject>(); foreach (Transform c in Group("Ishigaki")) if (c.gameObject.activeInHierarchy) igs3.Add(c.gameObject);
+            var PP3 = Poly; float clip3 = ClipIn();
+            //   見える天端(犬走り)と塀の外の縁の一升だけ ── 線から 外面の控え(FaceIn)− 腰の出 0.14 + 一升(⛔ 塀の裏・内の帯は削らない ── 天端の裏の端が塀の内面より奥の所で溝を掘る)
+            float cell3 = EdoBuild.TerrainCell(EdoBuild.T());
+            System.Func<Vector2, float> faceAt = q => { int be = -1; float bd = float.MaxValue, bs = 0f; for (int e2 = 0; e2 < PP3.Length; e2++) { Vector2 a2 = PP3[e2], b2 = PP3[(e2 + 1) % PP3.Length]; float L2 = (b2 - a2).magnitude; if (L2 < 1e-4f) continue; float s2 = Mathf.Clamp(Vector2.Dot(q - a2, (b2 - a2) / L2), 0f, L2); float d2 = (a2 + (b2 - a2) / L2 * s2 - q).magnitude; if (d2 < bd) { bd = d2; be = e2; bs = s2; } } return be < 0 ? 0f : FaceIn(be, bs); };
+            sb.AppendLine("  " + EdoBuild.LowerSoilOnCrest(igs3, q => EdoGeom.PIP(PP3, q) && EdoBuild.EdgeDistPublic(PP3, q) >= clip3 && EdoBuild.EdgeDistPublic(PP3, q) <= faceAt(q) - 0.14f + cell3));
+        }
         sb.AppendLine("  " + EdoBuild.HoleUnderMasu(pcs, 0.05f, HoleUndoPath));
         sb.Append(SeRojiHeiFoot(false));   // 据えて下げた後に足を測る(heiFootSpec.order【硬】)
         // ⛔ ここで線の外を造成前へ戻さない(第114巡: 基壇の見え面は区画の外 ── 駒の下を下げた 593 節点を base_dem へ戻し、見え面を埋め戻した)。戻すのは 2b の床の延長と帯の後だけ(clipOrder)

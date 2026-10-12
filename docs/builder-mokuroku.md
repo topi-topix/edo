@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 94・関数 951(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 94・関数 957(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -25,7 +25,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoDoiBuilder.cs](#edodoibuildercs) | 土井大隅守上屋敷(三河刈谷藩2万3千石・譜代・雁間)ビルダー。 | 15 | 89 |
 | [EdoMatsudairaDewaBuilder.Niwa.cs](#edomatsudairadewabuilderniwacs) | 松平出羽守上屋敷 — 庭の工程(池・築山・水の系・石組・点景・滝見口)。 | 9 | 30 |
 | [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 16 | 120 |
-| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 21 | 268 |
+| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 21 | 274 |
 | [EdoSannoShaBuilder.cs](#edosannoshabuildercs) | 山王権現社(日枝神社)本体+樹下家邸+山王門前町ビルダー (2026-08-11。観理院は 2026-09-26 に類型へ移し削除) | 1 | 31 |
 | [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 13 | 102 |
 | [EdoSanyashikiRebuild.cs](#edosanyashikirebuildcs) | 三屋敷(太田・加納・鍋島=松平肥前守)の区画を下書きv3へ更新 (2026-08-08) | 0 | 6 |
@@ -622,10 +622,16 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `KidanC(e, s)` | `float` |  | 辺 e・走り s の run の法肩の控え c(基壇の無い run は辺の最大・基壇の無い辺は 0 ── 法肩が無く外面は線から犬走り)。 |
 | `FaceIn(e, s)` | `float` |  | 囲い(練塀・長屋・門)の外面の、区画の線から内への離れ = 法肩の控え c + 犬走り(const.kidan.faces「+c+inubashiri」)。 |
 | `ClearHeiLine()` | `void` |  | — |
-| `HeiLineFace()` | `string` |  | 外周の練塀の芯線を一続きに決める(指図 const.heiLine・施主裁定 2026-10-12 案A・第120巡)── 欄を EdoBuild へ渡すだけ(規則21): 範囲 = heiLine.trial の「辺… |
-| `HeiLineTenba(kadoLo, kadoHi)` | `string` |  | 天端の線を一続きの範囲で一本に決める(const.heiLine.tenba / stepAt)── EdoBuild.HeiTenbaSteps へ芯線の控え d・造成の面(Graded)・ 据えた隅の腕の実端面(ka… |
-| `OnHeiLine(r)` | `bool` |  | run が天端の線・芯線の上か(新しい決め方の経路 ── 後合わせの規則 AlignInubashiri・KeepInsidePoly・SeatKadoToRuns・2m 割りを通らない)。 |
-| `SeatHeiLineKado(kak)` | `string` |  | 芯線の頂点の隅を天端の線の座へ据える(const.heiLine・第120巡)── 天端の線を解いた直後に一度だけ: 隅の壁体の底(実メッシュ BodyExRoof)を、隅の入る区間 (HeiLineKadoKey =… |
+| `HeiLineRangesFromSashizu()` | `List<Vector2Int>` |  | const.heiLine.trial の辺の範囲を読む(「辺1〜11・19〜24・28〜38」)。 |
+| `HeiLineEdgeSet()` | `HashSet<int>` |  | 天端の線を当てる辺(指図から毎回読む ── domain reload で Runs の線が消えた後の 3d でも、天端の線の駒を床へ動かさない・後合わせの規則を通さない)。 |
+| `HeiLineFace()` | `string` |  | 外周の練塀の芯線を一続きに決める(指図 const.heiLine・施主裁定 2026-10-12 案A/案1)── 欄を EdoBuild へ渡すだけ(規則21): 範囲 = heiLine.trial の「辺 a〜b… |
+| `ReadTenba(knots, steps, maxGrade, notes)` | `bool` |  | 天端の線の決めた座と段を指図から読む(const.heiLine.tenba の SW・SE・N の文 ── 普請方の設計を普請奉行が採った値・施主裁定 2026-10-12 案1)。 |
+| `HeiLineTenba()` | `string` |  | 天端の線を指図の値で一本に決める(const.heiLine.tenba・施主裁定 2026-10-12 案1)── 範囲ごとに EdoBuild.HeiTenbaProfile へ芯線の控え d・決めた座・段を渡し、… |
+| `HeiLineBand()` | `string` |  | 塀の内の帯を坂なりの線に揃える(const.heiLine.tenba.band「塀の内の帯を均して地盤を坂なりの線に揃える・区画の外は触らない【硬】」・設計の全文 method 「帯=塀の内面から b を座−δ、先は盛… |
+| `HeiLineBaseFromTenba()` | `string` |  | 天端の線の run の台の石垣の区間と倍率を、天端の線の座から解く(runs[].sFrom「天端 − 法尻の地形(棟梁が実地形から導く)」・const.baseMin / baseUnit・第121巡)。 |
+| `ProfileOfEdge(e)` | `EdoBuild.HeiProfile` |  | 辺 e を含む天端の線(無ければ null)。 |
+| `OnHeiLine(r)` | `bool` |  | run が天端の線・芯線の上か(新しい決め方の経路 ── 後合わせの規則 AlignInubashiri・KeepInsidePoly・SeatKadoToRuns・2m 割り・床へ据える を通らない)。 |
+| `SeatHeiLineKado(kak)` | `string` |  | 芯線の頂点の隅を天端の線へ据える(const.heiLine.tenba・第121巡)── 隅の実メッシュの足(腰の底)を両腕の先で測り(腕の先 = 練塀の駒が突き付く所)、 その所の線の座(EdoBuild.HeiPr… |
 | `OnHeiLineVertex(v)` | `bool` |  | 頂点 v の両脇の辺が芯線(const.heiLine)の上か(隅の駒を据える時に一続きの控え d で面を合わせる ── FitKado・SeatKadoToRuns を通らない)。 |
 | `RunInu(e, s)` | `float` |  | 辺 e・走り s の run の犬走り ── 既定は const.inubashiri。 |
 | `PlaceIshigaki()` | `string` |  | 外周の基壇(城の石垣・const.kidan 甲の型 ── 普請方の設計 2026-10-11 を普請奉行が採った)。 |

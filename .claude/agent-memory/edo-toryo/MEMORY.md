@@ -20,6 +20,7 @@
 - [欄の上書きの直後は算出物の指紋で Stage1 が止まる](impl-fingerprint-after-yat-overwrite.md) — 食い違い0なら bake_impl --write。長い流しは印+txt で待つ
 - [作業場が前の窓の邸で dirty・旧い退避は前の案の造成前](koba-left-dirty-by-other-window.md) — UnwrittenIn を最初に見る。他邸の書き戻しは分類器が止める→返す
 - [岡部の外周は S1→S2→S2b→S3d で流す・一枚物の練塀の測り](okabe-perimeter-rerun-order-and-neribei-measure.md) — S2 だけだと基壇が変わり 3d が 2.9m 掘る・2b は60〜90分・継ぎ目は ±0.004 の光線 / [指図を書き換えた直後の S1 は 1m で造成する](graded-bin-stale-after-sashizu-commit.md) — bin を焼き直し _graded を捨てる・隅の座は古い
+- [指図の値の天端の線を外周全体へ(第121巡)](heiline-tenba-spec-r121.md) — 頂点の座は折れ点・d が替わる隅で段が隅の駒へ入る・P37 の KadoFace・S2 が再送される
 - [芯線と天端の線(heiLine)の罠](heiline-stretch-and-tenba-r120.md) — d は c の後・床は区間の組で・線は同じドメインだけ(S2〜3d を続けて)・足は 0.91〜1.60・継ぎ目の切り欠きを埋める
 - [.cs の保存直後の Stage は古い DLL で走る・再起動で皮が null](stage-run-on-stale-dll-after-edit.md) — 25 分の 3b が空振り。Stage の前に compile_wait・3b の後は先に書き戻す
 

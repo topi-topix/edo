@@ -13,8 +13,11 @@ public static partial class EdoBuild
     /// <summary><see cref="KadoFace"/> が 2 元 1 次方程式を厳密に解く下限。両辺の外向き法線の外積の絶対値
     /// (= sin 折れ角)。これ未満は面の法線方向へだけ動かす。</summary>
     const float ExactSolveDet = 0.5f;
-    /// <summary>壁面の篩を渡す版の厳密解の下限(sin 12°)── 第119巡。</summary>
-    const float ExactSolveDetPicked = 0.2f;
+    /// <summary>壁面の篩を渡す版の厳密解の下限(sin 3° ── 芯線の大きな隅 const.heiLine.bigCornerDeg と同じ)── 第119巡は sin 12°。
+    /// 第121巡(2026-10-12): 外周全体へ芯線を広げると、6.8° の P37 で控え d が 0.80 → 0.30 に替わり、両腕の外面の線の交点は頂点から 4.1m 手前 ──
+    /// 法線の向きだけの寄せでは両腕の面が 0.50 食い違った。3° 以上は控えが替わり得る(大きな隅)ので厳密に解き、隅を交点へ滑らせる(腕の先は直線が突き付ける)。
+    /// 当たる先: 一枚物の練塀の隅(岡部)で折れ 3〜12° の物(いまは P37 だけ)。</summary>
+    const float ExactSolveDetPicked = 0.0523f;
 
     /// <summary>**隅の折れ角[°]を区画から測る。**入りの走り(頂点の手前の辺)から出の走り(次の辺)への旋回で、
     /// 左へ曲がれば負・右へ曲がれば正。<paramref name="vertex"/> は折れ点の頂点番号。

@@ -334,19 +334,19 @@
 | `Own.IshigakiKado2(deg1, deg2, mid, h, armNegZ, armPosX)` | 関数 | 二重折れの石垣の隅(`Castle Wall` の留め継ぎを二つ一体に)。 | BuildKado(PlaceRunKado), OkabeYashiki(Stage2b_Dan_) |
 | `Own.IshigakiChoku(h)` | 関数 | 丈違いの城の石垣の直線の駒(`JC.CastleWall` 1 枚・走り 2.00 を丈 h m へ下へ継いだ物)。 | BuildDanIshigaki(CastleWallOfExpose) |
 | `Own.DobeiKiri(deg, faceLonger, cutAtMinusX=…)` | 関数 | 端を隣の辺の線で斜めに切った練塀の駒(`DobeiRun` の組 = `s_hei_center` 表裏2枚を実寸で 1 枚分・走り 2.990)。 | OkabeYashiki(KiriEnd・MiterOf) |
-| `Own.Neribei` | string | `Neribei_Choku.fbx` — 練塀の一枚(在庫 `s_hei_center` の屋根 1 組 + 壁の表を鏡で裏へ写した厚み 0.40 の閉じた断面・実寸 scale 1)。 | BuildRun(DobeiRun・NeribeiPanelRun), OkabeYashiki(FaceIn) |
-| `Own.NeribeiP` | float | Neribei 一枚の走り[m](瓦 14 枚)。 | BuildRun(DobeiRun・HeiTenbaSteps・NeribeiPanelRun) |
-| `Own.NeribeiTile` | float | 練塀の瓦の周期[m] = NeribeiP / 14。 | BuildRun(NeribeiPanelRun) |
-| `Own.NeribeiKiri(tiles)` | 関数 | 練塀の端数の切り(瓦 tiles 枚 = tiles·NeribeiTile・1〜13)。 | BuildRun(DobeiRun・NeribeiPanelRun) |
+| `Own.Neribei` | string | `Neribei_Choku.fbx` — 練塀の一枚(在庫 `s_hei_center` の屋根 1 組 + 壁の表を鏡で裏へ写した厚み 0.40 の閉じた断面・実寸 scale 1)。 | BuildHeiTenba(NeribeiLineRun・NeribeiTomeGauge), BuildRun(DobeiRun・NeribeiPanelRun), OkabeYashiki(FaceIn) |
+| `Own.NeribeiP` | float | Neribei 一枚の走り[m](瓦 14 枚)。 | BuildRun(DobeiRun・HeiTenbaSteps・NeribeiPanelRun), BuildHeiTenba(NeribeiLineRun) |
+| `Own.NeribeiTile` | float | 練塀の瓦の周期[m] = NeribeiP / 14。 | BuildHeiTenba(NeribeiLineRun), BuildRun(NeribeiPanelRun) |
+| `Own.NeribeiKiri(tiles)` | 関数 | 練塀の端数の切り(瓦 tiles 枚 = tiles·NeribeiTile・1〜13)。 | BuildRun(DobeiRun・NeribeiPanelRun), BuildHeiTenba(NeribeiLineRun) |
 | `Own.NeribeiEnd(endAtPlusX)` | 関数 | 練塀の端(棟止め)── 在庫 `s_hei_l` の鬼瓦・袖瓦・端の柱つきの 1 枚を同じ断面で厚くした物。 | BuildRun(DobeiRun・NeribeiPanelRun) |
 | `Own.NeribeiKado(deg, armIn=…, armOut=…)` | 関数 | 練塀の隅(留め)── 一つの断面を折れ角の二等分の面で切って接いだ物。 | OkabeYashiki(PlaceKado) |
 | `Own.NeribeiArmFull` | float | NeribeiKado の素の腕[m](瓦 4 枚)。 | — |
 | `Own.NeribeiSakaGrades` | float[] | 焼いてある坂なりの勾配(正 = 上り・NeribeiSaka は U と D の両方)。 | — |
-| `Own.NeribeiSaka(grade, tiles=…)` | 関数 | 練塀の坂なり(直線 Neribei・切り NeribeiKiri と同じ姿・同じ割り)── 塀は鉛直のまま走りに勾配 grade で上がる縦の剪断 (z += grade·X)。 | — |
+| `Own.NeribeiSaka(grade, tiles=…)` | 関数 | 練塀の坂なり(直線 Neribei・切り NeribeiKiri と同じ姿・同じ割り)── 塀は鉛直のまま走りに勾配 grade で上がる縦の剪断 (z += grade·X)。 | BuildHeiTenba(NeribeiLineRun・NeribeiTomeGauge) |
 | `Own.NeribeiGradeTag(grade)` | 関数 | 勾配の綴り(U/D + 万分率 4 桁)── NeribeiSaka・NeribeiKadoSaka の名。 | — |
 | `Own.NeribeiSakaNearest(grade)` | 関数 | 焼いてある勾配(NeribeiSakaGrades・符号つき)のうち grade に最も近いもの。 | — |
-| `Own.NeribeiTome(endAtPlusX)` | 関数 | 練塀の棟止めだけの駒(在庫 `s_hei_l` の端 ── 端の柱・腰の小口・袖瓦・鬼瓦・棟と桁の出 ── を端の柱の内面で切り、切り口を断面で塞いだ物)。 | — |
-| `Own.NeribeiKadoSaka(deg, gradeIn, gradeOut, armIn=…, armOut=…)` | 関数 | 練塀の坂の隅(留め)── NeribeiKado と同じ作り・同じ据え(ピボット = 折れ点・足元の高さは折れ点で 0)。 | — |
+| `Own.NeribeiTome(endAtPlusX)` | 関数 | 練塀の棟止めだけの駒(在庫 `s_hei_l` の端 ── 端の柱・腰の小口・袖瓦・鬼瓦・棟と桁の出 ── を端の柱の内面で切り、切り口を断面で塞いだ物)。 | BuildHeiTenba(FootEnds・NeribeiLineRun・NeribeiTomeGauge…) |
+| `Own.NeribeiKadoSaka(deg, gradeIn, gradeOut, armIn=…, armOut=…)` | 関数 | 練塀の坂の隅(留め)── NeribeiKado と同じ作り・同じ据え(ピボット = 折れ点・足元の高さは折れ点で 0)。 | OkabeYashiki(PlaceKado) |
 | `Own.NagayaKado(deg, armNegZ, armPosX, tsuma)` | 関数 | 出隅の隅長屋(L 字の長屋の角・EDO-0500 2026-10-01 観理院 北東の施主指摘 ── 妻を突っ込む納めは屋根が重なり窓が途中で切れた)。 | BuildRun(NagayaKadoPlace) |
 | `Own.NagayaKadoMonomi(deg, armNegZ, armPosX)` | 関数 | 隅長屋 NagayaKado(妻なし)の外隅に物見(L 字の出格子・出 0.40)を付けた版(松江松平 P23・EDO-0554)。 | BuildRun(NagayaKadoPlace・NagayaMeasure) |
 | `Own.NagayaTsuma2(len)` | 関数 | 両端とも妻で閉じた一棟の長屋(真っ直ぐ・折らない)。 | BuildRun(OutsideParcel・SwapTsuma2) |

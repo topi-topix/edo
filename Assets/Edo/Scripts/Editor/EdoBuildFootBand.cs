@@ -58,8 +58,11 @@ public static partial class EdoBuild
     /// <summary>**内の足元の帯を書く**(硬: 帯の中は yAt・柔: 帯の外 featherN の勾配で今の地面へ摺り付け)。節点ごとに一番近い線(走りの範囲 [sLo, sHi] で切った距離)を選び、
     /// 内面からの離れ d = (節点 − 線)·inw − dIn が [from, to] なら帯・(to, to + reach] なら摺り付け。allow(q) が false の節点(区画の外・線から半升)は触らない。
     /// fillOnly の線は低い所だけ盛る。⟶ 書いた節点の数。当たる先: 練塀の内の足元の床を座で受ける所(岡部 角 P0 の南・辺4・5 の溝の床・辺6 の頭)。</summary>
-    public static int WriteFootBand(List<FootLine> lines, float from, float to, float featherN, float reach, Func<Vector2, bool> allow)
+    public static int WriteFootBand(List<FootLine> lines, float from, float to, float featherN, float reach, Func<Vector2, bool> allow) { return WriteFootBand(lines, from, to, featherN, reach, allow, float.NaN); }
+    /// <summary><paramref name="featherCutN"/>: 切る側の摺り付けの勾配 1:n(NaN = 盛る側と同じ <paramref name="featherN"/>)── 盛 1:1.5・切 1:1.0 のように分ける帯(岡部 const.heiLine.tenba の内の帯・第121巡)。</summary>
+    public static int WriteFootBand(List<FootLine> lines, float from, float to, float featherN, float reach, Func<Vector2, bool> allow, float featherCutN)
     {
+        if (float.IsNaN(featherCutN)) featherCutN = featherN;
         var use = lines.FindAll(L => L.nPts > 0 && L.dIn > float.MinValue && L.yAt != null);
         if (use.Count == 0) return 0;
         var t = T(); var td = t.terrainData; var org = t.transform.position; int R = td.heightmapResolution; float hs = td.size.x / (R - 1);
@@ -86,7 +89,7 @@ public static partial class EdoBuild
                 float yB = best.yAt(bs); if (float.IsNaN(yB)) continue;
                 float cur = H[j - j0, i - i0] * td.size.y + org.y, y;
                 if (dI <= to + 1e-4f) { y = best.fillOnly ? Mathf.Max(cur, yB) : yB; if (Mathf.Abs(y - cur) > 1e-4f) best.nBand++; }
-                else { float lim = (dI - to) / featherN; y = cur < yB ? Mathf.Max(cur, yB - lim) : (best.fillOnly ? cur : Mathf.Min(cur, yB + lim)); if (Mathf.Abs(y - cur) > 1e-4f) best.nTap++; }
+                else { float lim = (dI - to) / featherN, limC = (dI - to) / featherCutN; y = cur < yB ? Mathf.Max(cur, yB - lim) : (best.fillOnly ? cur : Mathf.Min(cur, yB + limC)); if (Mathf.Abs(y - cur) > 1e-4f) best.nTap++; }
                 if (Mathf.Abs(y - cur) < 1e-4f) continue;
                 if (y > cur) best.up = Mathf.Max(best.up, y - cur); else best.dn = Mathf.Max(best.dn, cur - y);
                 H[j - j0, i - i0] = (y - org.y) / td.size.y; n++;

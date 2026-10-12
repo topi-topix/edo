@@ -1242,8 +1242,9 @@ public static partial class EdoBuild
     }
 
     /// <summary>天端の線の一区間(<see cref="HeiTenbaSteps"/>)── 辺 edge の走り s0〜s1 を座 seat の平らで据える。sec = 線の上の区間の通し番号(頂点を跨ぐ区間は辺ごとに二つの行で同じ番号)。
-    /// bury = 区間の中の地盤 − 座の最大(座は区間の地盤の最小 ⇒ 高い側が埋まる量 ── 据えは埋めて隠す)。</summary>
-    public struct HeiSec { public int edge, sec; public float s0, s1, seat, bury, t0, t1; }
+    /// bury = 区間の中の地盤 − 座の最大(座は区間の地盤の最小 ⇒ 高い側が埋まる量 ── 据えは埋めて隠す)。
+    /// grade = 走り 1m あたりの勾配(天端の線を指図の値から解く <see cref="HeiProfileRows"/> ── 座は s0 の値)・stepAt0 = 始めが段の面。</summary>
+    public struct HeiSec { public int edge, sec; public float s0, s1, seat, bury, t0, t1, grade; public bool stepAt0; }
 
     /// <summary>**塀の天端の線を一続きの範囲で一本に決め、段の点を地形から選ぶ**(施主裁定 2026-10-12 案A・const.heiLine.tenba / stepAt)。
     /// 線 = 辺 e0〜e1 を区画の線から内へ d[e] + 塀の芯(<paramref name="coreIn"/>)で控えた芯線。地盤 <paramref name="ground"/>(造成後の面)を 0.25 ごとに芯と足の内の縁の低い方で引き、

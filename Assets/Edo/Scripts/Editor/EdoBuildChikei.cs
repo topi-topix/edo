@@ -487,7 +487,27 @@ public static partial class EdoBuild
             if (g == null || !g.activeInHierarchy) continue;
             var vs = BodyExRoof(g.transform, 999999); if (vs.Count == 0) continue;
             float yb = float.MaxValue; foreach (var v in vs) yb = Mathf.Min(yb, v.y);
-            var foot = new List<Vector2>(); foreach (var v in vs) if (v.y <= yb + footBand) foot.Add(new Vector2(v.x, v.z));
+            //   ⭐ 足 = その所の最下点から footBand 以内の頂点(⛔ 駒の最下点一つで切らない ── 坂なりの練塀〔const.heiLine.tenba・第121巡〕は底が勾配で傾き、
+            //   最下点から 0.05 の頂点は低い端の一筋だけ ⇒ 足の凸包が低い端に縮み、残りの足の下に 0.3〜1.2 の空洞が残った)。足の高さも節点の近くの足の頂点で引く。
+            //   平らな駒は従来と同じ(その所の最下点 = 駒の最下点)。
+            const float FC = 0.15f; var cellV = new Dictionary<long, List<Vector3>>();
+            Func<float, float, long> ck = (x, z) => ((long)Mathf.FloorToInt(x / FC) << 32) ^ (uint)Mathf.FloorToInt(z / FC);
+            foreach (var v in vs) { long kk = ck(v.x, v.z); List<Vector3> l; if (!cellV.TryGetValue(kk, out l)) cellV[kk] = l = new List<Vector3>(); l.Add(v); }
+            Func<float, float, float, float> localMin = (x, z, r) =>
+            {
+                float m = float.MaxValue; int cx = Mathf.FloorToInt(x / FC), cz = Mathf.FloorToInt(z / FC), rr = Mathf.CeilToInt(r / FC);
+                for (int a = -rr; a <= rr; a++) for (int b = -rr; b <= rr; b++) { List<Vector3> l; if (!cellV.TryGetValue(((long)(cx + a) << 32) ^ (uint)(cz + b), out l)) continue; foreach (var w in l) if ((w.x - x) * (w.x - x) + (w.z - z) * (w.z - z) <= r * r) m = Mathf.Min(m, w.y); }
+                return m;
+            };
+            var foot = new List<Vector2>(); var footY = new Dictionary<long, List<Vector3>>();
+            foreach (var v in vs) if (v.y <= localMin(v.x, v.z, FC) + footBand) { foot.Add(new Vector2(v.x, v.z)); long kk = ck(v.x, v.z); List<Vector3> l; if (!footY.TryGetValue(kk, out l)) footY[kk] = l = new List<Vector3>(); l.Add(v); }
+            Func<Vector2, float> ybAt = q =>
+            {
+                float m = float.MaxValue, bd = float.MaxValue, near = yb; int cx = Mathf.FloorToInt(q.x / FC), cz = Mathf.FloorToInt(q.y / FC);
+                for (int a = -2; a <= 2; a++) for (int b = -2; b <= 2; b++) { List<Vector3> l; if (!footY.TryGetValue(((long)(cx + a) << 32) ^ (uint)(cz + b), out l)) continue;
+                    foreach (var w in l) { float d2 = (w.x - q.x) * (w.x - q.x) + (w.z - q.y) * (w.z - q.y); if (d2 <= 0.25f * 0.25f) m = Mathf.Min(m, w.y); if (d2 < bd) { bd = d2; near = w.y; } } }
+                return m < float.MaxValue ? m : near;
+            };
             if (foot.Count < 3) continue;
             var arr = foot.ToArray(); var hi = EdoGeom.HullXZ(arr); if (hi == null || hi.Length < 3) continue;
             var hull = new Vector2[hi.Length]; for (int k = 0; k < hi.Length; k++) hull[k] = arr[hi[k]];
@@ -501,11 +521,12 @@ public static partial class EdoBuild
                     var q = new Vector2(org.x + i * hs, org.z + j * hs);
                     bool inHull = EdoGeom.PIP(hull, q);
                     if (!inHull && EdgeDistPublic(hull, q) > margin + 1e-4f) continue;
-                    bool okq = inHull && allowUnderFoot != null ? allowUnderFoot(q, yb) : (allow == null || allow(q));
+                    float ybq = ybAt(q);
+                    bool okq = inHull && allowUnderFoot != null ? allowUnderFoot(q, ybq) : (allow == null || allow(q));
                     if (!okq) { nOut++; continue; }
                     bool kp = false; if (keep != null) foreach (var kb in keep) if (q.x >= kb.min.x && q.x <= kb.max.x && q.y >= kb.min.z && q.y <= kb.max.z) { kp = true; break; }
                     if (kp) { nKeep++; continue; }
-                    long k2 = ((long)i << 32) ^ (uint)j; float y = yb + bury, cur;
+                    long k2 = ((long)i << 32) ^ (uint)j; float y = ybq + bury, cur;
                     // 足の外の縁の節点は上げを edgeCap まで(⛔ 縁の外が急に落ちる所で幅一升・高さ 2m の土の柱が立った ── 岡部 P24 の外・第119巡)。足の下(凸包の中)は隠れるので上限なし
                     if (!inHull) { float g0 = td.GetHeight(i, j) + org.y; y = Mathf.Min(y, g0 + edgeCap); }
                     if (!want.TryGetValue(k2, out cur) || y > cur) want[k2] = y;

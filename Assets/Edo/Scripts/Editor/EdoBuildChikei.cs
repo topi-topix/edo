@@ -586,7 +586,7 @@ public static partial class EdoBuild
     public static string PlaneBand(IList<BandEdge> edges, Func<Vector2, bool> allow, float off, string undoPath = null, float ext = 0f)
     {
         var t = T(); var td = t.terrainData; var org = t.transform.position; int R = td.heightmapResolution; float hs = td.size.x / (R - 1);
-        var want = new Dictionary<long, float>(); var cap = new Dictionary<long, float>();
+        var want = new Dictionary<long, float>(); var cap = new Dictionary<long, float>(); var extW = new Dictionary<long, float>();
         //   ⭐ 下げるだけの所(第123巡): 帯の手前の見え面の肩(qCap(s) ≤ q < q0)と辺の端の先(ext)── 面の高さより上の土だけ下げる
         //   (P35: 辺34 の端の先へ延ばした帯が上の踏み面の座で辺35 の下の天端の上へ土を 0.94 盛った・見え面の肩の土は誰も下げていなかった)
         foreach (var be in edges)
@@ -605,13 +605,14 @@ public static partial class EdoBuild
                     if (allow != null && !allow(p)) continue;
                     float y = be.yAt(sc) + off; if (float.IsNaN(y)) continue;
                     long k = ((long)i << 32) ^ (uint)j; float cur;
-                    bool lowerOnly = sv < 0f || sv > be.len || qv < be.q0(sc);
-                    if (lowerOnly && qv < be.q0(sc)) y -= be.capBatter * (be.q0(sc) - qv);   // 見え面の肩: 面の法(縦/横)で下がる線より上の土だけ
-                    if (lowerOnly) { if (!cap.TryGetValue(k, out cur) || y < cur) cap[k] = y; }
+                    //   辺の端の先(ext)は、どの辺の帯の走りの内にも入らない節点(出隅の外の扇)だけを面にする ── 他の辺の帯の内では使わない(P35 の盛りの元)
+                    if (qv < be.q0(sc)) { y -= be.capBatter * (be.q0(sc) - qv); if (!cap.TryGetValue(k, out cur) || y < cur) cap[k] = y; }   // 見え面の肩: 法の線より上の土だけ下げる
+                    else if (sv < 0f || sv > be.len) { if (!extW.TryGetValue(k, out cur) || y > cur) extW[k] = y; }
                     else if (!want.TryGetValue(k, out cur) || y > cur) want[k] = y;
                 }
         }
         int nUp = 0, nDn = 0; float mUp = 0f, mDn = 0f; var undo = new List<float[]>();
+        foreach (var kv in extW) if (!want.ContainsKey(kv.Key)) want[kv.Key] = kv.Value;
         foreach (var kv in cap) if (!want.ContainsKey(kv.Key)) want[kv.Key] = float.PositiveInfinity;   // 下げるだけ(面の高さは cap)
         if (want.Count > 0)
         {

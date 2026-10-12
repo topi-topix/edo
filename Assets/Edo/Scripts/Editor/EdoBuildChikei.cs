@@ -301,7 +301,8 @@ public static partial class EdoBuild
             if (!prof.TryGetValue(path, out pr))
             {
                 pr = new[] { new SortedDictionary<int, float>(), new SortedDictionary<int, float>() }; var V = new List<Vector3>(); var Tr = new List<int>(); LocalMesh(path, V, Tr);
-                float xw = 0.5f * sp.xMax;
+                // 地際の土の板付き(Doi_DanOchi_Ago_*・第117巡)は板の外の縁の天端へ(FlushGroundToMizoTop と同じ ── 板の内の縁 +0.003 で取ると外の縁より 0.033 高い土の帯が立つ)
+                var ap = MizoApronOf(path); float xw = ap.has ? ap.xOut - 0.02f : 0.5f * sp.xMax;
                 foreach (var v in V) { if (Mathf.Abs(v.x) < xw) continue; var d = pr[v.x > 0f ? 1 : 0]; int b = Mathf.FloorToInt(v.z / 0.05f); float o; if (!d.TryGetValue(b, out o) || v.y > o) d[b] = v.y; }
                 prof[path] = pr;
             }
@@ -405,7 +406,7 @@ public static partial class EdoBuild
             }
         }
         Physics.SyncTransforms();
-        var low = new Dictionary<long, float>(); int nFloor = 0;
+        var low = new Dictionary<long, float>(); var lowN = new Dictionary<long, Vector2>(); int nFloor = 0, nFront = 0;
         try
         {
             for (int b = 0; b < tmp.Count; b++)
@@ -420,11 +421,31 @@ public static partial class EdoBuild
                         if (!tmp[b].Raycast(new Ray(new Vector3(org.x + i * hs, bb.max.y + 1f, org.z + j * hs), Vector3.down), out h, bb.size.y + 2f)) continue;
                         float y = h.point.y - below; long k = ((long)i << 32) ^ (uint)j; float cur;
                         if (floorMin != null) { float fm = floorMin(org.x + i * hs, org.z + j * hs); if (!float.IsNaN(fm) && y < fm) { y = fm; nFloor++; } }
-                        if (!low.TryGetValue(k, out cur) || y < cur) low[k] = y;
+                        if (!low.TryGetValue(k, out cur) || y < cur) { low[k] = y; lowN[k] = new Vector2(h.normal.x, h.normal.z); }
                     }
             }
         }
         finally { foreach (var mc in tmp) if (mc != null) UnityEngine.Object.DestroyImmediate(mc); }
+        // ⭐ 埋まった見え面は掘らない(第117巡・岡部 TW_Higashi_Se の南の隅 kado6): 法の見え面の下の節点を「面 − below」へ下げると、見え面の前の地表がその面より高い所
+        //   (見え面の足が土に埋まる所)で、見え面と前の地表の間に深さ 1〜2.3m の割れ目が開いた。下げの下限 = **見え面の前の地表**
+        //   (面の法線の水平の向きへ、どの駒の下でもない最初の節点の今の高さ)── 見え面が前の地表より上に出る所だけ下げる。天端(法線がほぼ鉛直)は従前どおり。
+        if (low.Count > 0)
+        {
+            var fix = new List<KeyValuePair<long, float>>();
+            foreach (var kv in low)
+            {
+                Vector2 nn; if (!lowN.TryGetValue(kv.Key, out nn) || nn.magnitude < 0.25f) continue; nn.Normalize();
+                int i = (int)(kv.Key >> 32), j = (int)(uint)(kv.Key & 0xffffffff); float gF = float.NaN;
+                for (float w = hs; w <= 4f + 1e-3f; w += 0.5f * hs)
+                {
+                    int fi = Mathf.RoundToInt(i + nn.x * w / hs), fj = Mathf.RoundToInt(j + nn.y * w / hs); if (fi < 0 || fj < 0 || fi >= R || fj >= R) break;
+                    if (low.ContainsKey(((long)fi << 32) ^ (uint)fj)) continue;
+                    gF = td.GetHeight(fi, fj) + org.y; break;
+                }
+                if (!float.IsNaN(gF) && kv.Value < gF) { fix.Add(new KeyValuePair<long, float>(kv.Key, gF)); nFront++; }
+            }
+            foreach (var kv in fix) low[kv.Key] = kv.Value;
+        }
         int n = 0; float mx = 0f; var undo = new List<float[]>();
         if (low.Count > 0)
         {
@@ -442,7 +463,7 @@ public static partial class EdoBuild
             if (n > 0) { td.SetHeights(i0, j0, H); AssetDatabase.SaveAssetIfDirty(td); }
         }
         WriteUndo(undoPath, t.name, undo);
-        return "駒の下の地面を駒の面 −" + below.ToString("0.00") + " へ下げた: 駒の面 " + tmp.Count + "・節点 " + n + "・下げの最大 " + mx.ToString("F2") + "m(地形 " + t.name + ")" + (floorMin != null ? "・床の下限で止めた当たり " + nFloor : "");
+        return "駒の下の地面を駒の面 −" + below.ToString("0.00") + " へ下げた: 駒の面 " + tmp.Count + "・節点 " + n + "・下げの最大 " + mx.ToString("F2") + "m(地形 " + t.name + ")" + (floorMin != null ? "・床の下限で止めた当たり " + nFloor : "") + "・見え面の前の地表で止めた節点 " + nFront;
     }
 
     /// <summary>**桝の口に地形の穴を開ける**(施主裁定 2026-10-11「穴は桝の口など、ごく一部だけ」)── 0.25m の格子では 0.5m 角の桝の中を

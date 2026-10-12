@@ -83,8 +83,7 @@
 - [口の縁は門の実メッシュで測る・端は点で取る](run-end-at-opening.md) — 射影だけだと横のずれが落ちて 0.822m の口。柱物は帯でなく断面(SectionAt)
 - [GetDetailLayer/GetHoles は寸法を [w,h] と偽る](terrain-detail-array-dims-lie.md) — 中身は [y,x]。正方でない範囲は DetailBlock で読み直す
 - [低ポリの駒を頂点の窓で測ると空になる](lowpoly-vertex-window-empty.md) — 階段廊下が回しを誤り塀の端が点なし。材(BodyOfMat)か光線(ReachToBodies)で
-- [筋割りの Contact は平らな面どうしを見落とす](contact-cells-miss-flat-faces.md) — 柱と礎石で屋形が 1.93m 沈んだ。鉛直は RestOn(面で測る)
-- [斜めの隅の駒は「回廊」で測る](corner-piece-corridor-not-projection.md) — 全頂点の射影だと 1.13m の口が残る。DobeiProfile→BodyAt→CorridorSpan
+- [筋割りの Contact は平らな面どうしを見落とす](contact-cells-miss-flat-faces.md) — 柱と礎石で屋形が 1.93m 沈んだ。鉛直は RestOn(面で測る) / [斜めの隅の駒は「回廊」で測る](corner-piece-corridor-not-projection.md) — 全頂点の射影だと 1.13m の口が残る。DobeiProfile→BodyAt→CorridorSpan
 - [流したら計測より先に書き戻す](writeback-before-measuring.md) — 途中の reload の間に claim が他の窓へ移り書き戻せなくなった
 - [留めの継ぎ目は口0でも線に沿ってずれる](miter-joint-slides-along-cut.md) — 弦で据えて解消。焼く一覧は相手の居ない端を切らない(器と規則を揃える)
 - [袖の groundHi の上げは 1.41m で切れる](sode-groundhi-lift-limit.md) — 女坂5駒が建たず。袖が建っても踏面の端に地表が被る(EDO-0421)
@@ -165,6 +164,7 @@
 - [倍率の基壇の隅は丈 0.5 刻みで引かれない・名指しの腕の版は面が変わると辺を越える](scaled-kado-height-and-named-arm-parts.md) — S042 が「焼いていない」・Stage1 の 1m 造成の ⚠ と Reload
 - [路地の南の帯が隣へ盛る・隅の駒の床の下の足を掘る](roji-south-band-spill-and-buried-toe-sink.md) — 帯は区画の線で切る(perimeterRetain は隣を戻さない)・Sink に floorMin
 - [KadoArms の据え点は両辺の外面の線の交点](kadoarms-pivot-is-line-intersection.md)・[頂点ごとの faceIn・隅でない端](kadoarms-per-vertex-facein-and-free-end.md) — P3 の 0.31 の口・P2 の腕は freeEnd で柱の中へ・型H の壁 0.49・旧い皮の穴 3343
+- [小段の溝は線の上で地表を引く・埋まった見え面は掘らない](bench-ditch-surface-and-buried-face-crack.md) — 外 0.30 は小段の縁を越えて床を読み 1m 沈む・面−0.05 の下げは前の地表で止める・写真は光線で名指す
 
 ## 測り方・関門
 - [検査役の execute_code の全文は MCP の log に残る](qa-code-in-mcp-log.md)・[地形の前後の差は資産の写しから採れる](terrain-diff-from-asset-copy.md)・[検証レンダの構図は残らない](render-camera-poses-not-kept.md) — 測りは log から抜く・int16 の塊・構図は cams.txt

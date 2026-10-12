@@ -44,7 +44,10 @@ public static partial class EdoBuild
             foreach (var kv in per)
             {
                 if (kv.Value.Count < 8) continue;   // 隣の辺の腕の端の数点は拾わない
-                var ds = kv.Value.ConvertAll(p => p.y); ds.Sort(); float d95 = ds[Mathf.Min(ds.Count - 1, Mathf.FloorToInt(0.95f * ds.Count))];
+                // 内面 = 駒の本体の頂点(中央値 + 0.30 以内)の 95% 点 ── 隅の駒 Dobei_Kado_00 は足元に内へ 0.5 張る小さな出(頂点の 16%)を持ち、
+                //   全頂点の 95% 点はその出を内面と読んだ(第117巡: 隅の腕で埋まった辺1〜4 で内面が 0.84 → 1.33・小段の溝の芯が 0.49 内へずれた)
+                var ds = kv.Value.ConvertAll(p => p.y); ds.Sort(); float med = ds[ds.Count / 2]; var dm = ds.FindAll(x => x <= med + 0.30f);
+                float d95 = dm[Mathf.Min(dm.Count - 1, Mathf.FloorToInt(0.95f * dm.Count))];
                 float lo = float.MaxValue, hi = float.MinValue; foreach (var p in kv.Value) { lo = Mathf.Min(lo, p.x); hi = Mathf.Max(hi, p.x); }
                 var L = kv.Key; L.spans.Add(new Vector3(lo, hi, d95)); L.sLo = Mathf.Min(L.sLo, lo); L.sHi = Mathf.Max(L.sHi, hi); L.nPts += kv.Value.Count;
             }

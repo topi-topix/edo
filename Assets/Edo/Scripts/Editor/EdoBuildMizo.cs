@@ -124,7 +124,7 @@ public static partial class EdoBuild
     /// <summary>溝の駒の**地際の張り出し**(縁石の外の土の板 ── <c>EdoAssets.Own.DoiMizo(kata, d, ago: true)</c>・材 = 地形の塗りを世界 XZ で引く Hifu_KitaTerrain_World)の局所の実測(倍率の前・Y 回転 0)。
     /// has = 張り出しの材(<see cref="ApronBody"/> ── 名に "Soil" か "_World" を含む)のサブメッシュがある / xBody = 張り出しの内の縁(土の頂点の |x| の最小 = 縁石の外の面)/ xOut = 外の縁(|x| の最大)/
     /// topIn・topOut = 内の縁・外の縁の天端(各縁から 0.02 以内の土の頂点の最高)/ xInner = 溝の内法の半幅(底の高さ ±0.01 の石の頂点の |x| の最大)。左右対称の板を前提に |x| で測る。</summary>
-    public class MizoApron { public bool has; public float xBody, xOut, topIn, topOut, xInner; }
+    public class MizoApron { public bool has; public float xBody, xOut, topIn, topOut, xInner, wallTop = float.NaN; }
     /// <summary>溝の駒の**地際の張り出し(土の板)の頂点**(世界)。板の材は 2 代ある: 第112巡の FJG Soil(名に "Soil")と、第113巡からの
     /// 地形の塗りを世界 XZ で引く <c>Hifu_&lt;地形&gt;_World</c>(<see cref="EdoAssets.Own.SkinWorldMat"/>)── どちらでも板と読む。
     /// ⚠ 第113巡(e399f0e6)で材を替えたとき "Soil" だけを見ていた所が板を見失い、板の下の地面が溝の中と同じく駒の最下点まで下がって
@@ -160,11 +160,23 @@ public static partial class EdoBuild
                     var mp = MizoPieceOf(path); float xi = 0f;
                     if (mp.ok) foreach (var v in BodyOfMat(go.transform, null)) if (Mathf.Abs(v.y - mp.floor) < 0.01f && Mathf.Abs(v.x) < a - 0.01f) xi = Mathf.Max(xi, Mathf.Abs(v.x));
                     r.xInner = xi > 0.01f ? xi : 0.5f * a;
+                    // 壁の石の天端(板の内の縁より内 = |x| < xBody − 0.01 の頂点の最高)── 板の内の縁は壁の天端 +0.003 で、MizoPieceOf.top はそれを読む(第117巡)
+                    float wt = float.MinValue; foreach (var v in BodyOfMat(go.transform, null)) if (Mathf.Abs(v.x) < a - 0.01f) wt = Mathf.Max(wt, v.y);
+                    if (wt > float.MinValue) r.wallTop = wt;
                 }
             }
             finally { UnityEngine.Object.DestroyImmediate(go); }
         }
         _mizoApronCache[path] = r; return r;
+    }
+
+    /// <summary>**溝の駒の側の壁の丈**(壁の石の天端 − 底・局所の実測)。地際の土の板付き(<see cref="MizoApronOf"/>)は板を除いた石の天端で測る
+    /// ── <see cref="MizoPieceOf"/> の top は板の内の縁(壁の天端 +0.003)を読む(岡部 EDO-0502 第117巡・Doi_DanOchi_Ago_*)。測れなければ NaN。
+    /// 当たる先: 段落ちを地表なりに埋める <see cref="LayDanOchiOnGround"/>・型H の頭の底を出す所(岡部 D_MinamiHei)・板付きの溝の深さを壁で測る所すべて。</summary>
+    public static float MizoWallRise(string path)
+    {
+        var mp = MizoPieceOf(path); if (!mp.ok) return float.NaN;
+        var ap = MizoApronOf(path); return (ap.has && !float.IsNaN(ap.wallTop) ? ap.wallTop : mp.top) - mp.floor;
     }
 
     // ---------------------------------------------------------------- 線: 軒先
@@ -759,6 +771,10 @@ public static partial class EdoBuild
         /// <summary>点 → 外の壁の側(水平・単位)。</summary>
         public Func<Vector2, Vector2> outAt;
         public float halfW, surfaceOff = 0.30f;
+        /// <summary>地表を**線の上**(溝の芯 = 溝を切る面そのもの)で引く(第117巡・岡部 D_MinamiHei の小段の溝)。狭い小段に切る溝は、外へ 0.30 の点が小段の縁
+        /// (野面石の天端の前の縁 0.44 の内・造成の面の段)を越えて下の床を読み、天端が小段より 0.66〜1.06 低く据わって小段に溝の筋と土手が立った。
+        /// 既定 false(外の壁の見え面の外で引く ── 練塀の足元の溝は外の側が帯)。当たる先: 石垣・野面石の背の小段に切る溝すべて。</summary>
+        public bool surfaceOnLine;
         /// <summary>天端の線を滑らかにする窓の半幅[m](弧長の移動平均)。</summary>
         public float smoothR = 1.5f;
         /// <summary>天端の線の最小の下り(勾配)── 剛体の駒の底は天端と平行なので、天端が下り続ければ底も下り続ける。</summary>
@@ -845,7 +861,7 @@ public static partial class EdoBuild
         {
             S[i] = Lf * i / (n - 1); if (S[i] <= L + 1e-4f) nL = i;
             Vector2 d; var q = PointAt(fl, S[i], out d); var o = sp.outAt(q);
-            var qs = q + o * (sp.halfW + sp.surfaceOff); G[i] = sp.surfaceAt(qs.x, qs.y);
+            var qs = sp.surfaceOnLine ? q : q + o * (sp.halfW + sp.surfaceOff); G[i] = sp.surfaceAt(qs.x, qs.y);
         }
         for (int i = 0; i < n; i++) if (float.IsNaN(G[i])) { for (int k = 1; k < n; k++) { if (i - k >= 0 && !float.IsNaN(G[i - k])) { G[i] = G[i - k]; break; } if (i + k < n && !float.IsNaN(G[i + k])) { G[i] = G[i + k]; break; } } }
         var Tm = new float[n];
@@ -2772,7 +2788,7 @@ public static partial class EdoBuild
         var R = new StepRun { headY = headY };
         float L = Vector2.Distance(p0, p1); R.length = L; if (L < 0.3f) { R.ok = false; R.hard += "平面の長さが 0.3m に満たない・"; return R; }
         string flat = pathOfRise(0f); var mf = MizoPieceOf(flat); if (!mf.ok) { R.ok = false; R.hard += "平らな駒が測れない " + (flat ?? "(名が無い)") + "・"; return R; }
-        float wallH = mf.top - mf.floor; R.wallH = wallH;
+        float wallH = MizoWallRise(flat); R.wallH = wallH;   // 板付きの浅い版は板を除いた壁の石の天端(第117巡)
         // 焼いた 1段 のうち実測が上限以下の最大
         float rCap = 0f; for (float r = 0.15f; r <= 0.451f; r += 0.05f) { var sp0 = StepPieceOf(pathOfRise(r)); if (sp0.ok && sp0.Rise <= riseMax + 1e-4f) rCap = r; }
         if (rCap < 0.149f) { R.ok = false; R.hard += "1段 ≤ " + riseMax.ToString("F2") + " の段の駒が無い・"; return R; }

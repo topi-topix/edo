@@ -2257,7 +2257,7 @@ public static partial class EdoBuild
     /// (端の天端 − 0.05)の平らな小段にし、その外は切土 1:<paramref name="bc"/> の法で今の地盤へ擦り付ける。⭐ 2m 格子は節点の間を一次で描く ⇒ 帯 + 一升の節点まで平らに取る
     /// (<see cref="LevelPadAt"/> と同じ取り方)。硬い: **切るだけ**(盛らない)・区画の外の節点は触らない・切りの最大 > <paramref name="cutMax"/> なら切らない・
     /// 練塀(<paramref name="keep"/>)の実メッシュの足元から <paramref name="keepGap"/> 以内に切りが掛かれば切らない(犬走りを割る)。冪等(今の地盤を法で挟むだけ)。
-    /// 当たる先: 背が法の腰の野面の土留めの相手の居ない端(岡部 TW_Kita_Koshi・TW_Higashi_Minami・TW_Nishi_Kado)。⟶ 返す: 切ったか(note に節点数・切りの最大・退けた理由)</summary>
+    /// 当たる先: 背が法の腰の野面の土留めの相手の居ない端(岡部 TW_Kita_Koshi・TW_Nishi_Kado ── TW_Higashi_Minami は 2026-10-12 案A で石垣 野面へ)。⟶ 返す: 切ったか(note に節点数・切りの最大・退けた理由)</summary>
     public static bool CutKoshiBench(Vector2 ep, Vector2 away, Vector2 face, float y, float along, float depth, float bc, float cutMax,
                                      Vector2[] parcel, IList<GameObject> keep, float keepGap, out string note,
                                      float depthMin = float.NaN, Func<Vector2, bool> isCut = null, float bcCut = 1f, float drain = 0f)

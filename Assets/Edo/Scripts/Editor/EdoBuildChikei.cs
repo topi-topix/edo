@@ -466,6 +466,64 @@ public static partial class EdoBuild
         return "駒の下の地面を駒の面 −" + below.ToString("0.00") + " へ下げた: 駒の面 " + tmp.Count + "・節点 " + n + "・下げの最大 " + mx.ToString("F2") + "m(地形 " + t.name + ")" + (floorMin != null ? "・床の下限で止めた当たり " + nFloor : "") + "・見え面の前の地表で止めた節点 " + nFront;
     }
 
+    /// <summary>**駒の足の下の地面を足の底 + <paramref name="bury"/> へ上げる(上げるだけ)**── 地面を先に焼き切った後(溝・土留めの下げの後)に、
+    /// 座で据えた塀の足の下に残る浮きを地面で埋める(岡部 指図 heiFootSpec.order「帯と床を先に焼く → 練塀を run の座で据える(座より下げない)→ 足を測る」・第119巡)。
+    /// 足 = 駒の壁体(屋根の材を除く)の下向きの面のうち、駒の最下点から <paramref name="footBand"/> 以内の物 ── 節点の真下から上へ光線を打ち(節点と前後左右 <paramref name="margin"/>)、
+    /// 足に当たれば その高さ + bury を下限に。⛔ 下げない・⛔ <paramref name="keep"/>(溝・桝の外接)の中は触らない(溝の中に土を入れない)・<paramref name="allow"/> が偽の節点は触らない(区画の外)。
+    /// 硬い(浮き0)。当たる先: 細かい地形の上に座で据えた塀(岡部 練塀・隅 ── 一枚物の腰 0.69 の内外の縁)。地面の高さの出どころは造成の面のまま ── 足の下と縁の一升だけ。</summary>
+    public static string FillUnderFoot(IEnumerable<GameObject> pieces, float footBand, float bury, float margin, IList<Bounds> keep, Func<Vector2, bool> allow, string undoPath = null, float edgeCap = 0.10f)
+    {
+        // ⚠ 一枚物の練塀は底の面を持たない(閉じた断面は小口と側だけ ── 下からの光線は当たらない・第119巡の初回で 0 節点)⇒ 足 = 壁体の頂点のうち最下点から footBand 以内の物の
+        //   水平の凸包(直線の駒は腰の矩形・隅の L 字は内の入りの三角を含む ── 小さく埋まるだけ)
+        var t = T(); var td = t.terrainData; var org = t.transform.position; int R = td.heightmapResolution; float hs = td.size.x / (R - 1);
+        var want = new Dictionary<long, float>(); int nKeep = 0, nOut = 0, nPc = 0;
+        foreach (var g in pieces)
+        {
+            if (g == null || !g.activeInHierarchy) continue;
+            var vs = BodyExRoof(g.transform, 999999); if (vs.Count == 0) continue;
+            float yb = float.MaxValue; foreach (var v in vs) yb = Mathf.Min(yb, v.y);
+            var foot = new List<Vector2>(); foreach (var v in vs) if (v.y <= yb + footBand) foot.Add(new Vector2(v.x, v.z));
+            if (foot.Count < 3) continue;
+            var arr = foot.ToArray(); var hi = EdoGeom.HullXZ(arr); if (hi == null || hi.Length < 3) continue;
+            var hull = new Vector2[hi.Length]; for (int k = 0; k < hi.Length; k++) hull[k] = arr[hi[k]];
+            nPc++;
+            float x0 = float.MaxValue, x1 = float.MinValue, z0 = float.MaxValue, z1 = float.MinValue; foreach (var q in hull) { x0 = Mathf.Min(x0, q.x); x1 = Mathf.Max(x1, q.x); z0 = Mathf.Min(z0, q.y); z1 = Mathf.Max(z1, q.y); }
+            int i0 = Mathf.Max(0, Mathf.CeilToInt((x0 - margin - org.x) / hs)), i1 = Mathf.Min(R - 1, Mathf.FloorToInt((x1 + margin - org.x) / hs));
+            int j0 = Mathf.Max(0, Mathf.CeilToInt((z0 - margin - org.z) / hs)), j1 = Mathf.Min(R - 1, Mathf.FloorToInt((z1 + margin - org.z) / hs));
+            for (int j = j0; j <= j1; j++)
+                for (int i = i0; i <= i1; i++)
+                {
+                    var q = new Vector2(org.x + i * hs, org.z + j * hs);
+                    bool inHull = EdoGeom.PIP(hull, q);
+                    if (!inHull && EdgeDistPublic(hull, q) > margin + 1e-4f) continue;
+                    if (allow != null && !allow(q)) { nOut++; continue; }
+                    bool kp = false; if (keep != null) foreach (var kb in keep) if (q.x >= kb.min.x && q.x <= kb.max.x && q.y >= kb.min.z && q.y <= kb.max.z) { kp = true; break; }
+                    if (kp) { nKeep++; continue; }
+                    long k2 = ((long)i << 32) ^ (uint)j; float y = yb + bury, cur;
+                    // 足の外の縁の節点は上げを edgeCap まで(⛔ 縁の外が急に落ちる所で幅一升・高さ 2m の土の柱が立った ── 岡部 P24 の外・第119巡)。足の下(凸包の中)は隠れるので上限なし
+                    if (!inHull) { float g0 = td.GetHeight(i, j) + org.y; y = Mathf.Min(y, g0 + edgeCap); }
+                    if (!want.TryGetValue(k2, out cur) || y > cur) want[k2] = y;
+                }
+        }
+        int n = 0; float mx = 0f; var undo = new List<float[]>();
+        if (want.Count > 0)
+        {
+            int i0 = int.MaxValue, i1 = int.MinValue, j0 = int.MaxValue, j1 = int.MinValue;
+            foreach (var k in want.Keys) { int i = (int)(k >> 32), j = (int)(uint)(k & 0xffffffff); i0 = Mathf.Min(i0, i); i1 = Mathf.Max(i1, i); j0 = Mathf.Min(j0, j); j1 = Mathf.Max(j1, j); }
+            var H = td.GetHeights(i0, j0, i1 - i0 + 1, j1 - j0 + 1);
+            foreach (var kv in want)
+            {
+                int i = (int)(kv.Key >> 32), j = (int)(uint)(kv.Key & 0xffffffff);
+                float cur = H[j - j0, i - i0] * td.size.y + org.y;
+                if (kv.Value <= cur + 1e-4f) continue;
+                mx = Mathf.Max(mx, kv.Value - cur); undo.Add(new[] { i, j, (kv.Value - org.y) / td.size.y, H[j - j0, i - i0] }); H[j - j0, i - i0] = (kv.Value - org.y) / td.size.y; n++;
+            }
+            if (n > 0) { td.SetHeights(i0, j0, H); AssetDatabase.SaveAssetIfDirty(td); }
+        }
+        if (undoPath != null) WriteUndo(undoPath, t.name, undo);
+        return "足の下の地面を足の底 +" + bury.ToString("0.00") + " へ上げた(上げるだけ・足の凸包 + 縁 " + margin.ToString("0.00") + "): 駒 " + nPc + "・足の下の節点 " + want.Count + "・上げた " + n + "・最大 " + mx.ToString("F2") + "m・溝の外接で除いた " + nKeep + "・区画の外で除いた " + nOut;
+    }
+
     /// <summary>**桝の口に地形の穴を開ける**(施主裁定 2026-10-11「穴は桝の口など、ごく一部だけ」)── 0.25m の格子では 0.5m 角の桝の中を
     /// 節点の下げだけで空けられない(縁の節点が口の上へ土を張る)。桝(Doi_Masu_*)の駒の外形を縁から <paramref name="inset"/> 縮めた中に
     /// 芯の入る升だけを穴にする(外形の外は開けない ── 桝の外に地の底を見せない)。控えを <paramref name="undoPath"/> へ書く(<see cref="RestoreHoles"/>)。

@@ -19,7 +19,7 @@
 - [外周の石垣の見え面は区画の外・隣の棟の均しが節点を奪う](outer-wall-face-outside-parcel-and-shared-pads.md) — 皮の own が 2m 格子のまま描く。LevelPad は低い順
 - [欄の上書きの直後は算出物の指紋で Stage1 が止まる](impl-fingerprint-after-yat-overwrite.md) — 食い違い0なら bake_impl --write。長い流しは印+txt で待つ
 - [作業場が前の窓の邸で dirty・旧い退避は前の案の造成前](koba-left-dirty-by-other-window.md) — UnwrittenIn を最初に見る。他邸の書き戻しは分類器が止める→返す
-- [岡部の外周は S1→S2→S2b→S3d で流す・一枚物の練塀の測り](okabe-perimeter-rerun-order-and-neribei-measure.md) — S2 だけだと基壇が変わり 3d が 2.9m 掘る・2b は60〜90分・継ぎ目は ±0.004 の光線
+- [岡部の外周は S1→S2→S2b→S3d で流す・一枚物の練塀の測り](okabe-perimeter-rerun-order-and-neribei-measure.md) — S2 だけだと基壇が変わり 3d が 2.9m 掘る・2b は60〜90分・継ぎ目は ±0.004 の光線 / [指図を書き換えた直後の S1 は 1m で造成する](graded-bin-stale-after-sashizu-commit.md) — bin を焼き直し _graded を捨てる・隅の座は古い
 - [.cs の保存直後の Stage は古い DLL で走る・再起動で皮が null](stage-run-on-stale-dll-after-edit.md) — 25 分の 3b が空振り。Stage の前に compile_wait・3b の後は先に書き戻す
 
 ## 部材の据え方
@@ -197,5 +197,4 @@
 - [見え面の足元の山形は外形の中の節点](wall-foot-ridge-from-nodes-under-hull.md) — 皮が近くの点を地形のまま描いた。CleanAt・差で混ぜる・Stage9 は6回走る
 - [盛土の床・基壇の向き・設計面の縁の溝](fill-only-floor-and-base-facing.md) — fillOnly を皮の面にしない・BlockOutward・DesignOut は地形で埋める
 - [総当たりの計測は Unity を1時間ふさぐ](brute-force-measure-hangs-unity.md) — 升の索引+印で打つ。RayToBodies は1呼び出し100本まで・mesh.vertices を輪の中で呼ばない(四度目 10-05)
-- [落とした後の Stage9 は空の皮](unity-kill-leaves-holes-without-skin.md)・[皮の段プレハブのメッシュが消える](skin-mesh-missing-leaves-holes-open.md) — 穴は地形・皮はシーン / S1 の塞いだ升を前の巡と比べる / [線の上の基壇・柵は区画外に出る](line-sitting-pieces-pivot-out.md)・[区画の辺に沿う城の石垣の罠](castle-run-along-parcel-edge-traps.md) — 端の控え・芯置き / VTX_TOL・PullAlongInside・駒の実長>送り
-- [隅の腕は短辺を越えて区画外へ出る](kado-arm-overruns-short-edge.md)・[旧案の一括削除は分類器が止める](bulk-delete-denied-by-auto-mode.md) — 岡部 P2〜P4 が外・駒の頂点を PIP / 役経由の一括削除は不可 / [短い組の c・丈の高い端の駒](castle-run-short-group-c-and-tall-foot.md) — 辺の線で c・一つずつ内へ
+- [落とした後の Stage9 は空の皮](unity-kill-leaves-holes-without-skin.md)・[皮の段プレハブのメッシュが消える](skin-mesh-missing-leaves-holes-open.md) — 穴は地形・皮はシーン / S1 の塞いだ升を前の巡と比べる / [線の上の基壇・柵は区画外に出る](line-sitting-pieces-pivot-out.md)・[区画の辺に沿う城の石垣の罠](castle-run-along-parcel-edge-traps.md) — 端の控え・芯置き / VTX_TOL・PullAlongInside・駒の実長>送り / [隅の腕は短辺を越えて区画外へ出る](kado-arm-overruns-short-edge.md)・[旧案の一括削除は分類器が止める](bulk-delete-denied-by-auto-mode.md) — 岡部 P2〜P4 が外・駒の頂点を PIP / 役経由の一括削除は不可 / [短い組の c・丈の高い端の駒](castle-run-short-group-c-and-tall-foot.md) — 辺の線で c・一つずつ内へ

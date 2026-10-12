@@ -13,6 +13,8 @@ public static partial class EdoBuild
     /// <summary><see cref="KadoFace"/> が 2 元 1 次方程式を厳密に解く下限。両辺の外向き法線の外積の絶対値
     /// (= sin 折れ角)。これ未満は面の法線方向へだけ動かす。</summary>
     const float ExactSolveDet = 0.5f;
+    /// <summary>壁面の篩を渡す版の厳密解の下限(sin 12°)── 第119巡。</summary>
+    const float ExactSolveDetPicked = 0.2f;
 
     /// <summary>**隅の折れ角[°]を区画から測る。**入りの走り(頂点の手前の辺)から出の走り(次の辺)への旋回で、
     /// 左へ曲がれば負・右へ曲がれば正。<paramref name="vertex"/> は折れ点の頂点番号。
@@ -183,31 +185,61 @@ public static partial class EdoBuild
     /// 外面 = 線から c + 犬走り)。平行移動の 2 元 1 次で両腕を各自の線へ【硬: 面の残差】。当たる先: 辺ごとに外面の線が違う隅すべて(岡部 練塀の留めの隅)。</summary>
     public static bool KadoFace(Transform kc, Vector2[] poly, int e1, Func<int, Vector2> outNormal,
                                 float target1, float target2, float wallT, out Vector2 moved, out string note)
+    { return KadoFace(kc, poly, e1, outNormal, target1, target2, wallT, null, out moved, out note); }
+
+    /// <summary><see cref="KadoFace(Transform, Vector2[], int, Func{int, Vector2}, float, float, float, out Vector2, out string)"/> の、**外面を直線の駒と同じ面で測る版**
+    /// (<paramref name="wallPick"/> = 直線の駒を犬走りへ寄せるときと同じ壁面のメッシュの篩)。篩を渡すと:
+    /// ① 頂点は篩を通るメッシュだけ(⛔ 腰の石垣の笠・軒を外面と読まない ── 岡部 第119巡: 一枚物の練塀の隅は帯 15〜80% の中の腰の笠 0.09 を外面と読み、
+    ///    直線の駒(hei・shitami で寄せる)より 0.09 内へ据わった・隅 15 基)、
+    /// ② 腕の選り分けは駒のピボット(両腕の芯の交点)から見た**二等分の線のどちら側か**(⛔ 腕の線からの離れ wallT×1.5 で選り分けない ── 入隅では相手の腕の
+    ///    根元の頂点が自分の腕に入り、自分の外向きへ 0.69 読み過ぎた・岡部 P7 76°)。当たる先: 一枚物の練塀の隅(岡部 Neribei_Kado)。篩 null は従前のまま(松江松平)。</summary>
+    public static bool KadoFace(Transform kc, Vector2[] poly, int e1, Func<int, Vector2> outNormal,
+                                float target1, float target2, float wallT, Predicate<MeshFilter> wallPick, out Vector2 moved, out string note)
     {
         moved = Vector2.zero; note = null;
         int n = poly.Length, e2 = (e1 + 1) % n;
         Vector2 a1 = poly[e1 % n], P = poly[e2 % n], a3 = poly[(e2 + 1) % n];
         Vector2 t1 = (a1 - P).normalized, t2 = (a3 - P).normalized;
         Vector2 kn1 = outNormal(e1), kn2 = outNormal(e2);
-        var body = Body(kc, 999999);        // 隅は全頂点(間引かない — 留め継ぎの先端の疎な頂点が落ちる)
+        List<Vector3> body;
+        if (wallPick == null) body = Body(kc, 999999);        // 隅は全頂点(間引かない — 留め継ぎの先端の疎な頂点が落ちる)
+        else
+        {
+            body = new List<Vector3>();
+            foreach (var mf in kc.GetComponentsInChildren<MeshFilter>())
+            {
+                if (mf.sharedMesh == null || !wallPick(mf)) continue; var rr = mf.GetComponent<Renderer>(); if (rr == null || !rr.enabled || !mf.gameObject.activeInHierarchy) continue;
+                var l2w = mf.transform.localToWorldMatrix; foreach (var v in mf.sharedMesh.vertices) body.Add(l2w.MultiplyPoint3x4(v));
+            }
+        }
         if (body.Count == 0) { note = "メッシュ無し"; return false; }
         float ky0 = 1e9f, ky1 = -1e9f;
         foreach (var v in body) { if (v.y < ky0) ky0 = v.y; if (v.y > ky1) ky1 = v.y; }
         float lo = ky0 + (ky1 - ky0) * 0.15f, hi = ky0 + (ky1 - ky0) * 0.80f;     // 壁体の帯(屋根を除く)
+        if (wallPick != null) { lo = ky0 - 1e-3f; hi = ky1 + 1e-3f; }               // 篩が壁面だけを渡す ⇒ 全高
         float cosT = Vector2.Dot(t1, t2), armThresh = wallT * 1.5f;
         float best1 = float.MinValue, best2 = float.MinValue;
+        Vector2 piv = new Vector2(kc.position.x, kc.position.z);
         foreach (var w in body)
         {
             if (w.y < lo || w.y > hi) continue;
             Vector2 rel = new Vector2(w.x, w.z) - P;
             float d1 = Vector2.Dot(rel, t1), d2 = Vector2.Dot(rel, t2);
+            if (wallPick != null)
+            {
+                Vector2 rp = new Vector2(w.x, w.z) - piv; float p1 = Vector2.Dot(rp, t1), p2 = Vector2.Dot(rp, t2);
+                if (p1 > p2) best1 = Mathf.Max(best1, Vector2.Dot(rel, kn1)); else if (p2 > p1) best2 = Mathf.Max(best2, Vector2.Dot(rel, kn2));
+                continue;
+            }
             if (d1 >= 0f && Mathf.Abs(d2 - d1 * cosT) <= armThresh) best1 = Mathf.Max(best1, Vector2.Dot(rel, kn1));
             if (d2 >= 0f && Mathf.Abs(d1 - d2 * cosT) <= armThresh) best2 = Mathf.Max(best2, Vector2.Dot(rel, kn2));
         }
         if (best1 == float.MinValue || best2 == float.MinValue) { note = "両辺の壁体を判別できず"; return false; }
         float r1 = target1 - best1, r2 = target2 - best2;
         float det = kn1.x * kn2.y - kn1.y * kn2.x;
-        if (Mathf.Abs(det) >= ExactSolveDet)
+        // ⭐ 篩を渡す版(一枚物の練塀の隅)は 12° 以上の折れも厳密に解く(第119巡: 辺ごとの外面の控えが 0.25〜0.5 違う 16〜22° の隅 P29・P30・P32・P35 が、
+        //   法線の向きだけの寄せで両腕が ±0.12〜0.25 外れ、直線の駒と横に段になった)。解の走りの寄せ ≤ 控えの差 / sin12° ── 腕の先は後で直線が突き付ける(KadoArm で測り直す)。
+        if (Mathf.Abs(det) >= (wallPick != null ? ExactSolveDetPicked : ExactSolveDet))
         {
             moved = new Vector2((r1 * kn2.y - r2 * kn1.y) / det, (kn1.x * r2 - kn2.x * r1) / det);
         }

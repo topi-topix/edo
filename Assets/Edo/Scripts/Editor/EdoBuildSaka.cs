@@ -661,7 +661,7 @@ public static partial class EdoBuild
     /// 平場の縁まで盛の法を描き直す【硬: 天端に土を載せない】)。⛔ 駒の基準点で測らない ── 全頂点の線への射影で、走り(s)・控えの後端(d の最大)・
     /// 見え面の前の縁(d の最小)・天端(s の帯ごとの y の最大)を取る。差し込んだ端(端の先の地盤 <paramref name="groundAt"/> が天端 + <paramref name="reach"/> を
     /// 超える端・指図 nozuraEndRule ④)は、小段を端から <paramref name="tail"/>(半駒)手前で止める ── その先は根入れとして土が載ってよい区間。
-    /// 当たる先: 盛の法の法尻に立つ野面の土留め(岡部 TW_Nishi_Kado・TW_Higashi_Minami)── 背が法で土が天端を越える土留め全般。⟶ 返す: 解けなければ null(理由は note)。</summary>
+    /// 当たる先: 盛の法の法尻に立つ野面の土留め(岡部 TW_Nishi_Kado ── TW_Higashi_Minami は 2026-10-12 案A で石垣 野面へ)── 背が法で土が天端を越える土留め全般。⟶ 返す: 解けなければ null(理由は note)。</summary>
     public static ToeBench ToeBenchOf(string name, IList<GameObject> pieces, Vector2 a, Vector2 b, Vector2 back, float drop, float behind, float bf,
                                       Vector2[] parcel, Func<Vector2, float> groundAt, float reach, float tail, System.Text.StringBuilder note)
     {

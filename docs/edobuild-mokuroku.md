@@ -1,11 +1,11 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 2f115ecf6485 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 fe4d299eae34 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
 
-- 公開関数 594 本(注釈なし 34)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
+- 公開関数 596 本(注釈なし 34)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
 - 同じ道具が刷る目録: 邸ビルダーのメニュー → Stage と中の関数 `docs/builder-mokuroku.md` / 部材の名 `docs/edoassets-mokuroku.md`。
 - 札: **硬** = 注釈に「硬い/許容0」・**柔** = 「柔らかい/狙い」がある(判定ではなく注釈の語)。相手の札(地面・駒どうし・天端・床・断面・面・隅・区域)も注釈の語を拾っただけ。
 - 呼んでいる所 = 定義のファイルの外で `EdoBuild.<名>(` と書いている C# ファイル(`Edo` と `Builder/Rebuild` を落とした名)と、その中の呼んでいる関数(Stage)。同じ名の多重定義はまとめて数える。`EdoBuild` の中どうしの呼び出しは載せない。
@@ -17,7 +17,7 @@
 | ファイル | 何の道具か(ファイル冒頭の注釈) | 当たる先 | 関数 |
 |---|---|---|---|
 | [EdoBuild.cs](#edobuildcs) | 配置・資産系の共有基盤 (Phase 2c, 2026-08-26) | — | 47 |
-| [EdoBuildChikei.cs](#edobuildchikeics) | 地形を座標で引く・邸の Stage が地形を名指す・溝の下の地面を下げる(施主裁定 2026-10-11・EDO-0502)。 | — | 15 |
+| [EdoBuildChikei.cs](#edobuildchikeics) | 地形を座標で引く・邸の Stage が地形を名指す・溝の下の地面を下げる(施主裁定 2026-10-11・EDO-0502)。 | — | 16 |
 | [EdoBuildDanIshigaki.cs](#edobuilddanishigakics) | EdoBuild — 段の土留め(石垣・野面)を天端の折れ線へ据える(2026-10-03・EDO-0502 岡部 terraceWalls)。 | — | 13 |
 | [EdoBuildFootBand.cs](#edobuildfootbandcs) | 壁の内の足元の帯(練塀・土塀・長屋の背の内の床)── 据えた駒の実メッシュから内面を測り、その面に沿う帯の地面を高さの式で書く(EDO-0502 第115巡)。 | — | 5 |
 | [EdoBuildGaki.cs](#edobuildgakics) | — | — | 1 |
@@ -30,7 +30,7 @@
 | [EdoBuildIshidan.cs](#edobuildishidancs) | 石段の組 — 段石と袖(袖石垣)を一組の材で据える(EDO-0415・2026-09-23 施主指摘)。 | — | 35 |
 | [EdoBuildJisha.cs](#edobuildjishacs) | 寺社の本堂(と坊・社家の主屋)を、間数ごとに焼いた入母屋で組む — EdoBuild の一部(規則21)。 | — | 1 |
 | [EdoBuildJun.cs](#edobuildjuncs) | 部材を依存の順に解き、変えた所から後だけ流し直す (EdoBuild の partial・2026-09-26・EDO-0455) | 山王社の建て直し(EdoSannoShaRebuild の Stage0〜9)。 | 0 |
-| [EdoBuildKado.cs](#edobuildkadocs) | 隅部材(留め継ぎ)の据え — EdoBuild の partial (2026-09-21・EDO-0289 ②) | — | 34 |
+| [EdoBuildKado.cs](#edobuildkadocs) | 隅部材(留め継ぎ)の据え — EdoBuild の partial (2026-09-21・EDO-0289 ②) | — | 35 |
 | [EdoBuildKatte.cs](#edobuildkattecs) | 勝手まわり(菜園の畝・自然の斜面に据える踏み段)の置き方 — EdoBuild の partial(2026-10-03・EDO-0532 施主裁定A) | — | 8 |
 | [EdoBuildMachiya.cs](#edobuildmachiyacs) | 町屋の表店の run — EdoBuild の一部(規則21「置く・測る・突き付ける・据えるは EdoBuild の関数だけ」)。 | — | 12 |
 | [EdoBuildMichi.cs](#edobuildmichics) | EdoBuild — 道の造成(縦断を設計して道の面を均す)。2026-09-30・EDO-0495(施主裁定②「小道を造成する」)。 | 指図の道の欄に `zosei` を持つ道(今は山王の麓の道 南西区間 = 十坊の小道だけ)。 | 4 |
@@ -144,6 +144,7 @@
 | `EdoBuild.GroundToPoly(poly, yAt, maxUp, maxDown)` | `int` | 地面・床 | 多角形の中の地形の節点を、指図の面の高さへ切り盛りする(2026-10-12 EDO-0502 第113巡)。 | OkabeYashiki(PlaceKomonFront・SeRojiSouthExtend) |
 | `EdoBuild.SinkGroundUnderParts(parts, below=…, undoPath=…)` | `string` | 地面・面 | 駒の下の地面を駒の上の面より下げる(石垣・段の土留め・基壇)── 地形の節点の真上に駒の面があれば、その節点を「面 − below」以下へ。 | OkabeYashiki(Stage3d_Mizo_) |
 | `EdoBuild.SinkGroundUnderParts(parts, below, undoPath, floorMin)` | `string` | 地面・床・面・隅 | SinkGroundUnderParts に下げの下限を足した物 ── floorMin(x, z)が NaN でない節点は その値より下げない(指図 grading.seRoji.southKado「石垣の見え面から… | OkabeYashiki(Stage3d_Mizo_) |
+| `EdoBuild.FillUnderFoot(pieces, footBand, bury, margin, keep, allow, undoPath=…)` | `string` | 硬 地面・床・区域 | 駒の足の下の地面を足の底 + bury へ上げる(上げるだけ)── 地面を先に焼き切った後(溝・土留めの下げの後)に、 座で据えた塀の足の下に残る浮きを地面で埋める(岡部 指図 heiFootSpec.order「帯と床… | OkabeYashiki(Stage3d_Mizo_) |
 | `EdoBuild.HoleUnderMasu(pieces, inset=…, undoPath=…)` | `string` | 地面 | 桝の口に地形の穴を開ける(施主裁定 2026-10-11「穴は桝の口など、ごく一部だけ」)── 0.25m の格子では 0.5m 角の桝の中を 節点の下げだけで空けられない(縁の節点が口の上へ土を張る)。 | OkabeYashiki(Stage3d_Mizo_) |
 | `EdoBuild.RestoreHoles(undoPath)` | `int` |  | 前の HoleUnderMasu の穴を塞ぐ(控えを読み、消す)。 | OkabeYashiki(Stage3d_Mizo_) |
 
@@ -163,7 +164,7 @@ EdoBuild — 段の土留め(石垣・野面)を天端の折れ線へ据える(2
 | `EdoBuild.ArcPoint(nodes, s, dir)` | `Vector2` |  | 折れ線の道のり s の点(世界 xz)と、その区間の向き。 | OkabeYashiki(KaidanAB・ProfSNodes・Stage2b_Dan_…) |
 | `EdoBuild.GapFromPieces(nodes, gap, pieces, band, note)` | `Vector2` | 硬 面 | 土留めの口の端を、口を通る石段の実面で決める(EDO-0502 第8巡)。 | OkabeYashiki(Stage2b_Dan_・StairGaps) |
 | `EdoBuild.GapReturnLine(p, axis, inward, crest, groundAt, maxLen, len)` | `List<Vector2>` | 硬 天端・床・面 | 口の端の返し(EDO-0502 第8巡・スキル unity-modular-stonewall の小口の作法)。 ⟶ 返す: 天端の前の縁の折れ線(2 点) | OkabeYashiki(Stage2b_Dan_・StairGaps) |
-| `EdoBuild.FaceBatterOf(path)` | `float` | 天端・面 | 野面の駒の見え面の法(水平 / 鉛直)を駒の実メッシュから測る(2026-10-08 EDO-0502 第57巡)。 | OkabeYashiki(RoadEdgePlanOf・SeRojiPlanOf・StairGaps) |
+| `EdoBuild.FaceBatterOf(path)` | `float` | 天端・面 | 野面の駒の見え面の法(水平 / 鉛直)を駒の実メッシュから測る(2026-10-08 EDO-0502 第57巡)。 | OkabeYashiki(MinamiWallOf・RoadEdgePlanOf・SeRojiPlanOf…) |
 | `EdoBuild.StairSideCrestLines(wallNodes, foot, up, halfW, crest, batter, surf, uEnd, tol, gapS, note)` | `List<Vector2>[]` | 硬・柔 天端・床・面・隅 | 石段の脇の見え面を石段の端の線へ(指図 kaidans[].sideFace・2026-10-08 EDO-0502 第57巡 施主指摘「門の内の石段が途中で幅が狭まって見える」)。 | OkabeYashiki(StairGaps) |
 
 ### 段違いの継ぎ目の下の積み下ろし(EDO-0502 第11巡)
@@ -408,6 +409,7 @@ EdoBuild — 段の土留め(石垣・野面)を天端の折れ線へ据える(2
 | `EdoBuild.KadoArms(poly, vertex, isKado, outNormal, scale, armFullLocal, faceDepthLocal, faceInAt, wallT, stepLocal, minArm, freeEnd, armsLocal, note)` | `bool` | 隅 | KadoArms の 頂点ごとの控えと隅でない端の止めを持つ版(2026-10-12 EDO-0502 第116巡)。 | OkabeYashiki(JoinEndToBody・PlaceKado), MatsudairaDewa(PlaceKado) |
 | `EdoBuild.KadoFace(kc, poly, e1, outNormal, target, wallT, moved, note)` | `bool` | 隅・区域 | 隅部材の両腕の外面を、平行移動だけで target(区画線から外向きへ。 ⟶ 返す: 動かした量(xz) | MatsudairaDewa(AlignInubashiri), OkabeYashiki(FitKado) |
 | `EdoBuild.KadoFace(kc, poly, e1, outNormal, target1, target2, wallT, moved, note)` | `bool` |  | KadoFace の、腕ごとに外面の目標が違う版 (target1 = 辺 e1 の腕・target2 = 辺 e1+1 の腕。 | MatsudairaDewa(AlignInubashiri), OkabeYashiki(FitKado) |
+| `EdoBuild.KadoFace(kc, poly, e1, outNormal, target1, target2, wallT, wallPick, moved, note)` | `bool` | 隅 | KadoFace の、外面を直線の駒と同じ面で測る版 (wallPick = 直線の駒を犬走りへ寄せるときと同じ壁面のメッシュの篩)。 | MatsudairaDewa(AlignInubashiri), OkabeYashiki(FitKado) |
 | `EdoBuild.KadoArm(kc, poly, e1, outNormal, target, wallT, seatDrop, h, l)` | `bool` |  | 据えた隅部材の「腕」が、接する二辺の s をどこまで覆っているかを実メッシュで測る。 | MatsudairaDewa(KadoArmSpan・Stage3_Ishigaki), OkabeYashiki(FitKado) |
 | `EdoBuild.PlaceRunKado(runA, nA, runB, nB, pathOf, groundAt, parent, name, tol, note, convex=…, abut=…, armPathOf=…, farA=…, farB=…)` | `GameObject` | 硬 地面・天端・面・隅 | 石垣の run の出隅へ隅の駒を据える(2026-09-25・EDO-0430)。 | — |
 | `EdoBuild.PlaceRunKado2(runA, nA, runM, nM, runB, nB, fold1, fold2, awayA, awayB, stemOf, parent, name, tol, note)` | `GameObject` | 硬 天端・面・隅 | 二重折れの出隅を一つの駒で据える(2026-10-03・EDO-0502)。 | — |

@@ -8,6 +8,12 @@
     blender --background --python Tools/Blender/build_neribei.py -- --kado 0M                 # → Neribei_Kado_00M(0° の鏡は名で)
     blender --background --python Tools/Blender/build_neribei.py -- --okabe                   # 岡部の一式(直線・切り 13・端 2・隅 19)
     blender --background --python Tools/Blender/build_neribei.py -- --list <file>             # 1 行 1 本(`--kado 39 --arms 0.6,0.85` の形)
+  坂なり(EDO-0502 const.heiLine.tenba・施主裁定 2026-10-12 案1)── 勾配は % で渡す:
+    blender --background --python Tools/Blender/build_neribei.py -- --choku --grade 12 --render   # → Neribei_Saka_U1200(Unity +X へ 12% 上がる)
+    blender --background --python Tools/Blender/build_neribei.py -- --kiri 5 --grade -6.25        # → Neribei_Saka_D0625_T05(+X へ下がる)
+    blender --background --python Tools/Blender/build_neribei.py -- --kado 27 --grade 1.07,1.07   # → Neribei_Kado_27_GU0107xU0107(入り→出の走りに沿って上がる)
+    blender --background --python Tools/Blender/build_neribei.py -- --tome --render              # → Neribei_Tome_L / _R(棟止めだけの駒・勾配によらない)
+    blender --background --python Tools/Blender/build_neribei.py -- --saka                        # 岡部の坂なりの一式(SAKA_GRADES × U/D × 直線・切り 13 / 留め / 隅 OKABE_SAKA_KADO)
 
 【なぜ要るか】在庫の練塀 `s_hei_center` は壁も屋根も**片面の板一枚**の模型で、DobeiRun は表裏 2 枚を 0.20 ずらして
   厚みを偽っていた ⇒ 小口は中空・冠瓦が二筋・隅の駒(Dobei_Kado_*)の腕は外の板 1 枚で内から 73% 透ける
@@ -33,6 +39,14 @@
   隅: build_kado.py の練塀の隅と**同じ据え**(折れ点 = 両腕の芯の交点・足元 / 入りの腕は局所 −Z へ / 化粧面は局所 −X)。
       ⚠ ただし実寸(scale 1)── 旧 Dobei_Kado は局所(×ES で据えた)。腕の名は cm(`_A<入り>x<出>`・素の腕なら付けない)。
       出隅の側の留めには**隅棟**(素の mune の断面を留めの線へ流した物)、入隅の側は瓦の谷のまま。棟は留めで一筋に折れる。
+
+【坂なり】塀は鉛直のまま、走りに勾配 g で上がる。**縦の剪断** z += g·X(X = Unity の走り)── 鉛直の線(束・柱・下見板の目地・小口)は
+  鉛直のまま、x 一定の断面は形を変えずに上下へ動くだけ ⇒ 平ら・別の勾配の駒と断面がそのまま一致して閉じる(棟は継ぎ目で折れるだけ)。
+  瓦・軒・漆喰と下見板の境・腰の天端は勾配に沿う(報土寺の練塀・考証 B)。ピボットは平らと同じ(走りの中央・芯・その位置の腰の下端 Y=0)。
+  隅は折れ点を 0 とした**芯の道のり** T(入りの腕 −a..0・出の腕 0..+a)で z += g_腕·T。外と内の道のりの差は腕の中で配って、
+  留めの面の上は T=0(両腕で同じ)・腕の先は横に水平 ⇒ 坂の直線の駒とそのまま閉じる。
+  留め Neribei_Tome_L/R = 在庫 s_hei_l の端(端の柱・袖瓦・鬼瓦・腰の小口)だけを端の柱の内面で切った駒。剪断しない(鬼は立ったまま)。
+  どの長さの直線・切りの端にも突き付けて棟止めになる(自由端・段の両側)。
 
 【落とし穴】
   ・素の板は片面: 表は Blender +y(読み込みの向き)。鏡の裏は巻きを裏返す。
@@ -300,6 +314,7 @@ def finish(objs, name, kind_spec=None):
         V.export_fbx(objs, path, kind="fence", spec=spec)
     else:
         V.export_fbx(objs, path)
+    write_meta(path)
     xs = [v.co.x for o in objs for v in o.data.vertices]; ys = [v.co.y for o in objs for v in o.data.vertices]
     zs = [v.co.z for o in objs for v in o.data.vertices]
     nf = sum(len(o.data.polygons) for o in objs)
@@ -317,9 +332,105 @@ def fence_spec(sec, x_lo, x_hi, coping, top, source):
             "faceOut": hf, "faceIn": -hf, "copingOverhang": coping, "height": top}
 
 
+# ---------------------------------------------------------------- 坂なり(縦の剪断)
+SAKA_GRADES = (0.0107, 0.0145, 0.027, 0.0625, 0.12, 0.125)   # const.heiLine.tenba の勾配(SE 1.07/1.45・SW 2.7/6.25/12.0・SE 段の間 1/8)
+
+
+def grade_tag(g):
+    """勾配の綴り: U = Unity +X(隅は入り→出の走り)へ上がる / D = 下がる・万分率 4 桁(1.07% = U0107)。"""
+    return ("D" if g < 0 else "U") + "%04d" % int(round(abs(g) * 10000))
+
+
+def shear_x(objs, g):
+    """縦の剪断: Unity の局所 +X(= Blender −x)へ勾配 g で上がる(z += −g·x)。行列式 1 ⇒ 巻きは変わらない。"""
+    M = Matrix(((1, 0, 0, 0), (0, 1, 0, 0), (-g, 0, 1, 0), (0, 0, 0, 1)))
+    for o in objs:
+        o.data.transform(M); o.data.update()
+
+
+def kado_warp(objs, h, sgn, aIn, aOut, gA, gB):
+    """隅の坂なり: 折れ点を 0 とする芯の道のり T で z += g·T。点 p が入りの腕の側(n·p ≥ 0)なら腕 A の座標(α = y・横 x)、
+    出の腕の側なら留めの面で鏡に写して腕 A の座標へ。留めの面の上の α_m = −sgn·tan h·x から腕の先 a までを T = ∓a へ一様に配る
+    ⇒ 留めの面の上は両腕で T = 0(継ぎ目が閉じる)・腕の先は横に水平(坂の直線の駒の断面と一致)。鉛直の線は鉛直のまま。"""
+    n = Vector((sgn * math.sin(h), math.cos(h), 0.0))
+    Mr = reflect_m(tuple(n)).to_3x3()
+    th = math.tan(h)
+    for o in objs:
+        me = o.data
+        for v in me.vertices:
+            p = v.co.copy()
+            if n.dot(p) >= -1e-9:
+                q, a, g, s = p, aIn, gA, -1.0
+            else:
+                q, a, g, s = Mr @ p, aOut, gB, 1.0
+            ym = -sgn * th * q.x
+            T = s * a * max(0.0, q.y - ym) / max(a - ym, 0.05)
+            v.co.z += g * T
+        me.update()
+
+
+def write_meta(fbx_path):
+    """新しい FBX に .meta を写す(Neribei_Choku の .meta の guid だけ替える ⇒ 材 s_heimap は s_hei_center の物へ結線済み・remap 不要)。"""
+    import uuid, re
+    mp = fbx_path + ".meta"
+    if os.path.exists(mp):
+        return False
+    tpl = open(os.path.join(ROOT, CANON, "Neribei_Choku.fbx.meta"), encoding="utf-8").read()
+    open(mp, "w", encoding="utf-8").write(re.sub(r"^guid: [0-9a-f]{32}$", "guid: " + uuid.uuid4().hex, tpl, count=1, flags=re.M))
+    return True
+
+
+# ---------------------------------------------------------------- 留め(棟止めだけ)
+def build_tome(on_done=None):
+    """在庫 s_hei_l の端だけ: 端の柱の内面(素の shitami の x 最大 = 1 枚の終わり)で切り、そこより外(端の柱・腰の小口・袖瓦・鬼瓦・棟と桁の出)を残す。
+    袖瓦は丸ごと(内へ 6mm 隣の瓦に被る)。切り口の壁体は断面で塞ぐ(隣の駒の断面と背中合わせ)。ピボット = 切り口(突き付けの面)・芯・腰の下端。
+    R = 棟止めが Unity −X(素の向き)/ L = +X(z まわり 180°)。剪断しない ⇒ どの勾配の駒の端にも同じ物が付く。"""
+    out = []
+    for hand in ("R", "L"):
+        V.reset()
+        g, shift, uv_is, uv_hei = load(SRC_L)
+        sec = section(g)
+        x_c = max(v.co.x for v in g["shitami"].data.vertices)        # 0.662 = 端の柱の内面
+        x_post = max(v.co.x for v in g["hashira"].data.vertices)
+        x_end = max(v.co.x for o in g.values() for v in o.data.vertices)
+        x_koshi = max(v.co.x for v in g["ishigaki"].data.vertices)
+        x_ker = min(v.co.x for v in g["keraba"].data.vertices)
+        mat = mat_of(g)
+        objs = []
+        for k, o in list(g.items()):
+            if k != "keraba":
+                cut(o, (x_c, 0, 0), (1, 0, 0), True)
+            xs = [v.co.x for v in o.data.vertices]
+            if not o.data.polygons or max(xs) - min(xs) < 0.01:
+                bpy.data.objects.remove(o, do_unlink=True); continue
+            objs.append(o)
+        objs.append(cap_object("koguchi", mat, [((x_c, 0, 0), (1, 0, 0), (0, 1, 0), (-1, 0, 0))], sec, uv_is, uv_hei))
+        for o in objs:
+            o["g"] = gname(o)
+        objs = merge_groups(objs)
+        M = Matrix.Translation(Vector((-x_c, 0, 0)))
+        if hand == "L":
+            M = Matrix.Rotation(math.pi, 4, 'Z') @ M
+        for o in objs:
+            xform(o, M)
+        d = x_koshi - x_c
+        lo, hi = (0.0, d) if hand == "R" else (-d, 0.0)
+        name = "Neribei_Tome_" + hand
+        path = finish(objs, name, fence_spec(sec, lo, hi, max(0.0, x_end - x_post), sec["ztop"],
+                                             "Tools/Blender/build_neribei.py -- --tome"))
+        print("[neri]   %s: 突き付けの面から 端の柱の外面 %.3f・腰の小口 %.3f・鬼瓦の先 %.3f・袖瓦の戻り %.3f(群 %s)"
+              % (name, x_post - x_c, d, x_end - x_c, x_c - x_ker,
+                 ",".join(sorted(gname(o) for o in objs))))
+        out.append((objs, path))
+        if on_done:
+            on_done(objs, path)
+    return out
+
+
 # ---------------------------------------------------------------- 直線・切り
-def build_straight(k_tiles=NTILE):
-    """k 枚分(瓦の周期)の直線。k = 14 は 1 枚(Neribei_Choku)。両端の壁体を断面で塞ぐ。"""
+def build_straight(k_tiles=NTILE, grade=0.0):
+    """k 枚分(瓦の周期)の直線。k = 14 は 1 枚(Neribei_Choku)。両端の壁体を断面で塞ぐ。
+    grade ≠ 0 は坂なり(Unity +X へ grade で上がる縦の剪断・名は Neribei_Saka_<U|D><bp>[_T<kk>])。"""
     V.reset()
     g, shift, uv_is, uv_hei = load(SRC_C)
     sec = section(g)
@@ -333,9 +444,18 @@ def build_straight(k_tiles=NTILE):
                                             ((L, 0, 0), (1, 0, 0), (0, 1, 0), (1, 0, 0))], sec, uv_is, uv_hei))
     for o in objs:
         xform(o, Matrix.Translation(Vector((-L / 2, 0, 0))))
-    name = "Neribei_Choku" if k_tiles == NTILE else "Neribei_Kiri_T%02d" % k_tiles
     src = "Tools/Blender/build_neribei.py -- " + ("--choku" if k_tiles == NTILE else "--kiri %d" % k_tiles)
-    path = finish(objs, name, fence_spec(sec, -L / 2, L / 2, 0.0, sec["ztop"], src))
+    if abs(grade) < 1e-9:
+        name = "Neribei_Choku" if k_tiles == NTILE else "Neribei_Kiri_T%02d" % k_tiles
+        spec = fence_spec(sec, -L / 2, L / 2, 0.0, sec["ztop"], src)
+    else:
+        shear_x(objs, grade)
+        name = "Neribei_Saka_" + grade_tag(grade) + ("" if k_tiles == NTILE else "_T%02d" % k_tiles)
+        rise = abs(grade) * L / 2
+        spec = fence_spec(sec, -L / 2, L / 2, 0.0, sec["ztop"] + 2 * rise, src + " --grade %g" % (grade * 100))
+        spec["yBottom"] = -rise                       # 低い端の腰の下端(作図の値)
+        spec["grade"] = grade                         # Unity +X へ上がる勾配(EdoPartSpec は読まない・据える側の検算用)
+    path = finish(objs, name, spec)
     print("[neri]   厚み: 漆喰 %.3f・腰の下端 %.3f・腰の天端 %.3f(高 %.3f)・壁の天端 %.3f・棟 %.3f・押し出し %.3f"
           % (2 * HALF_T, 2 * sec["yb"], 2 * sec["yt"], sec["zi"], sec["zt"], sec["ztop"], shift))
     return objs, path
@@ -489,7 +609,7 @@ def kado_name(deg, arms, neg_zero=False):
     return "Neribei_Kado_%02d%s%s" % (int(round(abs(deg))), hand, a)
 
 
-def build_kado(deg, arms=None, neg_zero=False):
+def build_kado(deg, arms=None, neg_zero=False, grades=None):
     """留め継ぎの隅。Blender の作り(build_kado.py と同じ): 入りの腕 = +y(走りは −y)/ 化粧面 = +x / 原点 = 折れ点・足元。
     留め面の法線 n = (sgn·sin(Δ/2), cos(Δ/2), 0)(deg > 0 で Unity の yaw が増える折れ)。入りの腕は n 側を残し、
     出の腕は「腕の長さ b で切った入りの腕」を留め面で鏡に写した物。"""
@@ -545,6 +665,11 @@ def build_kado(deg, arms=None, neg_zero=False):
     objs = merge_groups(arm_objs)
     arms_n = None if (abs(aIn - full) < 1e-6 and abs(aOut - full) < 1e-6) else (aIn, aOut)
     name = kado_name(deg, arms_n, neg_zero)
+    if grades is not None:
+        kado_warp(objs, h, sgn, aIn, aOut, grades[0], grades[1])
+        name += "_G%sx%s" % (grade_tag(grades[0]), grade_tag(grades[1]))
+        print("[neri]   隅の坂なり 入りの腕 %+.4f・出の腕 %+.4f(走りに沿って上がる +)── 腕の先の高さ 入り %+.4f・出 %+.4f"
+              % (grades[0], grades[1], -grades[0] * aIn, grades[1] * aOut))
     path = finish(objs, name)
     xs = [v.co.x for o in objs for v in o.data.vertices]; ys = [v.co.y for o in objs for v in o.data.vertices]
     print("[neri]   隅 Δ=%+.3f° 腕(入り %.3f・出 %.3f・素 %.3f)・張り出し(折れ点より先)%.3f・瓦の勾配 %.3f・軒の半幅 %.3f"
@@ -569,8 +694,10 @@ def hook_s_heimap():
             pass
 
 
-def front_rays(objs, lo, hi):
-    """表を向いた面だけ当たる(Unity の裏面カリング)光線で、壁体の高さの格子が抜ける割合を向きごとに数える。"""
+def front_rays(objs, lo, hi, grade=0.0):
+    """表を向いた面だけ当たる(Unity の裏面カリング)光線で、壁体の高さの格子が抜ける割合を向きごとに数える。
+    坂なり(grade)は格子の高さを同じ剪断で上げる(z += −grade·x)。"""
+    mg = 0.0 if abs(grade) < 1e-9 else 0.08
     from mathutils.bvhtree import BVHTree
     bm = bmesh.new()
     for o in objs:
@@ -595,7 +722,8 @@ def front_rays(objs, lo, hi):
             for j in range(20):
                 if nm.startswith("小口"):
                     y = -HALF_T + 0.02 + (2 * HALF_T - 0.04) * (i + 0.5) / 60.0; z = 0.05 + 2.25 * (j + 0.5) / 20.0
-                    o = Vector((lo.x - 1 if d[0] > 0 else hi.x + 1, y, z))
+                    xe = lo.x if d[0] > 0 else hi.x
+                    o = Vector((xe - 1 if d[0] > 0 else xe + 1, y, z - grade * xe))
                 elif nm == "上から":
                     x = lo.x + 0.1 + (hi.x - lo.x - 0.2) * (i + 0.5) / 60.0; y = -0.5 + 1.0 * (j + 0.5) / 20.0
                     o = Vector((x, y, hi.z + 1))
@@ -603,8 +731,8 @@ def front_rays(objs, lo, hi):
                     x = lo.x + 0.1 + (hi.x - lo.x - 0.2) * (i + 0.5) / 60.0; y = -0.55 + 1.1 * (j + 0.5) / 20.0
                     o = Vector((x, y, -1.0))
                 else:
-                    x = lo.x + 0.3 + (hi.x - lo.x - 0.6) * (i + 0.5) / 60.0; z = 0.05 + 2.25 * (j + 0.5) / 20.0
-                    o = Vector((x, 0.0, z)) - dv * 6.0
+                    x = lo.x + 0.3 + (hi.x - lo.x - 0.6) * (i + 0.5) / 60.0; z = 0.05 + mg + (2.25 - 2 * mg) * (j + 0.5) / 20.0
+                    o = Vector((x, 0.0, z - grade * x)) - dv * 6.0
                 tot += 1; ok += hit(o, dv)
         res[nm] = round(1.0 - ok / max(tot, 1), 4)
     bm.free()
@@ -619,14 +747,14 @@ def boundary_edges(objs):
     return n
 
 
-def render_views(objs, stem, rays=True):
+def render_views(objs, stem, rays=True, grade=0.0):
     """表・裏・両小口・上・下・内の斜め低い目線。背景はカメラにだけマゼンタ(照明は灰)。"""
     hook_s_heimap()
     pts = [o.matrix_world @ v.co for o in objs for v in o.data.vertices]
     lo = Vector([min(p[i] for p in pts) for i in range(3)]); hi = Vector([max(p[i] for p in pts) for i in range(3)])
     info = {"bbox_blender": [[round(lo[i], 3), round(hi[i], 3)] for i in range(3)]}
     if rays:
-        info["抜け(光線)"] = front_rays(objs, lo, hi)
+        info["抜け(光線)"] = front_rays(objs, lo, hi, grade)
     c = (lo + hi) / 2; R = max((hi - lo).length * 0.7, 3.0) + 1.0
     cam = V.studio((0, -10, 2), tuple(c), res=(1100, 720))
     wt = bpy.context.scene.world.node_tree
@@ -664,6 +792,19 @@ OKABE_KADO = ["00", "00M", "01", "01M", "07M", "12", "12M", "16", "16M", "18M", 
               "39", "76M", "78", "90"]    # 区画 okabe の練塀の隅 25 基の折れ(KadoDeg の四捨五入・M = 負)。prefab の Dobei_Kado_* と同じ 19 種
 
 
+OKABE_SAKA_KADO = [   # 坂なりの区間に掛かる岡部の練塀の隅(素の腕)── (折れ, 入り,出 の勾配 %・走り = 区画の頂点の順)。const.heiLine.tenba の SW/SE から
+    ("76M", "0,1.07"),      # P7  平ら 18.75 → 辺7 1.07%
+    ("27", "1.07,1.07"),    # P8
+    ("39", "1.07,1.07"),    # P9
+    ("35M", "1.07,1.07"),   # P10
+    ("18M", "1.07,1.07"),   # P11
+    ("01M", "-12,-12"),     # P20 辺19→20 12% 下り
+    ("00", "-12,-12"),      # P21
+    ("01", "-12,-12"),      # P22 段の間(踏面も 12%)
+    ("78", "0,2.7"),        # P24 辺23 平ら 11.10 → 辺24 2.7%
+]
+
+
 def parse_kado(tok):
     neg = tok.endswith("M")
     v = float(tok[:-1] if neg else tok)
@@ -672,15 +813,25 @@ def parse_kado(tok):
     return v, False
 
 
+def stem(path):
+    return os.path.splitext(os.path.basename(path))[0]
+
+
 def run_job(argv, do_render):
+    gr = None
+    if "--grade" in argv:
+        gr = [float(t) / 100.0 for t in argv[argv.index("--grade") + 1].split(",")]
+    g1 = gr[0] if gr else 0.0
     if "--choku" in argv:
-        objs, path = build_straight(NTILE)
-        if do_render: render_views(objs, "Neribei_Choku")
+        objs, path = build_straight(NTILE, g1)
+        if do_render: render_views(objs, stem(path), grade=g1)
     if "--kiri" in argv:
         k = int(argv[argv.index("--kiri") + 1])
         assert 1 <= k < NTILE, "--kiri は瓦 1〜13 枚"
-        objs, path = build_straight(k)
-        if do_render: render_views(objs, "Neribei_Kiri_T%02d" % k)
+        objs, path = build_straight(k, g1)
+        if do_render: render_views(objs, stem(path), grade=g1)
+    if "--tome" in argv:
+        build_tome((lambda objs, path: render_views(objs, stem(path))) if do_render else None)
     if "--end" in argv:
         build_end((lambda objs, path: render_views(objs, os.path.splitext(os.path.basename(path))[0])) if do_render else None)
     if "--kado" in argv:
@@ -688,8 +839,10 @@ def run_job(argv, do_render):
         arms = None
         if "--arms" in argv:
             arms = tuple(float(t) for t in argv[argv.index("--arms") + 1].split(","))
-        objs, path = build_kado(deg, arms, nz)
-        if do_render: render_views(objs, os.path.splitext(os.path.basename(path))[0])
+        if gr is not None and len(gr) == 1:
+            gr = [gr[0], gr[0]]
+        objs, path = build_kado(deg, arms, nz, tuple(gr) if gr else None)
+        if do_render: render_views(objs, stem(path))
 
 
 def main():
@@ -699,6 +852,14 @@ def main():
         jobs = [["--choku"], ["--end"]] + [["--kiri", str(k)] for k in range(1, NTILE)] + [["--kado", t] for t in OKABE_KADO]
         for j in jobs:
             run_job(j, do_render and j[0] in ("--choku", "--end"))
+        return
+    if "--saka" in argv:
+        jobs = [["--tome"]]
+        for g in [sg * g for g in SAKA_GRADES for sg in (1, -1)]:      # U(+X へ上がる)と D(下がる)── 据える側で向きを裏返さない
+            jobs += [["--choku", "--grade", "%g" % (g * 100)]] + [["--kiri", str(k), "--grade", "%g" % (g * 100)] for k in range(1, NTILE)]
+        jobs += [["--kado", t, "--grade", gg] for t, gg in OKABE_SAKA_KADO]
+        for j in jobs:
+            run_job(j, False)
         return
     if "--list" in argv:
         for line in open(argv[argv.index("--list") + 1], encoding="utf-8"):

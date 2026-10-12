@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 452(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 458(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -341,6 +341,12 @@
 | `Own.NeribeiEnd(endAtPlusX)` | 関数 | 練塀の端(棟止め)── 在庫 `s_hei_l` の鬼瓦・袖瓦・端の柱つきの 1 枚を同じ断面で厚くした物。 | BuildRun(DobeiRun・NeribeiPanelRun) |
 | `Own.NeribeiKado(deg, armIn=…, armOut=…)` | 関数 | 練塀の隅(留め)── 一つの断面を折れ角の二等分の面で切って接いだ物。 | OkabeYashiki(PlaceKado) |
 | `Own.NeribeiArmFull` | float | NeribeiKado の素の腕[m](瓦 4 枚)。 | — |
+| `Own.NeribeiSakaGrades` | float[] | 焼いてある坂なりの勾配(正 = 上り・NeribeiSaka は U と D の両方)。 | — |
+| `Own.NeribeiSaka(grade, tiles=…)` | 関数 | 練塀の坂なり(直線 Neribei・切り NeribeiKiri と同じ姿・同じ割り)── 塀は鉛直のまま走りに勾配 grade で上がる縦の剪断 (z += grade·X)。 | — |
+| `Own.NeribeiGradeTag(grade)` | 関数 | 勾配の綴り(U/D + 万分率 4 桁)── NeribeiSaka・NeribeiKadoSaka の名。 | — |
+| `Own.NeribeiSakaNearest(grade)` | 関数 | 焼いてある勾配(NeribeiSakaGrades・符号つき)のうち grade に最も近いもの。 | — |
+| `Own.NeribeiTome(endAtPlusX)` | 関数 | 練塀の棟止めだけの駒(在庫 `s_hei_l` の端 ── 端の柱・腰の小口・袖瓦・鬼瓦・棟と桁の出 ── を端の柱の内面で切り、切り口を断面で塞いだ物)。 | — |
+| `Own.NeribeiKadoSaka(deg, gradeIn, gradeOut, armIn=…, armOut=…)` | 関数 | 練塀の坂の隅(留め)── NeribeiKado と同じ作り・同じ据え(ピボット = 折れ点・足元の高さは折れ点で 0)。 | — |
 | `Own.NagayaKado(deg, armNegZ, armPosX, tsuma)` | 関数 | 出隅の隅長屋(L 字の長屋の角・EDO-0500 2026-10-01 観理院 北東の施主指摘 ── 妻を突っ込む納めは屋根が重なり窓が途中で切れた)。 | BuildRun(NagayaKadoPlace) |
 | `Own.NagayaKadoMonomi(deg, armNegZ, armPosX)` | 関数 | 隅長屋 NagayaKado(妻なし)の外隅に物見(L 字の出格子・出 0.40)を付けた版(松江松平 P23・EDO-0554)。 | BuildRun(NagayaKadoPlace・NagayaMeasure) |
 | `Own.NagayaTsuma2(len)` | 関数 | 両端とも妻で閉じた一棟の長屋(真っ直ぐ・折らない)。 | BuildRun(OutsideParcel・SwapTsuma2) |

@@ -1173,12 +1173,13 @@ public static class EdoOkabeYashikiBuilder
             // ⭐ **隅の返し**の納め(指図「隅の納め」の章・K063 章番号で引かない)。隣が長屋の run なら、その**実測の妻面**へ突き付ける。
             //   ⛔ 呼び寸法で継がない(可動側は返し=練塀の側)。
             float rs0 = r.s0, rs1 = r.s1;
+            bool held0 = false, held1 = false;   // 端が相手(長屋・門・柱・隅・切り)に受けられている ⇒ 端の駒を使わない
             foreach (var nr in Runs)
             {
                 if (!nr.Nagaya || nr.edge != r.edge || !_nagayaSpan.ContainsKey(nr.name)) continue;
                 var span = _nagayaSpan[nr.name];
-                if (Mathf.Abs(nr.s1 - r.s0) < 0.30f) rs0 = span.y;   // 長屋の北 → 返しの南の小口
-                if (Mathf.Abs(nr.s0 - r.s1) < 0.30f) rs1 = span.x;
+                if (Mathf.Abs(nr.s1 - r.s0) < 0.30f) { rs0 = span.y; held0 = true; }   // 長屋の北 → 返しの南の小口
+                if (Mathf.Abs(nr.s0 - r.s1) < 0.30f) { rs1 = span.x; held1 = true; }
             }
             if (Mathf.Abs(rs0 - r.s0) > 0.001f || Mathf.Abs(rs1 - r.s1) > 0.001f)
                 wait.Add("練塀 " + r.name + ": 隣の長屋の**実測の妻面**へ寄せた s "
@@ -1186,11 +1187,12 @@ public static class EdoOkabeYashikiBuilder
                        + rs0.ToString("0.###") + "〜" + rs1.ToString("0.###")
                        + "(⛔ 呼び寸法で継がない・可動側は練塀)");
             // ⭐ 小門の脇:門構えの脇の面(札の jamb)へ突き付ける(⛔ 指図の s で止めない ── 門の柱と 0.63m 開いた・EDO-0502)
+            bool komon0 = false, komon1 = false;   // 門の脇 ⇒ 端の駒(棟止め)
             foreach (var kj in _komonJamb)
             {
                 if ((int)kj.x != r.edge) continue;
-                if (Mathf.Abs(r.s1 - kj.y) < 0.60f) { wait.Add("練塀 " + r.name + ": 小門の脇の面へ s1 " + rs1.ToString("0.###") + " → " + (kj.y + KOMON_BITE).ToString("0.###")); rs1 = kj.y + KOMON_BITE; }
-                if (Mathf.Abs(r.s0 - kj.z) < 0.60f) { wait.Add("練塀 " + r.name + ": 小門の脇の面へ s0 " + rs0.ToString("0.###") + " → " + (kj.z - KOMON_BITE).ToString("0.###")); rs0 = kj.z - KOMON_BITE; }
+                if (Mathf.Abs(r.s1 - kj.y) < 0.60f) { wait.Add("練塀 " + r.name + ": 小門の脇の面へ s1 " + rs1.ToString("0.###") + " → " + (kj.y + KOMON_BITE).ToString("0.###")); rs1 = kj.y + KOMON_BITE; komon1 = true; }
+                if (Mathf.Abs(r.s0 - kj.z) < 0.60f) { wait.Add("練塀 " + r.name + ": 小門の脇の面へ s0 " + rs0.ToString("0.###") + " → " + (kj.z - KOMON_BITE).ToString("0.###")); rs0 = kj.z - KOMON_BITE; komon0 = true; }
             }
             // ⭐ **辺の端の run だけ**を、隅の腕の実端面へ突き付ける(辺の途中の run は触らない)。
             //   ⛔ 呼び寸法で継がない — 腕は部材が持つ寸法で、run の端は腕が決める。
@@ -1207,20 +1209,31 @@ public static class EdoOkabeYashikiBuilder
             // ⭐ 辺の端の練塀が隣の辺の線へ斜めに当たる端は、端を隣の辺の線で切った駒(DobeiKiri)で納める(EDO-0502 2026-10-03)。
             //   隅の腕の無い端だけ。焼いてある角だけ(KiriEnd が null なら直角の端のまま)。
             var kiris = new List<KeyValuePair<string, Vector3>>();
-            if (!cornerEnd0 && r.s0 < 0.01f) { var k0 = KiriEnd(r, true, ref rs0); if (k0.Key != null) kiris.Add(k0); }
-            if (!cornerEnd1 && r.s1 > EdgeLen(r.edge) - 0.01f) { var k1 = KiriEnd(r, false, ref rs1); if (k1.Key != null) kiris.Add(k1); }
+            //   ⭐ 一枚物の練塀(施主裁定 2026-10-12 案1)には斜めに切った駒が無い ── 長屋の妻へ斜めに当たる端は、直角の端を妻の面へ**厚みの全幅で**突き込む
+            //   (光線で妻の面の最も奥まで ── 隙0・入る角は長屋の躯体の中へ埋める・oki-kata §4)。隣の辺の線で切る端は直角のまま ⚠。
+            if (!cornerEnd0 && r.s0 < 0.01f) { var k0 = KiriEnd(r, true, ref rs0); if (k0.Key != null) { rs0 = r.s0; if (JoinEndToGable(kak, r, true, ref rs0, wait)) { cornerEnd0 = true; held0 = true; } else wait.Add("練塀 " + r.name + ": 始めを斜めに切る駒が一枚物に無い ── 直角の端 ⚠"); } }
+            if (!cornerEnd1 && r.s1 > EdgeLen(r.edge) - 0.01f) { var k1 = KiriEnd(r, false, ref rs1); if (k1.Key != null) { rs1 = r.s1; if (JoinEndToGable(kak, r, false, ref rs1, wait)) { cornerEnd1 = true; held1 = true; } else wait.Add("練塀 " + r.name + ": 終わりを斜めに切る駒が一枚物に無い ── 直角の端 ⚠"); } }
             foreach (var kn0 in _kiriNotes) wait.Add("練塀 " + kn0); _kiriNotes.Clear();
+            //   自由端(何にも受けられない端・門の脇)は端の駒(棟止め・鬼瓦)
+            //   隣の辺の長屋が端の頂点から始まる(終わる)なら、その長屋の側面が端を受ける(held)
+            { int nP = Poly.Length;
+              foreach (var nr in Runs)
+              {
+                  if (!nr.Nagaya) continue;
+                  if (r.s0 < 0.01f && nr.edge == (r.edge - 1 + nP) % nP && nr.s1 > EdgeLen(nr.edge) - 0.30f) held0 = true;
+                  if (r.s1 > EdgeLen(r.edge) - 0.01f && nr.edge == (r.edge + 1) % nP && nr.s0 < 0.30f) held1 = true;
+              } }
+            bool free0 = komon0 || (!cornerEnd0 && !held0 && tomeEnd != 0), free1 = komon1 || (!cornerEnd1 && !held1 && tomeEnd != 1);
             // 切った駒だけで run が埋まる(残りの直線が 0.5 未満・隅の腕と重なる)なら、切った駒だけを据える ── 重なりは隅の腕の中へ埋める(oki-kata §4)
             bool kiriOnly = kiris.Count > 0 && rs1 - rs0 < 0.5f;
-            if (kiriOnly)
-                wait.Add("練塀 " + r.name + ": 切った駒の直角の端と隅の腕の実端面が " + (rs0 - rs1).ToString("F2") + "m 重なる ── 直線の駒を置かず切った駒だけ(重なりは隅の腕の中)");
-            else if (rs1 - rs0 > 0.01f && rs1 - rs0 < 0.5f && cornerEnd0 && cornerEnd1)
-            {   // ⭐ 両端の隅の腕の間に短い口(0.01〜0.5)── 口を残さない【硬: 隙0】。口の中ほどに 0.5 の駒を据え、両端は隅の腕へ重ねて埋める(第115巡: P3〜P4 の辺3 に 0.31 の口)
-                float mid = 0.5f * (rs0 + rs1), gap = rs1 - rs0; rs0 = mid - 0.25f; rs1 = mid + 0.25f;
-                wait.Add("練塀 " + r.name + ": 隅の腕の間の口 " + gap.ToString("F2") + "m を 0.50 の駒で塞いだ(両端を腕へ " + (0.5f * (0.5f - gap)).ToString("F2") + " ずつ重ねて埋める)");
+            //   ⭐ 一枚物は腕の先も切りも断面で塞いである ⇒ 隅の腕の間は**突き付けで割り切る**(重ねない・どんな短さでも瓦の切りを倍率で合わせる)。
+            //   ⛔ 旧い 0.5 の駒を腕へ重ねる納め(第115巡)は表裏 2 枚の時の物。口が 0.005 以下は閉じている扱い・負は腕どうしが重なる(隅の腕の選びの話 ⇒ ★)
+            if (rs1 - rs0 <= 0.005f)
+            {
+                if (rs1 - rs0 < -0.005f) wait.Add("練塀 " + r.name + ": 隅の腕の実端面どうしが " + (rs0 - rs1).ToString("F3") + "m 重なる ── 直線の駒を置かない(腕の短い隅が要る)⛔");
+                else wait.Add("練塀 " + r.name + ": 隅の腕の実端面どうしが突き付く(口 " + (rs1 - rs0).ToString("F3") + ")── 直線の駒は要らない");
+                continue;
             }
-            else if (rs1 - rs0 < 0.5f)
-            { wait.Add("練塀 " + r.name + ": 隅の腕の実端面で挟むと長さが " + (rs1 - rs0).ToString("F2") + "m — 据えない"); continue; }
             foreach (var kk in kiris)
             {
                 var kg = EdoBuild.Place(kk.Key, new Vector3(kk.Value.x, kk.Value.y, kk.Value.z), Mathf.Atan2(outw.x, outw.y) * Mathf.Rad2Deg, Vector3.one, kak, "Kiri_" + r.name);
@@ -1231,18 +1244,19 @@ public static class EdoOkabeYashikiBuilder
                 wait.Add("練塀 " + r.name + ": 隅の腕の実端面へ突き付けた s " + r.s0.ToString("0.###") + "〜" + r.s1.ToString("0.###")
                        + " → " + rs0.ToString("0.###") + "〜" + rs1.ToString("0.###"));
             if (kiriOnly) { hei++; continue; }
+            if (free0 || free1) wait.Add("練塀 " + r.name + ": 自由端" + (free0 ? (komon0 ? " 始め(門の脇)" : " 始め") : "") + (free1 ? (komon1 ? " 終わり(門の脇)" : " 終わり") : "") + " に端の駒(棟止め)");
             Vector2 a = EdgePt(r.edge, rs0), b = EdgePt(r.edge, rs1);
             if (r.hasStep)
             {
                 // 天端の切れ目(seatRule)── 基壇と同じ割り(SeatBreaks)で、区間ごとにその天端で据える
                 var brk = SeatBreaks(r, rs0, rs1);
                 for (int q = 0; q + 1 < brk.Count; q++)
-                    EdoBuild.DobeiRun(kak, EdgePt(r.edge, brk[q]), EdgePt(r.edge, brk[q + 1]), outw, r.name + "_" + q, false, r.SeatAt(0.5f * (brk[q] + brk[q + 1])), Vector2.zero, -1);
+                    HeiRun(kak, EdgePt(r.edge, brk[q]), EdgePt(r.edge, brk[q + 1]), outw, r.name + "_" + q, r.SeatAt(0.5f * (brk[q] + brk[q + 1])), free0 && q == 0, free1 && q + 2 == brk.Count, wait);
                 hei++;
             }
             else if (Mathf.Abs(r.seat1 - r.seat0) < 0.01f)
             {
-                EdoBuild.DobeiRun(kak, a, b, outw, r.name, false, r.seat0, Vector2.zero, -1);
+                HeiRun(kak, a, b, outw, r.name, r.seat0, free0, free1, wait);
                 hei++;
             }
             else
@@ -1250,14 +1264,21 @@ public static class EdoOkabeYashikiBuilder
                 // 斜面の run は天端が一直線に下るので、2m 刻みに割ってその位置の天端で据える
                 // (石垣そのものは水平が正典。run 全体では階段状に下る)
                 float L = (b - a).magnitude;
-                int nSeg = Mathf.Max(1, Mathf.RoundToInt(L / 2.0f));
+                //   ⭐ 自由端の区間は端の駒(一枚分 ≈3.1)が入る長さにとる(第118巡 ── 2m の区間では棟止めが入らない)。残りを 2m ほどに等分
+                const float END_SEG = 3.15f;
+                float hA = free0 ? Mathf.Min(END_SEG, L) : 0f, hB = free1 ? Mathf.Min(END_SEG, Mathf.Max(0f, L - hA)) : 0f;
+                var cuts = new List<float> { 0f }; if (hA > 0f) cuts.Add(hA);
+                float mA = hA, mB = L - hB, mL = mB - mA;
+                if (mL > 0.01f) { int nm = Mathf.Max(1, Mathf.RoundToInt(mL / 2.0f)); for (int q = 1; q <= nm; q++) cuts.Add(mA + mL * q / nm); }
+                if (hB > 0f && cuts[cuts.Count - 1] < L - 1e-3f) cuts.Add(L);
+                if (cuts[cuts.Count - 1] < L - 1e-3f) cuts.Add(L);
+                int nSeg = cuts.Count - 1;
                 for (int q = 0; q < nSeg; q++)
                 {
-                    Vector2 pa = Vector2.Lerp(a, b, q / (float)nSeg);
-                    Vector2 pb = Vector2.Lerp(a, b, (q + 1) / (float)nSeg);
-                    float sMid = Mathf.Lerp(rs0, rs1, (q + 0.5f) / nSeg);
-                    EdoBuild.DobeiRun(kak, pa, pb, outw, r.name + "_" + q, false,
-                                                    r.SeatAt(sMid), Vector2.zero, -1);
+                    Vector2 pa = Vector2.Lerp(a, b, cuts[q] / L);
+                    Vector2 pb = Vector2.Lerp(a, b, cuts[q + 1] / L);
+                    float sMid = rs0 + 0.5f * (cuts[q] + cuts[q + 1]) * (rs1 - rs0) / L;
+                    HeiRun(kak, pa, pb, outw, r.name + "_" + q, r.SeatAt(sMid), free0 && q == 0, free1 && q == nSeg - 1, wait);
                 }
                 hei++;
             }
@@ -1338,6 +1359,31 @@ public static class EdoOkabeYashikiBuilder
         return sb.ToString();
     }
 
+    /// <summary>**岡部の練塀の駒**(施主裁定 2026-10-12「案1」・EDO-0502 第118巡)── 一枚物の閉じた断面 <see cref="EdoBuild.NeribeiPanelRun"/>
+    /// (旧 <c>EdoBuild.DobeiRun</c> の表裏 2 枚は他邸のまま)。芯は線から −0.10(旧い表裏の組の中ほど)── 外面は <see cref="AlignInubashiri"/> が実メッシュで寄せる。</summary>
+    static void HeiRun(Transform kak, Vector2 a, Vector2 b, Vector2 outw, string name, float seat, bool endA, bool endB, List<string> wait)
+    {
+        string nt; EdoBuild.NeribeiPanelRun(kak, a, b, outw, name, seat, endA, endB, -0.10f, out nt);
+        if (nt != null) wait.Add("練塀 " + name + ": " + nt);
+    }
+
+    /// <summary>辺の端の練塀が隣の辺の長屋の妻へ斜めに当たる端(旧い <see cref="KiriEnd"/> が長屋の妻で切った端)を、直角の端のまま妻の面へ**厚みの全幅で**突き込む
+    /// (<see cref="JoinEndToNagaya"/> と同じ光線 3×7 ── 最も奥の当たり + 0.05)。相手の長屋 = 隣の辺の長屋の run で、端の頂点に接する物。
+    /// 硬い(隙0 ── 入る角は長屋の躯体の中へ埋める)。当たる先: 一枚物の練塀が長屋の妻へ斜めに当たる端(いまは岡部 N_Hei_35 の終わり × N39_0)。</summary>
+    static bool JoinEndToGable(Transform kak, Run r, bool atStart, ref float sEnd, List<string> wait)
+    {
+        int n = Poly.Length, ne = atStart ? (r.edge - 1 + n) % n : (r.edge + 1) % n;
+        Transform ng = null;
+        foreach (var nr in Runs)
+        {
+            if (!nr.Nagaya || nr.edge != ne) continue;
+            bool hit = (!atStart && nr.s0 < 0.30f) || (atStart && nr.s1 > EdgeLen(ne) - 0.30f);
+            if (hit) { ng = kak.Find(nr.name); if (ng != null) break; }
+        }
+        if (ng == null) return false;
+        return JoinEndToBody(r, atStart, ng, ref sEnd, wait);
+    }
+
     /// <summary>**区画の角で留めた表長屋の版**(EDO-0502 2026-10-03)を引く。run の端が辺の端(頂点)に在り、隣の辺の run も長屋で、
     /// 区画の線が長屋の外へ折れる(頂点の符号付きの折れ > 0.05° ── 岡部 頂点 15〜18 = 8.93/3.60/1.59/10.06)なら、その端の妻を
     /// 二等分の面へ寝かせた版(<c>EdoAssets.Own.NagayaOmote2FKutaiMiter</c> / <c>NagayaOmoteMonKutaiMiter</c> と同じ綴り `_m{L}x{R}`)。
@@ -1384,6 +1430,10 @@ public static class EdoOkabeYashikiBuilder
         var m = System.Text.RegularExpressions.Regex.Match(jt, @"長屋\s*(\w+)\s*の妻の面へ突き込み");
         if (!m.Success) { wait.Add("練塀 " + r.name + ": " + (atStart ? "join0" : "join1") + " が読めない ── 端は従前"); return false; }
         var ng = kak.Find(m.Groups[1].Value); if (ng == null) { wait.Add("練塀 " + r.name + ": 長屋 " + m.Groups[1].Value + " が無い ── 端は従前"); return false; }
+        return JoinEndToBody(r, atStart, ng, ref sEnd, wait);
+    }
+    static bool JoinEndToBody(Run r, bool atStart, Transform ng, ref float sEnd, List<string> wait)
+    {
         Vector2 dir = (EdgePt(r.edge, 1f) - EdgePt(r.edge, 0f)).normalized, inw = -OutNormal(r.edge); float T = C("dobeiT");
         float sRef = atStart ? r.s0 + 1.0f : r.s1 - 1.0f; Vector2 toward = atStart ? -dir : dir; float y0 = r.SeatAt(atStart ? r.s0 : r.s1);
         float dF = FaceIn(r.edge, atStart ? r.s0 : r.s1); var bodies = new List<GameObject> { ng.gameObject };
@@ -2688,7 +2738,10 @@ public static class EdoOkabeYashikiBuilder
             if (Has(c, "deg") && Mathf.Abs(Mathf.DeltaAngle(deg, F(c["deg"]))) > 0.5f)
                 degWarn.Add(S(c["id"]) + " 算出物 " + F(c["deg"]).ToString("+0.0;-0.0")
                           + "° ≠ 実測 " + deg.ToString("+0.0;-0.0") + "°");
-            string path = EdoAssets.Own.Kado(part, deg);
+            // ⭐ 練塀の隅は一枚物の留め(施主裁定 2026-10-12 案1・EDO-0502 第118巡)── Own.NeribeiKado・**実寸 scale 1**(旧 Dobei_Kado は ×ES)。腕の先は断面で塞いである(突き付け)
+            bool neri = part == "Dobei";
+            float kScale = neri ? 1f : ES;
+            string path = neri ? EdoAssets.Own.NeribeiKado(deg) : EdoAssets.Own.Kado(part, deg);
             string armArg = "";
             float full, faceDepth;
             if (EdoBuild.KadoGauge(path, out full, out faceDepth))
@@ -2697,11 +2750,11 @@ public static class EdoOkabeYashikiBuilder
                 //   ⭐ 辺ごとの控え(FitKado の KadoFace と同じ: 辺 e の頂点 k の側 = FaceIn(e, 端の s))── 据え点は両辺の外面の線の交点(第116巡: 深い方一つで割り P3 が 0.31 ずれた)
                 System.Func<int, int, float> fiAt = (e, k) => { int ee = ((e % n) + n) % n, kk = ((k % n) + n) % n; return FaceIn(ee, kk == ee ? 0f : EdgeLen(ee)); };
                 bool ok = EdoBuild.KadoArms(P, (int)F(c["vertex"]), k => kadoAt.ContainsKey(k) && kadoAt[k] == pt, OutNormal,
-                                            ES, full, faceDepth, fiAt, C("dobeiT"), 0.05f, 0.5f,
+                                            kScale, full, faceDepth, fiAt, C("dobeiT"), 0.05f, neri ? 0.2f : 0.5f,
                                             e => _kadoFreeEnd.ContainsKey(((e % n) + n) % n) ? _kadoFreeEnd[((e % n) + n) % n] : new Vector2(float.NaN, float.NaN), out arms, out an);
                 if (an != null) armNote.Add(S(c["id"]) + ": " + an);
                 if (!ok) { skip++; continue; }                // 腕が成り立たない隅は据えない(note に出る)
-                path = EdoAssets.Own.Kado(part, deg, arms.x, arms.y, full);
+                path = neri ? EdoAssets.Own.NeribeiKado(deg, arms.x, arms.y) : EdoAssets.Own.Kado(part, deg, arms.x, arms.y, full);
                 if (arms.x < full - 1e-3f || arms.y < full - 1e-3f)
                     armArg = " --arms " + arms.x.ToString("0.00") + "," + arms.y.ToString("0.00");
             }
@@ -2711,8 +2764,8 @@ public static class EdoOkabeYashikiBuilder
             if (src == null)
             {
                 miss.Add(S(c["id"]) + " → " + path
-                       + "(blender --background --python Tools/Blender/build_kado.py -- --part "
-                       + part.ToLowerInvariant() + " --deg " + Mathf.RoundToInt(deg) + armArg + ")");
+                       + (neri ? "(blender --background --python Tools/Blender/build_neribei.py -- --kado " + (Mathf.RoundToInt(Mathf.Abs(deg)) == 0 ? (deg < 0f ? "0M" : "0") : (deg < 0f ? "-" : "") + Mathf.RoundToInt(Mathf.Abs(deg))) + armArg + ")"
+                               : "(blender --background --python Tools/Blender/build_kado.py -- --part " + part.ToLowerInvariant() + " --deg " + Mathf.RoundToInt(deg) + armArg + ")"));
                 continue;
             }
             int v = (int)F(c["vertex"]);
@@ -2724,7 +2777,7 @@ public static class EdoOkabeYashikiBuilder
             go.name = "Kado_" + S(c["id"]);
             go.transform.position = new Vector3(b.x, seat - 0.10f, b.y);
             go.transform.rotation = Quaternion.Euler(0, Mathf.Atan2(dIn.x, dIn.y) * Mathf.Rad2Deg, 0);
-            go.transform.localScale = Vector3.one * ES;
+            go.transform.localScale = Vector3.one * kScale;
             made++;
         }
         var sb = new System.Text.StringBuilder("隅部材: " + made + " 基(留め継ぎでない/次巡 " + skip + ")");

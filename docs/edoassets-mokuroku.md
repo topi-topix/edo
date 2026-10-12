@@ -77,7 +77,7 @@
 | `Goten.ShojiHalf` | string | — | — |
 | `Goten.WallPlaster` | string | — | GotenKit(Mune) |
 | `Goten.WallRenji` | string | — | — |
-| `Goten.Column` | string | 柱 0.182 角 × 丈 2.727(Village Kit `column A` × S・材 `wood`)。 | GotenKit(Mune・Roka), OkabeYashiki(JoinEndToNagaya・PlaceTomeBashira) |
+| `Goten.Column` | string | 柱 0.182 角 × 丈 2.727(Village Kit `column A` × S・材 `wood`)。 | GotenKit(Mune・Roka), OkabeYashiki(JoinEndToBody・PlaceTomeBashira) |
 | `Goten.Beam` | string | — | GotenKit(Roka) |
 | `Goten.Tatami` | string | — | GotenKit(Mune) |
 | `Goten.FloorBoard` | string | — | GotenKit(Mune・Roka), BuildNiwa(IsEngawaPiece) |
@@ -294,7 +294,7 @@
 | `Own.NagayaOmote2FKutai(len)` | 関数 | 躯体の長さ = 呼び寸法の表長屋(二階)(EDO-0502 2026-10-03)。 | BuildTsugime(BodySpanAlong) |
 | `Own.KutaiOf(path)` | 関数 | 表長屋・門長屋のパスを、躯体 = 呼び寸法の版(`_kutai`)へ読み替える(在れば)。 | OkabeYashiki(GateInNagaya・PlaceOmoteNagaya), Doi(Stage2_Perimeter), DoiBuilder.Mon(Stage3_Mon) |
 | `Own.NagayaOmoteMonKutai(len, gateFromLeft, nikai)` | 関数 | 躯体の長さ = 呼び寸法の門長屋(NagayaOmote2FKutai の口抜き版)。 | — |
-| `Own.NagayaOmote2FKutaiMiter(len, thL, thR)` | 関数 | 外へ折れる区画の角で留めた表長屋(躯体 = 呼び寸法・二階)。 | OkabeYashiki(Stage2_Perimeter_) |
+| `Own.NagayaOmote2FKutaiMiter(len, thL, thR)` | 関数 | 外へ折れる区画の角で留めた表長屋(躯体 = 呼び寸法・二階)。 | OkabeYashiki(JoinEndToGable) |
 | `Own.NagayaOmote2FKutaiMiterCut(len, thL, thR)` | 関数 | 大きく外へ折れる出隅を、二等分の面で切って留めた表長屋(躯体 = 呼び寸法・二階)。 | BuildTsugime(SpecBodyLen), Doi(Stage2_Perimeter) |
 | `Own.NagayaOmoteMonKutaiMiter(len, gateFromLeft, nikai, thL, thR)` | 関数 | NagayaOmoteMonKutai の端の妻壁を区画の線の折れ(全角 thL = −X 端・thR = +X 端・度)の二等分の面へ寝かせた版 (NagayaOmote2FKutaiMiter の門長屋版)。 | — |
 | `Own.NagayaOmote(len, tsuma)` | 関数 | tsuma=false は両端を突き付けにした版(`--ends none`)。 | MatsudairaDewa(BuildNagayaOne・Stage2_Perimeter), OkabeYashiki(AssetByKey・PlaceOmoteNagaya), Doi(Stage2_Perimeter), NagayaOmote |
@@ -334,12 +334,12 @@
 | `Own.IshigakiKado2(deg1, deg2, mid, h, armNegZ, armPosX)` | 関数 | 二重折れの石垣の隅(`Castle Wall` の留め継ぎを二つ一体に)。 | BuildKado(PlaceRunKado), OkabeYashiki(Stage2b_Dan_) |
 | `Own.IshigakiChoku(h)` | 関数 | 丈違いの城の石垣の直線の駒(`JC.CastleWall` 1 枚・走り 2.00 を丈 h m へ下へ継いだ物)。 | BuildDanIshigaki(CastleWallOfExpose) |
 | `Own.DobeiKiri(deg, faceLonger, cutAtMinusX=…)` | 関数 | 端を隣の辺の線で斜めに切った練塀の駒(`DobeiRun` の組 = `s_hei_center` 表裏2枚を実寸で 1 枚分・走り 2.990)。 | OkabeYashiki(KiriEnd・MiterOf) |
-| `Own.Neribei` | string | `Neribei_Choku.fbx` — 練塀の一枚(在庫 `s_hei_center` の屋根 1 組 + 壁の表を鏡で裏へ写した厚み 0.40 の閉じた断面・実寸 scale 1)。 | — |
-| `Own.NeribeiP` | float | Neribei 一枚の走り[m](瓦 14 枚)。 | — |
-| `Own.NeribeiTile` | float | 練塀の瓦の周期[m] = NeribeiP / 14。 | — |
-| `Own.NeribeiKiri(tiles)` | 関数 | 練塀の端数の切り(瓦 tiles 枚 = tiles·NeribeiTile・1〜13)。 | — |
-| `Own.NeribeiEnd(endAtPlusX)` | 関数 | 練塀の端(棟止め)── 在庫 `s_hei_l` の鬼瓦・袖瓦・端の柱つきの 1 枚を同じ断面で厚くした物。 | — |
-| `Own.NeribeiKado(deg, armIn=…, armOut=…)` | 関数 | 練塀の隅(留め)── 一つの断面を折れ角の二等分の面で切って接いだ物。 | — |
+| `Own.Neribei` | string | `Neribei_Choku.fbx` — 練塀の一枚(在庫 `s_hei_center` の屋根 1 組 + 壁の表を鏡で裏へ写した厚み 0.40 の閉じた断面・実寸 scale 1)。 | BuildRun(DobeiRun・NeribeiPanelRun) |
+| `Own.NeribeiP` | float | Neribei 一枚の走り[m](瓦 14 枚)。 | BuildRun(DobeiRun・NeribeiPanelRun) |
+| `Own.NeribeiTile` | float | 練塀の瓦の周期[m] = NeribeiP / 14。 | BuildRun(NeribeiPanelRun) |
+| `Own.NeribeiKiri(tiles)` | 関数 | 練塀の端数の切り(瓦 tiles 枚 = tiles·NeribeiTile・1〜13)。 | BuildRun(DobeiRun・NeribeiPanelRun) |
+| `Own.NeribeiEnd(endAtPlusX)` | 関数 | 練塀の端(棟止め)── 在庫 `s_hei_l` の鬼瓦・袖瓦・端の柱つきの 1 枚を同じ断面で厚くした物。 | BuildRun(DobeiRun・NeribeiPanelRun) |
+| `Own.NeribeiKado(deg, armIn=…, armOut=…)` | 関数 | 練塀の隅(留め)── 一つの断面を折れ角の二等分の面で切って接いだ物。 | OkabeYashiki(PlaceKado) |
 | `Own.NeribeiArmFull` | float | NeribeiKado の素の腕[m](瓦 4 枚)。 | — |
 | `Own.NagayaKado(deg, armNegZ, armPosX, tsuma)` | 関数 | 出隅の隅長屋(L 字の長屋の角・EDO-0500 2026-10-01 観理院 北東の施主指摘 ── 妻を突っ込む納めは屋根が重なり窓が途中で切れた)。 | BuildRun(NagayaKadoPlace) |
 | `Own.NagayaKadoMonomi(deg, armNegZ, armPosX)` | 関数 | 隅長屋 NagayaKado(妻なし)の外隅に物見(L 字の出格子・出 0.40)を付けた版(松江松平 P23・EDO-0554)。 | BuildRun(NagayaKadoPlace・NagayaMeasure) |

@@ -1037,11 +1037,11 @@ public static partial class EdoBuild
     /// 直交していないと(呼び手が走りの端を線の向きへ延ばした斜めの継ぎ)、順に動かしたとき走りの移動が奥行を角度 × 距離だけ崩す
     /// (観理院の石垣の頭の継ぎ 1.4° で 6.7m 横へ流れた・2026-09-28 EDO-0477)。直交なら従来と同じ結果。</summary>
     static void ButtOnRun(GameObject go, Vector2 A, Vector2 dir, Vector2 outward, float latOff, float startAbs,
-                          out float mn, out float mx)
+                          out float mn, out float mx, Func<string, bool> runNameOk = null)
     {
         float lmn, lmx;
         ProjExtent(go, outward, float.MinValue, float.MaxValue, null, out lmn, out lmx);
-        ProjExtent(go, dir, float.MinValue, float.MaxValue, null, out mn, out mx);
+        ProjExtent(go, dir, float.MinValue, float.MaxValue, runNameOk, out mn, out mx);
         float tLat = (Vector2.Dot(A, outward) + latOff) - (lmn + lmx) * 0.5f;
         float tRun = startAbs - mn;
         float c = Vector2.Dot(outward, dir), den = 1f - c * c;
@@ -1132,6 +1132,84 @@ public static partial class EdoBuild
             }
         }
         return made;
+    }
+
+    // ---------- 練塀 run(一枚物の閉じた断面・EDO-0502 2026-10-12 施主裁定「案1」) ----------
+    /// <summary>練塀の屋根の群(走りの寸法に入れない ── 鬼瓦・袖瓦は端の柱の外へ出る)。</summary>
+    static readonly HashSet<string> NeribeiRoofParts = new HashSet<string> { "yane", "noki", "taruki", "keta", "mune", "onigawara", "keraba", "sumimune", "tome_ita" };
+    /// <summary>**練塀を一枚物 <see cref="EdoAssets.Own.Neribei"/> で建てる**(施主裁定 2026-10-12「案1」・EDO-0502)。<see cref="DobeiRun"/>(在庫 s_hei_center を
+    /// 表裏 2 枚 0.20 ずらし)の置き換え ── 小口は断面で塞ぎ、冠瓦は一筋、厚み 0.40(腰 0.69)。⛔ DobeiRun は他邸のために残す(邸ごとに呼び分ける)。
+    /// <para>割り: 走り L = n 枚(<see cref="EdoAssets.Own.NeribeiP"/>)+ 端数 k = round(余り / 瓦の周期) 枚の切り(<see cref="EdoAssets.Own.NeribeiKiri"/>)1 枚。
+    /// 全部の駒の走りに倍率 L/(n·P + k·tile) を掛けて**割り切る**(端数を残さない・倍率の外れ ≤ tile/2/L)。切りは B の側の端(端の駒があればその内)。</para>
+    /// <para>自由端(<paramref name="endAtA"/>/<paramref name="endAtB"/>)は端の駒 <see cref="EdoAssets.Own.NeribeiEnd"/>(鬼瓦・袖瓦・端の柱)── 棟止めが走りの外を向く手を
+    /// 据えた向きの実ベクトルで選ぶ。走りの突き付けは**壁体**(屋根の群 <see cref="NeribeiRoofParts"/> を除く)の実頂点で測る ⇒ 端の柱・腰の小口が A/B に来て、鬼瓦はその外へ出る。</para>
+    /// <para>据え: 走りは前の駒の実測の端へ突き付け(<see cref="ButtOnRun"/>)・奥行は芯を線から <paramref name="latOff"/>・高さは底を flatBase − 0.10
+    /// (平らな座 ── 地形なりは呼ばない)。外面は呼び手が実メッシュで寄せる(犬走り)。硬い(隙0 ── 割り切る)。
+    /// 当たる先: 岡部の外周の練塀(Stage2)── 他邸は未適用(広げるときは DobeiRun の呼び手をこれへ替え、隅を NeribeiKado・scale 1 へ)。</para>
+    /// 名 = prefix_番号(表裏の f/b を付けない)。</summary>
+    public static List<GameObject> NeribeiPanelRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward, string prefix,
+        float flatBase, bool endAtA, bool endAtB, float latOff, out string note)
+    {
+        var made = new List<GameObject>(); note = null;
+        Vector2 dir = (B - A).normalized; float L = (B - A).magnitude;
+        if (L < 0.005f) return made;
+        float P = EdoAssets.Own.NeribeiP, tile = EdoAssets.Own.NeribeiTile;
+        int n = Mathf.FloorToInt(L / P + 1e-4f), k = Mathf.RoundToInt((L - n * P) / tile);
+        if (k >= 14) { n++; k = 0; }
+        if (n == 0 && k == 0) k = 1;
+        // 端の駒は一枚分(P)の走りを持つ ⇒ n が足りなければ落とす(B の側から)
+        bool eA = endAtA, eB = endAtB;
+        if (eA && eB && n < 2) { eB = false; note = "両端が自由端だが一枚分しか無い ── B の側の端の駒を落とした"; }
+        // 一枚分に満たない走りの自由端: 0.75 枚分までは端の駒を走りに縮めて一枚で納める(⚠)・それより短ければ端の駒を落とす(⚠ 小口は断面で塞いである)
+        if ((eA || eB) && n < 1)
+        {
+            if (L >= 0.75f * P) { n = 1; k = 0; note = (note == null ? "" : note + " / ") + "自由端の端の駒を走り " + L.ToString("F2") + " へ縮めた ⚠"; }
+            else { note = (note == null ? "" : note + " / ") + "自由端" + (eA ? " A" : "") + (eB ? " B" : "") + " に端の駒が入らない(走り " + L.ToString("F2") + " < 0.75 枚分)⚠"; eA = eB = false; }
+        }
+        var seq = new List<string>();
+        int nFull = n - (eA ? 1 : 0) - (eB ? 1 : 0);
+        if (eA) seq.Add("endA");
+        for (int i = 0; i < nFull; i++) seq.Add(EdoAssets.Own.Neribei);
+        if (k > 0) seq.Add(EdoAssets.Own.NeribeiKiri(k));
+        if (eB) seq.Add("endB");
+        Func<string, bool> body = nm => !NeribeiRoofParts.Contains(nm);
+        float psi = Mathf.Atan2(outward.x, outward.y) * Mathf.Rad2Deg;
+        Vector2 lx = new Vector2(Mathf.Cos(psi * Mathf.Deg2Rad), -Mathf.Sin(psi * Mathf.Deg2Rad));   // 据えた向きの局所 +X
+        float a0 = Vector2.Dot(A, dir), cur = a0;
+        for (int i = 0; i < seq.Count; i++)
+        {
+            if (seq[i] == "endA") seq[i] = EdoAssets.Own.NeribeiEnd(Vector2.Dot(lx, -dir) > 0f);   // 棟止め(局所 +X が L)を A の外へ
+            else if (seq[i] == "endB") seq[i] = EdoAssets.Own.NeribeiEnd(Vector2.Dot(lx, dir) > 0f);
+        }
+        // 倍率 = L / 壁体の実寸の和(駒ごとに実メッシュで測る ── 端の駒は端の柱・腰の小口の分だけ一枚より長い)
+        float sumW = 0f; foreach (var pth in seq) sumW += NeribeiBodyW(pth, body);
+        float f = sumW > 1e-3f ? L / sumW : 1f;
+        for (int i = 0; i < seq.Count; i++)
+        {
+            string path = seq[i];
+            var go = Place(path, Vector3.zero, psi, new Vector3(f, 1f, 1f), parent, prefix + "_" + i);
+            if (go == null) { note = (note == null ? "" : note + " / ") + "駒が無い " + path; continue; }
+            float mn, mx;
+            ButtOnRun(go, A, dir, outward, latOff, cur, out mn, out mx, body);
+            cur = mx;
+            SeatBottom(go, flatBase - 0.10f);
+            made.Add(go);
+        }
+        float resid = cur - (a0 + L);
+        if (Mathf.Abs(resid) > 0.01f) note = (note == null ? "" : note + " / ") + "走りの端の残差 " + resid.ToString("+0.000;-0.000") + "m";
+        return made;
+    }
+
+    static readonly Dictionary<string, float> _neribeiW = new Dictionary<string, float>();
+    /// <summary>練塀の駒の壁体(屋根の群を除く)の局所 X の実寸(scale 1・実メッシュ)。</summary>
+    static float NeribeiBodyW(string path, Func<string, bool> body)
+    {
+        float w; if (_neribeiW.TryGetValue(path, out w)) return w;
+        var pr = Place(path, new Vector3(0f, -9999f, 0f), 0f, Vector3.one, null, "__nb_probe");
+        if (pr == null) return 0f;
+        float mn, mx; ProjExtent(pr, new Vector2(1f, 0f), float.MinValue, float.MaxValue, body, out mn, out mx);
+        UnityEngine.Object.DestroyImmediate(pr);
+        w = mx > mn ? mx - mn : 0f; _neribeiW[path] = w; return w;
     }
 
     // ---------- 練塀 run(一体物・EDO-0351) ----------

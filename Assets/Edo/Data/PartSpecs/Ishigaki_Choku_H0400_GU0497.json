@@ -1,0 +1,78 @@
+{
+    "prefab": "Assets/Edo/Models/Kado/Ishigaki_Choku_H0400_GU0497.fbx",
+    "kind": "fence",
+    "source": "Tools/Blender/build_kidan_saka.py -- --grade 4.97",
+    "unitScale": 1.0,
+    "yBottom": -0.0994,
+    "foot": [
+        {
+            "x": -2.3875,
+            "y": -2.0
+        },
+        {
+            "x": 0.0,
+            "y": -2.0
+        },
+        {
+            "x": 0.0,
+            "y": -0.99396
+        },
+        {
+            "x": -2.3875,
+            "y": -0.99396
+        }
+    ],
+    "front": 0.0,
+    "back": 0.0,
+    "jambL": {
+        "x": 0.0,
+        "z0": 0.0,
+        "z1": 0.0,
+        "y0": 0.0,
+        "y1": 0.0
+    },
+    "jambR": {
+        "x": 0.0,
+        "z0": 0.0,
+        "z1": 0.0,
+        "y0": 0.0,
+        "y1": 0.0
+    },
+    "passage": {
+        "x0": 0.0,
+        "x1": 0.0
+    },
+    "eave": {
+        "x0": 0.0,
+        "x1": 0.0,
+        "z0": 0.0,
+        "z1": 0.0,
+        "y0": 0.0,
+        "y1": 0.0
+    },
+    "faceOut": -0.99396,
+    "faceIn": -2.0,
+    "copingOverhang": 0.48758,
+    "height": 4.0994,
+    "frame": "Castle Wall の局所(走り Z・背 X=0・見え面 −X・ピボット = Z=0 の端の背の足元)── 共通の欄は Measure の読みに合わせた値で据えに使わない",
+    "grade": 0.0497,
+    "gradeAxis": "+Z",
+    "h": 4.0,
+    "runZ": [
+        -2.0,
+        0.0
+    ],
+    "crestY": [
+        3.9006,
+        4.0
+    ],
+    "crestFrontX": -1.4,
+    "crestBackX": 0.0,
+    "rootY": [
+        -0.0994,
+        0.0
+    ],
+    "faceFootX": -2.4,
+    "batter": 0.25,
+    "place": "position・yaw = 素の Castle Wall と同じ / scale = Vector3.one·s / y = (駒の Z=0 の端の天端の線) − h·s"
+}

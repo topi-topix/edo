@@ -2912,6 +2912,51 @@ public static class EdoAssets
             return "Assets/Edo/Models/Kado/Ishigaki_Choku_H" + UnityEngine.Mathf.RoundToInt(h * 100f).ToString("0000") + ".fbx";
         }
 
+        // ---------------------------------------------------------------- 台の石垣の坂なり(EDO-0502 const.heiLine.kidanCrest・2026-10-13)
+        /// <summary>焼いてある台の石垣の坂なりの勾配(絶対値・<see cref="IshigakiChokuSaka"/> は U と D の両方)── 練塀の坂なり `Neribei_Saka_*` の名にある勾配の全部(2026-10-13)。
+        /// ほかの勾配は `--grade` で焼き足す(1 本 0.1 秒・.meta も書くので remap は要らない)。</summary>
+        public static readonly float[] IshigakiChokuSakaGrades = { 0.0104f, 0.0107f, 0.0118f, 0.0122f, 0.0134f, 0.0145f, 0.027f, 0.0293f, 0.0303f, 0.0433f,
+            0.0497f, 0.0567f, 0.0594f, 0.0614f, 0.0625f, 0.0762f, 0.0841f, 0.0866f, 0.0867f, 0.0878f, 0.0882f, 0.0883f, 0.0946f, 0.0948f, 0.0987f, 0.1069f,
+            0.12f, 0.1206f, 0.125f };
+
+        /// <summary>**台の石垣(外周の基壇)の坂なりの直線の駒** ── 素の `JC.CastleWall`(材 `stone wall`)を**縦の剪断**で勾配 <paramref name="grade"/> に沿わせた物
+        /// (Unity 局所で Y += grade·Z)。天端・段の目地・根石の底は勾配に沿い、背・小口・縦の線は鉛直のまま・法 1:0.25 は回らない。
+        /// 剪断は一次 ⇒ 同じ勾配の駒を走りの線に沿って何枚どう重ねても面と天端が一致して閉じる。Z 一定の断面は素と同じ ⇒ 平らな Castle Wall・別の勾配・坂の隅の腕の先と断面が一致する。
+        /// 小口(走りの両端)は素のまま閉じている(段の所の小口は塞がっている)。開いているのは底だけ(素と同じ・地中)。
+        /// **局所は素の Castle Wall と同じ**: 走り Z ∈ [−len, 0]・背 X = 0・見え面 −X・天端の前の縁 X = −1.40・面の足 X = −2.40。ピボット = Z = 0 の端・背・その端の足元。
+        /// **天端(Z) = h + grade·Z・根石の底(Z) = grade·Z**(根石の深さは天端の線の下 h·s で一定)。<paramref name="grade"/> &gt; 0 = 局所 +Z へ上がる(`_GU`)/ &lt; 0 = 下がる(`_GD`)。
+        /// 据え: position・yaw は素の Castle Wall と同じ / scale = Vector3.one·s(一様な倍率で勾配は変わらない)/ **y = その駒の Z = 0 の端の所の天端の線 − h·s**
+        /// (⛔ 実測の最上点を天端へ合わせる PlaceCrestWall の据えは平らな駒だけ ── 坂の駒の最上点は高い端にある)。勾配の符号は駒の局所 +Z の世界の向きと走りの上りで決める。
+        /// 札 PartSpecs/&lt;名&gt;.json(kind fence)の crestY / rootY / runZ / crestFrontX / faceFootX が据えの値。共通の欄(faceOut・faceIn・copingOverhang)は
+        /// EdoPartSpec.Measure の読みに合わせた値(局所 Z が走りなので「面」でない)── 据えに使わない。
+        /// <paramref name="h"/> = 丈(既定 4.0 = 素・4m 超は `Ishigaki_Choku` と同じく下へ継ぐ)/ <paramref name="len"/> = 走り(既定 2.0・短い区間は素の小口を切り口へ移した `_L&lt;cm&gt;`)。
+        /// 焼いたもの(2026-10-13): H0400 × <see cref="IshigakiChokuSakaGrades"/> × U/D = 58 本。丈違い・走りを詰めた版は未焼(焼き足す)。
+        ///   blender --background --python Tools/Blender/build_kidan_saka.py -- --grade &lt;%&gt; [--h &lt;m&gt;] [--len &lt;m&gt;] --render   (一式は --okabe)</summary>
+        public static string IshigakiChokuSaka(float grade, float h = 4f, float len = 2f)
+        {
+            string p = "Assets/Edo/Models/Kado/Ishigaki_Choku_H" + UnityEngine.Mathf.RoundToInt(h * 100f).ToString("0000") + "_G" + NeribeiGradeTag(grade);
+            return len >= 2f - 1e-4f ? p + ".fbx" : p + "_L" + UnityEngine.Mathf.RoundToInt(len * 100f) + ".fbx";
+        }
+        /// <summary>焼いてある台の坂なりの勾配(<see cref="IshigakiChokuSakaGrades"/>・符号つき)のうち <paramref name="grade"/> に最も近いもの(<see cref="NeribeiSakaNearest"/> と同じ)。</summary>
+        public static float IshigakiChokuSakaNearest(float grade)
+        {
+            float best = 0f, d = float.MaxValue;
+            foreach (var g in IshigakiChokuSakaGrades) foreach (var s in new[] { g, -g }) { float e = UnityEngine.Mathf.Abs(s - grade); if (e < d) { d = e; best = s; } }
+            return best;
+        }
+        /// <summary>**台の石垣の坂の隅**(倍率 s の素の隅 <see cref="IshigakiKadoS(float,float,float)"/> を、練塀の坂の隅 <see cref="NeribeiKadoSaka"/> と同じ**芯の道のり T** で剪断)。
+        /// z += g·T: 留めの面の上は両腕で T = 0(閉じる)・腕の先は横に水平で T = ∓2.0·s ⇒ 腕の先の高さ 入り −gIn·2s / 出 +gOut·2s。腕の先に <see cref="IshigakiChokuSaka"/>
+        /// (倍率 s)を突き付ければ断面が一致する(並べ焼きで頂点の差 ≤ 1e-5)。<paramref name="gradeIn"/> / <paramref name="gradeOut"/> = 入りの腕(局所 −Z)/ 出の腕の勾配
+        /// (**入り → 折れ点 → 出の走りに沿って上がる +**)。どちらの腕を局所 −Z へ据えるかは PlaceRunKado の yaw の解 ── 逆なら (−gOut, −gIn) を引く。
+        /// 据えは素の隅と同じ: position = 折れ点 P・**y = 折れ点の天端 − h·s**・yaw = 入りの run・scale = 1(s は頂点に焼いてある)。材 `stone wall`(.meta は素の隅の写し ⇒ remap 不要)。
+        /// 焼いたもの: **78 × S075**(P24 辺23 平ら → 辺24 上り・78.367°)の (0, +2.70)・(−2.70, 0)・(0, +3.03)・(−3.03, 0)。
+        ///   blender --background --python Tools/Blender/build_kidan_saka.py -- --kado &lt;角&gt; --s &lt;s&gt; --grade &lt;入り %&gt;,&lt;出 %&gt; --render</summary>
+        public static string IshigakiKadoSaka(float deg, float h, float s, float gradeIn, float gradeOut)
+        {
+            string p = IshigakiKadoS(deg, h, s);
+            return p.Substring(0, p.Length - 4) + "_G" + NeribeiGradeTag(gradeIn) + "x" + NeribeiGradeTag(gradeOut) + ".fbx";
+        }
+
         /// <summary>**端を隣の辺の線で斜めに切った練塀の駒**(`DobeiRun` の組 = `s_hei_center` 表裏2枚を実寸で 1 枚分・走り 2.990)。
         /// 区画の角で隣の辺が斜めに来るとき、直角の端では深い側の角が先に線に当たり見え面に楔の口が残る(岡部 辺0 の始め 0.053)。
         /// 局所(Unity): +X = 切る端(角の側)・+Z = 見え面(区画の外)・足元 Y = 0。**ピボット = 切り口と壁体の外面(腰の石垣の表)の交点**。

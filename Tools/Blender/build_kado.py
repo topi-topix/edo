@@ -942,4 +942,5 @@ def main():
                                   "kado_%s_%02d%s%s.png" % (part, round(abs(deg)), hand, hsuf() + ssuf() + asuf())))
 
 
-main()
+if __name__ == "__main__":      # build_kidan_saka.py が道具(load・normalize・extend_down)を import する
+    main()

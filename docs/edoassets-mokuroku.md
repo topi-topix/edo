@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 458(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 462(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -333,6 +333,10 @@
 | `Own.IshigakiKadoS(deg, h, s, armNegZ, armPosX)` | 関数 | IshigakiKadoS の腕を詰めた版(綴りは IshigakiKado と同じ・腕は素の cm)。 | OkabeYashiki(PlaceIshigaki) |
 | `Own.IshigakiKado2(deg1, deg2, mid, h, armNegZ, armPosX)` | 関数 | 二重折れの石垣の隅(`Castle Wall` の留め継ぎを二つ一体に)。 | BuildKado(PlaceRunKado), OkabeYashiki(Stage2b_Dan_) |
 | `Own.IshigakiChoku(h)` | 関数 | 丈違いの城の石垣の直線の駒(`JC.CastleWall` 1 枚・走り 2.00 を丈 h m へ下へ継いだ物)。 | BuildDanIshigaki(CastleWallOfExpose) |
+| `Own.IshigakiChokuSakaGrades` | float[] | 焼いてある台の石垣の坂なりの勾配(絶対値・IshigakiChokuSaka は U と D の両方)── 練塀の坂なり `Neribei_Saka_*` の名にある勾配の全部(2026-10-13)。 | — |
+| `Own.IshigakiChokuSaka(grade, h=…, len=…)` | 関数 | 台の石垣(外周の基壇)の坂なりの直線の駒 ── 素の `JC.CastleWall`(材 `stone wall`)を縦の剪断で勾配 grade に沿わせた物 (Unity 局所で Y += grade·Z)。 | — |
+| `Own.IshigakiChokuSakaNearest(grade)` | 関数 | 焼いてある台の坂なりの勾配(IshigakiChokuSakaGrades・符号つき)のうち grade に最も近いもの(NeribeiSakaNearest と同じ)。 | — |
+| `Own.IshigakiKadoSaka(deg, h, s, gradeIn, gradeOut)` | 関数 | 台の石垣の坂の隅(倍率 s の素の隅 IshigakiKadoS を、練塀の坂の隅 NeribeiKadoSaka と同じ芯の道のり T で剪断)。 | — |
 | `Own.DobeiKiri(deg, faceLonger, cutAtMinusX=…)` | 関数 | 端を隣の辺の線で斜めに切った練塀の駒(`DobeiRun` の組 = `s_hei_center` 表裏2枚を実寸で 1 枚分・走り 2.990)。 | OkabeYashiki(KiriEnd・MiterOf) |
 | `Own.Neribei` | string | `Neribei_Choku.fbx` — 練塀の一枚(在庫 `s_hei_center` の屋根 1 組 + 壁の表を鏡で裏へ写した厚み 0.40 の閉じた断面・実寸 scale 1)。 | BuildHeiTenba(NeribeiLineRun・NeribeiTomeGauge), BuildRun(DobeiRun・NeribeiPanelRun), OkabeYashiki(FaceIn) |
 | `Own.NeribeiP` | float | Neribei 一枚の走り[m](瓦 14 枚)。 | BuildRun(DobeiRun・HeiTenbaSteps・NeribeiPanelRun), BuildHeiTenba(NeribeiLineRun) |

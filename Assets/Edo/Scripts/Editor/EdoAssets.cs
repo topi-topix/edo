@@ -2936,6 +2936,54 @@ public static class EdoAssets
         }
 
 
+        // ---------------------------------------------------------------- 練塀(一つの閉じた断面・EDO-0502 2026-10-12 施主裁定「案1です」)
+        /// <summary>**練塀の一枚**(在庫 `s_hei_center` の屋根 1 組 + 壁の表を鏡で裏へ写した厚み 0.40 の閉じた断面・**実寸 scale 1**)。
+        /// 旧 `DobeiRun`(s_hei_center を表裏 2 枚 0.20 ずらし)の置き換え ── 小口は断面で塞ぎ、冠瓦は一筋。見た目と材 `s_heimap` は同じ。
+        /// 局所: 走り X ∈ [−1.495, 1.495](<see cref="NeribeiP"/>)・ピボット = 走りの中央・壁の芯・腰の石垣の下端(Y = 0)・厚み Z は芯対称
+        /// (漆喰 ±0.200・下見板 ±0.206・腰の下端 ±0.343・屋根 ±0.575)・全高 2.646。メッシュは群の名(hei / shitami / hashira2 …)のまま ⇒ WallFace で外面が測れる。
+        /// 札(fence)= PartSpecs/同名.json。材は .meta で s_hei_center の s_heimap に結線済み(remap 不要)。
+        ///   blender --background --python Tools/Blender/build_neribei.py -- --choku --render</summary>
+        public const string Neribei = "Assets/Edo/Models/Neribei/Neribei_Choku.fbx";
+        /// <summary><see cref="Neribei"/> 一枚の走り[m](瓦 14 枚)。</summary>
+        public const float NeribeiP = 2.9905f;
+        /// <summary>練塀の瓦の周期[m] = <see cref="NeribeiP"/> / 14。切りの駒と隅の腕はこの倍数で切ってあり、継ぎ目で瓦が続く。</summary>
+        public const float NeribeiTile = NeribeiP / 14f;
+
+        /// <summary>**練塀の端数の切り**(瓦 <paramref name="tiles"/> 枚 = tiles·<see cref="NeribeiTile"/>・1〜13)。両端の壁体を断面で塞いだ物。据え・局所は <see cref="Neribei"/> と同じ(中央ピボット)。
+        /// 走りの割り(据える側): n = floor(L/P) 枚 + 端数 k = round(余り/tile) の切り 1 枚 ⇒ 全駒の走りに倍率 L/(nP + k·tile) を掛けて割り切る(≤ tile/2/L)。
+        ///   blender --background --python Tools/Blender/build_neribei.py -- --kiri &lt;tiles&gt; --render</summary>
+        public static string NeribeiKiri(int tiles)
+        {
+            return "Assets/Edo/Models/Neribei/Neribei_Kiri_T" + UnityEngine.Mathf.Clamp(tiles, 1, 13).ToString("00") + ".fbx";
+        }
+
+        /// <summary>**練塀の端(棟止め)**── 在庫 `s_hei_l` の鬼瓦・袖瓦・端の柱つきの 1 枚を同じ断面で厚くした物。自由端・門の脇に。
+        /// <paramref name="endAtPlusX"/> = 棟止めが局所 +X(外から見て左)= `_L` / false = −X = `_R`。ピボット = 1 枚分の走りの中央
+        /// (走り X ∈ [−1.494, 1.494]・棟止めの側へ 端の柱の外面 1.599・腰の小口 1.627・鬼瓦の先 1.678)。断面は芯対称なので R は L を 180° 回した物と同じ。
+        ///   blender --background --python Tools/Blender/build_neribei.py -- --end --render</summary>
+        public static string NeribeiEnd(bool endAtPlusX)
+        {
+            return "Assets/Edo/Models/Neribei/Neribei_End_" + (endAtPlusX ? "L" : "R") + ".fbx";
+        }
+
+        /// <summary>**練塀の隅(留め)**── 一つの断面を折れ角の二等分の面で切って接いだ物。屋根は一枚・棟は留めで一筋に折れ・出隅の側に隅棟・入隅の側は瓦の谷。
+        /// 据えは旧 <see cref="Kado(string,float)"/>(Dobei)と同じ規約: ピボット = 折れ点(両腕の**芯**の交点)・足元 / yaw = 入りの run の走りの方位 /
+        /// 入りの腕は局所 −Z・化粧面は局所 −X。⚠ **実寸(scale = 1)** ── 旧 Dobei_Kado は ×ES で据えた。KadoArms へは scale 1・armFull/faceDepth は KadoGauge で測る。
+        /// 素の腕 = 瓦 4 枚 = 0.854(折れ点から瓦の周期で始まる ⇒ 腕の先に <see cref="Neribei"/> を突き付ければ瓦が続く)。腕の先の壁体は断面で塞いである(**突き付け・重ねない**)。
+        /// 綴りは <see cref="Kado(string,float,float,float,float)"/> と同じ(`_A&lt;入り cm&gt;x&lt;出 cm&gt;`・素なら付けない・負の折れは M・0° の鏡は 00M)。
+        /// 焼いてあるもの: 岡部の 19 種(00・00M・01・01M・07M・12・12M・16・16M・18M・19M・22・22M・27・35M・39・76M・78・90)の素の腕。
+        ///   blender --background --python Tools/Blender/build_neribei.py -- --kado &lt;整数角 or 00M&gt; [--arms &lt;入り&gt;,&lt;出&gt;] --render</summary>
+        public static string NeribeiKado(float deg, float armIn = 0f, float armOut = 0f)
+        {
+            int d = UnityEngine.Mathf.RoundToInt(UnityEngine.Mathf.Abs(deg));
+            string p = "Assets/Edo/Models/Neribei/Neribei_Kado_" + d.ToString("00") + (deg < 0f ? "M" : "");
+            int f = UnityEngine.Mathf.RoundToInt(NeribeiArmFull * 100f), a = UnityEngine.Mathf.RoundToInt(armIn * 100f), b = UnityEngine.Mathf.RoundToInt(armOut * 100f);
+            if ((armIn <= 0f && armOut <= 0f) || (a >= f && b >= f)) return p + ".fbx";
+            return p + "_A" + a + "x" + b + ".fbx";
+        }
+        /// <summary><see cref="NeribeiKado"/> の素の腕[m](瓦 4 枚)。</summary>
+        public const float NeribeiArmFull = 4f * NeribeiTile;
+
         /// <summary>**出隅の隅長屋**(L 字の長屋の角・EDO-0500 2026-10-01 観理院 北東の施主指摘 ── 妻を突っ込む納めは屋根が重なり窓が途中で切れた)。
         /// 在庫 `knagaya01c` を周期のまま走りに延ばした帯を **pier(無地の壁)の芯で折った**物 ── 屋根は留めで一続き(外に隅棟・内に谷)。
         /// 外隅の稜の両側に無地 0.77m ずつ・窓は切れない・各腕に窓 2 つ以上。
@@ -3137,6 +3185,36 @@ public static class EdoAssets
         /// (`ButtOnRun` は実メッシュを測って突き付けるので、鏡像でなく回転で足りる)。
         /// 生成: build_dobei.py の main() が Dobei2m と同時に書き出す(引数なし)。</summary>
         public const string Dobei2mEnd = "Assets/Edo/Models/Dobei/Dobei2m_End.fbx";
+
+        // ---------------------------------------------------------------- 土塀 Dobei2m の端・切り・隅(EDO-0502 2026-10-12 施主「土塀の端には棟止め瓦が必要」)
+        /// <summary>**土塀の端(棟止め)**── <see cref="Dobei2mEnd"/> の袖瓦に**鬼瓦**(在庫 `roof ornaments L` を棟の幅へ縮めた物)を足した版。
+        /// 局所は <see cref="Dobei2m"/> と同じ(走り X ∈ [−2.004, 0]・ピボット = X = 0 の端・芯・足元)。<paramref name="atX0"/> = 棟止めが X = 0 の側(`_L` = Dobei2mEnd と同じ側)/
+        /// false = X = −2.004 の側(`_R`)。鬼瓦は端から 0.071 外へ出る(札の copingOverhang)。材は Dobei2m と同じ 4 つ(.meta で結線済み)。
+        ///   blender --background --python Tools/Blender/build_dobei2.py -- --end --render</summary>
+        public static string Dobei2End(bool atX0)
+        {
+            return "Assets/Edo/Models/Dobei/Dobei2_End_" + (atX0 ? "L" : "R") + ".fbx";
+        }
+
+        /// <summary>**土塀の端数の切り**(<paramref name="eighths"/>/8 枚 = 0.2505 刻み・1〜7)。切り口の壁体を断面(腰板・貫・土壁・天端の三角)で塞いだ物。
+        /// 局所は <see cref="Dobei2m"/> と同じ(X ∈ [−len, 0])。瓦は 2.004 にしか周期が無いので切り口で瓦の位相は合わない ── 走りの倍率で割り切る。
+        ///   blender --background --python Tools/Blender/build_dobei2.py -- --kiri &lt;eighths&gt; --render</summary>
+        public static string Dobei2Kiri(int eighths)
+        {
+            return "Assets/Edo/Models/Dobei/Dobei2_Kiri_E" + UnityEngine.Mathf.Clamp(eighths, 1, 7) + ".fbx";
+        }
+
+        /// <summary>**土塀の隅(留め)**── <see cref="NeribeiKado"/> と同じ作り・同じ据え(ピボット = 両腕の芯の交点・入りの腕は局所 −Z・化粧面 −X・scale 1)。
+        /// 素の腕 = 1.002(半枚)・出隅の側に隅棟(`roof top x1`)・軒裏の留めの線に板(割れ目を塞ぐ)。綴りは NeribeiKado と同じ。岡部の 19 種を焼いてある。
+        ///   blender --background --python Tools/Blender/build_dobei2.py -- --kado &lt;整数角 or 00M&gt; [--arms &lt;入り&gt;,&lt;出&gt;] --render</summary>
+        public static string Dobei2Kado(float deg, float armIn = 0f, float armOut = 0f)
+        {
+            int d = UnityEngine.Mathf.RoundToInt(UnityEngine.Mathf.Abs(deg));
+            string p = "Assets/Edo/Models/Dobei/Dobei2_Kado_" + d.ToString("00") + (deg < 0f ? "M" : "");
+            int a = UnityEngine.Mathf.RoundToInt(armIn * 100f), b = UnityEngine.Mathf.RoundToInt(armOut * 100f);
+            if ((armIn <= 0f && armOut <= 0f) || (a >= 100 && b >= 100)) return p + ".fbx";
+            return p + "_A" + a + "x" + b + ".fbx";
+        }
 
         /// <summary>松江松平邸の表門の番所 — **向唐破風・出格子・切石畳出の基壇**。左右に2棟。
         /// 姿は温古写真集11【A】+『日本案内記 関東篇』昭和5年「両側に唐破風造の番所」【A】。

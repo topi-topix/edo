@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 442(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 452(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -334,6 +334,13 @@
 | `Own.IshigakiKado2(deg1, deg2, mid, h, armNegZ, armPosX)` | 関数 | 二重折れの石垣の隅(`Castle Wall` の留め継ぎを二つ一体に)。 | BuildKado(PlaceRunKado), OkabeYashiki(Stage2b_Dan_) |
 | `Own.IshigakiChoku(h)` | 関数 | 丈違いの城の石垣の直線の駒(`JC.CastleWall` 1 枚・走り 2.00 を丈 h m へ下へ継いだ物)。 | BuildDanIshigaki(CastleWallOfExpose) |
 | `Own.DobeiKiri(deg, faceLonger, cutAtMinusX=…)` | 関数 | 端を隣の辺の線で斜めに切った練塀の駒(`DobeiRun` の組 = `s_hei_center` 表裏2枚を実寸で 1 枚分・走り 2.990)。 | OkabeYashiki(KiriEnd・MiterOf) |
+| `Own.Neribei` | string | `Neribei_Choku.fbx` — 練塀の一枚(在庫 `s_hei_center` の屋根 1 組 + 壁の表を鏡で裏へ写した厚み 0.40 の閉じた断面・実寸 scale 1)。 | — |
+| `Own.NeribeiP` | float | Neribei 一枚の走り[m](瓦 14 枚)。 | — |
+| `Own.NeribeiTile` | float | 練塀の瓦の周期[m] = NeribeiP / 14。 | — |
+| `Own.NeribeiKiri(tiles)` | 関数 | 練塀の端数の切り(瓦 tiles 枚 = tiles·NeribeiTile・1〜13)。 | — |
+| `Own.NeribeiEnd(endAtPlusX)` | 関数 | 練塀の端(棟止め)── 在庫 `s_hei_l` の鬼瓦・袖瓦・端の柱つきの 1 枚を同じ断面で厚くした物。 | — |
+| `Own.NeribeiKado(deg, armIn=…, armOut=…)` | 関数 | 練塀の隅(留め)── 一つの断面を折れ角の二等分の面で切って接いだ物。 | — |
+| `Own.NeribeiArmFull` | float | NeribeiKado の素の腕[m](瓦 4 枚)。 | — |
 | `Own.NagayaKado(deg, armNegZ, armPosX, tsuma)` | 関数 | 出隅の隅長屋(L 字の長屋の角・EDO-0500 2026-10-01 観理院 北東の施主指摘 ── 妻を突っ込む納めは屋根が重なり窓が途中で切れた)。 | BuildRun(NagayaKadoPlace) |
 | `Own.NagayaKadoMonomi(deg, armNegZ, armPosX)` | 関数 | 隅長屋 NagayaKado(妻なし)の外隅に物見(L 字の出格子・出 0.40)を付けた版(松江松平 P23・EDO-0554)。 | BuildRun(NagayaKadoPlace・NagayaMeasure) |
 | `Own.NagayaTsuma2(len)` | 関数 | 両端とも妻で閉じた一棟の長屋(真っ直ぐ・折らない)。 | BuildRun(OutsideParcel・SwapTsuma2) |
@@ -360,6 +367,9 @@
 | `Own.Dobei2m` | string | `Dobei2m.fbx` — 練塀(築地塀)の一体物 — 腰の下見板・貫・白漆喰・本瓦の両流れが1駒に焼いてある (`Tools/Blender/build_dobei.py`)。 | BuildRun(NeribeiRun・NeribeiStepRun), BuildRim(FenceFaceOffsets), Doi(Stage2_Perimeter), DoiBuilder.Mon(Stage3_Mon) ほか1 |
 | `Own.Dobei2mNunoishi` | string | `Dobei2m_Nunoishi.fbx` — Dobei2m の下に据える布石(腰の石) — 切石の布積み 4段の1駒(EDO-0477)。 | BuildGamae(DodomeAlongEdge・EnsureKidanProbe・HirabaStation…), BuildRun(DanPlanCore・NeribeiStepRun) |
 | `Own.Dobei2mEnd` | string | `Dobei2m_End.fbx` — Dobei2m の妻を塞いだ端部(x=0 側の小口に袖瓦を葺いて閉じた駒。 | BuildRun(NeribeiRun・NeribeiStepRun), BuildGamae(FenceEndPiece), PartSpec(Bake) |
+| `Own.Dobei2End(atX0)` | 関数 | 土塀の端(棟止め)── Dobei2mEnd の袖瓦に鬼瓦(在庫 `roof ornaments L` を棟の幅へ縮めた物)を足した版。 | — |
+| `Own.Dobei2Kiri(eighths)` | 関数 | 土塀の端数の切り(eighths/8 枚 = 0.2505 刻み・1〜7)。 | — |
+| `Own.Dobei2Kado(deg, armIn=…, armOut=…)` | 関数 | 土塀の隅(留め)── NeribeiKado と同じ作り・同じ据え(ピボット = 両腕の芯の交点・入りの腕は局所 −Z・化粧面 −X・scale 1)。 | — |
 | `Own.MatsudairaBansho(w)` | 関数 | 松江松平邸の表門の番所 — 向唐破風・出格子・切石畳出の基壇。 | MatsudairaDewa(Stage5_Mon) |
 | `Own.MatsudairaBanshoBodyBand` | float[] | ⭐⭐ 番所の「躯体」を測るための帯 — ピボット(= 走りの芯・基壇の下端)からの 局所 y[m]。 | MatsudairaDewa(Stage5_Mon) |
 | `Own.NeishiLong` | float[] | 板塀の根石(玉石) — 松江松平邸の中仕切の板塀 8 run(延長 444.2m・約 800 石)。 | DoiBuilder.Niwa(Niwa_B_Gogan), MatsudairaDewa(NeishiPlace) |

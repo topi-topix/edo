@@ -16,6 +16,8 @@ Blender は GUI を開かずヘッドレスで回す — 指図の寸法が変�
 | `build_dobei.py` | 武家屋敷の土塀(腰石・下見板・漆喰・本瓦の一体物) |
 | `build_tsuijibei.py` | 築地塀(城塀から軒を詰めて小口を塞いだ派生) |
 | `build_kado.py` | 折れ角の隅部材(石垣・塀・長屋の留め継ぎ) |
+| `build_neribei.py` | **練塀を一つの閉じた断面で**(在庫 `s_hei_center` の屋根1組 + 壁の表を鏡で裏へ・厚み 0.40・実寸)。直線 `Neribei_Choku`・切り `_Kiri_T<瓦の枚数>`・端 `_End_L/R`(s_hei_l の鬼瓦・袖瓦)・隅 `_Kado_<deg>`(留め・隅棟・軒裏の留めの板)。旧 DobeiRun の表裏2枚の置き換え(EDO-0502 2026-10-12 施主裁定)。`--okabe` で岡部の一式 |
+| `build_dobei2.py` | **土塀 Dobei2m の端・切り・隅**(build_dobei の部品 + build_neribei の道具)。端 `Dobei2_End_L/R` は袖瓦 + 鬼瓦(`roof ornaments L`)・切り `_Kiri_E<1/8 枚>`・隅 `_Kado_<deg>`。直線は Dobei2m のまま。`--all` |
 | `build_nagaya_omote.py` | **長さ可変の表長屋**(`knagaya01c/l/r` を窓割りで切って並べ、両端に妻を継ぐ) |
 | `build_ishigaki_saka.py` | 石段の袖の土留め(勾配に沿った一枚物) |
 | `build_matsudaira_bansho.py` | 松江松平邸専用: 表門の番所(向唐破風・出格子) |

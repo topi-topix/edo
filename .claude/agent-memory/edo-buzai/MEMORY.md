@@ -111,3 +111,5 @@
 - [板の材の改名で "Soil" 探しが外れる・立った面の世界 UV](apron-mat-rename-and-vertical-skin-uv.md) — ApronBody・層の模様を高さで展開・0° の隅は --deg 0.001(2026-10-12)
 - [練塀の留め柱は Goten_Column・笠の下は座+2.274](tomebashira-goten-column-and-dobei-kasa.md) — 6寸角は新造不要・角が原点・S042 は .meta の guid 替え(2026-10-12)
 - [型H の壁の浅い版と模型地形の座標](danochi-shallow-wall-ago.md) — 同じ石で壁だけ浅く・板は踏面ごと・模型の bed は並びの座標で(2026-10-12)
+- [練塀の隅の腕は表の板1枚・組の棟は二筋](dobei-pair-kado-arms-single-sheet.md) — 内から73%透ける・裏の寄せ0.364≠0.20。s_hei の組で焼かない(2026-10-12)
+- [練塀の閉じた断面と土塀の端・隅](neribei-closed-section-and-dobei2.md) — 押縁の隙は裏打ち・切り口は作図で塞ぐ・瓦場の枚の境を駒の中に作らない(2026-10-12)

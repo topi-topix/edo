@@ -577,6 +577,62 @@ public static partial class EdoBuild
         return "足の下の地面を足の底 +" + bury.ToString("0.00") + " へ上げた(上げるだけ・足の凸包 + 縁 " + margin.ToString("0.00") + "): 駒 " + nPc + "・足の下の節点 " + want.Count + "・上げた " + n + "・最大 " + mx.ToString("F2") + "m・溝の外接で除いた " + nKeep + "・区画の外で除いた " + nOut;
     }
 
+    /// <summary>塀の前の帯(<see cref="PlaneBand"/>)の一辺: 線の始め a・走りの向き u・内向き inw・長さ len・帯の内への離れ [q0, q1](走り s の関数)・面の高さ yAt(s)。</summary>
+    public class BandEdge { public string name; public Vector2 a, u, inw; public float len; public Func<float, float> q0, q1, yAt; public Func<float, float> qCap; public float capBatter; }
+    /// <summary>**塀の前の帯の地面を一枚の面にする**(上げも下げも・第123巡 2026-10-13 岡部 施主「犬走りの地面は座の線と同じ高さ・同じ勾配の一枚の面」【硬: 土の楔 0】)。
+    /// 各辺の帯(走り s ∈ [0, len]・線から内へ q ∈ [q0(s), q1(s)])の節点を yAt(s) + <paramref name="off"/> にする(辺の隅で二つの帯に入る節点は高い方)。
+    /// 帯は呼び手が決める(岡部: 台の天端の前の縁 c から塀の腰の外の縁の一升奥まで ── 塀の裏・内の帯は触らない)。<paramref name="allow"/> が偽の節点は触らない。
+    /// 段は yAt が s で跳ぶ所で一升の中の段になる(呼び手は段の脇の一升を低い側の高さにする ── 双一次の斜めが下の天端の上へ出ないように)。⛔ 部材の基準点を使わない(面は指図の座の線)。当たる先: 天端の線の上の練塀の前(岡部の外周)。</summary>
+    public static string PlaneBand(IList<BandEdge> edges, Func<Vector2, bool> allow, float off, string undoPath = null, float ext = 0f)
+    {
+        var t = T(); var td = t.terrainData; var org = t.transform.position; int R = td.heightmapResolution; float hs = td.size.x / (R - 1);
+        var want = new Dictionary<long, float>(); var cap = new Dictionary<long, float>();
+        //   ⭐ 下げるだけの所(第123巡): 帯の手前の見え面の肩(qCap(s) ≤ q < q0)と辺の端の先(ext)── 面の高さより上の土だけ下げる
+        //   (P35: 辺34 の端の先へ延ばした帯が上の踏み面の座で辺35 の下の天端の上へ土を 0.94 盛った・見え面の肩の土は誰も下げていなかった)
+        foreach (var be in edges)
+        {
+            Vector2 b = be.a + be.u * be.len; float qm = 3f;
+            float x0 = Mathf.Min(be.a.x, b.x) - qm, x1 = Mathf.Max(be.a.x, b.x) + qm, z0 = Mathf.Min(be.a.y, b.y) - qm, z1 = Mathf.Max(be.a.y, b.y) + qm;
+            int i0 = Mathf.Max(0, Mathf.CeilToInt((x0 - org.x) / hs)), i1 = Mathf.Min(R - 1, Mathf.FloorToInt((x1 - org.x) / hs));
+            int j0 = Mathf.Max(0, Mathf.CeilToInt((z0 - org.z) / hs)), j1 = Mathf.Min(R - 1, Mathf.FloorToInt((z1 - org.z) / hs));
+            for (int j = j0; j <= j1; j++)
+                for (int i = i0; i <= i1; i++)
+                {
+                    var p = new Vector2(org.x + i * hs, org.z + j * hs); var r = p - be.a; float sv = Vector2.Dot(r, be.u), qv = Vector2.Dot(r, be.inw);
+                    //   ext: 辺の端の先へも帯を延ばす(出隅の外の扇の所 ── 隅の駒の腰の縁が二つの辺の帯のどちらにも入らず浮いた)。面の高さは端の値
+                    if (sv < -ext || sv > be.len + ext) continue; float sc = Mathf.Clamp(sv, 0f, be.len);
+                    float qlo = be.qCap != null ? Mathf.Min(be.qCap(sc), be.q0(sc)) : be.q0(sc); if (qv < qlo || qv > be.q1(sc)) continue;
+                    if (allow != null && !allow(p)) continue;
+                    float y = be.yAt(sc) + off; if (float.IsNaN(y)) continue;
+                    long k = ((long)i << 32) ^ (uint)j; float cur;
+                    bool lowerOnly = sv < 0f || sv > be.len || qv < be.q0(sc);
+                    if (lowerOnly && qv < be.q0(sc)) y -= be.capBatter * (be.q0(sc) - qv);   // 見え面の肩: 面の法(縦/横)で下がる線より上の土だけ
+                    if (lowerOnly) { if (!cap.TryGetValue(k, out cur) || y < cur) cap[k] = y; }
+                    else if (!want.TryGetValue(k, out cur) || y > cur) want[k] = y;
+                }
+        }
+        int nUp = 0, nDn = 0; float mUp = 0f, mDn = 0f; var undo = new List<float[]>();
+        foreach (var kv in cap) if (!want.ContainsKey(kv.Key)) want[kv.Key] = float.PositiveInfinity;   // 下げるだけ(面の高さは cap)
+        if (want.Count > 0)
+        {
+            int i0 = int.MaxValue, i1 = int.MinValue, j0 = int.MaxValue, j1 = int.MinValue;
+            foreach (var k in want.Keys) { int i = (int)(k >> 32), j = (int)(uint)(k & 0xffffffff); i0 = Mathf.Min(i0, i); i1 = Mathf.Max(i1, i); j0 = Mathf.Min(j0, j); j1 = Mathf.Max(j1, j); }
+            var H = td.GetHeights(i0, j0, i1 - i0 + 1, j1 - j0 + 1);
+            foreach (var kv in want)
+            {
+                int i = (int)(kv.Key >> 32), j = (int)(uint)(kv.Key & 0xffffffff);
+                float cur = H[j - j0, i - i0] * td.size.y + org.y; float tgt = float.IsPositiveInfinity(kv.Value) ? cur : kv.Value; float cp;
+                if (cap.TryGetValue(kv.Key, out cp)) tgt = Mathf.Min(tgt, cp);
+                float dv = tgt - cur; if (Mathf.Abs(dv) < 1e-4f) continue;
+                if (dv > 0f) { nUp++; mUp = Mathf.Max(mUp, dv); } else { nDn++; mDn = Mathf.Max(mDn, -dv); }
+                undo.Add(new[] { i, j, (tgt - org.y) / td.size.y, H[j - j0, i - i0] }); H[j - j0, i - i0] = (tgt - org.y) / td.size.y;
+            }
+            if (nUp + nDn > 0) { td.SetHeights(i0, j0, H); AssetDatabase.SaveAssetIfDirty(td); }
+        }
+        if (undoPath != null) WriteUndo(undoPath, t.name, undo);
+        return "塀の前の帯を座の線の一枚の面(座 " + off.ToString("+0.00;-0.00") + ")へ: 帯の節点 " + want.Count + "・上げた " + nUp + "(最大 " + mUp.ToString("F2") + ")・下げた " + nDn + "(最大 " + mDn.ToString("F2") + ")";
+    }
+
     /// <summary>**台の石垣の天端の上に載った土を天端の下へ下げる**(下げるだけ・第122巡 2026-10-13 岡部 const.heiLine.kidanCrest【硬】「台の天端に土の楔を見せない」)。
     /// 0.25m の格子では、塀の足の下の地面(内の帯・座より高い)の節点が台の天端の上の一升に掛かり、双一次の地表が天端の上へ斜めに出る(塀の外の縁の前 0.07 の帯で 0.3〜0.8)。
     /// 段の所は上の踏み面の土が下の天端の上へこぼれる(0.8)。節点の真上に石の駒の**平らな天端**(前後左右 <paramref name="probe"/> の天端の差がどれも

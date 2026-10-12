@@ -24,5 +24,9 @@ metadata:
    ⇒ 溝・桝は駒の向きの外形(keepPieces)で除く。計測の「隙」は Bed.At が地表と同じ値なら石でなく土(bt > g + 0.02 だけを台の隙に数える ── 第121巡の表は土の浮きを混ぜていた)。
 10. **土の楔の測りは Bed.At では 0 にしかならない**(Bed = 地表と駒の上面の高い方 ⇒ 地表 − Bed ≤ 0)。PartTops.Top(石の上面)と地表を比べ、塀の外の縁より前(犬走り)だけを数える。
    楔の正体は 0.25 格子: 塀の足の下の節点(座より高い内の地面)が天端の上の一升に掛かり外の縁の前 0.07 に 0.3〜0.8・段の所は上の踏み面の土 ⇒ EdoBuild.LowerSoilOnCrest(平らな天端の真上の節点だけ下げる)。
+11. 第123巡: 犬走りは EdoBuild.PlaneBand(座の線の一枚の面・段の脇の一升は低い側・辺の端の先 1.5 も)+ LowerSoilOnCrest(見え面の肩まで)。倍率を塀の一続きで最大へ揃え(P22 の 0.25×0.75 のばらばら)、
+   台の区間の端を段の点へ延ばす(0.5 刻みの露出の読みで段の脇 0.5 が抜けた)。**指図が書き換わると S1 が指紋で止まる**(普請奉行が巡の途中で 2 度コミット)── bake_impl --write・--graded-bin・_graded を null。
+   計測の 0.43 の「隙・浮き」(Kado_P24・P29・S_Hei_16 s4.00)は腰の高さ 0.429 と一致 ── 足の頂点に小口・腰の上の縁を拾う読み違いの疑い(腰を外した駒で消えるはず)。
+   **30 秒を超える計測の execute_code は印を付けないと送り直されて Unity を数分ふさぐ**(compile_wait が 2 回断られた)。
 **How to apply:** 台の坂なりの駒の焼き足しは r122/wrap_kidan.py の形(build_kidan_saka を import して build_straight(g,h,L)/build_kado(角の実値,s,gi,go))。
 角は Poly から測った実値を渡す(67 → 66.971)。関連 [[heiline-tenba-spec-r121]] [[heiline-stretch-and-tenba-r120]]

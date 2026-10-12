@@ -2572,6 +2572,18 @@ public static class EdoOkabeYashikiBuilder
             exMax = Mathf.Max(exMax, ex(r.s1));
             if (!float.IsNaN(cur)) segs.Add(new Vector2(cur, r.s1));
             //   駒一枚の半分(1.0)に満たない切れ端は置かない ⚠(第121巡: 0.1m の区間に駒を一つ据えると控え c の測りが上限 2.5 へ張り付き、芯線の控え d が 2.8 に化けて辺33・34 の折れ点が 10m 飛んだ)
+            //   ⭐ 段の所で台を切らない(施主 2026-10-13 第123巡「段の所の台も上と下の天端の線それぞれに従い、段の面で小口を閉じて突き付ける」)──
+            //   区間の間の 1.0 未満の切れ目は埋め、区間の端が段の点・run の端から 0.6 以内なら そこまで延ばす(露出の 0.5 刻みの読みで段の脇 0.5 が抜けていた・S_Hei_18 s5.50〜6.00)
+            {
+                var ends = new List<float> { r.s0, r.s1 }; for (int k = 0; r.lineStep != null && k < r.lineS.Length; k++) if (r.lineStep[k]) ends.Add(r.lineS[k]);
+                for (int i = segs.Count - 2; i >= 0; i--) if (segs[i + 1].x - segs[i].y < 1.0f) { segs[i] = new Vector2(segs[i].x, segs[i + 1].y); segs.RemoveAt(i + 1); }
+                for (int i = 0; i < segs.Count; i++)
+                {
+                    float x = segs[i].x, y = segs[i].y;
+                    foreach (var ep in ends) { if (ep < x && x - ep <= 0.6f && (i == 0 || ep >= segs[i - 1].y)) x = ep; if (ep > y && ep - y <= 0.6f && (i == segs.Count - 1 || ep <= segs[i + 1].x)) y = ep; }
+                    segs[i] = new Vector2(x, y);
+                }
+            }
             int nDrop = segs.RemoveAll(sg => sg.y - sg.x < 1.0f);
             string sRun = RunText(r.name, "s"); float sc;
             float sFix; if (sRun != null && float.TryParse(sRun, System.Globalization.NumberStyles.Float, inv, out sFix) && sFix > 0f) sc = sFix;
@@ -2580,6 +2592,20 @@ public static class EdoOkabeYashikiBuilder
             float lenNew = 0f; foreach (var sg in segs) lenNew += sg.y - sg.x;
             float lenOld = 0f, sOld = float.NaN; Dictionary<string, object> bo; if (baseByRun.TryGetValue(r.name, out bo)) { if (Has(bo, "s")) sOld = F(bo["s"]); foreach (var q in A(Get(bo, "segs")) ?? new List<object>()) { var t2 = A(q); if (t2 != null && t2.Count == 2) lenOld += F(t2[1]) - F(t2[0]); } }
             sb.Append(r.name + " s " + (float.IsNaN(sOld) ? "-" : sOld.ToString("0.##", inv)) + "→" + sc.ToString("0.##", inv) + "・区間 " + lenOld.ToString("F1", inv) + "→" + lenNew.ToString("F1", inv) + "m・露出の最大 " + exMax.ToString("F2", inv) + (nDrop > 0 ? "・1.0 未満の切れ端 " + nDrop + " を置かない ⚠" : "") + "; ");
+        }
+        //   ⭐ 倍率を塀の一続きで一つに(第123巡 ── run ごとの倍率で台の天端の前の縁 c と見え面が run の継ぎ目・段で食い違い、駒がばらばらに見えた・P22 の 0.25 × 0.75)。
+        //   一続きの中で倍率を欄で決めていない run を、その一続きの最大へ(深い分は地中へ埋まる ── 据えは埋めて隠す)。欄の倍率(runs[].s)の run はそのまま
+        {
+            int n2 = Poly.Length; var txt = new List<string>();
+            foreach (var rg in _hlRanges)
+            {
+                var es = new HashSet<int>(); for (int e = rg.x; e <= rg.y; e++) es.Add(e % n2);
+                float mx = 0f; var free = new List<string>();
+                foreach (var r in Runs) { KeyValuePair<float, List<Vector2>> hb; if (!es.Contains(r.edge) || !_hlBase.TryGetValue(r.name, out hb)) continue; float sF; string sRun = RunText(r.name, "s"); bool fixedS = sRun != null && float.TryParse(sRun, System.Globalization.NumberStyles.Float, inv, out sF) && sF > 0f; if (fixedS) continue; free.Add(r.name); mx = Mathf.Max(mx, hb.Key); }
+                foreach (var nm in free) { var hb = _hlBase[nm]; if (hb.Key < mx) _hlBase[nm] = new KeyValuePair<float, List<Vector2>>(mx, hb.Value); }
+                txt.Add("辺" + (rg.x % n2) + "〜" + (rg.y % n2) + " 倍率 " + mx.ToString("0.##", inv) + "(" + free.Count + " run)");
+            }
+            sb.Append("\n    倍率を塀の一続きで一つに: " + string.Join("・", txt.ToArray()));
         }
         return sb.ToString();
     }
@@ -5845,6 +5871,24 @@ public static class EdoOkabeYashikiBuilder
                 //   あれば、縁の上げを止めない(土は台の天端で受ける ⇒ 土の柱にならない)
                 (q, y) => { for (int k8 = 0; k8 < 8; k8++) { float an = k8 * Mathf.PI / 4f; float px = q.x + 0.35f * Mathf.Cos(an), pz = q.y + 0.35f * Mathf.Sin(an); float bt = stoneBed.At(px, pz), g8 = EdoBuild.Ground(px, pz); if (!float.IsNaN(bt) && !float.IsNaN(g8) && bt > g8 + 0.02f && bt >= y - 0.10f) return true; } return false; }));
         }
+        {   // ⭐ 犬走り(台の天端の前の縁 c から塀の腰の外の縁の一升奥まで)の地面を座の線と同じ高さ・勾配の一枚の面へ(施主 2026-10-13 第123巡【硬: 土の楔 0】)──
+            //   座ちょうど(天端と面一)。台の無い所は線から 0 から。塀の裏・内の帯は触らない(帯の作法のまま)
+            var bes = new List<EdoBuild.BandEdge>(); var PPb = Poly; float cellB = EdoBuild.TerrainCell(EdoBuild.T());
+            foreach (var r0 in Runs)
+            {
+                var r = r0; if (!OnHeiLine(r) || r.lineS == null) continue; int e = r.edge;
+                Vector2 a = EdgePt(e, 0f); var be = new EdoBuild.BandEdge { name = r.name, a = a, u = (EdgePt(e, 1f) - a).normalized, inw = -OutNormal(e), len = EdgeLen(e) };
+                be.q0 = sv => KidanC(e, sv) + 0.02f; be.q1 = sv => FaceIn(e, sv) - 0.14f + cellB;
+                be.qCap = sv => KidanC(e, sv) - 0.30f; be.capBatter = 4f;   // 城の石垣の法 1:0.25   // 見え面の肩(天端の前の縁の手前 0.30)は座より上の土だけ下げる
+                //   段の脇の一升は低い側の座(0.25 格子の双一次が上の踏み面の高さから下の天端の上へ斜めに出る ── N_Hei_31 s9.90 で 0.92)
+                be.yAt = sv => { float L0 = EdgeLen(e); return Mathf.Min(r.SeatAt(Mathf.Clamp(sv, 0f, L0)), Mathf.Min(r.SeatAt(Mathf.Clamp(sv - cellB * 1.5f, 0f, L0)), r.SeatAt(Mathf.Clamp(sv + cellB * 1.5f, 0f, L0)))); };
+                bes.Add(be);
+            }
+            float clipB = ClipIn();
+            float qMax = 0f; foreach (var kv in _heiLineD ?? new Dictionary<int, float>()) qMax = Mathf.Max(qMax, kv.Value); qMax += -0.14f + cellB + 0.01f;
+            //   辺の端の先 1.5m まで(出隅の外の扇)── ただし区画の線から帯の奥行の内だけ(入隅で延ばした帯が隣の塀の裏へ入らない)
+            sb.AppendLine("  " + EdoBuild.PlaneBand(bes, q => EdoGeom.PIP(PPb, q) && EdoBuild.EdgeDistPublic(PPb, q) >= clipB && EdoBuild.EdgeDistPublic(PPb, q) <= qMax, 0f, null, 1.5f));
+        }
         {   // ⭐ 台の天端の上に土を載せない(const.heiLine.kidanCrest【硬】「台の天端に土の楔を見せない」・第122巡)── 足の下を上げた後に、外周の基壇の平らな天端の真上の節点を天端 −0.02 へ
             //   (0.25 格子で塀の外の縁の前と段の所に 0.3〜0.8 の土の帯が天端に載っていた)。区画の外・線際は触らない
             var igs3 = new List<GameObject>(); foreach (Transform c in Group("Ishigaki")) if (c.gameObject.activeInHierarchy) igs3.Add(c.gameObject);
@@ -5852,7 +5896,11 @@ public static class EdoOkabeYashikiBuilder
             //   見える天端(犬走り)と塀の外の縁の一升だけ ── 線から 外面の控え(FaceIn)− 腰の出 0.14 + 一升(⛔ 塀の裏・内の帯は削らない ── 天端の裏の端が塀の内面より奥の所で溝を掘る)
             float cell3 = EdoBuild.TerrainCell(EdoBuild.T());
             System.Func<Vector2, float> faceAt = q => { int be = -1; float bd = float.MaxValue, bs = 0f; for (int e2 = 0; e2 < PP3.Length; e2++) { Vector2 a2 = PP3[e2], b2 = PP3[(e2 + 1) % PP3.Length]; float L2 = (b2 - a2).magnitude; if (L2 < 1e-4f) continue; float s2 = Mathf.Clamp(Vector2.Dot(q - a2, (b2 - a2) / L2), 0f, L2); float d2 = (a2 + (b2 - a2) / L2 * s2 - q).magnitude; if (d2 < bd) { bd = d2; be = e2; bs = s2; } } return be < 0 ? 0f : FaceIn(be, bs); };
-            sb.AppendLine("  " + EdoBuild.LowerSoilOnCrest(igs3, q => EdoGeom.PIP(PP3, q) && EdoBuild.EdgeDistPublic(PP3, q) >= clip3 && EdoBuild.EdgeDistPublic(PP3, q) <= faceAt(q) - 0.14f + cell3));
+            System.Func<Vector2, float> cAt = q => { int be = -1; float bd = float.MaxValue, bs = 0f; for (int e2 = 0; e2 < PP3.Length; e2++) { Vector2 a2 = PP3[e2], b2 = PP3[(e2 + 1) % PP3.Length]; float L2 = (b2 - a2).magnitude; if (L2 < 1e-4f) continue; float s2 = Mathf.Clamp(Vector2.Dot(q - a2, (b2 - a2) / L2), 0f, L2); float d2 = (a2 + (b2 - a2) / L2 * s2 - q).magnitude; if (d2 < bd) { bd = d2; be = e2; bs = s2; } } return be < 0 ? 0f : KidanC(be, bs); };
+            sb.AppendLine("  " + EdoBuild.LowerSoilOnCrest(igs3, q => EdoGeom.PIP(PP3, q) && EdoBuild.EdgeDistPublic(PP3, q) >= clip3 && EdoBuild.EdgeDistPublic(PP3, q) <= faceAt(q) - 0.14f + cell3
+                && EdoBuild.EdgeDistPublic(PP3, q) >= cAt(q) - 0.30f, 0.02f, 0.08f, 99f));
+            //   (見え面の肩 = 天端の前の縁 c の手前 0.30 まで ── それより前の根入れの土は削らない)
+            //   ⭐ 第123巡: 平らな天端だけでなく法の見え面の上端(天端の前の縁の手前の一升)の上の土も下げる(flatTol 99)── 段の所で上の踏み面の土が下の台の見え面の肩に 0.6〜0.9 載っていた
         }
         sb.AppendLine("  " + EdoBuild.HoleUnderMasu(pcs, 0.05f, HoleUndoPath));
         sb.Append(SeRojiHeiFoot(false));   // 据えて下げた後に足を測る(heiFootSpec.order【硬】)

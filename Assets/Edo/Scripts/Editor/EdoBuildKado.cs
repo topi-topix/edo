@@ -321,7 +321,7 @@ public static partial class EdoBuild
                                           Func<float, float, string> pathOf, Func<float, float, float> groundAt,
                                           Transform parent, string name, float tol, out string note, bool? convex = null,
                                           IList<GameObject> abut = null, Func<float, float, float, float, string> armPathOf = null,
-                                          Vector2? farA = null, Vector2? farB = null)
+                                          Vector2? farA = null, Vector2? farB = null, SlopeKado slope = null)
     {
         note = null;
         // 見え面の側は法の出で測る(渡された向きは軸としてだけ使う): 下の帯が上の帯より前へ出る側が見え面
@@ -339,6 +339,7 @@ public static partial class EdoBuild
         var bA = back(runA, nA); var bB = back(runB, nB);
         //   浅い折れ(< 30°)で天端が違うのは折れのある段の継ぎ目 ── 隅の駒を置かず、呼び手が高い方の天端の面を低い方の面の先まで届かせ、
         //   低い方を高い方の面の裏へ食い込ませて閉じる(石垣の作法: 浅い折れに隅の駒を挟まない・土井 辺14/15 の 22.4° ── 普請方の設計 2026-10-07)
+        if (slope != null) { bA[1] = slope.crest; bB[1] = slope.crest; }   // 坂なり: 天端は折れ点の線の値(駒の最上点は高い端にある)
         if (Mathf.Abs(bA[1] - bB[1]) > tol && deg < 30f) { note = "折れ " + deg.ToString("F1") + "° の段の継ぎ目(天端の差 " + Mathf.Abs(bA[1] - bB[1]).ToString("F3") + "m)── 隅の駒は置かない(直線の駒の重ねで閉じる)"; return null; }
         if (Mathf.Abs(bA[1] - bB[1]) > tol) { note = "⛔ 両脇の天端が " + Mathf.Abs(bA[1] - bB[1]).ToString("F3") + "m 食い違う — 建てない"; return null; }
         float crest = Mathf.Max(bA[1], bB[1]);
@@ -381,12 +382,25 @@ public static partial class EdoBuild
         float gMin = float.MaxValue;
         foreach (var run in new IList<GameObject>[] { runA, runB })
             foreach (var g in run) if (g != null) foreach (var v in Body(g.transform, 999999)) gMin = Mathf.Min(gMin, v.y);
-        float nbH = crest - gMin;                                    // 両脇の直線材の丈(実メッシュ)
+        float nbH = slope != null ? slope.hReal : crest - gMin;     // 両脇の直線材の丈(実メッシュ ── 坂なりは天端の線の下の丈で一定)
         for (float u = 0f; u <= 2.01f; u += 0.25f)
             foreach (var q in new Vector2[] { P + armX * u, P + armZ * u })
             { float g = groundAt(q.x, q.y); if (!float.IsNaN(g)) gMin = Mathf.Min(gMin, g); }
         float degR = Mathf.Round(deg);
         string path = null; float h = 0f;
+        //   ⭐ 坂なり(SlopeKado・2026-10-13 第122巡)── 入りの腕(局所 −Z = runX)の勾配 gIn は入り → 折れ点へ上がる +・出の腕(+X = runZ)の gOut は折れ点から離れて上がる +
+        float gInK = 0f, gOutK = 0f;
+        if (slope != null)
+        {
+            float awayX = xIsA ? slope.gAwayA : slope.gAwayB, awayZ = xIsA ? slope.gAwayB : slope.gAwayA;
+            gInK = Mathf.Round(-awayX * 10000f) / 10000f; gOutK = Mathf.Round(awayZ * 10000f) / 10000f;
+            float hS = Mathf.Round(slope.hReal * 100f) / 100f;
+            bool flatK = Mathf.Abs(gInK) < 5e-5f && Mathf.Abs(gOutK) < 5e-5f;
+            string pp = flatK ? pathOf(degR, hS) : slope.pathOf(degR, hS, gInK, gOutK);
+            if (pp == null || !System.IO.File.Exists(System.IO.Path.Combine(System.IO.Directory.GetParent(Application.dataPath).FullName, pp)))
+            { if (pp != null) SlopeKado.missing.Add(pp); note = "⚠ 坂の隅の駒が焼いていない " + System.IO.Path.GetFileNameWithoutExtension(pp ?? "") + "(折れ " + degR + "°・入り " + (gInK * 100f).ToString("F2") + "%・出 " + (gOutK * 100f).ToString("F2") + "%)— 建てない"; return null; }
+            path = pp; h = hS;
+        }
         // ⭐ 素の腕(2.00)の駒が無く、腕を詰めた組だけが焼いてある丈もある(岡部 40° × 4.50 は A19x200 だけ・2026-10-03 EDO-0502)。
         //   そのときは焼いてある組の一つで据えて測り、KadoShortArm が要る長さの組へ引き直す。
         string root0 = System.IO.Directory.GetParent(Application.dataPath).FullName;
@@ -402,6 +416,7 @@ public static partial class EdoBuild
         };
         // ⭐ 両脇の直線材と同じ丈の隅の駒が焼けていればそれを採る(2026-09-25・天端と足元が両脇と揃う)。
         //   腕の下の地表が両脇の底より低くても、そこは両脇の直線材の端と同じ納め(皮が受ける)。
+        if (path == null)
         {
             float hp = Mathf.Round(nbH * 2f) / 2f; string pp = have(pathOf(degR, hp), hp);
             if (Mathf.Abs(hp - nbH) < 0.05f && pp != null)
@@ -425,7 +440,7 @@ public static partial class EdoBuild
         var endX = endOf(runX, armX); var endZ = endOf(runZ, armZ);
         var kc = Place(path, new Vector3(P.x, crest - h, P.y), psi, Vector3.one, parent, name);
         string armNote = null;
-        if (armPathOf != null)
+        if (armPathOf != null && slope == null)
         {
             var farX = xIsA ? farA : farB; var farZ = xIsA ? farB : farA;
             string sp = KadoShortArm(kc, P, crest, h, armX, nX, armZ, nZ, abut, farX, farZ, degR, armPathOf, out armNote);
@@ -446,7 +461,7 @@ public static partial class EdoBuild
             }
         }
         // ③ 測る: 天端の帯(天端 −0.15 以上)の見え面と腕の先
-        float kTop = float.MinValue; foreach (var v in Body(kc.transform, 999999)) kTop = Mathf.Max(kTop, v.y);
+        float kTop = float.MinValue; foreach (var v in Body(kc.transform, 999999)) if (slope == null || Vector2.Distance(new Vector2(v.x, v.z), P) < 0.3f) kTop = Mathf.Max(kTop, v.y);
         Func<GameObject, Vector2, Vector2, float[]> crestFace = (g, n, arm) =>
         {   // [見え面の外向き射影の最大, 腕の走りの最小, 最大](天端の帯)
             float f = float.MinValue, s0 = float.MaxValue, s1 = float.MinValue;
@@ -722,7 +737,12 @@ public static partial class EdoBuild
     /// <summary>石垣の run の区間の端ひとつ。<c>key</c> = 区間の駒の並びの名(<c>run#区間</c>)、<c>node</c> = run の折れ線の節点の番号、
     /// <c>outw</c> = 見え面の外向き、<c>away</c> = 端から区間の奥へ向かう走り。</summary>
     public static bool DebugCorners = false;
-    public struct RunEnd { public string key; public string run; public int node; public Vector2 p; public Vector2 outw; public Vector2 away; }
+    /// <summary>坂なりの出隅(<see cref="PlaceRunKado"/> の slope)── 折れ点の天端・各 run の端から奥への天端の勾配・駒の実寸の丈・
+    /// 坂の隅の引き手 (折れ, 丈, 入りの腕の勾配, 出の腕の勾配) → パス(例 EdoAssets.Own.IshigakiKadoSaka)。2026-10-13 第122巡(岡部 P24)。</summary>
+    public class SlopeKado { public float crest, gAwayA, gAwayB, hReal; public Func<float, float, float, float, string> pathOf; public static readonly HashSet<string> missing = new HashSet<string>(); }
+    public struct RunEnd { public string key; public string run; public int node; public Vector2 p; public Vector2 outw; public Vector2 away;
+        /// <summary>坂なりの区間の端(<see cref="CrestWall.pathOfSlope"/>)か・端の天端・端から奥へ向かう天端の勾配(1m あたり)・駒の実寸の丈(2026-10-13 第122巡)。</summary>
+        public bool slope; public float crest, grade, hReal; }
 
     /// <summary>**石垣の run の折れ目すべてに出隅の隅の駒を据える**(<see cref="PlaceRunKado"/> を区間の端の組ごとに呼ぶ)。
     /// 別々の run の端が重なる所だけでなく、**一本の折れ線の途中の角**(区間どうしの継ぎ目)も同じに扱う。
@@ -738,7 +758,7 @@ public static partial class EdoBuild
                                       Func<float, float, string> pathOf, Func<float, float, float> groundAt,
                                       Transform parent, float tol, System.Text.StringBuilder log, List<GameObject> made,
                                       IList<GameObject> abut = null, Func<float, float, float, float, string> armPathOf = null,
-                                      Func<float, float, float, float, string> kado2PathOf = null)
+                                      Func<float, float, float, float, string> kado2PathOf = null, Func<float, float, float, float, string> slopeKadoPathOf = null)
     {
         // 区間の開いた端(同じ key のもう一方の端で、別の key の端が 0.05 以内に無い物)── 隅の腕がそこを越えて抜けないように(KadoShortArm)
         Func<RunEnd, Vector2?> openFar = e =>
@@ -869,8 +889,15 @@ public static partial class EdoBuild
                         Vector2 fa = FaceSide(na, ea.outw), fb = FaceSide(nb, eb.outw);
                         cvx = Vector2.Dot(eb.away, fa) < 0f && Vector2.Dot(ea.away, fb) < 0f;
                     }
+                    //   坂なりの端(RunEnd.slope)を含む組は、折れ点の天端と腕ごとの勾配で坂の隅を引く(両脇の天端が折れ点で違えば ⛔ ── 線が続いていない)
+                    SlopeKado slk = null;
+                    if ((ea.slope || eb.slope) && slopeKadoPathOf != null)
+                    {
+                        if (Mathf.Abs(ea.crest - eb.crest) > tol) { log?.AppendLine("  出隅 " + ea.key + " × " + eb.key + ": ⛔ 坂なりの両脇の折れ点の天端 " + ea.crest.ToString("F3") + "/" + eb.crest.ToString("F3") + " が違う — 建てない"); continue; }
+                        slk = new SlopeKado { crest = 0.5f * (ea.crest + eb.crest), gAwayA = ea.grade, gAwayB = eb.grade, hReal = ea.slope ? ea.hReal : eb.hReal, pathOf = slopeKadoPathOf };
+                    }
                     var kc = PlaceRunKado(na, ea.outw, nb, eb.outw, pathOf, groundAt, parent, kname, tol, out note, cvx,
-                                          abut, armPathOf, armPathOf != null ? openFar(ea) : null, armPathOf != null ? openFar(eb) : null);
+                                          abut, armPathOf, armPathOf != null ? openFar(ea) : null, armPathOf != null ? openFar(eb) : null, slk);
                     if (note != null && note.StartsWith("入隅") && ea.run != eb.run) { if (DebugCorners) log?.AppendLine("  [隅] " + ea.key + " × " + eb.key + ": " + note + " na=" + na.Count + " nb=" + nb.Count); continue; }
                     if (kc != null)
                     {

@@ -27,6 +27,12 @@ public static partial class EdoBuild
         /// <summary>控え(天端の前の縁の線)を一つにする組の名(既定 null = 辺ごと)。岡部は run ごと ── 法肩は辺で一直線が狙い【柔】だが、
         /// 倍率と基準線が run で違い、辺の最大で揃えると根石が基準線の内へ外れる(許容 −0.05)⇒ 長屋の妻の継ぎ目で外す。</summary>
         public string insetKey;
+        /// <summary>天端の勾配(辺の走り s 1m あたり・既定 0 = 水平)── <c>crest</c> は s0 の天端・s の天端 = <see cref="CrestAt"/>。≠ 0 の区間は
+        /// 坂なりの駒(<see cref="PlaceCastleRun"/> の slopePathOf)で据える(岡部 const.heiLine.kidanCrest「台の石垣の天端は塀の座の線そのもの」・2026-10-13 第122巡)。</summary>
+        public float grade;
+        /// <summary>走り s の天端(crest + grade·(s − s0))。</summary>
+        public float CrestAt(float s) { return crest + grade * (s - s0); }
+        public bool Sloped { get { return Mathf.Abs(grade) > 5e-5f; } }
     }
 
     /// <summary><see cref="PlaceCastleRun"/> の答え。</summary>
@@ -78,7 +84,7 @@ public static partial class EdoBuild
     /// ピボットを線に置く旧い据えのまま ── 移し替えは別票)。</summary>
     public static CastleRun PlaceCastleRun(IList<CastleSec> secs, Vector2[] poly, Func<float, float, float> groundAt, Transform parent,
                                            System.Text.StringBuilder log, float maxInset = 2.5f, float tol = 0.001f, float stepLap = -1f, float kadoMinTurn = 40f,
-                                           ICollection<int> kadoSkip = null)
+                                           ICollection<int> kadoSkip = null, Func<float, float, float, string> slopePathOf = null)
     {
         var res = new CastleRun();
         if (secs == null || secs.Count == 0 || poly == null) return res;
@@ -90,12 +96,12 @@ public static partial class EdoBuild
         foreach (var s in list)
         {
             var last = merged.Count > 0 ? merged[merged.Count - 1] : null;
-            if (last != null && last.edge == s.edge && Mathf.Abs(last.s1 - s.s0) < 1e-3f && Mathf.Abs(last.crest - s.crest) < 1e-3f && float.IsNaN(last.outsideCap) == float.IsNaN(s.outsideCap)
+            if (last != null && last.edge == s.edge && Mathf.Abs(last.s1 - s.s0) < 1e-3f && Mathf.Abs(last.CrestAt(s.s0) - s.crest) < 1e-3f && Mathf.Abs(last.grade - s.grade) < 1e-5f && float.IsNaN(last.outsideCap) == float.IsNaN(s.outsideCap)
                 && Mathf.Abs(last.scale - s.scale) < 1e-4f && Mathf.Abs(last.datumIn - s.datumIn) < 1e-4f && last.insetKey == s.insetKey)
             {
                 last.s1 = s.s1; last.gaps.AddRange(s.gaps); members[last].Add(s.name); continue;
             }
-            var c = new CastleSec { name = s.name, edge = s.edge, s0 = s.s0, s1 = s.s1, crest = s.crest, gaps = new List<Vector2>(s.gaps), outsideCap = s.outsideCap, scale = s.scale, datumIn = s.datumIn, insetKey = s.insetKey };
+            var c = new CastleSec { name = s.name, edge = s.edge, s0 = s.s0, s1 = s.s1, crest = s.crest, gaps = new List<Vector2>(s.gaps), outsideCap = s.outsideCap, scale = s.scale, datumIn = s.datumIn, insetKey = s.insetKey, grade = s.grade };
             merged.Add(c); members[c] = new List<string> { s.name };
         }
         // 口で区間を割る ── 口の脇に残る駒一枚(2.00)に満たない切れ端は、口の反対の端を隣の区間へ延ばす(天端が同じか高い隣だけ ──
@@ -127,7 +133,7 @@ public static partial class EdoBuild
                         if (a1 - a0 >= 2.0f - 1e-3f && (a1 - a0) > cuts[i].y - cuts[i].x + 1e-3f)
                             log?.AppendLine("  城の石垣 " + c.name + ": 口の脇の切れ端 " + (cuts[i].y - cuts[i].x).ToString("F2") + "m ⇒ 口の縁から駒一枚を据え、反対の端を隣の高い区間の裏へ延ばした");
                     }
-                    var sub = new CastleSec { name = c.name, edge = c.edge, s0 = a0, s1 = a1, crest = c.crest, gaps = new List<Vector2>(), outsideCap = c.outsideCap, scale = c.scale, datumIn = c.datumIn, insetKey = c.insetKey };
+                    var sub = new CastleSec { name = c.name, edge = c.edge, s0 = a0, s1 = a1, crest = c.CrestAt(a0), gaps = new List<Vector2>(), outsideCap = c.outsideCap, scale = c.scale, datumIn = c.datumIn, insetKey = c.insetKey, grade = c.grade };
                     split.Add(sub); members[sub] = members[c]; wallOf[sub] = c.name + "_k" + i;
                 }
             }
@@ -215,18 +221,19 @@ public static partial class EdoBuild
                 // 頂点で天端の違う区間が浅い折れ(< 30°)で続く = 折れのある段の継ぎ目: 高い方は交点から stepLap(無ければ 0.03)だけ先へ、
                 //   低い方は交点から奥へ 1.4m 延ばして高い方の面の裏へ食い込ませる(隅の駒は置かない ── PlaceRunKado・普請方の設計 2026-10-07 土井 辺14/15)
                 float stepCornerLap = stepLap >= 0f ? stepLap : 0.03f;
-                Func<CastleSec, float> cornerExt = x => { if (x == null || Mathf.Abs(x.crest - s.crest) < 1e-3f) return 0f; return x.crest < s.crest ? stepCornerLap : -1.4f; };
+                //   天端は継ぎ目の所で比べる(坂なりの区間は crest = s0 の天端 ── 2026-10-13)
+                Func<CastleSec, float> cornerExt = x => { if (x == null) return 0f; bool after = x.edge == (e + 1) % n; float cx = after ? x.crest : x.CrestAt(x.s1), cs = after ? s.CrestAt(s.s1) : s.crest; if (Mathf.Abs(cx - cs) < 1e-3f) return 0f; return cx < cs ? stepCornerLap : -1.4f; };
                 if (s.s1 >= Len(e) - VTX_TOL)
                 {
                     var nx = merged.Find(x => x.edge == (e + 1) % n && x.s0 <= VTX_TOL);
-                    if (nx != null && Mathf.Abs(Turn((e + 1) % n)) < 30f && Mathf.Abs(nx.crest - s.crest) > 1e-3f) { b = joinPt(nx, true, b); float ce = cornerExt(nx); b += d * (ce > 0f ? ce : 1.4f); if (final) log?.AppendLine("  城の石垣 " + s.name + ": 頂点" + ((e + 1) % n) + " の折れのある段の継ぎ目 ── 尻を交点から " + (ce > 0f ? ce : 1.4f).ToString("F2") + "m 先へ(" + (ce > 0f ? "高い方の天端を届かせる" : "低い方を高い方の面の裏へ") + ")"); }
+                    if (nx != null && Mathf.Abs(Turn((e + 1) % n)) < 30f && Mathf.Abs(nx.crest - s.CrestAt(s.s1)) > 1e-3f) { b = joinPt(nx, true, b); float ce = cornerExt(nx); b += d * (ce > 0f ? ce : 1.4f); if (final) log?.AppendLine("  城の石垣 " + s.name + ": 頂点" + ((e + 1) % n) + " の折れのある段の継ぎ目 ── 尻を交点から " + (ce > 0f ? ce : 1.4f).ToString("F2") + "m 先へ(" + (ce > 0f ? "高い方の天端を届かせる" : "低い方を高い方の面の裏へ") + ")"); }
                     else if (nx != null) b = joinPt(nx, true, b);
                     else { float tr = freeTrim(e, (e + 1) % n, de); b -= d * tr; if (final && tr > 0.011f) log?.AppendLine("  城の石垣 " + s.name + ": 相手の無い出隅の端を " + tr.ToString("F2") + "m 詰めた(小口が隣の辺の線を越えない)"); }
                 }
                 if (s.s0 <= VTX_TOL)
                 {
                     var pv = merged.Find(x => (x.edge + 1) % n == e && x.s1 >= Len(x.edge) - VTX_TOL);
-                    if (pv != null && Mathf.Abs(Turn(e)) < 30f && Mathf.Abs(pv.crest - s.crest) > 1e-3f) { a = joinPt(pv, false, a); float ce = cornerExt(pv); a -= d * (ce > 0f ? ce : 1.4f); if (final) log?.AppendLine("  城の石垣 " + s.name + ": 頂点" + e + " の折れのある段の継ぎ目 ── 頭を交点から " + (ce > 0f ? ce : 1.4f).ToString("F2") + "m 手前へ(" + (ce > 0f ? "高い方の天端を届かせる" : "低い方を高い方の面の裏へ") + ")"); }
+                    if (pv != null && Mathf.Abs(Turn(e)) < 30f && Mathf.Abs(pv.CrestAt(pv.s1) - s.crest) > 1e-3f) { a = joinPt(pv, false, a); float ce = cornerExt(pv); a -= d * (ce > 0f ? ce : 1.4f); if (final) log?.AppendLine("  城の石垣 " + s.name + ": 頂点" + e + " の折れのある段の継ぎ目 ── 頭を交点から " + (ce > 0f ? ce : 1.4f).ToString("F2") + "m 手前へ(" + (ce > 0f ? "高い方の天端を届かせる" : "低い方を高い方の面の裏へ") + ")"); }
                     else if (pv != null) a = joinPt(pv, false, a);
                     else { float tr = freeTrim(e, e, de); a += d * tr; if (final && tr > 0.011f) log?.AppendLine("  城の石垣 " + s.name + ": 相手の無い出隅の端を " + tr.ToString("F2") + "m 詰めた(小口が隣の辺の線を越えない)"); }
                 }
@@ -238,9 +245,13 @@ public static partial class EdoBuild
                     gaps.Add(new Vector2(Vector2.Dot(g0 - a, d), Vector2.Dot(g1 - a, d)));
                 }
                 float ssc = s.scale > 0f ? s.scale : 1f;
-                var cw = new CrestWall { name = wallOf[s], nodes = new List<Vector2> { a, b }, nodeTops = new List<float> { s.crest, s.crest }, gaps = gaps,
+                //   坂なりの区間(grade ≠ 0)は天端を据えた端の s で引く(交点・突き付けで端が動く ⇒ 端の天端は線の上の値)── 駒は slopePathOf の坂なりの駒
+                bool slp = s.Sloped && slopePathOf != null;
+                float tA = slp ? s.CrestAt(Vector2.Dot(a - A(e), d)) : s.crest, tB = slp ? s.CrestAt(Vector2.Dot(b - A(e), d)) : s.crest;
+                if (s.Sloped && slopePathOf == null && final) log?.AppendLine("  ★ 城の石垣 " + s.name + ": 坂なりの区間(勾配 " + (s.grade * 100f).ToString("F2") + "%)に坂の駒の引き手が無い ── 天端 s0 の水平で据えた");
+                var cw = new CrestWall { name = wallOf[s], nodes = new List<Vector2> { a, b }, nodeTops = new List<float> { tA, tB }, gaps = gaps,
                                          pathOfH = CastleWallOfExpose, runAlongX = false, runLen = 2.0f * ssc, pitchMax = 1.8f * ssc,
-                                         lowHint = (p, q) => o, lowForce = true, scale = ssc };
+                                         lowHint = (p, q) => o, lowForce = true, scale = ssc, pathOfSlope = slp ? slopePathOf : null };
                 float wf; int bs;
                 var segOut = new Dictionary<string, List<GameObject>>();
                 // 境の外が隣の造成で下がる区間: 線の外の点の地面を 天端 − outsideCap で頭打ちにして組む。

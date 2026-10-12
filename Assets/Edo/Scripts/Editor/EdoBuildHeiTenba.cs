@@ -189,15 +189,21 @@ public static partial class EdoBuild
         for (int e = pf.e0; e <= pf.e1; e++)
         {
             int ee = ((e % n) + n) % n; float L = (poly[(ee + 1) % n] - poly[ee]).magnitude;
-            float tA = pf.TOf(ee, 0f), tB = pf.TOf(ee, L);
+            //   ⭐ 芯線の折れ点の外(出隅で辺の走りが折れ点の写しを越える所 = 隅の塊)は折れ点の座のまま(第122巡)── 辺の線を延ばして隣の辺の勾配を読まない
+            //   (P24: 辺23 の尻が辺24 の 3.03% を 1.1m 先取りして台の天端が 11.134 になり、隅の駒の両腕の天端が違った)
+            float tLo = pf.tStart[ee], tHi = pf.tStart[ee] + (pf.sCend[ee] - pf.sC[ee]);
+            Func<float, float> Tc = sv => Mathf.Clamp(pf.TOf(ee, sv), tLo, tHi);
+            float tA = Tc(0f), tB = Tc(L);
             var cut = new List<float> { 0f, L };
+            if (pf.sC[ee] > 1e-3f && pf.sC[ee] < L - 1e-3f) cut.Add(pf.sC[ee]);
+            if (pf.sCend[ee] > 1e-3f && pf.sCend[ee] < L - 1e-3f) cut.Add(pf.sCend[ee]);
             foreach (var t in pf.nt) if (t > tA + 1e-3f && t < tB - 1e-3f) cut.Add(t - pf.tStart[ee] + pf.sC[ee]);
             cut.Sort();
             for (int k = 0; k + 1 < cut.Count; k++)
             {
                 float s0 = cut[k], s1 = cut[k + 1]; if (s1 - s0 < 1e-3f) continue;
-                float t0 = pf.TOf(ee, s0), t1 = pf.TOf(ee, s1);
-                float y0 = pf.Y(t0, +1), y1 = pf.Y(t1, -1);
+                float t0 = Tc(s0), t1 = Tc(s1);
+                float y0 = pf.Y(t0, t1 > t0 + 1e-4f ? +1 : -1), y1 = t1 > t0 + 1e-4f ? pf.Y(t1, -1) : y0;
                 rows.Add(new HeiSec { edge = ee, sec = pf.StepsBefore(t0, true), s0 = s0, s1 = s1, seat = y0, grade = (y1 - y0) / (s1 - s0), t0 = t0, t1 = t1, stepAt0 = pf.IsStepAt(t0) });
             }
         }

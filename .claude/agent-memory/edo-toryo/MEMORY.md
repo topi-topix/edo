@@ -7,8 +7,7 @@
 - [書き戻しは必ずタイムアウトする](pitfall-writeback-mcp-timeout.md) — 大きい邸のプレハブ。⛔再送せず mtime で判定
 - [domain reload 後に bridge が消える](pitfall-bridge-drops-after-domain-reload.md) — 約2分。status と Editor.log で見る・古い port で「instances なし」が一回おき
 - [再生中に建てるとシーンは消える](playmode-discards-scene-edits.md) — isPlaying を先に聞く。資産(プレハブ・地形)への書き込みだけ残る
-- [30秒を超える execute_code は6回走る](akasaka-open-resent-six-times.md) — 赤坂・作業場を開く・重い計測。menu の赤坂へ戻すも6回開く・計測は割ってファイルへ
-- [execute_code の replay は履歴の番号](execute-code-replay-index-is-history.md) — index=0 で前の Stage が再び走った。⛔replay せず送り直す
+- [30秒を超える execute_code は6回走る](akasaka-open-resent-six-times.md)・[replay は履歴の番号](execute-code-replay-index-is-history.md) — 重い計測は割ってファイルへ・⛔replay せず送り直す
 - [SkinGapTable の計測は6回走り、その間に claim が移ると空振る](skin-gap-table-reruns-and-lost-scene.md) — 78秒×6。頭で GN の有無を返させる
 - [タイムアウト後は read_console で待つ・池の斑は水を消して切り分け](wait-on-timeout-with-cheap-mcp.md)・[長い Stage は印のファイルで再送を止める・狙いだけの Converge は2巡](long-run-guard-and-soft-only-converge.md) — sleep は門番が止める。軽い MCP は main thread が空くまで返らない / delayCall は発火せず。active scene を先に聞く
 - [隅部材の remap の menu は Kado 89 本を再 import して何巡も回る](remap-menu-reimports-all-kado.md) — 新しい FBX が少なければ1本ずつ remap
@@ -20,7 +19,7 @@
 - [欄の上書きの直後は算出物の指紋で Stage1 が止まる](impl-fingerprint-after-yat-overwrite.md) — 食い違い0なら bake_impl --write。長い流しは印+txt で待つ
 - [作業場が前の窓の邸で dirty・旧い退避は前の案の造成前](koba-left-dirty-by-other-window.md) — UnwrittenIn を最初に見る。他邸の書き戻しは分類器が止める→返す
 - [岡部の外周は S1→S2→S2b→S3d で流す・一枚物の練塀の測り](okabe-perimeter-rerun-order-and-neribei-measure.md) — S2 だけだと基壇が変わり 3d が 2.9m 掘る・2b は60〜90分・継ぎ目は ±0.004 の光線 / [指図を書き換えた直後の S1 は 1m で造成する](graded-bin-stale-after-sashizu-commit.md) — bin を焼き直し _graded を捨てる・隅の座は古い
-- [指図の値の天端の線を外周全体へ(第121巡)](heiline-tenba-spec-r121.md) — 頂点の座は折れ点・d が替わる隅で段が隅の駒へ入る・P37 の KadoFace・S2 が再送される
+- [天端の線を外周全体へ(第121巡)](heiline-tenba-spec-r121.md)・[台の天端を座の線へ(第122巡)](kidan-crest-slope-r122.md) — 頂点の座は折れ点・出隅で隣の勾配を先取り・坂の台も丈を選ぶ・焼く一覧は最後の据えから
 - [芯線と天端の線(heiLine)の罠](heiline-stretch-and-tenba-r120.md) — d は c の後・床は区間の組で・線は同じドメインだけ(S2〜3d を続けて)・足は 0.91〜1.60・継ぎ目の切り欠きを埋める
 - [.cs の保存直後の Stage は古い DLL で走る・再起動で皮が null](stage-run-on-stale-dll-after-edit.md) — 25 分の 3b が空振り。Stage の前に compile_wait・3b の後は先に書き戻す
 

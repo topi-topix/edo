@@ -1241,6 +1241,28 @@ public static partial class EdoBuild
         note = sb.ToString(); return d;
     }
 
+    /// <summary>**塀の一続きごとの控え d**(const.heiLine.d・普請奉行 2026-10-13 第122巡)── 辺 <paramref name="e0"/>〜<paramref name="e1"/>(連番)を、
+    /// 塀が切れる頂点(<paramref name="breakAt"/>(v) = 長屋・門・自由端で塀の一続きが終わる)だけで割り、各一続きで d = 辺の c の最大 + <paramref name="inu"/>。
+    /// **大きな隅でも d を替えない** ⇒ 芯線の頂点は区画の頂点の二等分の線の上(折れ点が頂点からずれない)。犬走りの幅 d − c は辺ごとに広がってよい【柔】。
+    /// 硬い(一続きの中で外面の横ずれ 0)。範囲の両端は一続きの端。⛔ 部材の基準点を使わない ── 線を決めるだけ。当たる先: 岡部の外周の練塀(辺1〜11・19〜24・28〜38)。</summary>
+    public static float[] HeiStretchSetback(Vector2[] poly, int e0, int e1, Func<int, bool> breakAt, Func<int, float> edgeC, float inu, out string note)
+    {
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        int m = e1 - e0 + 1; var d = new float[m]; var sb = new System.Text.StringBuilder();
+        int a = 0;
+        while (a < m)
+        {
+            int b = a; while (b + 1 < m && (breakAt == null || !breakAt(e0 + b + 1))) b++;
+            float cMax = 0f; for (int k = a; k <= b; k++) cMax = Mathf.Max(cMax, edgeC(e0 + k));
+            float dd = cMax + inu; for (int k = a; k <= b; k++) d[k] = dd;
+            sb.Append("塀の一続き 辺" + (e0 + a) + "〜" + (e0 + b) + "(P" + (e0 + a) + "〜P" + (e0 + b + 1) + ")d " + dd.ToString("F3", inv) + " = c の最大 " + cMax.ToString("F3", inv) + " + " + inu.ToString("F2", inv) + "[");
+            for (int k = a; k <= b; k++) sb.Append((k > a ? " " : "") + "辺" + (e0 + k) + " c " + edgeC(e0 + k).ToString("F2", inv) + " 犬走り " + (dd - edgeC(e0 + k)).ToString("F2", inv));
+            sb.Append("] ");
+            a = b + 1;
+        }
+        note = sb.ToString(); return d;
+    }
+
     /// <summary>天端の線の一区間(<see cref="HeiTenbaSteps"/>)── 辺 edge の走り s0〜s1 を座 seat の平らで据える。sec = 線の上の区間の通し番号(頂点を跨ぐ区間は辺ごとに二つの行で同じ番号)。
     /// bury = 区間の中の地盤 − 座の最大(座は区間の地盤の最小 ⇒ 高い側が埋まる量 ── 据えは埋めて隠す)。
     /// grade = 走り 1m あたりの勾配(天端の線を指図の値から解く <see cref="HeiProfileRows"/> ── 座は s0 の値)・stepAt0 = 始めが段の面。</summary>

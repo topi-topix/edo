@@ -34,6 +34,14 @@ public static partial class EdoBuild
         /// <summary>駒の一様な倍率(既定 1)。城の石垣の駒を run の倍率 s で据える所(岡部 外周の基壇 ── 壁高 4.0s・天端幅 1.4s・底厚 2.4s)。
         /// 見付は <see cref="pathOfH"/> へ 見付 ÷ scale で渡す(焼いた丈は倍率 1 の値)。走り・送りは呼び手が scale を掛けて渡す。</summary>
         public float scale = 1f;
+        /// <summary>**坂なりの駒の引き手**(既定 null = 天端は区間の両端の高い方の水平)。渡すと、両端の天端が違う区間は天端が一様な勾配で両端を結ぶ線に沿う
+        /// 駒(局所 Y += g·Z の剪断 ── 局所・ピボットは素の Castle Wall と同じ)で据える: (局所の勾配 g = 局所 +Z へ 1m あたり・丈 h(倍率 1 の値)・走り len(倍率 1 の値))→ パス。
+        /// 据え = 素と同じ向きと走り(見え面を低い側へ・天端の前の縁を線へ・走りの端を実メッシュで)・**y = その駒の局所 Z = 0 の端の所の天端の線 − h·scale**
+        /// (⛔ 実測の最上点を天端へ合わせない ── 坂の駒の最上点は高い端にある)。焼いていない駒は ★ で刷り <see cref="missingSlope"/> へ足して据えない。
+        /// 岡部 const.heiLine.kidanCrest(台の石垣の天端は塀の座の線そのもの・2026-10-13 第122巡)。</summary>
+        public Func<float, float, float, string> pathOfSlope;
+        /// <summary>坂なりの駒が焼いていなかったパス(<see cref="pathOfSlope"/> の答え)── 呼び手が焼き足す一覧へ。</summary>
+        public static readonly HashSet<string> missingSlope = new HashSet<string>();
     }
 
     /// <summary>**見付に合う丈の城の石垣の直線の駒**(2026-10-03・EDO-0502)。見付 ≤ 4.00(+0.01)なら素の <c>JC.CastleWall</c>、
@@ -100,6 +108,10 @@ public static partial class EdoBuild
             Vector2 dir = (b - a) / len, nrm = new Vector2(dir.y, -dir.x);
             float crest = Mathf.Max(w.nodeTops[ia], w.nodeTops[ib]);
             float sA = arc[ia], sB = arc[ib], scale = len / Mathf.Max(1e-4f, sB - sA);   // 束ねた区間は弦の長さへ写す
+            //   ⭐ 坂なり(pathOfSlope・両端の天端が違う)── 天端の線 yLine(u) = 始めの天端 + G·u(u = a からの走り)
+            float slopeA = w.nodeTops[ia], slopeG = (w.nodeTops[ib] - w.nodeTops[ia]) / Mathf.Max(1e-4f, len);
+            bool sloped = w.pathOfSlope != null && Mathf.Abs(slopeG) > 5e-5f;
+            Func<float, float> yLine = u => slopeA + slopeG * u;
             // 低い側(描かれた地表を線の両側で ── 駒の奥行 + 0.6 離す)
             int vn, vx;
             Vector2 lowN = LowSide(a, b, groundAt, 3.0f, 0.05f, null, out vn, out vx);
@@ -134,8 +146,9 @@ public static partial class EdoBuild
                 Vector2 ea = a + dir * c.x, eb = a + dir * c.y;
                 if (endsOut != null)
                 {
-                    endsOut.Add(new RunEnd { key = key, run = w.name, node = c.x < 1e-3f ? ia : -1, p = ea, outw = lowN, away = dir });
-                    endsOut.Add(new RunEnd { key = key, run = w.name, node = c.y > len - 1e-3f ? ib : -1, p = eb, outw = lowN, away = -dir });
+                    float hR = 4f * (w.scale > 0f ? w.scale : 1f);
+                    endsOut.Add(new RunEnd { key = key, run = w.name, node = c.x < 1e-3f ? ia : -1, p = ea, outw = lowN, away = dir, slope = sloped, crest = sloped ? yLine(c.x) : crest, grade = sloped ? slopeG : 0f, hReal = hR });
+                    endsOut.Add(new RunEnd { key = key, run = w.name, node = c.y > len - 1e-3f ? ib : -1, p = eb, outw = lowN, away = -dir, slope = sloped, crest = sloped ? yLine(c.y) : crest, grade = sloped ? -slopeG : 0f, hReal = hR });
                 }
                 float W = w.runLen;
                 int N = (L <= W) ? 1 : Mathf.CeilToInt((L - W) / w.pitchMax - 1e-4f) + 1;
@@ -154,6 +167,12 @@ public static partial class EdoBuild
                     }
                     float expose = gMin == float.MaxValue ? 0f : crest - gMin;
                     float wsc = w.scale > 0f ? w.scale : 1f;
+                    if (sloped)
+                    {
+                        var sg = PlaceSlopeCrestPiece(w, a, dir, lowN, c, t, W, N, L, yLine, slopeG, groundAt, parent, w.name + "_" + q + "_" + ci + "_" + i.ToString("00"), log, ref worstFloat, ref buriedSkip);
+                        if (sg != null) { made.Add(sg); mine.Add(sg); }
+                        continue;
+                    }
                     string path = w.pathOfH(expose / wsc);
                     if (path == null) continue;
                     float psi = Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg - (w.runAlongX ? 90f : 0f);
@@ -198,6 +217,72 @@ public static partial class EdoBuild
             }
         }
         return made;
+    }
+
+    /// <summary>坂なりの区間の一枚(<see cref="PlaceCrestWall"/> の pathOfSlope)── ① 素の駒(<see cref="CrestWall.pathOfH"/>)で向きと面を決め(見え面を低い側へ・天端の前の縁を線へ)
+    /// ② 据えた向きの局所 +Z の走りの上り下りから局所の勾配を出して坂の駒へ差し替え(同じ回り・倍率)③ 走りの端を実メッシュの射影で区間の割りの端へ
+    /// ④ 高さ = ピボット(局所 Z = 0 の端・足元)の所の天端の線 − 丈(4.0·倍率)。区間が駒の走りより短ければ走りを詰めた駒(len)。
+    /// 見付が 4.0·倍率を越える・焼いていない駒は ★(据えない)。全体が地表の下は置かない(硬い)。⟶ 据えた駒(無ければ null)。</summary>
+    static GameObject PlaceSlopeCrestPiece(CrestWall w, Vector2 a, Vector2 dir, Vector2 lowN, Vector2 c, float t, float W, int N, float L, Func<float, float> yLine, float G,
+                                           Func<float, float, float> groundAt, Transform parent, string name, System.Text.StringBuilder log, ref float worstFloat, ref int buriedSkip)
+    {
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        float wsc = w.scale > 0f ? w.scale : 1f;
+        bool shortRun = N == 1 && L < W - 0.01f;
+        float t0 = shortRun ? c.x : t, Wp = shortRun ? L : W;
+        Vector2 mid = a + dir * (t0 + Wp * 0.5f);
+        // 見付(天端の線 − 見え面の前の地表)の最大(3 点)
+        float ex = 0f;
+        for (int s3 = 0; s3 < 3; s3++) { float u = Mathf.Clamp(t0 + Wp * (0.1f + 0.4f * s3), c.x, c.y); Vector2 p = a + dir * u + lowN * 0.3f; float gy = groundAt(p.x, p.y); if (!float.IsNaN(gy)) ex = Mathf.Max(ex, yLine(u) - gy); }
+        float psi = Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg - (w.runAlongX ? 90f : 0f);
+        string flatP = w.pathOfH(Mathf.Min(ex / wsc, 4f));
+        var probe = Place(flatP, new Vector3(mid.x, yLine(t0 + Wp * 0.5f), mid.y), psi, Vector3.one * wsc, parent, name);
+        if (probe == null) return null;
+        FaceWallToLine(probe, lowN, a);
+        Vector3 f3 = probe.transform.forward; float sgn = Vector2.Dot(new Vector2(f3.x, f3.z), dir) >= 0f ? 1f : -1f;
+        Quaternion rot = probe.transform.rotation; Vector3 pos = probe.transform.position;
+        UnityEngine.Object.DestroyImmediate(probe);
+        float gLoc = Mathf.Round(sgn * G * 10000f) / 10000f;
+        float lenLoc = shortRun ? Mathf.Round(L / wsc * 100f) / 100f : 2f;
+        //   丈: 見付を**足元の前**(素の駒の法の足 + 0.3)の地表で測り直す(PlaceCrestWall の 2 回目と同じ)── 4.0·倍率を越えれば 0.5 刻みで下へ継いだ丈(8.0 まで)
+        {
+            var pr2 = Place(flatP, pos, 0f, Vector3.one * wsc, parent, name + "_probe"); pr2.transform.rotation = rot;
+            float ft = 0f; foreach (var v in Body(pr2.transform, 999999)) ft = Mathf.Max(ft, Vector2.Dot(new Vector2(v.x, v.z) - a, lowN));
+            UnityEngine.Object.DestroyImmediate(pr2);
+            for (int s3 = 0; s3 < 3; s3++) { float u = Mathf.Clamp(t0 + Wp * (0.1f + 0.4f * s3), c.x, c.y); Vector2 p = a + dir * u + lowN * (ft + 0.3f); float gy = groundAt(p.x, p.y); if (!float.IsNaN(gy)) ex = Mathf.Max(ex, yLine(u) - gy); }
+        }
+        float hN = ex / wsc <= 4.01f ? 4f : Mathf.Min(8f, Mathf.Ceil(ex / wsc * 2f - 1e-3f) / 2f);
+        string path = w.pathOfSlope(gLoc, hN, lenLoc);
+        string root = System.IO.Directory.GetParent(Application.dataPath).FullName;
+        bool missing = path == null || !System.IO.File.Exists(System.IO.Path.Combine(root, path));
+        if (missing)
+        {   // ★ 焼いていない ⇒ 素の駒(水平・天端 = 走りの高い方)で代わりに据える ── 抜けにしない(控え c の測りが駒の有無で 0 に化けて芯線の d が変わるのを避ける)。焼き足す一覧へ
+            CrestWall.missingSlope.Add(path ?? ("?" + gLoc));
+            log.AppendLine("  ★ " + name + ": 坂なりの駒が焼いていない " + System.IO.Path.GetFileNameWithoutExtension(path ?? "") + "(局所の勾配 " + (gLoc * 100f).ToString("F2", inv) + "%・走り " + lenLoc.ToString("F2", inv) + ")── 素の駒を水平に据えた");
+            var gf = Place(w.pathOfH(Mathf.Min(ex / wsc, 8f)), pos, 0f, Vector3.one * wsc, parent, name);
+            if (gf == null) return null;
+            gf.transform.rotation = rot;
+            float mnf = float.MaxValue, topf = float.MinValue; foreach (var v in Body(gf.transform, 999999)) { mnf = Mathf.Min(mnf, Vector2.Dot(new Vector2(v.x, v.z) - a, dir)); topf = Mathf.Max(topf, v.y); }
+            gf.transform.position += new Vector3(dir.x, 0f, dir.y) * (t0 - mnf) + Vector3.up * (Mathf.Max(yLine(t0), yLine(t0 + Wp)) - topf);
+            return gf;
+        }
+        var go = Place(path, pos, 0f, Vector3.one * wsc, parent, name);
+        if (go == null) return null;
+        go.transform.rotation = rot;
+        // 走りの端を区間の割りの端へ(実メッシュの射影)
+        float mn = float.MaxValue; foreach (var v in Body(go.transform, 999999)) mn = Mathf.Min(mn, Vector2.Dot(new Vector2(v.x, v.z) - a, dir));
+        go.transform.position += new Vector3(dir.x, 0f, dir.y) * (t0 - mn);
+        // 高さ: ピボット(局所 Z = 0 の端・足元)= 天端の線 − 丈
+        Vector3 pv = go.transform.position; float u0 = Vector2.Dot(new Vector2(pv.x, pv.z) - a, dir);
+        go.transform.position = new Vector3(pv.x, yLine(u0) - hN * wsc, pv.z);
+        if (CrestAboveGround(go, lowN, groundAt) <= 0f) { UnityEngine.Object.DestroyImmediate(go); buriedSkip++; return null; }
+        // 底の浮き: 走りの 3 点で、底(天端の線 − 丈)− 足元の前の地表
+        float foot = 0f; foreach (var v in Body(go.transform, 999999)) foot = Mathf.Max(foot, Vector2.Dot(new Vector2(v.x, v.z) - a, lowN));
+        float fl = float.NegativeInfinity;
+        for (int s3 = 0; s3 < 3; s3++) { float u = Mathf.Clamp(t0 + Wp * (0.1f + 0.4f * s3), c.x, c.y); Vector2 p = a + dir * u + lowN * (foot + 0.3f); float gy = groundAt(p.x, p.y); if (!float.IsNaN(gy)) fl = Mathf.Max(fl, yLine(u) - hN * wsc - gy); }
+        if (fl > worstFloat) worstFloat = fl;
+        if (fl > 0.01f) log.AppendLine("  ★ " + go.name + ": 坂なりの駒の底が見え面の前の地表より " + fl.ToString("F3", inv) + "m 上(見付 " + ex.ToString("F2", inv) + "m > 駒の丈 " + (hN * wsc).ToString("F2", inv) + ")");
+        return go;
     }
 
     /// <summary>**天端の垣(四つ目垣・建仁寺垣)を土留めの天端へ据える**(EDO-0502)。⛔ ピボットで並べない ── 4手で:

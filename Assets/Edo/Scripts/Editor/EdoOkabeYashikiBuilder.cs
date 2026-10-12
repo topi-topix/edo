@@ -1165,7 +1165,7 @@ public static class EdoOkabeYashikiBuilder
         {
             string hb = HeiLineBaseFromTenba(); if (hb != null) sb.AppendLine(hb);
             var keepB = new Dictionary<string, KeyValuePair<float, List<Vector2>>>(_hlBase);
-            sb.AppendLine("  台を天端の線の座で据えた: " + PlaceIshigaki().Split('\n')[0]);
+            sb.AppendLine("  台を天端の線の座で据えた: " + IshigakiHead(PlaceIshigaki()));
             { string hf2 = HeiLineFace(); if (hf2 != null) sb.AppendLine("  芯線を解き直した(台の c の実測から)"); }
             { string ht2 = HeiLineTenba(); if (ht2 != null) sb.AppendLine("  天端の線を解き直した: " + ht2.Split('\n')[0]); }
             _hlBase.Clear(); foreach (var kv in keepB) _hlBase[kv.Key] = kv.Value;
@@ -1194,7 +1194,7 @@ public static class EdoOkabeYashikiBuilder
         {
             {
                 sb.AppendLine(SeatHeiLineKado(kak)); var c0 = new Dictionary<string, float>(_kidanC);
-                sb.AppendLine("  基壇を天端の線で据え直した: " + PlaceIshigaki().Split('\n')[0]);
+                sb.AppendLine("  基壇を天端の線で据え直した: " + IshigakiHead(PlaceIshigaki()));
                 foreach (var kv in c0) { float c1; if (_kidanC.TryGetValue(kv.Key, out c1) && Mathf.Abs(c1 - kv.Value) > 0.005f) sb.AppendLine("  ★ 据え直しで " + kv.Key + " の c が " + kv.Value.ToString("F3") + " → " + c1.ToString("F3") + " ── d は前の c で解いた"); }
             }
         }
@@ -2276,10 +2276,20 @@ public static class EdoOkabeYashikiBuilder
         if (!Has(hl, "bigCornerDeg")) return "★ const.heiLine.bigCornerDeg が無い ── 天端の線・芯線を当てない(従来の辺ごと)";
         int n = Poly.Length; float big = F(hl["bigCornerDeg"]);
         Func<int, float> cOf = e => { float c; return _kidanCe.TryGetValue(e % n, out c) ? c : 0f; };
-        _heiLineD = new Dictionary<int, float>(); var sb = new System.Text.StringBuilder("芯線(const.heiLine・施主裁定 2026-10-12 案A/案1):");
+        //   ⭐ const.heiLine.d「塀の一続き(長屋・門・塀の自由端から、次の…)で控え d を一つ…大きな隅でも d を替えない」(第122巡)── 一続きは塀が頂点で切れない所:
+        //   頂点 v の両脇の辺に練塀の run が頂点まで続き、門・小門がその辺に無い。旧い文(大きな隅で割る)なら bigCornerDeg で割る
+        bool byStretch = (S(Get(hl, "d")) ?? "").Contains("塀の一続き");
+        var gateE = new HashSet<int>(); { var g0 = O(Get(D, "gate")); if (g0 != null && Has(g0, "edge")) gateE.Add((int)F(g0["edge"])); foreach (var o in A(Get(D, "komon")) ?? new List<object>()) { var k0 = O(o); if (k0 != null && Has(k0, "edge")) gateE.Add((int)F(k0["edge"])); } }
+        Func<int, bool> wallBreak = v =>
+        {
+            int eI = ((v - 1) % n + n) % n, eO = ((v % n) + n) % n; bool inEnd = false, outStart = false;
+            foreach (var rr in Runs) { if (!rr.Dobei) continue; if (rr.edge == eI && rr.s1 >= EdgeLen(eI) - 0.05f) inEnd = true; if (rr.edge == eO && rr.s0 <= 0.05f) outStart = true; }
+            return !(inEnd && outStart) || gateE.Contains(eI) || gateE.Contains(eO);
+        };
+        _heiLineD = new Dictionary<int, float>(); var sb = new System.Text.StringBuilder("芯線(const.heiLine・施主裁定 2026-10-12 案A/案1" + (byStretch ? "・d は塀の一続きで一つ(第122巡)" : "") + "):");
         foreach (var r in rg)
         {
-            string n1; var d = EdoBuild.HeiStretchSetback(Poly, r.x, r.y, big, cOf, INUBASHIRI, out n1);
+            string n1; var d = byStretch ? EdoBuild.HeiStretchSetback(Poly, r.x, r.y, wallBreak, cOf, INUBASHIRI, out n1) : EdoBuild.HeiStretchSetback(Poly, r.x, r.y, big, cOf, INUBASHIRI, out n1);
             for (int e = r.x; e <= r.y; e++) _heiLineD[e % n] = d[e - r.x];
             _hlRanges.Add(r); sb.Append("\n  辺" + (r.x % n) + "〜" + (r.y % n) + ": " + n1);
         }
@@ -2404,6 +2414,40 @@ public static class EdoOkabeYashikiBuilder
             string nt; var pf = EdoBuild.HeiTenbaProfile(Poly, r.x, r.y, d, HEI_CORE_IN, kk, ss, gMax, HL_KADO_MINARM + post, v => kadoV.Contains(v), out nt);
             sb.Append("\n  " + nt);
             if (!pf.ok || !okR) { sb.Append("\n  ★ 辺" + (r.x % n) + "〜" + (r.y % n) + " は天端の線を当てない(指図の値が解けない ── 普請奉行へ返す)"); continue; }
+            //   ⭐ 座 ≥ 外の地盤(const.heiLine.seatOverGround【硬】・第122巡)── 座が外(区画の外)の地盤 + m より低い所があれば、一続きの線を平行に上げる
+            //   (決めた座を全部 +δ ── 段の点の位置・段の高さは変えない)。外の地盤 = base_dem の線上と線から外 0.5 の高い方(規則13)。
+            {
+                string sog = S(Get(O(Get(O(Get(D, "const")), "heiLine")), "seatOverGround"));
+                var mM = System.Text.RegularExpressions.Regex.Match(sog ?? "", @"外の地盤\s*\+\s*([0-9.]+)\s*以上");
+                if (sog != null && !mM.Success) sb.Append("\n  ★ const.heiLine.seatOverGround の余裕(外の地盤 +m 以上)が読めない ── 上げない");
+                if (mM.Success)
+                {
+                    float marg = float.Parse(mM.Groups[1].Value, inv); var bdS = EdoBuild.BaseDem();
+                    float worst = float.NegativeInfinity; string wAt = "-";
+                    foreach (var sc in EdoBuild.HeiProfileRows(pf, Poly))
+                    {
+                        bool hasRun = false; string rn = null; foreach (var rr in rs) if (rr.Dobei && rr.edge == sc.edge) { hasRun = true; rn = rr.name; }
+                        if (!hasRun) continue;
+                        Vector2 o2 = OutNormal(sc.edge);
+                        for (float sv = sc.s0 + 0.05f; sv < sc.s1 - 0.04f; sv += 0.25f)
+                        {
+                            Vector2 p0 = EdgePt(sc.edge, sv); float og = Mathf.Max(bdS(p0.x, p0.y), bdS(p0.x + o2.x * 0.5f, p0.y + o2.y * 0.5f)); if (float.IsNaN(og)) continue;
+                            float def = og + marg - (sc.seat + sc.grade * (sv - sc.s0));
+                            if (def > worst) { worst = def; wAt = rn + " s" + sv.ToString("F2", inv) + "(座 " + (sc.seat + sc.grade * (sv - sc.s0)).ToString("F3", inv) + "・外 " + og.ToString("F3", inv) + ")"; }
+                        }
+                    }
+                    if (worst > 0.0005f)
+                    {
+                        float up = Mathf.Ceil(worst * 100f - 1e-3f) / 100f;
+                        var kk2 = new List<EdoBuild.HeiKnot>(); foreach (var q in kk) kk2.Add(new EdoBuild.HeiKnot { edge = q.edge, s = q.s, y = q.y + up });
+                        string nt2; var pf2 = EdoBuild.HeiTenbaProfile(Poly, r.x, r.y, d, HEI_CORE_IN, kk2, ss, gMax, HL_KADO_MINARM + post, v => kadoV.Contains(v), out nt2);
+                        sb.Append("\n  ⭐ 座 ≥ 外の地盤 + " + marg.ToString("F2", inv) + "(seatOverGround【硬】): 辺" + (r.x % n) + "〜" + (r.y % n) + " の不足 最大 " + worst.ToString("F3", inv) + " @" + wAt + " ⇒ 一続きの線を +" + up.ToString("F2", inv) + " 平行に上げた(段の点・段の高さは据え置き)\n  " + nt2);
+                        if (!pf2.ok) { sb.Append("\n  ★ 上げた線が解けない ── 上げずに据える"); }
+                        else pf = pf2;
+                    }
+                    else sb.Append("\n  座 ≥ 外の地盤 + " + marg.ToString("F2", inv) + ": 辺" + (r.x % n) + "〜" + (r.y % n) + " は不足なし(余裕の最小 " + (-worst).ToString("F3", inv) + " @" + wAt + ")");
+                }
+            }
             _hlProfiles.Add(pf); _hlSteps.AddRange(pf.steps);
             var rows = EdoBuild.HeiProfileRows(pf, Poly);
             for (int k = 0; k < rs.Length; k++)
@@ -2606,6 +2650,13 @@ public static class EdoOkabeYashikiBuilder
     /// 実測の全幅 +0.01 の内へ【硬 +0/−0.05】・控え c = 根石が基準線を越えない最小(実メッシュ・run ごと ── 倍率と基準線が run で違う)。
     /// ⛔ 旧い据え(Castle Wall の局所 +X = 鉛直な背を外へ・ピボットを線に)は法が全辺で内を向いていた(第106巡)。
     /// 結果の c は <see cref="_kidanC"/> へ ── 囲いの外面は線から c + 犬走り(<see cref="FaceIn"/>)。⚠ 囲いより先に呼ぶ。</summary>
+    /// <summary>据え直した基壇の報告の頭の行 + 坂なり(第122巡)の行(焼いていない駒・坂の隅・出隅)。</summary>
+    static string IshigakiHead(string full)
+    {
+        var ls = full.Split('\n'); var sb = new System.Text.StringBuilder(ls[0]);
+        for (int i = 1; i < ls.Length; i++) if (ls[i].Contains("坂なり") || ls[i].Contains("出隅 IG_") || ls[i].Contains("出隅の駒")) sb.Append("\n   " + ls[i].Trim());
+        return sb.ToString();
+    }
     static string PlaceIshigaki()
     {
         var grp = Group("Ishigaki"); Clear(grp);
@@ -2646,18 +2697,12 @@ public static class EdoOkabeYashikiBuilder
                 for (int j = 0; j + 1 < brk.Count; j++)
                 {
                     float a0 = brk[j], a1 = brk[j + 1];
-                    //   ⭐ 天端の線の坂なりの区間(const.heiLine.tenba・第121巡)── 城の石垣の駒の天端は水平 ⇒ 駒の走り(≤ 1.80)ごとの段に割り、天端 = その中の座の高い方
-                    //   (塀の底は天端に載るか天端の中へ埋まる ⇒ 隙0【硬】・低い側の埋まりは勾配 × 1.80 まで【柔】)。⛔ 坂の台の石垣の駒は無い(焼けば段を消せる)
+                    //   ⭐ 天端の線の坂なりの区間(const.heiLine.kidanCrest【硬】・第122巡)── 台の石垣の天端は塀の座の線そのもの: 区間の座の勾配のまま一筋
+                    //   (坂なりの駒 EdoAssets.Own.IshigakiChokuSaka ── PlaceCastleRun の slopePathOf)。⛔ 1.80 ごとの段に割らない(第121巡の段は塀の底と最大 1.59 の隙)
                     int kq = r.LineIndexAt(0.5f * (a0 + a1)); float gq = r.lineGrade != null && kq >= 0 ? r.lineGrade[kq] : 0f;
                     if (Mathf.Abs(gq) > 5e-5f)
                     {
-                        int nsub = Mathf.Max(1, Mathf.CeilToInt((a1 - a0) / IG_PITCH_MAX - 1e-3f));
-                        for (int i2 = 0; i2 < nsub; i2++)
-                        {
-                            float b0 = Mathf.Lerp(a0, a1, i2 / (float)nsub), b1 = Mathf.Lerp(a0, a1, (i2 + 1) / (float)nsub);
-                            float crQ = Mathf.Ceil(Mathf.Max(r.SeatOnRow(kq, b0), r.SeatOnRow(kq, b1)) * 1000f - 1e-3f) / 1000f;
-                            secs.Add(new EdoBuild.CastleSec { name = "IG_" + r.name + "_" + k + "_" + j + "_" + i2, edge = r.edge, s0 = b0, s1 = b1, crest = crQ, scale = sc, datumIn = dIn, insetKey = r.name });
-                        }
+                        secs.Add(new EdoBuild.CastleSec { name = "IG_" + r.name + "_" + k + "_" + j, edge = r.edge, s0 = a0, s1 = a1, crest = r.SeatOnRow(kq, a0), grade = gq, scale = sc, datumIn = dIn, insetKey = r.name });
                         continue;
                     }
                     float crest = Mathf.Round(r.SeatAt((a0 + a1) * 0.5f) * 1000f) / 1000f;
@@ -2734,6 +2779,14 @@ public static class EdoOkabeYashikiBuilder
             var sA = secs.Find(x => x.edge == e0 && x.s1 >= L0 - EdoBuild.VTX_TOL); var sB2 = secs.Find(x => x.edge == v && x.s0 <= EdoBuild.VTX_TOL);
             if (sA == null || sB2 == null) continue;
             float tv = turnAt(v); if (tv < 40f) continue;
+            //   ⭐ 坂なりの区間(第122巡)── 両脇の天端は頂点の端の値で比べる(sA は尻・sB2 は頭)。線が続いていれば隅の駒(坂の隅 IshigakiKadoSaka)で受ける
+            if (sA.Sloped || sB2.Sloped)
+            {
+                float cA = sA.CrestAt(sA.s1), cB = sB2.crest;
+                if (Mathf.Abs(cA - cB) <= 0.02f && Mathf.Abs(sA.scale - sB2.scale) < 1e-3f) { kadoAt.Add("P" + v + " " + tv.ToString("F1", inv) + "°(坂なり・天端 " + cA.ToString("F3", inv) + "/" + cB.ToString("F3", inv) + ")"); kadoV.Add(v); }
+                else { kadoSkip.Add(v); log.AppendLine("  ★ 城の石垣 頂点 P" + v + "(" + sA.insetKey + " × " + sB2.insetKey + "): 坂なりの出隅 " + tv.ToString("F1", inv) + "° ── 頂点の天端 " + cA.ToString("F3", inv) + "/" + cB.ToString("F3", inv) + "・倍率 " + sA.scale.ToString("0.##", inv) + "/" + sB2.scale.ToString("0.##", inv) + " が違い隅の駒が据わらない ⇒ 頂点で突き付けた"); }
+                continue;
+            }
             // 角では天端を変えない(cornerP0.step と同じ作法)── 坂の座の run は 2m ごとの区間の芯で天端を刻むので、頂点の両脇の区間の天端が刻みの分だけ違う。
             //   両 run の座が頂点で続く(差 ≤ 0.02)なら、頂点の両脇の区間の天端を頂点の座へ揃える(隅の駒の両腕を同じ天端に)。当たる先: 坂の座の run が出隅で折れる所(岡部 P24)。
             //   ⭐ 天端の線の run(const.heiLine.tenba・第121巡)── 両脇の区間の天端は駒の走りごとに区間の高い方で刻んである ⇒ 高い方へ揃える
@@ -2778,7 +2831,8 @@ public static class EdoOkabeYashikiBuilder
             }
             else { kadoAt.Add("P" + v + " " + tv.ToString("F1", inv) + "°"); kadoV.Add(v); }
         }
-        var cr = EdoBuild.PlaceCastleRun(secs, Poly, gB, grp, log, 2.5f, SEAM_TOL, -1f, 40f, kadoSkip);
+        EdoBuild.CrestWall.missingSlope.Clear(); EdoBuild.SlopeKado.missing.Clear();
+        var cr = EdoBuild.PlaceCastleRun(secs, Poly, gB, grp, log, 2.5f, SEAM_TOL, -1f, 40f, kadoSkip, (g, h, len) => EdoAssets.Own.IshigakiChokuSaka(g, h, len));
         // 隅の駒: 実寸の丈 hReal → 名の丈 hReal / s(倍率の版を焼いた s から引く ── 素の 1 も候補)・scale = 1 で据える(⛔ s を二重に掛けない)
         var scales = new List<float>(); foreach (var x in secs) if (!scales.Exists(q => Mathf.Abs(q - x.scale) < 1e-4f)) scales.Add(x.scale);
         string projRoot = System.IO.Directory.GetParent(Application.dataPath).FullName;
@@ -2790,7 +2844,13 @@ public static class EdoOkabeYashikiBuilder
         var kcs = new List<GameObject>();
         //   隅の駒を受けるのは 40° 以上で両脇の揃う出隅だけ(const.kidan.corner.lt40「< 40° は隅の駒なしで突き付ける」)── 端の組をその頂点の近く(3m)に絞る
         var kadoEnds = cr.ends.FindAll(en => { foreach (var kv in kadoV) if (Vector2.Distance(en.p, Poly[kv]) < 3f) return true; return false; });
-        int kn = EdoBuild.PlaceRunCorners(kadoEnds, cr.segs, kadoPath, gB, grp, 0.02f, log, kcs);
+        //   坂なりの出隅(第122巡)── 坂の隅の駒 Own.IshigakiKadoSaka(倍率の版を焼いた s から引く)
+        Func<float, float, float, float, string> kadoSlopePath = (deg, hReal, gIn, gOut) =>
+        {
+            //   坂の隅は H0400 × 倍率 s(実寸の丈 4.0·s)── s は丈から
+            float sK = Mathf.Round(hReal / 4f * 100f) / 100f; return EdoAssets.Own.IshigakiKadoSaka(deg, 4f, sK, gIn, gOut);
+        };
+        int kn = EdoBuild.PlaceRunCorners(kadoEnds, cr.segs, kadoPath, gB, grp, 0.02f, log, kcs, null, null, null, kadoSlopePath);
         foreach (var kc in kcs) cr.pieces.Add(kc);
         // 角 P0(cornerP0.kado): 隅の駒を辺0 の腕を切った版へ差し替え、仮の区間の駒を退け、小口の s を測る(練塀の突き付け先)
         if (!float.IsNaN(p0StepS))
@@ -2846,6 +2906,11 @@ public static class EdoOkabeYashikiBuilder
         if (miss.Count > 0) sb.Append("\n★ 算出物 base に無い run " + miss.Count + " 件: " + string.Join(" / ", miss.ToArray()));
         foreach (var nt in notes) sb.Append("\n" + nt);
         foreach (var line in log.ToString().Split('\n')) if (line.Contains("★") || line.Contains("⚠") || line.Contains("控える") || line.Contains("出隅")) sb.Append("\n" + line.TrimEnd());
+        if (EdoBuild.CrestWall.missingSlope.Count > 0 || EdoBuild.SlopeKado.missing.Count > 0)
+        {
+            var ms = new List<string>(); foreach (var x in EdoBuild.CrestWall.missingSlope) ms.Add(System.IO.Path.GetFileNameWithoutExtension(x)); foreach (var x in EdoBuild.SlopeKado.missing) ms.Add(System.IO.Path.GetFileNameWithoutExtension(x)); ms.Sort();
+            sb.Append("\n★ 台の坂なりの駒が焼いていない " + ms.Count + ": " + string.Join(" ", ms.ToArray()));
+        }
         return sb.ToString();
     }
 
@@ -5764,7 +5829,8 @@ public static class EdoOkabeYashikiBuilder
             //   焼き切った後に、座で据えた練塀・隅の腰(厚 0.69)の内外の縁まで、足の下の地面を足の底 +0.03 へ上げる(上げるだけ・溝の外接の中は触らない・区画の線から ClipIn の外は触らない)。
             //   第118巡: 3d が塀を床へ据えた後に地面を下げ、北・西の 7 か所で足が 0.02〜0.11 浮いた。当たる先: 細かい地形の上に座で据えた練塀(岡部 外周 158 駒・隅 25)
             var hp = new List<GameObject>(); foreach (Transform c in Group("Kakoi")) { if (!c.gameObject.activeInHierarchy) continue; string nm = c.name; if (nm.StartsWith("Kado_P") || nm.StartsWith("Kiri_") || nm.Contains("Hei_")) hp.Add(c.gameObject); }
-            var keepM = new List<Bounds>(); foreach (var gm in MizoGroups) foreach (Transform c in Group(gm)) if (c.gameObject.activeInHierarchy) { var b = EdoBuild.RB(c.gameObject); b.Expand(new Vector3(0.04f, 0f, 0.04f)); keepM.Add(b); }
+            //   溝・桝は駒の向きの外形で除く(第122巡 ── 世界の外接の箱は斜めの北の辺で足の下まで覆い、浮きを残した)
+            var keepP = new List<GameObject>(); foreach (var gm in MizoGroups) foreach (Transform c in Group(gm)) if (c.gameObject.activeInHierarchy) keepP.Add(c.gameObject);
             var PPf = Poly; float clipF = ClipIn();
             //   ⛔ 石垣・段の駒の下(駒の上面が地表より上)は触らない(基壇の天端・見え面の下へ土を盛らない)
             var stones = new List<GameObject>(); foreach (var gm in new[] { "Ishigaki", "Dan" }) foreach (Transform c in Group(gm)) if (c.gameObject.activeInHierarchy) stones.Add(c.gameObject);
@@ -5772,9 +5838,12 @@ public static class EdoOkabeYashikiBuilder
             //   足の下(凸包の中)は「石が足の底を支えている所」だけ触らない ── 台の石垣の継ぎ目の切り欠きの底(足を支えない石の面)は足に覆われるので土で埋める。
             //   ⛔ 台の石垣の天端の前の縁(区画の線から c)+0.05 より前は触らない(犬走り 0 の run は腰が法の上へ出る ── 見え面の前へ土を出さない)。第120巡 2026-10-12
             System.Func<Vector2, float> crestIn = q => { int be = -1; float bd = float.MaxValue, bs = 0f; for (int e2 = 0; e2 < PPf.Length; e2++) { Vector2 a2 = PPf[e2], b2 = PPf[(e2 + 1) % PPf.Length]; float L2 = (b2 - a2).magnitude; if (L2 < 1e-4f) continue; float s2 = Mathf.Clamp(Vector2.Dot(q - a2, (b2 - a2) / L2), 0f, L2); float d2 = (a2 + (b2 - a2) / L2 * s2 - q).magnitude; if (d2 < bd) { bd = d2; be = e2; bs = s2; } } return be < 0 ? 0f : KidanC(be, bs); };
-            sb.AppendLine("  練塀の足(heiFootSpec.order): " + EdoBuild.FillUnderFoot(hp, 0.05f, 0.03f, EdoBuild.TerrainCell(EdoBuild.T()), keepM,
+            sb.AppendLine("  練塀の足(heiFootSpec.order): " + EdoBuild.FillUnderFoot(hp, 0.05f, 0.03f, EdoBuild.TerrainCell(EdoBuild.T()), null,
                 q => EdoGeom.PIP(PPf, q) && EdoBuild.EdgeDistPublic(PPf, q) >= clipF && !(stoneBed.At(q.x, q.y) > EdoBuild.Ground(q.x, q.y) + 0.02f), FootUndoPath, 0.30f,
-                (q, yb) => EdoGeom.PIP(PPf, q) && EdoBuild.EdgeDistPublic(PPf, q) >= Mathf.Max(clipF, crestIn(q) + 0.05f) && !(stoneBed.At(q.x, q.y) >= yb - 0.02f)));
+                (q, yb) => EdoGeom.PIP(PPf, q) && EdoBuild.EdgeDistPublic(PPf, q) >= Mathf.Max(clipF, crestIn(q) + 0.05f) && !(stoneBed.At(q.x, q.y) >= yb - 0.02f), keepP, 0.04f,
+                //   犬走りの土(const.heiLine.kidan「控えの差は石垣の天端の露出(犬走り)の幅で吸う」・第122巡)── 縁の節点の 0.35 の内に台の天端(地表より上の石・上げる高さ −0.10 以上)が
+                //   あれば、縁の上げを止めない(土は台の天端で受ける ⇒ 土の柱にならない)
+                (q, y) => { for (int k8 = 0; k8 < 8; k8++) { float an = k8 * Mathf.PI / 4f; float px = q.x + 0.35f * Mathf.Cos(an), pz = q.y + 0.35f * Mathf.Sin(an); float bt = stoneBed.At(px, pz), g8 = EdoBuild.Ground(px, pz); if (!float.IsNaN(bt) && !float.IsNaN(g8) && bt > g8 + 0.02f && bt >= y - 0.10f) return true; } return false; }));
         }
         sb.AppendLine("  " + EdoBuild.HoleUnderMasu(pcs, 0.05f, HoleUndoPath));
         sb.Append(SeRojiHeiFoot(false));   // 据えて下げた後に足を測る(heiFootSpec.order【硬】)

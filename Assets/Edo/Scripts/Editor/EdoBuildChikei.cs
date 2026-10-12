@@ -476,8 +476,33 @@ public static partial class EdoBuild
     /// 足に覆われる限り土で埋めてよい)。縁の節点(凸包の外・<paramref name="margin"/> 以内)は従来どおり <paramref name="allow"/>。</para>
     /// <para>⚠ 縁の節点の上げの上限 <paramref name="edgeCap"/> が小さいと、0.25m の格子で足の縁が二つの節点の間に落ちる所で、双一次の地表が縁で足の底を割る
     /// (第120巡: 岡部 辺19 の内の縁で 0.04 浮いた・上限 0.10 では届かなかった ⇒ 岡部は 0.30)。</para></summary>
-    public static string FillUnderFoot(IEnumerable<GameObject> pieces, float footBand, float bury, float margin, IList<Bounds> keep, Func<Vector2, bool> allow, string undoPath = null, float edgeCap = 0.10f, Func<Vector2, float, bool> allowUnderFoot = null)
+    public static string FillUnderFoot(IEnumerable<GameObject> pieces, float footBand, float bury, float margin, IList<Bounds> keep, Func<Vector2, bool> allow, string undoPath = null, float edgeCap = 0.10f, Func<Vector2, float, bool> allowUnderFoot = null,
+                                       IList<GameObject> keepPieces = null, float keepPad = 0.04f, Func<Vector2, float, bool> rimFull = null)
     {
+        //   ⭐ rimFull(節点, 上げる高さ): 縁の節点の上げを edgeCap で止めない所(第122巡 ── 台の石垣の裏の犬走りの土: 外の側が台の天端で受けるので土の柱にならない)。
+        //   岡部 d 1.05 の一続きで細い台(倍率 0.25・天端の幅 0.35)の裏に塀の足が載り、縁の上げ 0.30 で足の外の縁が 0.3〜1.4 浮いた
+        //   ⭐ keepPieces: 触らない駒(溝・桝)を**駒の向きの外形**(局所の頂点の矩形 + keepPad)で引く(第122巡 2026-10-13)── ⛔ 世界の外接の箱(keep)は斜めの辺で
+        //   塀の足の下まで覆い、岡部 北の辺(N_Hei_29〜35・P35)の足の下 4781 節点のうち 1282 を「溝の外接」で除いて 0.3〜1.4 の浮きを残した
+        var kpL = new List<KeyValuePair<Matrix4x4, Vector4>>(); var kpB = new List<Bounds>(); var kpY = new List<float>();
+        if (keepPieces != null)
+            foreach (var kg in keepPieces)
+            {
+                if (kg == null || !kg.activeInHierarchy) continue; float a0, a1, b0, b1, y0;
+                ObbFootprint(kg.transform, out a0, out a1, out b0, out b1, out y0); if (a0 > a1) continue;
+                var sc = kg.transform.lossyScale; float px = keepPad / Mathf.Max(1e-4f, Mathf.Abs(sc.x)), pz = keepPad / Mathf.Max(1e-4f, Mathf.Abs(sc.z));
+                kpL.Add(new KeyValuePair<Matrix4x4, Vector4>(kg.transform.worldToLocalMatrix, new Vector4(a0 - px, a1 + px, b0 - pz, b1 + pz)));
+                var bb = RB(kg); bb.Expand(new Vector3(keepPad * 2f, 0f, keepPad * 2f)); kpB.Add(bb); kpY.Add(kg.transform.position.y);
+            }
+        Func<Vector2, bool> inKeepPiece = q =>
+        {
+            for (int k = 0; k < kpL.Count; k++)
+            {
+                var bb = kpB[k]; if (q.x < bb.min.x || q.x > bb.max.x || q.y < bb.min.z || q.y > bb.max.z) continue;
+                var m = kpL[k].Key; var r = kpL[k].Value; var lp = m.MultiplyPoint3x4(new Vector3(q.x, kpY[k], q.y));
+                if (lp.x >= r.x && lp.x <= r.y && lp.z >= r.z && lp.z <= r.w) return true;
+            }
+            return false;
+        };
         // ⚠ 一枚物の練塀は底の面を持たない(閉じた断面は小口と側だけ ── 下からの光線は当たらない・第119巡の初回で 0 節点)⇒ 足 = 壁体の頂点のうち最下点から footBand 以内の物の
         //   水平の凸包(直線の駒は腰の矩形・隅の L 字は内の入りの三角を含む ── 小さく埋まるだけ)
         var t = T(); var td = t.terrainData; var org = t.transform.position; int R = td.heightmapResolution; float hs = td.size.x / (R - 1);
@@ -525,10 +550,11 @@ public static partial class EdoBuild
                     bool okq = inHull && allowUnderFoot != null ? allowUnderFoot(q, ybq) : (allow == null || allow(q));
                     if (!okq) { nOut++; continue; }
                     bool kp = false; if (keep != null) foreach (var kb in keep) if (q.x >= kb.min.x && q.x <= kb.max.x && q.y >= kb.min.z && q.y <= kb.max.z) { kp = true; break; }
+                    if (!kp && kpL.Count > 0) kp = inKeepPiece(q);
                     if (kp) { nKeep++; continue; }
                     long k2 = ((long)i << 32) ^ (uint)j; float y = ybq + bury, cur;
                     // 足の外の縁の節点は上げを edgeCap まで(⛔ 縁の外が急に落ちる所で幅一升・高さ 2m の土の柱が立った ── 岡部 P24 の外・第119巡)。足の下(凸包の中)は隠れるので上限なし
-                    if (!inHull) { float g0 = td.GetHeight(i, j) + org.y; y = Mathf.Min(y, g0 + edgeCap); }
+                    if (!inHull && (rimFull == null || !rimFull(q, y))) { float g0 = td.GetHeight(i, j) + org.y; y = Mathf.Min(y, g0 + edgeCap); }
                     if (!want.TryGetValue(k2, out cur) || y > cur) want[k2] = y;
                 }
         }

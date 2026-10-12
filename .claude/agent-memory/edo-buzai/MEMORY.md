@@ -115,3 +115,4 @@
 - [練塀の閉じた断面と土塀の端・隅](neribei-closed-section-and-dobei2.md) — 押縁の隙は裏打ち・切り口は作図で塞ぐ・瓦場の枚の境を駒の中に作らない(2026-10-12)
 - [練塀の坂なりは縦の剪断・隅は芯の道のり・棟止めは Tome](neribei-saka-shear-and-tome.md) — 断面が一致して閉じる。勾配と腕は --list で焼き足す(2026-10-12)
 - [台の石垣の坂なりは Castle Wall の縦の剪断](kidan-saka-shear-castle-wall.md) — 天端だけ反らすと重ねで面が割れる・札の共通の欄は Measure の読み(2026-10-13)
+- [練塀の腰なし *_NK](neribei-no-koshi-nk.md) — 下見板は2段を継ぐ・名から引数を復元・素の build は Assets を上書きする(2026-10-13)

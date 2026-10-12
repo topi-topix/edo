@@ -14,6 +14,13 @@
     blender --background --python Tools/Blender/build_neribei.py -- --kado 27 --grade 1.07,1.07   # → Neribei_Kado_27_GU0107xU0107(入り→出の走りに沿って上がる)
     blender --background --python Tools/Blender/build_neribei.py -- --tome --render              # → Neribei_Tome_L / _R(棟止めだけの駒・勾配によらない)
     blender --background --python Tools/Blender/build_neribei.py -- --saka                        # 岡部の坂なりの一式(SAKA_GRADES × U/D × 直線・切り 13 / 留め / 隅 OKABE_SAKA_KADO)
+  腰なし(const.heiLine.koshi・施主 2026-10-13「台の石垣と腰の石垣の二重が違和感」)── どの行にも --no-koshi を足すと名の末尾に _NK(札も同じ):
+    blender --background --python Tools/Blender/build_neribei.py -- --no-koshi --choku --render   # → Neribei_Choku_NK
+    BUZAI_OUT=Temp/NeribeiNoKoshi/Models/Neribei BUZAI_SPEC_OUT=Temp/NeribeiNoKoshi/Data/PartSpecs \
+      blender --background --python Tools/Blender/build_neribei.py -- --no-koshi --list <file>   # 腰ありの駒の名から作った一覧で全部
+    腰の石垣の群を捨て、下見板は素の 2 段(羽重ねの周期 0.4228×2)を下へ継いで座(Y=0)まで(縦に伸ばさない)・端の柱も座まで・
+    底は板 "soko" で閉じる・断面の蓋は壁の矩形。屋根・天端(座+2.646)・厚み 0.40 は腰ありと頂点まで同じ。札の足元は板の表 ±0.206
+    (腰ありは腰の Y 0.05 の断面 ±0.337)。使い分け: 台の石垣の上に立つ塀 = 腰なし / 地面に直に立つ塀 = 腰あり。
 
 【なぜ要るか】在庫の練塀 `s_hei_center` は壁も屋根も**片面の板一枚**の模型で、DobeiRun は表裏 2 枚を 0.20 ずらして
   厚みを偽っていた ⇒ 小口は中空・冠瓦が二筋・隅の駒(Dobei_Kado_*)の腕は外の板 1 枚で内から 73% 透ける
@@ -80,6 +87,8 @@ HALF_T = 0.20              # 漆喰の面の半厚 ⇒ t = 0.40(施主裁定)
 WALL = ("ishigaki", "shitami", "san", "hei", "hashira2", "hashira")
 ROOF = ("yane", "noki", "taruki", "mune", "keta", "keraba", "onigawara")
 EPS = 1e-4
+NK = "_NK"                 # 腰なしの駒の名の印(名の末尾・札も同じ)。腰ありの駒の名は今のまま
+NOKOSHI = [False]          # --no-koshi: 腰の石垣を持たない駒(const.heiLine.koshi・施主 2026-10-13)。既定は今の駒のまま
 
 
 # ---------------------------------------------------------------- 読み・厚み
@@ -141,16 +150,21 @@ def thicken(o, shift):
 
 def section(groups):
     """作図の値(実寸・厚くした後): 腰の下端・天端の半幅、腰の天端の高さ、壁の天端、棟の天端。"""
-    ish = groups["ishigaki"].data
-    zs = [v.co.z for v in ish.vertices]
-    zi = max(zs)
-    yb = max(v.co.y for v in ish.vertices if v.co.z < 0.01)
-    yt = max(v.co.y for v in ish.vertices if v.co.z > zi - 0.01)
+    if NOKOSHI[0]:
+        # 腰なし: 足元 = 座(Y=0)の下見板の表(押縁の面)。腰の台形の代わりに壁の矩形
+        zi = 0.0
+        yb = yt = max(v.co.y for v in groups["shitami"].data.vertices if v.co.z < 0.05)
+    else:
+        ish = groups["ishigaki"].data
+        zs = [v.co.z for v in ish.vertices]
+        zi = max(zs)
+        yb = max(v.co.y for v in ish.vertices if v.co.z < 0.01)
+        yt = max(v.co.y for v in ish.vertices if v.co.z > zi - 0.01)
     zt = max(v.co.z for v in groups["hei"].data.vertices)
     zh = min(v.co.z for v in groups["hei"].data.vertices)                    # 漆喰の下端(見切りの上)
     yd = max(v.co.y for k in ("shitami", "san") for v in groups[k].data.vertices)   # 下見板・見切りの表
     ztop = max(v.co.z for o in groups.values() for v in o.data.vertices)
-    return dict(yb=yb, yt=yt, zi=zi, zt=zt, ztop=ztop, zh=zh, yd=yd)
+    return dict(yb=yb, yt=yt, zi=zi, zt=zt, ztop=ztop, zh=zh, yd=yd, nokoshi=NOKOSHI[0])
 
 
 def load(src):
@@ -158,13 +172,75 @@ def load(src):
     g = read_groups(src)
     uv_is = uv_rect_of(g["ishigaki"]); uv_hei = uv_rect_of(g["hei"])
     uv_sh_glob[0] = uv_rect_of(g["shitami"])
+    if NOKOSHI[0]:
+        drop_koshi(g)
     hei_face = max(v.co.y for v in g["hei"].data.vertices)
     shift = HALF_T - hei_face
     for k, o in g.items():
         if k in WALL:
             thicken(o, shift)
     g["shin"] = core(g, uv_sh_glob[0][0])
+    if NOKOSHI[0]:
+        g["soko"] = bottom(g, uv_sh_glob[0][0])
     return g, shift, uv_is, uv_hei
+
+
+def drop_koshi(g):
+    """腰なし(--no-koshi・const.heiLine.koshi 2026-10-13): 腰の石垣の群を捨て、下見板を座(z=0)まで下ろす。
+    ⛔ 板を縦に伸ばさない(板の幅が 1.3 倍に見える)── 素の下見板の 2 段分(羽重ねの周期 ≈0.423 の 2 倍)を切り出して
+    下へ継ぎ、z=0 で切る ⇒ 羽重ね・押縁・UV の密度は素のまま。端の柱(hashira・s_hei_l)は下端を座へ下ろす(無地の角材)。"""
+    bpy.data.objects.remove(g.pop("ishigaki"), do_unlink=True)
+    sh = g["shitami"]
+    zs = [v.co.z for v in sh.data.vertices]
+    za = min(z for z in zs if z > 0.5)              # 2 段目の板の下端(0.625)
+    zb = min(z for z in zs if z > za + 0.35)        # 4 段目の板の下端(1.048)── za..zb = 2 段
+    per = zb - za
+    lo = dup(sh); cut(lo, (0, 0, za), (0, 0, 1), True); cut(lo, (0, 0, zb), (0, 0, 1), False)
+    cut(sh, (0, 0, za), (0, 0, 1), True)            # 素の最下段(腰に載る短い板)は捨てて、継いだ板に替える
+    parts = [sh]
+    k = 1
+    while za - k * per > -per:
+        c = dup(lo); xform(c, Matrix.Translation(Vector((0, 0, -k * per))))
+        cut(c, (0, 0, 0), (0, 0, 1), True)
+        if c.data.polygons:
+            parts.append(c)
+        else:
+            bpy.data.objects.remove(c, do_unlink=True)
+        k += 1
+    bpy.data.objects.remove(lo, do_unlink=True)
+    j = V.join(parts, "shitami") if len(parts) > 1 else sh
+    bm = bmesh.new(); bm.from_mesh(j.data)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-4)
+    bm.to_mesh(j.data); bm.free(); j.data.update()
+    j["g"] = "shitami"; g["shitami"] = j
+    if "hashira" in g:
+        hz = min(v.co.z for v in g["hashira"].data.vertices)
+        for v in g["hashira"].data.vertices:
+            if v.co.z < hz + 0.01:
+                v.co.z = 0.0
+        g["hashira"].data.update()
+    print("[neri]   腰なし: 下見板 2 段 %.4f を座まで %d 回継いだ" % (per, k - 1))
+
+
+def bottom(g, rect):
+    """腰なしの底(z=0)の板: 下見板の表から表まで(端の柱の外面まで)・下向き。座に据わるので普段は見えないが、
+    坂の足の上げや見上げで壁の中が抜けないように閉じる。群は "soko"(WallFace の名ではない)。"""
+    xs = [v.co.x for k in ("shitami", "hashira") if k in g for v in g[k].data.vertices]
+    x0, x1 = min(xs), max(xs)
+    yf = max(abs(v.co.y) for k in ("shitami", "hashira") if k in g for v in g[k].data.vertices if v.co.z < 0.05)
+    me = bpy.data.meshes.new("soko"); o = bpy.data.objects.new("soko", me); bpy.context.collection.objects.link(o)
+    me.materials.append(g["hei"].data.materials[0])
+    bm = bmesh.new(); uvl = bm.loops.layers.uv.new("UVMap")
+    f = bm.faces.new([bm.verts.new(Vector(c)) for c in ((x0, -yf, 0), (x1, -yf, 0), (x1, yf, 0), (x0, yf, 0))])
+    f.normal_update()
+    if f.normal.z > 0:
+        f.normal_flip()
+    for l in f.loops:
+        l[uvl].uv = (rect[0] + (rect[2] - rect[0]) * (l.vert.co.x - x0) / (x1 - x0),
+                     rect[1] + (rect[3] - rect[1]) * (l.vert.co.y + yf) / (2 * yf))
+    bm.to_mesh(me); bm.free(); me.update()
+    o["g"] = "soko"
+    return o
 
 
 def core(g, rect, inset=0.025):
@@ -172,7 +248,7 @@ def core(g, rect, inset=0.025):
     厚くした壁では隙から中が抜けて背景が見えた(2026-10-12 継ぎ目の寄りで実測)⇒ 隙の奥を塞ぐ。WallFace の名ではない。"""
     hs = g["hei"].data
     x0 = min(v.co.x for v in hs.vertices); x1 = max(v.co.x for v in hs.vertices)
-    zi = max(v.co.z for v in g["ishigaki"].data.vertices)
+    zi = 0.0 if "ishigaki" not in g else max(v.co.z for v in g["ishigaki"].data.vertices)
     zt = max(v.co.z for v in hs.vertices)
     yb = min(v.co.y for v in g["shitami"].data.vertices if v.co.y > 0) - inset
     me = bpy.data.meshes.new("shin"); o = bpy.data.objects.new("shin", me); bpy.context.collection.objects.link(o)
@@ -262,9 +338,12 @@ def cap(bm, uvl, sec, uv_is, uv_hei, plane_pt, along, lateral, outward, mi=0):
     yd, zh = sec["yd"], sec["zh"]
     made = []
     # 腰の台形 / 下見板の帯(板の表 yd まで ── 漆喰の 0.20 で切ると板の小口 6mm が抜けて筋に見えた)/ 漆喰の帯
-    for poly, (rect, (w, h)) in (([(-yb, 0.0), (yb, 0.0), (yt, zi), (-yt, zi)], uv_is),
-                                 ([(-yd, zi), (yd, zi), (yd, zh), (-yd, zh)], uv_sh_glob[0]),
-                                 ([(-HALF_T, zh), (HALF_T, zh), (HALF_T, zt), (-HALF_T, zt)], uv_hei)):
+    bands = [([(-yb, 0.0), (yb, 0.0), (yt, zi), (-yt, zi)], uv_is),
+             ([(-yd, zi), (yd, zi), (yd, zh), (-yd, zh)], uv_sh_glob[0]),
+             ([(-HALF_T, zh), (HALF_T, zh), (HALF_T, zt), (-HALF_T, zt)], uv_hei)]
+    if sec.get("nokoshi"):
+        bands = bands[1:]            # 腰なし: 下見板の帯が座(zi = 0)から ── 壁の矩形で閉じる
+    for poly, (rect, (w, h)) in bands:
         vs = [bm.verts.new(Vector(plane_pt) + Vector(lateral) * s + Vector((0, 0, z))) for s, z in poly]
         f = bm.faces.new(vs); f.material_index = mi
         f.normal_update()
@@ -308,6 +387,8 @@ def finish(objs, name, kind_spec=None):
     """原点はもう合わせてある前提。群名のオブジェクトのまま書き出す。"""
     for o in objs:
         o.location = (0, 0, 0)
+    if NOKOSHI[0]:
+        name += NK                   # 腰なしは別の名で並べて残す(腰ありの駒はそのまま)
     path = os.path.join(OUT, name + ".fbx")
     if kind_spec is not None:
         spec = dict(kind_spec); spec["prefab"] = CANON + "/" + name + ".fbx"
@@ -325,7 +406,10 @@ def finish(objs, name, kind_spec=None):
 
 def fence_spec(sec, x_lo, x_hi, coping, top, source):
     """札(fence)── 作図の値から。Unity 局所: X = −x・Z = −y。足元 = 腰の石垣の Y 0.05 の断面(芯対称)。"""
-    hf = sec["yb"] - (sec["yb"] - sec["yt"]) * (0.05 / sec["zi"])
+    if sec.get("nokoshi"):
+        hf = sec["yb"]               # 腰なし: 足元 = 下見板の表(押縁の面・座の上で一様)
+    else:
+        hf = sec["yb"] - (sec["yb"] - sec["yt"]) * (0.05 / sec["zi"])
     X0, X1 = -x_hi, -x_lo
     return {"source": source, "unitScale": 1.0, "yBottom": 0.0,
             "foot": [{"x": X0, "y": -hf}, {"x": X1, "y": -hf}, {"x": X1, "y": hf}, {"x": X0, "y": hf}],
@@ -393,7 +477,7 @@ def build_tome(on_done=None):
         x_c = max(v.co.x for v in g["shitami"].data.vertices)        # 0.662 = 端の柱の内面
         x_post = max(v.co.x for v in g["hashira"].data.vertices)
         x_end = max(v.co.x for o in g.values() for v in o.data.vertices)
-        x_koshi = max(v.co.x for v in g["ishigaki"].data.vertices)
+        x_koshi = x_post if NOKOSHI[0] else max(v.co.x for v in g["ishigaki"].data.vertices)
         x_ker = min(v.co.x for v in g["keraba"].data.vertices)
         mat = mat_of(g)
         objs = []
@@ -474,7 +558,7 @@ def build_end(on_done=None):
         x_run1 = max(v.co.x for v in g["shitami"].data.vertices)      # 1 枚の終わり = 端の柱の内面(0.662)
         x_post = max(v.co.x for v in g["hashira"].data.vertices)      # 端の柱の外面
         x_end = max(v.co.x for o in g.values() for v in o.data.vertices)   # 鬼瓦の先
-        x_koshi = max(v.co.x for v in g["ishigaki"].data.vertices)
+        x_koshi = x_post if NOKOSHI[0] else max(v.co.x for v in g["ishigaki"].data.vertices)
         mat = mat_of(g)
         objs = list(g.values())
         objs.append(cap_object("koguchi", mat, [((x_run0, 0, 0), (1, 0, 0), (0, 1, 0), (-1, 0, 0))], sec, uv_is, uv_hei))
@@ -848,6 +932,8 @@ def run_job(argv, do_render):
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     do_render = "--render" in argv
+    NOKOSHI[0] = "--no-koshi" in argv
+    argv = [a for a in argv if a != "--no-koshi"]
     if "--okabe" in argv:
         jobs = [["--choku"], ["--end"]] + [["--kiri", str(k)] for k in range(1, NTILE)] + [["--kado", t] for t in OKABE_KADO]
         for j in jobs:

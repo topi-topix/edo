@@ -14,6 +14,8 @@ metadata:
 3. 足の内の縁(1.46)の 0.2〜0.48 の浮き(Kado_P7・P10・S_Hei_08・NW_Hei_1_3・P35)は、台の石垣の裏の縁の下の節点を「石が足を支える」で触らず、一升の双一次が落ちた物
    ⇒ capUnderFoot(石の天端 −0.02 まで上げる・天端の前の縁 c +0.05 より前は触らない)。
 4. 指図をコミットすると S1 が指紋で止まる(VerifyImplFingerprint)⇒ bake_impl okabe --write・impl_okabe --graded-bin・流しの頭で EdoOkabeYashikiBuilder.Reload()。
+6. **外から見える縦の土の柱は別物**: 台の石垣の見え面(法)から地形が歯形に突き出る物(北 辺28〜35・P24 の下・P35 の出隅の台の石の抜け)。
+   内の土の柱(2.)を消しても残った ⇒ 次は台の見え面の前の節点を見え面の下へ(光線で駒/地形の先着を数える)。
 5. 流しは 107 分かかった(2b が 95 分)。read_console は 30 秒で戻るので待ちに使える。
 **How to apply:** 塀の内に溝を沿わせる時は駒の半幅を MizoPieceOf で測って DitchCoreOff に渡す。土の柱を見たら RawTop より 0.05 高い土の節点を刷る(r125/chain_d.cs の末尾)。
 関連 [[neribei-nk-koshi-choice-r124]] [[mizo-apron-terrain-rules]]

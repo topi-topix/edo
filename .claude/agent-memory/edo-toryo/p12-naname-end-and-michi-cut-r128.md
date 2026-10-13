@@ -19,3 +19,8 @@ metadata:
 7. ⛔ 試しの S1+S2 を流した後に本番の流しの頭で hm_pre.bin を採ると、道の削りが「前」に入って差が 0 に化けた ⇒ 区画の外の比べは前の巡の hm_pre(外は前の巡の後と同じ)で。
 **How to apply:** 外の道を削る欄が来たら、まず台の見えの読み(線から何 m)の点が削る面のどこに落ちるかを刷り、倍率が変わらないことを impl の base の diff で見てから流す。
 関連 [[face-front-columns-and-corner-slit-r126]] [[michi-narashi-outside-parcel]] [[graded-bin-stale-after-sashizu-commit]]
+
+追記(同巡・EDO-0574): 類型の囲いの端が隣の区画の持つ辺に出会う所で、角の延ばし(CornerReach)と芯置きの壁体が隣へ入った(樹下 dobei_4_2・dobei_15_0 0.5、十坊9 kui_6_0 0.137)。
+類型ビルダーの囲いの輪で、建てて EdoBuild.BodyOverLine(壁体・軒は数えない)で越えを測り、越えた分 / cos だけ端を引いて建て直す(最大 4 回)⇒ 0。
+作業場の「(隣)」の類型を建て直すときは素の名で InstantiatePrefab してから EdoBuildQueue.Enqueue ── BuildParcel が「(隣)」も片付けた。
+樹下の土塀の足の浮きを Body の底 − 地表で測ると布石の上の壁を「浮き」と読む(偽)── 布石の底で測る。

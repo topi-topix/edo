@@ -737,10 +737,18 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                     if (cliffLen >= 1f) kakoiNotes.Add(string.Format("辺{0} 崖の面 {1:F0}m を囲わない(塀が崖を登る{2})", e.i, cliffLen, dan ? "" : "・内の半分が崖の面に掛かる所"));
                     // ⭐ 区画の角は頂点の先へ延ばして口を閉じる(EdoBuild.CornerReach・EDO-0477 P2 隅)
                     float reA, reB; CornerReaches(fe, e, kind, out reA, out reB);
+                    //   ⭐ 隣の区画が持つ辺に出会う端は、壁体(軒は数えない ── 施主裁定A 2026-09-21)が隣の線を越えない所まで引く(EDO-0574 ──
+                    //   樹下の dobei_4_2 が角の延ばしで岡部へ 0.498・十坊の杭が 0.137 入った)。建てて実メッシュで測り、越えた分だけ端を引いて建て直す【硬: 区域侵犯 0】
+                    var nbA = fe.FirstOrDefault(x => x != e && (x.b - e.a).sqrMagnitude < 1e-4f && x.kind == EdgeKind.Shared && !x.mine);
+                    var nbB = fe.FirstOrDefault(x => x != e && (x.a - e.b).sqrMagnitude < 1e-4f && x.kind == EdgeKind.Shared && !x.mine);
                     for (int si = 0; si < spans.Count; si++)
                     {
-                        var sa = e.a + ed * (spans[si][0] - (spans[si][0] < 1e-3f ? reA : 0f));
-                        var sb2 = e.a + ed * (spans[si][1] + (spans[si][1] > e.len - 1e-3f ? reB : 0f));
+                      bool endA = spans[si][0] < 1e-3f && nbA != null, endB = spans[si][1] > e.len - 1e-3f && nbB != null;
+                      float backA = 0f, backB = 0f;
+                      for (int it = 0; it < 4; it++)
+                      {
+                        var sa = e.a + ed * (spans[si][0] - (spans[si][0] < 1e-3f ? reA : 0f) + backA);
+                        var sb2 = e.a + ed * (spans[si][1] + (spans[si][1] > e.len - 1e-3f ? reB : 0f) - backB);
                         float gt = Vector2.Dot(gc - e.a, ed);
                         bool gateHere = gh > 0f && gt >= spans[si][0] && gt <= spans[si][1];
                         string note;
@@ -751,9 +759,23 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                             var dp = danOf[e]; float org = dp.Key + spans[si][0] - (spans[si][0] < 1e-3f ? reA : 0f);
                             ds = dp.Value.Select(x => new EdoBuild.DanSec { a = x.a - org, b = x.b - org, W = x.W }).ToList();
                         }
-                        EdoBuild.FenceRun(encl, sa, sb2, e.outward, kind, pad, gateHere ? gc : Vector2.zero, gateHere ? gh : -1f,
+                        if (ds != null && backA > 0f) ds = ds.Select(x => new EdoBuild.DanSec { a = x.a - backA, b = x.b - backA, W = x.W }).ToList();
+                        var mk = EdoBuild.FenceRun(encl, sa, sb2, e.outward, kind, pad, gateHere ? gc : Vector2.zero, gateHere ? gh : -1f,
                                           spans.Count == 1 ? pre : pre + "s" + si, out note, ds);
-                        if (!string.IsNullOrEmpty(note)) kakoiNotes.Add("辺" + e.i + " " + note);
+                        string rp = (spans.Count == 1 ? pre : pre + "s" + si) + "_";
+                        mk = new List<GameObject>(mk ?? new List<GameObject>()); foreach (Transform c in encl) if (c.name.StartsWith(rp, StringComparison.Ordinal) && !mk.Contains(c.gameObject)) mk.Add(c.gameObject);
+                        float dA = endA ? EdoBuild.BodyOverLine(mk, nbA.a, nbA.b, nbA.outward) : 0f, dB = endB ? EdoBuild.BodyOverLine(mk, nbB.a, nbB.b, nbB.outward) : 0f;
+                        if (dA <= 0.005f && dB <= 0.005f)
+                        {
+                            if (!string.IsNullOrEmpty(note)) kakoiNotes.Add("辺" + e.i + " " + note);
+                            if (backA > 0f || backB > 0f) kakoiNotes.Add(string.Format("辺{0} 隣の区画の辺に出会う端を引いた(始め {1:F3}・終わり {2:F3}m)── 壁体の越え ⭕ 0(EdoBuild.BodyOverLine)", e.i, backA, backB));
+                            break;
+                        }
+                        if (it == 3) { kakoiNotes.Add(string.Format("辺{0} ⛔ 隣の区画の線を壁体が越える(始め {1:F3}・終わり {2:F3}m)── 4 回引いても残る", e.i, dA, dB)); break; }
+                        foreach (var g in mk) if (g != null) UnityEngine.Object.DestroyImmediate(g);
+                        if (dA > 0.005f) backA += dA / Mathf.Max(0.2f, Vector2.Dot(-ed, nbA.outward)) + 0.01f;
+                        if (dB > 0.005f) backB += dB / Mathf.Max(0.2f, Vector2.Dot(ed, nbB.outward)) + 0.01f;
+                      }
                     }
                 }
             }

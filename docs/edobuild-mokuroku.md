@@ -1,11 +1,11 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 cac155b7cefa -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 2b495abcda1e -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
 
-- 公開関数 614 本(注釈なし 34)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
+- 公開関数 615 本(注釈なし 34)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
 - 同じ道具が刷る目録: 邸ビルダーのメニュー → Stage と中の関数 `docs/builder-mokuroku.md` / 部材の名 `docs/edoassets-mokuroku.md`。
 - 札: **硬** = 注釈に「硬い/許容0」・**柔** = 「柔らかい/狙い」がある(判定ではなく注釈の語)。相手の札(地面・駒どうし・天端・床・断面・面・隅・区域)も注釈の語を拾っただけ。
 - 呼んでいる所 = 定義のファイルの外で `EdoBuild.<名>(` と書いている C# ファイル(`Edo` と `Builder/Rebuild` を落とした名)と、その中の呼んでいる関数(Stage)。同じ名の多重定義はまとめて数える。`EdoBuild` の中どうしの呼び出しは載せない。
@@ -42,7 +42,7 @@
 | [EdoBuildNozuraSeam.cs](#edobuildnozuraseamcs) | EdoBuild — 野面の土留めの継ぎ目と見え面を光線で測る(2026-10-09・EDO-0502 第64巡・施主「石垣の隙間に土が見えていたり、 | — | 4 |
 | [EdoBuildOsameru.cs](#edobuildosamerucs) | 寄せて測るを収まるまで回す (EdoBuild の partial・2026-09-26・EDO-0454) | 類型ビルダーの番所→門(EdoTypologyBuilder Stage 1・2b)。 | 2 |
 | [EdoBuildQueue.cs](#edobuildqueuecs) | EdoBuildQueue.cs — 長い建て直しを MCP の 1 回の呼び出しの中で回さず、エディタの中で順に予約して即座に返す(EDO-0503)。 | — | 0 |
-| [EdoBuildRim.cs](#edobuildrimcs) | 崖の縁の土留め — 区画の線の上に立つ塀の真下を削って野面の石垣を積み、塀を天端に載せる (EdoBuild の partial・2026-09-28・EDO-0477) | 類型の全区画で、区画の縁の外が平場より高い所(崖の縁の寺社・武家の山際)。 | 6 |
+| [EdoBuildRim.cs](#edobuildrimcs) | 崖の縁の土留め — 区画の線の上に立つ塀の真下を削って野面の石垣を積み、塀を天端に載せる (EdoBuild の partial・2026-09-28・EDO-0477) | 類型の全区画で、区画の縁の外が平場より高い所(崖の縁の寺社・武家の山際)。 | 7 |
 | [EdoBuildRun.cs](#edobuildruncs) | 囲いの run — 長屋・土塀・板塀を辺に沿って並べる (EdoBuild の partial・2026-09-21) | — | 49 |
 | [EdoBuildSaka.cs](#edobuildsakacs) | EdoBuild — 坂の路盤(折れ線の芯と縦断で道の面を均し、盛土・切土の法で地盤へ擦り付ける)。 | 指図の ramps[] のうち `pts` と `profY` を持つ坂(岡部の R_UraZaka / R_GakeZaka)。 | 27 |
 | [EdoBuildSeiyaku.cs](#edobuildseiyakucs) | 制約の二種 — 硬い制約(関門)と柔らかい制約(狙い)を、置く側の共通の層で使い分ける(EDO-0372・施主 2026-09-23)。 | — | 1 |
@@ -856,6 +856,7 @@ EdoBuildQueue.cs — 長い建て直しを MCP の 1 回の呼び出しの中で
 |---|---|---|---|---|
 | `EdoBuild.FenceFaceOffsets(kind, hOut, hIn)` | `void` | 断面・区域 | 囲いの駒の足元の面が区画の線からどれだけ外(hOut)・内(hIn)にあるか[m]。 | Typology(BuildParcel), TypologyBuilder.Rim(CornerReaches) |
 | `EdoBuild.CornerReach(dPrev, dThis, outPrev, hOut, hIn)` | `float` | 硬 駒どうし・隅・区域 | 区画の角で塀の run を頂点の先へ延ばす長さ[m]。 | TypologyBuilder.Rim(CornerReaches) |
+| `EdoBuild.BodyOverLine(pieces, a, b, outward)` | `float` | 硬 区域 | 隣の区画が持つ辺の線を壁体が越える量[m](EDO-0574)── 駒の壁体(Body ── 屋根・軒は数えない・施主裁定A 2026-09-21「軒は区画の線を越えてよい」)の頂点のうち、 辺 a→b(outward… | Typology(BuildParcel) |
 
 ## EdoBuildRun.cs
 

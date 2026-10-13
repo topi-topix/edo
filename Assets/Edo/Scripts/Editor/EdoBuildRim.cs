@@ -401,4 +401,22 @@ public static partial class EdoBuild
         float h = convex ? hOut : hIn;
         return h <= 0f ? 0f : h * Mathf.Tan(th * 0.5f) + 0.02f;
     }
+
+    /// <summary>**隣の区画が持つ辺の線を壁体が越える量**[m](EDO-0574)── 駒の壁体(<see cref="Body"/> ── 屋根・軒は数えない・施主裁定A 2026-09-21「軒は区画の線を越えてよい」)の頂点のうち、
+    /// 辺 a→b(<paramref name="outward"/> = 自分の区画から見た外 = 隣の側)の線の外へ出る最も深い所。辺の両端の 0.5m 先までの射影に入る頂点だけ数える。0 = 越えない。
+    /// 硬い(区域侵犯 0)── 呼び手は越えた分だけ run の端を引いて建て直す。当たる先: 類型の全区画の囲いで、隣の区画が持つ辺に出会う端(樹下の土塀・十坊の杭と板塀 × 岡部)。</summary>
+    public static float BodyOverLine(IList<GameObject> pieces, Vector2 a, Vector2 b, Vector2 outward)
+    {
+        float L = (b - a).magnitude; if (L < 1e-4f || pieces == null) return 0f; var d = (b - a) / L; float worst = 0f;
+        foreach (var g in pieces)
+        {
+            if (g == null || !g.activeInHierarchy) continue;
+            foreach (var v in Body(g.transform, 999999))
+            {
+                var q = new Vector2(v.x, v.z); float t = Vector2.Dot(q - a, d); if (t < -0.5f || t > L + 0.5f) continue;
+                worst = Mathf.Max(worst, Vector2.Dot(q - a, outward));
+            }
+        }
+        return worst;
+    }
 }

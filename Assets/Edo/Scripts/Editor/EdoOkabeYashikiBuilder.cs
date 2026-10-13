@@ -610,6 +610,22 @@ public static class EdoOkabeYashikiBuilder
     static string FootUndoPath { get { return Path.Combine(ProjRoot, BakDir + "/hei_foot_fill.bin"); } }
     /// <summary>書いた帯の設計の記録(EdoBuild.SaveFootBand)── 造成QA が domain reload の後も同じ帯を引く。kind = heiline(天端の線の内の帯・S2)/ heifoot(heiFootSpec の帯・S2b)。</summary>
     static string BandRecPath(string kind) { return Path.Combine(ProjRoot, BakDir + "/band_" + kind + ".txt"); }
+    /// <summary>坂 <paramref name="nm"/> の**実際に均した芯**(EdoBuild.GradeSaka の res.pts ── 法尻のため芯の途中を内へ寄せた後)と芯の高さを残す。
+    /// ⚠ 造成QA が指図の芯(RampAxis)で坂の跡を測ると、寄せた分(R_UraZaka 0.50m)だけ路盤の縁と法を外し、盛りの法の 486 升を超過と読んだ(EDO-0502 第129巡)。</summary>
+    static void SaveRampAxis(string nm, Vector2[] pts, float[] ys)
+    {
+        if (pts == null || ys == null || pts.Length != ys.Length) return; var inv = System.Globalization.CultureInfo.InvariantCulture; var sb = new System.Text.StringBuilder();
+        for (int i = 0; i < pts.Length; i++) sb.AppendLine(pts[i].x.ToString("R", inv) + "\t" + pts[i].y.ToString("R", inv) + "\t" + ys[i].ToString("R", inv));
+        var p = Path.Combine(ProjRoot, BakDir + "/ramp_" + nm + ".txt"); Directory.CreateDirectory(Path.GetDirectoryName(p)); File.WriteAllText(p, sb.ToString());
+    }
+    /// <summary><see cref="SaveRampAxis"/> の芯を読む(無ければ false ── 呼び手は指図の芯のまま)。</summary>
+    static bool LoadRampAxis(string nm, out Vector2[] pts, out float[] ys)
+    {
+        pts = null; ys = null; var p = Path.Combine(ProjRoot, BakDir + "/ramp_" + nm + ".txt"); if (!File.Exists(p)) return false;
+        var inv = System.Globalization.CultureInfo.InvariantCulture; var lp = new List<Vector2>(); var ly = new List<float>();
+        foreach (var ln in File.ReadAllLines(p)) { var f = ln.Split('\t'); if (f.Length < 3) continue; lp.Add(new Vector2(float.Parse(f[0], inv), float.Parse(f[1], inv))); ly.Add(float.Parse(f[2], inv)); }
+        if (lp.Count < 2) return false; pts = lp.ToArray(); ys = ly.ToArray(); return true;
+    }
 
     // =====================================================================
     // Stage0 — ハイトマップの退避(地形の編集は Undo の外)
@@ -908,8 +924,13 @@ public static class EdoOkabeYashikiBuilder
                 shiftMax = ms.Success ? float.Parse(ms.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) : 0f;
                 if (!mh.Success) sb.AppendLine("★ 坂 " + nm + ": toeFix の縁の高さ(h≤)が読めない ── 縁を置かない");
             }
-            var res = EdoBuild.GradeSaka(Poly, pts, ys, pin, width, bf, bc, toe, shiftMax, true, curbH, 1.5f);
+            // ⭐ 両脇を石垣で挟んだ坂(ramps[].kiritoshi.wall「両脇を野面の石垣【硬】」・what「両脇の石垣は東の平場の盛りを受ける【硬】」)は切土の法を取らない ──
+            //   法 1:bc で切ると石垣の背の平場を 1.4〜1.8m 削り、石垣の天端の石の背が浮いた(EDO-0502 第129巡 TW_KiriZaka_N/S の小口 1.37)。切りは路盤の幅で止める(石垣が受ける)。
+            //   当たる先: kiritoshi.wall に石垣を持つ坂(岡部 R_KiriZaka)── 造成QA の坂の枠も同じ値で測る(RampCutBatter)。
+            float bcR = RampCutBatter(r, bc);
+            var res = EdoBuild.GradeSaka(Poly, pts, ys, pin, width, bf, bcR, toe, shiftMax, true, curbH, 1.5f);
             if (!res.ok) { sb.AppendLine("★ 坂 " + nm + ": " + res.note); continue; }
+            SaveRampAxis(nm, res.pts, ys);   // ⭐ 実際に均した芯(法尻のため内へ寄せた後)── 造成QA が同じ芯で坂の跡を測る(第129巡)
             if (!float.IsNaN(res.curbS0))
                 sb.AppendLine("坂 " + nm + ": 路肩の野面石の縁 道のり " + res.curbS0.ToString("F1") + "〜" + res.curbS1.ToString("F1")
                             + "m(" + (res.curbS1 - res.curbS0).ToString("F1") + "m)・受ける丈 最大 " + res.curbHMax.ToString("F2")
@@ -998,7 +1019,7 @@ public static class EdoOkabeYashikiBuilder
     ///   (実測: 格子から 0.12m ずらして測っただけで 228 セルが「超過」に見えた)。</summary>
     public static string GradeQA() { return GradeQA(null); }
 
-    class RampAx { public Vector2[] pts; public float[] ys; public float half; }
+    class RampAx { public Vector2[] pts; public float[] ys; public float half, bc = float.NaN; }
     class PadAx { public Vector2[] parcel, foot; public float y; public EdoBuild.PadRim rim; }
 
     /// <summary>勾配の面(指図 service[].yFrom)の上に据わった附属屋の**棟の下の均し**の範囲(足あと = EdoBuild.BodyFootWorld・高さ = 据わった躯体の底・
@@ -1077,7 +1098,21 @@ public static class EdoOkabeYashikiBuilder
         {
             var r = O(o); if (r == null) continue;
             Vector2[] rpt; float[] rys; float rw; string rn;
-            if (RampAxis(r, out rpt, out rys, out rw, out rn)) ramps.Add(new RampAx { pts = rpt, ys = rys, half = rw * 0.5f });
+            if (RampAxis(r, out rpt, out rys, out rw, out rn))
+            {
+                Vector2[] gp; float[] gy2; if (LoadRampAxis(S(r["name"]), out gp, out gy2) && gp.Length == rpt.Length) { rpt = gp; rys = gy2; }   // 実際に均した芯(第129巡)
+                ramps.Add(new RampAx { pts = rpt, ys = rys, half = rw * 0.5f, bc = RampCutBatter(r, bcA) });
+            }
+        }
+        // ⭐ 池の岸の断面(指図 gardens[NiwaShoin].hori.danmen・Stage3d が PondBankToTerrain で汀の帯 ±3m を書く)── 設計面(算出物 graded)は池の岸を知らない。
+        //   同じ式(PondBankDesign)を設計面の上で引き、岸の帯の高さと地形が合えば超過に数えず別に刷る(⛔ 黙って捨てない・規則19)。
+        //   第130巡: 岸 21.00 の帯が設計面 20.20 より 0.80 高く、造成QA の 134 升のうち 98 升がこれだった。当たる先: 池の岸の断面を持つ邸の造成QA(岡部)
+        float[] pondE = null, pondB = null; int pondN = 0; float pondMx = 0f;
+        {
+            var pg = new float[w * h]; var pok = new bool[w * h];
+            for (int j = 0; j < h; j++) for (int i = 0; i < w; i++) { float gx2 = tp.x + (x0 + i) * cell, gz2 = tp.z + (z0 + j) * cell; float yv = Graded.At(gx2, gz2); pg[j * w + i] = float.IsNaN(yv) ? H[j, i] * ts.y + tp.y : yv; pok[j * w + i] = true; }
+            var pb = (float[])pg.Clone(); PondBankDesign(pg, pok, tp.x + x0 * cell, tp.z + z0 * cell, cell, w, h, new System.Text.StringBuilder());
+            for (int k = 0; k < pg.Length; k++) if (Mathf.Abs(pg[k] - pb[k]) > 1e-3f) { pondE = pg; pondB = pb; break; }
         }
         for (int z = 0; z < h; z++)
             for (int x = 0; x < w; x++)
@@ -1117,11 +1152,12 @@ public static class EdoOkabeYashikiBuilder
                     {
                         float bd, bs, yr; if (!EdoBuild.SakaCenterAt(rp.pts, rp.ys, p, out bd, out bs, out yr)) continue;
                         float hh = Mathf.Max(0f, bd - rp.half); if (hh > 4f * Mathf.Max(bfA, bcA) + 2f * cell) continue;   // GradeSakaOnce の窓
-                        float eR = EdoBuild.BatterTo(yr, hh, bfA, bcA, y);
+                        float eR = EdoBuild.BatterTo(yr, hh, bfA, float.IsNaN(rp.bc) ? bcA : rp.bc, y);
                         // 路盤は芯の寄せ(⚠ 柔らかい・上限 toeFix)と描かれた法尻の締めで設計面から外れ得る ── 地形が設計面と坂の寄せの間(± TOL)なら坂の跡
                         if (Mathf.Abs(eR - y) > 1e-3f && gy >= Mathf.Min(y, eR) - TOL && gy <= Mathf.Max(y, eR) + TOL) { inRamp = true; break; }
                     }
                     if (inRamp) { rampN++; rampMx = Mathf.Max(rampMx, d); continue; }
+                    if (pondE != null) { int kp = z * w + x; if (Mathf.Abs(pondE[kp] - pondB[kp]) > 1e-3f && Mathf.Abs(gy - pondE[kp]) <= TOL) { pondN++; pondMx = Mathf.Max(pondMx, d); continue; } }
                     float eB = EdoBuild.BackBenchesAt(benches, p, y);
                     if (Mathf.Abs(eB - y) > 1e-3f && Mathf.Abs(gy - eB) <= TOL) { benchN++; benchMx = Mathf.Max(benchMx, d); continue; }
                     float eT = y; foreach (var tk in toesQ) eT = EdoBuild.ToeBenchAt(tk, p, eT);
@@ -1158,6 +1194,7 @@ public static class EdoOkabeYashikiBuilder
             (hole > 0 ? " ｜ 算出物の穴 " + hole : "")
             + (padN > 0 ? string.Format(" ｜ 棟の下の均し(指図 service.yAt・LevelPad {0} 棟・超過に数えない) {1} セル 最大 {2:F2}m", pads.Count, padN, padMx) : "")
             + (rampN > 0 ? string.Format(" ｜ 坂の路盤と法(指図 ramps・GradeSaka・超過に数えない) {0} セル 最大 {1:F2}m", rampN, rampMx) : "")
+            + (pondN > 0 ? string.Format(" ｜ 池の岸の断面(指図 gardens[].hori.danmen・PondBankDesign・超過に数えない) {0} セル 最大 {1:F2}m", pondN, pondMx) : "")
             + (benchN > 0 ? string.Format(" ｜ 袖の背の小段の裏込め(指図 terraceWalls[].backfill・BackBenchAt・超過に数えない) {0} セル 最大 {1:F2}m", benchN, benchMx) : "")
             + (toeN > 0 ? string.Format(" ｜ 法尻の背の小段(指図 terraceWalls[].toeBench・ToeBenchAt・超過に数えない) {0} セル 最大 {1:F2}m", toeN, toeMx) : "")
             + (hullN > 0 ? string.Format(" ｜ 駒の下(囲い・石垣・土留め・溝・石段の外形と縁の一升 ── 見えない・超過に数えない) {0} セル 最大 {1:F2}m", hullN, hullMx) : "")
@@ -5983,7 +6020,11 @@ public static class EdoOkabeYashikiBuilder
             //   下限は 路地の床 −0.02・帯 −0.02・角の庭 の高い方(帯は路地の床の南の端に重なる ── 路地を先に返すと帯を 12.13 へ掘った)
             fMin = (x, z) => { float m = float.NaN; System.Action<float> up = v => { if (!float.IsNaN(v) && (float.IsNaN(m) || v > m)) m = v; };
                 if (spl != null && spl.ok) { float y = spl.At(new Vector2(x, z)); if (!float.IsNaN(y)) up(y - 0.02f); }
-                float b = bandMin(x, z); if (!float.IsNaN(b)) up(b - 0.02f); if (niwaK.Contains(NodeKey(x, z))) up(nyMin); return m; };
+                float b = bandMin(x, z); if (!float.IsNaN(b)) up(b - 0.02f); if (niwaK.Contains(NodeKey(x, z))) up(nyMin);
+                //   ⭐ 石垣で挟んだ坂・石段の坂の路盤(RampProfileAt)も下げの下限 ── 路盤の下に埋めた駒の天端(真上から最初に当たる上向きの面)まで路盤を掘り、
+                //   R_KiriZaka の路盤に深さ 2.1m の穴が二つ開いた(EDO-0502 第129巡 GradeQA 最大 4.99 @(-427,1059))。当たる先: 路盤を縦断で描く坂の下に駒を埋める所
+                float rp = RampProfileAt(new Vector2(x, z)); if (!float.IsNaN(rp)) up(rp - 0.02f);
+                return m; };
             sb.AppendLine("  " + EdoBuild.SinkGroundUnderParts(walls, 0.05f, SinkUndoPath, fMin));
             // ⭐ 角の庭と練塀の内の足元の帯の下限を最後にもう一度(第116巡: 2b の盛りの後に段の法が庭の縁と隅 P4 の足元を 11.87 まで切り、庭の最低 < 12.30・P4 の足が 0.26 浮いた)
             //   盛った節点・帯の節点が下限より低ければ下限へ上げる(上げるだけ)。溝・桝の駒の外形の中は触らない(溝の中に土を入れない)。
@@ -7943,8 +7984,14 @@ public static class EdoOkabeYashikiBuilder
         {
             var mz = RXm(T_("west", "masu"), @"妻から\s*([0-9.]+)\s*以上"); float clr = mz.Success ? float.Parse(mz.Groups[1].Value, inv) : 0.3f;
             float gLo = float.MaxValue; Vector2 mAt = At(11, EdgeLen(11), offM); float L11 = EdgeLen(11);
-            for (float s = 0f; s <= L11 - clr + 1e-3f; s += 0.25f) { var q = At(11, s, offM); float g = G(q.x, q.y); if (g < gLo) { gLo = g; mAt = q; } }
             string mp = EdoAssets.Own.DoiMasu("G0"); float floor, sink;
+            //   ⭐ 「N12_0 の妻から 0.3 以上【硬】」は N12_0 の躯体の足の実の外形と桝の外の面の離れで測る(EdoBuild.MasuLowestClear・第130巡)──
+            //   第129巡までは辺11 の端(P12)からの道のりで読み、桝の芯が躯体の足から 0.29・外の面が足の下へ入って台の天端の上に桝の小口が浮いた
+            var mzN = RXm(T_("west", "masu"), @"(N[0-9_]+)\s*の妻");
+            var keepM = new List<List<Vector2>>(); { var nbM = mzN.Success ? GameObject.Find(GN).transform.Find("Kakoi/" + mzN.Groups[1].Value) : null; var fh = EdoBuild.BodyFootHullXZ(nbM, 0.30f); if (fh != null) keepM.Add(fh); }
+            float gapM = float.NaN; bool clearM = keepM.Count > 0 && EdoBuild.MasuLowestClear(mp, s => At(11, s, offM), 0f, L11, 0.25f, FL[11].ax * -1f, q => G(q.x, q.y), keepM, clr, out mAt, out gLo, out gapM);
+            if (!clearM) { segTxt.Add("west ★ 桝 G0: " + (keepM.Count == 0 ? "妻の棟(segs.west.masu)の躯体が測れない" : "辺11 の足元の線に妻から " + clr.ToString("F2", inv) + " 以上離れる置き場が無い") + " ── 建てない【硬】"); }
+            else {
             // ⭐ 足元の型A(segs.west.line「足元を型A で P12 へ寄せ」・第116巡): 尾根の西の 0.25 先 → 辺の折れ(内面 + offM)→ 桝の外の面。天端の線で据え(EdoBuild.LayMizoOnTopLine)、尻の天端 = 桝の天端(地表)
             string westTxt = "";
             {
@@ -7977,6 +8024,8 @@ public static class EdoOkabeYashikiBuilder
                 segTxt.Add("west 桝 G0 @ 辺11 の足元の線の最も低い所(地表 " + gLo.ToString("F2", inv) + ")・底の天端 " + floor.ToString("F2", inv) + "・桝の口の底 " + mouth.ToString("F2", inv) + "・" + day); segTxt.Add(westTxt);
             }
             else segTxt.Add("west ★ 桝 G0 が据わらない(" + mp + ")");
+            if (masu != null) segTxt.Add("west 桝 G0 の外の面 × " + mzN.Groups[1].Value + " の躯体の足 離れ " + gapM.ToString("F2", inv) + "(硬 ≥ " + clr.ToString("F2", inv) + " ⭕)");
+            }
         }
         sb.AppendLine("    尾根 " + (eR == 9 ? "辺9" : "辺8") + " s" + sR.ToString("F2", inv) + "(地表 " + gR.ToString("F2", inv) + ")・型の境は地表の " + win.ToString("0", inv) + "m 平均 1/" + (1f / gH).ToString("F0", inv) + "・駒 型A " + nA + "・型H " + nH + "・隣の天端の段差(型A) 最大 " + stepMaxA.ToString("F3", inv) + (stepMaxA <= 0.01f + 1e-4f ? " ⭕" : " ⛔"));
         foreach (var t in segTxt) sb.AppendLine("    " + t);
@@ -9702,6 +9751,9 @@ public static class EdoOkabeYashikiBuilder
     /// <summary>坂の路盤を縦断で描く坂か ── 石段を名指す坂(kaidans[].atRoute)と、両脇を石垣で挟んだ坂(ramps[].kiritoshi.wall)。
     /// ⭐ 第102巡: 石垣で挟んだ幅 1.5間 の坂(岡部 R_KiriZaka)は 2m 格子の地形が溝を描けず、路盤が縦断より 0.3〜0.7 高く描かれた
     /// (芯の節点の両隣が平場 16.0 の節点で一次に引かれる)。当たる先: 石段を持つ坂・石垣で挟んだ坂のすべて(皮を起こす邸)。</summary>
+    /// <summary>坂 <paramref name="r"/> の切土の法(1:n の n)── 両脇を石垣で挟んだ坂(kiritoshi.wall に「石垣」)は 1e-3(切りを路盤の幅で止める・石垣が平場を受ける)、他は <paramref name="bc"/>。</summary>
+    static float RampCutBatter(Dictionary<string, object> r, float bc)
+    { var kt = O(Get(r, "kiritoshi")); return kt != null && (S(Get(kt, "wall")) ?? "").Contains("石垣") ? 1e-3f : bc; }
     static bool RampDrawnByProfile(Dictionary<string, object> r)
     {
         foreach (var ko in A(Get(D, "kaidans")) ?? new List<object>()) { var kk = O(ko); if (kk != null && S(Get(kk, "atRoute")) == S(Get(r, "name"))) return true; }

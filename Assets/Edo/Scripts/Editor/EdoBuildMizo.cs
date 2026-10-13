@@ -1973,6 +1973,39 @@ public static partial class EdoBuild
         return new[] { o + x * mp.xMin + z * mp.zMin, o + x * mp.xMax + z * mp.zMin, o + x * mp.xMax + z * mp.zMax, o + x * mp.xMin + z * mp.zMax };
     }
 
+    /// <summary>**棟の躯体の足の平面の外形**(実メッシュ ── 屋根を除いた躯体の頂点のうち、底から <paramref name="band"/> の内の凸包・世界 XZ)。測るだけ。
+    /// 当たる先: 桝と棟の妻の離れ(<see cref="MasuLowestClear"/>・岡部 D_MinamiHei の桝 G0 × N12_0)。</summary>
+    public static List<Vector2> BodyFootHullXZ(Transform mune, float band)
+    {
+        if (mune == null) return null; var bp = BodyExRoof(mune, 6000); if (bp.Count < 3) return null;
+        float y0 = float.MaxValue; foreach (var p in bp) y0 = Mathf.Min(y0, p.y);
+        var xz = new List<Vector2>(); foreach (var p in bp) if (p.y <= y0 + band) xz.Add(new Vector2(p.x, p.z));
+        var h = ConvexHull2(xz); return h.Count >= 3 ? h : null;
+    }
+
+    /// <summary>**線の上で地表の最も低い所に桝を置く ── ただし桝の外の面(実寸の正方形 <see cref="MasuOuterHull"/>)が避ける外形 <paramref name="keepOff"/> から
+    /// <paramref name="clr"/> 以上離れる所だけ【硬】**。候補 s を s0..s1 で <paramref name="step"/> ごとに引き、<see cref="MasuPlanAt"/> と同じ式で外の面を置いて
+    /// <see cref="HullGapXZ"/> で離れを測る。満たす候補の中で <paramref name="ground"/> が最も低い点を返す。一つも無ければ false(建てない ── 呼び手が ★ で刷る)。
+    /// ⭐ 2026-10-14 EDO-0502 第130巡: 岡部 D_MinamiHei の桝 G0 は「N12_0 の妻から 0.3 以上【硬】」を辺11 の端(P12)からの道のりで読み、桝の芯が N12_0 の躯体の足から 0.29 ──
+    /// 桝の外の面が躯体の足の下へ 0.23 入り、N12_0 の台の天端(18.80)の上に桝の底(18.58〜19.06)の小口が 1.89 浮いて見えた(造成QA の C の首位)。
+    /// 当たる先: 棟の妻・躯体から離して置く桝の全て(岡部 G0)。以後、「<棟> から x 以上」の桝。</summary>
+    public static bool MasuLowestClear(string path, Func<float, Vector2> at, float s0, float s1, float step, Vector2 outDir, Func<Vector2, float> ground,
+                                       IList<List<Vector2>> keepOff, float clr, out Vector2 best, out float bestG, out float gapAt)
+    {
+        best = Vector2.zero; bestG = float.MaxValue; gapAt = float.NaN; bool found = false;
+        if (step <= 0f) step = 0.25f;
+        for (float s = s0; s <= s1 + 1e-3f; s += step)
+        {
+            var q = at(s); var pl = MasuPlanAt(path, q, outDir); var oh = MasuOuterHull(pl, path); if (oh == null) continue;
+            var ohl = new List<Vector2>(oh); float gmin = float.MaxValue;
+            if (keepOff != null) foreach (var k in keepOff) { if (k == null) continue; float g = HullGapXZ(ohl, k); if (!float.IsNaN(g)) gmin = Mathf.Min(gmin, g); }
+            if (gmin < clr - 1e-3f) continue;
+            float y = ground(q); if (float.IsNaN(y)) continue;
+            if (y < bestG) { bestG = y; best = q; gapAt = gmin; found = true; }
+        }
+        return found;
+    }
+
     /// <summary><see cref="FitTailToMasuFace"/> の答え。moved = 尻を動かした量(+ 延ばした・− 詰めた)/ gap = 小口の両隅のうち桝の外の面の正方形の外へ残った最悪[m](0 = 両隅が届いた)/
     /// reached = 両隅が届き、尻の駒が内法の窪みに掛からない(硬 ⭕)/ ok = 窪みに掛からない置き場が在った(線を返した)。</summary>
     public class TailFit { public bool ok, reached; public List<Vector2> line; public float moved, gap = float.NaN, buryMin, buryMax; public string note; }

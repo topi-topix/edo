@@ -327,6 +327,22 @@ class Model(object):
                 best = t
         return best
 
+    def michi_p12_at(self, x, z):
+        """P12 の外の道の削った面(世界 x, z ── 欄 grading.michiP12 が無ければ・範囲の外なら None)。今の地盤 = 正本 base_dem(規則13)。"""
+        if not hasattr(self, "_mp12"):
+            pl = []
+            try:
+                for p in json.load(open(os.path.join(DOC, "parcels.json"), encoding="utf-8")).get("parcels", []):
+                    if p.get("pts"):
+                        pl.append((p["id"], [tuple(q[:2]) for q in p["pts"]]))
+            except (OSError, ValueError):
+                pl = []
+            self._mp12 = L.michi_p12_spec(self.d, pl)
+        if self._mp12 is None:
+            return None
+        dem = self.base if self.base is not None else self.dem
+        return L.michi_p12_y(self._mp12, x, z, dem.at, self.poly)
+
     def graded_y(self, u, v, nat):
         """造成後の地盤。段の中は段の高さ、外は法面で摺り付ける(lib の土井式を優先)。"""
         if nat is None:
@@ -339,6 +355,10 @@ class Model(object):
                 ym = L.michi_narashi_y(self._michi, self.poly, *self.W(u, v), inside=False)
                 if ym is not None:
                     return min(nat, ym)
+            # ⭐ P12 の外の道の瘤の削り(指図 grading.michiP12・施主裁定 2026-10-13 案A)── 下げるだけ【硬】。今の横断は正本 base_dem から
+            ym = self.michi_p12_at(*self.W(u, v))
+            if ym is not None:
+                return min(nat, ym)
             return nat
         # ⭐ 道に面する辺の線際の帯(指図 grading.omoteNagayaDai.frontBand・EDO-0502 第108巡)── 線から内へ帯の幅を「線上の地盤 + up」に【硬】
         if not hasattr(self, "_fband"):

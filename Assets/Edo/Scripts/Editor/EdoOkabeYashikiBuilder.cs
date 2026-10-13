@@ -396,7 +396,8 @@ public static class EdoOkabeYashikiBuilder
         }
     }
     static WGrid _graded;
-    /// <summary>区画線の外の道の線際の帯の均した面(算出物 michiNarashi ← 指図 grading.michiNarashi・EDO-0502 施主 2026-10-11『均す』)。
+    /// <summary>区画線の外の道の面(算出物 michiNarashi ← 指図 grading.michiNarashi・EDO-0502 施主 2026-10-11『均す』/
+    /// michiP12 ← grading.michiP12「P12 の外の道の瘤を削って一様な坂に」施主裁定 2026-10-13 案A)。
     /// 帯の外は NaN。欄が無ければ null。Stage1 が区画の外のこの帯だけ min(今の地形, 面) で下げる(⛔ 盛らない【硬】)。</summary>
     static WGrid _michi; static bool _michiRead;
     static WGrid MichiNarashi
@@ -405,19 +406,44 @@ public static class EdoOkabeYashikiBuilder
         {
             if (_michiRead) return _michi;
             _michiRead = true;
-            var g = IMPL.ContainsKey("michiNarashi") ? O(IMPL["michiNarashi"]) : null;
-            if (g == null) return null;
-            var w = new WGrid { x0 = F(g["x0"]), z0 = F(g["z0"]), step = F(g["step"]), nx = (int)F(g["nx"]), nz = (int)F(g["nz"]) };
-            w.h = new float[w.nx * w.nz];
-            var rows = A(g["h"]);
-            if (rows == null || rows.Count != w.nz) throw new Exception("算出物 michiNarashi.h の行数が nz と合わない");
-            for (int j = 0; j < w.nz; j++)
+            //   ⭐ 区画の外の道の面は二つの欄(三べ坂の線際の帯 michiNarashi・P12 の外の道の瘤の削り michiP12 ── 施主裁定 2026-10-13 案A)。
+            //   同じ 0.5m 格子(同じ原点の刻み)なので一つの格子へ重ね、重なる升は低い方(どちらも「盛らない・min(今の地形, 面)」【硬】)
+            var gs = new List<WGrid>();
+            foreach (var key in new[] { "michiNarashi", "michiP12" })
             {
-                var row = A(rows[j]);
-                if (row == null || row.Count != w.nx) throw new Exception("算出物 michiNarashi.h[" + j + "] の列数が nx と合わない");
-                for (int i = 0; i < w.nx; i++) w.h[j * w.nx + i] = row[i] == null ? float.NaN : Convert.ToSingle(row[i]);
+                var g = IMPL.ContainsKey(key) ? O(IMPL[key]) : null; if (g == null) continue;
+                var w = new WGrid { x0 = F(g["x0"]), z0 = F(g["z0"]), step = F(g["step"]), nx = (int)F(g["nx"]), nz = (int)F(g["nz"]) };
+                w.h = new float[w.nx * w.nz];
+                var rows = A(g["h"]);
+                if (rows == null || rows.Count != w.nz) throw new Exception("算出物 " + key + ".h の行数が nz と合わない");
+                for (int j = 0; j < w.nz; j++)
+                {
+                    var row = A(rows[j]);
+                    if (row == null || row.Count != w.nx) throw new Exception("算出物 " + key + ".h[" + j + "] の列数が nx と合わない");
+                    for (int i = 0; i < w.nx; i++) w.h[j * w.nx + i] = row[i] == null ? float.NaN : Convert.ToSingle(row[i]);
+                }
+                gs.Add(w);
             }
-            _michi = w; return _michi;
+            if (gs.Count == 0) return null;
+            if (gs.Count == 1) { _michi = gs[0]; return _michi; }
+            float st = gs[0].step, ux0 = float.MaxValue, uz0 = float.MaxValue, ux1 = float.MinValue, uz1 = float.MinValue;
+            foreach (var w in gs)
+            {
+                if (Mathf.Abs(w.step - st) > 1e-4f) throw new Exception("算出物の道の面の格子の刻みが違う(" + w.step + " / " + st + ")");
+                ux0 = Mathf.Min(ux0, w.x0); uz0 = Mathf.Min(uz0, w.z0); ux1 = Mathf.Max(ux1, w.x0 + (w.nx - 1) * st); uz1 = Mathf.Max(uz1, w.z0 + (w.nz - 1) * st);
+            }
+            var u = new WGrid { x0 = ux0, z0 = uz0, step = st, nx = Mathf.RoundToInt((ux1 - ux0) / st) + 1, nz = Mathf.RoundToInt((uz1 - uz0) / st) + 1 };
+            u.h = new float[u.nx * u.nz]; for (int k = 0; k < u.h.Length; k++) u.h[k] = float.NaN;
+            foreach (var w in gs)
+            {
+                int di = Mathf.RoundToInt((w.x0 - ux0) / st), dj = Mathf.RoundToInt((w.z0 - uz0) / st);
+                for (int j = 0; j < w.nz; j++) for (int i = 0; i < w.nx; i++)
+                {
+                    float v = w.h[j * w.nx + i]; if (float.IsNaN(v)) continue; int q = (j + dj) * u.nx + (i + di);
+                    u.h[q] = float.IsNaN(u.h[q]) ? v : Mathf.Min(u.h[q], v);
+                }
+            }
+            _michi = u; return _michi;
         }
     }
     /// <summary>帯の均した面の高さ。最も近い格子点が帯の外なら NaN(帯の縁で外へにじませない ── 帯の外の道は触らない【硬】)。</summary>
@@ -430,6 +456,8 @@ public static class EdoOkabeYashikiBuilder
             //   線の 0.08 外の地形の節点(-379.9, 1010.1)= 12.87 が帯の値を持たず残り、三べ坂の石垣の足元に +1.89 の土の歯を立てた。
             //   帯の道側の縁(4m 外)は従前どおり最も近い格子点で切る(縁の外へにじませない)。
             var q = new Vector2(x, z); if (EdoGeom.PIP(Poly, q) || EdoGeom.DistToPolyEdge(Poly, q) > m.step) return float.NaN;
+            //   ⭐ 隣の区画の中は帯の面で取らない(第128巡 ── P12 の外の道は岡部の線と樹下の線の角に在り、線の外 1 升の読みが樹下の土塀 dobei_4_2 の足の下を下げる)
+            foreach (var pc in EdoParcels.All) { if (pc.pts.Count < 3 || pc.id == ParcelId) continue; var pp = pc.Poly; if (EdoGeom.PIP(pp, q)) return float.NaN; }
         }
         return m.At(x, z);
     }
@@ -1261,6 +1289,12 @@ public static class EdoOkabeYashikiBuilder
             var kiris = new List<KeyValuePair<string, Vector3>>();
             //   ⭐ 一枚物の練塀(施主裁定 2026-10-12 案1)には斜めに切った駒が無い ── 長屋の妻へ斜めに当たる端は、直角の端を妻の面へ**厚みの全幅で**突き込む
             //   (光線で妻の面の最も奥まで ── 隙0・入る角は長屋の躯体の中へ埋める・oki-kata §4)。隣の辺の線で切る端は直角のまま ⚠。
+            //   ⭐ 隣の辺の長屋の正面へ斜めに当たる端(const.heiLine.cornerP<頂点>・施主裁定 2026-10-13 案A)── 塀の外面の線と長屋の正面の線(実測)の交点で止め、
+            //   はみ出す分は斜めに切る駒で落とす(EdoBuild.NeribeiNanameEnd)。奥の分は長屋の躯体の中(隙 0)
+            if (!cornerEnd1 && r.s1 > EdgeLen(r.edge) - 0.01f && CornerFrontVertices().Contains((r.edge + 1) % Poly.Length) && _heiLineD != null && r.lineS != null)
+            { if (NanameEndAtNagayaFront(kak, r, false, ref rs1, hlStones, wait)) { cornerEnd1 = true; held1 = true; } }
+            if (!cornerEnd0 && r.s0 < 0.01f && CornerFrontVertices().Contains(r.edge % Poly.Length) && _heiLineD != null && r.lineS != null)
+            { if (NanameEndAtNagayaFront(kak, r, true, ref rs0, hlStones, wait)) { cornerEnd0 = true; held0 = true; } }
             if (!cornerEnd0 && r.s0 < 0.01f) { var k0 = KiriEnd(r, true, ref rs0); if (k0.Key != null) { rs0 = r.s0; if (JoinEndToGable(kak, r, true, ref rs0, wait)) { cornerEnd0 = true; held0 = true; } else wait.Add("練塀 " + r.name + ": 始めを斜めに切る駒が一枚物に無い ── 直角の端 ⚠"); } }
             if (!cornerEnd1 && r.s1 > EdgeLen(r.edge) - 0.01f) { var k1 = KiriEnd(r, false, ref rs1); if (k1.Key != null) { rs1 = r.s1; if (JoinEndToGable(kak, r, false, ref rs1, wait)) { cornerEnd1 = true; held1 = true; } else wait.Add("練塀 " + r.name + ": 終わりを斜めに切る駒が一枚物に無い ── 直角の端 ⚠"); } }
             foreach (var kn0 in _kiriNotes) wait.Add("練塀 " + kn0); _kiriNotes.Clear();
@@ -1442,6 +1476,57 @@ public static class EdoOkabeYashikiBuilder
     /// <summary>辺の端の練塀が隣の辺の長屋の妻へ斜めに当たる端(旧い <see cref="KiriEnd"/> が長屋の妻で切った端)を、直角の端のまま妻の面へ**厚みの全幅で**突き込む
     /// (<see cref="JoinEndToNagaya"/> と同じ光線 3×7 ── 最も奥の当たり + 0.05)。相手の長屋 = 隣の辺の長屋の run で、端の頂点に接する物。
     /// 硬い(隙0 ── 入る角は長屋の躯体の中へ埋める)。当たる先: 一枚物の練塀が長屋の妻へ斜めに当たる端(いまは岡部 N_Hei_35 の終わり × N39_0)。</summary>
+    /// <summary>const.heiLine の <c>cornerP&lt;頂点&gt;</c> の欄が名指す頂点(塀の端を隣の辺の長屋の正面の線で止める角・施主裁定 2026-10-13 案A)。</summary>
+    static HashSet<int> CornerFrontVertices()
+    {
+        var set = new HashSet<int>(); var hl = O(Get(O(Get(D, "const")), "heiLine")); if (hl == null) return set;
+        foreach (var kv in hl) { var m = System.Text.RegularExpressions.Regex.Match(kv.Key, @"^cornerP(\d+)$"); if (m.Success && O(kv.Value) != null && Get(O(kv.Value), "rule") != null) set.Add(int.Parse(m.Groups[1].Value) % Poly.Length); }
+        return set;
+    }
+
+    /// <summary>天端の線の練塀の端が隣の辺の長屋(端の頂点から始まる・終わる)の正面へ斜めに当たる角(const.heiLine.cornerP&lt;頂点&gt;)を、長屋の正面の線(実測)で切る駒で納める
+    /// (<see cref="EdoBuild.NeribeiNanameEnd"/>)。<paramref name="sEnd"/> = 残りの直線の端(切る駒の直角の端)。⟶ 納めたか(焼いていない・測れないは ★ で従来の端へ)。
+    /// 硬い: 正面の線より前へ出さない・奥は長屋の躯体の中(隙 0)・足は台の天端の前の縁から 0.05 以上内。当たる先: 岡部 P12(S_Hei_08 × N12_0)。</summary>
+    static bool NanameEndAtNagayaFront(Transform kak, Run r, bool atStart, ref float sEnd, EdoBuild.PartTops stones, List<string> wait)
+    {
+        int n = Poly.Length, ne = atStart ? (r.edge - 1 + n) % n : (r.edge + 1) % n;
+        Transform ng = null; Run nrun = default(Run);
+        foreach (var nr in Runs)
+        {
+            if (!nr.Nagaya || nr.edge != ne) continue;
+            bool hit = (!atStart && nr.s0 < 0.30f) || (atStart && nr.s1 > EdgeLen(ne) - 0.30f);
+            if (hit) { ng = kak.Find(nr.name); nrun = nr; if (ng != null) break; }
+        }
+        if (ng == null) { wait.Add("★ 練塀 " + r.name + ": cornerP の角に隣の辺の長屋が無い ── 従来の端"); return false; }
+        Vector2 A = EdgePt(r.edge, 0f), dir = (EdgePt(r.edge, 1f) - A).normalized, outw = OutNormal(r.edge);
+        float sv = atStart ? r.s0 : r.s1; int kq = r.LineIndexAt(sv); float faceIn = FaceIn(r.edge, sv);
+        float yA = r.SeatOnRow(kq, 0f), grade = r.lineGrade == null ? 0f : r.lineGrade[kq];
+        Vector2 tw = EdgePt(ne, 0.5f * (nrun.s0 + nrun.s1)) + OutNormal(ne) * 5f;
+        float sSt, ahead; string note;
+        var go = EdoBuild.NeribeiNanameEnd(kak, A, dir, outw, faceIn, !atStart, ng.gameObject, tw, yA, grade, stones, r.name + "_Naname", out sSt, out ahead, out note);
+        if (go == null) { wait.Add("★ 練塀 " + r.name + (atStart ? " の始め" : " の終わり") + ": 長屋 " + ng.name + " の正面の線で切る駒を据えない ── " + note + "(従来の端)"); return false; }
+        //   名は run の頭(r.name + "_")── 天端の線の駒と同じく据えた所のまま(床へ組ごと動かさない)・3d の足の下の地面と測りの篩が拾う
+        // 硬い: 足は台の天端の前の縁から 0.05 以上内(const.heiLine.cornerP12.foot)── 足の頂点を両辺の台の前の縁の線で測る
+        float worst = float.MaxValue; string wAt = "";
+        foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.gameObject.name != "soko" && mf.gameObject.name != "ishigaki") continue; var mesh = mf.sharedMesh; if (mesh == null) continue;
+            foreach (var v in mesh.vertices)
+            {
+                var w = mf.transform.TransformPoint(v); var q = new Vector2(w.x, w.z);
+                foreach (int e in new[] { r.edge, ne })
+                {
+                    Vector2 ea = EdgePt(e, 0f), ed = (EdgePt(e, 1f) - ea).normalized; float s2 = Mathf.Clamp(Vector2.Dot(q - ea, ed), 0f, EdgeLen(e));
+                    float inDepth = -Vector2.Dot(q - ea, OutNormal(e)) - KidanC(e, s2);
+                    if (inDepth < worst) { worst = inDepth; wAt = "辺" + e + " s" + s2.ToString("F2"); }
+                }
+            }
+        }
+        sEnd = sSt;
+        wait.Add("練塀 " + r.name + (atStart ? " の始め" : " の終わり") + ": " + note + "・足の台の天端の前の縁からの入り 最小 " + worst.ToString("F3") + " @" + wAt + (worst >= 0.05f - 1e-3f ? " ⭕" : " ⛔"));
+        return true;
+    }
+
     static bool JoinEndToGable(Transform kak, Run r, bool atStart, ref float sEnd, List<string> wait)
     {
         int n = Poly.Length, ne = atStart ? (r.edge - 1 + n) % n : (r.edge + 1) % n;

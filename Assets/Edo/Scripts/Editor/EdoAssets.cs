@@ -3009,6 +3009,20 @@ public static class EdoAssets
             return Nk("Assets/Edo/Models/Neribei/Neribei_Kiri_T" + UnityEngine.Mathf.Clamp(tiles, 1, 13).ToString("00") + ".fbx", koshi);
         }
 
+        /// <summary>**端を斜めの鉛直面で切った練塀**(EDO-0502 第128巡 const.heiLine.cornerP12 ── 一枚物の練塀が隣の長屋の正面の線へ斜めに当たる端)。
+        /// 局所: +X = 切る端・+Z = 見え面・**ピボット = 切り口と外面(足元の表 = 札の faceOut)の交点・足元 Y = 0**。直角の端は X = −瓦 4 枚(0.854)。
+        /// <paramref name="deg"/> = 切り口の線が走りとなす角(0.1° で綴る)/ <paramref name="faceLonger"/> = 見え面の側が長い(`L`)・false = 短い(`S` ── 内へ行くほど +X へ出る)。
+        /// <paramref name="grade"/> = 坂なり(+X へ上がる ── <see cref="NeribeiSaka"/> と同じ剪断・綴り `_G` + <see cref="NeribeiGradeTag"/>・0 なら付けない)。
+        /// 切り口の壁体は断面で塞ぐ・屋根は切りっぱなし(相手の長屋の躯体の中へ入る)。札(fence)の foot は台形の実の足・`naname` に切り口の X。材は .meta で s_heimap(remap 不要)。
+        /// 焼いたもの: **670_S_GU0104_NK**(岡部 P12 の S_Hei_08 の終わり × 表長屋 N12_0 の正面の線・66.97°)。
+        ///   blender --background --python Tools/Blender/build_neribei.py -- --no-koshi --naname 66.97 --S --grade 1.04 --render</summary>
+        public static string NeribeiNaname(float deg, bool faceLonger, float grade, bool koshi = true)
+        {
+            string p = "Assets/Edo/Models/Neribei/Neribei_Naname_" + UnityEngine.Mathf.RoundToInt(UnityEngine.Mathf.Abs(deg) * 10f).ToString("000") + "_" + (faceLonger ? "L" : "S")
+                     + (UnityEngine.Mathf.Abs(grade) < 1e-5f ? "" : "_G" + NeribeiGradeTag(grade)) + ".fbx";
+            return Nk(p, koshi);
+        }
+
         /// <summary>**練塀の端(棟止め)**── 在庫 `s_hei_l` の鬼瓦・袖瓦・端の柱つきの 1 枚を同じ断面で厚くした物。自由端・門の脇に。
         /// <paramref name="endAtPlusX"/> = 棟止めが局所 +X(外から見て左)= `_L` / false = −X = `_R`。ピボット = 1 枚分の走りの中央
         /// (走り X ∈ [−1.494, 1.494]・棟止めの側へ 端の柱の外面 1.599・腰の小口 1.627・鬼瓦の先 1.678)。断面は芯対称なので R は L を 180° 回した物と同じ。

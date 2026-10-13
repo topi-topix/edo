@@ -13,6 +13,7 @@
     blender --background --python Tools/Blender/build_neribei.py -- --kiri 5 --grade -6.25        # → Neribei_Saka_D0625_T05(+X へ下がる)
     blender --background --python Tools/Blender/build_neribei.py -- --kado 27 --grade 1.07,1.07   # → Neribei_Kado_27_GU0107xU0107(入り→出の走りに沿って上がる)
     blender --background --python Tools/Blender/build_neribei.py -- --tome --render              # → Neribei_Tome_L / _R(棟止めだけの駒・勾配によらない)
+    blender --background --python Tools/Blender/build_neribei.py -- --naname 67.0 --S --grade 1.04 --render   # → Neribei_Naname_670_S_GU0104(端を斜めの面で切る・第128巡)
     blender --background --python Tools/Blender/build_neribei.py -- --saka                        # 岡部の坂なりの一式(SAKA_GRADES × U/D × 直線・切り 13 / 留め / 隅 OKABE_SAKA_KADO)
   腰なし(const.heiLine.koshi・施主 2026-10-13「台の石垣と腰の石垣の二重が違和感」)── どの行にも --no-koshi を足すと名の末尾に _NK(札も同じ):
     blender --background --python Tools/Blender/build_neribei.py -- --no-koshi --choku --render   # → Neribei_Choku_NK
@@ -333,7 +334,7 @@ def tile_run(groups, x0, x1, src_x0):
 
 def cap(bm, uvl, sec, uv_is, uv_hei, plane_pt, along, lateral, outward, mi=0):
     """壁体の断面(腰の台形 + 壁の矩形)を平面の上に貼る。along = 走りの向き(面の法線は outward)、
-    lateral = 厚みの向き(単位)。UV は素の面の m あたりの密度で矩形へ(収まらなければ一様に縮める)。"""
+    lateral = 厚みの向き(単位。斜めの切り口は厚み 1 あたりの切り口の上の向き ── 単位でなくてよい・厚みの座標 s = 内積 / |lateral|²)。UV は素の面の m あたりの密度で矩形へ(収まらなければ一様に縮める)。"""
     yb, yt, zi, zt = sec["yb"], sec["yt"], sec["zi"], sec["zt"]
     yd, zh = sec["yd"], sec["zh"]
     made = []
@@ -354,7 +355,7 @@ def cap(bm, uvl, sec, uv_is, uv_hei, plane_pt, along, lateral, outward, mi=0):
         span_u = (max(s for s, _ in poly) - s0) * su; span_v = (max(z for _, z in poly) - z0) * sv
         kk = min(1.0, (rect[2] - rect[0]) / max(span_u, 1e-6), (rect[3] - rect[1]) / max(span_v, 1e-6))
         for l in f.loops:
-            s = (l.vert.co - Vector(plane_pt)).dot(Vector(lateral)); z = l.vert.co.z
+            s = (l.vert.co - Vector(plane_pt)).dot(Vector(lateral)) / max(Vector(lateral).length_squared, 1e-12); z = l.vert.co.z
             l[uvl].uv = (rect[0] + (s - s0) * su * kk, rect[1] + (z - z0) * sv * kk)
         made.append(f)
     return made
@@ -542,6 +543,55 @@ def build_straight(k_tiles=NTILE, grade=0.0):
     path = finish(objs, name, spec)
     print("[neri]   厚み: 漆喰 %.3f・腰の下端 %.3f・腰の天端 %.3f(高 %.3f)・壁の天端 %.3f・棟 %.3f・押し出し %.3f"
           % (2 * HALF_T, 2 * sec["yb"], 2 * sec["yt"], sec["zi"], sec["zt"], sec["ztop"], shift))
+    return objs, path
+
+
+# ---------------------------------------------------------------- 斜めに切った端(EDO-0502 第128巡 const.heiLine.cornerP12)
+def naname_name(deg, hand, grade=0.0):
+    return "Neribei_Naname_%03d_%s" % (int(round(abs(deg) * 10)), hand) + ("" if abs(grade) < 1e-9 else "_G" + grade_tag(grade))
+
+
+def build_naname(deg, hand="S", k_tiles=4, grade=0.0):
+    """**端を斜めの鉛直面で切った練塀**(一枚物の練塀が長屋の正面の線へ斜めに当たる端 ── 岡部 P12 の S_Hei_08 × N12_0・67°)。
+    局所(Unity): +X = 切る端・+Z = 見え面・**ピボット = 切り口と外面(足元の表 = 札の faceOut)の交点・足元 Y = 0**。直角の端は X = −k·tile
+    (瓦の周期・ピボットから外面で測る)。切り口の線は走りと deg をなし、`S` = 見え面の側が短い(内へ行くほど +X へ出る ── 外面から深さ w で
+    w·cot(deg) 先)/ `L` = 見え面の側が長い。切り口の壁体は断面で塞ぐ(屋根は切りっぱなし ── 相手の長屋の正面の中へ入る)。
+    grade ≠ 0 は坂なり(Unity +X へ grade で上がる縦の剪断・ピボットで Y = 0)。札(fence)の foot は台形の実の足。"""
+    V.reset()
+    g, shift, uv_is, uv_hei = load(SRC_C)
+    sec = section(g)
+    src_x0 = min(v.co.x for o in g.values() for v in o.data.vertices)
+    zf = sec["yb"]                                   # 足元の表(Unity +Z の外面)── Blender では y = −zf
+    cotd = 1.0 / math.tan(math.radians(abs(deg)))
+    sg = 1.0 if hand == "S" else -1.0               # S: x_b = (−y − zf)·cot / L: x_b = (y + zf)·cot(Blender x = −Unity X)
+    Lk = k_tiles * TILE
+    ymax = max(abs(v.co.y) for o in g.values() for v in o.data.vertices)
+    reach = (ymax + zf) * cotd + 0.05                # 切り口が最も先へ出る所(屋根の裏の側)
+    parts = tile_run(g, -reach, Lk, src_x0)
+    mat = mat_of(g)
+    clear_src(g)
+    n = Vector((1.0, sg * cotd, 0.0)).normalized()  # 残す側 n·(p − co) ≥ 0
+    co = (0.0, -zf, 0.0)
+    for c in parts:
+        cut(c, co, tuple(n), True)
+    parts = [c for c in parts if len(c.data.polygons)]
+    objs = merge_groups(parts)
+    pc = (-sg * zf * cotd, 0.0, 0.0)                 # 切り口の上の芯(y = 0)
+    lat = (-sg * cotd, 1.0, 0.0)                     # 厚み 1 あたりの切り口の上の向き
+    objs.append(cap_object("koguchi", mat, [((Lk, 0, 0), (1, 0, 0), (0, 1, 0), (1, 0, 0)),
+                                            (pc, (1, 0, 0), lat, tuple(-n))], sec, uv_is, uv_hei))
+    if abs(grade) > 1e-9:
+        shear_x(objs, grade)
+    name = naname_name(deg, hand, grade)
+    # 札: Unity 局所の足 ── 直角の端 X = −Lk(Z ±zf)・切り口 外面 X = 0(Z = +zf)/ 内面 X = sg·2zf·cot(Z = −zf)
+    xo, xi = 0.0, sg * 2 * zf * cotd
+    spec = {"source": "Tools/Blender/build_neribei.py -- --naname %g --%s --tiles %d%s" % (deg, hand, k_tiles, "" if abs(grade) < 1e-9 else " --grade %g" % (grade * 100)),
+            "unitScale": 1.0, "yBottom": -abs(grade) * Lk if grade > 0 else 0.0,
+            "foot": [{"x": -Lk, "y": -zf}, {"x": xi, "y": -zf}, {"x": xo, "y": zf}, {"x": -Lk, "y": zf}],
+            "faceOut": zf, "faceIn": -zf, "copingOverhang": 0.0, "height": sec["ztop"],
+            "naname": {"deg": abs(deg), "faceLonger": 1 if hand == "L" else 0, "straightEndX": -Lk, "cutAtFaceOutX": xo, "cutAtFaceInX": xi, "grade": grade}}
+    path = finish(objs, name, spec)
+    print("[neri]   斜めの端 %s: 角 %.2f°・直角の端 X=%.3f・切り口 外面 X=0 / 内面 X=%.3f・屋根の先まで %.3f" % (name, abs(deg), -Lk, xi, sg * (ymax + zf) * cotd))
     return objs, path
 
 
@@ -913,6 +963,12 @@ def run_job(argv, do_render):
         k = int(argv[argv.index("--kiri") + 1])
         assert 1 <= k < NTILE, "--kiri は瓦 1〜13 枚"
         objs, path = build_straight(k, g1)
+        if do_render: render_views(objs, stem(path), grade=g1)
+    if "--naname" in argv:
+        deg = float(argv[argv.index("--naname") + 1])
+        hand = "L" if "--L" in argv else "S"
+        kt = int(argv[argv.index("--tiles") + 1]) if "--tiles" in argv else 4
+        objs, path = build_naname(deg, hand, kt, g1)
         if do_render: render_views(objs, stem(path), grade=g1)
     if "--tome" in argv:
         build_tome((lambda objs, path: render_views(objs, stem(path))) if do_render else None)

@@ -1,11 +1,11 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 df81b7a299e8 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 cac155b7cefa -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
 
-- 公開関数 613 本(注釈なし 34)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
+- 公開関数 614 本(注釈なし 34)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
 - 同じ道具が刷る目録: 邸ビルダーのメニュー → Stage と中の関数 `docs/builder-mokuroku.md` / 部材の名 `docs/edoassets-mokuroku.md`。
 - 札: **硬** = 注釈に「硬い/許容0」・**柔** = 「柔らかい/狙い」がある(判定ではなく注釈の語)。相手の札(地面・駒どうし・天端・床・断面・面・隅・区域)も注釈の語を拾っただけ。
 - 呼んでいる所 = 定義のファイルの外で `EdoBuild.<名>(` と書いている C# ファイル(`Edo` と `Builder/Rebuild` を落とした名)と、その中の呼んでいる関数(Stage)。同じ名の多重定義はまとめて数える。`EdoBuild` の中どうしの呼び出しは載せない。
@@ -24,7 +24,7 @@
 | [EdoBuildGamae.cs](#edobuildgamaecs) | ══════════════════════════════════════════════════════════════════════ | — | 18 |
 | [EdoBuildGoten.cs](#edobuildgotencs) | 御殿複合(表向・中奥・奥向の3核)を組む — EdoBuild の一部(規則21「置く・測る・突き付ける・据えるは | — | 3 |
 | [EdoBuildHanare.cs](#edobuildhanarecs) | — | — | 2 |
-| [EdoBuildHeiTenba.cs](#edobuildheitenbacs) | 塀の天端の線を指図の値から一本に解き、平ら・坂なり・段の区間で練塀を据える(施主裁定 2026-10-12 案1・岡部 const.heiLine.tenba・EDO-0502 第121巡)。 | — | 6 |
+| [EdoBuildHeiTenba.cs](#edobuildheitenbacs) | 塀の天端の線を指図の値から一本に解き、平ら・坂なり・段の区間で練塀を据える(施主裁定 2026-10-12 案1・岡部 const.heiLine.tenba・EDO-0502 第121巡)。 | — | 7 |
 | [EdoBuildHifu.cs](#edobuildhifucs) | 縁の皮 — 地形に穴を開け、穴の縁から部材の面までを皮のメッシュで描く (EdoBuild の partial・2026-09-24・EDO-0430) | 切通しの石段(山王の女坂・男坂・参道の階)・天端を地盤に揃えた土留め(山王・土井・岡部の郭)・ 造成した面の縁(全邸の段の縁)。 | 15 |
 | [EdoBuildHifuSoto.cs](#edobuildhifusotocs) | 縁の皮の「区画の外」── 外周の石垣・土留めの見え面の前の地盤(EDO-0502 第29巡・2026-10-06) | — | 4 |
 | [EdoBuildInari.cs](#edobuildinarics) | 稲荷 — 小祠と鳥居を据える (EdoBuild の partial・2026-09-21・EDO-0326) | — | 3 |
@@ -265,6 +265,7 @@ EdoBuild — 段の土留め(石垣・野面)を天端の折れ線へ据える(2
 | `EdoBuild.HeiTenbaProfile(poly, e0, e1, d, coreIn, knots, steps, maxGrade, stepClear, hasKado, note)` | `HeiProfile` | 隅 | stepClear &gt; 0: 範囲の中の頂点 v(hasKado(v) = 隅の駒が立つ)の折れ点から芯線の道のり stepClear の内に入る段は、 段が書かれた辺の側(入りの辺 = 折れ点の手前・出の辺 =… | OkabeYashiki(HeiLineTenba) |
 | `EdoBuild.HeiProfileRows(pf, poly)` | `List<HeiSec>` | 天端 | 天端の線(HeiTenbaProfile)を辺ごとの区間(走り s0〜s1・始めの座 seat・勾配 grade[走り 1m あたり]・段の後の通し番号 sec・始めが段か stepAt0)へ割る。 | OkabeYashiki(HeiLineTenba) |
 | `EdoBuild.StoneBaseUnder(stones, A, dir, outward, faceIn, t0, t1, seatAt, hits)` | `bool` | 地面・天端・区域 | 練塀に台の石垣があるか(const.heiLine.koshi【硬】「塀の線の上で石の面は一つ」・施主 2026-10-13)── 走り A→B(t0〜t1)の 区画の線から塀の内面(外面の線 faceIn + 0.35… | OkabeYashiki(PlaceKado) |
+| `EdoBuild.NeribeiNanameEnd(parent, A, dir, outward, faceIn, atEnd, front, frontToward, yA, grade, baseStones, name, sStraight, ahead, note)` | `GameObject` | 硬 | 練塀の端を相手の棟の正面の面で斜めに切る(EDO-0502 第128巡 const.heiLine.cornerP12・施主裁定 2026-10-13 案A)。 | OkabeYashiki(NanameEndAtNagayaFront) |
 | `EdoBuild.NeribeiTomeGauge(post, body)` | `void` |  | 棟止めの駒の実寸(TomeGauge)── 隅の腕を段の面まで詰める呼び手が読む。 | OkabeYashiki(HeiLineTenba・PlaceKado) |
 | `HeiEnd`(enum) | — | | 天端の線の区間の端の納め(NeribeiLineRun)。 | |
 | `EdoBuild.NeribeiLineRun(parent, A, B, outward, prefix, yA, grade, endA, endB, latOff, faceIn, note, footErr, baseStones=…)` | `List<GameObject>` | 硬 駒どうし・天端 | 練塀を天端の線の一区間で据える(施主裁定 2026-10-12 案1・const.heiLine.tenba / parts)── 走り A→B を、勾配 0 は今の駒(EdoAssets.Own.Neribei・切り)… | OkabeYashiki(Stage2_Perimeter_) |

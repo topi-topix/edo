@@ -23,6 +23,7 @@
 - [塀の内の溝・足の下の土(第125巡)](inner-ditch-and-foot-fill-r125.md) — 溝の外の縁は地際の板まで・足を 0.15 の升で読むと隅の留めで土の柱・台の裏の縁の節点
 - [見え面の前の土の柱・浅い出隅の石の口(第126巡)](face-front-columns-and-corner-slit-r126.md) — PlaneBand の ext が隣の見え面の前を上げた・天端 0.04 を段と読み端を引いた・坂の端の駒の高さ
 - [練塀の腰なしの駒へ(第124巡)](neribei-nk-koshi-choice-r124.md) — 外面は元から下見板の表・腰の有無は線〜内面の帯の台で・流しの最中に compile_wait を打たない
+- [P12 の斜めの端・外の道の削り(第128巡)](p12-naname-end-and-michi-cut-r128.md) — 一様な坂が床 16.20 を割る・道側 2〜5m の読みが倍率を変える・名は r.name+"_Naname"・試しの S1 の後の hm_pre は前に化ける
 - [芯線と天端の線(heiLine)の罠](heiline-stretch-and-tenba-r120.md) — d は c の後・床は区間の組で・線は同じドメインだけ(S2〜3d を続けて)・足は 0.91〜1.60・継ぎ目の切り欠きを埋める
 - [.cs の保存直後の Stage は古い DLL で走る・再起動で皮が null](stage-run-on-stale-dll-after-edit.md) — 25 分の 3b が空振り。Stage の前に compile_wait・3b の後は先に書き戻す
 

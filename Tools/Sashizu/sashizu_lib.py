@@ -864,6 +864,106 @@ def michi_narashi_y(sp, poly, x, z, inside):
     return y0 + max(0.0, dd - sp["flat"]) * sp["slope"]
 
 
+_NUM = r"[−\-]?\s*[0-9]+(?:\.[0-9]+)?"
+
+
+def _fnum(t):
+    return float(t.replace("−", "-").replace(" ", ""))
+
+
+def road_cross_at(x, north_ids, parcels, zseed_off=1.0):
+    """**道の横断の両縁**(世界 x の鉛直線の上)── 道 = 敷地割の間に残った領域(⛔ 道の幅を持たない)。
+    北の縁 = `north_ids` の区画の辺がこの線と交わる最も南の z、南の縁 = その 1m 南の点を含む隙間の南の端(どの区画の辺か)。
+    戻り (z北, z南) か None(線が北の区画に掛からない・南に区画が無い)。`parcels` = [(id, 多角形)]。"""
+    hits = []
+    for pid, P in parcels:
+        n = len(P)
+        for k in range(n):
+            ax, az = P[k][0], P[k][1]
+            bx, bz = P[(k + 1) % n][0], P[(k + 1) % n][1]
+            if abs(bx - ax) < 1e-9 or (ax - x) * (bx - x) > 0:
+                continue
+            hits.append((az + (bz - az) * (x - ax) / (bx - ax), pid))
+    zn = [z for z, pid in hits if pid in north_ids]
+    if not zn:
+        return None
+    zN = min(zn)
+    south = [z for z, pid in hits if z < zN - zseed_off]
+    if not south:
+        return None
+    return zN, max(south)
+
+
+def michi_p12_spec(d, parcels):
+    """指図 `grading.michiP12`(岡部 P12 の外の道の瘤を削って一様な坂に・施主裁定 2026-10-13 案A)を数へ読む。欄が無ければ None。
+    読む文: what の「x A〜B」(道の全幅を削る範囲)/ limits の「P12 の線上は Y 以上」(台の見えの上限の床)/
+    water の「x C〜D の南の縁 … E 以下を削って一方向の下りに」。読めなければ ⛔ 例外(推し量って範囲を作らない・規則19)。
+    道の両縁は敷地割から(`road_cross_at` ── 北 = 岡部と樹下の区画の辺)。"""
+    g = (d.get("grading") or {}).get("michiP12")
+    if not g:
+        return None
+    mx = re.search(r"x\s*(" + _NUM + r")\s*〜\s*(" + _NUM + r")", str(g.get("what", "")))
+    mf = re.search(r"P12\s*の線上は\s*([0-9.]+)\s*以上", str(g.get("limits", "")))
+    mw = re.search(r"x\s*(" + _NUM + r")\s*〜\s*(" + _NUM + r")\s*の南の縁.*?([0-9.]+)\s*以下を削って", str(g.get("water", "")))
+    if not (mx and mf and mw):
+        raise ValueError("grading.michiP12 の what(x A〜B)/ limits(P12 の線上は Y 以上)/ water(x C〜D の南の縁 … E 以下を削って)が読めない")
+    x0, x1 = sorted((_fnum(mx.group(1)), _fnum(mx.group(2))))
+    w0, w1 = sorted((_fnum(mw.group(1)), _fnum(mw.group(2))))
+    return {"x0": x0, "x1": x1, "floor": float(mf.group(1)), "w0": w0, "w1": w1, "wcut": float(mw.group(3)),
+            "north": {"okabe", "sannobuke_juge"}, "parcels": parcels}
+
+
+MICHI_P12_FLOOR_BAND = 1.75   # 床を掛ける線際の帯[m] = 外の地盤を測る 1.0 + 0.5m 格子の対角(1.5 升)── 1.0 の点の双一次が帯の外の節点を混ぜない
+
+
+def michi_p12_y(sp, x, z, dem_at, own_poly):
+    """**P12 の外の道の削った面**(世界 x, z)。範囲の外・道の外は None。⛔ 盛らない ── 呼ぶ側が min(今の地盤, 面)【硬】。
+    面 = 範囲の両端(x0・x1)の今の横断を、道の幅の中の割合 f(北の縁 0 → 南の縁 1)ごとに直線でつなぐ(一様な勾配【硬】・両端の継ぎ目 0【硬】)。
+    床【硬】: 岡部の区画の線から MICHI_P12_FLOOR_BAND(外の地盤を測る OUT 1.0 + 格子の 1.5 升)以内は floor より下げない ── 一様な坂は P12 で floor を 0.12 割る(指図の
+    「P12 で 1.19」と「線上 16.20 以上」の食い違い)⇒ 線際の帯だけ floor で止める(⚠ 報告)。
+    水【硬: 一方向】: x w0〜w1 の南の縁(縁から 1 升 0.5m)は、西から東へ今の地盤の累積の最小 ── 上りを wcut 以下だけ削る。`dem_at(x, z)` = 今の地盤。"""
+    if sp is None:
+        return None
+    if sp["x0"] <= x <= sp["x1"]:
+        c = road_cross_at(x, sp["north"], sp["parcels"])
+        if c is None or not (c[1] - 1e-6 <= z <= c[0] + 1e-6):
+            return None
+        f = (c[0] - z) / max(c[0] - c[1], 1e-6)
+        ys = []
+        for xe in (sp["x0"], sp["x1"]):
+            ce = road_cross_at(xe, sp["north"], sp["parcels"])
+            if ce is None:
+                return None
+            ye = dem_at(xe, ce[0] + (ce[1] - ce[0]) * f)
+            if ye is None:
+                return None
+            ys.append(ye)
+        t = (x - sp["x0"]) / max(sp["x1"] - sp["x0"], 1e-6)
+        y = ys[0] + (ys[1] - ys[0]) * t
+        if own_poly is not None and poly_edge_dist(own_poly, x, z) <= MICHI_P12_FLOOR_BAND and y < sp["floor"]:
+            y = sp["floor"]
+        return y
+    if sp["w0"] <= x <= sp["w1"]:
+        c = road_cross_at(x, sp["north"], sp["parcels"])
+        if c is None or not (c[1] - 1e-6 <= z <= c[1] + 0.5):
+            return None
+        y = dem_at(x, z)
+        if y is None:
+            return None
+        xs = sp["x0"] if sp["w0"] >= sp["x1"] - 1e-6 else sp["w0"]
+        m = y
+        k = xs
+        while k < x - 1e-6:
+            ck = road_cross_at(k, sp["north"], sp["parcels"])
+            if ck is not None:
+                yk = dem_at(k, ck[1] + (z - c[1]))
+                if yk is not None:
+                    m = min(m, yk)
+            k += 0.25
+        return max(m, y - sp["wcut"])
+    return None
+
+
 def graded_y(d, u, v, nat, in_parcel, walled=None):
     """**造成後の地盤**。段の中は段の高さ。段の外は法面(盛土 1:batterFill / 切土 1:batterCut)で
     現地形へ摺り付ける — 段の縁に垂直の段差を残さないため(2026-08-23 ユーザー指摘)。

@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 464(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 465(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -344,6 +344,7 @@
 | `Own.NeribeiChoku(koshi)` | 関数 | Neribei(一枚)の腰あり / 腰なし(Nk)。 | BuildHeiTenba(NeribeiLineRun) |
 | `Own.NeribeiTile` | float | 練塀の瓦の周期[m] = NeribeiP / 14。 | BuildHeiTenba(NeribeiLineRun), BuildRun(NeribeiPanelRun) |
 | `Own.NeribeiKiri(tiles, koshi=…)` | 関数 | 練塀の端数の切り(瓦 tiles 枚 = tiles·NeribeiTile・1〜13)。 | BuildRun(DobeiRun・NeribeiPanelRun), BuildHeiTenba(NeribeiLineRun) |
+| `Own.NeribeiNaname(deg, faceLonger, grade, koshi=…)` | 関数 | 端を斜めの鉛直面で切った練塀(EDO-0502 第128巡 const.heiLine.cornerP12 ── 一枚物の練塀が隣の長屋の正面の線へ斜めに当たる端)。 | BuildHeiTenba(NeribeiNanameEnd・StoneBaseUnder) |
 | `Own.NeribeiEnd(endAtPlusX, koshi=…)` | 関数 | 練塀の端(棟止め)── 在庫 `s_hei_l` の鬼瓦・袖瓦・端の柱つきの 1 枚を同じ断面で厚くした物。 | BuildRun(DobeiRun・NeribeiPanelRun) |
 | `Own.NeribeiKado(deg, armIn=…, armOut=…, koshi=…)` | 関数 | 練塀の隅(留め)── 一つの断面を折れ角の二等分の面で切って接いだ物。 | OkabeYashiki(PlaceKado) |
 | `Own.NeribeiArmFull` | float | NeribeiKado の素の腕[m](瓦 4 枚)。 | — |

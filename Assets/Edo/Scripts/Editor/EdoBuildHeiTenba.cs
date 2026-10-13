@@ -231,6 +231,72 @@ public static partial class EdoBuild
             }
         return hits > 0;
     }
+    /// <summary>**練塀の端を相手の棟の正面の面で斜めに切る**(EDO-0502 第128巡 const.heiLine.cornerP12・施主裁定 2026-10-13 案A)。
+    /// 相手の棟(長屋など)の正面の面を**実メッシュで測り**(<see cref="FaceStraight"/>・足元から 0.05〜1.0 の帯で <paramref name="frontToward"/> の側へ最も出た一直線)、
+    /// 塀の外面の線(A − outward·faceIn)との交点 X で塀を止める。切る駒 = <see cref="EdoAssets.Own.NeribeiNaname"/>(切り口の線 = 正面の線・角と手は測った線から)。
+    /// 据え: 外面は壁体(<see cref="NeribeiWallParts"/>)の最も外を faceIn へ・走りは**足の外の縁の切り口の角**(外面の足の頂点の最も先)を X へ・高さは足の両端を
+    /// 線 y(u) = yA + grade·(u − A·dir) へ(<see cref="NeribeiLineRun"/> と同じ測り)。⛔ ピボットで決めない。
+    /// 戻り: 据えた駒(焼いていない・手の逆・測れないは null と note)/ <paramref name="sStraight"/> = 直角の端の走り(A からの道のり ── 残りの直線はここまで)。
+    /// 硬い: 切り口は正面の線より前へ出ない(<paramref name="ahead"/> = 足の外の縁の正面の線より前へ出る量 ≤ 0.005)・奥は相手の躯体の中(隙 0)。
+    /// 当たる先: 一枚物の練塀が隣の辺の長屋の正面へ斜めに当たる角(いまは岡部 P12 の S_Hei_08 × N12_0)。他邸の長屋と塀の出会う角も同じ型。</summary>
+    public static GameObject NeribeiNanameEnd(Transform parent, Vector2 A, Vector2 dir, Vector2 outward, float faceIn, bool atEnd, GameObject front, Vector2 frontToward,
+        float yA, float grade, PartTops baseStones, string name, out float sStraight, out float ahead, out string note)
+    {
+        sStraight = float.NaN; ahead = float.NaN; note = null;
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        Vector2 nrm; string why;
+        var fl = FaceStraight(new List<GameObject> { front }, frontToward, 0.05f, 1.0f, out nrm, out why);
+        if (fl == null || fl.Count < 2) { note = "正面の面が測れない(" + why + ")"; return null; }
+        Vector2 c = (fl[1] - fl[0]).normalized, F0 = A - outward * faceIn;
+        Vector2 X = EdoGeom.LineIntersect(F0, dir, fl[0], c, new Vector2(float.NaN, float.NaN));
+        if (float.IsNaN(X.x)) { note = "外面の線と正面の線が平行"; return null; }
+        float a0 = Vector2.Dot(A, dir), sX = Vector2.Dot(X - A, dir);
+        Vector2 toward = atEnd ? dir : -dir;
+        float ang = Vector2.Angle(c, dir); float deg = Mathf.Min(ang, 180f - ang);
+        Vector2 cc = Vector2.Dot(c, -outward) > 0f ? c : -c;               // 切り口の線を外面から内へ下る向き
+        bool faceLonger = Vector2.Dot(cc, toward) < 0f;                   // 内へ行くほど端が手前 ⇒ 見え面の側が長い
+        float psi = Mathf.Atan2(outward.x, outward.y) * Mathf.Rad2Deg;
+        Vector2 lx = new Vector2(Mathf.Cos(psi * Mathf.Deg2Rad), -Mathf.Sin(psi * Mathf.Deg2Rad));
+        if (Vector2.Dot(lx, toward) < 0.5f) { note = "切る端が局所 −X(逆手)── 斜めの駒の逆手は焼いていない"; return null; }
+        float sgn = Vector2.Dot(lx, dir) > 0f ? 1f : -1f;
+        float gLoc = Mathf.Round(sgn * grade * 10000f) / 10000f;
+        Func<float, float> yOn = u => yA + grade * (u - a0);
+        int hits; float tA = atEnd ? sX - 0.8f : sX + 0.1f, tB = atEnd ? sX - 0.1f : sX + 0.8f;
+        bool koshi = !StoneBaseUnder(baseStones, A, dir, outward, faceIn, tA, tB, t => yA + grade * t, out hits);
+        string path = EdoAssets.Own.NeribeiNaname(deg, faceLonger, gLoc, koshi);
+        if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null) { note = System.IO.Path.GetFileNameWithoutExtension(path) + " は焼いていない(角 " + deg.ToString("F2", inv) + "°)"; return null; }
+        var go = Place(path, new Vector3(X.x, yA + grade * sX, X.y), psi, Vector3.one, parent, name);
+        // 外面(壁体の最も外)を外面の線へ
+        float wmn, wmx; ProjExtent(go, outward, float.MinValue, float.MaxValue, nm => NeribeiWallParts.Contains(nm), out wmn, out wmx);
+        if (wmx > wmn) { float sh = (Vector2.Dot(A, outward) - faceIn) - wmx; go.transform.position += new Vector3(outward.x * sh, 0f, outward.y * sh); }
+        // 走り: 足の外の縁(外面の足の頂点)の最も先 = 切り口の角 → X
+        float yb = RB(go).min.y, oMax = float.MinValue; var foot = new List<Vector3>();
+        foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
+        {
+            if (!_neribeiFootParts.Contains(mf.gameObject.name) && !NeribeiWallParts.Contains(mf.gameObject.name)) continue; var mesh = mf.sharedMesh; if (mesh == null) continue;
+            foreach (var v in mesh.vertices) { var w = mf.transform.TransformPoint(v); if (w.y > yb + 0.10f + Mathf.Abs(grade) * 1.5f) continue; var q = new Vector2(w.x, w.z); float o = Vector2.Dot(q, outward); foot.Add(new Vector3(Vector2.Dot(q, toward), o, 0f)); oMax = Mathf.Max(oMax, o); }
+        }
+        if (foot.Count == 0) { UnityEngine.Object.DestroyImmediate(go); note = "足の頂点が無い"; return null; }
+        float tip = float.MinValue; foreach (var p in foot) if (p.y >= oMax - 0.01f) tip = Mathf.Max(tip, p.x);
+        float shA = Vector2.Dot(X, toward) - tip; go.transform.position += new Vector3(toward.x * shA, 0f, toward.y * shA);
+        // 高さ: 足の両端を線へ
+        float uL, yL, uH, yH;
+        if (FootEnds(go, dir, out uL, out yL, out uH, out yH)) { float sh = 0.5f * (yOn(uL) + yOn(uH)) - 0.5f * (yL + yH); go.transform.position += Vector3.up * sh; }
+        // 直角の端(壁体の最も手前)と、足の外の縁の正面の線より前へ出る量
+        float bmn, bmx; ProjExtent(go, dir, float.MinValue, float.MaxValue, nm => !NeribeiRoofParts.Contains(nm), out bmn, out bmx);
+        sStraight = (atEnd ? bmn : bmx) - a0;
+        Vector2 fn = Vector2.Dot(new Vector2(-c.y, c.x), toward) > 0f ? new Vector2(-c.y, c.x) : new Vector2(c.y, -c.x);   // 正面の線の前(塀の端の側)
+        ahead = float.MinValue;
+        foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
+        {
+            if (NeribeiRoofParts.Contains(mf.gameObject.name)) continue; var mesh = mf.sharedMesh; if (mesh == null) continue;
+            foreach (var v in mesh.vertices) { var w = mf.transform.TransformPoint(v); ahead = Mathf.Max(ahead, Vector2.Dot(new Vector2(w.x, w.z) - fl[0], fn)); }
+        }
+        note = System.IO.Path.GetFileNameWithoutExtension(path) + "(" + (koshi ? "腰あり" : "腰なし") + "・角 " + deg.ToString("F2", inv) + "°・見え面の側が" + (faceLonger ? "長い" : "短い")
+             + ")を正面の線(実測)で止めた: 交点 s " + sX.ToString("F3", inv) + "・直角の端 s " + sStraight.ToString("F3", inv) + "・壁体の正面の線より前 " + ahead.ToString("+0.000;-0.000", inv) + (ahead <= 0.005f ? " ⭕" : " ⛔");
+        return go;
+    }
+
     /// <summary>駒の足(腰の石垣の底)の高さを走り <paramref name="dir"/> の両端で測る(端から 0.03 内の頂点の最低)── 坂なりの駒は底が勾配で傾くので、両端の中ほどで線へ合わせる。</summary>
     static bool FootEnds(GameObject go, Vector2 dir, out float uLo, out float yLo, out float uHi, out float yHi)
     {

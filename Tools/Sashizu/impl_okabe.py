@@ -141,6 +141,12 @@ def bake_base(M, poly, d):
             for o in offs:
                 x = a[0] + tx * sv + nx * o
                 z = a[1] + tz * sv + nz * o
+                if o > OUT and M.michi_p12_at(x, z) is not None:
+                    # ⭐ P12 の外の削った道(grading.michiP12)の中は台の見えを線上(OUT)で読む ── 指図 limits「P12 の線上は 16.20 以上
+                    #   【硬: 台の見え ≤2.90 で今の作り】」。道側 2〜5m(roadRef・線際の近代の盛土を避ける読み)は削った道の横断の低い側を拾い、
+                    #   N12_0 の台を 3.38 と読んで倍率 0.75→1.0(控え c 0.75→1.0・長屋の正面の線が 0.25 内へ)にした(第128巡)
+                    x = a[0] + tx * sv + nx * OUT
+                    z = a[1] + tz * sv + nz * OUT
                 u, v = M.UV(x, z)
                 g = M.graded_y(u, v, M.nat(u, v))     # 区画の外は今の地盤(道の線際の帯は均した後)
                 if g is not None:
@@ -186,7 +192,45 @@ def bake():
     planting["notes"].extend(tnotes)
     return {"graded": graded, "corners": BI.bake_corners(poly, d, im), "base": bake_base(M, poly, d),
             "planting": planting, "terraceWalls": bake_terrace_walls(M), "gardens": bake_gardens(M, d),
-            "michiNarashi": bake_michi_narashi(M, poly, d)}
+            "michiNarashi": bake_michi_narashi(M, poly, d), "michiP12": bake_michi_p12(M, poly, d)}
+
+
+def bake_michi_p12(M, poly, d):
+    """P12 の外の道の瘤の削った面(指図 grading.michiP12・施主裁定 2026-10-13 案A)を世界の 0.5m 格子へ焼く。道の外・範囲の外は null。
+    Unity の Stage1 が区画の外のこの面だけ min(今の地形, 面) で下げる(⛔ 盛らない【硬】)── 器は michiNarashi と同じ。欄が無ければ None。"""
+    M.michi_p12_at(0.0, 0.0)
+    sp = getattr(M, "_mp12", None)
+    if sp is None:
+        return None
+    zs = []
+    for x in (sp["x0"], sp["x1"], sp["w0"], sp["w1"]):
+        c = L.road_cross_at(x, sp["north"], sp["parcels"])
+        if c is not None:
+            zs += list(c)
+    st = 0.5
+    x0, x1 = math.floor(min(sp["x0"], sp["w0"])) - 1.0, math.ceil(max(sp["x1"], sp["w1"])) + 1.0
+    z0, z1 = math.floor(min(zs)) - 1.0, math.ceil(max(zs)) + 1.0
+    nx, nz = int((x1 - x0) / st) + 1, int((z1 - z0) / st) + 1
+    rows, cnt, cmax, vol = [], 0, 0.0, 0.0
+    for j in range(nz):
+        z = z0 + j * st
+        row = []
+        for i in range(nx):
+            x = x0 + i * st
+            u, v = M.UV(x, z)
+            y = None if M.in_parcel(u, v) else M.michi_p12_at(x, z)
+            if y is None:
+                row.append(None)
+                continue
+            cnt += 1
+            now = M.base.at(x, z) if M.base is not None else M.nat(u, v)
+            if now is not None and now > y:
+                cmax = max(cmax, now - y); vol += (now - y) * st * st
+            row.append(round(float(y), 3))
+        rows.append(row)
+    return {"x0": x0, "z0": z0, "step": st, "nx": nx, "nz": nz, "cells": cnt,
+            "cutMax": round(cmax, 3), "cutVol": round(vol, 1), "floor": sp["floor"], "h": rows,
+            "_": "P12 の外の道の削った面 ── 地形へは min(今の地形, 面)。⛔ 盛らない(grading.michiP12)"}
 
 
 def bake_terrace_walls(M):

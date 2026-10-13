@@ -524,19 +524,21 @@ AGO_T = 0.36          # 天端からの厚さ(歯の深さ 0.25 + 余裕・吐�
 AGO_LAP = 0.015       # 縁石の中へ潜る(天端の外の面取り 0.012 を覆う)
 AGO_RISE = 0.003      # 内の縁の天端からの持ち上げ(ring_skirt と同じ)
 AGO_FALL = 0.03       # 外の縁の天端からの下がり(地形の下へ潜る)
+AGO_DIP = 0.002       # 吐き口の土の床の内の縁を敷き石の天端から下げる(縁石の中へ潜る 0.015 で天端が重ならないように)
 AGO_MAT = "Hifu_KitaTerrain_World"   # 板の材(第113巡): 世界 XZ で地形の塗りをそのまま引く材(Edo/TerrainSkinWorld・EdoAssets.Own.SkinWorldMat)。
 #   ⛔ FJG Soil を貼らない ── 据えると落葉混じりの橙の帯に見え、まわりの地形の塗り(芝・土の混ぜ)と色が違った(r112_mizo_kita)。
 #   uv は使われない(シェーダが世界 XZ から引く)が、Blender のレンダ用に Soil の矩形のまま残す。
 
 
-def ago_side(s, xc, top, zsegs, lap=None):
+def ago_side(s, xc, top, zsegs, lap=None, prof=None):
     """**地際の張り出し(片側)**。xc = 縁石の外面の |X|・s = ±1。断面 (X, Y) の閉じた四角形
     内の縁 (xc−LAP, top+RISE) → 外の縁 (xc+W, top−FALL) → (xc+W, top−T) → (xc−LAP, top−T) を
     zsegs の各区間 [z0, z1] へ押し出す(端の面も閉じる)。材は AGO_MAT(地形の塗りを世界 XZ で引く・uv は飾り)。
     ⚠ 上面の UV は |Z| で折り返す ⇒ Z=0 を跨ぐ区間は呼ぶ側で割る。"""
     lap = AGO_LAP if lap is None else lap
-    prof = [(xc - lap, top + AGO_RISE), (xc + AGO_W, top - AGO_FALL),
-            (xc + AGO_W, top - AGO_T), (xc - lap, top - AGO_T)]
+    if prof is None:
+        prof = [(xc - lap, top + AGO_RISE), (xc + AGO_W, top - AGO_FALL),
+                (xc + AGO_W, top - AGO_T), (xc - lap, top - AGO_T)]
     bm = bmesh.new()
     uvl = bm.loops.layers.uv.new("UVMap")
 
@@ -583,7 +585,11 @@ def ago_A(d, haki=False):
     土の板(出 AGO_W・天端 = 縁石の天端・厚さ AGO_T)── 左右対称 ⇒ 向きを選ばない。
     内(台の石垣の側)にも張る: 石垣の根にめり込むのは構わない(埋めて隠す)。片側だけにすると
     向きが意味を持ち、据える側が取り違える。
-    haki=True: +X の口の幅だけ板を切り、口の敷き石を板の外の縁まで延ばす(口の両脇は板の小口が溝の壁になる)。"""
+    haki=True: +X の口の幅だけ板を切る(口の両脇は板の小口が溝の壁になる)。口の敷き石は mizo_A の物(縁石の外の面 xc まで)で止め、
+    ⛔ 板の帯へ延ばさない ── 口を区画の線へ向けて据えると石が線の外へ出る(岡部 EDO-0502 第129巡・outlets.kita_s44
+    「敷き石の外の面は区画の線を越えない【硬】」・EdoBuild.MizoStoneXMax で検める)。口の先(縁石の外 xc〜xc+AGO_W)は
+    **土の床**で塞ぐ: 板と同じ材・天端 = 敷き石の天端 −AGO_DIP → 外の縁で −AGO_FALL(地形の下へ潜る)・下端は板と同じ。
+    両脇の板の小口と合わせて土の口になる(床が無いと板の間から地形の下の空が抜ける)。"""
     name = mizo_A(d, False, haki)
     a = K["A"]; c = a["curb"]
     xc, top = a["innerW"] / 2.0 + c["w"], c["topAbove"]
@@ -591,9 +597,10 @@ def ago_A(d, haki=False):
     if haki:
         nw = (HAKI_W or a["innerW"]) / 2.0
         ago_side(1, xc, top, ((-HALF, -nw), (nw, HALF)))
-        rng = random.Random(5331300 + int(d * 1000))
-        cb = min(top - c["h"], -d - 0.05)
-        stone(xc - 0.002, xc + AGO_W, min(cb, top - AGO_T), -d, -nw, nw, rng, ends=False)
+        bot = min(top - AGO_T, -d - 0.04)
+        ago_side(1, xc, top, ((-nw, 0.0), (0.0, nw)),
+                 prof=[(xc - AGO_LAP, -d - AGO_DIP), (xc + AGO_W, -d - AGO_FALL),
+                       (xc + AGO_W, bot), (xc - AGO_LAP, bot)])
     else:
         ago_side(1, xc, top, ((-HALF, 0.0), (0.0, HALF)))
     return name.replace("_D", "_Ago_D")

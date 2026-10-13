@@ -4384,7 +4384,8 @@ public static class EdoAssets
         /// 鋸の歯(深さ ≤0.25)が立つ ⇒ 両側の縁石の外へ土の板(出 0.40・天端 = 縁石の天端 +0.003 → 外の縁で −0.03・
         /// 厚さ 0.36)を張り、歯をその下に隠す。材 = <see cref="SkinWorldMat"/>(`Hifu_KitaTerrain_World`・世界 XZ で地形の塗りをそのまま引く ──
         /// 第113巡: FJG Soil の板は据えると落葉混じりの橙の帯に見えた)。溝・石は A / AH と同じ(同じ乱数)。左右対称 ⇒ 向きを選ばない。
-        /// AH は +X の口の幅だけ板を切り、口の敷き石を板の外の縁(芯から 0.67)まで延ばす。
+        /// AH は +X の口の幅だけ板を切り、口の敷き石は縁石の外の面(芯から 0.27 = 型 A の石の外の面)で止める ── 口の先(0.27〜0.67)は板と同じ材の土の床
+        /// (天端 = 敷き石の天端 −0.002 → 外の縁で −0.03)で塞ぐ。石は区画の線を越えない(EDO-0502 第130巡 ── 第129巡までは敷き石を 0.67 まで延ばしていた)。
         /// 実寸 W 1.340 × H 0.363(D0.30 は 0.373)× D 1.000・ピボットは A と同じ。.meta は A の写し + Hifu_KitaTerrain_World ⇒ remap 不要(材の結わえ直しはメニュー `Edo/地形/地際の部材の材(世界UV)を細かい地形へ結わえ直す`)。
         ///   blender --background --python Tools/Blender/build_doi_haisui.py -- ago --render</summary>
         public static string DoiMizo(string kata, float depth = 0f, bool ago = false)

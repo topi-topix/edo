@@ -5902,6 +5902,7 @@ public static class EdoOkabeYashikiBuilder
             var stoneBed = new EdoBuild.Bed(stones); var stoneTops = new EdoBuild.PartTops(stones); var mizoTops = new EdoBuild.PartTops(keepP);
             //   足の下(凸包の中)は「石が足の底を支えている所」だけ触らない ── 台の石垣の継ぎ目の切り欠きの底(足を支えない石の面)は足に覆われるので土で埋める。
             //   ⛔ 台の石垣の天端の前の縁(区画の線から c)+0.05 より前は触らない(犬走り 0 の run は腰が法の上へ出る ── 見え面の前へ土を出さない)。第120巡 2026-10-12
+            System.Func<Vector2, float> faceInAt = q => { int be = -1; float bd = float.MaxValue, bs = 0f; for (int e2 = 0; e2 < PPf.Length; e2++) { Vector2 a2 = PPf[e2], b2 = PPf[(e2 + 1) % PPf.Length]; float L2 = (b2 - a2).magnitude; if (L2 < 1e-4f) continue; float s2 = Mathf.Clamp(Vector2.Dot(q - a2, (b2 - a2) / L2), 0f, L2); float d2 = (a2 + (b2 - a2) / L2 * s2 - q).magnitude; if (d2 < bd) { bd = d2; be = e2; bs = s2; } } return be < 0 ? 0f : FaceIn(be, bs); };
             System.Func<Vector2, float> crestIn = q => { int be = -1; float bd = float.MaxValue, bs = 0f; for (int e2 = 0; e2 < PPf.Length; e2++) { Vector2 a2 = PPf[e2], b2 = PPf[(e2 + 1) % PPf.Length]; float L2 = (b2 - a2).magnitude; if (L2 < 1e-4f) continue; float s2 = Mathf.Clamp(Vector2.Dot(q - a2, (b2 - a2) / L2), 0f, L2); float d2 = (a2 + (b2 - a2) / L2 * s2 - q).magnitude; if (d2 < bd) { bd = d2; be = e2; bs = s2; } } return be < 0 ? 0f : KidanC(be, bs); };
             sb.AppendLine("  練塀の足(heiFootSpec.order): " + EdoBuild.FillUnderFoot(hp, 0.05f, 0.03f, EdoBuild.TerrainCell(EdoBuild.T()), null,
                 q => EdoGeom.PIP(PPf, q) && EdoBuild.EdgeDistPublic(PPf, q) >= clipF && !(stoneBed.At(q.x, q.y) > EdoBuild.Ground(q.x, q.y) + 0.02f), FootUndoPath, 0.30f,
@@ -5913,7 +5914,10 @@ public static class EdoOkabeYashikiBuilder
                 (q, y) => { for (int k8 = 0; k8 < 8; k8++) { float an = k8 * Mathf.PI / 4f; float px = q.x + 0.35f * Mathf.Cos(an), pz = q.y + 0.35f * Mathf.Sin(an); float bt = stoneBed.At(px, pz), g8 = EdoBuild.Ground(px, pz); if (!float.IsNaN(bt) && !float.IsNaN(g8) && bt > g8 + 0.02f && bt >= y - 0.10f) return true;
                     string wm; float mt = mizoTops.Top(px, pz, out wm); if (!float.IsNaN(mt) && mt >= y - 0.10f) return true; } return false; },
                 //   石が足を支える足の下の節点は石の天端 −0.02 まで上げる(台の裏の縁の一升の落ち込み ── 第125巡)。天端の前の縁 c +0.05 より前(見え面の側)は触らない
-                q => { if (!(EdoGeom.PIP(PPf, q) && EdoBuild.EdgeDistPublic(PPf, q) >= Mathf.Max(clipF, crestIn(q) + 0.05f))) return float.NaN; string w8; float tp = stoneTops.Top(q.x, q.y, out w8); return float.IsNaN(tp) ? float.NaN : tp - 0.02f; }));
+                //   ⭐ 第127巡: 塀の外面の線より奥(塀の下と裏)は上限なし ── 隅で両脇の天端が 0.01〜0.03 違い、天端 −0.02 の上限で内の縁が 0.02〜0.04 浮いた(Kado_P32〜P38)。
+                //   塀の下と裏の土は外から見えない(天端に土を見せないのは犬走り = 外面の線より前)
+                q => { if (!(EdoGeom.PIP(PPf, q) && EdoBuild.EdgeDistPublic(PPf, q) >= Mathf.Max(clipF, crestIn(q) + 0.05f))) return float.NaN; string w8; float tp = stoneTops.Top(q.x, q.y, out w8); if (float.IsNaN(tp)) return float.NaN;
+                       return EdoBuild.EdgeDistPublic(PPf, q) >= faceInAt(q) + 0.05f ? float.PositiveInfinity : tp - 0.02f; }));
         }
         {   // ⭐ 犬走り(台の天端の前の縁 c から塀の腰の外の縁の一升奥まで)の地面を座の線と同じ高さ・勾配の一枚の面へ(施主 2026-10-13 第123巡【硬: 土の楔 0】)──
             //   座ちょうど(天端と面一)。台の無い所は線から 0 から。塀の裏・内の帯は触らない(帯の作法のまま)
@@ -5960,8 +5964,10 @@ public static class EdoOkabeYashikiBuilder
             { var kai = GameObject.Find(GN).transform.Find("Fuzoku/Kaidan"); if (kai != null) foreach (Transform c in kai) if (c.gameObject.activeInHierarchy) keepF.Add(c.gameObject); }
             //   塀・隅の駒の下(足の凸包と軒の下)は触らない ── 塀の足は FillUnderFoot が地面で受ける(P12: S_Hei_08 の端の駒の足が辺12 の台の見え面の前に掛かり、
             //   見え面の前の土を下げて足が 1.19 浮いた ⇒ 塀の端と台の見え面の取り合いは ★ で刷る)
-            int nHeiOver = 0; foreach (Transform c in Group("Kakoi")) { if (!c.gameObject.activeInHierarchy) continue; string nm = c.name; if (nm.StartsWith("Kado_P") || nm.StartsWith("Kiri_") || nm.Contains("Hei_")) { keepF.Add(c.gameObject); nHeiOver++; } }
-            sb.AppendLine("  " + EdoBuild.LowerGroundBeforeFace(igs3, PP3, q => EdoBuild.EdgeDistPublic(PP3, q) >= clip3, q => { float c = cAt(q); return c < 0.05f ? float.NaN : c + cell3; }, 0.3f, 0.05f, keepF, null));
+            //   ⭐ 第127巡: 塀は軒込みの上面でなく足の帯の凸包 + 一升で除く(軒で除くと出隅 P8・P9・P24 の見え面の前に土が残った)。
+            //   区画の線から半升の内の節点も下げる(外の地表へ下げるだけ ── 区画の外の節点は触らない)── 線際の節点が残ると見え面の足に歯が立った
+            var heiF = new List<GameObject>(); foreach (Transform c in Group("Kakoi")) { if (!c.gameObject.activeInHierarchy) continue; string nm = c.name; if (nm.StartsWith("Kado_P") || nm.StartsWith("Kiri_") || nm.Contains("Hei_")) heiF.Add(c.gameObject); }
+            sb.AppendLine("  " + EdoBuild.LowerGroundBeforeFace(igs3, PP3, null, q => { float c = cAt(q); return c < 0.05f ? float.NaN : c + cell3; }, 0.3f, 0.05f, keepF, null, heiF));
         }
         sb.AppendLine("  " + EdoBuild.HoleUnderMasu(pcs, 0.05f, HoleUndoPath));
         sb.Append(SeRojiHeiFoot(false));   // 据えて下げた後に足を測る(heiFootSpec.order【硬】)

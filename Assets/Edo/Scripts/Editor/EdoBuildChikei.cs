@@ -700,15 +700,35 @@ public static partial class EdoBuild
     /// <summary>**台の石垣の見え面の前の地面を見え面の足より上へ出さない**(下げるだけ・第126巡 2026-10-13 岡部 const.heiLine.faceFront【硬】
     /// 「見え面から地面が突き出さない・出隅で台の石が抜ける所を作らない」)。見え面の足 = **区画の外の地表**(線から外へ <paramref name="outRef"/> の所 ── 区画の外は触らない)。
     /// 区画の線から内へ <paramref name="frontDepth"/>(節点)までの節点のうち、(1) 真上に石の**見え面**(上向きの面の法線の水平の成分 ≥ 0.25 ── 法)があれば
-    /// max(見え面 − <paramref name="below"/>, 外の地表) へ、(2) 真上に石が無く、内へ水平に 1.5m 以内に石が在れば(見え面の前・出隅の継ぎ目の口)外の地表へ下げる。
+    /// 外の地表へ(石の底が外の地表より上なら底で止め、台の丈の不足に数える ── 第127巡)、(2) 真上に石が無く、内へ水平に 1.5m 以内に石が在れば(見え面の前・出隅の継ぎ目の口)外の地表へ下げる。
     /// 平らな天端の下(法線がほぼ鉛直)は触らない(天端の土は <see cref="LowerSoilOnCrest"/>)。<paramref name="keepOff"/>(門・石段・溝の駒)の真下の節点は触らない。
     /// 0.25m の格子では、塀の前の帯の延長(<see cref="PlaneBand"/> の ext)・足の下の上げが見え面の前の節点を座の高さへ上げ、見え面の前に幅一升・高さ 2〜3m の土の柱が立った
     /// (岡部 P35 の両脇・北 辺28〜35・P24)。外の地表が石の底より低い所(台の丈の不足)は下げても足が出ない ⇒ 下げずに数えて返す(台の丈を増す方で納める)。
     /// 硬い(見え面の前の土 0)。当たる先: 細かい地形の上に法のある石垣を外周に据える邸すべて(岡部 外周の台・土井・松江松平を細かい地形へ移すとき)。</summary>
     public static string LowerGroundBeforeFace(IList<GameObject> stones, Vector2[] poly, Func<Vector2, bool> allow, Func<Vector2, float> frontDepth, float outRef = 0.3f, float below = 0.05f,
-                                               IList<GameObject> keepOff = null, string undoPath = null)
+                                               IList<GameObject> keepOff = null, string undoPath = null, IList<GameObject> keepFoot = null)
     {
         var t = T(); var td = t.terrainData; var org = t.transform.position; int R = td.heightmapResolution; float hs = td.size.x / (R - 1);
+        //   ⭐ keepFoot(塀・隅の駒): 足の帯(壁体の頂点のうち、その所の最下点 +0.10 以内)の凸包と、その一升の内の節点は触らない(第127巡 ── 軒込みの上面で除くと、
+        //   出隅で軒が見え面の前の節点まで覆い、土が残った P8・P9・P24)
+        var footHulls = new List<Vector2[]>();
+        if (keepFoot != null)
+            foreach (var g in keepFoot)
+            {
+                if (g == null || !g.activeInHierarchy) continue; var vs = BodyExRoof(g.transform, 999999); if (vs.Count < 3) continue;
+                var cellMin = new Dictionary<long, float>(); const float FC = 0.3f;
+                foreach (var v in vs) { long k = ((long)Mathf.FloorToInt(v.x / FC) << 32) ^ (uint)Mathf.FloorToInt(v.z / FC); float m; if (!cellMin.TryGetValue(k, out m) || v.y < m) cellMin[k] = v.y; }
+                var fp = new List<Vector2>();
+                foreach (var v in vs)
+                {
+                    int cx = Mathf.FloorToInt(v.x / FC), cz = Mathf.FloorToInt(v.z / FC); float m = float.MaxValue;
+                    for (int da = -1; da <= 1; da++) for (int db = -1; db <= 1; db++) { float mm; if (cellMin.TryGetValue(((long)(cx + da) << 32) ^ (uint)(cz + db), out mm)) m = Mathf.Min(m, mm); }
+                    if (v.y <= m + 0.10f) fp.Add(new Vector2(v.x, v.z));
+                }
+                if (fp.Count < 3) continue; var arr = fp.ToArray(); var hi = EdoGeom.HullXZ(arr); if (hi == null || hi.Length < 3) continue;
+                var hull = new Vector2[hi.Length]; for (int k = 0; k < hi.Length; k++) hull[k] = arr[hi[k]]; footHulls.Add(hull);
+            }
+        Func<Vector2, bool> nearFoot = q => { foreach (var h in footHulls) if (EdoGeom.PIP(h, q) || EdgeDistPublic(h, q) <= hs + 1e-3f) return true; return false; };
         var tmp = new List<MeshCollider>(); var mine = new HashSet<Collider>(); var bb = new Bounds(); bool hasB = false;
         foreach (var g in stones)
         {
@@ -722,7 +742,7 @@ public static partial class EdoBuild
         }
         var keepTops = keepOff == null || keepOff.Count == 0 ? null : new PartTops(keepOff);
         Physics.SyncTransforms();
-        int n = 0, nFace = 0, nFront = 0, nShort = 0; float mx = 0f, worstShort = 0f; string wMx = "", wShort = ""; var undo = new List<float[]>();
+        int n = 0, nFace = 0, nFront = 0, nShort = 0, slitN = 0; float mx = 0f, worstShort = 0f; string wMx = "", wShort = ""; var undo = new List<float[]>();
         try
         {
             if (!hasB) return "見え面の前の地面: 石が無い";
@@ -738,7 +758,7 @@ public static partial class EdoBuild
                 float h = Mathf.Lerp(Mathf.Lerp(H0[iz, ix], H0[iz, ix + 1], ax), Mathf.Lerp(H0[iz + 1, ix], H0[iz + 1, ix + 1], ax), az);
                 return h * td.size.y + org.y;
             };
-            int nE = poly.Length;
+            int nE = poly.Length; var frontTgt = new Dictionary<long, float>(); var faceNode = new HashSet<long>(); var crestNode = new List<long>();
             for (int j = j0; j <= j1; j++)
                 for (int i = i0; i <= i1; i++)
                 {
@@ -753,6 +773,7 @@ public static partial class EdoBuild
                     Vector2 away = bd > 1e-3f ? (foot - q).normalized : o; var pr = foot + away * outRef; if (EdoGeom.PIP(poly, pr)) continue;
                     float yRef = G0(pr); if (float.IsNaN(yRef)) continue;
                     if (keepTops != null) { string kw; if (!float.IsNaN(keepTops.Top(q.x, q.y, out kw))) continue; }
+                    if (footHulls.Count > 0 && nearFoot(q)) continue;
                     float cur = H[j - j0, i - i0] * td.size.y + org.y;
                     // 真上の石
                     float topY = float.NaN; Vector3 topN = Vector3.up;
@@ -760,8 +781,12 @@ public static partial class EdoBuild
                     float tgt;
                     if (!float.IsNaN(topY))
                     {
-                        if (new Vector2(topN.x, topN.z).magnitude < 0.25f) continue;   // 平らな天端の下は触らない
-                        tgt = Mathf.Max(topY - below, yRef); nFace++;
+                        if (new Vector2(topN.x, topN.z).magnitude < 0.25f) { crestNode.Add(((long)i << 32) ^ (uint)j); continue; }   // 平らな天端の下は触らない(口の脇は後で)
+                        //   ⭐ 第127巡: 見え面の下の節点も外の地表へ(面 −0.05 で止めると、前の節点〔外の地表〕との一升の斜めが法 1:0.25 より緩く、
+                        //   見え面の足に高さ 0.3〜0.5 の土の歯が並んだ)── 地面は石の中で崖になり見えない。石の底が外の地表より上なら底で止める(台の丈の不足として数える)
+                        float yBot = float.NaN; foreach (var h in Physics.RaycastAll(new Vector3(q.x, bb.min.y - 2f, q.y), Vector3.up, bb.size.y + 6f)) { if (!mine.Contains(h.collider)) continue; if (float.IsNaN(yBot) || h.point.y < yBot) yBot = h.point.y; }
+                        tgt = yRef; if (!float.IsNaN(yBot) && yBot > yRef + 0.02f) { tgt = yBot; nShort++; if (yBot - yRef > worstShort) { worstShort = yBot - yRef; wShort = "(" + q.x.ToString("F1") + "," + q.y.ToString("F1") + ") 見え面の下"; } }
+                        nFace++; faceNode.Add(((long)i << 32) ^ (uint)j);
                     }
                     else
                     {
@@ -773,7 +798,7 @@ public static partial class EdoBuild
                             if (hit) break;
                         }
                         if (!hit) continue;
-                        tgt = yRef; nFront++;
+                        tgt = yRef; nFront++; frontTgt[((long)i << 32) ^ (uint)j] = yRef;
                         //   台の丈の不足: 外の地表 +0.02 の高さで内へ引いた光線が石に当たらず、上で当たる ⇒ 石の底が外の地表より上(下げると足が出る ⇒ 下げない)
                         bool lowHit = false; foreach (var h in Physics.RaycastAll(new Vector3(q.x, yRef + 0.02f, q.y), new Vector3(inw.x, 0f, inw.y), 1.5f)) if (mine.Contains(h.collider)) { lowHit = true; break; }
                         if (!lowHit && cur > yRef + 0.02f)
@@ -786,11 +811,24 @@ public static partial class EdoBuild
                     if (cur - tgt > mx) { mx = cur - tgt; wMx = "(" + q.x.ToString("F1") + "," + q.y.ToString("F1") + ") 辺" + be; }
                     undo.Add(new[] { i, j, (tgt - org.y) / td.size.y, H[j - j0, i - i0] }); H[j - j0, i - i0] = (tgt - org.y) / td.size.y; n++;
                 }
+            //   ⭐ 口の脇の天端の下の節点(第127巡 P35・P22): 出隅の口・継ぎ目の口の前の節点を下げても、隣の天端の下の節点が天端の高さのままだと、
+            //   一升の斜めが口から天端まで立ち上がり、口の上端に土の切れ端が見えた ⇒ 四方の隣に口の前の節点がある天端の下の節点も、その節点の下げ先の高い方へ
+            int nSlit = 0;
+            foreach (var k in crestNode)
+            {
+                int i = (int)(k >> 32), j = (int)(uint)(k & 0xffffffff); float best = float.NaN;
+                foreach (var d in new[] { new Vector2Int(1, 0), new Vector2Int(-1, 0), new Vector2Int(0, 1), new Vector2Int(0, -1) })
+                { float y2; if (frontTgt.TryGetValue(((long)(i + d.x) << 32) ^ (uint)(j + d.y), out y2) && (float.IsNaN(best) || y2 > best)) best = y2; }
+                if (float.IsNaN(best)) continue;
+                float cur = H[j - j0, i - i0] * td.size.y + org.y; if (best >= cur - 1e-4f) continue;
+                undo.Add(new[] { i, j, (best - org.y) / td.size.y, H[j - j0, i - i0] }); H[j - j0, i - i0] = (best - org.y) / td.size.y; n++; nSlit++;
+            }
             if (n > 0) { td.SetHeights(i0, j0, H); AssetDatabase.SaveAssetIfDirty(td); }
+            slitN = nSlit;
         }
         finally { foreach (var mc in tmp) if (mc != null) UnityEngine.Object.DestroyImmediate(mc); }
         if (undoPath != null) WriteUndo(undoPath, t.name, undo);
-        return "見え面の前の地面を見え面の足(外の地表)へ下げた: 見え面の下 " + nFace + "・見え面の前 " + nFront + "・下げた " + n + "(最大 " + mx.ToString("F2") + " @" + wMx + ")"
+        return "口の脇の天端の下 " + slitN + "・見え面の前の地面を見え面の足(外の地表)へ下げた: 見え面の下 " + nFace + "・見え面の前 " + nFront + "・下げた " + n + "(最大 " + mx.ToString("F2") + " @" + wMx + ")"
                + (nShort > 0 ? "・⚠ 台の丈の不足(石の底が外の地表より上)" + nShort + " 節点・最大 " + worstShort.ToString("F2") + "m @" + wShort + " ── 台を深くする方で納める" : "・台の丈の不足 0");
     }
 

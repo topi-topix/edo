@@ -2933,6 +2933,8 @@ public static class EdoOkabeYashikiBuilder
             }
         }
         if (p0Note != null) log.AppendLine("  " + p0Note);
+        //   ⭐ 40° 未満の出隅の口を裏の駒で塞ぐ(const.heiLine.faceFront【硬】「出隅で台の石が抜ける所を作らない」・第126巡 P35)
+        log.AppendLine("  " + EdoBuild.FillConvexCornerSlits(secs, Poly, grp, gB, 40f));
         log.AppendLine("  ⭕ 城の石垣の出隅の駒 " + kn + " / 40° 以上で両脇の揃う出隅 " + kadoAt.Count + "(" + string.Join("・", kadoAt.ToArray()) + ")" + (kn < kadoAt.Count ? " ★ 据わらない隅あり(上の出隅の行)" : ""));
         foreach (var kv in cr.insetOf) _kidanC[kv.Key] = kv.Value;
         foreach (var r in Runs) { float c; if (_kidanC.TryGetValue(r.name, out c)) _kidanCe[r.edge] = Mathf.Max(_kidanCe.ContainsKey(r.edge) ? _kidanCe[r.edge] : 0f, c); }
@@ -5894,8 +5896,10 @@ public static class EdoOkabeYashikiBuilder
             var keepP = new List<GameObject>(); foreach (var gm in MizoGroups) foreach (Transform c in Group(gm)) if (c.gameObject.activeInHierarchy) keepP.Add(c.gameObject);
             var PPf = Poly; float clipF = ClipIn();
             //   ⛔ 石垣・段の駒の下(駒の上面が地表より上)は触らない(基壇の天端・見え面の下へ土を盛らない)
-            var stones = new List<GameObject>(); foreach (var gm in new[] { "Ishigaki", "Dan" }) foreach (Transform c in Group(gm)) if (c.gameObject.activeInHierarchy) stones.Add(c.gameObject);
-            var stoneBed = new EdoBuild.Bed(stones); var stoneTops = new EdoBuild.PartTops(stones);
+            //   ⭐ 出隅の口の裏の駒(IG_Slit_・FillConvexCornerSlits)は足を支える石に数えない ── 天端は両脇の低い方なので隅の練塀の足より 0.01〜0.04 低く、
+            //   足の下を「石が支える」と読んで上げず、内の縁が 0.01〜0.04 浮いた(第126巡 Kado_P32〜P38)
+            var stones = new List<GameObject>(); foreach (var gm in new[] { "Ishigaki", "Dan" }) foreach (Transform c in Group(gm)) if (c.gameObject.activeInHierarchy && !c.name.StartsWith("IG_Slit_")) stones.Add(c.gameObject);
+            var stoneBed = new EdoBuild.Bed(stones); var stoneTops = new EdoBuild.PartTops(stones); var mizoTops = new EdoBuild.PartTops(keepP);
             //   足の下(凸包の中)は「石が足の底を支えている所」だけ触らない ── 台の石垣の継ぎ目の切り欠きの底(足を支えない石の面)は足に覆われるので土で埋める。
             //   ⛔ 台の石垣の天端の前の縁(区画の線から c)+0.05 より前は触らない(犬走り 0 の run は腰が法の上へ出る ── 見え面の前へ土を出さない)。第120巡 2026-10-12
             System.Func<Vector2, float> crestIn = q => { int be = -1; float bd = float.MaxValue, bs = 0f; for (int e2 = 0; e2 < PPf.Length; e2++) { Vector2 a2 = PPf[e2], b2 = PPf[(e2 + 1) % PPf.Length]; float L2 = (b2 - a2).magnitude; if (L2 < 1e-4f) continue; float s2 = Mathf.Clamp(Vector2.Dot(q - a2, (b2 - a2) / L2), 0f, L2); float d2 = (a2 + (b2 - a2) / L2 * s2 - q).magnitude; if (d2 < bd) { bd = d2; be = e2; bs = s2; } } return be < 0 ? 0f : KidanC(be, bs); };
@@ -5904,7 +5908,10 @@ public static class EdoOkabeYashikiBuilder
                 (q, yb) => EdoGeom.PIP(PPf, q) && EdoBuild.EdgeDistPublic(PPf, q) >= Mathf.Max(clipF, crestIn(q) + 0.05f) && !(stoneBed.At(q.x, q.y) >= yb - 0.02f), keepP, 0.04f,
                 //   犬走りの土(const.heiLine.kidan「控えの差は石垣の天端の露出(犬走り)の幅で吸う」・第122巡)── 縁の節点の 0.35 の内に台の天端(地表より上の石・上げる高さ −0.10 以上)が
                 //   あれば、縁の上げを止めない(土は台の天端で受ける ⇒ 土の柱にならない)
-                (q, y) => { for (int k8 = 0; k8 < 8; k8++) { float an = k8 * Mathf.PI / 4f; float px = q.x + 0.35f * Mathf.Cos(an), pz = q.y + 0.35f * Mathf.Sin(an); float bt = stoneBed.At(px, pz), g8 = EdoBuild.Ground(px, pz); if (!float.IsNaN(bt) && !float.IsNaN(g8) && bt > g8 + 0.02f && bt >= y - 0.10f) return true; } return false; },
+                //   ⭐ 第126巡: 縁の 0.35 の内に溝・桝の駒の天端(上げる高さ −0.10 以上)があれば、土は駒の縁で受ける ⇒ 縁の上げを止めない
+                //   (S_Hei_08 の足の内の縁が桝 G0 の縁の 0.05 手前 ── 縁の節点を 0.30 で止め、足の内の縁が 0.48 浮いた)
+                (q, y) => { for (int k8 = 0; k8 < 8; k8++) { float an = k8 * Mathf.PI / 4f; float px = q.x + 0.35f * Mathf.Cos(an), pz = q.y + 0.35f * Mathf.Sin(an); float bt = stoneBed.At(px, pz), g8 = EdoBuild.Ground(px, pz); if (!float.IsNaN(bt) && !float.IsNaN(g8) && bt > g8 + 0.02f && bt >= y - 0.10f) return true;
+                    string wm; float mt = mizoTops.Top(px, pz, out wm); if (!float.IsNaN(mt) && mt >= y - 0.10f) return true; } return false; },
                 //   石が足を支える足の下の節点は石の天端 −0.02 まで上げる(台の裏の縁の一升の落ち込み ── 第125巡)。天端の前の縁 c +0.05 より前(見え面の側)は触らない
                 q => { if (!(EdoGeom.PIP(PPf, q) && EdoBuild.EdgeDistPublic(PPf, q) >= Mathf.Max(clipF, crestIn(q) + 0.05f))) return float.NaN; string w8; float tp = stoneTops.Top(q.x, q.y, out w8); return float.IsNaN(tp) ? float.NaN : tp - 0.02f; }));
         }
@@ -5920,7 +5927,11 @@ public static class EdoOkabeYashikiBuilder
                 be.q0 = sv => KidanC(e, sv) + 0.02f; be.q1 = sv => FaceIn(e, sv) - fo + cellB;
                 be.qCap = sv => KidanC(e, sv) - 0.30f; be.capBatter = 4f;   // 城の石垣の法 1:0.25   // 見え面の肩(天端の前の縁の手前 0.30)は座より上の土だけ下げる
                 //   段の脇の一升は低い側の座(0.25 格子の双一次が上の踏み面の高さから下の天端の上へ斜めに出る ── N_Hei_31 s9.90 で 0.92)
-                be.yAt = sv => { float L0 = EdgeLen(e); return Mathf.Min(r.SeatAt(Mathf.Clamp(sv, 0f, L0)), Mathf.Min(r.SeatAt(Mathf.Clamp(sv - cellB * 1.5f, 0f, L0)), r.SeatAt(Mathf.Clamp(sv + cellB * 1.5f, 0f, L0)))); };
+                //   ⭐ 低い側を採るのは段の点の脇だけ(第126巡: 坂なりの区間でも前後 1.5 升の低い方を採り、塀の足の外の縁の下の一升を勾配 × 0.375 だけ下げ、
+                //   足が 0.01〜0.06 浮いた ── NW_Hei_1_1・1_2・S_Hei_16・NW_Hei_1_3 ほか)
+                be.yAt = sv => { float L0 = EdgeLen(e); float sc0 = Mathf.Clamp(sv, 0f, L0); float y0 = r.SeatAt(sc0);
+                    bool nearStep = false; if (r.lineS != null && r.lineStep != null) for (int k = 0; k < r.lineS.Length; k++) if (r.lineStep[k] && Mathf.Abs(r.lineS[k] - sc0) <= cellB * 1.5f + 1e-3f) { nearStep = true; break; }
+                    return nearStep ? Mathf.Min(y0, Mathf.Min(r.SeatAt(Mathf.Clamp(sv - cellB * 1.5f, 0f, L0)), r.SeatAt(Mathf.Clamp(sv + cellB * 1.5f, 0f, L0)))) : y0; };
                 bes.Add(be);
             }
             float clipB = ClipIn();
@@ -5942,6 +5953,15 @@ public static class EdoOkabeYashikiBuilder
                 && EdoBuild.EdgeDistPublic(PP3, q) >= cAt(q) - 0.30f, 0.02f, 0.08f, 99f));
             //   (見え面の肩 = 天端の前の縁 c の手前 0.30 まで ── それより前の根入れの土は削らない)
             //   ⭐ 第123巡: 平らな天端だけでなく法の見え面の上端(天端の前の縁の手前の一升)の上の土も下げる(flatTol 99)── 段の所で上の踏み面の土が下の台の見え面の肩に 0.6〜0.9 載っていた
+            //   ⭐ 第126巡: 台の見え面の前の地面を見え面の足(区画の外の地表)より上へ出さない(const.heiLine.faceFront【硬】)── 地面を焼き切った最後に(帯・足の下の上げの後)。
+            //   見え面の前 = 区画の線から天端の前の縁 c + 一升 まで。門・石段・溝の駒の下は触らない
+            var keepF = new List<GameObject>(); foreach (var gm in MizoGroups) foreach (Transform c in Group(gm)) if (c.gameObject.activeInHierarchy) keepF.Add(c.gameObject);
+            foreach (var gm in new[] { "GateSteps", "KomonFumi" }) { var gg = GameObject.Find(GN).transform.Find(gm); if (gg != null) foreach (Transform c in gg) if (c.gameObject.activeInHierarchy) keepF.Add(c.gameObject); }
+            { var kai = GameObject.Find(GN).transform.Find("Fuzoku/Kaidan"); if (kai != null) foreach (Transform c in kai) if (c.gameObject.activeInHierarchy) keepF.Add(c.gameObject); }
+            //   塀・隅の駒の下(足の凸包と軒の下)は触らない ── 塀の足は FillUnderFoot が地面で受ける(P12: S_Hei_08 の端の駒の足が辺12 の台の見え面の前に掛かり、
+            //   見え面の前の土を下げて足が 1.19 浮いた ⇒ 塀の端と台の見え面の取り合いは ★ で刷る)
+            int nHeiOver = 0; foreach (Transform c in Group("Kakoi")) { if (!c.gameObject.activeInHierarchy) continue; string nm = c.name; if (nm.StartsWith("Kado_P") || nm.StartsWith("Kiri_") || nm.Contains("Hei_")) { keepF.Add(c.gameObject); nHeiOver++; } }
+            sb.AppendLine("  " + EdoBuild.LowerGroundBeforeFace(igs3, PP3, q => EdoBuild.EdgeDistPublic(PP3, q) >= clip3, q => { float c = cAt(q); return c < 0.05f ? float.NaN : c + cell3; }, 0.3f, 0.05f, keepF, null));
         }
         sb.AppendLine("  " + EdoBuild.HoleUnderMasu(pcs, 0.05f, HoleUndoPath));
         sb.Append(SeRojiHeiFoot(false));   // 据えて下げた後に足を測る(heiFootSpec.order【硬】)

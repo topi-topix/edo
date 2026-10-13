@@ -21,6 +21,7 @@
 - [岡部の外周は S1→S2→S2b→S3d で流す・一枚物の練塀の測り](okabe-perimeter-rerun-order-and-neribei-measure.md) — S2 だけだと基壇が変わり 3d が 2.9m 掘る・2b は60〜90分・継ぎ目は ±0.004 の光線 / [指図を書き換えた直後の S1 は 1m で造成する](graded-bin-stale-after-sashizu-commit.md) — bin を焼き直し _graded を捨てる・隅の座は古い
 - [天端の線を外周全体へ(第121巡)](heiline-tenba-spec-r121.md)・[台の天端を座の線へ(第122巡)](kidan-crest-slope-r122.md) — 頂点の座は折れ点・出隅で隣の勾配を先取り・坂の台も丈を選ぶ・焼く一覧は最後の据えから
 - [塀の内の溝・足の下の土(第125巡)](inner-ditch-and-foot-fill-r125.md) — 溝の外の縁は地際の板まで・足を 0.15 の升で読むと隅の留めで土の柱・台の裏の縁の節点
+- [見え面の前の土の柱・浅い出隅の石の口(第126巡)](face-front-columns-and-corner-slit-r126.md) — PlaneBand の ext が隣の見え面の前を上げた・天端 0.04 を段と読み端を引いた・坂の端の駒の高さ
 - [練塀の腰なしの駒へ(第124巡)](neribei-nk-koshi-choice-r124.md) — 外面は元から下見板の表・腰の有無は線〜内面の帯の台で・流しの最中に compile_wait を打たない
 - [芯線と天端の線(heiLine)の罠](heiline-stretch-and-tenba-r120.md) — d は c の後・床は区間の組で・線は同じドメインだけ(S2〜3d を続けて)・足は 0.91〜1.60・継ぎ目の切り欠きを埋める
 - [.cs の保存直後の Stage は古い DLL で走る・再起動で皮が null](stage-run-on-stale-dll-after-edit.md) — 25 分の 3b が空振り。Stage の前に compile_wait・3b の後は先に書き戻す
@@ -171,7 +172,7 @@
 - [小段の溝は線の上で地表を引く・埋まった見え面は掘らない](bench-ditch-surface-and-buried-face-crack.md) — 外 0.30 は小段の縁を越えて床を読み 1m 沈む・面−0.05 の下げは前の地表で止める・写真は光線で名指す
 
 ## 測り方・関門
-- [検査役の execute_code の全文は MCP の log に残る](qa-code-in-mcp-log.md)・[地形の前後の差は資産の写しから採れる](terrain-diff-from-asset-copy.md)・[検証レンダの構図は残らない](render-camera-poses-not-kept.md) — 測りは log から抜く・int16 の塊・構図は cams.txt
+- [検査役の execute_code の全文は MCP の log に残る](qa-code-in-mcp-log.md)・[地形の前後の差は資産の写しから採れる](terrain-diff-from-asset-copy.md)・[検証レンダの構図は残らない](render-camera-poses-not-kept.md) — 測りは log から抜く・int16 の塊・構図は cams.txt / [総当たりの計測は Unity を1時間ふさぐ](brute-force-measure-hangs-unity.md) — 升の索引+印で打つ。RayToBodies は1呼び出し100本まで・mesh.vertices を輪の中で呼ばない(四度目 10-05)
 - [長屋の軒を躯体の前の面と読む](nagaya-eaves-read-as-body-front.md) — _kutai は材1つで BodyExRoof が軒を残す。前の面は一階の帯で(N39_1 の 0.27 は軒)
 - [練塀は下絵の seat で置かれ埋まる・天端の垣と S_Hei_20 の浮きは偽](dobei-seat-is-shitae-and-false-floats-r12.md) — 岡部 辺34 で 2.6m 埋没。浮きは光線の先着で確かめる・作業場の取り違え
 - [偶奇の多数決の内外判定は野面で偽のめり込み](parity-inside-test-false-intrusion.md) — 袖×SW の隅 0.234 は偽。当たり0の向きが在れば外
@@ -191,12 +192,8 @@
 - [袖の脇の入りは見える地表で割る](sode-side-bite-below-skin.md) — 女坂の北の袖×回廊の出隅は全部 皮の下。MeasureSodeSideBites・裏の面の偽の入り
 - [退役した Stage が残ると検査が嘘の件数を出す](retired-stage-makes-fake-counts.md) — 449=1278−829 は別の母集団の引き算
 - [CheckScene は矩形の芯で測る](checkscene-center-vs-seat.md)・[退ける門と検査は同じ測りで](machiya-clash-gate-weaker-than-check.md) — `seat` で据えた部材は永久に鳴る。⛔芯へ動かして0件にしない・門だけ屋根を外さない / [天端の埋没の数えは法の根入れを拾う](crest-burial-count-picks-batter-face.md)・[UnderfloorGap は一体の駒で屋根を拾う](underfloorgap-picks-roof-on-one-mesh-parts.md) — 4m・5〜7m の偽。天端の帯だけ数える・底の頂点で測る
-- 山王の Stage の罠: [Stage0 は Keidai・Sando を退避](sanno-stage0-retires-live-groups.md)・[Stage7 の縁の木の重ね(解消)](sanno-stage7-edge-trees-duplicate.md)・[Stage6 は Clear の後に指紋](sanno-stage6-clears-before-fingerprint.md) — 建て直しは Stage1 から・bake を見張る
+- 山王の Stage の罠: [Stage0 は Keidai・Sando を退避](sanno-stage0-retires-live-groups.md)・[Stage7 の縁の木の重ね(解消)](sanno-stage7-edge-trees-duplicate.md)・[Stage6 は Clear の後に指紋](sanno-stage6-clears-before-fingerprint.md) — 建て直しは Stage1 から・bake を見張る / [社叢QAのカメラ②は赤坂では宝蔵院の門の中](sanno-shaso-qa-camera2-inside-gate.md) — 撮る間だけ門+十坊の板塀 3_4f/4b ほか計52個を消す。カメラは動かさない
 - [門・柵の浮きは「床」で測る](gate-float-measure-on-bed.md) — 土留めの天端に載る隅は地表で嘘の浮き。座は上限・浮けば床へ。Stage9 の後に S4/5
-- [社叢QAのカメラ②は赤坂では宝蔵院の門の中](sanno-shaso-qa-camera2-inside-gate.md) — 撮る間だけ門+十坊の板塀 3_4f/4b ほか計52個を消す。カメラは動かさない
 - [法の足元の土の縁は底の読み違い](batter-toe-read-as-bottom.md) — 駒の底は根入れ済みだった。皮の塞ぎが法の途中を底と読む。段ごとの値で追う
-- [法の途中を底と読む歯・石段の前の土・外周の石垣を皮へ渡す](foot-bottom-batter-and-stair-front.md) — TopIndex.FootBottom。点の Bottom/WallBottom を reflection で刷る
-- [見え面の足元の山形は外形の中の節点](wall-foot-ridge-from-nodes-under-hull.md) — 皮が近くの点を地形のまま描いた。CleanAt・差で混ぜる・Stage9 は6回走る
-- [盛土の床・基壇の向き・設計面の縁の溝](fill-only-floor-and-base-facing.md) — fillOnly を皮の面にしない・BlockOutward・DesignOut は地形で埋める
-- [総当たりの計測は Unity を1時間ふさぐ](brute-force-measure-hangs-unity.md) — 升の索引+印で打つ。RayToBodies は1呼び出し100本まで・mesh.vertices を輪の中で呼ばない(四度目 10-05)
+- [法の途中を底と読む歯・石段の前の土・外周の石垣を皮へ渡す](foot-bottom-batter-and-stair-front.md) — TopIndex.FootBottom。点の Bottom/WallBottom を reflection で刷る / [見え面の足元の山形は外形の中の節点](wall-foot-ridge-from-nodes-under-hull.md) — 皮が近くの点を地形のまま描いた。CleanAt・差で混ぜる・Stage9 は6回走る / [盛土の床・基壇の向き・設計面の縁の溝](fill-only-floor-and-base-facing.md) — fillOnly を皮の面にしない・BlockOutward・DesignOut は地形で埋める
 - [落とした後の Stage9 は空の皮](unity-kill-leaves-holes-without-skin.md)・[皮の段プレハブのメッシュが消える](skin-mesh-missing-leaves-holes-open.md) — 穴は地形・皮はシーン / S1 の塞いだ升を前の巡と比べる / [線の上の基壇・柵は区画外に出る](line-sitting-pieces-pivot-out.md)・[区画の辺に沿う城の石垣の罠](castle-run-along-parcel-edge-traps.md) — 端の控え・芯置き / VTX_TOL・PullAlongInside・駒の実長>送り / [隅の腕は短辺を越えて区画外へ出る](kado-arm-overruns-short-edge.md)・[旧案の一括削除は分類器が止める](bulk-delete-denied-by-auto-mode.md) — 岡部 P2〜P4 が外・駒の頂点を PIP / 役経由の一括削除は不可 / [短い組の c・丈の高い端の駒](castle-run-short-group-c-and-tall-foot.md) — 辺の線で c・一つずつ内へ

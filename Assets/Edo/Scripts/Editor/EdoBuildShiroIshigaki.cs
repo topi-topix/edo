@@ -55,6 +55,11 @@ public static partial class EdoBuild
         public float worstStepIn;
     }
 
+    /// <summary>浅い折れ(&lt; 30°)の頂点で、両脇の天端の差をこれ以下なら**段の継ぎ目と読まない**[m](第126巡 2026-10-13 岡部 P35)── 坂なりの区間は芯線の折れ点が
+    /// 区画の頂点から離れ(P35 は 1.45m)、頂点の端の天端が 0.04 食い違う。1e-3 で段と読むと、高い方を頂点の先へ・低い方を 1.4m 奥へ延ばし、③a が区画の外へ出た
+    /// 両方の端の駒を引き戻して、根石の端が頂点の 0.27m 手前で止まり、出隅に幅 0.5m の口が開いた(見え面から土の柱)。段の丈は 0.5 以上(0.9 刻み)なので 0.10 で分ける。
+    /// 当たる先: PlaceCastleRun を通る外周の基壇の浅い出隅・入隅(岡部 北の辺の坂なりの頂点・土井)。</summary>
+    public const float CORNER_STEP_MIN = 0.10f;
     /// <summary>区間の端が区画の頂点に在るとみなす離れ[m] ── 指図の s は 0.01 で丸めてある(辺13 の長さ 77.26 と実の 77.264)。</summary>
     public const float VTX_TOL = 0.02f;
 
@@ -226,14 +231,14 @@ public static partial class EdoBuild
                 if (s.s1 >= Len(e) - VTX_TOL)
                 {
                     var nx = merged.Find(x => x.edge == (e + 1) % n && x.s0 <= VTX_TOL);
-                    if (nx != null && Mathf.Abs(Turn((e + 1) % n)) < 30f && Mathf.Abs(nx.crest - s.CrestAt(s.s1)) > 1e-3f) { b = joinPt(nx, true, b); float ce = cornerExt(nx); b += d * (ce > 0f ? ce : 1.4f); if (final) log?.AppendLine("  城の石垣 " + s.name + ": 頂点" + ((e + 1) % n) + " の折れのある段の継ぎ目 ── 尻を交点から " + (ce > 0f ? ce : 1.4f).ToString("F2") + "m 先へ(" + (ce > 0f ? "高い方の天端を届かせる" : "低い方を高い方の面の裏へ") + ")"); }
+                    if (nx != null && Mathf.Abs(Turn((e + 1) % n)) < 30f && Mathf.Abs(nx.crest - s.CrestAt(s.s1)) > CORNER_STEP_MIN) { b = joinPt(nx, true, b); float ce = cornerExt(nx); b += d * (ce > 0f ? ce : 1.4f); if (final) log?.AppendLine("  城の石垣 " + s.name + ": 頂点" + ((e + 1) % n) + " の折れのある段の継ぎ目 ── 尻を交点から " + (ce > 0f ? ce : 1.4f).ToString("F2") + "m 先へ(" + (ce > 0f ? "高い方の天端を届かせる" : "低い方を高い方の面の裏へ") + ")"); }
                     else if (nx != null) b = joinPt(nx, true, b);
                     else { float tr = freeTrim(e, (e + 1) % n, de); b -= d * tr; if (final && tr > 0.011f) log?.AppendLine("  城の石垣 " + s.name + ": 相手の無い出隅の端を " + tr.ToString("F2") + "m 詰めた(小口が隣の辺の線を越えない)"); }
                 }
                 if (s.s0 <= VTX_TOL)
                 {
                     var pv = merged.Find(x => (x.edge + 1) % n == e && x.s1 >= Len(x.edge) - VTX_TOL);
-                    if (pv != null && Mathf.Abs(Turn(e)) < 30f && Mathf.Abs(pv.CrestAt(pv.s1) - s.crest) > 1e-3f) { a = joinPt(pv, false, a); float ce = cornerExt(pv); a -= d * (ce > 0f ? ce : 1.4f); if (final) log?.AppendLine("  城の石垣 " + s.name + ": 頂点" + e + " の折れのある段の継ぎ目 ── 頭を交点から " + (ce > 0f ? ce : 1.4f).ToString("F2") + "m 手前へ(" + (ce > 0f ? "高い方の天端を届かせる" : "低い方を高い方の面の裏へ") + ")"); }
+                    if (pv != null && Mathf.Abs(Turn(e)) < 30f && Mathf.Abs(pv.CrestAt(pv.s1) - s.crest) > CORNER_STEP_MIN) { a = joinPt(pv, false, a); float ce = cornerExt(pv); a -= d * (ce > 0f ? ce : 1.4f); if (final) log?.AppendLine("  城の石垣 " + s.name + ": 頂点" + e + " の折れのある段の継ぎ目 ── 頭を交点から " + (ce > 0f ? ce : 1.4f).ToString("F2") + "m 手前へ(" + (ce > 0f ? "高い方の天端を届かせる" : "低い方を高い方の面の裏へ") + ")"); }
                     else if (pv != null) a = joinPt(pv, false, a);
                     else { float tr = freeTrim(e, e, de); a += d * tr; if (final && tr > 0.011f) log?.AppendLine("  城の石垣 " + s.name + ": 相手の無い出隅の端を " + tr.ToString("F2") + "m 詰めた(小口が隣の辺の線を越えない)"); }
                 }
@@ -393,6 +398,9 @@ public static partial class EdoBuild
                     var endP = order[k]; float pullMax = lenOf(endP);
                     float before; float pl = PullAlongInside(new List<GameObject> { endP }, poly, isHi ? -d : d, pullMax, out before, 0f, 0.005f, tol);
                     if (before <= tol) break;
+                    //   ⭐ 坂なりの区間は引いた先の天端の線の高さへ(第126巡 2026-10-13 岡部 P22: 12% の下りの端の駒を 0.8 引いて高さを据え置き、天端が線より 0.098 低く、
+                    //   隅の練塀の足との隙 0.059)── 引いた s の変化 × 勾配(天端は線の上の値【硬】)
+                    if (s.Sloped && !float.IsNaN(pl) && pl > 1e-4f) endP.transform.position += Vector3.up * (s.grade * (isHi ? -pl : pl));
                     log?.AppendLine("  城の石垣 " + endP.name + ": 頂点の端の駒が " + before.ToString("F3") + "m 区画の外 ⇒ 走りに沿って " + (float.IsNaN(pl) ? pullMax.ToString("F1") + "m 引いても収まらない ★" : pl.ToString("F3") + "m 引いた(隣の駒と重なる)"));
                 }
             }
@@ -839,5 +847,52 @@ public static partial class EdoBuild
             float g = kv.Value.y - crest; if (float.IsNaN(worst) || Mathf.Abs(g) > Mathf.Abs(worst)) worst = g;
         }
         return worst;
+    }
+
+    /// <summary>**浅い出隅の台の石の口を裏の駒で塞ぐ**(第126巡 2026-10-13 岡部 const.heiLine.faceFront【硬】「出隅で台の石が抜ける所を作らない」)。
+    /// 隅の駒を置かない出隅(折れ 1° 〜 <paramref name="kadoMinTurn"/>)では両脇の根石の外面が頂点で交わるだけで、法の見え面は高さとともに内へ引くので、
+    /// 二つの駒の小口の間に上へ開く V の口(天端で 2·c·sin(φ/2))が残り、裏の土が見えた(岡部 P35 22° で幅 0.3)。
+    /// 口の裏に、その辺の直線の駒(見付に合う丈 <see cref="CastleWallOfExpose"/>・両脇と同じ倍率)を**内への二等分の向き**に据える:
+    /// ① 走りの芯を頂点へ ② 天端 = 両脇の頂点の天端の低い方(実測の最上点)③ 全頂点が両脇の辺の線の内へ入るまで二等分の向きへ引く(区域【硬】・実測)。
+    /// 見え面は両脇の駒の見え面の裏に隠れ、口からだけ見える。硬い(区域・天端を越えない)。当たる先: PlaceCastleRun を通る外周の基壇の 40° 未満の出隅(岡部 北の辺・土井)。</summary>
+    public static string FillConvexCornerSlits(IList<CastleSec> secs, Vector2[] poly, Transform parent, Func<float, float, float> groundAt, float kadoMinTurn = 40f)
+    {
+        int n = poly.Length; float area = 0f; for (int i = 0; i < n; i++) area += poly[i].x * poly[(i + 1) % n].y - poly[(i + 1) % n].x * poly[i].y;
+        var sb = new System.Text.StringBuilder(); int made = 0;
+        for (int v = 0; v < n; v++)
+        {
+            int e0 = (v - 1 + n) % n; Vector2 V = poly[v]; float L0 = (poly[v] - poly[e0]).magnitude;
+            Vector2 d1 = (poly[v] - poly[e0]).normalized, d2 = (poly[(v + 1) % n] - poly[v]).normalized;
+            float tv = Mathf.Atan2(d1.x * d2.y - d1.y * d2.x, Vector2.Dot(d1, d2)) * Mathf.Rad2Deg; if (area < 0f) tv = -tv;
+            if (tv <= 1f || tv >= kadoMinTurn) continue;
+            CastleSec sA = null, sB = null; foreach (var x in secs) { if (x.edge == e0 && x.s1 >= L0 - VTX_TOL) sA = x; if (x.edge == v && x.s0 <= VTX_TOL) sB = x; }
+            if (sA == null || sB == null) continue;
+            Vector2 oA = PolyEdgeOut(poly, e0), oB = PolyEdgeOut(poly, v); Vector2 nb = -(oA + oB).normalized;   // 内への二等分
+            float crestTop = Mathf.Min(sA.CrestAt(sA.s1), sB.CrestAt(sB.s0)); float sc = sB.scale > 0f ? sB.scale : 1f;
+            float gV = groundAt(V.x + (oA.x + oB.x) * 0.15f, V.y + (oA.y + oB.y) * 0.15f); if (float.IsNaN(gV)) gV = groundAt(V.x, V.y);
+            float expose = (crestTop - gV) / sc + 0.6f;   // 根入れ 0.6(名の丈で)
+            string path = CastleWallOfExpose(expose);
+            //   局所の +X = 内(見え面は局所 −X)・走り = 局所 Z(Castle Wall の札)── right = nb ⇒ forward = (−nb.y, nb.x)
+            Vector2 fw = new Vector2(-nb.y, nb.x); float ry = Mathf.Atan2(fw.x, fw.y) * Mathf.Rad2Deg;
+            var go = Place(path, new Vector3(V.x, crestTop, V.y), ry, new Vector3(sc, sc, sc), parent, "IG_Slit_P" + v);
+            Physics.SyncTransforms();
+            float topY = float.MinValue, zLo = float.MaxValue, zHi = float.MinValue, xOut = float.MinValue, yBot = float.MaxValue;
+            for (int it = 0; it < 3; it++)
+            {
+                var vs = Body(go.transform, 999999); topY = float.MinValue; zLo = float.MaxValue; zHi = float.MinValue; xOut = float.MinValue; yBot = float.MaxValue;
+                foreach (var w in vs) { var q = new Vector2(w.x, w.z) - V; topY = Mathf.Max(topY, w.y); yBot = Mathf.Min(yBot, w.y); float z = Vector2.Dot(q, fw); zLo = Mathf.Min(zLo, z); zHi = Mathf.Max(zHi, z); xOut = Mathf.Max(xOut, Mathf.Max(Vector2.Dot(q, oA), Vector2.Dot(q, oB))); }
+                var p = go.transform.position;
+                //   ① 走りの芯を頂点へ ② 天端を crestTop へ ③ 全頂点が両脇の線の 0.01 内(二等分の向きに引く: 辺の外向きとの角 φ/2 ⇒ 引く量 = 越え / cos(φ/2))
+                float pull = (xOut + 0.01f) / Mathf.Max(0.2f, Vector2.Dot(-nb, oA));
+                p += new Vector3(-fw.x, 0f, -fw.y) * (0.5f * (zLo + zHi)) + new Vector3(nb.x, 0f, nb.y) * Mathf.Max(0f, pull) + Vector3.up * (crestTop - topY);
+                go.transform.position = p; Physics.SyncTransforms();
+                if (Mathf.Abs(0.5f * (zLo + zHi)) < 1e-3f && pull <= 1e-3f && Mathf.Abs(crestTop - topY) < 1e-3f) break;
+            }
+            made++;
+            float back = Vector2.Dot(new Vector2(go.transform.position.x, go.transform.position.z) - V, nb);
+            sb.Append(" P" + v + "(折れ " + tv.ToString("F0") + "°・天端 " + crestTop.ToString("F2") + "・線の外 " + (xOut > 0f ? "+" : "") + xOut.ToString("F3") + "・底 " + yBot.ToString("F2") + " / 外の地表 " + gV.ToString("F2")
+                      + (yBot > gV - 0.05f ? " ⚠ 底が外の地表に届かない" : "") + ")");
+        }
+        return "浅い出隅の口を裏の駒で塞いだ " + made + " 基:" + sb;
     }
 }

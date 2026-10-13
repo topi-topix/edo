@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 94・関数 958(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 94・関数 960(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -25,7 +25,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoDoiBuilder.cs](#edodoibuildercs) | 土井大隅守上屋敷(三河刈谷藩2万3千石・譜代・雁間)ビルダー。 | 15 | 89 |
 | [EdoMatsudairaDewaBuilder.Niwa.cs](#edomatsudairadewabuilderniwacs) | 松平出羽守上屋敷 — 庭の工程(池・築山・水の系・石組・点景・滝見口)。 | 9 | 30 |
 | [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 16 | 120 |
-| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 21 | 275 |
+| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 21 | 277 |
 | [EdoSannoShaBuilder.cs](#edosannoshabuildercs) | 山王権現社(日枝神社)本体+樹下家邸+山王門前町ビルダー (2026-08-11。観理院は 2026-09-26 に類型へ移し削除) | 1 | 31 |
 | [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 13 | 102 |
 | [EdoSanyashikiRebuild.cs](#edosanyashikirebuildcs) | 三屋敷(太田・加納・鍋島=松平肥前守)の区画を下書きv3へ更新 (2026-08-08) | 0 | 6 |
@@ -621,6 +621,8 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `HeiLineKadoKey(nm)` | `string` |  | 隅の駒 Kado_P{v} の天端の線の鍵 ── 頂点が区間の中(頂点で段を切らない)ならその区間、頂点が段の点なら低い側の区間(隅の底は腕に続く直線の低い方 ── SeatKadoToRuns と同じ決め・座で止める)… |
 | `KidanC(e, s)` | `float` |  | 辺 e・走り s の run の法肩の控え c(基壇の無い run は辺の最大・基壇の無い辺は 0 ── 法肩が無く外面は線から犬走り)。 |
 | `FaceIn(e, s)` | `float` |  | 囲い(練塀・長屋・門)の外面の、区画の線から内への離れ = 法肩の控え c + 犬走り(const.kidan.faces「+c+inubashiri」)。 |
+| `HeiBaseStones()` | `EdoBuild.PartTops` |  | 台の石垣(Ishigaki の群の据えた駒)の上向きの面 ── 練塀・隅の腰の有無を決める床(EdoBuild.StoneBaseUnder・const.heiLine.koshi)。 |
+| `HeiFootOut(e, none=…)` | `float` |  | 辺 e の天端の線の練塀の足の外の縁が外面の線(FaceIn)より外へ出る量[m]の最大 ── 据えた駒の実メッシュで測る(腰あり 0.137・腰なし 0)。 |
 | `ClearHeiLine()` | `void` |  | — |
 | `HeiLineRangesFromSashizu()` | `List<Vector2Int>` |  | const.heiLine.trial の辺の範囲を読む(「辺1〜11・19〜24・28〜38」)。 |
 | `HeiLineEdgeSet()` | `HashSet<int>` |  | 天端の線を当てる辺(指図から毎回読む ── domain reload で Runs の線が消えた後の 3d でも、天端の線の駒を床へ動かさない・後合わせの規則を通さない)。 |

@@ -2991,24 +2991,31 @@ public static class EdoAssets
         public const string Neribei = "Assets/Edo/Models/Neribei/Neribei_Choku.fbx";
         /// <summary><see cref="Neribei"/> 一枚の走り[m](瓦 14 枚)。</summary>
         public const float NeribeiP = 2.9905f;
+        /// <summary>**腰なしの駒の名**(const.heiLine.koshi・施主 2026-10-13「台の石垣と腰の石垣の二重が違和感」)── <paramref name="koshi"/> = false なら道の `.fbx` の前に `_NK` を挟む。
+        /// 腰なし = 腰の石垣の群を除き、下見板を座(Y = 0)まで継いだ駒(底の板 `soko`)。屋根・天端(座 + 2.646)・厚み・ピボット・走りは腰ありと同じ。
+        /// 札の足元と faceOut/faceIn は ±0.33745 → ±0.20585(下見板の表)。台の石垣の上に立つ塀 = 腰なし / 地面に直に立つ塀 = 腰あり(どちらかは据える側が台の有無で決める)。
+        ///   blender --background --python Tools/Blender/build_neribei.py -- --no-koshi ...(名の末尾 _NK・札も同じ)</summary>
+        public static string Nk(string p, bool koshi) { return koshi ? p : p.Substring(0, p.Length - 4) + "_NK.fbx"; }
+        /// <summary><see cref="Neribei"/>(一枚)の腰あり / 腰なし(<see cref="Nk"/>)。</summary>
+        public static string NeribeiChoku(bool koshi) { return Nk(Neribei, koshi); }
         /// <summary>練塀の瓦の周期[m] = <see cref="NeribeiP"/> / 14。切りの駒と隅の腕はこの倍数で切ってあり、継ぎ目で瓦が続く。</summary>
         public const float NeribeiTile = NeribeiP / 14f;
 
         /// <summary>**練塀の端数の切り**(瓦 <paramref name="tiles"/> 枚 = tiles·<see cref="NeribeiTile"/>・1〜13)。両端の壁体を断面で塞いだ物。据え・局所は <see cref="Neribei"/> と同じ(中央ピボット)。
         /// 走りの割り(据える側): n = floor(L/P) 枚 + 端数 k = round(余り/tile) の切り 1 枚 ⇒ 全駒の走りに倍率 L/(nP + k·tile) を掛けて割り切る(≤ tile/2/L)。
         ///   blender --background --python Tools/Blender/build_neribei.py -- --kiri &lt;tiles&gt; --render</summary>
-        public static string NeribeiKiri(int tiles)
+        public static string NeribeiKiri(int tiles, bool koshi = true)
         {
-            return "Assets/Edo/Models/Neribei/Neribei_Kiri_T" + UnityEngine.Mathf.Clamp(tiles, 1, 13).ToString("00") + ".fbx";
+            return Nk("Assets/Edo/Models/Neribei/Neribei_Kiri_T" + UnityEngine.Mathf.Clamp(tiles, 1, 13).ToString("00") + ".fbx", koshi);
         }
 
         /// <summary>**練塀の端(棟止め)**── 在庫 `s_hei_l` の鬼瓦・袖瓦・端の柱つきの 1 枚を同じ断面で厚くした物。自由端・門の脇に。
         /// <paramref name="endAtPlusX"/> = 棟止めが局所 +X(外から見て左)= `_L` / false = −X = `_R`。ピボット = 1 枚分の走りの中央
         /// (走り X ∈ [−1.494, 1.494]・棟止めの側へ 端の柱の外面 1.599・腰の小口 1.627・鬼瓦の先 1.678)。断面は芯対称なので R は L を 180° 回した物と同じ。
         ///   blender --background --python Tools/Blender/build_neribei.py -- --end --render</summary>
-        public static string NeribeiEnd(bool endAtPlusX)
+        public static string NeribeiEnd(bool endAtPlusX, bool koshi = true)
         {
-            return "Assets/Edo/Models/Neribei/Neribei_End_" + (endAtPlusX ? "L" : "R") + ".fbx";
+            return Nk("Assets/Edo/Models/Neribei/Neribei_End_" + (endAtPlusX ? "L" : "R") + ".fbx", koshi);
         }
 
         /// <summary>**練塀の隅(留め)**── 一つの断面を折れ角の二等分の面で切って接いだ物。屋根は一枚・棟は留めで一筋に折れ・出隅の側に隅棟・入隅の側は瓦の谷。
@@ -3018,13 +3025,13 @@ public static class EdoAssets
         /// 綴りは <see cref="Kado(string,float,float,float,float)"/> と同じ(`_A&lt;入り cm&gt;x&lt;出 cm&gt;`・素なら付けない・負の折れは M・0° の鏡は 00M)。
         /// 焼いてあるもの: 岡部の 19 種(00・00M・01・01M・07M・12・12M・16・16M・18M・19M・22・22M・27・35M・39・76M・78・90)の素の腕。
         ///   blender --background --python Tools/Blender/build_neribei.py -- --kado &lt;整数角 or 00M&gt; [--arms &lt;入り&gt;,&lt;出&gt;] --render</summary>
-        public static string NeribeiKado(float deg, float armIn = 0f, float armOut = 0f)
+        public static string NeribeiKado(float deg, float armIn = 0f, float armOut = 0f, bool koshi = true)
         {
             int d = UnityEngine.Mathf.RoundToInt(UnityEngine.Mathf.Abs(deg));
             string p = "Assets/Edo/Models/Neribei/Neribei_Kado_" + d.ToString("00") + (deg < 0f ? "M" : "");
             int f = UnityEngine.Mathf.RoundToInt(NeribeiArmFull * 100f), a = UnityEngine.Mathf.RoundToInt(armIn * 100f), b = UnityEngine.Mathf.RoundToInt(armOut * 100f);
-            if ((armIn <= 0f && armOut <= 0f) || (a >= f && b >= f)) return p + ".fbx";
-            return p + "_A" + a + "x" + b + ".fbx";
+            if ((armIn <= 0f && armOut <= 0f) || (a >= f && b >= f)) return Nk(p + ".fbx", koshi);
+            return Nk(p + "_A" + a + "x" + b + ".fbx", koshi);
         }
         /// <summary><see cref="NeribeiKado"/> の素の腕[m](瓦 4 枚)。</summary>
         public const float NeribeiArmFull = 4f * NeribeiTile;
@@ -3041,10 +3048,10 @@ public static class EdoAssets
         /// 局所: ピボット = 走りの中央・芯・**その位置の**腰の下端(Y = 0)⇒ 両端の腰の下端は ∓grade·L/2(札 yBottom = 低い端)。scale 1。材は .meta で s_heimap に結線済み(remap 不要)。
         /// ⚠ 走りに倍率 f を掛けると勾配は grade/f になる ── 駒は**中央で線に合わせる**(継ぎ目の高さの食い違い ≤ grade·|f−1|·P ≈ 数 mm)か、勾配 grade·f を焼き足す。
         ///   blender --background --python Tools/Blender/build_neribei.py -- --kiri &lt;tiles&gt; --grade &lt;%&gt; --render   (一枚は --choku・一式は --saka)</summary>
-        public static string NeribeiSaka(float grade, int tiles = 14)
+        public static string NeribeiSaka(float grade, int tiles = 14, bool koshi = true)
         {
             string p = "Assets/Edo/Models/Neribei/Neribei_Saka_" + NeribeiGradeTag(grade);
-            return tiles >= 14 ? p + ".fbx" : p + "_T" + UnityEngine.Mathf.Clamp(tiles, 1, 13).ToString("00") + ".fbx";
+            return Nk(tiles >= 14 ? p + ".fbx" : p + "_T" + UnityEngine.Mathf.Clamp(tiles, 1, 13).ToString("00") + ".fbx", koshi);
         }
         /// <summary>勾配の綴り(U/D + 万分率 4 桁)── <see cref="NeribeiSaka"/>・<see cref="NeribeiKadoSaka"/> の名。</summary>
         public static string NeribeiGradeTag(float grade)
@@ -3064,9 +3071,9 @@ public static class EdoAssets
         /// <paramref name="endAtPlusX"/> = 棟止めが局所 +X(`_L`)/ −X(`_R`)。ピボット = 切り口(突き付けの面)・芯・腰の下端。切り口から 端の柱の外面 0.104・腰の小口 0.133・鬼瓦の先 0.184、
         /// 袖瓦は切り口の内へ 0.006 戻って隣の瓦に被る。段の所は**上下の段の両方**に付け、端の柱の外面どうしを段の面で背中合わせに(鬼と袖瓦の出 0.08 は相手の柱へ埋まる)。
         ///   blender --background --python Tools/Blender/build_neribei.py -- --tome --render</summary>
-        public static string NeribeiTome(bool endAtPlusX)
+        public static string NeribeiTome(bool endAtPlusX, bool koshi = true)
         {
-            return "Assets/Edo/Models/Neribei/Neribei_Tome_" + (endAtPlusX ? "L" : "R") + ".fbx";
+            return Nk("Assets/Edo/Models/Neribei/Neribei_Tome_" + (endAtPlusX ? "L" : "R") + ".fbx", koshi);
         }
 
         /// <summary>**練塀の坂の隅(留め)**── <see cref="NeribeiKado"/> と同じ作り・同じ据え(ピボット = 折れ点・足元の高さは折れ点で 0)。腕ごとに勾配を持つ:
@@ -3075,10 +3082,10 @@ public static class EdoAssets
         /// 名 = NeribeiKado の名 + `_G&lt;入り&gt;x&lt;出&gt;`(例 Neribei_Kado_27_GU0107xU0107)。焼いてあるもの(素の腕): 76M(0,+1.07)・27・39・35M・18M(+1.07,+1.07)・
         /// 01M・00・01(−12,−12)・78(0,+2.7) ── 区画の頂点の順を走りとした値。腕を詰めた版・逆の走りは焼き足す(逆の走りは (−gOut, −gIn))。
         ///   blender --background --python Tools/Blender/build_neribei.py -- --kado &lt;角&gt; [--arms &lt;入り&gt;,&lt;出&gt;] --grade &lt;入り %&gt;,&lt;出 %&gt; --render</summary>
-        public static string NeribeiKadoSaka(float deg, float gradeIn, float gradeOut, float armIn = 0f, float armOut = 0f)
+        public static string NeribeiKadoSaka(float deg, float gradeIn, float gradeOut, float armIn = 0f, float armOut = 0f, bool koshi = true)
         {
             string p = NeribeiKado(deg, armIn, armOut);
-            return p.Substring(0, p.Length - 4) + "_G" + NeribeiGradeTag(gradeIn) + "x" + NeribeiGradeTag(gradeOut) + ".fbx";
+            return Nk(p.Substring(0, p.Length - 4) + "_G" + NeribeiGradeTag(gradeIn) + "x" + NeribeiGradeTag(gradeOut) + ".fbx", koshi);
         }
 
         /// <summary>**出隅の隅長屋**(L 字の長屋の角・EDO-0500 2026-10-01 観理院 北東の施主指摘 ── 妻を突っ込む納めは屋根が重なり窓が途中で切れた)。

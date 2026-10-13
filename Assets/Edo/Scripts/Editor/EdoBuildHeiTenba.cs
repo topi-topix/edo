@@ -210,7 +210,27 @@ public static partial class EdoBuild
         return rows;
     }
 
-    static readonly HashSet<string> _neribeiFootParts = new HashSet<string> { "ishigaki", "koguchi", "koshi" };
+    static readonly HashSet<string> _neribeiFootParts = new HashSet<string> { "ishigaki", "koguchi", "koshi", "soko" };
+
+    /// <summary>**練塀に台の石垣があるか**(const.heiLine.koshi【硬】「塀の線の上で石の面は一つ」・施主 2026-10-13)── 走り A→B(<paramref name="t0"/>〜<paramref name="t1"/>)の
+    /// 区画の線から塀の内面(外面の線 <paramref name="faceIn"/> + 0.35)までの帯を 0.25 × 0.10 で引き、石の上向きの面(<paramref name="stones"/>)の高さが座
+    /// (<paramref name="seatAt"/>(走り)・NaN なら問わない)から ±0.15 の内(= その塀の台 ── const.heiLine.kidanCrest「台の天端を塀の座の線へ」)の点が一つでもあれば true
+    /// = 台の上の塀 ⇒ 腰なしの駒(<see cref="EdoAssets.Own.Nk"/>)。false = 台の石垣が無い所(地面に直に立つ塀)⇒ 腰あり。
+    /// ⛔ 地表と比べない ── Stage2 の時は天端の上に土が載っていて(Stage3d が下げる)台を見落とす(第124巡: N_Hei_32_0)。
+    /// ⛔ 足の真下だけで測らない ── 細い台(倍率 0.25)は塀の外面の 0.4〜0.6 前で止まり、足は台の裏の土の上(S_Hei_02 ── 台の石と腰の石が二重に見える)。
+    /// 当たる先: 岡部の外周の天端の線の練塀・隅(<see cref="NeribeiLineRun"/>・PlaceKado)── 他邸の練塀は未適用(台の石垣の上の練塀が無い)。</summary>
+    public static bool StoneBaseUnder(PartTops stones, Vector2 A, Vector2 dir, Vector2 outward, float faceIn, float t0, float t1, Func<float, float> seatAt, out int hits)
+    {
+        hits = 0; if (stones == null || float.IsNaN(faceIn)) return false;
+        for (float t = t0; t <= t1 + 1e-4f; t += 0.25f)
+            for (float q = 0.05f; q <= faceIn + 0.36f; q += 0.10f)
+            {
+                Vector2 p = A + dir * t - outward * q; string who; float top = stones.Top(p.x, p.y, out who); if (float.IsNaN(top)) continue;
+                float st = seatAt == null ? float.NaN : seatAt(t); if (!float.IsNaN(st) && Mathf.Abs(top - st) > 0.15f) continue;
+                hits++;
+            }
+        return hits > 0;
+    }
     /// <summary>駒の足(腰の石垣の底)の高さを走り <paramref name="dir"/> の両端で測る(端から 0.03 内の頂点の最低)── 坂なりの駒は底が勾配で傾くので、両端の中ほどで線へ合わせる。</summary>
     static bool FootEnds(GameObject go, Vector2 dir, out float uLo, out float yLo, out float uHi, out float yHi)
     {
@@ -227,18 +247,19 @@ public static partial class EdoBuild
         yLo = a; yHi = b; return a < float.MaxValue && b < float.MaxValue;
     }
 
-    static float _tomePost = float.NaN, _tomeBody = float.NaN;
+    static float _tomePost = float.NaN, _tomeBody = float.NaN, _tomePostNk = float.NaN, _tomeBodyNk = float.NaN;
     /// <summary>棟止めだけの駒(<see cref="EdoAssets.Own.NeribeiTome"/>)の切り口から端の柱の外面 / 壁体(腰の小口)の外までの実寸(実メッシュ・一度だけ測る)。</summary>
-    static void TomeGauge(out float post, out float body)
+    static void TomeGauge(out float post, out float body, bool koshi = true)
     {
-        if (float.IsNaN(_tomePost))
+        if (float.IsNaN(koshi ? _tomePost : _tomePostNk))
         {
-            var pr = Place(EdoAssets.Own.NeribeiTome(true), new Vector3(0f, -9999f, 0f), 0f, Vector3.one, null, "__tome_probe");
-            float mn, mx; ProjExtent(pr, new Vector2(1f, 0f), float.MinValue, float.MaxValue, nm => nm == "hashira", out mn, out mx); _tomePost = mx;
-            ProjExtent(pr, new Vector2(1f, 0f), float.MinValue, float.MaxValue, nm => !NeribeiRoofParts.Contains(nm), out mn, out mx); _tomeBody = mx;
+            var pr = Place(EdoAssets.Own.NeribeiTome(true, koshi), new Vector3(0f, -9999f, 0f), 0f, Vector3.one, null, "__tome_probe");
+            float mn, mx, p0, b0; ProjExtent(pr, new Vector2(1f, 0f), float.MinValue, float.MaxValue, nm => nm == "hashira", out mn, out mx); p0 = mx;
+            ProjExtent(pr, new Vector2(1f, 0f), float.MinValue, float.MaxValue, nm => !NeribeiRoofParts.Contains(nm), out mn, out mx); b0 = mx;
             UnityEngine.Object.DestroyImmediate(pr);
+            if (koshi) { _tomePost = p0; _tomeBody = b0; } else { _tomePostNk = p0; _tomeBodyNk = b0; }
         }
-        post = _tomePost; body = _tomeBody;
+        post = koshi ? _tomePost : _tomePostNk; body = koshi ? _tomeBody : _tomeBodyNk;
     }
 
     /// <summary>棟止めの駒の実寸(<see cref="TomeGauge"/>)── 隅の腕を段の面まで詰める呼び手が読む。</summary>
@@ -255,12 +276,16 @@ public static partial class EdoBuild
     /// 棟止めは隣の駒の端の足へ。外面(<paramref name="faceIn"/>)は据える時に壁面で線へ。硬い(隙0 ── 割り切る)。⟶ 据えた駒・note(走りの残差・端の足の食い違いの最大)。
     /// 当たる先: 天端の線の上の練塀(岡部の外周 const.heiLine の全辺)── 他邸は未適用。</summary>
     public static List<GameObject> NeribeiLineRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward, string prefix, float yA, float grade,
-        HeiEnd endA, HeiEnd endB, float latOff, float faceIn, out string note, out float footErr)
+        HeiEnd endA, HeiEnd endB, float latOff, float faceIn, out string note, out float footErr, PartTops baseStones = null)
     {
         var made = new List<GameObject>(); note = null; footErr = 0f;
         var inv = System.Globalization.CultureInfo.InvariantCulture;
         Vector2 dir = (B - A).normalized; float L = (B - A).magnitude; if (L < 0.005f) return made;
-        float post, tbody; TomeGauge(out post, out tbody);
+        //   ⭐ 腰の有無(const.heiLine.koshi【硬】)── 足の下に台の石垣の天端があれば腰なしの駒(下見板が座まで)・無ければ腰あり。駒の外面(下見板の表)は腰の有無で変わらない
+        //   ⚠ 走りが 0.2 未満の区間(段の脇の切れ端・棟止めだけの区間)も中ほどで測る(第124巡: N_Hei_32_0 0.02m・S_Hei_01b_0 0.04m が測られず腰ありで残った)
+        int baseHits; bool koshi = !StoneBaseUnder(baseStones, A, dir, outward, faceIn, Mathf.Min(0.10f, 0.5f * L), Mathf.Max(L - 0.10f, 0.5f * L), t => yA + grade * t, out baseHits);
+        string footG = koshi ? "ishigaki" : "soko";
+        float post, tbody; TomeGauge(out post, out tbody, koshi);
         float wA = endA == HeiEnd.Step ? post : (endA == HeiEnd.Free ? tbody : 0f), wB = endB == HeiEnd.Step ? post : (endB == HeiEnd.Free ? tbody : 0f);
         float a0 = Vector2.Dot(A, dir), pa = a0 + wA, pb = a0 + L - wB, Lp = pb - pa;
         float psi = Mathf.Atan2(outward.x, outward.y) * Mathf.Rad2Deg;
@@ -278,8 +303,8 @@ public static partial class EdoBuild
             if (k >= 14) { n++; k = 0; }
             if (n == 0 && k == 0) k = 1;
             var seq = new List<string>();
-            for (int i = 0; i < n; i++) seq.Add(flat ? EdoAssets.Own.Neribei : EdoAssets.Own.NeribeiSaka(gLoc));
-            if (k > 0) seq.Add(flat ? EdoAssets.Own.NeribeiKiri(k) : EdoAssets.Own.NeribeiSaka(gLoc, k));
+            for (int i = 0; i < n; i++) seq.Add(flat ? EdoAssets.Own.NeribeiChoku(koshi) : EdoAssets.Own.NeribeiSaka(gLoc, 14, koshi));
+            if (k > 0) seq.Add(flat ? EdoAssets.Own.NeribeiKiri(k, koshi) : EdoAssets.Own.NeribeiSaka(gLoc, k, koshi));
             var missing = seq.FindAll(pth => AssetDatabase.LoadAssetAtPath<GameObject>(pth) == null);
             if (missing.Count > 0) { note = "駒が無い " + string.Join(" / ", missing.ConvertAll(x => System.IO.Path.GetFileNameWithoutExtension(x)).ToArray()); footErr = 0f; return made; }
             float sumW = 0f; foreach (var pth in seq) sumW += NeribeiBodyW(pth, body);
@@ -315,20 +340,21 @@ public static partial class EdoBuild
             //   駒が無い(棟止めだけの区間 ── 隅の腕の先から段の面まで)なら、切り口は相手の端(片方だけ棟止め)か各々の幅(両方)
             float cut = side == 0 ? (Lp > 0.02f ? pa : (endB == HeiEnd.None ? a0 + L : a0 + wA)) : (Lp > 0.02f ? pb : (endA == HeiEnd.None ? a0 : a0 + L - wB));
             Vector2 outRun = side == 0 ? -dir : dir;
-            var tg = Place(EdoAssets.Own.NeribeiTome(Vector2.Dot(lx, outRun) > 0f), Vector3.zero, psi, Vector3.one, parent, prefix + (side == 0 ? "_TomeA" : "_TomeB"));
+            var tg = Place(EdoAssets.Own.NeribeiTome(Vector2.Dot(lx, outRun) > 0f, koshi), Vector3.zero, psi, Vector3.one, parent, prefix + (side == 0 ? "_TomeA" : "_TomeB"));
             if (tg == null) { note = (note == null ? "" : note + " / ") + "棟止めの駒が無い"; continue; }
             float mn, mx; ButtOnRun(tg, A, dir, outward, latOff, 0f, out mn, out mx, body);
             // 走り: 切り口(壁体の区間の内の側の端)を cut へ
             float inner = side == 0 ? mx : mn; float dRun = cut - inner; tg.transform.position += new Vector3(dir.x * dRun, 0f, dir.y * dRun);
             // 奥行: 隣の駒の腰(ishigaki)の外面と内面の中ほどに合わせる(無ければ端の柱の外面を線から faceIn へ)
-            var nb = side == 0 ? first : last; float tmn, tmx; ProjExtent(tg, outward, float.MinValue, float.MaxValue, nm => nm == "ishigaki", out tmn, out tmx);
-            if (nb != null) { float nmn, nmx; ProjExtent(nb, outward, float.MinValue, float.MaxValue, nm => nm == "ishigaki", out nmn, out nmx); float sh = 0.5f * (nmn + nmx) - 0.5f * (tmn + tmx); tg.transform.position += new Vector3(outward.x * sh, 0f, outward.y * sh); }
+            var nb = side == 0 ? first : last; float tmn, tmx; ProjExtent(tg, outward, float.MinValue, float.MaxValue, nm => nm == footG, out tmn, out tmx);
+            if (nb != null) { float nmn, nmx; ProjExtent(nb, outward, float.MinValue, float.MaxValue, nm => nm == footG, out nmn, out nmx); float sh = 0.5f * (nmn + nmx) - 0.5f * (tmn + tmx); tg.transform.position += new Vector3(outward.x * sh, 0f, outward.y * sh); }
             else if (!float.IsNaN(faceIn)) { float hmn, hmx; ProjExtent(tg, outward, float.MinValue, float.MaxValue, nm => nm == "hashira", out hmn, out hmx); float sh = (Vector2.Dot(A, outward) - faceIn) - hmx; tg.transform.position += new Vector3(outward.x * sh, 0f, outward.y * sh); }
             // 高さ: 足(腰の底)の最低を切り口の線の座へ
-            float yb = float.MaxValue; foreach (var mf in tg.GetComponentsInChildren<MeshFilter>()) { if (mf.gameObject.name != "ishigaki" || mf.sharedMesh == null) continue; foreach (var v in mf.sharedMesh.vertices) yb = Mathf.Min(yb, mf.transform.TransformPoint(v).y); }
+            float yb = float.MaxValue; foreach (var mf in tg.GetComponentsInChildren<MeshFilter>()) { if (mf.gameObject.name != footG || mf.sharedMesh == null) continue; foreach (var v in mf.sharedMesh.vertices) yb = Mathf.Min(yb, mf.transform.TransformPoint(v).y); }
             if (yb < float.MaxValue) tg.transform.position += Vector3.up * (yOn(cut) - yb);
             made.Add(tg);
         }
+        if (!koshi) note = (note == null ? "" : note + " / ") + "腰なし(台の天端 " + baseHits + " 点)";
         return made;
     }
 }

@@ -59,6 +59,7 @@ public static partial class EdoBuild
         }
         public float At(float x, float z)
         {
+            if (float.IsNaN(x) || float.IsNaN(z) || float.IsInfinity(x) || float.IsInfinity(z)) return float.NaN;   // SampleHeight が native で落ちる(Ground と同じ)
             if (fine != null && fr.Contains(new Vector2(x, z))) return fine.SampleHeight(new Vector3(x, 0f, z)) + fy0;
             if (fine == t) return TerrainAt(x, z).SampleHeight(new Vector3(x, 0f, z)) + TerrainAt(x, z).transform.position.y;   // 細かい地形を名指したまま矩形の外を引いた
             return t.SampleHeight(new Vector3(x, 0f, z)) + y0;
@@ -70,7 +71,8 @@ public static partial class EdoBuild
 
     /// <summary>live terrain の標高 (m)。⚠ 造成が乗る作業面 — 造成前の地盤は docs/Sashizu/base_dem.json が正典。
     /// ⭐ 座標から地形を引く(<see cref="TerrainAt"/>・2026-10-11 北の3邸の細かい地形)。</summary>
-    public static float Ground(float x, float z) { var t = TerrainAt(x, z); return t.SampleHeight(new Vector3(x, 0, z)) + t.transform.position.y; }
+    /// ⛔ NaN・無限の座標は SampleHeight が Unity ごと落とす(Heightmap::GetInterpolatedHeight の native crash・2026-10-14 EDO-0502 第131巡 ── 足の内の縁が測れない辺の dIn = NaN で引いた)⇒ NaN を返す。
+    public static float Ground(float x, float z) { if (float.IsNaN(x) || float.IsNaN(z) || float.IsInfinity(x) || float.IsInfinity(z)) return float.NaN; var t = TerrainAt(x, z); return t.SampleHeight(new Vector3(x, 0, z)) + t.transform.position.y; }
 
     static GameObject Load(string path)
     {

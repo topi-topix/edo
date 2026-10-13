@@ -24,6 +24,7 @@
 - [見え面の前の土の柱・浅い出隅の石の口(第126巡)](face-front-columns-and-corner-slit-r126.md) — PlaneBand の ext が隣の見え面の前を上げた・天端 0.04 を段と読み端を引いた・坂の端の駒の高さ
 - [練塀の腰なしの駒へ(第124巡)](neribei-nk-koshi-choice-r124.md) — 外面は元から下見板の表・腰の有無は線〜内面の帯の台で・流しの最中に compile_wait を打たない
 - [P12 の斜めの端・外の道の削り(第128巡)](p12-naname-end-and-michi-cut-r128.md) — 一様な坂が床 16.20 を割る・道側 2〜5m の読みが倍率を変える・名は r.name+"_Naname"・試しの S1 の後の hm_pre は前に化ける
+- [第131巡: Ground に NaN で Unity が落ちる・黒い L 字はカメラが長屋の中・皮の退役で天端の裏石の土が地形に無い](r131-ground-nan-crash-and-camera-inside-nagaya.md) — 造成QA は書いた高さの記録で・隙間は建てた後は無い
 - [第129巡: GradeQA と背の路地・吐き口・S3 の飛ばし](r129-grade-seroji-hakiguchi-chain-s3.md)・[第130巡: S3d 単独は地形が変わる・池の岸の枠・G0 の妻](r130-grade-qa-frames-g0-hei-feet.md) — S1 から一続きで流し同じ中で測る・帰属は段ごとの値で
 - [芯線と天端の線(heiLine)の罠](heiline-stretch-and-tenba-r120.md) — d は c の後・床は区間の組で・線は同じドメインだけ(S2〜3d を続けて)・足は 0.91〜1.60・継ぎ目の切り欠きを埋める
 - [.cs の保存直後の Stage は古い DLL で走る・再起動で皮が null](stage-run-on-stale-dll-after-edit.md) — 25 分の 3b が空振り。Stage の前に compile_wait・3b の後は先に書き戻す

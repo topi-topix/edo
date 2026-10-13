@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 94・関数 966(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 94・関数 970(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -25,7 +25,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoDoiBuilder.cs](#edodoibuildercs) | 土井大隅守上屋敷(三河刈谷藩2万3千石・譜代・雁間)ビルダー。 | 15 | 89 |
 | [EdoMatsudairaDewaBuilder.Niwa.cs](#edomatsudairadewabuilderniwacs) | 松平出羽守上屋敷 — 庭の工程(池・築山・水の系・石組・点景・滝見口)。 | 9 | 30 |
 | [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 16 | 120 |
-| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 21 | 283 |
+| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 21 | 287 |
 | [EdoSannoShaBuilder.cs](#edosannoshabuildercs) | 山王権現社(日枝神社)本体+樹下家邸+山王門前町ビルダー (2026-08-11。観理院は 2026-09-26 に類型へ移し削除) | 1 | 31 |
 | [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 13 | 102 |
 | [EdoSanyashikiRebuild.cs](#edosanyashikirebuildcs) | 三屋敷(太田・加納・鍋島=松平肥前守)の区画を下書きv3へ更新 (2026-08-08) | 0 | 6 |
@@ -541,7 +541,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `Edo/岡部筑前守上屋敷/検: 背の路地を解く(据えない)` | `SeRojiReportMenu` | `SeRojiPlanOf`, `SeRojiReport`, `BackTrenchesFull`, `BackTrenches` |
 | `Edo/岡部筑前守上屋敷/3 主郭(棟・廊下・附属屋・井戸・結界・石段)` | `Stage3Menu` | `Stage3_Shukaku`, `Stage3c_SodeSlopeCheck`, `OnKita`, `Stage3c_SodeSlopeCheck_` |
 | `Edo/岡部筑前守上屋敷/3b 溝を据え、溝の下の地面を下げる(皮は退役 2026-10-11)` | `Stage3bMenu` | `Stage3d_Mizo`, `PondBankDesign`, `A`, `Get` |
-| `Edo/岡部筑前守上屋敷/検: 地面と駒の取り合い(皮なし)` | `GroundQAMenu` | `GroundQA`, `OnKita`, `GroundQA_`, `ImplTol` |
+| `Edo/岡部筑前守上屋敷/検: 地面と駒の取り合い(皮なし)` | `GroundQAMenu` | `GroundQA`, `RampWaterQA`, `A`, `Get` |
 | `Edo/岡部筑前守上屋敷/4 庭(部材を据える・地形には触らない)` | `Stage4Menu` | `Stage4_Niwa`, `OnKita`, `Stage4_Niwa_`, `ReviewGate` |
 | `Edo/岡部筑前守上屋敷/5 西の斜面(林・松・帯・汀)` | `Stage5Menu` | `Stage5_Nishi`, `OnKita`, `Stage5_Nishi_`, `ReviewGate` |
 | `Edo/岡部筑前守上屋敷/外周の閉じを検査 ClosureQA` | `ClosureQAMenu` | `ClosureQA`, `OnKita`, `ClosureQA_` |
@@ -695,6 +695,8 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `PlaceKomonFront()` | `string` |  | 小門の前の地面と踏み石(指図 komon[].front ── 施主 2026-10-12「門の前の地面は道の面のまま・土を盛って段を作らない【硬】。 |
 | `Stage3d_Mizo()` | `string` | 公 | 3d 溝(施主裁定 2026-10-11・EDO-0502: 皮をやめ 0.25m の細かい地形へ移った)── Stage3b の皮を外し、皮の前に据えていた溝・桝を据え、 溝・桝の駒の下の地面を駒の底より下げる(Edo… |
 | `Stage3d_Mizo_()` | `string` |  | — |
+| `RampWaterQA()` | `string` | 公 | 坂の水の検め(指図 ramps[].water ── 普請方 2026-10-14・第131巡・測るだけ)。 |
+| `HeiFootQA()` | `string` | 公 | 塀の足の石の上の浮き(測るだけ・EdoBuild.HeiFootOnStoneReport ── 普請検査の hei2 と同じ測りに、隣の塀の駒の躯体が隙を閉じる点を別に数える・第131巡)。 |
 | `GroundQA()` | `string` | 公 | — |
 | `GroundQA_()` | `string` |  | — |
 | `Stage3b_Hifu()` | `string` | 公 | — |
@@ -726,6 +728,8 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `RXm(t, pat)` | `System.Text.RegularExpressions.Match` |  | 二本の線(点 + 向き)の交点。平行なら NaN。 |
 | `LineX(a0, d0, a1, d1)` | `Vector2` |  | — |
 | `PlaceMinamiHei()` | `string` |  | 南の練塀の内の溝 D_MinamiHei(指図 drains[D_MinamiHei] の segs・第115巡 ── 普請方の設計 2026-10-12)。 |
+| `RunBackBands()` | `string` |  | 塀と棟の妻の隙間の土の雨落ち(指図 drains[D_MinamiHei].segs.west.sukima ── 普請方 2026-10-14・第131巡)。 |
+| `SukimaAmaochi(tK, eH, sHead, keep, offM, yHead, FL, At, Corner)` | `string` |  | — |
 | `PlaceSeRojiAnkyo()` | `string` |  | 背の路地の暗渠(指図 drains[D_SeRoji].make ── flow・masu・kuchi・toi・at・table・order・EDO-0502 第109巡)。 |
 | `PlaceDrainFrontGutters()` | `string` |  | 長屋の前の下水溝(drains の route で名指す型)(指図 drains[].route「&lt;棟&gt;/&lt;棟&gt; の前の全長(s a→b)に区画の内の石組の下水溝(型A)」・普請方 2026-10… |
 | `PlaceFrontAnkyo(run, T, tailBottom, sTail, tailPiece)` | `string` |  | 前の下水溝の尻の暗渠(指図 drains D_&lt;棟&gt;_Mae の route ── 普請方 2026-10-10n・EDO-0502 第96巡)。 |

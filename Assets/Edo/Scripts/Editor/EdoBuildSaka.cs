@@ -621,7 +621,10 @@ public static partial class EdoBuild
     /// <summary>背の小段の裏込めを地形へ書く(<see cref="BackBenchAt"/> を節点ごとに・run を順に重ねる)。硬い: 盛るだけ・区画の外は触らない・盛り ≤ maxFill。
     /// ⟶ 返す: 書いた節点の数(盛りの最大は out)。</summary>
     public static int BackBenchWrite(IList<BackBench> ks, out float fillMax) { float cm; return BackBenchWrite(ks, out fillMax, out cm); }
-    public static int BackBenchWrite(IList<BackBench> ks, out float fillMax, out float cutMax)
+    public static int BackBenchWrite(IList<BackBench> ks, out float fillMax, out float cutMax) { return BackBenchWrite(ks, out fillMax, out cutMax, null); }
+    /// <summary><paramref name="recPath"/>: 書いた節点の設計の高さを残す(<see cref="SaveNodeTargets"/> ── 造成QA が domain reload の後も同じ小段を引く。
+    /// ⚠ GradeQA が小段の式を設計面で引き直すと、延長の背の小段(静的な一覧)が reload で消え、盛り ≤ 上限の頭打ちの節点 28 升を超過と読んだ・岡部 第131巡)。</summary>
+    public static int BackBenchWrite(IList<BackBench> ks, out float fillMax, out float cutMax, string recPath)
     {
         fillMax = 0f; cutMax = 0f; if (ks == null || ks.Count == 0) return 0;
         var t = T(); var td = t.terrainData;
@@ -636,7 +639,7 @@ public static partial class EdoBuild
         int x0 = Mathf.Clamp(Mathf.FloorToInt((mnx - reach - tp.x) / cell), 0, hres - 1), z0 = Mathf.Clamp(Mathf.FloorToInt((mnz - reach - tp.z) / cell), 0, hres - 1);
         int x1 = Mathf.Clamp(Mathf.CeilToInt((mxx + reach - tp.x) / cell), 0, hres - 1), z1 = Mathf.Clamp(Mathf.CeilToInt((mxz + reach - tp.z) / cell), 0, hres - 1);
         int w = x1 - x0 + 1, h = z1 - z0 + 1;
-        var H = td.GetHeights(x0, z0, w, h); int n = 0;
+        var H = td.GetHeights(x0, z0, w, h); int n = 0; var rec = recPath != null ? new Dictionary<long, float>() : null;
         for (int iz = 0; iz < h; iz++)
             for (int ix = 0; ix < w; ix++)
             {
@@ -644,10 +647,12 @@ public static partial class EdoBuild
                 float cur = H[iz, ix] * ts.y + tp.y, nw = cur;
                 nw = BackBenchesAt(ks, p, cur);
                 if (Mathf.Abs(nw - cur) < 1e-4f) continue;
+                if (rec != null) rec[((long)(x0 + ix) << 32) ^ (uint)(z0 + iz)] = nw;
                 if (nw > cur) fillMax = Mathf.Max(fillMax, nw - cur); else cutMax = Mathf.Max(cutMax, cur - nw);
                 H[iz, ix] = (nw - tp.y) / ts.y; n++;
             }
         if (n > 0) { td.SetHeightsDelayLOD(x0, z0, H); td.SyncHeightmap(); }
+        if (rec != null) SaveNodeTargets(recPath, t.name, rec, null);
         return n;
     }
 

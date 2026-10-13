@@ -3054,9 +3054,64 @@ public static partial class EdoBuild
     /// **A 面の高さで塞がる**(外が面の中・部材の底 ≤ 面 + 許容)/ **B 駒が浮く**(外が面の中・底 &gt; 面 + 許容 ── 駒を据え直すか
     /// 丈の足りる駒に替える)/ **C 取り合い**(外が面の外で地表が底より低い ── 壁の外形と面の輪郭の取り合い)。
     /// 外へ 0.35m の所が他の駒の外形の中なら駒どうしの溝の中で**見えない**隙に数える。駒ごとの件数と最大を返す。</summary>
-    public static string SkinGapTable(IList<GameObject> parts, IList<SkinFace> faces, float faceTol)
+    /// <summary>**野面の石垣の天端の裏石の帯を土で覆う型を細かい地形へ**(指図 const.nozuraCrestCover ── 皮をやめた 2026-10-11 の後、型は Stage3b の皮の設計にだけ残り
+    /// 地形へは効いていなかった・EDO-0502 第131巡 東の平場の縁の TW_Higashi_Se の背で裏石の尻が平場の上 0.46 に浮いて見えた)。
+    /// 節点ごとに ① <see cref="NozuraCrestCover.Apply"/>(帯 front〜back を天端 + rise・その先 1:bf ── 盛るだけ・表の石の上と見え面の前・keepOut は盛らない)
+    /// ② 見え面の前の縁より奥 0〜back で地面がその場所の駒の底 + 0.05 より低い節点を底 + 0.05 へ(皮の 3f の後段と同じ【硬・浮き 0】)。
+    /// <paramref name="otherPart"/> が真の節点(野面でない部材の外形と縁)・<paramref name="allow"/> が偽の節点は触らない。上げるだけ。書くのは <see cref="T"/>。
+    /// <paramref name="recPath"/>: 書いた節点の設計の高さを造成QA へ残す(<see cref="AppendNodeTargets"/>)。⟶ 盛った節点・最大・底の下の上げ・keepOut で止めた点。
+    /// ⚠ <paramref name="bandToo"/> = ① も効かせる。第131巡の試しで ① は隅・端の駒の背の帯が低い庭・路地へ回り込み 4.68m の土を盛る所が出た(TW_Higashi_Hokuto_5_0_kado2 ほか)── 皮の段3f が持っていた
+    /// 縁の点(PIN)・皮の範囲の篩を地形へ写すまでは ② だけ(false)で使う。
+    /// 当たる先: 野面の乱積みの段の土留めを細かい地形の上に据える邸すべて(岡部 Stage3d の Dan ── 土井・松江松平を細かい地形へ移すとき)。</summary>
+    public static string CrestCoverToTerrain(NozuraCrestCover cc, Func<Vector2, bool> allow, Func<Vector2, bool> otherPart, string undoPath, string recPath, bool bandToo)
+    {
+        if (cc == null || cc.list.Count == 0) return "天端の裏石の帯の土: 覆う駒なし";
+        var t = T(); var td = t.terrainData; var org = t.transform.position; int R = td.heightmapResolution; float hs = td.size.x / (R - 1);
+        var undo = new List<float[]>(); var rec = new Dictionary<long, float>(); int nUp = 0, nUnder = 0, nOther = 0; float mUp = 0f, mUnder = 0f; int blocked0 = cc.blocked;
+        foreach (var fb in cc.list)
+        {
+            int i0 = Mathf.Max(0, Mathf.FloorToInt((fb.box.x - org.x) / hs)), i1 = Mathf.Min(R - 1, Mathf.CeilToInt((fb.box.z - org.x) / hs));
+            int j0 = Mathf.Max(0, Mathf.FloorToInt((fb.box.y - org.z) / hs)), j1 = Mathf.Min(R - 1, Mathf.CeilToInt((fb.box.w - org.z) / hs));
+            if (i1 < i0 || j1 < j0) continue;
+            var H = td.GetHeights(i0, j0, i1 - i0 + 1, j1 - j0 + 1); bool dirty = false;
+            for (int j = j0; j <= j1; j++)
+                for (int i = i0; i <= i1; i++)
+                {
+                    var q = new Vector2(org.x + i * hs, org.z + j * hs); if (allow != null && !allow(q)) continue;
+                    float cur = H[j - j0, i - i0] * td.size.y + org.y, y1 = cur;
+                    bool inT = !float.IsNaN(cc.Target(q));
+                    if (inT && otherPart != null && otherPart(q)) { nOther++; continue; }
+                    if (inT && bandToo) y1 = cc.Apply(q, cur);
+                    {   // ② 背の側(どれかの見え面の前の縁から奥 0〜back)で駒の底より低い所 ── 駒の外形の中だけ(駒の下の隙を埋める・外へ土の柱を立てない)
+                        bool behind = false; foreach (var f2 in cc.list) { int bb; float dd; if (cc.FaceAt(f2, q, out bb, out dd) && dd >= 0f && dd <= cc.back) { behind = true; break; } }
+                        if (behind && !cc.NearOtherPiece(q, null, 0.001f)) behind = false;
+                        if (behind && !(otherPart != null && otherPart(q))) { float lb = cc.LocalBottom(q); if (!float.IsNaN(lb) && y1 < lb + 0.05f - 1e-4f) { mUnder = Mathf.Max(mUnder, lb + 0.05f - y1); y1 = lb + 0.05f; nUnder++; } }
+                    }
+                    if (y1 <= cur + 1e-4f) continue;
+                    long k = ((long)i << 32) ^ (uint)j; rec[k] = y1; mUp = Mathf.Max(mUp, y1 - cur); nUp++;
+                    undo.Add(new[] { i, j, (y1 - org.y) / td.size.y, H[j - j0, i - i0] }); H[j - j0, i - i0] = (y1 - org.y) / td.size.y; dirty = true;
+                }
+            if (dirty) td.SetHeights(i0, j0, H);
+        }
+        if (nUp > 0) AssetDatabase.SaveAssetIfDirty(td);
+        WriteUndo(undoPath, t.name, undo); AppendNodeTargets(recPath, t.name, rec);
+        return "天端の裏石の帯の土(const.nozuraCrestCover を地形へ・盛るだけ): 帯 " + cc.list.Count + "・盛った節点 " + nUp + "(最大 " + mUp.ToString("F2") + ")・うち背の側で駒の底 +0.05 へ上げた " + nUnder + "(最大 " + mUnder.ToString("F2") + ")"
+             + "・野面でない部材の外形と縁で止めた " + nOther + "・長屋の背の一間・犬走りで止めた " + (cc.blocked - blocked0) + "(最大 " + cc.blockedMax.ToString("F2") + ")";
+    }
+
+    public static string SkinGapTable(IList<GameObject> parts, IList<SkinFace> faces, float faceTol) { return SkinGapTable(parts, faces, faceTol, null); }
+    /// <summary><see cref="SkinGapTable(IList{GameObject},IList{SkinFace},float)"/> に**覆うだけの駒の外形** <paramref name="cover"/> を足した物(2026-10-14 EDO-0502 第131巡)。
+    /// 測る駒(<paramref name="parts"/>)の外の点が、測らない駒(囲いの塀・棟・段に接しない台の石垣 ── 見え面の取り合いを検める相手でない駒)の足の外形の中に落ちると、
+    /// その駒の下で下げた地形を地表と読んで C(面の外の取り合い)に数えていた(岡部 桝 G0 の 1.89 は N12_0 の台の石 IG_N12_0 の中・m00 の 0.87 は S_Hei_06 の塀の足の中)。
+    /// cover の外形の中の点は「駒の下 ── 見えない」として測らない(隠れの判定 0.35 先にも効かせる)。⛔ 測る駒を増やさない(測る相手は従前のまま)。
+    /// 当たる先: 造成QA の地面と駒の取り合い(岡部 GroundQA)── 以後、測る駒と覆う駒が別れる検めすべて。</summary>
+    public static string SkinGapTable(IList<GameObject> parts, IList<SkinFace> faces, float faceTol, IList<Vector2[]> cover)
     {
         var idx = new TopIndex(); foreach (var g in parts) if (g != null && g.activeInHierarchy) idx.Add(g);
+        var cov = new List<Vector2[]>(); var covB = new List<Vector4>();
+        if (cover != null) foreach (var h in cover) { if (h == null || h.Length < 3) continue; cov.Add(h); float x0 = float.MaxValue, z0 = float.MaxValue, x1 = float.MinValue, z1 = float.MinValue; foreach (var q in h) { x0 = Mathf.Min(x0, q.x); z0 = Mathf.Min(z0, q.y); x1 = Mathf.Max(x1, q.x); z1 = Mathf.Max(z1, q.y); } covB.Add(new Vector4(x0, z0, x1, z1)); }
+        Func<Vector2, bool> inCover = q => { for (int i = 0; i < cov.Count; i++) { var b = covB[i]; if (q.x < b.x || q.x > b.z || q.y < b.y || q.y > b.w) continue; if (EdoGeom.PIP(cov[i], q)) return true; } return false; };
+        int nCov = 0;
         var dg = Drawn();
         var fl = new List<SkinFace>(); if (faces != null) fl.AddRange(faces);
         fl.Sort((a, b) => Area(a.poly).CompareTo(Area(b.poly)));
@@ -3086,12 +3141,14 @@ public static partial class EdoBuild
                     if (float.IsNaN(top)) continue;
                     bool covered = false; foreach (var h2 in idx.hulls) if (EdoGeom.PIP(h2, pout)) { covered = true; break; }
                     if (covered) continue;
+                    if (cov.Count > 0 && inCover(pout)) { nCov++; continue; }
                     float gout = dg.At(pout.x, pout.y); if (float.IsNaN(gout) || gout >= bot - 0.01f) continue;
                     float fy = float.NaN; string fn = "-";
                     foreach (var f in fl) if (EdoGeom.PIP(f.poly, pout)) { fy = f.y; fn = f.name; break; }
                     int c = float.IsNaN(fy) ? 2 : (bot <= fy + faceTol - 0.02f ? 0 : 1);
                     var far = pe + nrm * 0.35f; bool hide = false;
                     for (int k2 = 0; k2 < idx.hulls.Count && !hide; k2++) if (k2 != k && EdoGeom.PIP(idx.hulls[k2], far)) hide = true;
+                    if (!hide && cov.Count > 0 && inCover(far)) hide = true;
                     if (hide) { hid[c]++; continue; }
                     cnt[c]++;
                     // 見え面(ローカル +X)の側か背の側か
@@ -3108,7 +3165,7 @@ public static partial class EdoBuild
         var sb = new System.Text.StringBuilder();
         sb.AppendLine("  隙の内訳(見える / 駒どうしの溝の中で見えない): A 面の高さで塞がる " + cnt[0] + " / " + hid[0] +
                       " ・ B 駒が浮く(底 > 面 + " + faceTol.ToString("F2") + ") " + cnt[1] + " / " + hid[1] +
-                      " ・ C 面の外の取り合い " + cnt[2] + " / " + hid[2]);
+                      " ・ C 面の外の取り合い " + cnt[2] + " / " + hid[2] + (cov.Count > 0 ? " ・ 覆う駒(測らない駒 " + cov.Count + ")の足の下で測らない点 " + nCov : ""));
         foreach (var kv in tab)
         {
             var v = kv.Value;

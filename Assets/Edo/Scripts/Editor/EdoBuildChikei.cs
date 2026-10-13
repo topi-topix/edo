@@ -220,7 +220,7 @@ public static partial class EdoBuild
     /// ⛔ 帯の外は触らない(道は掘らない・盛らない【硬】)。内の側(台の石垣の根・<paramref name="outAt"/> を渡したとき)は**上げるだけ**(根を埋める側へ)── 石垣の見え面の下の節点は後で <see cref="SinkGroundUnderParts"/> が面より下げる。
     /// 書くのは <see cref="T"/>。控えは <see cref="RestoreSunkGround"/> と同じ書式(据え直しの前に戻す)。⟶ 上げた・下げた節点の数と最大。
     /// 当たる先: 地表と面一に埋める溝すべて(岡部 D_N40_Mae・Mizo_*)。同じ型は D_N39_1_Mae・土井の溝へ移せる。</summary>
-    public static string FlushGroundToMizoTop(IEnumerable<GameObject> pieces, IDictionary<GameObject, float> coverTop, float band = 0.30f, string undoPath = null, Func<Vector2, Vector2> outAt = null)
+    public static string FlushGroundToMizoTop(IEnumerable<GameObject> pieces, IDictionary<GameObject, float> coverTop, float band = 0.30f, string undoPath = null, Func<Vector2, Vector2> outAt = null, string recPath = null)
     {
         var t = T(); var td = t.terrainData; var org = t.transform.position; int R = td.heightmapResolution; float hs = td.size.x / (R - 1);
         var want = new Dictionary<long, Vector3>();   // 節点 → (高さ, 外形からの距離, 上げるだけ)
@@ -280,6 +280,7 @@ public static partial class EdoBuild
             if (undo.Count > 0) { td.SetHeights(i0, j0, H); AssetDatabase.SaveAssetIfDirty(td); }
         }
         WriteUndo(undoPath, t.name, undo);
+        if (recPath != null) { var rec = new Dictionary<long, float>(); foreach (var kv in want) rec[kv.Key] = kv.Value.x; AppendNodeTargets(recPath, t.name, rec); }   // 造成QA が帯の設計の高さを引く(第131巡)
         return "溝の両脇 " + band.ToString("0.00") + "m の地面を縁石の天端へ合わせた: 駒 " + nPiece + "・上げた節点 " + nUp + "(最大 " + mUp.ToString("F3") + ")・下げた節点 " + nDown + "(最大 " + mDown.ToString("F3") + ")" + (nApronAll > 0 ? "・うち地際の張り出しの駒 " + nApronAll + "(帯は板の外の縁から・高さは板の外の縁の天端)" : "") + "(地形 " + t.name + ")";
     }
 
@@ -288,7 +289,7 @@ public static partial class EdoBuild
     /// 駒の実メッシュの側の壁(|x| ≥ 0.30)の頂点の最も高い所を局所 z の 0.05 刻みで測り(側ごと)、駒の外形の外 <paramref name="band"/> 以内の節点をその局所 z の天端へ(上げも下げも)。
     /// 二つの駒の帯に入る節点は外形に近い方。外形の中は触らない(<see cref="SinkGroundUnderMizo"/> が下げる)。帯の外は触らない【硬】。書くのは <see cref="T"/>。
     /// 当たる先: Doi_DanOchi_* を地表に埋める所すべて(岡部 D_MinamiHei・土井 D9/D10/D11 を移すとき)。</summary>
-    public static string FlushGroundToStepTop(IEnumerable<GameObject> pieces, float band = 0.30f, string undoPath = null)
+    public static string FlushGroundToStepTop(IEnumerable<GameObject> pieces, float band = 0.30f, string undoPath = null, string recPath = null)
     {
         var t = T(); var td = t.terrainData; var org = t.transform.position; int R = td.heightmapResolution; float hs = td.size.x / (R - 1);
         var want = new Dictionary<long, Vector2>(); int nPiece = 0; var prof = new Dictionary<string, SortedDictionary<int, float>[]>();
@@ -342,6 +343,7 @@ public static partial class EdoBuild
             if (undo.Count > 0) { td.SetHeights(i0, j0, H); AssetDatabase.SaveAssetIfDirty(td); }
         }
         WriteUndo(undoPath, t.name, undo);
+        if (recPath != null) { var rec = new Dictionary<long, float>(); foreach (var kv in want) rec[kv.Key] = kv.Value.x; AppendNodeTargets(recPath, t.name, rec); }   // 造成QA が引く(第131巡)
         return "段落ちの両脇 " + band.ToString("0.00") + "m の地面を駒の側の天端へ合わせた: 駒 " + nPiece + "・上げた節点 " + nUp + "(最大 " + mUp.ToString("F3") + ")・下げた節点 " + nDown + "(最大 " + mDown.ToString("F3") + ")(地形 " + t.name + ")";
     }
 
@@ -359,9 +361,16 @@ public static partial class EdoBuild
     /// 法は付けない(多角形の外は触らない【硬】)── 面の縁の段は呼び手の多角形の取り方(石垣・塀の下へ入れる)で隠す。
     /// 書くのは <see cref="T"/>(邸の Stage が名指した地形)。⟶ 書いた節点の数(上げ・下げの最大は out)。
     /// 当たる先: 指図が「床のまま通す」「道の面のまま」と面の高さを名指す狭い所(岡部 背の路地の南の延長・通用門の前)。</summary>
-    public static int GroundToPoly(Vector2[] poly, Func<Vector2, float> yAt, out float maxUp, out float maxDown)
+    public static int GroundToPoly(Vector2[] poly, Func<Vector2, float> yAt, out float maxUp, out float maxDown) { float v; return GroundToPoly(poly, yAt, false, out maxUp, out maxDown, out v); }
+    /// <summary><see cref="GroundToPoly(Vector2[],Func{Vector2,float},out float,out float)"/> に「盛るだけ」(<paramref name="raiseOnly"/> ── 今の地面が面より高い節点は触らない)と盛りの体積[m³]を足した物。
+    /// 当たる先: 指図が「盛るだけ」と名指す狭い土の面(岡部 D_MinamiHei の隙間の土の雨落ち segs.west.sukima・第131巡)。</summary>
+    public static int GroundToPoly(Vector2[] poly, Func<Vector2, float> yAt, bool raiseOnly, out float maxUp, out float maxDown, out float fillM3) { return GroundToPoly(poly, yAt, raiseOnly ? 1 : 0, out maxUp, out maxDown, out fillM3); }
+    /// <summary><paramref name="sign"/> = +1 盛るだけ・−1 削るだけ(今の地面が面より低い節点は触らない ── 擦り付けの上限)・0 両方。
+    /// 当たる先: 棟の背の帯を座 − d 以下へ下げ、その先を勾配の上限で擦り付ける所(岡部 runs[N40_1].back・第131巡)。</summary>
+    public static int GroundToPoly(Vector2[] poly, Func<Vector2, float> yAt, int sign, out float maxUp, out float maxDown, out float fillM3)
     {
-        maxUp = 0f; maxDown = 0f; if (poly == null || poly.Length < 3) return 0;
+        bool raiseOnly = sign > 0, lowerOnly = sign < 0;
+        maxUp = 0f; maxDown = 0f; fillM3 = 0f; if (poly == null || poly.Length < 3) return 0;
         var t = T(); var td = t.terrainData; var org = t.transform.position; int R = td.heightmapResolution; float hs = td.size.x / (R - 1);
         float x0 = float.MaxValue, x1 = float.MinValue, z0 = float.MaxValue, z1 = float.MinValue;
         foreach (var p in poly) { x0 = Mathf.Min(x0, p.x); x1 = Mathf.Max(x1, p.x); z0 = Mathf.Min(z0, p.y); z1 = Mathf.Max(z1, p.y); }
@@ -375,7 +384,9 @@ public static partial class EdoBuild
                 var q = new Vector2(org.x + i * hs, org.z + j * hs); if (!EdoGeom.PIP(poly, q)) continue;
                 float y = yAt(q); if (float.IsNaN(y)) continue;
                 float cur = H[j - j0, i - i0] * td.size.y + org.y; if (Mathf.Abs(y - cur) < 1e-4f) continue;
-                if (y > cur) maxUp = Mathf.Max(maxUp, y - cur); else maxDown = Mathf.Max(maxDown, cur - y);
+                if (raiseOnly && y < cur) continue;
+                if (lowerOnly && y > cur) continue;
+                if (y > cur) { maxUp = Mathf.Max(maxUp, y - cur); fillM3 += (y - cur) * hs * hs; } else maxDown = Mathf.Max(maxDown, cur - y);
                 H[j - j0, i - i0] = (y - org.y) / td.size.y; n++;
             }
         if (n > 0) { td.SetHeights(i0, j0, H); AssetDatabase.SaveAssetIfDirty(td); }
@@ -664,6 +675,16 @@ public static partial class EdoBuild
         if (want != null) foreach (var kv in want) { if (float.IsInfinity(kv.Value) || float.IsNaN(kv.Value)) continue; sb.Append("w\t" + (int)(kv.Key >> 32) + "\t" + (int)(uint)(kv.Key & 0xffffffff) + "\t" + kv.Value.ToString("R", inv) + "\n"); }
         if (cap != null) foreach (var kv in cap) sb.Append("c\t" + (int)(kv.Key >> 32) + "\t" + (int)(uint)(kv.Key & 0xffffffff) + "\t" + kv.Value.ToString("R", inv) + "\n");
         System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)); System.IO.File.WriteAllText(path, sb.ToString());
+    }
+    /// <summary><see cref="SaveNodeTargets"/> の足し書き(同じ地形の記録へ節点 → 設計の高さを追記 ── 後の行が勝つ)。無ければ新しく起こす。
+    /// 当たる先: 一つの Stage の中で何度も地面を書く手(岡部 Stage3d の溝の両脇の帯・段落ちの両脇・天端の裏石の帯 ── 造成QA が同じ記録を引く・第131巡)。</summary>
+    public static void AppendNodeTargets(string path, string terrainName, Dictionary<long, float> want)
+    {
+        if (path == null || want == null || want.Count == 0) return;
+        var inv = System.Globalization.CultureInfo.InvariantCulture; var sb = new System.Text.StringBuilder();
+        if (!System.IO.File.Exists(path)) sb.Append("T\t" + terrainName + "\n");
+        foreach (var kv in want) { if (float.IsInfinity(kv.Value) || float.IsNaN(kv.Value)) continue; sb.Append("w\t" + (int)(kv.Key >> 32) + "\t" + (int)(uint)(kv.Key & 0xffffffff) + "\t" + kv.Value.ToString("R", inv) + "\n"); }
+        System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)); System.IO.File.AppendAllText(path, sb.ToString());
     }
     /// <summary><see cref="SaveNodeTargets"/> を読む ⟶ 節点 → (面の高さ NaN 可, 上限 NaN 可)。地形の名が違えば・無ければ null。</summary>
     public static Dictionary<long, Vector2> LoadNodeTargets(string path, string terrainName)

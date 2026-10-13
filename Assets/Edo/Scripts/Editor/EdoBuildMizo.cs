@@ -2006,6 +2006,28 @@ public static partial class EdoBuild
         return found;
     }
 
+    /// <summary>**溝の頭を小口の石で止める**(部材の約束は <c>EdoAssets.Own.DoiMizoKoguchi</c> ── A / A_Ago の 1m 駒と同じピボット・局所 −Z の端を塞ぐ)。
+    /// 頭の駒 <paramref name="head"/> と同じ position・rotation で据え、頭の駒の −Z が上流(<paramref name="flowDir"/> の逆)を向かなければ 180° 返す。
+    /// ⛔ 位置を推し量らない(駒の端の面は頭の駒の端の面のまま)。⟶ 据えた石(据わらなければ null)・flipped = 180° 返したか。
+    /// 当たる先: 頭を小口で止める溝のすべて(岡部 台の前の溝 sections[].end「小口の石で止める」・D_MinamiHei の辺10 の溝の頭 segs.west.head ── 第131巡に二か所の同じ手を一つにした)。</summary>
+    public static GameObject PlaceMizoKoguchi(Transform parent, GameObject head, Vector2 flowDir, string name, out bool flipped)
+    {
+        flipped = false; if (head == null) return null;
+        Vector3 fw = head.transform.forward; flipped = Vector2.Dot(new Vector2(fw.x, fw.z), flowDir) < 0f;   // +Z が下流 ⇒ −Z の端 = 頭
+        var kgo = Place(EdoAssets.Own.DoiMizoKoguchi, head.transform.position, head.transform.eulerAngles.y + (flipped ? 180f : 0f), Vector3.one, parent, name);
+        if (kgo == null) return null;
+        kgo.transform.rotation = head.transform.rotation * Quaternion.Euler(0f, flipped ? 180f : 0f, 0f); kgo.transform.position = head.transform.position;
+        return kgo;
+    }
+
+    /// <summary>**点から凸の外形までの離れ**(XZ・外形の中なら負 = −縁までの距離)。当たる先: 溝の頭を棟の足から離す所(岡部 D_MinamiHei 辺10 の頭 × N12_0)。</summary>
+    public static float PointHullGapXZ(Vector2 q, List<Vector2> hull)
+    {
+        if (hull == null || hull.Count < 3) return float.NaN;
+        var hl = new List<Vector2>(hull) { hull[0] }; float d = Vector2.Distance(q, ClosestOn(hl, q));
+        return EdoGeom.PIP(hull.ToArray(), q) ? -d : d;
+    }
+
     /// <summary><see cref="FitTailToMasuFace"/> の答え。moved = 尻を動かした量(+ 延ばした・− 詰めた)/ gap = 小口の両隅のうち桝の外の面の正方形の外へ残った最悪[m](0 = 両隅が届いた)/
     /// reached = 両隅が届き、尻の駒が内法の窪みに掛からない(硬 ⭕)/ ok = 窪みに掛からない置き場が在った(線を返した)。</summary>
     public class TailFit { public bool ok, reached; public List<Vector2> line; public float moved, gap = float.NaN, buryMin, buryMax; public string note; }

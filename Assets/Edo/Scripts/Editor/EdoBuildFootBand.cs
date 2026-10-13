@@ -218,6 +218,53 @@ public static partial class EdoBuild
         return best.yAt(bs);
     }
 
+    /// <summary>**塀の足の頂点の石の上の浮き**(測るだけ・2026-10-14 EDO-0502 第131巡 ── 普請検査の hei2 の測りを関数へ写し、隣の駒の閉じを足した)。
+    /// 駒ごとに足の頂点(0.25m の升ごとの最も低い頂点 +0.02 の内)の真下の石の面(<paramref name="stones"/> の三角形・頂点 +0.3 より下で最も高い所)を測り、浮き = 頂点 − 面。
+    /// 下 1m に石が無い点は「石なし」(地面の上 ── この測りの外)。⭐ 浮いた点の真下の隙が**隣の塀の駒の躯体で閉じる**(隣の駒の足の外形の 0.03 内で、隣の駒の底 ≤ 面 + 0.02・
+    /// 天端 ≥ 頂点)なら、見えない隙として別に数える(第130巡: 上の段の棟止め NW_Hei_1_TomeA の足の隅の頂点が下の段の台の天端の上 0.91 に出ていたが、下の段の塀の躯体がその下を閉じ、内外の近景で隙は見えない)。
+    /// ⟶ 頭の一行(駒・点・浮き・閉じ・最大)+ 浮きの駒ごとの行。当たる先: 段を下る練塀・棟止めの足と台の石垣の取り合い(岡部の外周)── 塀を石の天端に据える邸すべて。</summary>
+    public static string HeiFootOnStoneReport(IList<GameObject> walls, IList<GameObject> stones, out int nFloat, out float worst)
+    {
+        var inv = System.Globalization.CultureInfo.InvariantCulture; nFloat = 0; worst = 0f;
+        var sbb = new List<Bounds>(); foreach (var st in stones) sbb.Add(RB(st));
+        var triCache = new Dictionary<GameObject, Vector3[]>();
+        Func<GameObject, Vector3[]> tris = g => { Vector3[] r; if (triCache.TryGetValue(g, out r)) return r; var L = new List<Vector3>(); foreach (var mf in g.GetComponentsInChildren<MeshFilter>()) { if (mf.sharedMesh == null) continue; var vs = mf.sharedMesh.vertices; var ts = mf.sharedMesh.triangles; var m = mf.transform.localToWorldMatrix; var w = new Vector3[vs.Length]; for (int i = 0; i < vs.Length; i++) w[i] = m.MultiplyPoint3x4(vs[i]); for (int i = 0; i < ts.Length; i++) L.Add(w[ts[i]]); } r = L.ToArray(); triCache[g] = r; return r; };
+        Func<Vector3[], float, float, float, float> hitY = (T, x, z, yTop) => { float best = float.NegativeInfinity; for (int i = 0; i + 2 < T.Length; i += 3) { Vector3 a = T[i], b = T[i + 1], c = T[i + 2]; if (x < Mathf.Min(a.x, Mathf.Min(b.x, c.x)) || x > Mathf.Max(a.x, Mathf.Max(b.x, c.x)) || z < Mathf.Min(a.z, Mathf.Min(b.z, c.z)) || z > Mathf.Max(a.z, Mathf.Max(b.z, c.z))) continue; float d = (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z); if (Mathf.Abs(d) < 1e-9f) continue; float l1 = ((b.z - c.z) * (x - c.x) + (c.x - b.x) * (z - c.z)) / d, l2 = ((c.z - a.z) * (x - c.x) + (a.x - c.x) * (z - c.z)) / d, l3 = 1 - l1 - l2; if (l1 < -1e-4f || l2 < -1e-4f || l3 < -1e-4f) continue; float y = l1 * a.y + l2 * b.y + l3 * c.y; if (y <= yTop && y > best) best = y; } return best; };
+        // 隣の塀の駒: 足の外形(屋根を除く躯体)・底・天端
+        var wHull = new Dictionary<GameObject, List<Vector2>>(); var wBot = new Dictionary<GameObject, float>(); var wTop = new Dictionary<GameObject, float>(); var wB = new Dictionary<GameObject, Bounds>();
+        foreach (var w in walls) { if (w == null || !w.activeInHierarchy) continue; var vs = BodyExRoof(w.transform, 999999); if (vs.Count < 3) continue; float y0 = float.MaxValue, y1 = float.MinValue; var xz = new List<Vector2>(); foreach (var v in vs) { y0 = Mathf.Min(y0, v.y); y1 = Mathf.Max(y1, v.y); xz.Add(new Vector2(v.x, v.z)); } var h = ConvexHull2(xz); if (h.Count < 3) continue; wHull[w] = h; wBot[w] = y0; wTop[w] = y1; wB[w] = RB(w); }
+        var lines = new List<string>(); int pieces = 0, ptsAll = 0, ptsFl = 0, ptsClosed = 0, ptsVoid = 0; string flW = "";
+        foreach (var pc in walls)
+        {
+            if (pc == null || !pc.activeInHierarchy || !wHull.ContainsKey(pc)) continue;
+            var pa = Body(pc.transform, 999999, false); if (pa.Count == 0) continue;
+            var cellMin = new Dictionary<long, float>();
+            foreach (var v in pa) { long k = ((long)Mathf.FloorToInt(v.x / 0.25f) << 32) ^ (uint)Mathf.FloorToInt(v.z / 0.25f); float o; if (!cellMin.TryGetValue(k, out o) || v.y < o) cellMin[k] = v.y; }
+            var b = RB(pc); b.Expand(new Vector3(0.2f, 4f, 0.2f)); var near = new List<Vector3[]>(); for (int i = 0; i < stones.Count; i++) if (stones[i] != null && stones[i].activeInHierarchy && sbb[i].Intersects(b)) near.Add(tris(stones[i]));
+            if (near.Count == 0) continue;
+            var nbs = new List<GameObject>(); var bb = wB[pc]; bb.Expand(0.3f); foreach (var kv in wB) if (kv.Key != pc && kv.Value.Intersects(bb)) nbs.Add(kv.Key);
+            pieces++; int pf = 0, pcl = 0; float pmax = 0f; Vector3 pat = Vector3.zero; string clBy = ""; var seen = new HashSet<long>();
+            foreach (var v in pa)
+            {
+                int cx = Mathf.FloorToInt(v.x / 0.25f), cz = Mathf.FloorToInt(v.z / 0.25f); long k = ((long)cx << 32) ^ (uint)cz; if (v.y > cellMin[k] + 0.02f) continue; long k2 = ((long)Mathf.RoundToInt(v.x * 50) << 32) ^ (uint)Mathf.RoundToInt(v.z * 50); if (!seen.Add(k2)) continue;
+                //   ⭐ 足でない頂点を外す: 隣の升(3×3)に 0.05 より低い頂点が在れば、その頂点は小口・切った端の面の上の点(低ポリの駒は底の頂点が隅にしか無い ──
+                //   第131巡 N_Hei_26_1_4 の 0.202 は端の小口の面の頂点 19.31 で、隣の升の足は 19.00)。坂なりの駒は 0.35m で 0.05 より下らない(1/7 以下)。
+                { bool lower = false; for (int ix = -1; ix <= 1 && !lower; ix++) for (int iz = -1; iz <= 1 && !lower; iz++) { float o; if (cellMin.TryGetValue(((long)(cx + ix) << 32) ^ (uint)(cz + iz), out o) && o < v.y - 0.05f) lower = true; } if (lower) continue; }
+                float best = float.NegativeInfinity; foreach (var T in near) { float y = hitY(T, v.x, v.z, v.y + 0.3f); if (y > best) best = y; }
+                ptsAll++; if (float.IsNegativeInfinity(best) || v.y - best > 1.0f) { ptsVoid++; continue; }
+                float g = v.y - best; if (g <= 0.01f) continue;
+                GameObject cl = null; var q = new Vector2(v.x, v.z);
+                foreach (var nb in nbs) { if (wBot[nb] > best + 0.02f || wTop[nb] < v.y) continue; float gp = PointHullGapXZ(q, wHull[nb]); if (!float.IsNaN(gp) && gp <= 0.03f) { cl = nb; break; } }
+                if (cl != null) { pcl++; ptsClosed++; clBy = cl.name; continue; }
+                pf++; ptsFl++; if (g > pmax) { pmax = g; pat = v; }
+            }
+            if (pf > 0) { nFloat++; if (pmax > worst) { worst = pmax; flW = pc.name; } lines.Add("    浮き " + pc.name + " 点 " + pf + " 最大 " + pmax.ToString("F3", inv) + " @(" + pat.x.ToString("F2", inv) + "," + pat.y.ToString("F2", inv) + "," + pat.z.ToString("F2", inv) + ")" + (pcl > 0 ? "・隣で閉じる " + pcl : "")); }
+            else if (pcl > 0) lines.Add("    閉じ " + pc.name + " 点 " + pcl + "(隣の駒 " + clBy + " の躯体が隙を閉じる ── 見えない)");
+        }
+        return "塀の足の頂点の石の上の浮き(> 0.01): 駒 " + pieces + "・足の点 " + ptsAll + "・浮き " + ptsFl + " 点(駒 " + nFloat + ")最大 " + worst.ToString("F3", inv) + (nFloat == 0 ? " ⭕" : " ⛔ " + flW)
+             + "・隣の塀の駒の躯体が閉じる " + ptsClosed + " 点(見えない)・下 1m に石なし " + ptsVoid + "\n" + string.Join("\n", lines.ToArray());
+    }
+
     /// <summary>**足の浮き・埋まりを測る**(測るだけ)── 駒ごとに、足 = 駒の実頂点の最も低い所(据えた駒は水平 ⇒ 足は一本の高さ)、内面 = その駒の頂点の 95% 点の控え。
     /// 駒が覆う走りの区間を 0.25m ごとに、内面の 0.05 内の地表と比べる。浮き = 足 − 地表(> 0 が浮き・⛔ 低ポリの面の頂点は端にしか無いので升ごとの最低で測らない)。
     /// ⟶ 線ごとの 浮きの最大・埋まりの最小/最大・測った点の数。</summary>

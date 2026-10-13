@@ -110,6 +110,104 @@ public static partial class EdoBuild
         return n;
     }
 
+    /// <summary>**据えた駒の平面の外形の索引**(駒ごとに壁体の頂点の凸包・2m の升で引く)── 「その節点の地面は駒に覆われて見えないか」を問う(<see cref="Covers"/>)。
+    /// 造成QA が駒の下の地面(溝・石垣の下げ・塀の足の下の上げ ── 駒の外形の中と縁の一升)を超過と別に刷るのに使う(EDO-0502 第129巡)。
+    /// ⛔ 凸包なので L 字の駒は入りの三角を含む(覆うと読む側に倒れる)── 隅の駒は腕ごとの駒でないと甘く読む。当たる先: 造成QA(岡部)。</summary>
+    public class HullIndex
+    {
+        readonly List<Vector2[]> hulls = new List<Vector2[]>(); readonly List<Vector4> box = new List<Vector4>();
+        readonly Dictionary<long, List<int>> cells = new Dictionary<long, List<int>>();
+        static long K(int x, int z) { return ((long)x << 32) ^ (uint)z; }
+        public int Count { get { return hulls.Count; } }
+        public void Add(GameObject g)
+        {
+            if (g == null || !g.activeInHierarchy) return;
+            var vs = Body(g.transform, 4000); if (vs.Count < 3) return;
+            var pts = new List<Vector2>(vs.Count); foreach (var v in vs) pts.Add(new Vector2(v.x, v.z));
+            var h = ConvexHull2(pts); if (h == null || h.Count < 3) return;
+            var ha = h.ToArray(); float x0 = float.MaxValue, x1 = float.MinValue, z0 = float.MaxValue, z1 = float.MinValue;
+            foreach (var q in ha) { x0 = Mathf.Min(x0, q.x); x1 = Mathf.Max(x1, q.x); z0 = Mathf.Min(z0, q.y); z1 = Mathf.Max(z1, q.y); }
+            int id = hulls.Count; hulls.Add(ha); box.Add(new Vector4(x0, z0, x1, z1));
+            for (int ix = Mathf.FloorToInt(x0 / 2f) - 1; ix <= Mathf.FloorToInt(x1 / 2f) + 1; ix++)
+                for (int iz = Mathf.FloorToInt(z0 / 2f) - 1; iz <= Mathf.FloorToInt(z1 / 2f) + 1; iz++)
+                { List<int> l; long k = K(ix, iz); if (!cells.TryGetValue(k, out l)) cells[k] = l = new List<int>(); l.Add(id); }
+        }
+        /// <summary>点 q が駒の外形の中か、外形から <paramref name="pad"/> 以内か。</summary>
+        public bool Covers(Vector2 q, float pad)
+        {
+            List<int> l; if (!cells.TryGetValue(K(Mathf.FloorToInt(q.x / 2f), Mathf.FloorToInt(q.y / 2f)), out l)) return false;
+            foreach (var id in l)
+            {
+                var b = box[id]; if (q.x < b.x - pad || q.x > b.z + pad || q.y < b.y - pad || q.y > b.w + pad) continue;
+                if (EdoGeom.PIP(hulls[id], q) || (pad > 0f && EdgeDistPublic(hulls[id], q) <= pad)) return true;
+            }
+            return false;
+        }
+    }
+
+    /// <summary>書いた帯の**設計**(線・内面の控え・走りの範囲・帯の高さ yAt を 0.1m ごとに)を <paramref name="path"/> へ残す(上書き)。造成QA が domain reload の後も
+    /// 同じ帯を引けるように(帯の線は据えた駒の実メッシュと天端の線から解くので、算出物 graded は知らない)。⛔ 地形の今の高さは書かない ── 欄の式の値だけ。
+    /// 当たる先: WriteFootBand を呼ぶ所(岡部 天端の線の内の帯・heiFootSpec の帯)── EDO-0502 第129巡。</summary>
+    public static void SaveFootBand(string path, List<FootLine> lines, float from, float to, float featherN, float featherCutN, float reach)
+    {
+        var inv = System.Globalization.CultureInfo.InvariantCulture; var sb = new System.Text.StringBuilder();
+        sb.AppendLine("P\t" + from.ToString("R", inv) + "\t" + to.ToString("R", inv) + "\t" + featherN.ToString("R", inv) + "\t" + (float.IsNaN(featherCutN) ? featherN : featherCutN).ToString("R", inv) + "\t" + reach.ToString("R", inv));
+        foreach (var L in lines)
+        {
+            if (L.nPts == 0 || L.dIn <= float.MinValue || L.yAt == null) continue;
+            sb.AppendLine("L\t" + L.name + "\t" + L.a.x.ToString("R", inv) + "\t" + L.a.y.ToString("R", inv) + "\t" + L.ax.x.ToString("R", inv) + "\t" + L.ax.y.ToString("R", inv) + "\t" + L.inw.x.ToString("R", inv) + "\t" + L.inw.y.ToString("R", inv)
+                        + "\t" + L.len.ToString("R", inv) + "\t" + L.sLo.ToString("R", inv) + "\t" + L.sHi.ToString("R", inv) + "\t" + L.dIn.ToString("R", inv) + "\t" + L.nPts + "\t" + (L.noFeather ? 1 : 0) + "\t" + (L.fillOnly ? 1 : 0));
+            foreach (var sp in L.spans) sb.AppendLine("S\t" + sp.x.ToString("R", inv) + "\t" + sp.y.ToString("R", inv) + "\t" + sp.z.ToString("R", inv));
+            var ys = new List<string>(); for (float sv = 0f; sv <= L.len + 1e-4f; sv += 0.1f) ys.Add(L.yAt(sv).ToString("R", inv));
+            sb.AppendLine("Y\t0.1\t" + string.Join("\t", ys.ToArray()));
+        }
+        System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
+        System.IO.File.WriteAllText(path, sb.ToString());
+    }
+
+    /// <summary><see cref="SaveFootBand"/> で残した帯を読み直す(yAt は 0.1m ごとの値の一次補間)。無ければ null。</summary>
+    public static List<FootLine> LoadFootBand(string path, out float from, out float to, out float featherN, out float featherCutN, out float reach)
+    {
+        from = to = featherN = featherCutN = reach = float.NaN;
+        if (!System.IO.File.Exists(path)) return null;
+        var inv = System.Globalization.CultureInfo.InvariantCulture; var res = new List<FootLine>(); FootLine cur = null;
+        foreach (var ln in System.IO.File.ReadAllLines(path))
+        {
+            var f = ln.Split('\t'); if (f.Length == 0) continue;
+            if (f[0] == "P" && f.Length >= 6) { from = float.Parse(f[1], inv); to = float.Parse(f[2], inv); featherN = float.Parse(f[3], inv); featherCutN = float.Parse(f[4], inv); reach = float.Parse(f[5], inv); }
+            else if (f[0] == "L" && f.Length >= 15)
+            {
+                cur = new FootLine { name = f[1], a = new Vector2(float.Parse(f[2], inv), float.Parse(f[3], inv)), ax = new Vector2(float.Parse(f[4], inv), float.Parse(f[5], inv)), inw = new Vector2(float.Parse(f[6], inv), float.Parse(f[7], inv)),
+                                     len = float.Parse(f[8], inv), sLo = float.Parse(f[9], inv), sHi = float.Parse(f[10], inv), dIn = float.Parse(f[11], inv), nPts = int.Parse(f[12]), noFeather = f[13] == "1", fillOnly = f[14] == "1" };
+                res.Add(cur);
+            }
+            else if (f[0] == "S" && cur != null && f.Length >= 4) cur.spans.Add(new Vector3(float.Parse(f[1], inv), float.Parse(f[2], inv), float.Parse(f[3], inv)));
+            else if (f[0] == "Y" && cur != null && f.Length >= 3)
+            {
+                float st = float.Parse(f[1], inv); var v = new float[f.Length - 2]; for (int i = 2; i < f.Length; i++) v[i - 2] = float.Parse(f[i], inv);
+                cur.yAt = sv => { if (v.Length == 0) return float.NaN; float u = Mathf.Clamp(sv / st, 0f, v.Length - 1); int i0 = Mathf.FloorToInt(u), i1 = Mathf.Min(v.Length - 1, i0 + 1); return Mathf.Lerp(v[i0], v[i1], u - i0); };
+            }
+        }
+        return res;
+    }
+
+    /// <summary>節点 q が帯 [from, to] か摺り付け (to, to + reach] の中なら帯の高さ(一番近い線の yAt・<see cref="WriteFootBand"/> と同じ線の選び)、外なら NaN。
+    /// <paramref name="dI"/> = 内面からの離れ(帯の中か摺り付けかを呼び手が分ける)。測るだけ ── 造成QA が「設計面からの差が帯の跡か」を数える(式を二重に持たない)。
+    /// 当たる先: WriteFootBand で書いた帯を持つ邸の造成QA(岡部 天端の線の内の帯・EDO-0502 第129巡)。</summary>
+    public static float FootBandReachAt(List<FootLine> lines, Vector2 q, float from, float to, float reach, out float dI)
+    {
+        dI = float.NaN; FootLine best = null; float bd = float.MaxValue, bs = 0f;
+        foreach (var L in lines)
+        {
+            if (L.nPts == 0 || L.dIn <= float.MinValue || L.yAt == null) continue;
+            float s = Vector2.Dot(q - L.a, L.ax), sc = Mathf.Clamp(s, L.sLo, L.sHi); float d = Vector2.Distance(q, L.a + L.ax * sc + L.inw * L.DInAt(sc));
+            if (d < bd) { bd = d; best = L; bs = s; }
+        }
+        if (best == null || bs < best.sLo - 1e-3f || bs > best.sHi + 1e-3f) return float.NaN;
+        float di = Vector2.Dot(q - best.a, best.inw) - best.DInAt(bs); if (di < from - 1e-4f || di > to + (best.noFeather ? 0f : reach) + 1e-4f) return float.NaN;
+        dI = di; return best.yAt(bs);
+    }
+
     /// <summary>節点 q が帯の中なら帯の高さ(一番近い線の yAt)・帯の外・低い所だけ盛る線なら NaN ── 駒の下を下げる処理の下限に使う(帯の上に埋まった駒の天端で帯を掘らない)。</summary>
     public static float FootBandAt(List<FootLine> lines, Vector2 q, float from, float to)
     {

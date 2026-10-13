@@ -121,6 +121,32 @@ public static partial class EdoBuild
         return r;
     }
 
+    static readonly Dictionary<string, float> _mizoStoneXCache = new Dictionary<string, float>();
+    /// <summary>溝の駒の**石(縁石・敷き石・底の玉砂利 ── 材 "rocks"・"Gravel")の局所 +X の最大**(倍率の前・Y 回転 0)。張り出しの土の板(<see cref="ApronBody"/>)は数えない。測れなければ NaN。
+    /// 硬い(区域)の検めに使う: 口を +X へ向けて据える吐き口の駒(AH)の石が、型 A の縁石の外の面(= 区画の線)より外へ出るかを据える前に知る
+    /// (EDO-0502 第129巡: 張り出し付きの吐き口 Doi_Mizo_AH_Ago_D* は口の敷き石を板の外の縁 +0.40 まで延ばしてあり、指図 outlets「敷き石の外の面は区画の線を越えない【硬】」を割った)。
+    /// 当たる先: 区画の線に口を向けて据える溝の駒すべて(岡部 Mizo_Kita / Mizo_Minami の吐き口)。</summary>
+    public static float MizoStoneXMax(string path)
+    {
+        float got; if (string.IsNullOrEmpty(path)) return float.NaN;
+        if (_mizoStoneXCache.TryGetValue(path, out got)) return got;
+        float r = float.NaN; var pf = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+        if (pf != null)
+        {
+            var go = (GameObject)PrefabUtility.InstantiatePrefab(pf);
+            go.transform.position = Vector3.zero; go.transform.rotation = Quaternion.identity; go.transform.localScale = Vector3.one;
+            try
+            {
+                float m = float.MinValue;
+                foreach (var mt in new[] { "rocks", "Gravel" }) foreach (var v in BodyOfMat(go.transform, mt)) m = Mathf.Max(m, v.x);
+                if (m > float.MinValue) r = m;
+            }
+            finally { UnityEngine.Object.DestroyImmediate(go); }
+        }
+        _mizoStoneXCache[path] = r;
+        return r;
+    }
+
     /// <summary>溝の駒の**地際の張り出し**(縁石の外の土の板 ── <c>EdoAssets.Own.DoiMizo(kata, d, ago: true)</c>・材 = 地形の塗りを世界 XZ で引く Hifu_KitaTerrain_World)の局所の実測(倍率の前・Y 回転 0)。
     /// has = 張り出しの材(<see cref="ApronBody"/> ── 名に "Soil" か "_World" を含む)のサブメッシュがある / xBody = 張り出しの内の縁(土の頂点の |x| の最小 = 縁石の外の面)/ xOut = 外の縁(|x| の最大)/
     /// topIn・topOut = 内の縁・外の縁の天端(各縁から 0.02 以内の土の頂点の最高)/ xInner = 溝の内法の半幅(底の高さ ±0.01 の石の頂点の |x| の最大)。左右対称の板を前提に |x| で測る。</summary>

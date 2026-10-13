@@ -471,12 +471,18 @@ public static partial class EdoBuild
     /// ⛔ 伸縮しない(長屋・石垣の駒は長さが決まっている)── 引いた分は隣の駒と重なる(埋めて隠す・docs/oki-kata.md §4)。
     /// 当たる先: 区画の出隅の頂点で止まる直線の run の端の駒(土井 辺12/13・13/14 の表長屋・基壇・練塀。岡部 PlaceOmoteNagaya の
     /// 「隅から走りに沿って 0.02m ずつ引く」は同じ型を邸ビルダーの中で回している)。</summary>
+    /// <para>⭐ <paramref name="mats"/>: 測る頂点を材の名で絞る(<see cref="BodyOfMat"/>)── 溝の駒は縁石の外へ地際の土の板(区画の線の外 0.40・記録)を張るので、
+    /// 全頂点では決して収まらない。石("rocks"・"Gravel")だけで測る(EDO-0502 第129巡 岡部 D_N40_Mae の頭の駒が P40 で辺39 の線の外 0.007)。</para>
     public static float PullAlongInside(IList<GameObject> gos, Vector2[] poly, Vector2 along, float maxPull, out float before,
-                                        float bandH = 0f, float step = 0.005f, float tol = 0.001f)
+                                        float bandH = 0f, float step = 0.005f, float tol = 0.001f, string[] mats = null)
     {
         before = 0f;
         var pts = new List<Vector3>();
-        foreach (var go in gos) if (go != null) pts.AddRange(bandH > 0f ? LowBandPoints(go.transform, bandH) : Body(go.transform, 999999, true));
+        foreach (var go in gos) if (go != null)
+        {
+            if (mats != null) { foreach (var mt in mats) pts.AddRange(BodyOfMat(go.transform, mt)); continue; }
+            pts.AddRange(bandH > 0f ? LowBandPoints(go.transform, bandH) : Body(go.transform, 999999, true));
+        }
         if (pts.Count == 0) return float.NaN;
         before = OutsideBy(pts, poly, Vector2.zero);
         if (before <= tol) return 0f;

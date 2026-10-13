@@ -326,6 +326,9 @@ public static class EdoSashizuExport
                 //   切りの駒は**有っても無くてもよい**(端が斜めに当たる辺の端だけ)ので、孤児の判定にだけ使い、在る無しは問わない。
                 var optional = new List<string>();
                 foreach (var o in Get2(doc, "runs")) { var rn = Str(o as Dictionary<string, object>, "name"); if (rn != null) optional.Add("Kiri_" + rn); }
+                // ⭐ run の端の留め柱(runs[].tomeBashira)は `TomeBashira_<run>` の名で据わる(岡部 S_Hei_01・普請方 2026-10-12)── 指図にある部材なので**期待する**(無ければ「一つも無い」)。
+                //   ⛔ 教えないと据えた柱が「孤児の囲い」に数えられる(EDO-0502 第128巡の突き合わせ)。当たる先: tomeBashira を持つ全邸の run。
+                foreach (var o in Get2(doc, "runs")) { var r = o as Dictionary<string, object>; var rn = Str(r, "name"); if (rn != null && r.ContainsKey("tomeBashira") && r["tomeBashira"] != null) names.Add("TomeBashira_" + rn); }
                 foreach (var o in Get2(doc, "fences")) names.Add(Str(o as Dictionary<string, object>, "name"));
                 // 隅部材は **`runs` ではなく留め継ぎの表**に居る(留め継ぎは run ではない)。
                 // ⚠ これを教えないと、据えた隅が全部「孤児の囲い」に見える(2026-08-30 に実際に出た)。

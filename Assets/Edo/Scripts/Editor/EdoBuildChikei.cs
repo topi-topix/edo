@@ -477,8 +477,10 @@ public static partial class EdoBuild
     /// <para>⚠ 縁の節点の上げの上限 <paramref name="edgeCap"/> が小さいと、0.25m の格子で足の縁が二つの節点の間に落ちる所で、双一次の地表が縁で足の底を割る
     /// (第120巡: 岡部 辺19 の内の縁で 0.04 浮いた・上限 0.10 では届かなかった ⇒ 岡部は 0.30)。</para></summary>
     public static string FillUnderFoot(IEnumerable<GameObject> pieces, float footBand, float bury, float margin, IList<Bounds> keep, Func<Vector2, bool> allow, string undoPath = null, float edgeCap = 0.10f, Func<Vector2, float, bool> allowUnderFoot = null,
-                                       IList<GameObject> keepPieces = null, float keepPad = 0.04f, Func<Vector2, float, bool> rimFull = null, Func<Vector2, float> capUnderFoot = null)
+                                       IList<GameObject> keepPieces = null, float keepPad = 0.04f, Func<Vector2, float, bool> rimFull = null, Func<Vector2, float> capUnderFoot = null, float globalBand = float.NaN)
     {
+        //   ⭐ globalBand: 足を駒の最下点から globalBand 以内の頂点に限る(水平に据えた棟 ── 長屋・附属屋)。⛔ 足を半径の内の最下点だけで判じると、低い頂点が
+        //   半径 0.45 の内に無い所(妻の壁の上端・棟の高い桁)を「足」と読み、その下の地面を 7.85m 上げた(EDO-0502 第129巡 N41_0)。練塀(坂なり)は NaN のまま。
         //   ⭐ capUnderFoot(節点): 足の凸包の中と縁で allowUnderFoot / allow が偽(石が足を支える・石の駒の下)の節点も、上限 cap まで上げる(NaN = 触らない)── 第125巡 岡部:
         //   台の石垣の裏の縁の下の節点(石の天端の下・地表は低い)を触らずにおくと、その一升の双一次が石の裏の縁から足の内の縁(線から 1.46)まで落ち、足の内の縁が
         //   0.2〜0.48 浮いた(Kado_P7・P10・S_Hei_08・NW_Hei_1_3・P35)。上限 = 石の天端 −0.02(土は石の下に隠れる ── 天端に土を載せない)
@@ -532,7 +534,7 @@ public static partial class EdoBuild
             //   下端 1.73)だけの升を「足」と読み、その下の節点を座 +1.8〜2.2 へ上げて塀の内に土の柱が立った(第125巡 岡部 P35 ほか 12 か所・線から 1.7)。
             //   壁の厚み 0.41 より広い半径なら、どの升にも下見板の下端が入る。勾配の許しは坂なりの駒の上限 1/8 × 半径。
             const float FOOT_R = 0.45f, FOOT_GRADE = 0.13f;
-            foreach (var v in vs) if (v.y <= localMin(v.x, v.z, FOOT_R) + footBand + FOOT_GRADE * FOOT_R) { foot.Add(new Vector2(v.x, v.z)); long kk = ck(v.x, v.z); List<Vector3> l; if (!footY.TryGetValue(kk, out l)) footY[kk] = l = new List<Vector3>(); l.Add(v); }
+            foreach (var v in vs) if (v.y <= localMin(v.x, v.z, FOOT_R) + footBand + FOOT_GRADE * FOOT_R && (float.IsNaN(globalBand) || v.y <= yb + globalBand)) { foot.Add(new Vector2(v.x, v.z)); long kk = ck(v.x, v.z); List<Vector3> l; if (!footY.TryGetValue(kk, out l)) footY[kk] = l = new List<Vector3>(); l.Add(v); }
             Func<Vector2, float> ybAt = q =>
             {
                 float m = float.MaxValue, bd = float.MaxValue, near = yb; int cx = Mathf.FloorToInt(q.x / FC), cz = Mathf.FloorToInt(q.y / FC);
@@ -593,7 +595,9 @@ public static partial class EdoBuild
     /// 各辺の帯(走り s ∈ [0, len]・線から内へ q ∈ [q0(s), q1(s)])の節点を yAt(s) + <paramref name="off"/> にする(辺の隅で二つの帯に入る節点は高い方)。
     /// 帯は呼び手が決める(岡部: 台の天端の前の縁 c から塀の腰の外の縁の一升奥まで ── 塀の裏・内の帯は触らない)。<paramref name="allow"/> が偽の節点は触らない。
     /// 段は yAt が s で跳ぶ所で一升の中の段になる(呼び手は段の脇の一升を低い側の高さにする ── 双一次の斜めが下の天端の上へ出ないように)。⛔ 部材の基準点を使わない(面は指図の座の線)。当たる先: 天端の線の上の練塀の前(岡部の外周)。</summary>
-    public static string PlaneBand(IList<BandEdge> edges, Func<Vector2, bool> allow, float off, string undoPath = null, float ext = 0f)
+    /// <para>⭐ <paramref name="recPath"/>: 帯の**設計の高さ**(節点 → 面の高さ・肩の下げの上限)を残す(<see cref="LoadNodeTargets"/> で造成QA が引く ── EDO-0502 第129巡)。
+    /// 帯は塀の座の線(天端の線)から解くので算出物 graded は知らない。地形の今の高さは書かない。</para>
+    public static string PlaneBand(IList<BandEdge> edges, Func<Vector2, bool> allow, float off, string undoPath = null, float ext = 0f, string recPath = null)
     {
         var t = T(); var td = t.terrainData; var org = t.transform.position; int R = td.heightmapResolution; float hs = td.size.x / (R - 1);
         var want = new Dictionary<long, float>(); var cap = new Dictionary<long, float>(); var extW = new Dictionary<long, float>();
@@ -630,6 +634,7 @@ public static partial class EdoBuild
         }
         int nUp = 0, nDn = 0; float mUp = 0f, mDn = 0f; var undo = new List<float[]>();
         foreach (var kv in extW) if (!want.ContainsKey(kv.Key)) want[kv.Key] = kv.Value;
+        if (recPath != null) SaveNodeTargets(recPath, t.name, want, cap);
         foreach (var kv in cap) if (!want.ContainsKey(kv.Key)) want[kv.Key] = float.PositiveInfinity;   // 下げるだけ(面の高さは cap)
         if (want.Count > 0)
         {
@@ -649,6 +654,30 @@ public static partial class EdoBuild
         }
         if (undoPath != null) WriteUndo(undoPath, t.name, undo);
         return "塀の前の帯を座の線の一枚の面(座 " + off.ToString("+0.00;-0.00") + ")へ: 帯の節点 " + want.Count + "・上げた " + nUp + "(最大 " + mUp.ToString("F2") + ")・下げた " + nDn + "(最大 " + mDn.ToString("F2") + ")";
+    }
+
+    /// <summary>節点(地形の格子の i, j)ごとの設計の高さ <paramref name="want"/>(面の高さ)と上限 <paramref name="cap"/>(下げるだけの所)を <paramref name="path"/> へ残す。
+    /// 造成QA が「設計面(graded)からの差が指図どおりの帯の跡か」を domain reload の後も引けるように。当たる先: <see cref="PlaneBand"/>(岡部 塀の前の帯)。</summary>
+    public static void SaveNodeTargets(string path, string terrainName, Dictionary<long, float> want, Dictionary<long, float> cap)
+    {
+        var inv = System.Globalization.CultureInfo.InvariantCulture; var sb = new System.Text.StringBuilder("T\t" + terrainName + "\n");
+        if (want != null) foreach (var kv in want) { if (float.IsInfinity(kv.Value) || float.IsNaN(kv.Value)) continue; sb.Append("w\t" + (int)(kv.Key >> 32) + "\t" + (int)(uint)(kv.Key & 0xffffffff) + "\t" + kv.Value.ToString("R", inv) + "\n"); }
+        if (cap != null) foreach (var kv in cap) sb.Append("c\t" + (int)(kv.Key >> 32) + "\t" + (int)(uint)(kv.Key & 0xffffffff) + "\t" + kv.Value.ToString("R", inv) + "\n");
+        System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)); System.IO.File.WriteAllText(path, sb.ToString());
+    }
+    /// <summary><see cref="SaveNodeTargets"/> を読む ⟶ 節点 → (面の高さ NaN 可, 上限 NaN 可)。地形の名が違えば・無ければ null。</summary>
+    public static Dictionary<long, Vector2> LoadNodeTargets(string path, string terrainName)
+    {
+        if (!System.IO.File.Exists(path)) return null; var inv = System.Globalization.CultureInfo.InvariantCulture; var res = new Dictionary<long, Vector2>();
+        foreach (var ln in System.IO.File.ReadAllLines(path))
+        {
+            var f = ln.Split('\t'); if (f.Length < 2) continue;
+            if (f[0] == "T") { if (f[1] != terrainName) return null; continue; }
+            if (f.Length < 4) continue; long k = ((long)int.Parse(f[1]) << 32) ^ (uint)int.Parse(f[2]); float y = float.Parse(f[3], inv);
+            Vector2 v; if (!res.TryGetValue(k, out v)) v = new Vector2(float.NaN, float.NaN);
+            if (f[0] == "w") v.x = y; else if (f[0] == "c") v.y = y; res[k] = v;
+        }
+        return res;
     }
 
     /// <summary>**台の石垣の天端の上に載った土を天端の下へ下げる**(下げるだけ・第122巡 2026-10-13 岡部 const.heiLine.kidanCrest【硬】「台の天端に土の楔を見せない」)。

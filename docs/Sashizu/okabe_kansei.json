@@ -8,36 +8,36 @@
    "label": "隙 0",
    "what": "塀と塀・門と塀・長屋 run の駒どうしの隙・めり込み・裏表(許容 0)",
    "how": "edo-fushin-qa 項目 6(run の格子)・7(裏表)・8(門の取り合い)、JointQA / GateQA",
-   "value": "皮と部材の隙29(皮11/元18)最大0.910・天端差5(0.056)・二段の重なり2・穴から土282・閉じ0.02内(97巡)",
+   "value": "直の継ぎ目97組 隙0・天端差≤0.003/地表と駒の隙 見える27+500点 最悪D_MinamiHei_G0 1.89・KiriZaka 1.37/塀の足 浮き24点 最大NW_Hei_1_TomeA 0.909・S_Hei_18_0_TomeB 0.648(128巡)",
    "verdict": "fail",
-   "at": "2026-10-10",
+   "at": "2026-10-13",
    "note": ""
   },
   "boundary": {
    "label": "境界侵犯 0",
    "what": "棟・塀・木・石が区画 / 庭の区域 / 建物 / 水面 / 道へ入らない",
    "how": "edo-fushin-qa 項目 1(境界)と区域の点検(EdoGeom.PIP)",
-   "value": "岡部の壁体 区画外0・隣 社家dobei_4_2 0.278/dobei_15_0 0.217・十坊kui 0.137/ita 0.024(EDO-0574)・土井の中木0.650未確定(97巡)",
+   "value": "吐口の石 Mizo_Kita/Minami_Hakiguchi 0.399・D_N40_Mae_000 0.007/隣の入り込み0(樹下・十坊9含む)・土井の庭木は未検査(128巡)",
    "verdict": "fail",
-   "at": "2026-10-10",
+   "at": "2026-10-13",
    "note": ""
   },
   "ground": {
    "label": "埋没・浮き 0",
    "what": "地面との隙が −0.01〜+0.01 の外の駒が 0(oki-kata §4)",
    "how": "edo-fushin-qa 項目 2(接地)と GroundQA",
-   "value": "浮き N39_1 +0.023・End1_069f 1.27/End0_179f 0.37・N41_2〜5 計算0.45〜1.14は未確定(97巡)",
+   "value": "浮き N41_0 +0.023・Makigura +0.016(128巡)",
    "verdict": "fail",
-   "at": "2026-10-10",
+   "at": "2026-10-13",
    "note": ""
   },
   "match": {
    "label": "突き合わせ 0",
    "what": "指図(意図)と実装の食い違いが 0 件",
    "how": "Unity メニュー Edo/<敷地>/指図と実装を突き合わせる",
-   "value": "突き合わせ0件(庭含む)・門の完備★0・裏門は型未決で未検査(97巡)",
-   "verdict": "pass",
-   "at": "2026-10-10",
+   "value": "3件: 算出物の印の食い違い(中身の差0)・GradeQA 超過13126升 最大4.99・孤児 TomeBashira_S_Hei_01/門の完備★0(128巡)",
+   "verdict": "fail",
+   "at": "2026-10-13",
    "note": ""
   },
   "render": {
@@ -404,6 +404,30 @@
    "event": "record",
    "item": "match",
    "verdict": "pass"
+  },
+  {
+   "at": "2026-10-13T21:51:52+09:00",
+   "event": "record",
+   "item": "gap",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-10-13T21:51:52+09:00",
+   "event": "record",
+   "item": "boundary",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-10-13T21:51:52+09:00",
+   "event": "record",
+   "item": "ground",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-10-13T21:51:52+09:00",
+   "event": "record",
+   "item": "match",
+   "verdict": "fail"
   }
  ]
 }

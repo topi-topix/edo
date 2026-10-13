@@ -55,6 +55,18 @@ public static partial class EdoBuild
         foreach (var L in lines) { if (L.spans.Count == 0) continue; var zs = L.spans.ConvertAll(p => p.z); zs.Sort(); L.dIn = zs[zs.Count / 2]; }
     }
 
+    /// <summary>**塀の内に沿う溝の芯の離れ(足の内の縁から)**(岡部 const.heiLine.innerDitch【硬】「溝の外の縁 = 足の内の縁 + clear 以上」・第125巡)── 狙いの離れ
+    /// <paramref name="want"/>(足の内の縁 = <see cref="FootLine.dIn"/> から芯まで)と、溝の駒の外の縁(<see cref="MizoPieceOf"/> の横の |x| の最大 ── 地際の張り出し・板を含む)が
+    /// 足の内の縁 + <paramref name="clear"/> に来る離れの大きい方。駒の幅・深さは変えない(線だけ内へ平行に移す)。⟶ 離れ・<paramref name="halfMax"/> = 駒の外の縁の半幅の最大。
+    /// 硬い(塀の足が溝・桝に掛からない)/ 狙い want は柔らかい(離れが want を越えたら呼び手が ⚠ と床の狭まり = 離れ − want を刷る)。
+    /// 当たる先: 塀の内に沿う溝・桝(岡部 D_MinamiHei の main・yuka・west・桝 G0)── 同じ型の土井 D11・他邸の塀の内の溝は未適用。</summary>
+    public static float DitchCoreOff(float want, float clear, IEnumerable<string> piecePaths, out float halfMax)
+    {
+        halfMax = 0f;
+        foreach (var p in piecePaths) { var m = MizoPieceOf(p); if (!m.ok) continue; halfMax = Mathf.Max(halfMax, Mathf.Max(Mathf.Abs(m.xMin), Mathf.Abs(m.xMax))); }
+        return Mathf.Max(want, clear + halfMax);
+    }
+
     /// <summary>**内の足元の帯を書く**(硬: 帯の中は yAt・柔: 帯の外 featherN の勾配で今の地面へ摺り付け)。節点ごとに一番近い線(走りの範囲 [sLo, sHi] で切った距離)を選び、
     /// 内面からの離れ d = (節点 − 線)·inw − dIn が [from, to] なら帯・(to, to + reach] なら摺り付け。allow(q) が false の節点(区画の外・線から半升)は触らない。
     /// fillOnly の線は低い所だけ盛る。⟶ 書いた節点の数。当たる先: 練塀の内の足元の床を座で受ける所(岡部 角 P0 の南・辺4・5 の溝の床・辺6 の頭)。</summary>

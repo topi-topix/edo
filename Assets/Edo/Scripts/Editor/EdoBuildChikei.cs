@@ -477,8 +477,11 @@ public static partial class EdoBuild
     /// <para>⚠ 縁の節点の上げの上限 <paramref name="edgeCap"/> が小さいと、0.25m の格子で足の縁が二つの節点の間に落ちる所で、双一次の地表が縁で足の底を割る
     /// (第120巡: 岡部 辺19 の内の縁で 0.04 浮いた・上限 0.10 では届かなかった ⇒ 岡部は 0.30)。</para></summary>
     public static string FillUnderFoot(IEnumerable<GameObject> pieces, float footBand, float bury, float margin, IList<Bounds> keep, Func<Vector2, bool> allow, string undoPath = null, float edgeCap = 0.10f, Func<Vector2, float, bool> allowUnderFoot = null,
-                                       IList<GameObject> keepPieces = null, float keepPad = 0.04f, Func<Vector2, float, bool> rimFull = null)
+                                       IList<GameObject> keepPieces = null, float keepPad = 0.04f, Func<Vector2, float, bool> rimFull = null, Func<Vector2, float> capUnderFoot = null)
     {
+        //   ⭐ capUnderFoot(節点): 足の凸包の中と縁で allowUnderFoot / allow が偽(石が足を支える・石の駒の下)の節点も、上限 cap まで上げる(NaN = 触らない)── 第125巡 岡部:
+        //   台の石垣の裏の縁の下の節点(石の天端の下・地表は低い)を触らずにおくと、その一升の双一次が石の裏の縁から足の内の縁(線から 1.46)まで落ち、足の内の縁が
+        //   0.2〜0.48 浮いた(Kado_P7・P10・S_Hei_08・NW_Hei_1_3・P35)。上限 = 石の天端 −0.02(土は石の下に隠れる ── 天端に土を載せない)
         //   ⭐ rimFull(節点, 上げる高さ): 縁の節点の上げを edgeCap で止めない所(第122巡 ── 台の石垣の裏の犬走りの土: 外の側が台の天端で受けるので土の柱にならない)。
         //   岡部 d 1.05 の一続きで細い台(倍率 0.25・天端の幅 0.35)の裏に塀の足が載り、縁の上げ 0.30 で足の外の縁が 0.3〜1.4 浮いた
         //   ⭐ keepPieces: 触らない駒(溝・桝)を**駒の向きの外形**(局所の頂点の矩形 + keepPad)で引く(第122巡 2026-10-13)── ⛔ 世界の外接の箱(keep)は斜めの辺で
@@ -525,7 +528,11 @@ public static partial class EdoBuild
                 return m;
             };
             var foot = new List<Vector2>(); var footY = new Dictionary<long, List<Vector3>>();
-            foreach (var v in vs) if (v.y <= localMin(v.x, v.z, FC) + footBand) { foot.Add(new Vector2(v.x, v.z)); long kk = ck(v.x, v.z); List<Vector3> l; if (!footY.TryGetValue(kk, out l)) footY[kk] = l = new List<Vector3>(); l.Add(v); }
+            //   ⭐ 足の判じは半径 FOOT_R の内の最下点から(footBand + 勾配の許し)── 半径 FC(0.15)の升の最下点では、一枚物の隅の駒の入隅の留め(hashira2・hei の
+            //   下端 1.73)だけの升を「足」と読み、その下の節点を座 +1.8〜2.2 へ上げて塀の内に土の柱が立った(第125巡 岡部 P35 ほか 12 か所・線から 1.7)。
+            //   壁の厚み 0.41 より広い半径なら、どの升にも下見板の下端が入る。勾配の許しは坂なりの駒の上限 1/8 × 半径。
+            const float FOOT_R = 0.45f, FOOT_GRADE = 0.13f;
+            foreach (var v in vs) if (v.y <= localMin(v.x, v.z, FOOT_R) + footBand + FOOT_GRADE * FOOT_R) { foot.Add(new Vector2(v.x, v.z)); long kk = ck(v.x, v.z); List<Vector3> l; if (!footY.TryGetValue(kk, out l)) footY[kk] = l = new List<Vector3>(); l.Add(v); }
             Func<Vector2, float> ybAt = q =>
             {
                 float m = float.MaxValue, bd = float.MaxValue, near = yb; int cx = Mathf.FloorToInt(q.x / FC), cz = Mathf.FloorToInt(q.y / FC);
@@ -548,11 +555,14 @@ public static partial class EdoBuild
                     if (!inHull && EdgeDistPublic(hull, q) > margin + 1e-4f) continue;
                     float ybq = ybAt(q);
                     bool okq = inHull && allowUnderFoot != null ? allowUnderFoot(q, ybq) : (allow == null || allow(q));
+                    float capQ = float.NaN;
+                    if (!okq && capUnderFoot != null) { capQ = capUnderFoot(q); if (!float.IsNaN(capQ)) okq = true; }
                     if (!okq) { nOut++; continue; }
                     bool kp = false; if (keep != null) foreach (var kb in keep) if (q.x >= kb.min.x && q.x <= kb.max.x && q.y >= kb.min.z && q.y <= kb.max.z) { kp = true; break; }
                     if (!kp && kpL.Count > 0) kp = inKeepPiece(q);
                     if (kp) { nKeep++; continue; }
                     long k2 = ((long)i << 32) ^ (uint)j; float y = ybq + bury, cur;
+                    if (!float.IsNaN(capQ)) y = Mathf.Min(y, capQ);
                     // 足の外の縁の節点は上げを edgeCap まで(⛔ 縁の外が急に落ちる所で幅一升・高さ 2m の土の柱が立った ── 岡部 P24 の外・第119巡)。足の下(凸包の中)は隠れるので上限なし
                     if (!inHull && (rimFull == null || !rimFull(q, y))) { float g0 = td.GetHeight(i, j) + org.y; y = Mathf.Min(y, g0 + edgeCap); }
                     if (!want.TryGetValue(k2, out cur) || y > cur) want[k2] = y;

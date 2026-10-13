@@ -20,6 +20,7 @@
 - [作業場が前の窓の邸で dirty・旧い退避は前の案の造成前](koba-left-dirty-by-other-window.md) — UnwrittenIn を最初に見る。他邸の書き戻しは分類器が止める→返す
 - [岡部の外周は S1→S2→S2b→S3d で流す・一枚物の練塀の測り](okabe-perimeter-rerun-order-and-neribei-measure.md) — S2 だけだと基壇が変わり 3d が 2.9m 掘る・2b は60〜90分・継ぎ目は ±0.004 の光線 / [指図を書き換えた直後の S1 は 1m で造成する](graded-bin-stale-after-sashizu-commit.md) — bin を焼き直し _graded を捨てる・隅の座は古い
 - [天端の線を外周全体へ(第121巡)](heiline-tenba-spec-r121.md)・[台の天端を座の線へ(第122巡)](kidan-crest-slope-r122.md) — 頂点の座は折れ点・出隅で隣の勾配を先取り・坂の台も丈を選ぶ・焼く一覧は最後の据えから
+- [塀の内の溝・足の下の土(第125巡)](inner-ditch-and-foot-fill-r125.md) — 溝の外の縁は地際の板まで・足を 0.15 の升で読むと隅の留めで土の柱・台の裏の縁の節点
 - [練塀の腰なしの駒へ(第124巡)](neribei-nk-koshi-choice-r124.md) — 外面は元から下見板の表・腰の有無は線〜内面の帯の台で・流しの最中に compile_wait を打たない
 - [芯線と天端の線(heiLine)の罠](heiline-stretch-and-tenba-r120.md) — d は c の後・床は区間の組で・線は同じドメインだけ(S2〜3d を続けて)・足は 0.91〜1.60・継ぎ目の切り欠きを埋める
 - [.cs の保存直後の Stage は古い DLL で走る・再起動で皮が null](stage-run-on-stale-dll-after-edit.md) — 25 分の 3b が空振り。Stage の前に compile_wait・3b の後は先に書き戻す

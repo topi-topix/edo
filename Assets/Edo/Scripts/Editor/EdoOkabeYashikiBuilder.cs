@@ -4649,7 +4649,8 @@ public static class EdoOkabeYashikiBuilder
                     Vector2 p = ck.line[i], n = ck.back[i], t = i + 1 < ck.line.Count ? (ck.line[i + 1] - p).normalized : (p - ck.line[i - 1]).normalized;
                     float top = float.MinValue; foreach (var v in pcs) { Vector2 r = new Vector2(v.x, v.z) - p; float u = Vector2.Dot(r, n); if (u >= 0f && u <= ck.depth && Mathf.Abs(Vector2.Dot(r, t)) < 0.15f) top = Mathf.Max(top, v.y); }
                     if (top == float.MinValue) continue;
-                    Vector2 q = p + n * (ck.depth + 0.1f); float bg = SkinGround(q.x, q.y); if (float.IsNaN(bg)) continue;
+                    // 第137巡: 背の地盤は描かれた地形で測る(皮は退役 ── SkinGround は設計面との最小を返し、盛った裏込め(F3)を読まなかった)
+                    Vector2 q = p + n * (ck.depth + 0.1f); float bg = EdoBuild.Ground(q.x, q.y); if (float.IsNaN(bg)) continue;
                     nPt++; float d = top - bg; if (d > ck.maxDiff + 1e-3f) nOver++;
                     if (d > worst) { worst = d; wAt = p; wC = top; wB = bg; }
                 }

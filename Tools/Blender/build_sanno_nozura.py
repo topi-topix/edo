@@ -31,6 +31,7 @@
     blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --family=2 --h=0.6,0.9,1.2,1.5,1.8,2.1,2.4,4.8 --grade=0.45,-0.45,0.55,-0.55,0.66,-0.66,0.75,-0.75 --v=ab   # 坂なりの線 1駒で最大 1.25 下がる所
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=32.7 --h=0.6,0.9,1.2 --render   # 岡部 K_Dan2 の上端の脇の実の折れ(Kado35 を据えていた・2026-10-11)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=38.6 --h=4.8 --render   # 岡部 TW_Higashi_Se の辺40/41 の角(第106巡・2026-10-11)
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=38,27 --h=0.6,0.9,1.2,1.5,1.8,2.1 --render   # 岡部 TW_Minami_Mizo の西の曲がりの出隅(第139巡・2026-10-15)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- tome [--h=0.6,1.2,2.4] [--hand=P,M] [--render]   # 積み止めの駒(小口にも面石・両角が稜・岡部 nozuraEndRule 2026-10-07b・EDO-0502)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- crest [--dir=…] [--json=…]  # 全駒の背の天端の下がり(≤ 0.03)・頭の出(≤ 0)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- holes [--dir=…] [--json=…]  # 全駒を真上から見て天端に穴(裏・下の見える所)が 0 か

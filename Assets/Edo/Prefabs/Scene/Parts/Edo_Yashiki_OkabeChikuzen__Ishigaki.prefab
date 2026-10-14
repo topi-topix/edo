@@ -29789,6 +29789,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: IG_N39_0_0_0_0_0_01
       objectReference: {fileID: 0}
+    - target: {fileID: 145410, guid: d481c04554325644fbd3ca3d83a32f4b, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 448168, guid: d481c04554325644fbd3ca3d83a32f4b, type: 3}
       propertyPath: m_LocalScale.x
       value: 0.75

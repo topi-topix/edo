@@ -1207,6 +1207,9 @@ public static partial class EdoBuild
         /// <summary>端(0 = a / 1 = b)を**名指した駒の実面へ突き付けて止める**(見切り石・隅の駒・打ち切りを置かない)── 指図 TW_Kado_Hokuto.cuts 追記 2026-10-10o
         /// 「口の両端の本線は石段の切石の袖の外の面に入隅で突き付けて止め」【硬】。無ければ null。</summary>
         public List<GameObject>[] abutTo = new List<GameObject>[2];
+        /// <summary>端(0 = a / 1 = b)の入隅での役(+1 = 可動側 = 相手の見え面へ突き付ける / −1 = 通す側 / 0 = 従前の決め)── ⓪ 交わる相手が先
+        /// (<see cref="NozuraEndRule.partnerFirst"/>・指図 nozuraEndRule 追記 2026-10-14a)が、端が相手の線の上に在る側を可動側に立てる。</summary>
+        public int[] concaveRole = { 0, 0 };
         public float Len { get { return Vector2.Distance(a, b); } }
         public Vector2 Dir { get { return (b - a).normalized; } }
     }
@@ -1289,6 +1292,10 @@ public static partial class EdoBuild
         /// <summary>区画(⛔ 外の節点は切らない)。</summary>
         public Vector2[] parcel;
         // ---- tallEnd(同 追記)── 見付が見切り石の最高段を超える端は背の側へ折り返す ----
+        /// <summary>**⓪ 交わる相手が先**(指図 nozuraEndRule 追記 2026-10-14a【硬】「端から x 以内に交わる石垣の見え面・隅の駒・石段の袖…があれば
+        /// const.abutOrder とその欄の納めを当て、端の決めを回さない・自前の隅の駒・積み止めを置かない」)の x [m]。0 なら当てない。
+        /// 網の中の二つの区間の継がれていない端どうしがこの内に在れば、二本の線の交点へ端を寄せて継ぐ(出隅 = 一つの隅の駒・入隅 = 相手の線の上に在る側を可動側)。</summary>
+        public float partnerFirst = 0f;
         /// <summary>見切り石の最高段の見付(指図 2.4)。これを超える端を折り返す。0 なら当てない。</summary>
         public float tallMin = 0f;
         /// <summary>返しを終える「表の地表と背の地盤の差」(指図 0.6)と、返しの長さの上限 [m]。</summary>
@@ -1645,6 +1652,63 @@ public static partial class EdoBuild
             if (concave[j, f, 0] < 0) { concave[j, f, 0] = k; concave[j, f, 1] = e; }
         }
         }
+        // ---- ⓪ 交わる相手が先(endRule.partnerFirst・指図 nozuraEndRule 追記 2026-10-14a【硬】)── 継がれていない端どうしが x 以内に在れば、
+        //   二本の線の交点へ両方の端を寄せて継ぐ。出隅(天端の差 < 0.10)は鎖が一つの隅の駒で継ぎ(同じ角に隅の駒を二つ置かない)、
+        //   入隅は相手の線の上に在る側(端から相手の線までが近い側)を可動側・もう一方を通す側にする(通す側は passConcave で角から先へ通す)。
+        //   その端は継がれるので ②・③ の端の決めを回さない。当たる先: partnerFirst を渡す邸(岡部 Stage2b)の野面の網の、離れて終わる交わり
+        //   (TW_Kado_Hokuto_0_0 × TW_Higashi_Hokuto_8_1・TW_Higashi_Se_3_0 × Side0_0 ほか)。
+        if (endRule != null && endRule.partnerFirst > 0f)
+        {
+            float R = endRule.partnerFirst;
+            Func<int, int, bool> freeEnd = (k, e) =>
+            {
+                if (segs[k].mikiriTo[e] != null || segs[k].noAbut[e] || segs[k].abutTo[e] != null) return false;
+                Vector2 p = endPt(segs[k], e);
+                for (int j = 0; j < n; j++) if (j != k) for (int f = 0; f < 2; f++) if (Vector2.Distance(p, endPt(segs[j], f)) <= TOL) return false;
+                return true;
+            };
+            Action<NozuraSeg, int, Vector2> moveEnd = (sg, e, X) =>
+            {
+                if (e == 1) { var o = sg.crestAt; float L0 = sg.Len; float cEnd = o(L0); sg.b = X; sg.crestAt = sl => sl <= L0 ? o(sl) : cEnd; }
+                else
+                {
+                    var o = sg.crestAt; float off = Vector2.Dot(X - sg.a, sg.Dir); float c0e = o(0f); sg.a = X;
+                    sg.crestAt = sl => sl + off <= 0f ? c0e : o(sl + off);
+                    if (sg.sidesAt != null) { var os = sg.sidesAt; sg.sidesAt = sl => os(Mathf.Max(0f, sl + off)); }
+                }
+            };
+            var used = new bool[n, 2];
+            for (int k = 0; k < n; k++) for (int e = 0; e < 2; e++)
+            {
+                if (used[k, e] || !freeEnd(k, e)) continue;
+                int bj = -1, bf = -1; float bd = float.MaxValue; Vector2 bX = Vector2.zero;
+                for (int j = 0; j < n; j++) if (j != k) for (int f = 0; f < 2; f++)
+                {
+                    if (used[j, f] || !freeEnd(j, f)) continue;
+                    Vector2 pk = endPt(segs[k], e), pj = endPt(segs[j], f); float d = Vector2.Distance(pk, pj); if (d > R || d >= bd) continue;
+                    float ang = Vector2.Angle(segs[k].Dir, segs[j].Dir); if (ang < 30f || ang > 150f) continue;   // 平行に並ぶ区間(重ねて埋める run・段違い)は交わりでない
+                    Vector2 dk = segs[k].Dir, dj = segs[j].Dir; float den = dk.x * dj.y - dk.y * dj.x; if (Mathf.Abs(den) < 1e-4f) continue;
+                    Vector2 w0 = pj - pk; float t = (w0.x * dj.y - w0.y * dj.x) / den; Vector2 X = pk + dk * t;
+                    if (Vector2.Distance(X, pk) > R || Vector2.Distance(X, pj) > R) continue;
+                    bd = d; bj = j; bf = f; bX = X;
+                }
+                if (bj < 0) continue;
+                Vector2 din = e == 1 ? segs[k].Dir : -segs[k].Dir, dout = bf == 0 ? segs[bj].Dir : -segs[bj].Dir;
+                Vector2 fk = faceNear(segs[k], e); bool convex = Vector2.Angle(din, dout) < 60f || (fk != Vector2.zero && Vector2.Dot(dout, fk) < -0.3f);
+                float ck = segs[k].crestAt(e == 0 ? 0f : segs[k].Len), cj = segs[bj].crestAt(bf == 0 ? 0f : segs[bj].Len);
+                string tag = segs[k].name + " 端" + e + " × " + segs[bj].name + " 端" + bf;
+                if (convex && Mathf.Abs(ck - cj) >= 0.10f) { log.AppendLine("    ⓪ " + tag + ": 出隅だが天端が違う(" + ck.ToString("F2") + " / " + cj.ToString("F2") + ")── 継がない(端の決めへ)"); continue; }
+                Vector2 pk0 = endPt(segs[k], e), pj0 = endPt(segs[bj], bf);
+                // 入隅の可動側 = 端が相手の線の上に在る側(相手の線までの離れが小さい側)
+                float offK = Mathf.Abs(Vector2.Dot(pk0 - segs[bj].a, new Vector2(-segs[bj].Dir.y, segs[bj].Dir.x)));
+                float offJ = Mathf.Abs(Vector2.Dot(pj0 - segs[k].a, new Vector2(-segs[k].Dir.y, segs[k].Dir.x)));
+                moveEnd(segs[k], e, bX); moveEnd(segs[bj], bf, bX); used[k, e] = used[bj, bf] = true;
+                if (!convex) { bool kMoves = offK <= offJ; segs[k].concaveRole[e] = kMoves ? 1 : -1; segs[bj].concaveRole[bf] = kMoves ? -1 : 1; }
+                string rec = tag + ": ⓪ 交わる相手が先(nozuraEndRule 追記 2026-10-14a)── 端を二本の線の交点へ寄せて継ぐ(" + segs[k].name + " " + Vector2.Distance(pk0, bX).ToString("F2") + "m・" + segs[bj].name + " " + Vector2.Distance(pj0, bX).ToString("F2") + "m)・"
+                           + (convex ? "出隅 ⇒ 一つの隅の駒(自前の隅の駒・積み止めを置かない)" : "入隅 ⇒ 可動側 " + (segs[k].concaveRole[e] > 0 ? segs[k].name : segs[bj].name) + "(相手の線の上 " + Mathf.Min(offK, offJ).ToString("F2") + ")・通す側 " + (segs[k].concaveRole[e] > 0 ? segs[bj].name : segs[k].name));
+                log.AppendLine("    " + rec); endRule.record.Add(rec);
+            }
+        }
         Links();
         // ---- 端の納め(endRule・指図 nozuraEndRule)── 相手の居ない端を ① 延ばして打ち切り / ② 見切り石 へ(鎖を組む前に区間を延ばす) ----
         var endPlan = new string[n, 2]; var koshiOk = new bool[n, 2];
@@ -1873,6 +1937,7 @@ public static partial class EdoBuild
         Func<int, int, bool> moves = (k, e) =>
         {
             int j = concave[k, e, 0]; if (j < 0) return false;
+            if (segs[k].concaveRole[e] != 0) return segs[k].concaveRole[e] > 0;   // ⓪ 交わる相手が先(partnerFirst)の決め
             if (segs[k].movesAtConcave != segs[j].movesAtConcave) return segs[k].movesAtConcave;
             bool kBoth = concave[k, 0, 0] >= 0 && concave[k, 1, 0] >= 0, jBoth = concave[j, 0, 0] >= 0 && concave[j, 1, 0] >= 0;
             if (kBoth != jBoth) return kBoth;

@@ -182,6 +182,10 @@ public static partial class EdoBuild
                         float top = float.MinValue; var ray = new Ray(new Vector3(wp.x, RB(g).max.y + 1f, wp.z), Vector3.down); RaycastHit hh;
                         foreach (var mc in apMc) if (mc.Raycast(ray, out hh, RB(g).size.y + 2f)) top = Mathf.Max(top, hh.point.y);
                         float cv; if (coverTop != null && coverTop.TryGetValue(g, out cv)) top = Mathf.Max(top, cv);
+                        // ⭐ 第137巡: 真上に駒の面が無い節点は駒の下でない ── 触らない。旧は札の矩形の内なら張り出しの下と見て底 −below のまま下げ、
+                        //   六角の曲がり目の桝(GK・肩の土の皮が全周で MizoApronOf が xBody 0 と読む)の外形の外の矩形の隅を 13.28 へ掘り、区画の外の道に 0.6 の穴を開けた。
+                        //   当たる先: 張り出し(土の板・皮)を持つ溝・桝の駒すべて(岡部 D_Corner_Masu・型A の Ago の溝)。
+                        if (top == float.MinValue) continue;
                         if (top > float.MinValue)
                         {
                             yb = top - below; nApronNode++; apronOnly = true;

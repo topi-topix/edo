@@ -4450,6 +4450,15 @@ public static class EdoAssets
         /// 底の天端 = −<paramref name="depth"/>(一枚の平ら)・底石の下端 −depth −0.15。⛔ 鏡像の角は A と B の敷居を入れ替えた名で焼く(形は二等分線に対称)。
         /// 既定(118.4°・0.45・0.28・0.35)= 棟梁の実測(内の角 118.4°・溝の底 13.64 / 13.57・天端 13.92 として)。確度 U(部材方の既定)。
         ///   blender --background --python Tools/Blender/build_doi_haisui.py -- GK --render(別の角: -- GK --deg 118.4 --depth 0.45 --sill 0.28,0.35)</summary>
+        /// <summary>焼いてある曲がり目の桝の版の全部(<see cref="DoiMasuKado"/> の名の書式)── 据える側が要る敷居に最も近い版を選ぶ(EDO-0502 第137巡)。</summary>
+        public static string[] DoiMasuKadoVersions()
+        {
+            if (!System.IO.Directory.Exists(FuzokuyaDir)) return new string[0];
+            var a = System.IO.Directory.GetFiles(FuzokuyaDir, "Doi_Masu_GK*.fbx");
+            for (int i = 0; i < a.Length; i++) a[i] = a[i].Replace('\\', '/');
+            return a;
+        }
+
         public static string DoiMasuKado(float innerDeg = 118.4f, float depth = 0.45f, float sillA = 0.28f, float sillB = 0.35f)
         {
             return FuzokuyaDir + "Doi_Masu_GK" + innerDeg.ToString("0.0", DoiInv) + "_D" + depth.ToString("0.00", DoiInv)

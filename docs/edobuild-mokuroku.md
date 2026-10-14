@@ -1,11 +1,11 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 236ad6fed9c2 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 06d415422d87 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
 
-- 公開関数 637 本(注釈なし 35)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
+- 公開関数 640 本(注釈なし 35)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
 - 同じ道具が刷る目録: 邸ビルダーのメニュー → Stage と中の関数 `docs/builder-mokuroku.md` / 部材の名 `docs/edoassets-mokuroku.md`。
 - 札: **硬** = 注釈に「硬い/許容0」・**柔** = 「柔らかい/狙い」がある(判定ではなく注釈の語)。相手の札(地面・駒どうし・天端・床・断面・面・隅・区域)も注釈の語を拾っただけ。
 - 呼んでいる所 = 定義のファイルの外で `EdoBuild.<名>(` と書いている C# ファイル(`Edo` と `Builder/Rebuild` を落とした名)と、その中の呼んでいる関数(Stage)。同じ名の多重定義はまとめて数える。`EdoBuild` の中どうしの呼び出しは載せない。
@@ -44,7 +44,7 @@
 | [EdoBuildQueue.cs](#edobuildqueuecs) | EdoBuildQueue.cs — 長い建て直しを MCP の 1 回の呼び出しの中で回さず、エディタの中で順に予約して即座に返す(EDO-0503)。 | — | 0 |
 | [EdoBuildRim.cs](#edobuildrimcs) | 崖の縁の土留め — 区画の線の上に立つ塀の真下を削って野面の石垣を積み、塀を天端に載せる (EdoBuild の partial・2026-09-28・EDO-0477) | 類型の全区画で、区画の縁の外が平場より高い所(崖の縁の寺社・武家の山際)。 | 7 |
 | [EdoBuildRun.cs](#edobuildruncs) | 囲いの run — 長屋・土塀・板塀を辺に沿って並べる (EdoBuild の partial・2026-09-21) | — | 49 |
-| [EdoBuildSaka.cs](#edobuildsakacs) | EdoBuild — 坂の路盤(折れ線の芯と縦断で道の面を均し、盛土・切土の法で地盤へ擦り付ける)。 | 指図の ramps[] のうち `pts` と `profY` を持つ坂(岡部の R_UraZaka / R_GakeZaka)。 | 28 |
+| [EdoBuildSaka.cs](#edobuildsakacs) | EdoBuild — 坂の路盤(折れ線の芯と縦断で道の面を均し、盛土・切土の法で地盤へ擦り付ける)。 | 指図の ramps[] のうち `pts` と `profY` を持つ坂(岡部の R_UraZaka / R_GakeZaka)。 | 31 |
 | [EdoBuildSeiyaku.cs](#edobuildseiyakucs) | 制約の二種 — 硬い制約(関門)と柔らかい制約(狙い)を、置く側の共通の層で使い分ける(EDO-0372・施主 2026-09-23)。 | — | 1 |
 | [EdoBuildShiroIshigaki.cs](#edobuildshiroishigakics) | EdoBuild — 城の石垣の直線 run を区画の辺に沿って据える(外周の基壇・2026-10-04・EDO-0533 土井 boundaryPlinth)。 | — | 7 |
 | [EdoBuildShokusai.cs](#edobuildshokusaics) | 植栽の置き方(算出物の撒いた点を一本ずつ据える)── EDO-0533 S8 で岡部の邸ビルダー(PlantFromImpl)から移した。 | 岡部 Stage5_Nishi(PlantFromImpl)・土井 Stage8_Shokusai。 | 7 |
@@ -997,6 +997,9 @@ EdoBuild — 坂の路盤(折れ線の芯と縦断で道の面を均し、盛土
 | `EdoBuild.BackBenchWrite(ks, fillMax)` | `int` | 硬 地面・区域 | 背の小段の裏込めを地形へ書く(BackBenchAt を節点ごとに・run を順に重ねる)。 ⟶ 返す: 書いた節点の数(盛りの最大は out) | OkabeYashiki(Stage2b_Dan_) |
 | `EdoBuild.BackBenchWrite(ks, fillMax, cutMax)` | `int` |  | ⚠ 注釈なし | OkabeYashiki(Stage2b_Dan_) |
 | `EdoBuild.BackBenchWrite(ks, fillMax, cutMax, recPath)` | `int` |  | recPath: 書いた節点の設計の高さを残す(SaveNodeTargets ── 造成QA が domain reload の後も同じ小段を引く。 | OkabeYashiki(Stage2b_Dan_) |
+| `EdoBuild.CrestFollowBackFill(name, pieces, line, back, crestDepth, drop, benchW, bf, maxFill, baseAt, parcel, keepOut, recPath)` | `string` | 天端・区域 | 据えた駒の天端に沿う背の小段の裏込め(普請方 第135巡 F3【硬】「背の小段(天端−drop)は袖の全長にわたり、一続きの面として絶対値で描く (駒ごとに区切らない)・盛りの上限は区画の内に限り maxFill」・F4… ⟶ 返す: 記録の一行 | OkabeYashiki(Stage2b_Dan_) |
+| `EdoBuild.RaiseBandAround(piece, top, band, drain, baseY, maxFill, parcel, recPath)` | `string` | 天端・面・隅・区域 | 埋めた駒のまわりの帯を盛る(普請方 第136巡 _r136ends n3【硬】「延長の控え+band の帯だけ top まで盛り、1/drain で base へ戻す(盛り ≤maxFill・区画の内)」)。 ⟶ 返す: 記録の一行 | OkabeYashiki(Stage2b_Dan_) |
+| `EdoBuild.TaperWrittenEdges(recPath, parts, parcel, slope, capRaise, clear)` | `string` | 面・区域 | 書いた盛りの縁を 1:slope より緩く今の地盤へ擦り付ける(普請方 第135巡 F4【硬】「盛りの縁はどこでも 1:1.5 より緩く今の地盤へ擦り付ける・縁を鉛直に切らない」)。 ⟶ 返す: 記録の一行 | OkabeYashiki(Stage2b_Dan_) |
 | `ToeBench`(class) | — | | 法尻の土留めの背の小段(切り)の一本(指図 terraceWalls[].toeBench・EDO-0502 第33巡)。 | |
 | `EdoBuild.ToeBenchOf(name, pieces, a, b, back, drop, behind, bf, parcel, groundAt, reach, tail, note)` | `ToeBench` | 天端・面 | 法尻の土留めの背の小段を、据えた駒の実メッシュから解く(指図 toeBench: 天端 − drop の小段を控えの後端 + behind までとり、その先 1:bf で 平場の縁まで盛の法を描き直す【硬: 天端に土を載… ⟶ 返す: 解けなければ null(理由は note) | OkabeYashiki(KeepToe) |
 | `EdoBuild.ToeBenchOnSeg(sg, back, w, drop, bf, parcel, ext0, ext1)` | `ToeBench` | 天端・面 | 駒を据える前の法尻の背の小段(指図 nozuraEndRule 追記3 toeEnd・EDO-0502 第34巡): 区間の線(見え面の線)・設計の天端(crestAt)と、 駒の控えの後端(呼び手が焼いた駒の全頂点から… | — |

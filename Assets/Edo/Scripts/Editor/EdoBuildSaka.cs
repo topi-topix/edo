@@ -660,6 +660,168 @@ public static partial class EdoBuild
         return n;
     }
 
+    /// <summary>**据えた駒の天端に沿う背の小段の裏込め**(普請方 第135巡 F3【硬】「背の小段(天端−drop)は袖の全長にわたり、一続きの面として絶対値で描く
+    /// (駒ごとに区切らない)・盛りの上限は区画の内に限り maxFill」・F4【硬】「盛りの縁は 1:bf より緩く今の地盤へ擦り付ける・縁を鉛直に切らない」)。
+    /// 置き方: 線(折れ線 <paramref name="line"/>・背へ向く単位 <paramref name="back"/>)に沿って 0.25 ごとに、**据えた駒の実メッシュの天端**(線から背へ
+    /// <paramref name="crestDepth"/> の帯・走り ±0.15 の頂点の最高 ── 測る。⛔ 基準点で見ない)を取り、道のりで補間した一続きの天端 c(s) を作る。
+    /// 背の節点の高さ = c(s) − drop(線から <paramref name="benchW"/> まで)・その先と線の両端の先は 1:bf で下ろし、今の地盤より高い所だけ盛る(⛔ 切らない)。
+    /// 盛りは設計面 <paramref name="baseAt"/> + maxFill で頭打ち(頭打ちは連続 ── 鉛直の縁を作らない)。区画の外・<paramref name="keepOut"/> は触らない。
+    /// 書いた高さは <paramref name="recPath"/> へ(造成QA・升目の段の検め)。当たる先: 坂なりの袖・延長の天端の背(岡部 TW_Kado_Sode・TW_Kado_Shumen_SideEnd)。
+    /// ⟶ 返す: 記録の一行。</summary>
+    public static string CrestFollowBackFill(string name, IList<GameObject> pieces, IList<Vector2> line, IList<Vector2> back, float crestDepth, float drop, float benchW, float bf, float maxFill,
+                                             Func<Vector2, float> baseAt, Vector2[] parcel, Func<Vector2, bool> keepOut, string recPath)
+    {
+        if (line == null || line.Count < 2 || pieces == null || pieces.Count == 0) return name + ": 線か駒が無い ── 盛らない";
+        var cum = new float[line.Count]; for (int i = 1; i < line.Count; i++) cum[i] = cum[i - 1] + Vector2.Distance(line[i - 1], line[i]);
+        float Ltot = cum[line.Count - 1]; if (Ltot < 0.1f) return name + ": 線が短い ── 盛らない";
+        var vs = new List<Vector3>(); foreach (var g in pieces) if (g != null && g.activeInHierarchy) vs.AddRange(Body(g.transform, 999999));
+        // 点 → (道のり s, 背への離れ dn, 区間)── 最も近い区間への射影
+        Func<Vector2, Vector3> proj = q =>
+        {
+            float bd = float.MaxValue; Vector3 r = new Vector3(float.NaN, float.NaN, -1);
+            for (int i = 0; i + 1 < line.Count; i++)
+            {
+                Vector2 a = line[i], ab = line[i + 1] - a; float L = ab.magnitude; if (L < 1e-4f) continue; Vector2 t = ab / L;
+                float u = Vector2.Dot(q - a, t), uc = Mathf.Clamp(u, 0f, L); Vector2 f = a + t * uc; float d = Vector2.Distance(q, f);
+                if (d < bd) { bd = d; Vector2 bk = back[Mathf.Min(i, back.Count - 1)]; r = new Vector3(cum[i] + u, Vector2.Dot(q - f, bk), i); }
+            }
+            return r;
+        };
+        float ds = 0.25f; int nS = Mathf.CeilToInt(Ltot / ds) + 1; var cr = new float[nS]; for (int i = 0; i < nS; i++) cr[i] = float.NaN;
+        foreach (var v in vs)
+        {
+            var pr = proj(new Vector2(v.x, v.z)); if (pr.z < 0 || pr.y < -0.05f || pr.y > crestDepth) continue;
+            if (pr.x < -0.15f || pr.x > Ltot + 0.15f) continue;
+            int i0 = Mathf.Clamp(Mathf.FloorToInt((pr.x - 0.15f) / ds), 0, nS - 1), i1 = Mathf.Clamp(Mathf.CeilToInt((pr.x + 0.15f) / ds), 0, nS - 1);
+            for (int i = i0; i <= i1; i++) if (Mathf.Abs(i * ds - pr.x) <= 0.15f + 1e-4f && (float.IsNaN(cr[i]) || v.y > cr[i])) cr[i] = v.y;
+        }
+        int nHave = 0; for (int i = 0; i < nS; i++) if (!float.IsNaN(cr[i])) nHave++;
+        if (nHave == 0) return name + ": 線の上に駒の天端が無い ── 盛らない";
+        for (int i = 1; i < nS; i++) if (float.IsNaN(cr[i])) cr[i] = cr[i - 1];
+        for (int i = nS - 2; i >= 0; i--) if (float.IsNaN(cr[i])) cr[i] = cr[i + 1];
+        Func<float, float> crestAt = s => { float x = Mathf.Clamp(s, 0f, Ltot) / ds; int i = Mathf.Clamp(Mathf.FloorToInt(x), 0, nS - 1), j = Mathf.Min(i + 1, nS - 1); return Mathf.Lerp(cr[i], cr[j], x - i); };
+        var t0 = T(); var td = t0.terrainData; int hres = td.heightmapResolution; Vector3 tp = t0.transform.position, ts = td.size; float cell = ts.x / (hres - 1);
+        float reach = benchW + bf * (maxFill + 1f) + 2f * cell;
+        float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
+        foreach (var q in line) { mnx = Mathf.Min(mnx, q.x); mxx = Mathf.Max(mxx, q.x); mnz = Mathf.Min(mnz, q.y); mxz = Mathf.Max(mxz, q.y); }
+        int x0 = Mathf.Clamp(Mathf.FloorToInt((mnx - reach - tp.x) / cell), 0, hres - 1), z0 = Mathf.Clamp(Mathf.FloorToInt((mnz - reach - tp.z) / cell), 0, hres - 1);
+        int x1 = Mathf.Clamp(Mathf.CeilToInt((mxx + reach - tp.x) / cell), 0, hres - 1), z1 = Mathf.Clamp(Mathf.CeilToInt((mxz + reach - tp.z) / cell), 0, hres - 1);
+        int w = x1 - x0 + 1, h = z1 - z0 + 1; var H = td.GetHeights(x0, z0, w, h); int n = 0; float fillMx = 0f, capped = 0f; var rec = recPath != null ? new Dictionary<long, float>() : null;
+        for (int iz = 0; iz < h; iz++) for (int ix = 0; ix < w; ix++)
+        {
+            var p = new Vector2(tp.x + (x0 + ix) * cell, tp.z + (z0 + iz) * cell);
+            if (parcel != null && !EdoGeom.PIP(parcel, p)) continue; if (keepOut != null && keepOut(p)) continue;
+            var pr = proj(p); if (pr.z < 0 || pr.y < 0f) continue;                  // 前(見え面の側)は触らない
+            float s = pr.x, dEnd = s < 0f ? -s : (s > Ltot ? s - Ltot : 0f);
+            float hh = Mathf.Sqrt(Mathf.Pow(Mathf.Max(0f, pr.y - benchW), 2f) + dEnd * dEnd);
+            float target = crestAt(s) - drop - hh / bf;
+            float cur = H[iz, ix] * ts.y + tp.y; if (target <= cur + 1e-4f) continue;
+            float b0 = baseAt != null ? baseAt(p) : cur; if (float.IsNaN(b0)) b0 = cur;
+            float nw = Mathf.Min(target, b0 + maxFill); if (target > b0 + maxFill + 1e-3f) capped = Mathf.Max(capped, target - (b0 + maxFill));
+            if (nw <= cur + 1e-4f) continue;
+            fillMx = Mathf.Max(fillMx, nw - cur); H[iz, ix] = (nw - tp.y) / ts.y; n++;
+            if (rec != null) rec[((long)(x0 + ix) << 32) ^ (uint)(z0 + iz)] = nw;
+        }
+        if (n > 0) { td.SetHeightsDelayLOD(x0, z0, H); td.SyncHeightmap(); }
+        if (rec != null && rec.Count > 0) AppendNodeTargets(recPath, t0.name, rec);
+        float cMin = float.MaxValue, cMax = float.MinValue; foreach (var c in cr) { cMin = Mathf.Min(cMin, c); cMax = Mathf.Max(cMax, c); }
+        return name + ": 駒の天端 " + cMax.ToString("F2") + "→" + cMin.ToString("F2") + "(" + Ltot.ToString("F1") + "m・測った点 " + nHave + "/" + nS + ")に沿う一枚の小段 天端 −" + drop.ToString("F2") + "・奥行 " + benchW.ToString("F2")
+             + "・その先 1:" + bf.ToString("0.0") + "・盛った節点 " + n + "・盛り最大 " + fillMx.ToString("F2") + (capped > 1e-3f ? "・⚠ 上限 " + maxFill.ToString("F2") + " で頭打ち 最大 " + capped.ToString("F2") : "・上限 " + maxFill.ToString("F2") + " の内");
+    }
+
+    /// <summary>**埋めた駒のまわりの帯を盛る**(普請方 第136巡 _r136ends n3【硬】「延長の控え+band の帯だけ top まで盛り、1/drain で base へ戻す(盛り ≤maxFill・区画の内)」)。
+    /// 帯 = 駒の実メッシュの頂点の水平の凸包から <paramref name="band"/> 以内(⛔ 基準点・bounds で測らない)。帯の内は top・その外は 1/drain で base へ下ろす。
+    /// 今の地盤が base − 0.05 より低い節点(見え面の前・溝)は触らない ── 平場へ戻す擦り付けを他の駒の前へ回さない。盛るだけ・盛り ≤ maxFill・区画の外は触らない。
+    /// 当たる先: 入隅の通し(_Tooshi)の延長の天端が背の平場から出る所(岡部 TW_Kado_Hokuto_0_0)。⟶ 返す: 記録の一行。</summary>
+    public static string RaiseBandAround(GameObject piece, float top, float band, float drain, float baseY, float maxFill, Vector2[] parcel, string recPath)
+    {
+        if (piece == null) return "駒が無い";
+        var pts = new List<Vector2>(); foreach (var v in Body(piece.transform, 999999)) pts.Add(new Vector2(v.x, v.z));
+        if (pts.Count < 3) return piece.name + ": 頂点が無い";
+        var hull = ConvexHull2(pts).ToArray();
+        var t0 = T(); var td = t0.terrainData; int hres = td.heightmapResolution; Vector3 tp = t0.transform.position, ts = td.size; float cell = ts.x / (hres - 1);
+        float reach = band + (top - baseY) * drain + 2f * cell;
+        float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue; foreach (var q in hull) { mnx = Mathf.Min(mnx, q.x); mxx = Mathf.Max(mxx, q.x); mnz = Mathf.Min(mnz, q.y); mxz = Mathf.Max(mxz, q.y); }
+        int x0 = Mathf.Clamp(Mathf.FloorToInt((mnx - reach - tp.x) / cell), 0, hres - 1), z0 = Mathf.Clamp(Mathf.FloorToInt((mnz - reach - tp.z) / cell), 0, hres - 1);
+        int x1 = Mathf.Clamp(Mathf.CeilToInt((mxx + reach - tp.x) / cell), 0, hres - 1), z1 = Mathf.Clamp(Mathf.CeilToInt((mxz + reach - tp.z) / cell), 0, hres - 1);
+        int w = x1 - x0 + 1, h = z1 - z0 + 1; var H = td.GetHeights(x0, z0, w, h); int n = 0; float mx = 0f; var rec = recPath != null ? new Dictionary<long, float>() : null;
+        for (int iz = 0; iz < h; iz++) for (int ix = 0; ix < w; ix++)
+        {
+            var p = new Vector2(tp.x + (x0 + ix) * cell, tp.z + (z0 + iz) * cell);
+            if (parcel != null && !EdoGeom.PIP(parcel, p)) continue;
+            float cur = H[iz, ix] * ts.y + tp.y; if (cur < baseY - 0.05f) continue;
+            float d = EdoGeom.PIP(hull, p) ? 0f : EdoGeom.DistToPolyEdge(hull, p);
+            float target = d <= band ? top : top - (d - band) / drain; if (target <= cur + 1e-4f) continue;
+            float nw = Mathf.Min(target, cur + maxFill); if (nw <= cur + 1e-4f) continue;
+            mx = Mathf.Max(mx, nw - cur); H[iz, ix] = (nw - tp.y) / ts.y; n++;
+            if (rec != null) rec[((long)(x0 + ix) << 32) ^ (uint)(z0 + iz)] = nw;
+        }
+        if (n > 0) { td.SetHeightsDelayLOD(x0, z0, H); td.SyncHeightmap(); }
+        if (rec != null && rec.Count > 0) AppendNodeTargets(recPath, t0.name, rec);
+        return piece.name + ": 帯 " + band.ToString("F2") + " を " + top.ToString("F2") + " へ・その先 1/" + drain.ToString("F0") + " で " + baseY.ToString("F2") + " へ・盛った節点 " + n + "・盛り最大 " + mx.ToString("F2") + "(≤" + maxFill.ToString("F2") + ")";
+    }
+
+
+    /// <summary>**書いた盛りの縁を 1:slope より緩く今の地盤へ擦り付ける**(普請方 第135巡 F4【硬】「盛りの縁はどこでも 1:1.5 より緩く今の地盤へ擦り付ける・縁を鉛直に切らない」)。
+    /// 記録 <paramref name="recPath"/> の書いた節点を種に、隣り合う 0.25 の節点の差が cell/slope を超えて低い節点を、種から 1:slope で下ろした高さまで盛る(盛るだけ・
+    /// 種から測った上げ ≤ <paramref name="capRaise"/>)。⛔ 駒の外形(実メッシュの頂点の凸包)から <paramref name="clear"/> 以内と区画の外は触らない ── 盛りが石垣の前へ回らない
+    /// (隣の節点は外形を跨がないので見え面の側へ渡らない)。盛った節点は記録へ足す(造成QA・升目の段の検めが同じ記録を読む)。
+    /// 当たる先: BackBenchWrite が盛った小段・裏込めの縁(keepOut・走りの端で切れた縁 ── 岡部 TW_Kado_Sode の背・SideEnd の背)。⟶ 返す: 記録の一行。</summary>
+    public static string TaperWrittenEdges(string recPath, IList<GameObject> parts, Vector2[] parcel, float slope, float capRaise, float clear)
+    {
+        var t0 = T(); var td = t0.terrainData; int R = td.heightmapResolution; Vector3 tp = t0.transform.position, ts = td.size; float cell = ts.x / (R - 1);
+        var seeds = LoadNodeTargets(recPath, t0.name); if (seeds == null || seeds.Count == 0) return "盛りの縁の擦り付け: 記録なし";
+        int i0 = int.MaxValue, i1 = int.MinValue, j0 = int.MaxValue, j1 = int.MinValue;
+        foreach (var k in seeds.Keys) { int ix = (int)(k >> 32), iz = (int)(uint)(k & 0xffffffffL); i0 = Mathf.Min(i0, ix); i1 = Mathf.Max(i1, ix); j0 = Mathf.Min(j0, iz); j1 = Mathf.Max(j1, iz); }
+        int pad = Mathf.CeilToInt(capRaise * slope / cell) + 2; i0 = Mathf.Max(1, i0 - pad); j0 = Mathf.Max(1, j0 - pad); i1 = Mathf.Min(R - 2, i1 + pad); j1 = Mathf.Min(R - 2, j1 + pad);
+        int w = i1 - i0 + 1, h = j1 - j0 + 1; var H = td.GetHeights(i0, j0, w, h);
+        // 触らない節点: 駒の外形 + clear・区画の外
+        var hulls = new List<Vector2[]>(); var hb = new List<Vector4>();
+        foreach (var g in parts)
+        {
+            if (g == null || !g.activeInHierarchy) continue; var b = RB(g);
+            if (b.max.x < tp.x + i0 * cell - 1f || b.min.x > tp.x + i1 * cell + 1f || b.max.z < tp.z + j0 * cell - 1f || b.min.z > tp.z + j1 * cell + 1f) continue;
+            var pts = new List<Vector2>(); foreach (var v in Body(g.transform, 3000)) pts.Add(new Vector2(v.x, v.z)); if (pts.Count < 3) continue;
+            var hu = ConvexHull2(pts).ToArray(); hulls.Add(hu); hb.Add(new Vector4(b.min.x - clear, b.min.z - clear, b.max.x + clear, b.max.z + clear));
+        }
+        var frozen = new bool[h, w]; var seed = new bool[h, w]; var cur0 = new float[h, w];
+        for (int jz = 0; jz < h; jz++) for (int ix = 0; ix < w; ix++)
+        {
+            cur0[jz, ix] = H[jz, ix] * ts.y + tp.y;
+            var p = new Vector2(tp.x + (i0 + ix) * cell, tp.z + (j0 + jz) * cell);
+            long k = ((long)(i0 + ix) << 32) ^ (uint)(j0 + jz); if (seeds.ContainsKey(k)) seed[jz, ix] = true;
+            if (parcel != null && !EdoGeom.PIP(parcel, p)) { frozen[jz, ix] = true; continue; }
+            for (int q = 0; q < hulls.Count; q++) { var bb = hb[q]; if (p.x < bb.x || p.x > bb.z || p.y < bb.y || p.y > bb.w) continue; if (EdoGeom.PIP(hulls[q], p) || EdgeDist(hulls[q], p) < clear) { frozen[jz, ix] = true; break; } }
+        }
+        float dh = cell / slope; var Y = new float[h, w]; var top = new float[h, w];   // top = その節点へ盛りを運んだ種の高さの上限(種の今の高さ)
+        for (int jz = 0; jz < h; jz++) for (int ix = 0; ix < w; ix++) { Y[jz, ix] = cur0[jz, ix]; top[jz, ix] = seed[jz, ix] ? cur0[jz, ix] : float.NegativeInfinity; }
+        int n = 0; float mx = 0f;
+        for (int pass = 0; pass < 400; pass++)
+        {
+            bool ch = false;
+            for (int jz = 1; jz < h - 1; jz++) for (int ix = 1; ix < w - 1; ix++)
+            {
+                if (frozen[jz, ix] || seed[jz, ix]) continue;
+                float best = Y[jz, ix], bt = top[jz, ix];
+                foreach (var d in new[] { new Vector2Int(1, 0), new Vector2Int(-1, 0), new Vector2Int(0, 1), new Vector2Int(0, -1) })
+                {
+                    int jx = ix + d.x, kz = jz + d.y; if (float.IsNegativeInfinity(top[kz, jx])) continue;
+                    float want = Y[kz, jx] - dh; if (want > best + 1e-4f && want - cur0[jz, ix] <= capRaise) { best = want; bt = top[kz, jx]; }
+                }
+                if (best > Y[jz, ix] + 1e-4f) { Y[jz, ix] = best; top[jz, ix] = bt; ch = true; }
+            }
+            if (!ch) break;
+        }
+        var rec = new Dictionary<long, float>();
+        for (int jz = 0; jz < h; jz++) for (int ix = 0; ix < w; ix++)
+        {
+            float d0 = Y[jz, ix] - cur0[jz, ix]; if (d0 <= 1e-4f) continue;
+            H[jz, ix] = (Y[jz, ix] - tp.y) / ts.y; n++; mx = Mathf.Max(mx, d0); rec[((long)(i0 + ix) << 32) ^ (uint)(j0 + jz)] = Y[jz, ix];
+        }
+        if (n > 0) { td.SetHeightsDelayLOD(i0, j0, H); td.SyncHeightmap(); AppendNodeTargets(recPath, t0.name, rec); }
+        return "盛りの縁の擦り付け(1:" + slope.ToString("0.0") + "・駒の外形 +" + clear.ToString("F2") + " と区画の外は触らない): 種 " + seeds.Count + "・盛った節点 " + n + "・上げ最大 " + mx.ToString("F2") + "(≤" + capRaise.ToString("F2") + ")";
+    }
+
     /// <summary>**法尻の土留めの背の小段**(切り)の一本(指図 terraceWalls[].toeBench・EDO-0502 第33巡)。a + t·s = 線・back = 背へ向く水平の単位・
     /// crest[i] = 道のり s = s0 + i·ds の駒の天端(実メッシュの最上点)・bench0..bench1 = 小段を取る道のり(差し込んだ端は届いた所まで)・
     /// dFront = 駒の見え面の前の縁(これより前は触らない)・w = 小段の奥行(駒の控えの後端 + behind)・drop = 天端からの下げ・bf = 小段の先の盛の法 1:bf。</summary>

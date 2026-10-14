@@ -237,8 +237,10 @@ public static partial class EdoBuild
     /// ⛔ 帯の外は触らない(道は掘らない・盛らない【硬】)。内の側(台の石垣の根・<paramref name="outAt"/> を渡したとき)は**上げるだけ**(根を埋める側へ)── 石垣の見え面の下の節点は後で <see cref="SinkGroundUnderParts"/> が面より下げる。
     /// 書くのは <see cref="T"/>。控えは <see cref="RestoreSunkGround"/> と同じ書式(据え直しの前に戻す)。⟶ 上げた・下げた節点の数と最大。
     /// 当たる先: 地表と面一に埋める溝すべて(岡部 D_N40_Mae・Mizo_*)。同じ型は D_N39_1_Mae・土井の溝へ移せる。</summary>
-    public static string FlushGroundToMizoTop(IEnumerable<GameObject> pieces, IDictionary<GameObject, float> coverTop, float band = 0.30f, string undoPath = null, Func<Vector2, Vector2> outAt = null, string recPath = null)
+    public static string FlushGroundToMizoTop(IEnumerable<GameObject> pieces, IDictionary<GameObject, float> coverTop, float band = 0.30f, string undoPath = null, Func<Vector2, Vector2> outAt = null, string recPath = null,
+                                              IDictionary<long, List<Vector2>> collect = null)
     {
+        // collect(第138巡・普請方 r137 K2 ①): 渡せば地形へ書かず、節点ごとの候補(高さ, 外形からの距離)を足すだけ ── 型A と段落ちの帯を一度に書く(<see cref="WriteBandCandidates"/>)
         var t = T(); var td = t.terrainData; var org = t.transform.position; int R = td.heightmapResolution; float hs = td.size.x / (R - 1);
         var want = new Dictionary<long, Vector3>();   // 節点 → (高さ, 外形からの距離, 上げるだけ)
         int nPiece = 0, nApronAll = 0;
@@ -277,8 +279,10 @@ public static partial class EdoBuild
                     long k = ((long)i << 32) ^ (uint)j; Vector3 cur;
                     bool raiseOnly = outSide != 0 && side != outSide;   // 内の側(台の石垣の根)は根を埋める側へだけ ── 下げない
                     if (!want.TryGetValue(k, out cur) || ex < cur.y) want[k] = new Vector3(y, ex, raiseOnly ? 1f : 0f);
+                    if (collect != null) { List<Vector2> lc; if (!collect.TryGetValue(k, out lc)) collect[k] = lc = new List<Vector2>(); lc.Add(new Vector2(y, ex)); }
                 }
         }
+        if (collect != null) return "溝の両脇 " + band.ToString("0.00") + "m の候補を集めた: 駒 " + nPiece + "・節点 " + want.Count;
         int nUp = 0, nDown = 0; float mUp = 0f, mDown = 0f; var undo = new List<float[]>();
         if (want.Count > 0)
         {
@@ -306,7 +310,7 @@ public static partial class EdoBuild
     /// 駒の実メッシュの側の壁(|x| ≥ 0.30)の頂点の最も高い所を局所 z の 0.05 刻みで測り(側ごと)、駒の外形の外 <paramref name="band"/> 以内の節点をその局所 z の天端へ(上げも下げも)。
     /// 二つの駒の帯に入る節点は外形に近い方。外形の中は触らない(<see cref="SinkGroundUnderMizo"/> が下げる)。帯の外は触らない【硬】。書くのは <see cref="T"/>。
     /// 当たる先: Doi_DanOchi_* を地表に埋める所すべて(岡部 D_MinamiHei・土井 D9/D10/D11 を移すとき)。</summary>
-    public static string FlushGroundToStepTop(IEnumerable<GameObject> pieces, float band = 0.30f, string undoPath = null, string recPath = null)
+    public static string FlushGroundToStepTop(IEnumerable<GameObject> pieces, float band = 0.30f, string undoPath = null, string recPath = null, IDictionary<long, List<Vector2>> collect = null)
     {
         var t = T(); var td = t.terrainData; var org = t.transform.position; int R = td.heightmapResolution; float hs = td.size.x / (R - 1);
         var want = new Dictionary<long, Vector2>(); int nPiece = 0; var prof = new Dictionary<string, SortedDictionary<int, float>[]>();
@@ -342,8 +346,10 @@ public static partial class EdoBuild
                     if (float.IsNaN(top)) continue;
                     float y = l2w.MultiplyPoint3x4(new Vector3(lp.x, top, lp.z)).y;
                     long k = ((long)i << 32) ^ (uint)j; Vector2 cur; if (!want.TryGetValue(k, out cur) || ex < cur.y) want[k] = new Vector2(y, ex);
+                    if (collect != null) { List<Vector2> lc; if (!collect.TryGetValue(k, out lc)) collect[k] = lc = new List<Vector2>(); lc.Add(new Vector2(y, ex)); }
                 }
         }
+        if (collect != null) return "段落ちの両脇 " + band.ToString("0.00") + "m の候補を集めた: 駒 " + nPiece + "・節点 " + want.Count;
         int nUp = 0, nDown = 0; float mUp = 0f, mDown = 0f; var undo = new List<float[]>();
         if (want.Count > 0)
         {
@@ -362,6 +368,32 @@ public static partial class EdoBuild
         WriteUndo(undoPath, t.name, undo);
         if (recPath != null) { var rec = new Dictionary<long, float>(); foreach (var kv in want) rec[kv.Key] = kv.Value.x; AppendNodeTargets(recPath, t.name, rec); }   // 造成QA が引く(第131巡)
         return "段落ちの両脇 " + band.ToString("0.00") + "m の地面を駒の側の天端へ合わせた: 駒 " + nPiece + "・上げた節点 " + nUp + "(最大 " + mUp.ToString("F3") + ")・下げた節点 " + nDown + "(最大 " + mDown.ToString("F3") + ")(地形 " + t.name + ")";
+    }
+
+    /// <summary>**溝の帯の候補を一度に書く**(普請方 第137巡 r137 K2 ①【硬】「一つの節点には最も近い駒の縁石の外の縁の天端だけを当てる。二つの駒の帯が重なる所は道のりで直線に補い、
+    /// 交互に書かない」)。<see cref="FlushGroundToMizoTop"/>・<see cref="FlushGroundToStepTop"/> が collect へ集めた節点ごとの候補(高さ, 外形からの距離)から、最も近い駒の候補を採り、
+    /// 最も近い距離 + <paramref name="blend"/> の内に別の駒の候補があれば距離の逆数で重み付けして補う(継ぎ目の両側の帯を一続きにする)。上げも下げもする。
+    /// 書いた高さは <paramref name="written"/>(擦り付けの種)と <paramref name="recPath"/> へ。⟶ 一行。当たる先: 型の違う溝の駒が並ぶ帯(岡部 D_MinamiHei の型A と段落ち)。</summary>
+    public static string WriteBandCandidates(IDictionary<long, List<Vector2>> collect, float blend, string undoPath, string recPath, IDictionary<long, float> written)
+    {
+        var t = T(); var td = t.terrainData; var org = t.transform.position;
+        if (collect == null || collect.Count == 0) return "帯の候補が無い";
+        int i0 = int.MaxValue, i1 = int.MinValue, j0 = int.MaxValue, j1 = int.MinValue;
+        foreach (var k in collect.Keys) { int i = (int)(k >> 32), j = (int)(uint)(k & 0xffffffff); i0 = Mathf.Min(i0, i); i1 = Mathf.Max(i1, i); j0 = Mathf.Min(j0, j); j1 = Mathf.Max(j1, j); }
+        var H = td.GetHeights(i0, j0, i1 - i0 + 1, j1 - j0 + 1); int nUp = 0, nDown = 0, nBl = 0; float mUp = 0f, mDown = 0f; var undo = new List<float[]>(); var rec = new Dictionary<long, float>();
+        foreach (var kv in collect)
+        {
+            float exMin = float.MaxValue; foreach (var c in kv.Value) exMin = Mathf.Min(exMin, c.y);
+            float sw = 0f, swy = 0f; int nc = 0; foreach (var c in kv.Value) if (c.y <= exMin + blend) { float w = 1f / (c.y + 0.02f); sw += w; swy += w * c.x; nc++; }
+            float y = swy / sw; if (nc > 1) nBl++;
+            int i = (int)(kv.Key >> 32), j = (int)(uint)(kv.Key & 0xffffffff); rec[kv.Key] = y; if (written != null) written[kv.Key] = y;
+            float cur = H[j - j0, i - i0] * td.size.y + org.y; if (Mathf.Abs(y - cur) < 1e-4f) continue;
+            if (y > cur) { nUp++; mUp = Mathf.Max(mUp, y - cur); } else { nDown++; mDown = Mathf.Max(mDown, cur - y); }
+            H[j - j0, i - i0] = (y - org.y) / td.size.y; undo.Add(new[] { i, j, H[j - j0, i - i0], (cur - org.y) / td.size.y });
+        }
+        if (undo.Count > 0) { td.SetHeights(i0, j0, H); AssetDatabase.SaveAssetIfDirty(td); }
+        WriteUndo(undoPath, t.name, undo); AppendNodeTargets(recPath, t.name, rec);
+        return "溝の帯を一度に書いた(最も近い駒・重なり " + blend.ToString("0.00") + " の内は距離で補う): 節点 " + collect.Count + "・補った " + nBl + "・上げ " + nUp + "(最大 " + mUp.ToString("F3") + ")・下げ " + nDown + "(最大 " + mDown.ToString("F3") + ")";
     }
 
     /// <summary>下げた節点の控えを足す(地形の名・数・[i, j, 下げた値, 元の値]… の塊を追記)。</summary>

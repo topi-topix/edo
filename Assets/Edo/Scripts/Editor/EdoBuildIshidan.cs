@@ -297,8 +297,12 @@ public static partial class EdoBuild
                                                        Transform parent, string name, float kasaTarget, float minKasa, IList<GameObject> walls,
                                                        float sink, System.Func<float, float, float> footAt, float neiri, List<string> warn,
                                                        out SodeRowReport rep, int maxExt = 8,
-                                                       System.Func<Vector3, Vector3, float> planRay = null, float planCrest = float.NaN)
+                                                       System.Func<Vector3, Vector3, float> planRay = null, float planCrest = float.NaN,
+                                                       int stopNose = -1, bool kasaPerStep = false)
     {
+        // stopNose(普請方 第137巡 K_Kuruwa.sodeR137【硬】「左右とも袖は n 段目の段鼻で止める」): 0 始まりの段の番号 ── その段より上の段の脇には袖を立てない。
+        // kasaPerStep(同【硬: 相手の天端を越えない】「袖の笠の天端 = min(段鼻を結ぶ線 + 狙い, 相手の天端)・上端の近くでは相手の天端で水平に寝かせる」): 笠の上がりを段ごとに
+        //   min(狙い, 相手の天端 − 次の段の踏面)にする(⛔ 一列一つの上がりにすると入隅の 0 が全段に効いて笠が段鼻の線まで下がった・第137巡)。下限(笠 ≥ 踏面)は段ごとに minKasa で検める。
         rep = new SodeRowReport(); rep.atFace = float.NaN; rep.overCrest = float.NaN; rep.endSink = float.NaN;
         var res = new List<GameObject>();
         int n = dans == null ? 0 : dans.Count; if (n == 0) return res;
@@ -362,8 +366,9 @@ public static partial class EdoBuild
         }
         // ② 笠の上がり
         float kasa = kasaTarget;
-        if (rep.faceHit) kasa = Mathf.Min(kasaTarget, crest - noseLine(fFace));
-        if (kasa <= minKasa)
+        if (rep.faceHit && !kasaPerStep) kasa = Mathf.Min(kasaTarget, crest - noseLine(fFace));
+        if (kasaPerStep) { /* 段ごと(③) */ }
+        else if (kasa <= minKasa)
         {
             warn.Add(name + ": ⛔ 入隅で相手の天端 " + crest.ToString("F2") + " を越えない笠の上がり " + kasa.ToString("F3") + " が下限 " + minKasa.ToString("F3") +
                      " 以下(段石の小口が耳石より上に出る)── 下限で据えた");
@@ -377,9 +382,20 @@ public static partial class EdoBuild
         {
             if (dans[i] == null || float.IsNaN(noseF[i])) continue;
             if (rep.faceHit && noseF[i] <= fFace) continue;              // 段鼻が面より奥 = 土留めの中
+            if (stopNose >= 0 && i >= stopNose) continue;                // n 段目の段鼻で止める(その段から上の脇は立てない)
+            float kasaI = kasa;
+            if (kasaPerStep && !float.IsNaN(crest))
+            {
+                int iu = i + 1; while (iu < n && float.IsNaN(tread[iu])) iu++;
+                float upY = iu < n ? tread[iu] : (rep.faceHit ? noseLine(fFace) : tread[i]);   // 袖の駒の上の端の段鼻の線の高さ
+                kasaI = Mathf.Min(kasaTarget, crest - upY);
+                if (kasaI < minKasa - 1e-4f) { warn.Add(name + "_" + i.ToString("00") + ": ⛔ 笠の上がり " + kasaI.ToString("F3") + " < 下限 " + minKasa.ToString("F3") + "(相手の天端 " + crest.ToString("F2") + " を越えないと笠が踏面より下がる)── 下限で据えた"); kasaI = minKasa; }
+                else if (kasaI < kasaTarget - 1e-3f) warn.Add(name + "_" + i.ToString("00") + ": ⚠ 笠の上がり " + kasaI.ToString("F3") + "(狙い " + kasaTarget.ToString("F2") + "【柔】── 相手の天端 " + crest.ToString("F2") + " で寝かせた【硬】)");
+                rep.kasa = i == 0 ? kasaI : Mathf.Min(rep.kasa, kasaI);
+            }
             string w; SodeRise rz; int ic = i;
             var sg = PlaceIshidanSodeByDepth(dans[i], d => pathOf(ic, d), depths, side, parent, name + "_" + i.ToString("00"), false,
-                                             out w, out rz, false, footAt, neiri, kasa);
+                                             out w, out rz, false, footAt, neiri, kasaI);
             if (w != null) warn.Add(w);
             if (sg == null || rz.refused) { rep.refused++; continue; }
             res.Add(sg); rep.placed++;

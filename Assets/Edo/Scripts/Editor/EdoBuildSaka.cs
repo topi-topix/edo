@@ -433,7 +433,10 @@ public static partial class EdoBuild
         /// <summary>真なら切りの上限 maxCut を**小段の上だけ**に当て、小段の先の 1:bf の法は上限なしで地山に交わるまで切る【硬】── 法は小段の縁の
         /// (上限で頭打ちした)高さから上がる(指図 TW_Kado_Shumen.sideEnd 追記 2026-10-10b「切りの上限 0.7 は小段だけに当て、超える分は擦り付けで受ける」・EDO-0502 第81巡)。
         /// 当たる先: 背の地山が高い延長の背の小段(岡部 TW_Kado_Shumen の sideEnd)。</summary>
-        public bool cutBenchOnly; }
+        public bool cutBenchOnly;
+        /// <summary>小段の範囲の始まり(見え面の線から背の向きの符号つきの距離)。これより手前(駒の下・見え面の前)は触らない(普請方 第137巡 r137b T4【硬】
+        /// 「小段の範囲は [控えの後端, 控えの後端+奥行] だけ」)。0 なら線から(従前)。当たる先: 延長の背の小段(岡部 TW_Kado_Shumen の sideEnd)。</summary>
+        public float dnMin; }
 
     /// <summary>**土留めの見え面の前の帯**(線 a→b・背 back の逆の側へ depth まで・走りの両端は線の内)に点 p が入るか。
     /// 当たる先: <see cref="BackBench.keepOut"/> ── 小段の裏込めの端の法(1:bf)が、隣の土留めの見え面の前へ回り込んで土の箱を立てない
@@ -457,6 +460,7 @@ public static partial class EdoBuild
         Vector2 t = ab / L;
         float sAl = Vector2.Dot(p - k.a, t), dn = Vector2.Dot(p - k.a, k.back);
         if (dn < 0f) return cur;                                       // 前(門の内)は触らない
+        if (dn < k.dnMin) return cur;                                  // 範囲の始まり(控えの後端)より手前は触らない(r137b T4)
         if (k.noEndSpill && (sAl < 0f || sAl > L)) return cur;          // 走りの外へは盛らない(硬い)
         if (k.tuckB && sAl > L) return cur;                             // b の端の先へは盛らない(端の手前で回して下ろす)
         float dEnd = sAl < 0f ? -sAl : (sAl > L ? sAl - L : 0f);

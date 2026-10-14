@@ -15,5 +15,8 @@ metadata:
    S3d の最後にも駒の外形の下を除いて両向きで戻す(基壇の見え面の下を埋め戻さない ── 第114巡の禁)。
 4. 南の練塀の内の溝は型A(FlushGroundToMizoTop)と段落ち(FlushGroundToStepTop)を別々に書いていた ⇒ 継ぎ目の節点は後に書いた方が勝ち、帯が交互になる。
    collect で候補を集めて `WriteBandCandidates` で一度に書く。
+5. 返しの腕の背を CrestFollowBackFill で盛るとき、線を外形の最も前(法の足)に引くと見え面の法まで小段が被り、腕の見え面が土の歯で埋まった ⇒ 線は天端の帯(頂点の最高 −0.15)の前の縁。
+6. 犬走りを実メッシュで測るようにしたら、#raise の noEndSpill(走りの外へ盛らない)が端の面で鉛直に切れ、腕の先に高さ 1.4 の土の切れ込みが見えた(F4 の擦り付けは駒の外形 +0.3 を触らない)── 普請方へ。
+7. `EdoBuild.NearHulls` を邸の全部の駒(数千)で起こすと TopIndex の三角形化で 1 分を超え、MCP の送り直しで Unity が十数分ふさがった ⇒ 測る execute_code は近くの駒だけで・印を付ける。
 **How to apply:** keepOut・犬走り・座の篩は bounds で書かれていないか先に grep。小段の謎の盛りは reflection で当たりを刷ってから直す。
 関連 [[r137-sode-first-regex-and-partner-first]] [[r133-slope-crest-flat-chain-and-pad-into-ramp]] [[okabe-perimeter-rerun-order-and-neribei-measure]]

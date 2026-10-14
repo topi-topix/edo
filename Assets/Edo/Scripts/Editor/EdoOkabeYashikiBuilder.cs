@@ -6288,6 +6288,14 @@ public static class EdoOkabeYashikiBuilder
                 }
         }
         if (_sukimaJob != null) { sb.AppendLine("  " + _sukimaJob()); _sukimaJob = null; }   // 隙間の土の雨落ち(PlaceMinamiHei が解いた溝の頭の天端へ・第131巡)
+        {   // ⭐ 第135巡: 駒の縁の下に見える隙を土で埋める(埋めて隠す・地面を書く手の最後)── 地面と駒の取り合いの表(GroundQA)と同じ駒の組・同じ測り。
+            //   溝・桝の口は塞がない(fillFor)・区画の外・坂の路盤の帯は触らない(allow)。当たる先: 地形一枚の邸の段の土留め・石段・段に接する外周の石垣の縁の隙(GroundQA の A・C)
+            List<GameObject> gp; List<Vector2[]> gc; int a1, a2, a3, a4; GroundQAParts(GameObject.Find(GN).transform, out gp, out gc, out a1, out a2, out a3, out a4);
+            var mzSet = new HashSet<string>(MizoGroups); var rsp = RampStripPolys(); var PPf = Poly;
+            sb.AppendLine("  " + EdoBuild.FillGapsAtPartEdges(gp, gc, g => g.transform.parent == null || !mzSet.Contains(g.transform.parent.name),
+                q => { if (!EdoGeom.PIP(PPf, q)) return false; foreach (var r in rsp) if (EdoGeom.PIP(r, q)) return false; return true; }, 0.35f, 0.02f, 0.80f, BandRecPath("s3d")));
+            AssetDatabase.SaveAssetIfDirty(EdoBuild.T().terrainData);
+        }
         sb.AppendLine("  " + EdoBuild.HoleUnderMasu(pcs, 0.05f, HoleUndoPath));
         sb.Append(SeRojiHeiFoot(false));   // 据えて下げた後に足を測る(heiFootSpec.order【硬】)
         sb.Append(RampWaterQA());          // 坂の水(ramps[].water・第131巡)── 測るだけ
@@ -6378,16 +6386,15 @@ public static class EdoOkabeYashikiBuilder
         int nf; float w; return EdoBuild.HeiFootOnStoneReport(walls, stones, out nf, out w);
     }
     public static string GroundQA() { using (OnKita()) return GroundQA_(); }
-    static string GroundQA_()
+    /// <summary>地面と駒の取り合いの測る駒(段の土留め・溝・段に接する外周の石垣・石段)と覆うだけの駒の外形(<see cref="GroundQA"/> と <see cref="EdoBuild.FillGapsAtPartEdges"/> が同じ組を読む)。</summary>
+    static void GroundQAParts(Transform rootT, out List<GameObject> parts, out List<Vector2[]> cover, out int igN, out int stN, out int cvK, out int cvI)
     {
-        var sb = new System.Text.StringBuilder("地面と駒の取り合い(皮なし・地形 " + EdoBuild.T().name + "):\n");
-        float tol = ImplTol("gradeTol", 0.30f);
-        var root = GameObject.Find(GN); if (root == null) return sb + "  ⛔ " + GN + " が無い";
-        var parts = new List<GameObject>(); var danB = new List<Bounds>();
+        var root = rootT.gameObject;
+        parts = new List<GameObject>(); var danB = new List<Bounds>();
         var dn = root.transform.Find("Dan");
         if (dn != null) foreach (Transform c in dn) if (c.gameObject.activeInHierarchy) { parts.Add(c.gameObject); danB.Add(EdoBuild.RB(c.gameObject)); }
         foreach (var gm in MizoGroups) { var g = root.transform.Find(gm); if (g != null) foreach (Transform c in g) if (c.gameObject.activeInHierarchy) parts.Add(c.gameObject); }
-        var ig = root.transform.Find("Ishigaki"); int igN = 0;
+        var ig = root.transform.Find("Ishigaki"); igN = 0;
         if (ig != null)
             foreach (Transform c in ig)
             {
@@ -6395,7 +6402,7 @@ public static class EdoOkabeYashikiBuilder
                 var b = EdoBuild.RB(c.gameObject); if (b.size == Vector3.zero) continue; b.Expand(1f);
                 foreach (var db in danB) if (db.Intersects(b)) { parts.Add(c.gameObject); igN++; break; }
             }
-        var kai = root.transform.Find("Fuzoku/Kaidan"); int stN = 0;
+        var kai = root.transform.Find("Fuzoku/Kaidan"); stN = 0;
         if (kai != null)
             foreach (var r in kai.GetComponentsInChildren<MeshRenderer>())
             {
@@ -6405,10 +6412,19 @@ public static class EdoOkabeYashikiBuilder
         // ⭐ 覆うだけの駒(第131巡): 囲い(塀・隅・留め柱・棟)と段に接しない外周の石垣(台の石)は測る相手でないが、その足の外形の中の点は駒の下(見えない)。
         //   入れないと、外の点が台の石・塀の足の中に落ちて、その下で下げた地形を地表と読み C に数えた(第130巡 G0 1.89 = IG_N12_0 の中・m00 0.87 = S_Hei_06 の足の中)。
         //   外形は躯体の足の実メッシュ(EdoBuild.BodyFootHullXZ ── 屋根を除く・棟は底から 1.0 の帯で軒を拾わない・塀と石は 3.0)。
-        var cover = new List<Vector2[]>(); int cvK = 0, cvI = 0; var inParts = new HashSet<GameObject>(parts);
+        cover = new List<Vector2[]>(); cvK = 0; cvI = 0; var inParts = new HashSet<GameObject>(parts);
         var kk = root.transform.Find("Kakoi");
         if (kk != null) foreach (Transform c in kk) { if (!c.gameObject.activeInHierarchy || inParts.Contains(c.gameObject)) continue; var h = EdoBuild.BodyFootHullXZ(c, EdoBuild.IsNagayaBody(c.gameObject) ? 1.0f : 3.0f); if (h != null) { cover.Add(h.ToArray()); cvK++; } }
         if (ig != null) foreach (Transform c in ig) { if (!c.gameObject.activeInHierarchy || inParts.Contains(c.gameObject)) continue; var h = EdoBuild.BodyFootHullXZ(c, 3.0f); if (h != null) { cover.Add(h.ToArray()); cvI++; } }
+    }
+
+    static string GroundQA_()
+    {
+        var sb = new System.Text.StringBuilder("地面と駒の取り合い(皮なし・地形 " + EdoBuild.T().name + "):\n");
+        float tol = ImplTol("gradeTol", 0.30f);
+        var root = GameObject.Find(GN); if (root == null) return sb + "  ⛔ " + GN + " が無い";
+        List<GameObject> parts; List<Vector2[]> cover; int igN, stN, cvK, cvI; GroundQAParts(root.transform, out parts, out cover, out igN, out stN, out cvK, out cvI);
+        var dn = root.transform.Find("Dan");
         sb.AppendLine("  部材 " + parts.Count + "(段の土留めに接する外周の石垣 " + igN + "・石段 " + stN + ")・覆うだけの駒 " + cover.Count + "(囲い " + cvK + "・段に接しない外周の石垣 " + cvI + ")");
         sb.Append(EdoBuild.SkinGapTable(parts, FlatFaces(null), tol, cover));
         if (dn != null) sb.AppendLine("  " + EdoBuild.NozuraSeamReport(root.transform, dn, null).Replace("\n", "\n  "));

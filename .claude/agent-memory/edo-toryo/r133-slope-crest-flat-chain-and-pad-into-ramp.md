@@ -15,5 +15,7 @@ metadata:
 4. 指図が runs[].top を「坂なり(…)」の文字にすると SeRojiPlanOf の F()(Convert.ToSingle)が FormatException ── 欄の書式が数→文字に変わる上書きは読む側を先に直す。
 5. 第134巡: Stage2b の terraceWalls の w は**算出物(IMPL)の欄**で、指図に足した新しい欄(side0)を運ばない ⇒ 新しい欄は D(指図)の同じ名の欄から読む。1時間の流しが Side0 16.3 のまま空振り。
 6. 坂の横断の測り点は、点を描く升の四隅の節点が全部路盤の帯の内でないと、一升先の石垣の足の土を補間で拾う(0.039 → 0.016)。
+7. 第135巡: GroundQA の C(駒の縁の下の見える隙)39 → 13 は EdoBuild.FillGapsAtPartEdges(同じ測りで点を拾い半径 0.35 の節点を駒の底 +0.02 へ上げるだけ)。
+   書いた高さを BandRecPath("s3d") へ残さないと造成QA が埋めた土を超過 3 升と数える。曲がり目の桝は在庫の G0(深さ 0.36・外 0.54)が深さ 0.03 足りず、G1/G3 は外の面が区画の線を越える・角は 118° で口が直交しない。
 **How to apply:** 普請方の見立て(確度 ?)は駒の群の子の数から確かめる。ゆるい坂の野面は c_se_tops.txt の形(駒ごとの天端と段)で測る。
 関連 [[return-lost-when-sashizu-text-format-changes]] [[levelpad-crosses-terrace-wall]] [[nozura2-joint-line-and-grade-chain]]

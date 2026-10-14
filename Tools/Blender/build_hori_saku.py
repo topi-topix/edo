@@ -3,6 +3,7 @@
     blender --background --python Tools/Blender/build_hori_saku.py -- [--render]
     blender --background --python Tools/Blender/build_hori_saku.py -- saku [--render]   # 1スパンだけ
     blender --background --python Tools/Blender/build_hori_saku.py -- post [--render]   # 端の杭だけ
+    blender --background --python Tools/Blender/build_hori_saku.py -- --root=0.60 [--render]   # 根を延ばした版 HoriSaku_R0.60 / HoriSakuPost_R0.60(岡部 EDO-0502 第139巡)
 
 【なぜ新造するか】いま辺5 に立っているのは在庫の `Eg.Hogaki5`(穂垣)で、**実丈 0.79m**。
   指図 `const.fenceH` は **1.40** で、⛔ **0.6m 足りない**。ビルダー自身の突き合わせも
@@ -105,12 +106,21 @@ def _plank(m, rect, x0, x1, y0, y1, z0, z1):
     m.quad([(x0, y0, z0), (x1, y0, z0), (x1, y0, z1), (x0, y0, z1)], e, WOOD)
 
 
+ROOT_EXT = [None]   # --root=<m>: 根の長さ(地盤から下へ)。地盤より上と根の上 0.12 は元の駒と同じ頂点・同じ UV のまま、その下へ根の箱を継ぐ
+
+
 def _post(m, P, cx):
     """杭1本。y は −ROOT..H。z は **潜りの方立柱と同じ [−0.055, 0.055]**。
     ⭕ 板は杭の**内側**に張るので、外(水側)からは杭が1間ごとに立って見える。
     ⭕ 縦材なので `Mesh.box` のままでよい(u=x=見付 / v=y=丈 で木理が丈方向に流れる)。"""
     m.box(cx - POST / 2, cx + POST / 2, -ROOT, H, BACK, FACE,
           VM.sub(P['wuv'], 0.10, 0.02, 0.42, 0.98), WOOD)
+    r = ROOT_EXT[0]
+    if r and r > ROOT + 1e-6:
+        # 根の延長(地中だけ)。⛔ 元の箱を伸ばさない ── 伸ばすと地上の木理の UV が引き伸ばされて見える所が変わる。
+        # 継ぎ目 y = −ROOT は地中。合わさる2面は向き合って中に隠れる
+        m.box(cx - POST / 2, cx + POST / 2, -r, -ROOT, BACK, FACE,
+              VM.sub(P['wuv'], 0.10, 0.02, 0.42, 0.02 + 0.96 * (r - ROOT) / (H + ROOT)), WOOD)
 
 
 def _rails(m, P, a0, a1):
@@ -201,19 +211,23 @@ def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     want = [a for a in argv if not a.startswith("--")] or ["saku", "post"]
     do_render = "--render" in argv
+    for a in argv:
+        if a.startswith("--root="):
+            ROOT_EXT[0] = float(a.split("=", 1)[1])
+    suf = "_R%.2f" % ROOT_EXT[0] if ROOT_EXT[0] else ""
     fns = {"saku": saku, "post": post}
     for key in want:
         if key not in fns:
             print("[saku] ⚠ 知らない部材: %s" % key); continue
         V.reset()
-        o, name = fns[key]()
+        o, name = fns[key]({"saku": "HoriSaku", "post": "HoriSakuPost"}[key] + suf)
         mn, mx = V.bbox([o])
         print("[saku] %-13s Unity実寸 W(X)=%.3f  H(Y)=%.3f  D(Z)=%.3f  "
               "Y範囲 %.3f..%.3f  面=%d  材質=%s"
               % (name, mx.x - mn.x, mx.z - mn.z, mx.y - mn.y, mn.z, mx.z,
                  len(o.data.polygons), [mm.name for mm in o.data.materials]))
         if do_render:
-            shots(o, key, box=(mn, mx))       # ⚠ 書き出しの前に撮る
+            shots(o, key + suf, box=(mn, mx))       # ⚠ 書き出しの前に撮る
         V.export_fbx([o], os.path.join(OUT, name + ".fbx"))
         print("[saku] 書き出し " + os.path.join(OUT, name + ".fbx"))
     if do_render:
@@ -227,7 +241,7 @@ def main():
         p, _ = post("runpost")
         p.data.transform(__import__("mathutils").Matrix.Translation((2.5 * KEN, 0, 0)))
         p.data.update(); objs.append(p)
-        shots(objs[0], "run", extra=objs[1:])
+        shots(objs[0], "run" + suf, extra=objs[1:])
 
 
 if __name__ == "__main__":

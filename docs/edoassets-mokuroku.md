@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 467(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 469(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -433,6 +433,8 @@
 | `Own.HoriKido` | string | `HoriKido.fbx` — 汀の柵の潜り(`nishi.saku.kuguri`・辺5 の s=55.7)。 | OkabeYashiki(AssetByKey) |
 | `Own.HoriSaku` | string | `HoriSaku.fbx` — 汀の木柵 1スパン(`fences[0]` F_Hori・辺5 の全長 s0〜80.589)。 | BuildRun(FenceRun), OkabeYashiki(PlaceFences) |
 | `Own.HoriSakuPost` | string | `HoriSakuPost.fbx` — 汀の木柵の端の杭。⛔ 足さないと run の最後の板が宙で終わる。 | OkabeYashiki(PlaceFences) |
+| `Own.HoriSakuRoot(root)` | 関数 | HoriSaku の根を延ばした版(岡部 EDO-0502 第139巡・根入れ 0.12 では 0.30 に届かない)。 | — |
+| `Own.HoriSakuPostRoot(root)` | 関数 | HoriSakuPost の根を延ばした版(HoriSakuRoot と組。 | — |
 | `Own.SakuHikae` | string | `Saku_Hikae.fbx` — 控柱つきの木柵 1間(松江松平 谷の境 F_Tani_*/F_Okabe_*・EDO-0554)。 | MatsudairaDewa(Stage2Fences) |
 | `Own.SakuHikaeMizukoshi` | string | `Saku_Hikae_Mizukoshi.fbx` — 水越しの1間(下の横板2枚と下の貫なし・地盤+0.63 まで素通し・控柱なし)。 | MatsudairaDewa(Stage2Fences) |
 | `Own.SakuHikaePost` | string | `Saku_HikaePost.fbx` — 控柱つきの木柵の run の +X 端の杭。 | MatsudairaDewa(Stage2Fences) |

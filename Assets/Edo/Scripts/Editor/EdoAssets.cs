@@ -3823,6 +3823,17 @@ public static class EdoAssets
         /// 生成: blender --background --python Tools/Blender/build_hori_saku.py -- post</summary>
         public const string HoriSakuPost = "Assets/Edo/Models/Hei/HoriSakuPost.fbx";
 
+        /// <summary><see cref="HoriSaku"/> の**根を延ばした版**(岡部 EDO-0502 第139巡・根入れ 0.12 では 0.30 に届かない)。地盤より上(と根の上 0.12)は
+        /// 元の駒と頂点・UV とも一致(読み戻して差 0)。杭の下に根の箱を継ぎ、底 = −<paramref name="root"/>。実寸 1.818 × (1.40 + root) × 0.148。
+        /// 据え方は元と同じ(`position.y = 地盤`・⛔ SeatBottom で据えない・1.818 ちょうどで突き付け)。⚠ 丈の突き合わせは bbox の丈で読むと root ぶん長く出る。
+        /// 焼けている根: 0.60(普請方 第139巡: 板の下端から 0.50 以上【硬】・0.60 を狙う【柔】)。.meta は HoriSaku の写し(remap 不要)。
+        ///   blender --background --python Tools/Blender/build_hori_saku.py -- --root=0.60 --render</summary>
+        public static string HoriSakuRoot(float root) { return "Assets/Edo/Models/Hei/HoriSaku_R" + root.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + ".fbx"; }
+
+        /// <summary><see cref="HoriSakuPost"/> の根を延ばした版(<see cref="HoriSakuRoot"/> と組。ピボットは元と同じ +X 面・地盤)。実寸 0.110 × (1.40 + root) × 0.110。
+        ///   blender --background --python Tools/Blender/build_hori_saku.py -- post --root=0.60</summary>
+        public static string HoriSakuPostRoot(float root) { return "Assets/Edo/Models/Hei/HoriSakuPost_R" + root.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + ".fbx"; }
+
         /// <summary>**控柱つきの木柵 1間**(松江松平 谷の境 F_Tani_*/F_Okabe_*・EDO-0554)。板柵は HoriSaku と同じ意匠・h1.40・根入れ 0.12(底 y=−0.12・SeatBottom で据えない)。
         /// 杭 = 局所 −X 端・控柱 = −Z(屋敷側・足は −0.84)・見え面 +Z = 水側。ピボット = スパンの中心・地盤。1.818 ちょうどで突き付け、+X 端に <see cref="SakuHikaePost"/>。札 PartSpecs(fence)。
         ///   blender --background --python Tools/Blender/build_saku_hikae.py -- --render</summary>

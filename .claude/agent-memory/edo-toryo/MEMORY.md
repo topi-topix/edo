@@ -27,7 +27,7 @@
 - [第131巡: Ground に NaN で落ちる・カメラが長屋の中](r131-ground-nan-crash-and-camera-inside-nagaya.md)・[第132巡: 切坂の足の窪みは駒の下の下げ・段の一升](r132-ramp-foot-pits-and-step-band.md) — 前の地表の歩きが全部駒の中なら止めが無い・検めは面が地表より上で外す
 - [第129巡: GradeQA と背の路地・吐き口・S3 の飛ばし](r129-grade-seroji-hakiguchi-chain-s3.md)・[第130巡: S3d 単独は地形が変わる・池の岸の枠・G0 の妻](r130-grade-qa-frames-g0-hei-feet.md) — S1 から一続きで流し同じ中で測る・帰属は段ごとの値で
 - [第133巡: ゆるい坂なりの連鎖・棟の均しが坂の路盤へ・溝の無い嵩上げ石](r133-slope-crest-flat-chain-and-pad-into-ramp.md) — 焼いた勾配0は線の中ほどへ・PadRim.holes・群は頭で空にする / [第137巡: 袖を先にの正規表現が黙って退く・離れて終わる交わりに隅が二つ](r137-sode-first-regex-and-partner-first.md)
-- [第138巡: 小段の犬走りが bounds の矩形・小段の当たりは reflection で刷る](r138-bench-keepout-aabb-and-probe-by-reflection.md) — S1 の外の戻しの許し 0.3・型A と段落ちの帯を一度に書く
+- [第138巡: 小段の犬走りが bounds の矩形](r138-bench-keepout-aabb-and-probe-by-reflection.md)・[第139巡: 溝の縁の野面の法尻・型H の板・柵の柱の根](r139-ditch-side-wall-toe-and-fence-level.md) — reflection で刷る・S3 の bin を戻して 20 秒で試す
 - [芯線と天端の線(heiLine)の罠](heiline-stretch-and-tenba-r120.md) — d は c の後・床は区間の組で・線は同じドメインだけ(S2〜3d を続けて)・足は 0.91〜1.60・継ぎ目の切り欠きを埋める
 - [.cs の保存直後の Stage は古い DLL で走る・再起動で皮が null](stage-run-on-stale-dll-after-edit.md) — 25 分の 3b が空振り。Stage の前に compile_wait・3b の後は先に書き戻す
 
@@ -189,8 +189,7 @@
 - [面の輪郭ぎわの残差は物差しの話](terrace-rim-residual-is-the-ruler.md) — 失敗点が全部1セル以内なら造成の欠陥でない。均すと段が埋まり崖に盛土
 - [池が掘れていないの正体は水面の紛失と 2m 格子](pond-carved-but-water-lost.md) — ⛔掘り直さない。CreateNoCarve で水面だけ
 - [作業場の書き戻しは台帳0件で黙る](koba-writeback-ledger-empty.md)・[プレハブの grep で名が出ないのは正常](prefab-yaml-has-guids-not-names.md) — 段別の邸は Convert(自邸名)で拾う・検めは LoadAssetAtPath で childCount
-- [類型を何軒も建て直す作業場](typology-multi-parcel-koba.md) — 隣は20m以内だけ・残りは実体を足す。BuildParcel は自分で切り出すので wrote=0 が正常
-- [並びの区画のログの浮きは後の造成で古くなる](typology-log-stale-after-neighbor-regrade.md) — 共有辺の地表が動く。建て終えてから数え直す
+- [類型を何軒も建て直す作業場](typology-multi-parcel-koba.md)・[並びの区画のログの浮きは後の造成で古くなる](typology-log-stale-after-neighbor-regrade.md) — 隣は20m以内だけ・wrote=0 が正常・建て終えてから数え直す
 
 ## 検査の読み方
 - [検査の浮き・子0は測り方の読み違いのことがある](qa-misreads-stack-and-single-mesh-gate.md) — 積みを地表で測る・一体の門・皮の前の垣。相手を床に入れて測り直す

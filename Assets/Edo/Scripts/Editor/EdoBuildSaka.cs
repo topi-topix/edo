@@ -436,7 +436,14 @@ public static partial class EdoBuild
         public bool cutBenchOnly;
         /// <summary>小段の範囲の始まり(見え面の線から背の向きの符号つきの距離)。これより手前(駒の下・見え面の前)は触らない(普請方 第137巡 r137b T4【硬】
         /// 「小段の範囲は [控えの後端, 控えの後端+奥行] だけ」)。0 なら線から(従前)。当たる先: 延長の背の小段(岡部 TW_Kado_Shumen の sideEnd)。</summary>
-        public float dnMin; }
+        public float dnMin;
+        /// <summary>真なら <see cref="noEndSpill"/> を b の端の先には当てない ── b の端の先(走りの外)は 1:bf で今の地盤へ擦り付ける(普請方 第138巡 TW_Kita_Koshi.endRaiseR138【硬】
+        /// 「『走りの外へ盛らない』は小段の平らな面にだけ当てる・その縁から外は 1:1.5 より緩く今の地盤へ擦り付ける(走りの外に出てよい)・縁を鉛直に切らない」)。
+        /// 当たる先: endRaise で上げた端の背の小段(岡部 TW_Kita_Koshi#raise)。</summary>
+        public bool spillB;
+        /// <summary>b の端の返しの腕の長さ(背の向きの、腕の駒の実メッシュの最も奥)── <see cref="spillB"/> の擦り付けは腕の見え面の前(走りの外・dn &lt; armDn)では腕の先から測る
+        /// (腕の見え面を土で埋めない・腕の先で縁を鉛直に切らない)。NaN なら腕なし(走りの端の線から測る)。</summary>
+        public float armDn = float.NaN; }
 
     /// <summary>**土留めの見え面の前の帯**(線 a→b・背 back の逆の側へ depth まで・走りの両端は線の内)に点 p が入るか。
     /// 当たる先: <see cref="BackBench.keepOut"/> ── 小段の裏込めの端の法(1:bf)が、隣の土留めの見え面の前へ回り込んで土の箱を立てない
@@ -461,11 +468,12 @@ public static partial class EdoBuild
         float sAl = Vector2.Dot(p - k.a, t), dn = Vector2.Dot(p - k.a, k.back);
         if (dn < 0f) return cur;                                       // 前(門の内)は触らない
         if (dn < k.dnMin) return cur;                                  // 範囲の始まり(控えの後端)より手前は触らない(r137b T4)
-        if (k.noEndSpill && (sAl < 0f || sAl > L)) return cur;          // 走りの外へは盛らない(硬い)
+        if (k.noEndSpill && (sAl < 0f || (sAl > L && !k.spillB))) return cur;   // 走りの外へは盛らない(硬い)── spillB は b の端の先を擦り付ける(第139巡 endRaiseR138)
         if (k.tuckB && sAl > L) return cur;                             // b の端の先へは盛らない(端の手前で回して下ろす)
         float dEnd = sAl < 0f ? -sAl : (sAl > L ? sAl - L : 0f);
         float benchY = k.top - k.drop - k.drain * Mathf.Min(dn, k.w) - k.drainAlong * (L - Mathf.Clamp(sAl, 0f, L));
         float hh = Mathf.Sqrt(Mathf.Pow(Mathf.Max(0f, dn - k.w), 2f) + dEnd * dEnd);
+        if (k.spillB && sAl > L && !float.IsNaN(k.armDn) && dn < k.armDn) hh = Mathf.Sqrt(dEnd * dEnd + (k.armDn - dn) * (k.armDn - dn));   // 腕の見え面の前は腕の先から
         float target = benchY - hh / k.bf;
         float b0 = k.baseAt != null ? k.baseAt(p) : cur; if (float.IsNaN(b0)) b0 = cur;
         if (k.maxCut > 0f)
@@ -632,7 +640,9 @@ public static partial class EdoBuild
     public static int BackBenchWrite(IList<BackBench> ks, out float fillMax, out float cutMax) { return BackBenchWrite(ks, out fillMax, out cutMax, null); }
     /// <summary><paramref name="recPath"/>: 書いた節点の設計の高さを残す(<see cref="SaveNodeTargets"/> ── 造成QA が domain reload の後も同じ小段を引く。
     /// ⚠ GradeQA が小段の式を設計面で引き直すと、延長の背の小段(静的な一覧)が reload で消え、盛り ≤ 上限の頭打ちの節点 28 升を超過と読んだ・岡部 第131巡)。</summary>
-    public static int BackBenchWrite(IList<BackBench> ks, out float fillMax, out float cutMax, string recPath)
+    public static int BackBenchWrite(IList<BackBench> ks, out float fillMax, out float cutMax, string recPath) { return BackBenchWrite(ks, out fillMax, out cutMax, recPath, false); }
+    /// <summary><paramref name="append"/>: 記録を足し書きにする(Stage の頭の一回目は上書き ── 後から小段を足す手は足し書き。第139巡: 腕の先の擦り付けが上書きして 2b の小段の記録を消し、造成QA が 158 升を超過と読んだ)。</summary>
+    public static int BackBenchWrite(IList<BackBench> ks, out float fillMax, out float cutMax, string recPath, bool append)
     {
         fillMax = 0f; cutMax = 0f; if (ks == null || ks.Count == 0) return 0;
         var t = T(); var td = t.terrainData;
@@ -660,7 +670,7 @@ public static partial class EdoBuild
                 H[iz, ix] = (nw - tp.y) / ts.y; n++;
             }
         if (n > 0) { td.SetHeightsDelayLOD(x0, z0, H); td.SyncHeightmap(); }
-        if (rec != null) SaveNodeTargets(recPath, t.name, rec, null);
+        if (rec != null) { if (append) AppendNodeTargets(recPath, t.name, rec); else SaveNodeTargets(recPath, t.name, rec, null); }
         return n;
     }
 

@@ -236,6 +236,29 @@ public static partial class EdoBuild
         return best.yAt(bs);
     }
 
+    /// <summary>**点 q の走りでの足元の帯の高さ**(帯の外の点でも ── 一番近い線の、q を走りへ射影した s の yAt)。帯 [from, to] の内かを問わない(帯に沿う溝の天端を
+    /// 帯なりに下ろすのに使う ── 溝の芯は内面から 1.05 で帯の外)。<paramref name="sets"/> は先の組ほど優先(先の組に q から <paramref name="maxDist"/> 内の線が在ればそれ)。
+    /// 線の選びは <see cref="WriteFootBand"/> と同じ(内面の線への距離・走りの範囲 [sLo, sHi] の内)。fillOnly の線は選ばない(低い所だけ盛る線は高さを決めない)。帯が無ければ NaN。
+    /// 硬い(書いた帯の値そのもの・式を二重に持たない)。当たる先: 塀の内の足元の帯に沿う溝の縁石の天端(岡部 D_MinamiHei・普請方 第138巡 northSideR138「縁石の天端 = 帯 +0.02」)。</summary>
+    public static float FootBandAlongAt(IList<List<FootLine>> sets, Vector2 q, float maxDist)
+    {
+        if (sets == null) return float.NaN;
+        foreach (var lines in sets)
+        {
+            if (lines == null) continue; FootLine best = null; float bd = float.MaxValue, bs = 0f;
+            foreach (var L in lines)
+            {
+                if (L.nPts == 0 || L.yAt == null || L.fillOnly || L.dIn <= float.MinValue) continue;
+                float s = Vector2.Dot(q - L.a, L.ax); if (s < L.sLo - 0.5f || s > L.sHi + 0.5f) continue;
+                float sc = Mathf.Clamp(s, L.sLo, L.sHi); float d = Vector2.Distance(q, L.a + L.ax * sc + L.inw * L.DInAt(sc));
+                if (d < bd) { bd = d; best = L; bs = sc; }
+            }
+            if (best == null || bd > maxDist) continue;
+            float y = best.yAt(bs); if (!float.IsNaN(y)) return y;
+        }
+        return float.NaN;
+    }
+
     /// <summary>**塀の足の頂点の石の上の浮き**(測るだけ・2026-10-14 EDO-0502 第131巡 ── 普請検査の hei2 の測りを関数へ写し、隣の駒の閉じを足した)。
     /// 駒ごとに足の頂点(0.25m の升ごとの最も低い頂点 +0.02 の内)の真下の石の面(<paramref name="stones"/> の三角形・頂点 +0.3 より下で最も高い所)を測り、浮き = 頂点 − 面。
     /// 下 1m に石が無い点は「石なし」(地面の上 ── この測りの外)。⭐ 浮いた点の真下の隙が**隣の塀の駒の躯体で閉じる**(隣の駒の足の外形の 0.03 内で、隣の駒の底 ≤ 面 + 0.02・

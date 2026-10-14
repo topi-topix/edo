@@ -1,11 +1,11 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 18480af67127 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 236ad6fed9c2 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
 
-- 公開関数 636 本(注釈なし 35)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
+- 公開関数 637 本(注釈なし 35)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
 - 同じ道具が刷る目録: 邸ビルダーのメニュー → Stage と中の関数 `docs/builder-mokuroku.md` / 部材の名 `docs/edoassets-mokuroku.md`。
 - 札: **硬** = 注釈に「硬い/許容0」・**柔** = 「柔らかい/狙い」がある(判定ではなく注釈の語)。相手の札(地面・駒どうし・天端・床・断面・面・隅・区域)も注釈の語を拾っただけ。
 - 呼んでいる所 = 定義のファイルの外で `EdoBuild.<名>(` と書いている C# ファイル(`Edo` と `Builder/Rebuild` を落とした名)と、その中の呼んでいる関数(Stage)。同じ名の多重定義はまとめて数える。`EdoBuild` の中どうしの呼び出しは載せない。
@@ -25,7 +25,7 @@
 | [EdoBuildGoten.cs](#edobuildgotencs) | 御殿複合(表向・中奥・奥向の3核)を組む — EdoBuild の一部(規則21「置く・測る・突き付ける・据えるは | — | 3 |
 | [EdoBuildHanare.cs](#edobuildhanarecs) | — | — | 2 |
 | [EdoBuildHeiTenba.cs](#edobuildheitenbacs) | 塀の天端の線を指図の値から一本に解き、平ら・坂なり・段の区間で練塀を据える(施主裁定 2026-10-12 案1・岡部 const.heiLine.tenba・EDO-0502 第121巡)。 | — | 7 |
-| [EdoBuildHifu.cs](#edobuildhifucs) | 縁の皮 — 地形に穴を開け、穴の縁から部材の面までを皮のメッシュで描く (EdoBuild の partial・2026-09-24・EDO-0430) | 切通しの石段(山王の女坂・男坂・参道の階)・天端を地盤に揃えた土留め(山王・土井・岡部の郭)・ 造成した面の縁(全邸の段の縁)。 | 20 |
+| [EdoBuildHifu.cs](#edobuildhifucs) | 縁の皮 — 地形に穴を開け、穴の縁から部材の面までを皮のメッシュで描く (EdoBuild の partial・2026-09-24・EDO-0430) | 切通しの石段(山王の女坂・男坂・参道の階)・天端を地盤に揃えた土留め(山王・土井・岡部の郭)・ 造成した面の縁(全邸の段の縁)。 | 21 |
 | [EdoBuildHifuSoto.cs](#edobuildhifusotocs) | 縁の皮の「区画の外」── 外周の石垣・土留めの見え面の前の地盤(EDO-0502 第29巡・2026-10-06) | — | 4 |
 | [EdoBuildInari.cs](#edobuildinarics) | 稲荷 — 小祠と鳥居を据える (EdoBuild の partial・2026-09-21・EDO-0326) | — | 3 |
 | [EdoBuildIshidan.cs](#edobuildishidancs) | 石段の組 — 段石と袖(袖石垣)を一組の材で据える(EDO-0415・2026-09-23 施主指摘)。 | — | 35 |
@@ -313,7 +313,8 @@ EdoBuild — 段の土留め(石垣・野面)を天端の折れ線へ据える(2
 | `EdoBuild.ShoulderFillToTerrain(cc, which, groupOf, end, skirt, maxFill, stopY, allow, otherPart, recPath, over)` | `string` | 天端 | groupOf(駒 → 区切りの名・null = 帯の割りごと)── 盛りの上限を超える節点が肩に一つでもある区切りを丸ごと盛らない。 | OkabeYashiki(Stage3d_Mizo_) |
 | `EdoBuild.SkinGapTable(parts, faces, faceTol)` | `string` |  | ⚠ 注釈なし | OkabeYashiki(GroundQA_・Stage3b_Hifu_), SannoSha(HifuGapTable・Stage9_Hifu), DoiBuilder.Hifu(Stage4b_Hifu) |
 | `EdoBuild.SkinGapTable(parts, faces, faceTol, cover)` | `string` | 地面・面 | SkinGapTable に覆うだけの駒の外形 cover を足した物(2026-10-14 EDO-0502 第131巡)。 | OkabeYashiki(GroundQA_・Stage3b_Hifu_), SannoSha(HifuGapTable・Stage9_Hifu), DoiBuilder.Hifu(Stage4b_Hifu) |
-| `EdoBuild.FillGapsAtPartEdges(parts, cover, fillFor, allow, radius, bury, cap, recPath=…)` | `string` | 地面・天端・区域 | 駒の縁の下に見える隙を土で埋める(埋めて隠す・docs/oki-kata.md §4 ── 2026-10-14 EDO-0502 第135巡)。 ⟶ 返す: 一行の記録 | OkabeYashiki(Stage3d_Mizo_) |
+| `EdoBuild.FillGapsAtPartEdges(parts, cover, fillFor, allow, radius, bury, cap, recPath=…, gapMax=…, batter=…)` | `string` | 地面・天端・区域 | 駒の縁の下に見える隙を土で埋める(埋めて隠す・docs/oki-kata.md §4 ── 2026-10-14 EDO-0502 第135巡)。 ⟶ 返す: 一行の記録 | OkabeYashiki(Stage3d_Mizo_) |
+| `EdoBuild.WrittenNodeStepReport(recPaths, parts, cover, maxStep)` | `string` | 地面 | 書いた地面の升目なりの段の検め(普請方 2026-10-14 F4・第136巡 ── 盛りの縁が升目なりの階段で切れ、斜面を下る縦の溝に見えた)。 | OkabeYashiki(GroundQA_) |
 | `EdoBuild.ClearEdgeSkins(parent)` | `int` |  | ⚠ 注釈なし | OkabeYashiki(Stage1_Grade_・Stage3b_Hifu_・Stage3d_Mizo_), SannoSha(Stage9_Hifu・UnSkin), Doi(Stage1_Grade), DoiBuilder.Hifu(Stage4b_Hifu) |
 | `EdoBuild.SkinWorldMaterial(t)` | `Material` | 地面 | 部材の面を地形と同じ見えで描く材(世界 XZ の UV・層 0〜3 を正規化して一枚で描く・Edo/TerrainSkinWorld)を 地形 t に結わえ直す(資産 EdoAssets.Own.SkinWorldMat… | Assets(DoiDanOchi・SkinMat), OkabeYashiki(PlaceMinamiHei・PlaceMizoSections) |
 | `DrawnGround`(class) | — | | 描かれた地表を引く掴み。穴の升では皮の高さ(皮が無ければ NaN = 何も描かれていない)、 それ以外は地形(SampleHeight)。 | |
@@ -1070,7 +1071,7 @@ EdoBuild — 城の石垣の直線 run を区画の辺に沿って据える(外�
 
 | 関数 | 返す | 札 | 何をするか(注釈の一文目) | 呼んでいる所 |
 |---|---|---|---|---|
-| `EdoBuild.BodyOfMat(tr, mat)` | `List<Vector3>` |  | 材(サブメッシュの材質名)で絞った、駒の世界頂点。 | GotenKit(TreadPts), OkabeYashiki(PlaceMizoSections) |
+| `EdoBuild.BodyOfMat(tr, mat)` | `List<Vector3>` |  | 材(サブメッシュの材質名)で絞った、駒の世界頂点。 | OkabeYashiki(PlaceDrainFrontGutters・PlaceMizoSections), GotenKit(TreadPts) |
 | `EdoBuild.Section(tr, y, mat=…)` | `List<Vector3>` | 断面 | 実体化した駒の水平断面(高さ y で三角形を切った交点・世界座標)。 | SannoSashizuCheck(Check) |
 | `EdoBuild.ContactPts(pa, pb, dir, at, count, tol=…, cell=…)` | `float` | 面 | 二つの頂点の集まりが触れている箇所(Contact の中身)。 ⟶ 返す: 最小の隙(負 = めり込み)・NaN = 向き合っていない | — |
 | `EdoBuild.RestGap(mover, moverMat, bed, bedMat, at, count, tol=…)` | `float` | 天端・床 | 載る駒と受ける駒が鉛直に触れている箇所(材で絞る・null で全材)。 ⟶ 返す: 最小の隙[m](負 = めり込み・NaN = 上下に重ならない)、 at = その所、count = 最小から tol 以内の点の数 | — |
@@ -1212,7 +1213,7 @@ EdoBuild — 造成(平場を採る)。2026-09-27・EDO-0477 P1(山王 Stage1_Gr
 | `EdoGeom.SignedArea(poly)` | `float` |  | 符号付き面積。CCW で正。 | OkabeYashiki(AllFacesAt・ProfSNodes・SkinGround…), TypologyBuilder.Jisha(JishaOmoya), TypologyBuilder.Keidai(NiwaKeidai) |
 | `EdoGeom.InwardNormal(poly, i)` | `Vector2` |  | 辺 i (poly[i]→poly[i+1]) の、多角形の内側を向く単位法線。 | DoiBuilder.Mizo(BuildHariOtoshi9・Stage9_Mizo), GotenTypoTest(Build), OkabeYashiki(OutNormal), Typology(Outward), TypologyBuilder.Jisha(JishaOmoya) |
 | `EdoGeom.DistToEdge(p, a, b)` | `float` | 区域 | 点 p から線分 ab への最短距離。 ⚠ 長さ0の線分では NaN を返してはいけない。 | SannoSha(KeepClearOfFlushWalls・OnFumotomichi・Stage4_Kakoi), DoiBuilder.Niwa(NearAny・SuhamaZone), TypologyBuilder.Niwa(NiwaChisen・NiwaTsubo), DoiBuilder.Mizo(Stage9_Mizo), OkabeYashiki(Stage2_Perimeter_) ほか3 |
-| `EdoGeom.LineIntersect(p0, d0, p1, d1, fallback)` | `Vector2` |  | 点 p から多角形の外周(全辺)への最短距離。 | MatsudairaDewa(Stage2Fences・Stage2_Perimeter), OkabeYashiki(BackOfFullLine・SeRojiPlanOf) |
+| `EdoGeom.LineIntersect(p0, d0, p1, d1, fallback)` | `Vector2` |  | 点 p から多角形の外周(全辺)への最短距離。 | OkabeYashiki(BackOfFullLine・PlaceDrainFrontGutters・SeRojiPlanOf), MatsudairaDewa(Stage2Fences・Stage2_Perimeter) |
 | `EdoGeom.ClipHalfPlane(poly, p0, n)` | `Vector2[]` |  | 多角形を半平面 dot(q − p0, n) ≤ 0 で切る(Sutherland–Hodgman)。 | OkabeYashiki(AllFacesAt) |
 | `EdoGeom.DistToPolyEdge(poly, p)` | `float` |  | ⚠ 注釈なし | OkabeYashiki(AllFacesAt・KiriEnd・MichiNarashiAt…), Typology(Candidates・Inner・Inspect…), DoiBuilder.Niwa(Ground・Mound・Niwa_A_Dokou…), TypologyBuilder.Jisha(JInside・JMinEdge・JishaOmoya), DoiBuilder.Dan(MeasureNozura・PlaceKaidansA) ほか8 |
 | `EdoGeom.HullXZ(pts)` | `int[]` | 区域 | 点集合の凸包の頂点インデックス(反時計回り・共線点は落とす)。 | PartSpec(Measure), Typology(BuildParcel), TypologyBuilder.Katte(Katte) |

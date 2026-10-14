@@ -3150,12 +3150,17 @@ public static partial class EdoBuild
         //   ⭐ 一本の横断(帯の割り)の肩(0〜end)のどこかで盛りが上限を超えるなら、その横断は丸ごと盛らない(⛔ 超える節点だけ抜くと、天端の際に溝・その先に盛りが残る)。
         //   肩の先(end より奥)で超える節点は、その節点だけ盛らない(平場の窪み・溝の脇)。
         var needNear = new Dictionary<string, float>();
+        // ⭐ 第136巡(普請方 F6): 肩の盛りの基準は接するその駒の実の天端 ── 見え面から 1.10 の内は駒の天端 +0.03 を超えない・その先は石垣から離れる向きへ 1/20
+        //   (K_Tsuyo の口の Side1 で設計の天端の帯が実の石より高く、肩が石を越えて kado3 のまわりに閉じた窪み)。当たる先: 欄 shoulder を持つ石垣の本線・返し・隅の駒
+        var topOfGo = new Dictionary<GameObject, float>();
+        Func<long, float, float, float> capTo = (k, dB0, y0) => { int fi = (int)(k >> 20); if (fi < 0 || fi >= cc.list.Count || cc.list[fi].go == null) return y0; var go = cc.list[fi].go; float tp0; if (!topOfGo.TryGetValue(go, out tp0)) { tp0 = RB(go).max.y; topOfGo[go] = tp0; }
+            float cp = dB0 <= 1.10f ? tp0 + 0.03f : tp0 + 0.03f - (dB0 - 1.10f) / 20f; return Mathf.Min(y0, cp); };
         Func<long, string> grpOf = k => { int fi = (int)(k >> 20); if (fi < 0 || fi >= cc.list.Count) return "?"; var go = cc.list[fi].go; return groupOf != null && go != null ? groupOf(go) : k.ToString(); };
         for (int j = j0; j <= j1; j++)
             for (int i = i0; i <= i1; i++)
             {
                 var q = new Vector2(org.x + i * hs, org.z + j * hs); if (allow != null && !allow(q)) continue;
-                float dB; long bk; float y = cc.ShoulderTarget(q, which, end, skirt, reach, out dB, out bk); if (float.IsNaN(y)) continue;
+                float dB; long bk; float y = cc.ShoulderTarget(q, which, end, skirt, reach, out dB, out bk); if (float.IsNaN(y)) continue; y = capTo(bk, dB, y);
                 float cur0 = H[j - j0, i - i0] * td.size.y + org.y; if (y <= cur0 + 1e-4f || dB > end || cc.Protected(q) || (cc.keepOut != null && cc.keepOut(q)) || (otherPart != null && otherPart(q))) continue;
                 string gk = grpOf(bk); float nd; needNear.TryGetValue(gk, out nd); if (y - cur0 > nd) needNear[gk] = y - cur0;
             }
@@ -3164,7 +3169,7 @@ public static partial class EdoBuild
             for (int i = i0; i <= i1; i++)
             {
                 var q = new Vector2(org.x + i * hs, org.z + j * hs); if (allow != null && !allow(q)) continue;
-                float dB; long bk; float y = cc.ShoulderTarget(q, which, end, skirt, reach, out dB, out bk); if (float.IsNaN(y)) continue;
+                float dB; long bk; float y = cc.ShoulderTarget(q, which, end, skirt, reach, out dB, out bk); if (float.IsNaN(y)) continue; y = capTo(bk, dB, y);
                 if (overBins.Contains(grpOf(bk))) { float cur1 = H[j - j0, i - i0] * td.size.y + org.y; if (y > cur1 + 1e-4f && dB <= end && !cc.Protected(q)) { nTrans++; if (y - cur1 > maxFill + 1e-4f) { nOver++; mOver = Mathf.Max(mOver, y - cur1); if (over != null) over.Add(new Vector3(q.x, q.y, y - cur1)); } } continue; }
                 float cur = H[j - j0, i - i0] * td.size.y + org.y; if (y <= cur + 1e-4f) continue;
                 if (cc.Protected(q)) continue;
@@ -3267,11 +3272,12 @@ public static partial class EdoBuild
     /// 上げは <paramref name="cap"/> まで(超える点は上げず数える ── 普請方へ)。触らない節点: 他の駒・覆う駒の外形の中(石の下・塀の足)、<paramref name="allow"/> が偽の所(区画の外・道・溝の中)。
     /// 自分の外形の中の節点は駒の天端 −0.05 を超えて上げない(天端に土を載せない)。埋める相手は <paramref name="fillFor"/> が真の駒だけ(溝・桝の口は土で塞がない)。
     /// ⟶ 返す: 一行の記録。当たる先: 地形一枚の邸(北の3邸)で段の土留め・石段・段に接する外周の石垣の縁に隙が見える所すべて(岡部 GroundQA の C・A)。</summary>
-    public static string FillGapsAtPartEdges(IList<GameObject> parts, IList<Vector2[]> cover, Func<GameObject, bool> fillFor, Func<Vector2, bool> allow, float radius, float bury, float cap, string recPath = null)
+    public static string FillGapsAtPartEdges(IList<GameObject> parts, IList<Vector2[]> cover, Func<GameObject, bool> fillFor, Func<Vector2, bool> allow, float radius, float bury, float cap, string recPath = null, float gapMax = 0.30f, float batter = 1.5f)
     {
         var idx = new TopIndex(); foreach (var g in parts) if (g != null && g.activeInHierarchy) idx.Add(g);
         var cov = new List<Vector2[]>(); if (cover != null) foreach (var h in cover) if (h != null && h.Length >= 3) cov.Add(h);
         var dg = Drawn(); var t = T(); var td = t.terrainData; int R = td.heightmapResolution; Vector3 tp = t.transform.position, ts = td.size; float cell = ts.x / (R - 1);
+        int nBig = 0; float bigMax = 0f; string bigAt = "";
         var want = new Dictionary<long, float>(); int nPt = 0, nOver = 0; float overMax = 0f; Vector2 overAt = Vector2.zero; var byName = new Dictionary<string, int>();
         Func<Vector2, int, bool> inOther = (q, self) => { for (int k2 = 0; k2 < idx.hulls.Count; k2++) { if (k2 == self) continue; var b = idx.bounds[k2]; if (q.x < b.x || q.x > b.z || q.y < b.y || q.y > b.w) continue; if (EdoGeom.PIP(idx.hulls[k2], q)) return true; } foreach (var h in cov) if (EdoGeom.PIP(h, q)) return true; return false; };
         for (int k = 0; k < idx.hulls.Count; k++)
@@ -3293,17 +3299,19 @@ public static partial class EdoBuild
                     float gout = dg.At(pout.x, pout.y); if (float.IsNaN(gout) || gout >= bot - 0.01f) continue;
                     if (inOther(pe + nrm * 0.35f, k)) continue;   // 見えない(駒どうしの溝の中)
                     if (allow != null && !allow(pout)) continue;
+                    // ⭐ 第136巡(普請方 F5): 0.30 を超える隙は土で受けない(石の納めか設計の裏込めで ── 斜面に瘤を並べない)
+                    if (bot - gout > gapMax) { nBig++; if (bot - gout > bigMax) { bigMax = bot - gout; bigAt = idx.names[k]; } continue; }
                     nPt++; int c0; byName.TryGetValue(idx.names[k], out c0); byName[idx.names[k]] = c0 + 1;
-                    float tgt = bot + bury;
-                    int ix0 = Mathf.FloorToInt((pout.x - radius - tp.x) / cell), ix1 = Mathf.CeilToInt((pout.x + radius - tp.x) / cell);
-                    int iz0 = Mathf.FloorToInt((pout.y - radius - tp.z) / cell), iz1 = Mathf.CeilToInt((pout.y + radius - tp.z) / cell);
+                    float tgt = bot + bury; float rr = radius + (bot + bury - gout) * batter;   // 外は 1:batter で今の地盤へ擦り付ける(局所の頂を作らない)
+                    int ix0 = Mathf.FloorToInt((pout.x - rr - tp.x) / cell), ix1 = Mathf.CeilToInt((pout.x + rr - tp.x) / cell);
+                    int iz0 = Mathf.FloorToInt((pout.y - rr - tp.z) / cell), iz1 = Mathf.CeilToInt((pout.y + rr - tp.z) / cell);
                     for (int iz = iz0; iz <= iz1; iz++) for (int ix = ix0; ix <= ix1; ix++)
                     {
                         if (ix < 0 || iz < 0 || ix >= R || iz >= R) continue;
-                        var nd = new Vector2(tp.x + ix * cell, tp.z + iz * cell); if (Vector2.Distance(nd, pout) > radius) continue;
+                        var nd = new Vector2(tp.x + ix * cell, tp.z + iz * cell); float dn = Vector2.Distance(nd, pout); if (dn > rr) continue;
                         bool own = EdoGeom.PIP(h, nd);
                         if (!own && (inOther(nd, k) || (allow != null && !allow(nd)))) continue;
-                        float tg = tgt; if (own) { int w3; float ot = idx.TopRaw(nd.x, nd.y, out w3); if (!float.IsNaN(ot)) tg = Mathf.Min(tg, ot - 0.05f); }
+                        float tg = own ? tgt : tgt - Mathf.Max(0f, dn - radius) / batter; if (own) { int w3; float ot = idx.TopRaw(nd.x, nd.y, out w3); if (!float.IsNaN(ot)) tg = Mathf.Min(tg, ot - 0.05f); }
                         long key = ((long)iz << 32) | (uint)ix; float cur; if (!want.TryGetValue(key, out cur) || tg > cur) want[key] = tg;
                     }
                 }
@@ -3328,7 +3336,39 @@ public static partial class EdoBuild
         var names = new List<string>(); foreach (var kv in byName) names.Add(kv.Key + " " + kv.Value);
         return "駒の縁の下の見える隙を土で埋めた(上げるだけ・駒の底 +" + bury.ToString("F2") + "・半径 " + radius.ToString("F2") + "): 隙の点 " + nPt + "・上げた節点 " + nW + "(最大 " + upMax.ToString("F2") + "m)"
              + (nOver > 0 ? "・⚠ 上げが " + cap.ToString("F2") + " を超えて上げなかった節点 " + nOver + "(最大 " + overMax.ToString("F2") + " @(" + overAt.x.ToString("F1") + "," + overAt.y.ToString("F1") + ")── 普請方へ)" : "")
+             + (nBig > 0 ? "・隙 > " + gapMax.ToString("F2") + " は土で受けない " + nBig + " 点(最大 " + bigMax.ToString("F2") + " " + bigAt + " ── 石の納め・設計の裏込めへ)" : "")
              + (names.Count > 0 ? "|" + string.Join("・", names.ToArray()) : "");
+    }
+
+    /// <summary>**書いた地面の升目なりの段の検め**(普請方 2026-10-14 F4・第136巡 ── 盛りの縁が升目なりの階段で切れ、斜面を下る縦の溝に見えた)。
+    /// 記録(<paramref name="recPaths"/> ── 小段の裏込め・3d の帯と埋めた土)に残る節点と、その四方の隣の節点の高さの差が <paramref name="maxStep"/>(0.25 の升で 1:1.5 = 0.17)を超える組を数える。
+    /// 二つの節点のどちらかが駒・覆う駒の外形の中なら数えない(見えない)。測るだけ【硬の検め・直さない】。⟶ 一行。当たる先: 地面を書く手の記録を残す邸すべて(岡部)。</summary>
+    public static string WrittenNodeStepReport(IList<string> recPaths, IList<GameObject> parts, IList<Vector2[]> cover, float maxStep)
+    {
+        var t = T(); var td = t.terrainData; int R = td.heightmapResolution; Vector3 tp = t.transform.position, ts = td.size; float cell = ts.x / (R - 1);
+        var idx = new TopIndex(); foreach (var g in parts) if (g != null && g.activeInHierarchy) idx.Add(g);
+        var cov = new List<Vector2[]>(); if (cover != null) foreach (var h in cover) if (h != null && h.Length >= 3) cov.Add(h);
+        Func<Vector2, bool> hidden = q => { for (int k = 0; k < idx.hulls.Count; k++) { var b = idx.bounds[k]; if (q.x < b.x || q.x > b.z || q.y < b.y || q.y > b.w) continue; if (EdoGeom.PIP(idx.hulls[k], q)) return true; } foreach (var h in cov) if (EdoGeom.PIP(h, q)) return true; return false; };
+        var nodes = new HashSet<long>();
+        foreach (var rp in recPaths) { var m = LoadNodeTargets(rp, t.name); if (m != null) foreach (var k in m.Keys) nodes.Add(k); }
+        if (nodes.Count == 0) return "書いた地面の升目の段: 記録なし";
+        var seen = new HashSet<long>(); int n = 0; float mx = 0f; var worst = new List<Vector3>();
+        foreach (var k in nodes)
+        {
+            int ix = (int)(k >> 32), iz = (int)(uint)(k & 0xffffffffL); if (ix < 1 || iz < 1 || ix >= R - 1 || iz >= R - 1) continue;
+            var p0 = new Vector2(tp.x + ix * cell, tp.z + iz * cell); if (hidden(p0)) continue;
+            float h0 = td.GetHeight(ix, iz) + tp.y;
+            foreach (var d in new[] { new Vector2Int(1, 0), new Vector2Int(-1, 0), new Vector2Int(0, 1), new Vector2Int(0, -1) })
+            {
+                int jx = ix + d.x, jz = iz + d.y; long pk = ix < jx || (ix == jx && iz < jz) ? (((long)ix << 40) ^ ((long)iz << 20) ^ (long)(jx * 7 + jz)) : (((long)jx << 40) ^ ((long)jz << 20) ^ (long)(ix * 7 + iz));
+                if (!seen.Add(pk)) continue;
+                var p1 = new Vector2(tp.x + jx * cell, tp.z + jz * cell); if (hidden(p1)) continue;
+                float dh = Mathf.Abs(td.GetHeight(jx, jz) + tp.y - h0); if (dh <= maxStep) continue;
+                n++; if (dh > mx) mx = dh; worst.Add(new Vector3((p0.x + p1.x) * 0.5f, (p0.y + p1.y) * 0.5f, dh));
+            }
+        }
+        worst.Sort((a, b) => b.z.CompareTo(a.z)); var ls = new List<string>(); for (int i = 0; i < Mathf.Min(6, worst.Count); i++) ls.Add("(" + worst[i].x.ToString("F1") + "," + worst[i].y.ToString("F1") + ") " + worst[i].z.ToString("F2"));
+        return "書いた地面の升目の段(記録の節点 " + nodes.Count + "・隣と > " + maxStep.ToString("F2") + "・駒の外): " + n + " 組" + (n > 0 ? " ⛔ 最大 " + mx.ToString("F2") + " ── " + string.Join("・", ls.ToArray()) : " ⭕");
     }
 
     /// <summary>点 q が外形の中か、縁から <paramref name="d"/> 以内か。</summary>

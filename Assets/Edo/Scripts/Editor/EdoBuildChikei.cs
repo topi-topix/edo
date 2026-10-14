@@ -144,8 +144,14 @@ public static partial class EdoBuild
             nPiece++;
             var l2w = g.transform.localToWorldMatrix; var w2l = g.transform.worldToLocalMatrix;
             var apr = MizoApronOf(path); var apMc = new List<MeshCollider>();
-            if (apr.has) { nApron++; foreach (var mf in g.GetComponentsInChildren<MeshFilter>()) { if (mf.sharedMesh == null) continue; var mc = mf.gameObject.AddComponent<MeshCollider>(); mc.sharedMesh = mf.sharedMesh; apMc.Add(mc); } Physics.SyncTransforms(); }
+            if (apr.has) nApron++;
+            // 下面を測る(第136巡): 駒ごとに一時の当たりを付け、節点の真下から上へ光線を打って**最初に当たる駒の下面**を読む(板の上面は上から)
+            foreach (var mf in g.GetComponentsInChildren<MeshFilter>()) { if (mf.sharedMesh == null) continue; var mc = mf.gameObject.AddComponent<MeshCollider>(); mc.sharedMesh = mf.sharedMesh; apMc.Add(mc); }
+            Physics.SyncTransforms();
             try {
+            // ⭐ 第136巡: 地面は**駒の下面のすぐ下**へ ── 札の外接の矩形の底へ一律に下げると、六角の曲がり目の桝(GK)の肩の土の皮(石の材)の下まで底 −0.03 へ掘り、
+            //   区画の外の道に 0.4〜0.5 の窪み(残った道が瘤に見えた・岡部 辺39/40 の角)。真下から上へ光線を打ち、最初に当たる下面 − below(当たらなければ触らない)。
+            //   矩形の溝の駒は下面 = 底なので従前と同じ。当たる先: SinkGroundUnderMizo に渡す溝・桝の駒すべて
             float x0 = float.MaxValue, x1 = float.MinValue, z0 = float.MaxValue, z1 = float.MinValue;
             foreach (var lx in new[] { sp.xMin, sp.xMax }) foreach (var lz in new[] { sp.zMin, sp.zMax })
                 {
@@ -164,6 +170,13 @@ public static partial class EdoBuild
                     float tt = (sp.bottom - a.y) / dv.y; var lp = a + dv * tt;
                     if (lp.x < sp.xMin - 1e-4f || lp.x > sp.xMax + 1e-4f || lp.z < sp.zMin - 1e-4f || lp.z > sp.zMax + 1e-4f) continue;
                     float yb = l2w.MultiplyPoint3x4(new Vector3(lp.x, sp.bottom, lp.z)).y - below; bool apronOnly = false;
+                    if (!(apr.has && Mathf.Abs(lp.x) > apr.xBody - 0.005f))
+                    {   // 下面: 真下から上へ(駒の底の 2m 下から)最初に当たる面
+                        float under = float.MaxValue; var rayU = new Ray(new Vector3(wp.x, yb - 2f, wp.z), Vector3.up); RaycastHit hu;
+                        foreach (var mc in apMc) if (mc.Raycast(rayU, out hu, RB(g).size.y + 4f)) under = Mathf.Min(under, hu.point.y);
+                        if (under == float.MaxValue) continue;   // 駒の下でない
+                        yb = Mathf.Max(yb, under - below);
+                    }
                     if (apr.has && Mathf.Abs(lp.x) > apr.xBody - 0.005f)
                     {   // 張り出しの下: 真上の駒の上面(土の板・敷き石)− below
                         float top = float.MinValue; var ray = new Ray(new Vector3(wp.x, RB(g).max.y + 1f, wp.z), Vector3.down); RaycastHit hh;

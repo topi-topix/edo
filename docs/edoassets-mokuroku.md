@@ -481,7 +481,7 @@
 | `Own.DoiMizoKoguchi` | string | 型 A の溝の小口の石(岡部 EDO-0502 第113巡・grading.omoteNagayaDai.mizo の Mizo_Hashi.end「P0 で小口の石で止める」)。 | BuildMizo(MasuLowestClear・PlaceMizoKoguchi), OkabeYashiki(PlaceMizoSections) |
 | `Own.DoiMizoAKasa(h)` | 関数 | 型 A の外壁の嵩上げ石 1m 駒(岡部 EDO-0502・okabe_sashizu terraces[1].roadEdge 10-10n)。 | OkabeYashiki(PlaceFrontGutters) |
 | `Own.DoiMasu(kata)` | 関数 | 石の桝(型 G1 / G2・切石4枚組・天端 +0.05)。 | OkabeYashiki(PlaceMinamiHei・PlaceOmoteGesuiLay・PlaceSeRojiAnkyo) |
-| `Own.DoiMasuKado(innerDeg=…, depth=…, sillA=…, sillB=…)` | 関数 | 曲がり目の桝(型 GK・EDO-0502 岡部 辺39/40 の角・二つの型 A の溝が折れて落ち合う所)。 | — |
+| `Own.DoiMasuKado(innerDeg=…, depth=…, sillA=…, sillB=…)` | 関数 | 曲がり目の桝(型 GK・EDO-0502 岡部 辺39/40 の角・二つの型 A の溝が折れて落ち合う所)。 | OkabeYashiki(PlaceDrainFrontGutters) |
 | `Own.DoiDanOchi(rise)` | 関数 | 石組の段落ち 1段(型 H・内法 0.60・野面石積みの側 天端 = 段の底 +0.50・平石の段鼻と水叩き)。 | OkabeYashiki(PlaceMinamiHei) |
 | `Own.DoiDanOchi(rise, wallTop)` | 関数 | 壁の浅い段落ち(型 H と同じ底・段鼻・蹴込み・水叩き・落差・継ぎ目・同じ石 ── 側の野面石の丈だけ違う・岡部 EDO-0502 第116巡)。 | OkabeYashiki(PlaceMinamiHei) |
 | `Own.DoiHariOtoshi(rise, nori=…)` | 関数 | 張り石の落とし 1段(型 I・法面を縦に・幅 0.60・平石 t0.12・両脇の縁石 w0.12 天端 +0.06)。 | — |

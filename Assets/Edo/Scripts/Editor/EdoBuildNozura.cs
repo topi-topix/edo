@@ -818,6 +818,15 @@ public static partial class EdoBuild
                     {   // 連鎖: 中ほどの天端 = 前の終わりの天端 + 焼いた勾配 × 半走り(勾配を差し引いて測る)
                         float gW = bakedG(path) / sc;                       // 局所 +X の世界の勾配
                         float cMid = flatHere ? crest : prevC + xRun * gW * (sMid - edge);
+                        // ⭐ 焼いた勾配が 0(水平の駒)なのに線が傾く所(勾配 < 焼いた最小 0.12 の半分 ── ゆるい坂なり)は、連鎖すると前の駒の天端が
+                        //   いつまでも続き線から離れていく(2026-10-14・EDO-0502 第133巡: TW_Higashi_Se を 16.00→14.75 の 1/79 にしたら全駒 16.00 のまま)。
+                        //   ⇒ 一駒ずつ中ほどを線の天端へ据える(継ぎ目の段 = 勾配 × 走り ≤ 0.06 × 1.82 = 0.11 ── unity-modular-stonewall §3 の「一駒の段 ≤0.15・符号を反転させない」)。
+                        //   当たる先: Nozura2 を渡す野面の run のうち、線の勾配が 0.06 未満で傾く区間すべて(岡部 TW_Higashi_Se の坂なり・ゆるく傾く腰・返し)。
+                        if (!flatHere && Mathf.Abs(gW) < 1e-4f && !float.IsNaN(crest))
+                        {
+                            float cE0 = w.crestAt(Mathf.Clamp(edge, 0f, L)), cE1 = w.crestAt(Mathf.Clamp(sNext, 0f, L));
+                            if (!float.IsNaN(cE0) && !float.IsNaN(cE1) && Mathf.Abs(cE1 - cE0) > 0.004f) cMid = crest;
+                        }
                         FaceWallToLine(g, fN, c);
                         float cm = crestOfG(g, gW); if (!float.IsNaN(cm)) g.transform.position += Vector3.up * (cMid - cm);
                         float cm2 = crestOfG(g, gW); if (!float.IsNaN(cm2)) worstCrest = Mathf.Max(worstCrest, Mathf.Abs(cm2 - w.crestAt(Mathf.Clamp(sMid, 0f, L))));

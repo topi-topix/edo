@@ -312,8 +312,11 @@ public static partial class EdoBuild
     { return LevelPadAt(parcel, foot, y, bf, bc, cell, p, cur, null); }
 
     /// <summary>棟の下の均しが**棟の建つ面の外**で触ってよい節点(<see cref="LevelPadAt(Vector2[], Vector2[], float, float, float, float, Vector2, float, PadRim)"/>)。
-    /// <c>outer</c> = 触ってよい外の範囲(区画)・<c>keepOut</c> = 触らない面(ほかの段の平らな面 ── 段の土留めを越えて下の面を盛らない・第7巡)。</summary>
-    public class PadRim { public Vector2[] outer; public IList<Vector2[]> keepOut; }
+    /// <c>outer</c> = 触ってよい外の範囲(区画)・<c>keepOut</c> = 触らない面(ほかの段の平らな面 ── 段の土留めを越えて下の面を盛らない・第7巡)。
+    /// <c>holes</c> = 面の**中でも**触らない範囲(2026-10-14 EDO-0502 第133巡: 面の中に掘り残した坂の路盤 ── 岡部 R_KiriZaka は東の平場の盛りの中の溝で、
+    /// 蔵1 の均しの盛りの法 1:1.5 が両脇の石垣を越えて路盤の東の縁を 0.3〜0.6 盛り、横断の左右の差が 0.275 になった)。
+    /// 当たる先: 面の中に坂(ramps の路盤)を持つ邸の棟の下の均しと、同じ式で均しの跡を数える造成QA。</summary>
+    public class PadRim { public Vector2[] outer; public IList<Vector2[]> keepOut; public IList<Vector2[]> holes; }
 
     /// <summary>LevelPadAt に、面の外の**縁の節点**の扱いを足したもの(2026-10-07 EDO-0502 第46巡)。⭐ 棟の隅が面の縁から一升の内に在ると、
     /// 隅の升を描く節点が面の外(面と面の間の坂・法)に落ち、面の中だけ均すとその節点が坂の高さのまま残って隅が埋まる
@@ -323,6 +326,7 @@ public static partial class EdoBuild
     public static float LevelPadAt(Vector2[] parcel, Vector2[] foot, float y, float bf, float bc, float cell, Vector2 p, float cur, PadRim rim)
     {
         if (foot == null || foot.Length < 3) return cur;
+        if (rim != null && rim.holes != null) foreach (var k in rim.holes) if (k != null && EdoGeom.PIP(k, p)) return cur;   // 面の中の触らない範囲(坂の路盤)
         if (parcel != null && !EdoGeom.PIP(parcel, p))   // ⛔ 面の外は触らない(縁の節点だけ rim で)
         {
             if (rim == null) return cur;

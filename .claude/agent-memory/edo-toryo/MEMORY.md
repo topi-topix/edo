@@ -26,6 +26,7 @@
 - [P12 の斜めの端・外の道の削り(第128巡)](p12-naname-end-and-michi-cut-r128.md) — 一様な坂が床 16.20 を割る・道側 2〜5m の読みが倍率を変える・名は r.name+"_Naname"・試しの S1 の後の hm_pre は前に化ける
 - [第131巡: Ground に NaN で落ちる・カメラが長屋の中](r131-ground-nan-crash-and-camera-inside-nagaya.md)・[第132巡: 切坂の足の窪みは駒の下の下げ・段の一升](r132-ramp-foot-pits-and-step-band.md) — 前の地表の歩きが全部駒の中なら止めが無い・検めは面が地表より上で外す
 - [第129巡: GradeQA と背の路地・吐き口・S3 の飛ばし](r129-grade-seroji-hakiguchi-chain-s3.md)・[第130巡: S3d 単独は地形が変わる・池の岸の枠・G0 の妻](r130-grade-qa-frames-g0-hei-feet.md) — S1 から一続きで流し同じ中で測る・帰属は段ごとの値で
+- [第133巡: ゆるい坂なりの連鎖・棟の均しが坂の路盤へ・溝の無い嵩上げ石](r133-slope-crest-flat-chain-and-pad-into-ramp.md) — 焼いた勾配0は線の中ほどへ・PadRim.holes・群は頭で空にする
 - [芯線と天端の線(heiLine)の罠](heiline-stretch-and-tenba-r120.md) — d は c の後・床は区間の組で・線は同じドメインだけ(S2〜3d を続けて)・足は 0.91〜1.60・継ぎ目の切り欠きを埋める
 - [.cs の保存直後の Stage は古い DLL で走る・再起動で皮が null](stage-run-on-stale-dll-after-edit.md) — 25 分の 3b が空振り。Stage の前に compile_wait・3b の後は先に書き戻す
 

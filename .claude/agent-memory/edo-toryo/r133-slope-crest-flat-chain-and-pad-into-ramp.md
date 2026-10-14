@@ -1,0 +1,17 @@
+---
+name: r133-slope-crest-flat-chain-and-pad-into-ramp
+description: 第133巡(岡部) ── ゆるい坂なりの天端は Nozura2 の連鎖で水平のまま走る・棟の均しの法が石垣で挟んだ坂の路盤へ入る・溝の無い所に残った嵩上げ石・runs[].top が文字で F() が落ちる
+metadata:
+  type: project
+---
+2026-10-14 EDO-0502 第133巡(TW_Higashi_Se 坂なり 16.00→14.75・施主裁定 案B)。
+
+1. **症状**: 1/64 の坂なりの線を渡しても全駒が始まりの天端のまま(見込み)。**原因**: PlaceNozuraRun の勾配の連鎖は「前の駒の終わりの天端 + 焼いた勾配」で、
+   要る勾配 0.013 に最も近い焼いた勾配は G+000 ⇒ 連鎖が線へ戻らない。**対処**: 焼いた勾配 0 で線が傾く駒は中ほどを線の天端へ(EdoBuildNozura 連鎖の分岐・継ぎ目の段 = 勾配×走り)。
+2. **症状**: 切坂 R_KiriZaka の横断の左右差 0.275。**原因**: 蔵1 の LevelPad(16.20)の盛りの法 1:1.5 が東の平場の面の中に掘り残した坂の路盤へ届き、東の縁を 0.3〜0.6 盛った(LevelPadAt の値と S3 の地形が一致して確定)。
+   **対処**: PadRim.holes(面の中でも触らない)に ramps の路盤の帯(w/2+0.5)を入れた(Okabe PadRimAt → RampStripPolys)。造成QA も同じ rim を読む。
+3. **症状**: 普請検査の「N39_1_Mae 笠の下の隙 0.69」。**原因**: 溝そのものが無い(FrontMizo 0 子)── N39_1.front が第106巡で甲の型に替わり PlaceFrontGutters が早く返り、FrontMizoKasa を空にしないまま嵩上げ石 13 駒が残って浮いていた。
+   **対処**: 関数の頭で自分の群を全部空にする。D_N39_1_Mae の溝は route に置ける書式(s の範囲・型A)が無く、どの関数も建てない ⇒ 差し戻し。
+4. 指図が runs[].top を「坂なり(…)」の文字にすると SeRojiPlanOf の F()(Convert.ToSingle)が FormatException ── 欄の書式が数→文字に変わる上書きは読む側を先に直す。
+**How to apply:** 普請方の見立て(確度 ?)は駒の群の子の数から確かめる。ゆるい坂の野面は c_se_tops.txt の形(駒ごとの天端と段)で測る。
+関連 [[return-lost-when-sashizu-text-format-changes]] [[levelpad-crosses-terrace-wall]] [[nozura2-joint-line-and-grade-chain]]

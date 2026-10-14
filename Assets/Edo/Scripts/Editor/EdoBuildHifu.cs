@@ -383,6 +383,27 @@ public static partial class EdoBuild
             }
             return float.IsNaN(best) || float.IsNaN(cap) ? best : Mathf.Min(best, cap);
         }
+        /// <summary>**肩の盛りの設計の高さ**(指図 terraceWalls[].shoulder ── 普請方 2026-10-14・EDO-0502 第132巡)。<paramref name="which"/> の駒の帯だけで、奥行 d(天端の前の縁から)が
+        /// front〜<paramref name="end"/> は 天端 + rise − (d − front)·drain(<see cref="Target"/> の帯をそのまま肩の端まで延ばす)、その先は 1/<paramref name="skirt"/> の逆数の勾配で下がる。
+        /// 帯(0〜back)に入る点は低い方の天端 + rise を上限(<see cref="Target"/> と同じ)。<paramref name="dBest"/> = 勝った帯の奥行。帯の走りの外(b の範囲外)は NaN。</summary>
+        public float ShoulderTarget(Vector2 q, Func<GameObject, bool> which, float end, float skirt, float reach, out float dBest) { long k; return ShoulderTarget(q, which, end, skirt, reach, out dBest, out k); }
+        /// <summary><paramref name="binKey"/> = 勝った帯の割り(帯の番号 &lt;&lt; 20 | 割り b)── 肩の一本の横断を束ねる(盛りの上限を超える横断を丸ごと退ける)。</summary>
+        public float ShoulderTarget(Vector2 q, Func<GameObject, bool> which, float end, float skirt, float reach, out float dBest, out long binKey)
+        {
+            dBest = float.NaN; binKey = -1; float best = float.NaN, cap = float.NaN; int fi = -1;
+            foreach (var fb in list)
+            {
+                fi++;
+                if (fb.go == null || (which != null && !which(fb.go))) continue;
+                int b = Mathf.FloorToInt((Vector2.Dot(q, fb.t) - fb.a0) / BIN); if (b < 0 || b >= fb.crest.Length || float.IsNaN(fb.crest[b]) || float.IsNaN(fb.frontU[b])) continue;
+                float d = fb.frontU[b] - Vector2.Dot(q, fb.f), c = fb.crest[b], rs = fb.riseB[b]; if (d < 0f || d > end + reach) continue;
+                if (d <= back) { float cy = c + rs; if (float.IsNaN(cap) || cy < cap) cap = cy; }
+                if (d < front) continue;
+                float y = d <= end ? c + rs - (d - front) * drain : c + rs - (end - front) * drain - (d - end) * skirt;
+                if (float.IsNaN(best) || y > best) { best = y; dBest = d; binKey = ((long)fi << 20) | (long)b; }
+            }
+            return float.IsNaN(best) || float.IsNaN(cap) ? best : Mathf.Min(best, cap);
+        }
         /// <summary>表の石の上で帯の縁の手前 edgeW に入る点(どれかの面)。</summary>
         public bool NearBandEdge(Vector2 q)
         { foreach (var fb in list) { float d, c; if (Bin(fb, q, out d, out c) && d >= front - edgeW && d < front) return true; } return false; }
@@ -3098,6 +3119,71 @@ public static partial class EdoBuild
         return "天端の裏石の帯の土(const.nozuraCrestCover を地形へ・盛るだけ): 帯 " + cc.list.Count + "・盛った節点 " + nUp + "(最大 " + mUp.ToString("F2") + ")・うち背の側で駒の底 +0.05 へ上げた " + nUnder + "(最大 " + mUnder.ToString("F2") + ")"
              + "・野面でない部材の外形と縁で止めた " + nOther + "・長屋の背の一間・犬走りで止めた " + (cc.blocked - blocked0) + "(最大 " + cc.blockedMax.ToString("F2") + ")";
     }
+
+    /// <summary>**野面の石垣の背の肩を盛る**(指図 terraceWalls[].shoulder ── 普請方 2026-10-14・EDO-0502 第132巡: 東の平場の縁の TW_Higashi_Se の背で、区切りの中で天端は水平・
+    /// 平場は下がり、裏石の尻が平場の上 0.46 に浮いて見えた ⇒ 裏石は下げず、肩を広く緩く盛って覆う)。
+    /// 節点ごとに <see cref="NozuraCrestCover.ShoulderTarget"/>(帯 front〜back = 天端 + rise・肩 back〜<paramref name="end"/> = 同じ drain で下げる・その先 <paramref name="skirt"/> で平場へ)を
+    /// **盛るだけ**【硬】。盛りが <paramref name="maxFill"/> を超える節点は盛らずに位置と値を返す【硬】(普請方へ)。<paramref name="stopY"/>(節点 → 上限・NaN = 無し・−∞ = 触らない)が
+    /// 棟の均し・溝の手前で肩の先を止めて立てる上限(帯 0〜back の内には効かせない ── 裏石の上の土【硬】が先)。<paramref name="allow"/> が偽(区画の外・線際)・<paramref name="otherPart"/> が真(他の部材の外形)・
+    /// 表の石の上と見え面の前(<see cref="NozuraCrestCover.Protected"/>)は触らない。書くのは <see cref="T"/>。<paramref name="recPath"/> へ設計の高さを足し書き(造成QA)。
+    /// 当たる先: 天端が区切りで水平・背の平場が下がる野面の土留め(岡部 TW_Higashi_Se)── 欄 shoulder を持つ石垣すべて。</summary>
+    public static string ShoulderFillToTerrain(NozuraCrestCover cc, Func<GameObject, bool> which, float end, float skirt, float maxFill, Func<Vector2, float> stopY,
+                                               Func<Vector2, bool> allow, Func<Vector2, bool> otherPart, string recPath, List<Vector3> over)
+    { return ShoulderFillToTerrain(cc, which, null, end, skirt, maxFill, stopY, allow, otherPart, recPath, over); }
+    /// <summary><paramref name="groupOf"/>(駒 → 区切りの名・null = 帯の割りごと)── 盛りの上限を超える節点が肩に一つでもある**区切りを丸ごと**盛らない。
+    /// ⛔ 割り(0.1m)ごとに退けると、盛る割りと盛らない割りが交互に並び、0.25m の格子の上で肩に三角の土の山が並んだ(第132巡の試し 3 本目 r132_04)。
+    /// 区切りの境は天端の段(段は棟の境の妻の線)なので、盛る区切りと盛らない区切りの境は段に隠れる。</summary>
+    public static string ShoulderFillToTerrain(NozuraCrestCover cc, Func<GameObject, bool> which, Func<GameObject, string> groupOf, float end, float skirt, float maxFill, Func<Vector2, float> stopY,
+                                               Func<Vector2, bool> allow, Func<Vector2, bool> otherPart, string recPath, List<Vector3> over)
+    {
+        if (cc == null || cc.list.Count == 0) return "肩の盛り: 覆う駒なし";
+        var t = T(); var td = t.terrainData; var org = t.transform.position; int R = td.heightmapResolution; float hs = td.size.x / (R - 1);
+        float reach = maxFill / Mathf.Max(1e-3f, skirt) + 0.5f;
+        float x0 = float.MaxValue, z0 = float.MaxValue, x1 = float.MinValue, z1 = float.MinValue; int nf = 0;
+        foreach (var fb in cc.list) { if (fb.go == null || (which != null && !which(fb.go))) continue; nf++; x0 = Mathf.Min(x0, fb.box.x); z0 = Mathf.Min(z0, fb.box.y); x1 = Mathf.Max(x1, fb.box.z); z1 = Mathf.Max(z1, fb.box.w); }
+        if (nf == 0) return "肩の盛り: 名指した石垣の帯が無い";
+        x0 -= reach; z0 -= reach; x1 += reach; z1 += reach;
+        int i0 = Mathf.Max(0, Mathf.FloorToInt((x0 - org.x) / hs)), i1 = Mathf.Min(R - 1, Mathf.CeilToInt((x1 - org.x) / hs));
+        int j0 = Mathf.Max(0, Mathf.FloorToInt((z0 - org.z) / hs)), j1 = Mathf.Min(R - 1, Mathf.CeilToInt((z1 - org.z) / hs));
+        var H = td.GetHeights(i0, j0, i1 - i0 + 1, j1 - j0 + 1); var rec = new Dictionary<long, float>();
+        int nUp = 0, nOver = 0, nStop = 0, nOther = 0, nTrans = 0; float mUp = 0f, m3 = 0f, mOver = 0f;
+        //   ⭐ 一本の横断(帯の割り)の肩(0〜end)のどこかで盛りが上限を超えるなら、その横断は丸ごと盛らない(⛔ 超える節点だけ抜くと、天端の際に溝・その先に盛りが残る)。
+        //   肩の先(end より奥)で超える節点は、その節点だけ盛らない(平場の窪み・溝の脇)。
+        var needNear = new Dictionary<string, float>();
+        Func<long, string> grpOf = k => { int fi = (int)(k >> 20); if (fi < 0 || fi >= cc.list.Count) return "?"; var go = cc.list[fi].go; return groupOf != null && go != null ? groupOf(go) : k.ToString(); };
+        for (int j = j0; j <= j1; j++)
+            for (int i = i0; i <= i1; i++)
+            {
+                var q = new Vector2(org.x + i * hs, org.z + j * hs); if (allow != null && !allow(q)) continue;
+                float dB; long bk; float y = cc.ShoulderTarget(q, which, end, skirt, reach, out dB, out bk); if (float.IsNaN(y)) continue;
+                float cur0 = H[j - j0, i - i0] * td.size.y + org.y; if (y <= cur0 + 1e-4f || dB > end || cc.Protected(q) || (cc.keepOut != null && cc.keepOut(q)) || (otherPart != null && otherPart(q))) continue;
+                string gk = grpOf(bk); float nd; needNear.TryGetValue(gk, out nd); if (y - cur0 > nd) needNear[gk] = y - cur0;
+            }
+        var overBins = new HashSet<string>(); foreach (var kv in needNear) if (kv.Value > maxFill + 1e-4f) overBins.Add(kv.Key);
+        for (int j = j0; j <= j1; j++)
+            for (int i = i0; i <= i1; i++)
+            {
+                var q = new Vector2(org.x + i * hs, org.z + j * hs); if (allow != null && !allow(q)) continue;
+                float dB; long bk; float y = cc.ShoulderTarget(q, which, end, skirt, reach, out dB, out bk); if (float.IsNaN(y)) continue;
+                if (overBins.Contains(grpOf(bk))) { float cur1 = H[j - j0, i - i0] * td.size.y + org.y; if (y > cur1 + 1e-4f && dB <= end && !cc.Protected(q)) { nTrans++; if (y - cur1 > maxFill + 1e-4f) { nOver++; mOver = Mathf.Max(mOver, y - cur1); if (over != null) over.Add(new Vector3(q.x, q.y, y - cur1)); } } continue; }
+                float cur = H[j - j0, i - i0] * td.size.y + org.y; if (y <= cur + 1e-4f) continue;
+                if (cc.Protected(q)) continue;
+                if (cc.keepOut != null && cc.keepOut(q)) continue;
+                if (otherPart != null && otherPart(q)) { nOther++; continue; }
+                if (dB > cc.back && stopY != null) { float sY = stopY(q); if (float.IsNegativeInfinity(sY)) { nStop++; continue; } if (!float.IsNaN(sY) && sY < y) { y = sY; nStop++; if (y <= cur + 1e-4f) continue; } }
+                if (y - cur > maxFill + 1e-4f) { nOver++; mOver = Mathf.Max(mOver, y - cur); if (over != null) over.Add(new Vector3(q.x, q.y, y - cur)); continue; }
+                rec[((long)i << 32) ^ (uint)j] = y; mUp = Mathf.Max(mUp, y - cur); m3 += (y - cur) * hs * hs; nUp++;
+                H[j - j0, i - i0] = (y - org.y) / td.size.y;
+            }
+        if (nUp > 0) { td.SetHeights(i0, j0, H); AssetDatabase.SaveAssetIfDirty(td); }
+        AppendNodeTargets(recPath, t.name, rec);
+        return "肩の盛り(盛るだけ・肩 " + end.ToString("F2") + " まで 1/" + (1f / Mathf.Max(1e-4f, cc.drain)).ToString("F0") + "・その先 1/" + (1f / Mathf.Max(1e-4f, skirt)).ToString("F0") + "): 帯 " + nf + "・盛った節点 " + nUp + "(最大 " + mUp.ToString("F2") + "m・" + m3.ToString("F1") + "m³)"
+             + "・棟の均し・溝で止めた " + nStop + "・他の部材の外形で止めた " + nOther + (overBins.Count > 0 ? "・⛔ 肩で盛り > " + maxFill.ToString("F2") + " の区切り " + overBins.Count + "(" + string.Join("・", OverList(needNear, maxFill)) + ")を丸ごと盛らなかった(肩の節点 " + nTrans + "・超える節点 " + nOver + "・最大 " + mOver.ToString("F2") + " ── 普請方へ)" : "・盛り ≤ " + maxFill.ToString("F2") + " ⭕")
+             + "|区切りの肩の盛りの最大: " + string.Join("・", AllList(needNear));
+    }
+
+    static string[] OverList(Dictionary<string, float> need, float mx) { var l = new List<string>(); foreach (var kv in need) if (kv.Value > mx + 1e-4f) l.Add(kv.Key + " " + kv.Value.ToString("F2")); l.Sort(StringComparer.Ordinal); return l.ToArray(); }
+    static string[] AllList(Dictionary<string, float> need) { var l = new List<string>(); foreach (var kv in need) l.Add(kv.Key + " " + kv.Value.ToString("F2")); l.Sort(StringComparer.Ordinal); return l.ToArray(); }
 
     public static string SkinGapTable(IList<GameObject> parts, IList<SkinFace> faces, float faceTol) { return SkinGapTable(parts, faces, faceTol, null); }
     /// <summary><see cref="SkinGapTable(IList{GameObject},IList{SkinFace},float)"/> に**覆うだけの駒の外形** <paramref name="cover"/> を足した物(2026-10-14 EDO-0502 第131巡)。

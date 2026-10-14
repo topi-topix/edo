@@ -417,7 +417,7 @@ public static partial class EdoBuild
             }
         }
         Physics.SyncTransforms();
-        var low = new Dictionary<long, float>(); var lowN = new Dictionary<long, Vector2>(); int nFloor = 0, nFront = 0;
+        var low = new Dictionary<long, float>(); var lowN = new Dictionary<long, Vector2>(); var lowTop = new Dictionary<long, float>(); int nFloor = 0, nFront = 0;
         try
         {
             for (int b = 0; b < tmp.Count; b++)
@@ -432,7 +432,7 @@ public static partial class EdoBuild
                         if (!tmp[b].Raycast(new Ray(new Vector3(org.x + i * hs, bb.max.y + 1f, org.z + j * hs), Vector3.down), out h, bb.size.y + 2f)) continue;
                         float y = h.point.y - below; long k = ((long)i << 32) ^ (uint)j; float cur;
                         if (floorMin != null) { float fm = floorMin(org.x + i * hs, org.z + j * hs); if (!float.IsNaN(fm) && y < fm) { y = fm; nFloor++; } }
-                        if (!low.TryGetValue(k, out cur) || y < cur) { low[k] = y; lowN[k] = new Vector2(h.normal.x, h.normal.z); }
+                        if (!low.TryGetValue(k, out cur) || y < cur) { low[k] = y; lowN[k] = new Vector2(h.normal.x, h.normal.z); lowTop[k] = bb.max.y; }
                     }
             }
         }
@@ -445,14 +445,39 @@ public static partial class EdoBuild
             var fix = new List<KeyValuePair<long, float>>();
             foreach (var kv in low)
             {
-                Vector2 nn; if (!lowN.TryGetValue(kv.Key, out nn) || nn.magnitude < 0.25f) continue; nn.Normalize();
-                int i = (int)(kv.Key >> 32), j = (int)(uint)(kv.Key & 0xffffffff); float gF = float.NaN;
+                Vector2 nn; if (!lowN.TryGetValue(kv.Key, out nn)) continue;
+                if (nn.magnitude < 0.25f)
+                {
+                    //   ⭐ 上を向いた面のうち埋まった石の上の面(駒の天端より 0.5 以上低い)は、今の地面より下で、まわり 3 升(0.75m)に駒の外の節点があれば、その最も低い地表より下げない
+                    //   (EDO-0502 第132巡: 切坂の足で、隅の駒の法の根入れの石の上の面 12.75〜13.10 を「面 −0.05」へ掘り、溜り 13.29 の前に 0.1〜0.6 の窪みが残った)。
+                    int ii = (int)(kv.Key >> 32), jj = (int)(uint)(kv.Key & 0xffffffff); float cur0 = td.GetHeight(ii, jj) + org.y; if (kv.Value >= cur0 - 1e-4f) continue;
+                    //   ⛔ 天端(駒の天端から 0.5 以内の上の面)は従前どおり下げる ── 背の地盤が近い天端の縁を残すと表の石の上に土の斑が出た(第132巡の試し 3 本目)
+                    float tpF; if (!lowTop.TryGetValue(kv.Key, out tpF) || kv.Value + below >= tpF - 0.5f) continue;
+                    float gMinF = float.NaN;
+                    for (int di = -3; di <= 3; di++) for (int dj = -3; dj <= 3; dj++)
+                    {
+                        int fi = ii + di, fj = jj + dj; if (fi < 0 || fj < 0 || fi >= R || fj >= R || low.ContainsKey(((long)fi << 32) ^ (uint)fj)) continue;
+                        float gf = td.GetHeight(fi, fj) + org.y; if (float.IsNaN(gMinF) || gf < gMinF) gMinF = gf;
+                    }
+                    //   まわり 3 升がどれも駒の下(石垣が向き合う坂の足)で、当たった面が駒の天端より 0.5 以上低い(天端でない ── 埋まった石の上の面)なら、まわりの節点の今の高さの最低
+                    if (float.IsNaN(gMinF))
+                        for (int di = -3; di <= 3; di++) for (int dj = -3; dj <= 3; dj++)
+                        { int fi = ii + di, fj = jj + dj; if (fi < 0 || fj < 0 || fi >= R || fj >= R) continue; float gf = td.GetHeight(fi, fj) + org.y; if (float.IsNaN(gMinF) || gf < gMinF) gMinF = gf; }
+                    if (!float.IsNaN(gMinF) && kv.Value < gMinF) { fix.Add(new KeyValuePair<long, float>(kv.Key, Mathf.Min(gMinF, cur0))); nFront++; }
+                    continue;
+                }
+                nn.Normalize();
+                int i = (int)(kv.Key >> 32), j = (int)(uint)(kv.Key & 0xffffffff); float gF = float.NaN, gWalkMin = float.NaN;
                 for (float w = hs; w <= 4f + 1e-3f; w += 0.5f * hs)
                 {
                     int fi = Mathf.RoundToInt(i + nn.x * w / hs), fj = Mathf.RoundToInt(j + nn.y * w / hs); if (fi < 0 || fj < 0 || fi >= R || fj >= R) break;
-                    if (low.ContainsKey(((long)fi << 32) ^ (uint)fj)) continue;
+                    if (low.ContainsKey(((long)fi << 32) ^ (uint)fj)) { float gw = td.GetHeight(fi, fj) + org.y; if (float.IsNaN(gWalkMin) || gw < gWalkMin) gWalkMin = gw; continue; }
                     gF = td.GetHeight(fi, fj) + org.y; break;
                 }
+                //   ⭐ 前の 4m がどれも駒の外形の中(石垣で挟んだ坂の足・隅の駒の法尻 ── 両脇の法の根入れが前の地表を全部覆う)なら、歩いた節点の今の高さの最も低い所を前の地表とする
+                //   (EDO-0502 第132巡: R_KiriZaka の足で、両脇の石垣と隅の駒の埋まった法を「面 −0.05」へ掘り、表の溜り 13.29 の前に深さ 1.4〜1.9 の窪みが開いた)。
+                //   当たる先: 二つの石垣が 4m 以内で向き合う所・出隅の駒の法尻(岡部 切坂・溜りの隅)── 法のある石垣を細かい地形に据える邸すべて
+                if (float.IsNaN(gF)) gF = gWalkMin;
                 if (!float.IsNaN(gF) && kv.Value < gF) { fix.Add(new KeyValuePair<long, float>(kv.Key, gF)); nFront++; }
             }
             foreach (var kv in fix) low[kv.Key] = kv.Value;

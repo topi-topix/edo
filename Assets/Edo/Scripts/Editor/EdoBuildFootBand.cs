@@ -208,6 +208,24 @@ public static partial class EdoBuild
         dI = di; return best.yAt(bs);
     }
 
+    /// <summary><see cref="FootBandReachAt"/> に**走りの前後 <paramref name="win"/> の帯の高さの幅**を足した物(<paramref name="lo"/>〜<paramref name="hi"/> = yAt(s − win … s + win) の最小・最大)。
+    /// 帯の座が段で落ちる所(天端の線の段の点)では、段の点の前後の一升の節点が上の座・下の座のどちらの高さでも帯の跡 ── 一点の yAt だけで比べると立ち上がりを超過と読む
+    /// (EDO-0502 第132巡: 岡部 辺22 s0.90 の段 0.635 の真上の一升を造成QA が +0.60 と数えた)。測るだけ。当たる先: 段を持つ帯の造成QA(岡部 天端の線の内の帯・heiFootSpec)。</summary>
+    public static float FootBandReachRange(List<FootLine> lines, Vector2 q, float from, float to, float reach, float win, out float dI, out float lo, out float hi)
+    {
+        lo = hi = float.NaN; float y = FootBandReachAt(lines, q, from, to, reach, out dI); if (float.IsNaN(y)) return y;
+        FootLine best = null; float bd = float.MaxValue, bs = 0f;
+        foreach (var L in lines)
+        {
+            if (L.nPts == 0 || L.dIn <= float.MinValue || L.yAt == null) continue;
+            float s = Vector2.Dot(q - L.a, L.ax), sc = Mathf.Clamp(s, L.sLo, L.sHi); float d = Vector2.Distance(q, L.a + L.ax * sc + L.inw * L.DInAt(sc));
+            if (d < bd) { bd = d; best = L; bs = s; }
+        }
+        lo = hi = y; if (best == null) return y;
+        for (float ds = -win; ds <= win + 1e-4f; ds += 0.05f) { float sv = Mathf.Clamp(bs + ds, best.sLo, best.sHi); float v = best.yAt(sv); if (float.IsNaN(v)) continue; lo = Mathf.Min(lo, v); hi = Mathf.Max(hi, v); }
+        return y;
+    }
+
     /// <summary>節点 q が帯の中なら帯の高さ(一番近い線の yAt)・帯の外・低い所だけ盛る線なら NaN ── 駒の下を下げる処理の下限に使う(帯の上に埋まった駒の天端で帯を掘らない)。</summary>
     public static float FootBandAt(List<FootLine> lines, Vector2 q, float from, float to)
     {

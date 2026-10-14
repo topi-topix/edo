@@ -13,5 +13,7 @@ metadata:
 3. **症状**: 普請検査の「N39_1_Mae 笠の下の隙 0.69」。**原因**: 溝そのものが無い(FrontMizo 0 子)── N39_1.front が第106巡で甲の型に替わり PlaceFrontGutters が早く返り、FrontMizoKasa を空にしないまま嵩上げ石 13 駒が残って浮いていた。
    **対処**: 関数の頭で自分の群を全部空にする。D_N39_1_Mae の溝は route に置ける書式(s の範囲・型A)が無く、どの関数も建てない ⇒ 差し戻し。
 4. 指図が runs[].top を「坂なり(…)」の文字にすると SeRojiPlanOf の F()(Convert.ToSingle)が FormatException ── 欄の書式が数→文字に変わる上書きは読む側を先に直す。
+5. 第134巡: Stage2b の terraceWalls の w は**算出物(IMPL)の欄**で、指図に足した新しい欄(side0)を運ばない ⇒ 新しい欄は D(指図)の同じ名の欄から読む。1時間の流しが Side0 16.3 のまま空振り。
+6. 坂の横断の測り点は、点を描く升の四隅の節点が全部路盤の帯の内でないと、一升先の石垣の足の土を補間で拾う(0.039 → 0.016)。
 **How to apply:** 普請方の見立て(確度 ?)は駒の群の子の数から確かめる。ゆるい坂の野面は c_se_tops.txt の形(駒ごとの天端と段)で測る。
 関連 [[return-lost-when-sashizu-text-format-changes]] [[levelpad-crosses-terrace-wall]] [[nozura2-joint-line-and-grade-chain]]

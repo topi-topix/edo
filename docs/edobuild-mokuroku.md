@@ -1,6 +1,6 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 2483977c733d -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 849c86a4bc3e -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
@@ -999,7 +999,7 @@ EdoBuild — 坂の路盤(折れ線の芯と縦断で道の面を均し、盛土
 | `EdoBuild.ToeBenchOf(name, pieces, a, b, back, drop, behind, bf, parcel, groundAt, reach, tail, note)` | `ToeBench` | 天端・面 | 法尻の土留めの背の小段を、据えた駒の実メッシュから解く(指図 toeBench: 天端 − drop の小段を控えの後端 + behind までとり、その先 1:bf で 平場の縁まで盛の法を描き直す【硬: 天端に土を載… ⟶ 返す: 解けなければ null(理由は note) | OkabeYashiki(KeepToe) |
 | `EdoBuild.ToeBenchOnSeg(sg, back, w, drop, bf, parcel, ext0, ext1)` | `ToeBench` | 天端・面 | 駒を据える前の法尻の背の小段(指図 nozuraEndRule 追記3 toeEnd・EDO-0502 第34巡): 区間の線(見え面の線)・設計の天端(crestAt)と、 駒の控えの後端(呼び手が焼いた駒の全頂点から… | — |
 | `EdoBuild.ToeBenchAt(k, p, cur)` | `float` | 地面・天端・面 | 法尻の土留めの背の小段が節点 p に与える高さ(切るだけ ── 今の地盤 cur より低い所だけ下げる・⛔ 盛らない)。 | OkabeYashiki(GradeQA_・Stage3b_Hifu_) |
-| `EdoBuild.HeightCell()` | `float` | 地面・床 | 地形の高さの格子の一升 [m](heightmap の節点の間隔)。 | OkabeYashiki(Stage2b_Dan_) |
+| `EdoBuild.HeightCell()` | `float` | 地面・床 | 地形の高さの格子の一升 [m](heightmap の節点の間隔)。 | OkabeYashiki(RampWaterQA・Stage2b_Dan_) |
 | `EdoBuild.ToeBenchWrite(ks, keep, cutMax, cutAt)` | `int` | 硬 地面・床・区域 | 法尻の土留めの背の小段を地形へ切る(ToeBenchAt を節点ごとに)。 ⟶ 返す: 切った節点の数(切りの最大と位置は out) | OkabeYashiki(Stage2b_Dan_) |
 | `EdoBuild.PadGroupFoot(feet)` | `Vector2[]` | 硬 床 | 一枚の均しの足あと(指図 `service[].padGroup` ── 同じ組の棟と棟の間を一枚の平らな床面にする・2026-10-07 EDO-0502 第46巡)。 ⟶ 返す: 凸包(反時計回り) | OkabeYashiki(PlaceService・ServicePads) |
 | `EdoBuild.LevelPad(parcel, foot, y, bf, bc, cutMax, fillMax)` | `int` | 硬 区域 | 棟の下の均し(2026-10-03 EDO-0502 第4巡・岡部の厩と蔵1 が勾配の面の上手へ 0.78m 埋まった)。 ⟶ 返す: 書いた節点の数(切 / 盛の最大は out) | OkabeYashiki(PlaceService) |

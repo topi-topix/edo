@@ -4441,6 +4441,21 @@ public static class EdoAssets
         ///   blender --background --python Tools/Blender/build_doi_haisui.py -- masu --render(G0 だけなら -- G0 --render)</summary>
         public static string DoiMasu(string kata) { return FuzokuyaDir + "Doi_Masu_" + kata.ToUpperInvariant() + ".fbx"; }
 
+        /// <summary>**曲がり目の桝**(型 GK・EDO-0502 岡部 辺39/40 の角・二つの型 A の溝が折れて落ち合う所)。切石・**天端 = ピボット(縁なし)**・
+        /// 肩に G0 と同じ土の皮(石の外面 −0.015 で +0.003 → 外へ 0.25 で −0.03)。
+        /// **ピボット = 二つの溝の芯の交点・天端の高さ**。内の角の二等分線 = 局所 +Z(凸の隅 = −Z)。
+        /// 腕 A = 局所 (−sin β, 0, cos β)・腕 B = (sin β, 0, cos β)(β = <paramref name="innerDeg"/>/2)。口の面 = 芯の交点から腕に沿って
+        /// max(0.30, 0.27/tan β + 0.12)(118.4° は 0.30)・口の面の内法 0.30 の全幅で天端から敷居まで開く(壁は芯から 0.15〜0.27 = 型 A の縁石の線)。
+        /// 外形 = 芯から 0.27 の線を留めで折った六角形(溝の外の壁の線に収まる)。敷居の天端 = −<paramref name="sillA"/> / −<paramref name="sillB"/>(受ける溝の底)・
+        /// 底の天端 = −<paramref name="depth"/>(一枚の平ら)・底石の下端 −depth −0.15。⛔ 鏡像の角は A と B の敷居を入れ替えた名で焼く(形は二等分線に対称)。
+        /// 既定(118.4°・0.45・0.28・0.35)= 棟梁の実測(内の角 118.4°・溝の底 13.64 / 13.57・天端 13.92 として)。確度 U(部材方の既定)。
+        ///   blender --background --python Tools/Blender/build_doi_haisui.py -- GK --render(別の角: -- GK --deg 118.4 --depth 0.45 --sill 0.28,0.35)</summary>
+        public static string DoiMasuKado(float innerDeg = 118.4f, float depth = 0.45f, float sillA = 0.28f, float sillB = 0.35f)
+        {
+            return FuzokuyaDir + "Doi_Masu_GK" + innerDeg.ToString("0.0", DoiInv) + "_D" + depth.ToString("0.00", DoiInv)
+                + "_A" + sillA.ToString("0.00", DoiInv) + "_B" + sillB.ToString("0.00", DoiInv) + ".fbx";
+        }
+
         /// <summary>**石組の段落ち 1段**(型 H・内法 0.60・野面石積みの側 天端 = 段の底 +0.50・平石の段鼻と水叩き)。
         /// <paramref name="rise"/> 0.15〜0.45(0.05 刻みに丸める)。**ピボット = 段鼻の線の芯・段鼻の天端(上の底)**、
         /// 駒は Z −0.12 … +0.38(0.50)・水叩きの天端 = −rise。rise = 0 は**平らな駒**(Z ±0.25・ピボット = 中心・底の天端)で、

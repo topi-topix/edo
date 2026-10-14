@@ -117,3 +117,4 @@
 - [台の石垣の坂なりは Castle Wall の縦の剪断](kidan-saka-shear-castle-wall.md) — 天端だけ反らすと重ねで面が割れる・札の共通の欄は Measure の読み(2026-10-13)
 - [練塀の腰なし *_NK](neribei-no-koshi-nk.md) — 下見板は2段を継ぐ・名から引数を復元・素の build は Assets を上書きする(2026-10-13)
 - [張り出し付きの吐き口の敷き石は縁石で止める](haki-ago-sill-stops-at-curb.md) — 石は線の内・口の先は土の床で塞ぐ(2026-10-13)
+- [曲がり目の桝 GK は芯 0.27 の留めの六角形・口の下は敷居](masu-kado-bent-trench-sill.md) — 敷居の深さを名に・鏡像は A/B を入れ替えて焼く(2026-10-14)

@@ -950,6 +950,151 @@ def masu(kind):
     return "Doi_Masu_G2"
 
 
+# ================================================================ GK 曲がり目の桝(岡部 EDO-0502 第135巡)
+# 二つの型 A の溝が折れて落ち合う角の桝。外形は溝の外の壁の線(芯から 0.27)に収め、内法 0.30 の口を二つ、
+# 溝の折れの角で持つ。部材方の既定(確度 U)── 棟梁の実測(辺39/40 の角: 内の角 118.4°・底 13.64 / 13.57・
+# 桝の底 ≤ 13.52・深さ ≥ 0.40)から。
+GK_DEG = 118.4        # 内の角(二つの腕の間の角)= 180 − 溝の折れ 61.6
+GK_DEPTH = 0.45       # 天端から底の天端まで
+GK_SILL = (0.28, 0.35)   # 口 A(−X の腕)/ 口 B(+X の腕)の敷居の天端(天端から下へ)= 受ける溝の底
+GK_ARM = 0.30         # 芯の交点から口の面まで(腕に沿って)
+GK_WI, GK_WO = 0.15, 0.27   # 内法の半幅 / 外の壁の線(型 A と同じ)
+GK_T = 0.12           # 壁の厚さ = 型 A の縁石の見付
+
+
+def gk_frame(deg):
+    """腕の向き(Unity XZ)。内の角の二等分線 = +Z。腕 A = −X 側・腕 B = +X 側。
+    返り値 (dA, dB, nA, nB) ── n = 凸の側(−Z の側)の法線。凹の側は −n。"""
+    b = math.radians(deg) * 0.5
+    sb, cb = math.sin(b), math.cos(b)
+    return (-sb, cb), (sb, cb), (-cb, -sb), (cb, -sb)
+
+
+def gk_pts(deg, w, t):
+    """offset w(+ = 凸の側・− = 凹の側)の折れ線: [腕 A の t, 二等分線の上の留め, 腕 B の t]。"""
+    dA, dB, nA, nB = gk_frame(deg)
+    sb = math.sin(math.radians(deg) * 0.5)
+    pa = (t * dA[0] + w * nA[0], t * dA[1] + w * nA[1])
+    pb = (t * dB[0] + w * nB[0], t * dB[1] + w * nB[1])
+    return [pa, (0.0, -w / sb), pb]
+
+
+def gk_on(deg, t):
+    """(X, Z) が どちらかの口の面(腕に沿って t)の上か。"""
+    dA, dB, _, _ = gk_frame(deg)
+    return lambda X, Z: (abs(X * dA[0] + Z * dA[1] - t) < 1e-5 or abs(X * dB[0] + Z * dB[1] - t) < 1e-5)
+
+
+def slab(outline, y0, y1, rng, keep=None, bev=BEV):
+    """**平面の多角形 (X, Z) を Y y0..y1 へ押し出した切石**。底の稜と keep(X, Z) が真の平面に乗る稜は
+    面取りしない(口の面で溝の石と突き付ける)。UV は ON.ROCK_PLAIN_UV の矩形へ平面投影。"""
+    bm = bmesh.new()
+    v0 = [bm.verts.new(u2b(X, y0, Z)) for X, Z in outline]
+    v1 = [bm.verts.new(u2b(X, y1, Z)) for X, Z in outline]
+    bm.faces.new(v0); bm.faces.new(list(reversed(v1)))
+    n = len(outline)
+    for i in range(n):
+        j = (i + 1) % n
+        bm.faces.new((v0[i], v0[j], v1[j], v1[i]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+
+    def skip(e):
+        a, b = e.verts
+        if abs(a.co.z - y0) < 1e-6 and abs(b.co.z - y0) < 1e-6:
+            return True
+        return keep is not None and keep(-a.co.x, -a.co.y) and keep(-b.co.x, -b.co.y)
+    eds = [e for e in bm.edges if not skip(e)]
+    if bev > 0 and eds:
+        bmesh.ops.bevel(bm, geom=eds, offset=bev, offset_type='OFFSET', segments=1,
+                        affect='EDGES', clamp_overlap=True)
+    bmesh.ops.triangulate(bm, faces=[f for f in bm.faces if len(f.verts) > 4])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    uvl = bm.loops.layers.uv.new("UVMap")
+    mn = [min(v.co[k] for v in bm.verts) for k in range(3)]
+    _uv_planar(bm, uvl, mn, PLAIN[0] + rng.uniform(0.0, (PLAIN[2] - PLAIN[0]) - 0.14),
+               PLAIN[1] + rng.uniform(0.0, (PLAIN[3] - PLAIN[1]) - 0.14))
+    o = DN._obj(_nm("ishi"), bm, [DN.mat(ROCK)])
+    DN._outward(o)
+    _objs.append(o)
+    return o
+
+
+def chain_skirt(chain_in, chain_out, inward, lap_rise=0.003, fall=-0.03):
+    """**折れ線に沿う土の皮**(ring_skirt の多角形版)。chain_in = 石の外面 −lap の線・chain_out = 外へ SKIRT の線
+    (同じ点数・留めで折れる)。内の縁 Y +0.003 → 外の縁 −0.03・内の縁の垂れ(−0.03 まで・inward(X,Z) の向き)。"""
+    bm = bmesh.new()
+    uvl = bm.loops.layers.uv.new("UVMap")
+    for i in range(len(chain_in) - 1):
+        qs = [(chain_out[i], fall), (chain_out[i + 1], fall), (chain_in[i + 1], lap_rise), (chain_in[i], lap_rise)]
+        for pts, is_drape in ((qs, False),
+                              ([(chain_in[i], lap_rise), (chain_in[i + 1], lap_rise), (chain_in[i + 1], fall), (chain_in[i], fall)], True)):
+            vs = [bm.verts.new(u2b(X, Y, Z)) for ((X, Z), Y) in pts]
+            f = bm.faces.new(vs)
+            f.normal_update()
+            if not is_drape:
+                if f.normal.z < 0.0:
+                    f.normal_flip()
+            else:
+                cx = (pts[0][0][0] + pts[1][0][0]) * 0.5
+                cz = (pts[0][0][1] + pts[1][0][1]) * 0.5
+                ix, iz = inward(cx, cz)
+                if f.normal.dot(Vector(u2b(ix, 0.0, iz))) < 0.0:
+                    f.normal_flip()
+            for lp in f.loops:
+                (X, Z), Y = pts[vs.index(lp.vert)]
+                lp[uvl].uv = uv_ground(X, Y, Z, X, SOIL)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
+    o_ = DN._obj(_nm("kawa"), bm, [DN.mat(SOIL)])
+    for p_ in o_.data.polygons:
+        p_.use_smooth = False
+    _objs.append(o_)
+    return o_
+
+
+def gk_name(deg, depth, sa, sb):
+    return "Doi_Masu_GK%.1f_D%.2f_A%.2f_B%.2f" % (deg, depth, sa, sb)
+
+
+def masu_kado(deg=GK_DEG, depth=GK_DEPTH, sill=GK_SILL, arm=GK_ARM):
+    """**型 GK 曲がり目の桝**(切石・天端 = ピボット = 縁なし・土の皮の輪は G0 と同じ取り方)。
+    ピボット = 二つの溝の芯の交点・天端の高さ。内の角の二等分線 = +Z(凸の側 = −Z)。
+    腕 A = 向き (−sin β, cos β)・腕 B = (sin β, cos β)(β = 内の角/2)。口の面 = 芯の交点から腕に沿って arm。
+    外形 = 凸の側も凹の側も芯から 0.27 の線(型 A の外の壁の線)を留めで折った六角形 ⇒ 溝の幅に収まる。
+    口 = 内法 0.30 の全幅で天端から敷居(sill)まで開く。敷居の下は厚 0.12 の石で口の面を塞ぐ(溝の底の下を
+    素通しにしない)。底の天端 = −depth(一枚の平ら)。底石 0.15。"""
+    rng = random.Random(5330790 + int(round(deg * 10)))
+    b = math.radians(deg) * 0.5
+    arm = max(arm, GK_WO / math.tan(b) + GK_T)          # 凹の側の壁が口の面の手前で潰れない
+    keep = gk_on(deg, arm)
+    fl = -depth
+    # 底石(外形の六角形)
+    cv, cc = gk_pts(deg, GK_WO, arm), gk_pts(deg, -GK_WO, arm)
+    slab(cv + list(reversed(cc)), fl - 0.15, fl, rng, keep=keep)
+    # 壁(凸の側・凹の側)── 二等分線(X=0)で2石に割る(継ぎ目は面取りの溝だけ・目地は空けない)
+    for s in (1, -1):
+        o_ = gk_pts(deg, s * GK_WO, arm)
+        i_ = gk_pts(deg, s * GK_WI, arm)
+        slab([o_[0], o_[1], i_[1], i_[0]], fl, 0.0, rng, keep=keep)
+        slab([o_[1], o_[2], i_[2], i_[1]], fl, 0.0, rng, keep=keep)
+    # 口の敷居(内法の幅・腕に沿って arm − 0.12 .. arm・底の天端から −sill へ)
+    for k, sl in enumerate(sill):
+        if sl >= depth - 1e-6:
+            continue
+        p1 = gk_pts(deg, GK_WI, arm)[0 if k == 0 else 2]
+        p2 = gk_pts(deg, -GK_WI, arm)[0 if k == 0 else 2]
+        q1 = gk_pts(deg, GK_WI, arm - GK_T)[0 if k == 0 else 2]
+        q2 = gk_pts(deg, -GK_WI, arm - GK_T)[0 if k == 0 else 2]
+        slab([q1, p1, p2, q2], fl, -sl, rng, keep=keep)
+    # 土の皮(凸の側・凹の側の外面に沿う。口の面で止める)
+    for s in (1, -1):
+        ci = gk_pts(deg, s * (GK_WO - 0.015), arm)
+        co = gk_pts(deg, s * (GK_WO + SKIRT), arm)
+        chain_skirt(ci, co, lambda X, Z, s=s: (0.0, s * 1.0) if abs(X) < 1e-9 else
+                    ((-gk_frame(deg)[2][0] * s, -gk_frame(deg)[2][1] * s) if X < 0 else
+                     (-gk_frame(deg)[3][0] * s, -gk_frame(deg)[3][1] * s)))
+    return gk_name(deg, depth, sill[0], sill[1])
+
+
 # ================================================================ H 石組の段落ち
 def danochi(rise, wt=None, ago=False):
     """**型 H 石組の段落ち 1段**(内法 0.60・野面石の側・平石の段鼻と水叩き)。駒の長さ 0.50。
@@ -1217,6 +1362,18 @@ JOBS.append(("G0", _mz(masu, "G0"), "masu"))
 JOBS.append(("G1", _mz(masu, "G1"), "masu"))
 JOBS.append(("G2", _mz(masu, "G2"), "masu"))
 JOBS.append(("G3", _mz(masu, "G3"), "masu"))
+
+
+def _gk_args():
+    """GK の引数(--deg 内の角 / --depth / --sill A,B / --arm)。無ければ既定(辺39/40 の角)。"""
+    av = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    def f(k, d):
+        return float(av[av.index(k) + 1]) if k in av else d
+    sl = tuple(float(x) for x in av[av.index("--sill") + 1].split(",")) if "--sill" in av else GK_SILL
+    return f("--deg", GK_DEG), f("--depth", GK_DEPTH), sl, f("--arm", GK_ARM)
+
+
+JOBS.append(("GK", _mz(masu_kado, *_gk_args()), "masukado"))
 JOBS.append(("H", _mz(danochi, 0.0), "dan"))
 for r in H_RISES:
     JOBS.append(("H", _mz(danochi, r), "dan"))
@@ -1242,7 +1399,7 @@ JOBS.append(("N", _mz(mizunuki), "kuchi"))
 for L in sorted(set(round(RAMPS[n]["w"] + 0.30, 2) for n in ("R_Tsuyomon", "R_Tomomachi"))):
     JOBS.append(("O", _mz(mizukiri, L), "kuchi"))
 
-GROUPS = {"mizo": "ABCDEFK", "kasa": ("AK",), "fuchi": ("AF", "AH", "AFH"), "ago": ("AG", "AHG"), "koguchi": ("AKG",), "masu": ("G0", "G1", "G2", "G3"), "dan": "HI", "danago": ("HG",), "uke": "J", "kuchi": "LMNO"}
+GROUPS = {"mizo": "ABCDEFK", "kasa": ("AK",), "fuchi": ("AF", "AH", "AFH"), "ago": ("AG", "AHG"), "koguchi": ("AKG",), "masu": ("G0", "G1", "G2", "G3"), "masukado": ("GK",), "dan": "HI", "danago": ("HG",), "uke": "J", "kuchi": "LMNO"}
 
 
 # ================================================================ 結線とレンダ
@@ -1338,6 +1495,78 @@ def shots(o, name, hole, tile, kind):
         V.render(p)
         out.append(p)
     for e in extra:
+        bpy.data.objects.remove(e, do_unlink=True)
+    return out
+
+
+def _gk_ground(deg, arm, run, y):
+    """検め用の地面(Unity Y=y)。穴 = 桝と両腕の溝(長さ run)の外の壁の線の折れた帯。triangle_fill で穴を残す。"""
+    gm = bpy.data.materials.new("_ground_render")
+    gm.use_nodes = True
+    gm.node_tree.nodes["Principled BSDF"].inputs['Base Color'].default_value = (0.30, 0.26, 0.20, 1)
+    cv, cc = gk_pts(deg, GK_WO, arm + run), gk_pts(deg, -GK_WO, arm + run)
+    hole = cv + list(reversed(cc))
+    R = 3.5
+    outer = [(-R, -R), (R, -R), (R, R), (-R, R)]
+    bm = bmesh.new()
+    eds = []
+    for ring in (outer, hole):
+        vs = [bm.verts.new(u2b(X, y, Z)) for X, Z in ring]
+        for i in range(len(vs)):
+            eds.append(bm.edges.new((vs[i], vs[(i + 1) % len(vs)])))
+    bmesh.ops.triangle_fill(bm, use_beauty=True, use_dissolve=False, edges=eds)
+    for f in bm.faces:
+        f.normal_update()
+        if f.normal.z < 0:
+            f.normal_flip()
+    me = bpy.data.meshes.new("_g"); bm.to_mesh(me); bm.free()
+    g = bpy.data.objects.new("_g", me); bpy.context.scene.collection.objects.link(g)
+    me.materials.append(gm)
+    return g
+
+
+def gk_shots(o, name):
+    """GK の検め: 両腕に型 A の溝の駒(敷居の高さに底を合わせた深さ)を1本ずつ突き付け、地面(縁石の天端 −0.02)に
+    折れた帯の穴。背景はマゼンタ。俯瞰・真上・両口を覗く低い視点・地面なしの単体。"""
+    deg, depth, sill, arm = _gk_args()
+    b = math.radians(deg) * 0.5
+    arm = max(arm, GK_WO / math.tan(b) + GK_T)
+    extra = []
+    for k, (sl, d_) in enumerate(zip(sill, gk_frame(deg)[:2])):
+        _objs.clear()
+        nm = mizo_A(round(sl - 0.02, 3))
+        t = DN._finish(_objs, "_t%d_%s" % (k, nm))
+        t.location = Vector(u2b(d_[0] * (arm + HALF), -0.02, d_[1] * (arm + HALF)))
+        t.rotation_euler = (0.0, 0.0, math.atan2(d_[0], -d_[1]))
+        extra.append(t)
+    hook()
+    g = _gk_ground(deg, arm, 1.0, -0.02)
+    os.makedirs(SHOT, exist_ok=True)
+    out = []
+    bpy.context.view_layer.update()
+    mn, mx = V.bbox([o])
+    c = (mn + mx) * 0.5
+    dA, dB = gk_frame(deg)[:2]
+    cams = [("3d", (1.4, 1.6, 1.9), (0.0, -0.1, -0.2), None),
+            ("top", (0.0, -0.1 + 1e-4, 5.0), (0.0, -0.1, 0.0), 2.6),
+            ("mouthA", u2b(dA[0] * 1.4, 0.9, dA[1] * 1.4), u2b(0.0, -0.35, 0.0), None),
+            ("mouthB", u2b(dB[0] * 1.4, 0.9, dB[1] * 1.4), u2b(0.0, -0.35, 0.0), None),
+            ("convex", u2b(0.0, 1.1, -1.3), u2b(0.0, -0.30, 0.15), None)]
+    for tag, loc, at, ortho in cams:
+        V.studio(loc, at, ortho_scale=ortho, res=(900, 640))
+        _magenta_sky()
+        pth = os.path.join(SHOT, "doihaisui_%s_%s.png" % (name, tag))
+        V.render(pth)
+        out.append(pth)
+    # 単体(地面と溝を隠す)── 下から斜めに、外形と底を見る
+    g.hide_render = True
+    for e in extra:
+        e.hide_render = True
+    V.studio((1.6, 2.0, 0.5), (0.0, 0.0, -0.30), res=(900, 640))
+    pth = os.path.join(SHOT, "doihaisui_%s_solo.png" % name)
+    V.render(pth)
+    out.append(pth)
+    for e in extra + [g]:
         bpy.data.objects.remove(e, do_unlink=True)
     return out
 
@@ -1662,7 +1891,8 @@ def koguchi_shots(o, name, d=0.15):
 
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-    words = [a for a in argv if not a.startswith("--")] or ["all"]
+    _val = {i + 1 for i, a in enumerate(argv) if a in ("--deg", "--depth", "--sill", "--arm", "--only")}
+    words = [a for i, a in enumerate(argv) if not a.startswith("--") and i not in _val] or ["all"]
     want = set()
     for w in words:
         if w == "all":
@@ -1701,13 +1931,14 @@ def main():
             hw = (mx.x - mn.x) * 0.5
             # 地面の穴 = 部材の外形(Y=0 の高さで)。溝は走りに通す。桝は天端の外形だけ・口の部材は地面なし
             hole = (-hw, hw, -mx.y, -mn.y)
-            if name.startswith("Doi_Masu_"):
+            if name.startswith("Doi_Masu_") and not name.startswith("Doi_Masu_GK"):
                 gk = K.get(name[-2:]) or _KATA_PENDING[name[-2:]]
                 oo = gk["inner"][0] / 2.0 + gk["wall"]["t"]
                 hole = (-oo, oo, -oo, oo)
             elif name.startswith(("Doi_Ankyo", "Doi_Mizunuki")):
                 hole = None
-            for p in (kasa_shots(o, name) if grp == "kasa" else fuchi_shots(o, name) if grp == "fuchi"
+            for p in (gk_shots(o, name) if grp == "masukado" else
+                      kasa_shots(o, name) if grp == "kasa" else fuchi_shots(o, name) if grp == "fuchi"
                       else ago_shots(o, name) if grp == "ago"
                       else danago_shots(o, name) if grp == "danago"
                       else koguchi_shots(o, name) if grp == "koguchi"

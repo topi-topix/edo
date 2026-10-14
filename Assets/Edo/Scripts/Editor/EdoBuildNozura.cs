@@ -24,7 +24,7 @@ public static partial class EdoBuild
         public Func<float, int, string> kado;
         /// <summary>出隅の折れが 90° でない隅の駒(折れ°, 見付, 通し番号)→ パス(2026-10-05・EDO-0502 第18巡)。折れ 20〜60° に据える。
         /// 腕1 = 局所 −X(見え面 +Z)・腕2 = 局所 (cos 折れ, 0, −sin 折れ)。焼いていない組は null か無いパス ⇒ ⚠ を刷って据えない(従前の楔のまま)。</summary>
-        public Func<float, float, int, string> kadoDeg = EdoAssets.Own.SannoNozuraKadoDeg;
+        public Func<float, float, int, string> kadoDeg = KadoDegBaked;
         /// <summary>段の境の駒 (+X へ上がるか, 個体) → パス。</summary>
         public Func<bool, int, string> dan;
         /// <summary>打ち切りの駒 (+X へ上がるか, 個体) → パス(端に相手が居ないとき)。</summary>
@@ -69,6 +69,9 @@ public static partial class EdoBuild
         /// <summary>走りの範囲 (s の始まり, s の終わり) ── 駒の中ほどが範囲に入る駒は勾配の駒を使わず水平(G+000)に据える(指図 sodeSlope 追記 2026-10-09
         /// 「最初の駒1つ分は天端を 21.0 で水平」【硬】・EDO-0502 第64巡)。<see cref="NozuraSeg.flatEnd"/> から。</summary>
         public List<Vector2> flatRanges = new List<Vector2>();
+        /// <summary>真なら勾配の連鎖を継ぎ目で切らない(<see cref="NozuraSeg.strictChain"/> ── 2026-10-15 EDO-0502 第140巡)。焼いた勾配 0 の駒でも中ほどを線へ寄せ直さない
+        /// (第133巡のゆるい坂の寄せは継ぎ目に 勾配 × 走り の段を作る ── 継ぎ目の天端の段 ≤0.05【硬】を守る run では使わない)。</summary>
+        public bool strictChain;
     }
 
     /// <summary>**野面の見え面の足元の前の地盤**(2026-10-11 EDO-0502 第107巡)。線 <paramref name="q"/> は天端の前の縁 ── 法尻は
@@ -104,6 +107,18 @@ public static partial class EdoBuild
         if (string.IsNullOrEmpty(p)) return float.NaN;
         float b; if (_nozBatter.TryGetValue(p, out b)) return b;
         b = FaceBatterOf(p); _nozBatter[p] = b; return b;
+    }
+
+    /// <summary>**焼いてある隅の駒の折れを ±2° の内で引く**(2026-10-15 EDO-0502 第140巡)── 実の折れの丸め(<see cref="EdoAssets.Own.SannoNozuraKadoDeg"/>)が焼いていなければ、
+    /// 近い順に ±1・±2° の焼いた駒を返す(無ければ丸めのパスのまま ── 呼び手が「焼いていない」を刷る)。⛔ 2° を超えて寄せない(楔か重なりが見える)。
+    /// 当たる先: 野面の土留めの斜めの出隅すべて(岡部 TW_Minami_Mizo の西の曲がり 38.5°/27.2° ── 天端の線の折れが脚の見付の違いで 0.5〜1° 振れる・他邸の斜めの隅)。</summary>
+    public static string KadoDegBaked(float deg, float h, int i)
+    {
+        string p0 = EdoAssets.Own.SannoNozuraKadoDeg(deg, h, i); string root = System.IO.Directory.GetParent(Application.dataPath).FullName;
+        if (System.IO.File.Exists(System.IO.Path.Combine(root, p0))) return p0;
+        int d0 = Mathf.RoundToInt(deg);
+        foreach (int dd in new[] { 1, -1, 2, -2 }) { if (Mathf.Abs(d0 + dd - deg) > 2.0f + 1e-3f) continue; string p = EdoAssets.Own.SannoNozuraKadoDeg(d0 + dd, h, i); if (System.IO.File.Exists(System.IO.Path.Combine(root, p))) return p; }
+        return p0;
     }
 
     /// <summary>**名指した見え面は「側」だけ採り、向きは区間の線の法線にする**(2026-10-09・EDO-0502 第64巡・施主「石垣の部材のつなぎ目で段差」)。
@@ -822,7 +837,7 @@ public static partial class EdoBuild
                         //   いつまでも続き線から離れていく(2026-10-14・EDO-0502 第133巡: TW_Higashi_Se を 16.00→14.75 の 1/79 にしたら全駒 16.00 のまま)。
                         //   ⇒ 一駒ずつ中ほどを線の天端へ据える(継ぎ目の段 = 勾配 × 走り ≤ 0.06 × 1.82 = 0.11 ── unity-modular-stonewall §3 の「一駒の段 ≤0.15・符号を反転させない」)。
                         //   当たる先: Nozura2 を渡す野面の run のうち、線の勾配が 0.06 未満で傾く区間すべて(岡部 TW_Higashi_Se の坂なり・ゆるく傾く腰・返し)。
-                        if (!flatHere && Mathf.Abs(gW) < 1e-4f && !float.IsNaN(crest))
+                        if (!flatHere && !w.strictChain && Mathf.Abs(gW) < 1e-4f && !float.IsNaN(crest))
                         {
                             float cE0 = w.crestAt(Mathf.Clamp(edge, 0f, L)), cE1 = w.crestAt(Mathf.Clamp(sNext, 0f, L));
                             if (!float.IsNaN(cE0) && !float.IsNaN(cE1) && Mathf.Abs(cE1 - cE0) > 0.004f) cMid = crest;
@@ -1187,6 +1202,9 @@ public static partial class EdoBuild
         public bool[] noAbut = new bool[2];
         /// <summary>段の境を勾配の駒で斜めに流す区間(<see cref="FlowStepJoints"/>)── 前後の区間との天端の折れを段の境(段の駒・積み下ろし)に数えない。</summary>
         public bool flow;
+        /// <summary>継ぎ目の天端の段を勾配の連鎖で 0 に保つ(⛔ 焼いた勾配 0 の駒の中ほどを線へ寄せ直さない ── 線との外れは次の駒の勾配が引き戻す)。
+        /// 普請方 第139巡 northSideR139 N1【硬】「継ぎ目の天端の段 ≤0.05」(岡部 TW_Minami_Mizo・第140巡)。</summary>
+        public bool strictChain;
         /// <summary>区間全体の見付の下限(端の隅の返しの駒 ── kadoReturnUniform)。NaN なら無し。</summary>
         public float minH = float.NaN;
         /// <summary>端(0 = a / 1 = b)の際の一間と隅の駒の見付の下限(kadoReturnUniform ── 隅と並ぶ本線の駒も同じ H)。NaN なら無し。</summary>
@@ -2010,6 +2028,7 @@ public static partial class EdoBuild
             for (int i = 0; i < ch.Count; i++)
             {
                 var sg = segs[ch[i].Key]; float c0 = cum[i], c1 = cum[i] + sg.Len;
+                if (sg.strictChain) w.strictChain = true;
                 if (!float.IsNaN(sg.minH)) w.minHRanges.Add(new Vector3(c0 - 0.909f, c1 + 0.909f, sg.minH));
                 for (int e = 0; e < 2; e++)
                 {

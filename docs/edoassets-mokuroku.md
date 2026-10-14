@@ -247,17 +247,17 @@
 | `Own.NearestBaked(path, tol)` | 関数 | 綴りの数だけが違う焼いてある兄弟を引く(EDO-0430 2026-09-26)。 | BuildIshidan(CutStairEndsToBatter) |
 | `Own.IsSannoNozura(meshAssetPath)` | 関数 | メッシュの資産パスが山王の野面の乱積みの駒(1間・隅・切り・法切り・見切り ── `Sanno_Nozura_*`)か。 | BuildKado(IsNozuraStraightPiece), SannoSha(AbutStairsToWalls) |
 | `Own.SannoNozura(h, grade, i)` | 関数 | 野面の乱積みの土留め — 1間の駒(山王社の前庭の縁。 | OkabeYashiki(MinamiWallOf・PlaceCurb・PlaceMinamiMizoWall…), BuildNozura(PlaceNozuraRun・SoilSideCrestShort), BuildRim(BridgeCorner), DoiBuilder.Dan(Stage4a_Dodome) ほか3 |
-| `Own.Nozura2(h, grade, i)` | 関数 | 野面の乱積みの直線の駒 — 重ねの端の版 `Nozura2_H&lt;見付mm&gt;_G&lt;勾配‰&gt;_&lt;a〜d&gt;`(2026-10-11 EDO-0502 岡部・施主「石垣の部材の境目の隙間および… | OkabeYashiki(PlaceCurb・PlaceMinamiMizoWall・Stage2b_Dan_) |
+| `Own.Nozura2(h, grade, i)` | 関数 | 野面の乱積みの直線の駒 — 重ねの端の版 `Nozura2_H&lt;見付mm&gt;_G&lt;勾配‰&gt;_&lt;a〜d&gt;`(2026-10-11 EDO-0502 岡部・施主「石垣の部材の境目の隙間および… | OkabeYashiki(PlaceCurb・PlaceMinamiMizoWall・PlaceMinamiMizoWall139…) |
 | `Own.Nozura2Dir` | string | `Nozura2` — Nozura2 の置き場。 | — |
 | `Own.Nozura2OverlapCrest` | float | Nozura2 の重ね: 継ぎ目の線(局所 X = ±0.909・伸縮前)から外へ延びる量 = Nozura2OverlapCrest + Nozura2OverlapPerDepth·(天端の線からの深さ)。 | — |
 | `Own.Nozura2OverlapMax(hBaked)` | 関数 | Nozura2 の重ねの最大(床の 0.20 下の根入れの底)= 0.02 + 0.026·(hBaked + 0.20)。 | BuildNozura(PlaceNozuraRun) |
 | `Own.IsNozura2(meshAssetPath)` | 関数 | メッシュの資産パスが重ねの端の版の野面の駒(`Nozura2_*`)か。 | BuildKado(IsNozuraStraightPiece), BuildNozura(PlaceNozuraRun) |
-| `Own.SannoNozuraKiri(risesToPlusX, i)` | 関数 | 野面の乱積みの打ち切り — 根石一段が地中へ沈む駒(見付 0.2 未満で壁を終える所)。 | OkabeYashiki(PlaceCurb・PlaceMinamiMizoWall・Stage2b_Dan_), DoiBuilder.Dan(Stage4a_Dodome), MatsudairaDewa(NozuraLines), SannoSha(Nozura) ほか1 |
-| `Own.SannoNozuraKado(h, i)` | 関数 | 野面の乱積みの出隅 90° の隅の駒(2026-09-25・山王 本殿の西の土留め `TW_Nozura_ShadenW` の帯の北西・南西の隅。 | OkabeYashiki(PlaceCurb・PlaceMinamiMizoWall・Stage2b_Dan_), DoiBuilder.Dan(Stage4a_Dodome), MatsudairaDewa(NozuraLines), SannoSha(Nozura) ほか1 |
-| `Own.SannoNozuraKadoDeg(deg, h, i)` | 関数 | 野面の出隅の駒・折れ deg°(走りの向きの変わり。 | BuildNozura |
+| `Own.SannoNozuraKiri(risesToPlusX, i)` | 関数 | 野面の乱積みの打ち切り — 根石一段が地中へ沈む駒(見付 0.2 未満で壁を終える所)。 | OkabeYashiki(PlaceCurb・PlaceMinamiMizoWall・PlaceMinamiMizoWall139…), DoiBuilder.Dan(Stage4a_Dodome), MatsudairaDewa(NozuraLines), SannoSha(Nozura) ほか1 |
+| `Own.SannoNozuraKado(h, i)` | 関数 | 野面の乱積みの出隅 90° の隅の駒(2026-09-25・山王 本殿の西の土留め `TW_Nozura_ShadenW` の帯の北西・南西の隅。 | OkabeYashiki(PlaceCurb・PlaceMinamiMizoWall・PlaceMinamiMizoWall139…), DoiBuilder.Dan(Stage4a_Dodome), MatsudairaDewa(NozuraLines), SannoSha(Nozura) ほか1 |
+| `Own.SannoNozuraKadoDeg(deg, h, i)` | 関数 | 野面の出隅の駒・折れ deg°(走りの向きの変わり。 | BuildNozura(KadoDegBaked・NozuraBatter) |
 | `Own.SannoNozuraKadoCut(h, i, axis, at)` | 関数 | SannoNozuraKado の片腕を袖の背の面で一度だけ切った版(EDO-0437 2026-09-27・参道の階の前庭の北の縁の口の出隅。 | SannoSha(Nozura) |
 | `Own.SannoNozuraKadoCut(h, i, axis, at, arm)` | 関数 | SannoNozuraKadoCut の切った側の腕を arm に詰めた版(EDO-0437 2026-09-27 r16)。 | SannoSha(Nozura) |
-| `Own.SannoNozuraDan(risesToPlusX, i)` | 関数 | 野面の乱積みの段の境の駒(2026-09-25・帯 `SukibeiSoto` 29.65 → `SukibeiSoto_Chu` 29.25 の差 0.40 を 1間で流す) = SannoNozura(1.50, ±… | OkabeYashiki(PlaceCurb・PlaceMinamiMizoWall・Stage2b_Dan_), DoiBuilder.Dan(Stage4a_Dodome), MatsudairaDewa(NozuraLines), SannoSha(Nozura) ほか1 |
+| `Own.SannoNozuraDan(risesToPlusX, i)` | 関数 | 野面の乱積みの段の境の駒(2026-09-25・帯 `SukibeiSoto` 29.65 → `SukibeiSoto_Chu` 29.25 の差 0.40 を 1間で流す) = SannoNozura(1.50, ±… | OkabeYashiki(PlaceCurb・PlaceMinamiMizoWall・PlaceMinamiMizoWall139…), DoiBuilder.Dan(Stage4a_Dodome), MatsudairaDewa(NozuraLines), SannoSha(Nozura) ほか1 |
 | `Own.SannoNozuraTome(h, koguchiPlusX, i)` | 関数 | 野面の積み止めの駒(2026-10-07・EDO-0502 第43巡・指図 nozuraEndRule 追記b・TW_Minami_Koshi.returnEnd・TW_Nishi_Kado.endKado)。 | BuildNozura(Block・PlaceNozuraNet), OkabeYashiki(Stage2b_Dan_) |
 | `Own.SannoNozuraTomeH(need)` | 関数 | SannoNozuraTome の見付のうち need 以上で焼いてある最も低い段 [m]。 | OkabeYashiki(Stage2b_Dan_) |
 | `Own.SannoNozuraMikiri` | string | `Sanno_Nozura_Mikiri.fbx` — 見切りの大きな野面石(男坂の下で城の石垣と野面の乱積みを継ぐ1点)。 | — |
@@ -432,9 +432,9 @@
 | `Own.Kido(w)` | 関数 | 結界の木戸(のし塀 `kekkai[].gap` の開口を塞ぐ)。 | Doi(KomonAsset), DoiBuilder.Niwa(ResolveNiwaApi), OkabeYashiki(AssetByKey) |
 | `Own.HoriKido` | string | `HoriKido.fbx` — 汀の柵の潜り(`nishi.saku.kuguri`・辺5 の s=55.7)。 | OkabeYashiki(AssetByKey) |
 | `Own.HoriSaku` | string | `HoriSaku.fbx` — 汀の木柵 1スパン(`fences[0]` F_Hori・辺5 の全長 s0〜80.589)。 | BuildRun(FenceRun), OkabeYashiki(PlaceFences) |
-| `Own.HoriSakuPost` | string | `HoriSakuPost.fbx` — 汀の木柵の端の杭。⛔ 足さないと run の最後の板が宙で終わる。 | OkabeYashiki(PlaceFences) |
-| `Own.HoriSakuRoot(root)` | 関数 | HoriSaku の根を延ばした版(岡部 EDO-0502 第139巡・根入れ 0.12 では 0.30 に届かない)。 | — |
-| `Own.HoriSakuPostRoot(root)` | 関数 | HoriSakuPost の根を延ばした版(HoriSakuRoot と組。 | — |
+| `Own.HoriSakuPost` | string | `HoriSakuPost.fbx` — 汀の木柵の端の杭。⛔ 足さないと run の最後の板が宙で終わる。 | OkabeYashiki(FenceFootR138・PlaceFences) |
+| `Own.HoriSakuRoot(root)` | 関数 | HoriSaku の根を延ばした版(岡部 EDO-0502 第139巡・根入れ 0.12 では 0.30 に届かない)。 | OkabeYashiki(PlaceFences) |
+| `Own.HoriSakuPostRoot(root)` | 関数 | HoriSakuPost の根を延ばした版(HoriSakuRoot と組。 | OkabeYashiki(FenceFootR138・PlaceFences) |
 | `Own.SakuHikae` | string | `Saku_Hikae.fbx` — 控柱つきの木柵 1間(松江松平 谷の境 F_Tani_*/F_Okabe_*・EDO-0554)。 | MatsudairaDewa(Stage2Fences) |
 | `Own.SakuHikaeMizukoshi` | string | `Saku_Hikae_Mizukoshi.fbx` — 水越しの1間(下の横板2枚と下の貫なし・地盤+0.63 まで素通し・控柱なし)。 | MatsudairaDewa(Stage2Fences) |
 | `Own.SakuHikaePost` | string | `Saku_HikaePost.fbx` — 控柱つきの木柵の run の +X 端の杭。 | MatsudairaDewa(Stage2Fences) |

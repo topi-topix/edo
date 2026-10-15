@@ -1323,7 +1323,20 @@ def seal_cut(o, Lnom, th, uvs):
         bf = [(c, bot[j]) for j, c in enumerate(cen) if c > zf_ and bot[j] is not None]
         soffit = min((y for c, y in bf[:6]), default=None)          # 表の壁の脇の軒裏 = 板の材の境
         ring = [(z0, top[0])] + [(c, top[j]) for j, c in enumerate(cen)] + [(z1, top[-1])]
-        lower = list(reversed(bf)) + [(zf_, (bf[0][1] if bf else 0.0)), (zf_, 0.0), (zb_, 0.0),
+        # 表の下の縁は実の断面に沿わせる(EDO-0502 2026-10-16 頂点16): 土台の表(壁の外面 +0.005)の上に、海鼠の浮き彫りの出
+        #   (+0.030)の高さで板を立てる。⛔ 浮き彫りの出 SEAL_RELIEF を土台の底まで下ろさない ── 土台の前に 0.03 の鰭が立ち、
+        #   座の違う相手(19.20 / 19.00)の土台の帯から突き抜けて見える。
+        dod = [p for p in pts if p[1] < 0.05 and -0.05 < p[0] < zf_ - 1e-3]
+        zd = max((p[0] for p in dod), default=None)
+        yd = max((p[1] for p in pts if zd is not None and abs(p[0] - zd) < 1e-3 and p[1] < 0.6), default=None)
+        zr = max((p[0] for p in pts if yd is not None and yd + 1e-3 < p[1] < 1.8 and p[0] < zf_ + 0.01), default=None)
+        yb0 = bf[0][1] if bf else 0.0
+        if zd is not None and yd is not None and zr is not None and 0.05 < yd < yb0 - 0.01 and zd < zr:
+            front = [(zr, yb0), (zr, yd), (zd, yd), (zd, 0.0)]
+            print("[nagaya] --seal 表の下の縁: 土台の表 %.4f(天 %.3f)・浮き彫りの出 %.4f" % (zd, yd, zr))
+        else:
+            front = [(zf_, yb0), (zf_, 0.0)]
+        lower = list(reversed(bf)) + front + [(zb_, 0.0),
                                       (zb_, (bb[-1][1] if bb else 0.0))] + list(reversed(bb))
         # 上の縁より下へ必ず 0.01 以上(帯の端で上下が交わらない)
         def topat(z):

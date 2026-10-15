@@ -9,4 +9,6 @@ metadata:
 - seal の板の下の縁を SEAL_RELIEF(0.035)のまま土台の底まで下ろすと土台の前に 3cm の鰭 ⇒ 土台の帯は土台の表へ段を付けた(build_nagaya_omote.seal_cut)。
 - 長屋の土台に kit の継ぎ目の毛筋(マゼンタで見える)が駒の中にある ── 旧い版にもある既存の物。
 
-**How to apply:** 両端 --miter-cut の版は待ちの長さを F3 で受けて −0.0002 で焼く。片端の版は切り上げのままでよい(据えが留めた端を Q に合わせる)。関連 [[nagaya-miter-cut-signed-anchor-seal]] [[nagaya-miter-cut-convex-corner]]
+- 2026-10-16 追: 片端の版と見て切り上げのまま焼いた N13_0(15.090/要る 15.081・両端とも出隅)が棟梁の硬い ±0.002 で待ちに落ちた ⇒ 15.0808 を `--name` で同じ名 15.09 に焼き直し GUID と remap を保った(fmt は 15.08 を出すので --name 必須・札の source に --name は残らない)。
+
+**How to apply:** 両端とも θ≠0 なら必ず −0.0002。 両端 --miter-cut の版は待ちの長さを F3 で受けて −0.0002 で焼く。片端の版は切り上げのままでよい(据えが留めた端を Q に合わせる)。関連 [[nagaya-miter-cut-signed-anchor-seal]] [[nagaya-miter-cut-convex-corner]]

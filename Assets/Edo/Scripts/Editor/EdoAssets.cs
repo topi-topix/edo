@@ -1729,7 +1729,10 @@ public static class EdoAssets
         /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=38.6 --h=4.8 --render
         /// **38 / 27 × H0.60〜H2.10(0.3 刻み)**(岡部 TW_Minami_Mizo の西の曲がりの出隅・折れ 38° / 27° ── 2026-10-15 EDO-0502 第139巡。holes 0・継ぎ目の検算 差0。
         /// H1.80 / H2.10 は腕1 の先 (−0.824, ·, 0.54) に裏当たり 4 本 ── H4800 の隅の駒と同じ点の既存の性質。.meta は Kado35 の写し ⇒ remap 不要)
-        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=38,27 --h=0.6,0.9,1.2,1.5,1.8,2.1 --render</summary>
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=38,27 --h=0.6,0.9,1.2,1.5,1.8,2.1 --render
+        /// **34 × H1.50 / H1.80 / H2.10・76 × H1.50 / H1.80**(岡部 第140巡・2026-10-15)。76 は折れ 60〜78° の囲まれた穴(留めの線の腕2 の側 (−0.70, −0.98))を
+        /// 塞ぐため、裏の目地の底の板を奥 1.03 まで・留めの線から 0.12 腕2 の側まで延ばした(79 以上・60 未満の在庫は不変)。holes 0・継ぎ目の差0。H1.80 以上は腕1 の先に既存の裏当たり 3〜4 本。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=34 --h=1.5,1.8,2.1 --render / --deg=76 --h=1.5,1.8 --render</summary>
         public static string SannoNozuraKadoDeg(float deg, float h, int i)
         {
             int d = (int)System.Math.Round(deg);

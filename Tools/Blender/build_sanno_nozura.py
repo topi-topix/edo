@@ -32,6 +32,7 @@
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=32.7 --h=0.6,0.9,1.2 --render   # 岡部 K_Dan2 の上端の脇の実の折れ(Kado35 を据えていた・2026-10-11)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=38.6 --h=4.8 --render   # 岡部 TW_Higashi_Se の辺40/41 の角(第106巡・2026-10-11)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=38,27 --h=0.6,0.9,1.2,1.5,1.8,2.1 --render   # 岡部 TW_Minami_Mizo の西の曲がりの出隅(第139巡・2026-10-15)
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- kado_deg --deg=34 --h=1.5,1.8,2.1 --render / --deg=76 --h=1.5,1.8   # 岡部 第140巡(2026-10-15)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- tome [--h=0.6,1.2,2.4] [--hand=P,M] [--render]   # 積み止めの駒(小口にも面石・両角が稜・岡部 nozuraEndRule 2026-10-07b・EDO-0502)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- crest [--dir=…] [--json=…]  # 全駒の背の天端の下がり(≤ 0.03)・頭の出(≤ 0)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- holes [--dir=…] [--json=…]  # 全駒を真上から見て天端に穴(裏・下の見える所)が 0 か
@@ -1873,9 +1874,15 @@ def kado_deg_ura(h, v, mats, phi):
     # (留めの線の平面で腕1 の側だけ残すので腕2 へは出ない)。60° 以上(79 ほか焼いた駒)は従前の −0.55 のまま(2026-10-11 EDO-0502 Kado39)
     if phi < 90.0:
         x1 = 0.0 if phi < 60.0 else -0.55
-        o = ura_floor("ura_floor_kd", wall_Q(h, 0.0), mats[1], -L / 2, x1, URA_FLOOR_D, KADO_DEG_FLOOR_D)
+        # 60° 〜 78° は囲まれた穴が板の奥の縁 0.98 に跨る(φ=76 で (−0.71, −0.98)・a/b とも)⇒ 板を腕1 の先の裏石の外形 1.04 の内 1.03 まで。
+        # 79 以上と 60 未満(焼いた駒)は従前の 0.98(2026-10-15 EDO-0502 第140巡 Kado76)
+        fd = 1.03 if 60.0 <= phi < 78.0 else KADO_DEG_FLOOR_D
+        o = ura_floor("ura_floor_kd", wall_Q(h, 0.0), mats[1], -L / 2, x1, URA_FLOOR_D, fd)
         bm_ = bmesh.new(); bm_.from_mesh(o.data)
-        bmesh.ops.bisect_plane(bm_, geom=bm_.verts[:] + bm_.edges[:] + bm_.faces[:], dist=1e-6, plane_co=Vector((0, 0, 0)),
+        # 60° 〜 78° の穴は留めの線のすぐ腕2 の側(φ=76 の a で (−0.70, −0.98)・線から 0.05)⇒ 板を線から 0.12 越えて腕2 の側へ残す(腕2 の裏石の外形の内)
+        ov = 0.12 if 60.0 <= phi < 78.0 else 0.0
+        bmesh.ops.bisect_plane(bm_, geom=bm_.verts[:] + bm_.edges[:] + bm_.faces[:], dist=1e-6,
+                               plane_co=Vector(_u2b(ov / nm, 0.0, -ov * t / nm)),
                                plane_no=Vector(_u2b(1.0 / nm, 0.0, -t / nm)), clear_outer=True, clear_inner=False)
         bm_.to_mesh(o.data); bm_.free(); o.data.update()
         if len(o.data.polygons):

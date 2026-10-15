@@ -72,6 +72,9 @@ public static partial class EdoBuild
         /// <summary>真なら勾配の連鎖を継ぎ目で切らない(<see cref="NozuraSeg.strictChain"/> ── 2026-10-15 EDO-0502 第140巡)。焼いた勾配 0 の駒でも中ほどを線へ寄せ直さない
         /// (第133巡のゆるい坂の寄せは継ぎ目に 勾配 × 走り の段を作る ── 継ぎ目の天端の段 ≤0.05【硬】を守る run では使わない)。</summary>
         public bool strictChain;
+        /// <summary>出隅の隅の駒を据える折れの下限(°)── これ未満の折れは直線の駒の継ぎで折る(外の角に楔)。既定 20(第18巡)。
+        /// 普請方 第140巡 northSideR140 P2「15° の閾値を 22° へ改める・折れ >22° は出隅の隅の駒【硬】」(岡部 TW_Minami_Mizo・第141巡)── <see cref="NozuraSeg.kadoMinDeg"/> から。</summary>
+        public float kadoMinDeg = 20f;
     }
 
     /// <summary>**野面の見え面の足元の前の地盤**(2026-10-11 EDO-0502 第107巡)。線 <paramref name="q"/> は天端の前の縁 ── 法尻は
@@ -299,7 +302,7 @@ public static partial class EdoBuild
             //   (法の出 0.3×見付 が両腕で開く・岡部 TW_Higashi_Hokuto 49.4° で足元 0.79)が開いた。20° 未満は従前どおり直線の駒の継ぎ。
             //   当たる先: 野面の土留めの 20〜60° の出隅すべて(岡部 TW_Higashi_Hokuto・TW_Kado_Sode ほか、山王・松江松平・土井・類型の縁の野面)。
             bool oblique = turn < 60f;
-            if (oblique && turn < 20f) continue;
+            if (oblique && turn < w.kadoMinDeg) continue;   // 既定 20°(区間が名指せば NozuraSeg.kadoMinDeg ── 第141巡)
             // 隅の二つの見え面は隅の際(腕の長さ 1間)で測る ── 区間の途中で入れ替わる土留めは区間の票と隅の際が違う
             Vector2 f1 = faceOn(i - 1, s0[i] - W, s0[i]), f2 = faceOn(i, s0[i], s0[i] + W);
             // 凸(出隅): 次の区間は前の区間の見え面の裏(−f1)へ向かう
@@ -1205,6 +1208,8 @@ public static partial class EdoBuild
         /// <summary>継ぎ目の天端の段を勾配の連鎖で 0 に保つ(⛔ 焼いた勾配 0 の駒の中ほどを線へ寄せ直さない ── 線との外れは次の駒の勾配が引き戻す)。
         /// 普請方 第139巡 northSideR139 N1【硬】「継ぎ目の天端の段 ≤0.05」(岡部 TW_Minami_Mizo・第140巡)。</summary>
         public bool strictChain;
+        /// <summary>この区間を含む run の出隅の隅の駒を据える折れの下限(°)。NaN なら既定(20°)── <see cref="NozuraWall.kadoMinDeg"/>(第141巡)。</summary>
+        public float kadoMinDeg = float.NaN;
         /// <summary>区間全体の見付の下限(端の隅の返しの駒 ── kadoReturnUniform)。NaN なら無し。</summary>
         public float minH = float.NaN;
         /// <summary>端(0 = a / 1 = b)の際の一間と隅の駒の見付の下限(kadoReturnUniform ── 隅と並ぶ本線の駒も同じ H)。NaN なら無し。</summary>
@@ -2029,6 +2034,7 @@ public static partial class EdoBuild
             {
                 var sg = segs[ch[i].Key]; float c0 = cum[i], c1 = cum[i] + sg.Len;
                 if (sg.strictChain) w.strictChain = true;
+                if (!float.IsNaN(sg.kadoMinDeg)) w.kadoMinDeg = sg.kadoMinDeg;
                 if (!float.IsNaN(sg.minH)) w.minHRanges.Add(new Vector3(c0 - 0.909f, c1 + 0.909f, sg.minH));
                 for (int e = 0; e < 2; e++)
                 {

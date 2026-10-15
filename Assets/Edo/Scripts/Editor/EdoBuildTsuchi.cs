@@ -184,4 +184,57 @@ public static partial class EdoBuild
         return key + " の天端と背の地盤の差(硬 ≤ " + maxDiff.ToString("F2") + "・控えの後端 +" + behind.ToString("F2") + " の背・駒の外形の内は数えない): 最悪 " + (nPt == 0 ? "-" : worst.ToString("+0.00;-0.00")) + "m @(" + wAt.x.ToString("F1") + ", " + wAt.y.ToString("F1") + ")(天端 " + wC.ToString("F2") + "・背 " + wB.ToString("F2") + ")・超え " + nOver + "/" + nPt + " 点・外形の内で数えない " + nHid
              + (nOver > 0 ? " ⛔ " + string.Join(" / ", over.GetRange(0, Mathf.Min(12, over.Count)).ToArray()) + (over.Count > 12 ? " …" : "") : " ⭕");
     }
+
+    /// <summary>**造成の書き手どうしの優先の順で、低い書き手を高い面の縁へ退かせる**(普請方 第140巡 grading.writerPriorityR140 P4【硬】「優先の順: 平場の面・道の路盤・溝と桝の帯・犬走り > 小段 > 擦り付け。
+    /// 擦り付けは、優先の高い面の縁で 1:<paramref name="slope"/> より緩く終わるように、自分の起点(小段の縁)を退かせて書き直す。高い優先の面は動かさない」)。
+    /// 記録(<paramref name="lowRecPaths"/> ── 小段と擦り付け・3d の帯の埋め)の節点を低い書き手とし、高い面 = 記録に無い節点のうち <paramref name="highPlaneAt"/> が値を返し今の地形がその値 ±0.03 の節点
+    /// (平場の面の今の値)── <paramref name="highPlaneAt"/> が null なら記録に無い節点すべて(先に書いた面・道の路盤・今の地盤 ── 記録の書き手より優先)。高い面の節点から、駒の外形の中(<paramref name="hidden"/>)と区画の外を通らずに格子を歩いた道のり d で、低い節点の高さを
+    /// [高い面 − d / slope, 高い面 + d / slope] に収める(上も下も ── 0.25 の升で 1:1.5 = 0.167 ≤ 0.17)。壁の向こうの面は道のりが壁を回るので効かない。
+    /// <paramref name="lowExclude"/> が真の節点(溝と桝の帯など優先の高い書き手)は触らない。書いた高さは <paramref name="recOut"/> へ(後の行が勝つ)。⟶ 記録の一行。
+    /// 当たる先: 平場の面の縁に小段・擦り付けを書く所すべて(岡部 TW_Kita_Koshi の返しの腕の先(−517,1069)・袖の小段・段の端の擦り付け)。</summary>
+    public static string YieldWrittenToPriority(IList<string> lowRecPaths, Func<Vector2, bool> lowExclude, Func<Vector2, float> highPlaneAt, Func<Vector2, bool> hidden, Vector2[] parcel,
+                                                float slope, float reach, string recOut)
+    {
+        var t = T(); var td = t.terrainData; int R = td.heightmapResolution; Vector3 tp = t.transform.position, ts = td.size; float cell = ts.x / (R - 1);
+        var low = new HashSet<long>(); foreach (var rp in lowRecPaths) { var m = LoadNodeTargets(rp, t.name); if (m != null) foreach (var k in m.Keys) low.Add(k); }
+        if (low.Count == 0) return "書き手の優先の順: 記録なし";
+        int x0 = int.MaxValue, z0 = int.MaxValue, x1 = int.MinValue, z1 = int.MinValue;
+        foreach (var k in low) { int ix = (int)(k >> 32), iz = (int)(uint)(k & 0xffffffffL); x0 = Mathf.Min(x0, ix); z0 = Mathf.Min(z0, iz); x1 = Mathf.Max(x1, ix); z1 = Mathf.Max(z1, iz); }
+        int mg = Mathf.CeilToInt(reach / cell); x0 = Mathf.Max(0, x0 - mg); z0 = Mathf.Max(0, z0 - mg); x1 = Mathf.Min(R - 1, x1 + mg); z1 = Mathf.Min(R - 1, z1 + mg);
+        int w = x1 - x0 + 1, h = z1 - z0 + 1; var H = td.GetHeights(x0, z0, w, h);
+        var blocked = new bool[h, w]; var isLow = new bool[h, w]; var U = new float[h, w]; var Lo = new float[h, w]; int nHigh = 0;
+        for (int iz = 0; iz < h; iz++) for (int ix = 0; ix < w; ix++)
+        {
+            U[iz, ix] = float.PositiveInfinity; Lo[iz, ix] = float.NegativeInfinity;
+            var p = new Vector2(tp.x + (x0 + ix) * cell, tp.z + (z0 + iz) * cell);
+            if ((parcel != null && !EdoGeom.PIP(parcel, p)) || (hidden != null && hidden(p))) { blocked[iz, ix] = true; continue; }
+            long k = ((long)(x0 + ix) << 32) ^ (uint)(z0 + iz);
+            if (low.Contains(k)) { isLow[iz, ix] = lowExclude == null || !lowExclude(p); if (isLow[iz, ix]) continue; }
+            float y = H[iz, ix] * ts.y + tp.y;
+            if (low.Contains(k)) continue;
+            if (highPlaneAt == null) { U[iz, ix] = y; Lo[iz, ix] = y; nHigh++; continue; }   // 記録に無い節点(先の書き手の面・道・今の地盤)は全て高い面
+            float pl = highPlaneAt(p);
+            if (!float.IsNaN(pl) && Mathf.Abs(pl - y) <= 0.03f) { U[iz, ix] = y; Lo[iz, ix] = y; nHigh++; }
+        }
+        float c1 = cell / slope, c2 = cell * 1.41421356f / slope;
+        var nb = new[] { new Vector3Int(-1, 0, 1), new Vector3Int(0, -1, 1), new Vector3Int(-1, -1, 2), new Vector3Int(1, -1, 2) };
+        for (int it = 0; it < 3; it++)
+        {
+            for (int iz = 0; iz < h; iz++) for (int ix = 0; ix < w; ix++)
+            { if (blocked[iz, ix]) continue; foreach (var d in nb) { int jx = ix + d.x, jz = iz + d.y; if (jx < 0 || jz < 0 || jx >= w || jz >= h || blocked[jz, jx]) continue; float c = d.z == 1 ? c1 : c2; if (U[jz, jx] + c < U[iz, ix]) U[iz, ix] = U[jz, jx] + c; if (Lo[jz, jx] - c > Lo[iz, ix]) Lo[iz, ix] = Lo[jz, jx] - c; } }
+            for (int iz = h - 1; iz >= 0; iz--) for (int ix = w - 1; ix >= 0; ix--)
+            { if (blocked[iz, ix]) continue; foreach (var d in nb) { int jx = ix - d.x, jz = iz - d.y; if (jx < 0 || jz < 0 || jx >= w || jz >= h || blocked[jz, jx]) continue; float c = d.z == 1 ? c1 : c2; if (U[jz, jx] + c < U[iz, ix]) U[iz, ix] = U[jz, jx] + c; if (Lo[jz, jx] - c > Lo[iz, ix]) Lo[iz, ix] = Lo[jz, jx] - c; } }
+        }
+        int nDn = 0, nUp = 0; float dnMx = 0f, upMx = 0f; Vector2 dnAt = Vector2.zero; var rec = new Dictionary<long, float>();
+        for (int iz = 0; iz < h; iz++) for (int ix = 0; ix < w; ix++)
+        {
+            if (!isLow[iz, ix]) continue; float cur = H[iz, ix] * ts.y + tp.y, nw = cur;
+            if (nw > U[iz, ix]) nw = U[iz, ix]; if (nw < Lo[iz, ix]) nw = Lo[iz, ix];
+            if (Mathf.Abs(nw - cur) < 1e-3f) continue;
+            if (nw < cur) { nDn++; if (cur - nw > dnMx) { dnMx = cur - nw; dnAt = new Vector2(tp.x + (x0 + ix) * cell, tp.z + (z0 + iz) * cell); } } else { nUp++; upMx = Mathf.Max(upMx, nw - cur); }
+            H[iz, ix] = (nw - tp.y) / ts.y; rec[((long)(x0 + ix) << 32) ^ (uint)(z0 + iz)] = nw;
+        }
+        if (rec.Count > 0) { td.SetHeightsDelayLOD(x0, z0, H); td.SyncHeightmap(); if (recOut != null) AppendNodeTargets(recOut, t.name, rec); }
+        return "書き手の優先の順(高い面 = 平場の面の節点 " + nHigh + "・低い書き手 = 記録 " + low.Count + " 節点・高い面の縁で 1:" + slope.ToString("0.0") + " に収める): 下げた " + nDn + "(最大 " + dnMx.ToString("F2") + (nDn > 0 ? " @(" + dnAt.x.ToString("F1") + "," + dnAt.y.ToString("F1") + ")" : "") + ")・上げた " + nUp + "(最大 " + upMx.ToString("F2") + ")";
+    }
 }

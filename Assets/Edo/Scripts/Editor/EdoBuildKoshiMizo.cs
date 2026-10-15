@@ -412,6 +412,136 @@ public static partial class EdoBuild
         curbLine = cl; return toe;
     }
 
+    // ================================================================ 第141巡(普請方 第140巡の返し northSideR140 P1・P2)
+    /// <summary>**溝の駒の北の外形の包絡線と、それに沿う法尻の線**(普請方 northSideR140 P1【硬: 法尻 − 包絡線 0.00〜+0.10】
+    /// 「包絡線は縁石・段落ちの小口石・桝のうち、その所で最も北へ出る外形を結んだもの・幅が変わる所はそこに掛かる一駒を ≤15° 振って移る(その一駒は差 0〜Δ【柔】・2.5m に広げない【硬】)・
+    /// 長く幅が広い所は区間の全体で線を Δ だけ背へ通す(線は折らずに平行に退ける)」)。
+    /// 鎖 <paramref name="ch"/> の脚ごとに、近い溝の駒すべて(隣の脚の駒・桝・小口石も)の石の外の縁(<see cref="CurbOuterEnds"/> ── 地際の板は数えない)を脚の座標(道のり u, 離れ)へ写し、
+    /// 0.25 ごとの包絡 E(u) = その u を覆う縁の離れの最大を取る。E を高さの揃った段(差 ≤0.05)に割り、段ごとに幅の値 V を持たせ、低い隣へは <paramref name="rampLen"/>(一駒)で
+    /// 振って下ろす(角 ≤ <paramref name="rampMaxDeg"/>)── 法尻 T(u) = max(各段の V − 傾き × 段からの離れ) + c。鎖の折れ(≥ <paramref name="cornerDeg"/>)の際 <paramref name="cornerZone"/> は
+    /// 両脚の E を同じ値(最大)にする(両脚を平行に退ける ── 隅の角を鎖の折れのまま)。折れの所は前後の脚の線の交点。⟶ 法尻の線。<paramref name="envLine"/> = 同じ道のりの包絡線(測りの基準)、
+    /// <paramref name="rampPts"/> = 振って移る所の点(x, z, その所の差 T − c − E)── 呼び手はそこに掛かる駒だけ差を Δ まで許す【柔】。
+    /// ⛔ 座標を書かない・基準点で測らない・溝の筋へ入らない(包絡線の外)。当たる先: 溝の縁に沿って立てる土留め(岡部 TW_Minami_Mizo)── 幅の違う溝の駒が並ぶ縁すべて。</summary>
+    public static List<Vector2> MizoEnvelopeToeLine(IList<Vector2> ch, IList<Vector2> nrm, IList<GameObject> mz, float clr, float rampLen, float rampMaxDeg, float cornerDeg, float cornerZone,
+                                                   Func<Vector2, float> extraAt, out List<Vector2> envLine, out List<Vector2> envN, out List<Vector2> legN, out List<int> legOf, out List<Vector3> rampPts, out int nMeasured)
+    {
+        int nl = ch.Count - 1; nMeasured = 0; envLine = new List<Vector2>(); envN = new List<Vector2>(); legN = new List<Vector2>(); legOf = new List<int>(); rampPts = new List<Vector3>();
+        var tl = new Vector2[nl]; var Ll = new float[nl]; for (int i = 0; i < nl; i++) { Ll[i] = Vector2.Distance(ch[i], ch[i + 1]); tl[i] = (ch[i + 1] - ch[i]) / Mathf.Max(1e-6f, Ll[i]); }
+        // 溝の駒ごとの石の外の縁(背の側)── 駒の向きに最も近い脚の背の向きで測る
+        var segA = new List<Vector2>(); var segB = new List<Vector2>();
+        foreach (var g in mz)
+        {
+            if (g == null) continue; var pc = new Vector2(g.transform.position.x, g.transform.position.z); Vector3 fz = g.transform.forward; var f2 = new Vector2(fz.x, fz.z); if (f2.sqrMagnitude < 1e-6f) continue; f2.Normalize();
+            int bi = -1; float bd = float.MaxValue;
+            for (int i = 0; i < nl; i++) { float al = Mathf.Abs(Vector2.Dot(f2, tl[i])); float u = Vector2.Dot(pc - ch[i], tl[i]); if (u < -1.0f || u > Ll[i] + 1.0f) continue; float d = Mathf.Abs(Vector2.Dot(pc - ch[i], nrm[i])) + (1f - al) * 4f; if (d < bd) { bd = d; bi = i; } }
+            if (bi < 0 || bd > 2.0f) continue;
+            Vector2 a, b; float tp; if (!CurbOuterEnds(g, nrm[bi], out a, out b, out tp)) continue;
+            segA.Add(a); segB.Add(b); nMeasured++;
+        }
+        float ds = 0.25f; var E = new float[nl][]; var U = new float[nl][];
+        for (int i = 0; i < nl; i++)
+        {
+            int nS = Mathf.Max(2, Mathf.CeilToInt(Ll[i] / ds) + 1); E[i] = new float[nS]; U[i] = new float[nS];
+            for (int k = 0; k < nS; k++) { U[i][k] = Mathf.Min(Ll[i], k * ds); E[i][k] = float.NaN; }
+            for (int j = 0; j < segA.Count; j++)
+            {
+                float ua = Vector2.Dot(segA[j] - ch[i], tl[i]), ub = Vector2.Dot(segB[j] - ch[i], tl[i]); float la = Vector2.Dot(segA[j] - ch[i], nrm[i]), lb = Vector2.Dot(segB[j] - ch[i], nrm[i]);
+                if (la < -0.2f && lb < -0.2f) continue; if (la > 2.5f || lb > 2.5f) continue;   // 背の側の縁だけ(向かいの縁・遠い駒は数えない)
+                float u0 = Mathf.Min(ua, ub), u1 = Mathf.Max(ua, ub); if (u1 < -0.05f || u0 > Ll[i] + 0.05f) continue;
+                for (int k = 0; k < nS; k++)
+                {
+                    float u = U[i][k]; if (u < u0 - 0.05f || u > u1 + 0.05f) continue;
+                    float t = u1 - u0 < 1e-4f ? 0.5f : Mathf.Clamp01((u - ua) / (ub - ua)); float lat = Mathf.Lerp(la, lb, t);
+                    if (float.IsNaN(E[i][k]) || lat > E[i][k]) E[i][k] = lat;
+                }
+            }
+            // 覆わない所は近い所の値(脚の内)
+            for (int k = 1; k < nS; k++) if (float.IsNaN(E[i][k])) E[i][k] = E[i][k - 1];
+            for (int k = nS - 2; k >= 0; k--) if (float.IsNaN(E[i][k])) E[i][k] = E[i][k + 1];
+        }
+        for (int i = 0; i < nl; i++) if (float.IsNaN(E[i][0])) { float v = float.NaN; for (int d = 1; d < nl && float.IsNaN(v); d++) foreach (int j in new[] { i - d, i + d }) if (j >= 0 && j < nl && !float.IsNaN(E[j][0])) { v = j < i ? E[j][E[j].Length - 1] : E[j][0]; break; } for (int k = 0; k < E[i].Length; k++) E[i][k] = float.IsNaN(v) ? 0.3f : v; }
+        var turn = new float[ch.Count]; for (int i = 1; i < nl; i++) turn[i] = Vector2.Angle(tl[i - 1], tl[i]);
+        // 隅の際は両脚の包絡を同じ値(最大)に ── 両脚を平行に退ける
+        for (int i = 1; i < nl; i++)
+        {
+            if (turn[i] < cornerDeg) continue; float m = float.MinValue; var A = E[i - 1]; var B = E[i];
+            for (int k = 0; k < A.Length; k++) if (U[i - 1][k] >= Ll[i - 1] - cornerZone) m = Mathf.Max(m, A[k]);
+            for (int k = 0; k < B.Length; k++) if (U[i][k] <= cornerZone) m = Mathf.Max(m, B[k]);
+            for (int k = 0; k < A.Length; k++) if (U[i - 1][k] >= Ll[i - 1] - cornerZone) A[k] = m;
+            for (int k = 0; k < B.Length; k++) if (U[i][k] <= cornerZone) B[k] = m;
+        }
+        // 段に割り、低い隣へは一駒で振って下ろす(角 ≤ rampMaxDeg)
+        float kMax = Mathf.Tan(rampMaxDeg * Mathf.Deg2Rad);
+        var T = new float[nl][];
+        for (int i = 0; i < nl; i++)
+        {
+            var e = E[i]; int n = e.Length; var runA = new List<int>(); var runB = new List<int>(); var runV = new List<float>();
+            { int a = 0; float mx = e[0], mn = e[0]; for (int k = 1; k <= n; k++) { bool brk = k == n || Mathf.Max(mx, e[k]) - Mathf.Min(mn, e[k]) > 0.05f; if (brk) { runA.Add(a); runB.Add(k - 1); runV.Add(mx); if (k < n) { a = k; mx = e[k]; mn = e[k]; } } else { mx = Mathf.Max(mx, e[k]); mn = Mathf.Min(mn, e[k]); } } }
+            var t = new float[n]; for (int k = 0; k < n; k++) t[k] = float.MinValue;
+            for (int r = 0; r < runV.Count; r++)
+            {
+                float vl = r > 0 ? runV[r - 1] : runV[r], vr = r + 1 < runV.Count ? runV[r + 1] : runV[r]; float dv = runV[r] - Mathf.Min(vl, vr);
+                float slope = dv > 1e-3f ? Mathf.Min(kMax, dv / Mathf.Max(0.25f, rampLen)) : 1e3f;
+                float ua = U[i][runA[r]], ub = U[i][runB[r]];
+                for (int k = 0; k < n; k++) { float u = U[i][k]; float dist = u < ua ? ua - u : (u > ub ? u - ub : 0f); float v = runV[r] - slope * dist; if (v > t[k]) t[k] = v; }
+            }
+            T[i] = t;
+        }
+        // 溝の筋へ入った駒の所の足し(呼び手の解き直し ── 隅の際は一つの値)
+        Func<Vector2, float> exq0 = q => extraAt != null ? extraAt(q) : 0f;   // 符号つき(呼び手の測りで前へも背へも)
+        var cornerPts = new List<Vector2>(); for (int i = 1; i < nl; i++) if (turn[i] >= cornerDeg) cornerPts.Add(ch[i] + 0.5f * (nrm[i - 1] + nrm[i]) * T[i][0]);
+        var cornerMax = new List<float>();
+        foreach (var cp in cornerPts) { float m = 0f; for (float u = -2.5f; u <= 2.5f + 1e-3f; u += 0.25f) foreach (var d in new[] { new Vector2(1f, 0f), new Vector2(0f, 1f) }) m = Mathf.Max(m, exq0(cp + d * u)); cornerMax.Add(m); }
+        Func<Vector2, float> exq = q => { float v = exq0(q); for (int k = 0; k < cornerPts.Count; k++) { float d = Vector2.Distance(q, cornerPts[k]); if (d <= 2.5f) v = Mathf.Max(v, cornerMax[k]); else v = Mathf.Max(v, cornerMax[k] * Mathf.Clamp01(1f - (d - 2.5f) / 2.5f)); } return v; };
+        var envV = new List<Vector2>(); var toeV = new List<Vector2>(); var vLeg = new List<int>();
+        Action<Vector2, Vector2, int> addV = (cv, tv, leg) => { envV.Add(cv); toeV.Add(tv); vLeg.Add(leg); };
+        for (int i = 0; i < nl; i++)
+        {
+            float exA = i > 0 && turn[i] >= 3f ? 0.6f : 0f, exB = i + 1 < nl && turn[i + 1] >= 3f ? 0.6f : 0f; var t = T[i]; var e = E[i]; int n = t.Length;
+            for (int k = 0; k < n; k++)
+            {
+                float u = U[i][k]; if ((i > 0 && u < exA) || (i + 1 < nl && u > Ll[i] - exB)) continue;
+                bool keep = k == 0 || k == n - 1; if (!keep) { float d2 = (t[k + 1] - t[k]) - (t[k] - t[k - 1]); keep = Mathf.Abs(d2) > 0.004f; }
+                if (i > 0 && k == 0) keep = false;
+                if (i + 1 < nl && k == n - 1) keep = false;
+                var cq = ch[i] + tl[i] * u + nrm[i] * e[k];
+                float tq = t[k] + clr + exq(cq);
+                if (t[k] - e[k] > 0.06f) rampPts.Add(new Vector3(cq.x, cq.y, t[k] - e[k]));
+                if (keep) addV(cq, ch[i] + tl[i] * u + nrm[i] * tq, i);
+            }
+            if (i + 1 < nl)
+            {   // 折れ: 前後の脚の線の交点
+                float la = T[i][n - 1], lb = T[i + 1][0], ea = E[i][n - 1], eb = E[i + 1][0];
+                Func<float, float, Vector2> X = (oa, ob) =>
+                {
+                    Vector2 p0 = ch[i + 1] + nrm[i] * oa, p1 = ch[i + 1] + nrm[i + 1] * ob; Vector2 d0 = tl[i], d1 = tl[i + 1]; float den = d0.x * d1.y - d0.y * d1.x;
+                    if (Mathf.Abs(den) < 1e-4f || turn[i + 1] < 3f) return 0.5f * (p0 + p1);
+                    Vector2 w = p1 - p0; float tt = (w.x * d1.y - w.y * d1.x) / den; var r = p0 + d0 * tt; return Vector2.Distance(r, ch[i + 1]) > 4f ? 0.5f * (p0 + p1) : r;
+                };
+                var xc = X(ea, eb); float xe = exq(xc); addV(xc, X(la + clr + xe, lb + clr + xe), i + 1);
+            }
+        }
+        var toe = new List<Vector2>(); var el = new List<Vector2>(); var lg = new List<int>();
+        for (int k = 0; k < toeV.Count; k++) { if (toe.Count > 0 && Vector2.Distance(toe[toe.Count - 1], toeV[k]) < 0.05f) continue; toe.Add(toeV[k]); el.Add(envV[k]); lg.Add(vLeg[k]); }
+        for (int k = 0; k + 1 < toe.Count; k++) { Vector2 t2 = (toe[k + 1] - toe[k]).normalized, p = new Vector2(-t2.y, t2.x); int leg = lg[k]; if (Vector2.Dot(p, nrm[leg]) < 0f) p = -p; legN.Add(p); legOf.Add(leg); }
+        // 測りの基準の包絡線は全ての升の点で(折れの際も)
+        for (int i = 0; i < nl; i++) for (int k = 0; k < E[i].Length; k++) { envLine.Add(ch[i] + tl[i] * U[i][k] + nrm[i] * E[i][k]); envN.Add(nrm[i]); }
+        return toe;
+    }
+
+    /// <summary>**点 q の包絡線からの符号つきの離れ**(背の向き +)── <see cref="MizoEnvelopeToeLine"/> の envLine(升の点の列)と点ごとの背の向き envN で、最も近い区間への離れ。</summary>
+    public static float SignedFromEnvelope(List<Vector2> env, List<Vector2> envN, Vector2 q)
+    {
+        float bd = float.MaxValue, sd = float.NaN;
+        for (int k = 0; k + 1 < env.Count; k++)
+        {
+            Vector2 a = env[k]; if (Mathf.Abs(a.x - q.x) > 3f || Mathf.Abs(a.y - q.y) > 3f) continue;
+            Vector2 ab = env[k + 1] - a; float L2 = ab.sqrMagnitude; if (L2 < 1e-8f || L2 > 2.25f) continue; float tt = Mathf.Clamp01(Vector2.Dot(q - a, ab) / L2); var f = a + ab * tt; float d = (q - f).sqrMagnitude;
+            if (d < bd) { bd = d; sd = Vector2.Dot(q - f, envN[k]); }
+        }
+        return sd;
+    }
+
     /// <summary>**折れ線を頂点ごとの離れで背へ出す**(頂点の背の向き = 隣の区間の法線の二等分・離れ / cos(半角) ── 留めの交点)。区間の法線 <paramref name="segN"/>。
     /// 当たる先: 法尻の線から天端の前の縁の線を見付ごとの法の出で引く所(岡部 TW_Minami_Mizo)。</summary>
     public static List<Vector2> OffsetPolylineByVertex(IList<Vector2> pl, IList<Vector2> segN, IList<float> off)

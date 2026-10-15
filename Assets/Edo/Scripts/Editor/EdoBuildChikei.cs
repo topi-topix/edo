@@ -452,8 +452,25 @@ public static partial class EdoBuild
     /// その値より下げない(指図 grading.seRoji.southKado「石垣の見え面から 1.0 以内に 床 −0.02 より低い升を残さない【硬】」・岡部 第114巡)。
     /// 法の駒の足が床の下へ根入れで埋まる所(隅の駒の稜は見え面の線より前へ出る)では、真上から最初に当たる面が床の下の足 ⇒ 下げると床に穴が開いた(r113 kado6 で 10.8)。
     /// 当たる先: 法のある石垣の足元に設計の床(路地・犬走り)を持つ所すべて(岡部 TW_Higashi_Se の背の路地。土井・松江松平を細かい地形へ移すときの同じ型)。</summary>
+    /// <summary>最後の <see cref="SinkGroundUnderParts(IEnumerable{GameObject},float,string,Func{float,float,float})"/> が「見え面の下」と読んだ節点(地形の格子 i, j ── 見え面が前の地表より 0.2 以上上に出る所)。
+    /// 第142巡: 肩の盛りが積み止めの駒の見え面の下(石段の上がり口の脇)の節点を背の帯と読み、盛りの上限を越えて区切り Side1 を丸ごと退けた ⇒ 盛る手はここへ土を載せない。</summary>
+    public static readonly HashSet<long> LastFaceNodes = new HashSet<long>();
+    /// <summary>最後の駒の下の下げで真上に駒の面が在った節点すべて(見えない地面)。当たる先: 肩の盛りの上限の超えを数えない所(<see cref="UnderAnyPart"/>)。</summary>
+    public static readonly HashSet<long> LastUnderNodes = new HashSet<long>();
+    public static bool UnderAnyPart(Vector2 q)
+    {
+        if (LastUnderNodes.Count == 0) return false; var t = T(); var td = t.terrainData; var org = t.transform.position; float hs = td.size.x / (td.heightmapResolution - 1);
+        int i = Mathf.RoundToInt((q.x - org.x) / hs), j = Mathf.RoundToInt((q.y - org.z) / hs); return LastUnderNodes.Contains(((long)i << 32) ^ (uint)j);
+    }
+    /// <summary>点 <paramref name="q"/> の最寄りの節点が <see cref="LastFaceNodes"/> に在るか(地形は <see cref="T"/>)。当たる先: 野面の背の肩の盛り(岡部 TW_Higashi_Se.shoulder)。</summary>
+    public static bool UnderLookingFace(Vector2 q)
+    {
+        if (LastFaceNodes.Count == 0) return false; var t = T(); var td = t.terrainData; var org = t.transform.position; float hs = td.size.x / (td.heightmapResolution - 1);
+        int i = Mathf.RoundToInt((q.x - org.x) / hs), j = Mathf.RoundToInt((q.y - org.z) / hs); return LastFaceNodes.Contains(((long)i << 32) ^ (uint)j);
+    }
     public static string SinkGroundUnderParts(IEnumerable<GameObject> parts, float below, string undoPath, Func<float, float, float> floorMin)
     {
+        LastFaceNodes.Clear(); LastUnderNodes.Clear();
         var t = T(); var td = t.terrainData; var org = t.transform.position; int R = td.heightmapResolution; float hs = td.size.x / (R - 1);
         var tmp = new List<MeshCollider>(); var bounds = new List<Bounds>();
         foreach (var g in parts)
@@ -478,7 +495,15 @@ public static partial class EdoBuild
                     for (int i = i0; i <= i1; i++)
                     {
                         RaycastHit h;
-                        if (!tmp[b].Raycast(new Ray(new Vector3(org.x + i * hs, bb.max.y + 1f, org.z + j * hs), Vector3.down), out h, bb.size.y + 2f)) continue;
+                        if (!tmp[b].Raycast(new Ray(new Vector3(org.x + i * hs, bb.max.y + 1f, org.z + j * hs), Vector3.down), out h, bb.size.y + 2f))
+                        {
+                            //   ⭐ 第142巡: 節点の真上が石と石の目地の抜け・駒の継ぎ目だと光線が抜け、その節点だけ下げ残って見え面の前に細い土の柱が立った(K_Tsuyo の脇 0.07〜0.29)
+                            //   ⇒ 節点の 0.06 の内の四方で測り、当たった最も低い面を採る(真上に駒が無い節点は従前どおり触らない)
+                            bool got = false; RaycastHit h2;
+                            foreach (var dq in new[] { new Vector2(0.06f, 0f), new Vector2(-0.06f, 0f), new Vector2(0f, 0.06f), new Vector2(0f, -0.06f) })
+                                if (tmp[b].Raycast(new Ray(new Vector3(org.x + i * hs + dq.x, bb.max.y + 1f, org.z + j * hs + dq.y), Vector3.down), out h2, bb.size.y + 2f) && (!got || h2.point.y < h.point.y)) { h = h2; got = true; }
+                            if (!got) continue;
+                        }
                         float y = h.point.y - below; long k = ((long)i << 32) ^ (uint)j; float cur;
                         if (floorMin != null) { float fm = floorMin(org.x + i * hs, org.z + j * hs); if (!float.IsNaN(fm) && y < fm) { y = fm; nFloor++; } }
                         if (!low.TryGetValue(k, out cur) || y < cur) { low[k] = y; lowN[k] = new Vector2(h.normal.x, h.normal.z); lowTop[k] = bb.max.y; }
@@ -489,6 +514,29 @@ public static partial class EdoBuild
         // ⭐ 埋まった見え面は掘らない(第117巡・岡部 TW_Higashi_Se の南の隅 kado6): 法の見え面の下の節点を「面 − below」へ下げると、見え面の前の地表がその面より高い所
         //   (見え面の足が土に埋まる所)で、見え面と前の地表の間に深さ 1〜2.3m の割れ目が開いた。下げの下限 = **見え面の前の地表**
         //   (面の法線の水平の向きへ、どの駒の下でもない最初の節点の今の高さ)── 見え面が前の地表より上に出る所だけ下げる。天端(法線がほぼ鉛直)は従前どおり。
+        // ⭐ 第142巡(施主「石垣から土が出ています」・K_Tsuyo の脇): 法の見え面の下の節点を「その節点の面 − below」へ下げただけでは、0.25 格子の三角形が
+        //   節点の間で野面の石の窪み・目地の前へ出て、見え面に土の膜が掛かった(被り 17328 点)。⇒ 見え面(法線が水平)の下の節点は、周り 8 節点の見え面の
+        //   高さの最も低い所 − below まで下げる(見え面の下は見えない ── 下限は床 floorMin と、この後の「見え面の前の地表」で止める)。天端(上を向いた面)は従前どおり。
+        foreach (var k0 in low.Keys) LastUnderNodes.Add(k0);
+        int nDeep = 0;
+        if (low.Count > 0)
+        {
+            var low0 = new Dictionary<long, float>(low);
+            foreach (var kv in low0)
+            {
+                Vector2 nn0; if (!lowN.TryGetValue(kv.Key, out nn0) || nn0.magnitude < 0.25f) continue;
+                int i = (int)(kv.Key >> 32), j = (int)(uint)(kv.Key & 0xffffffff);
+                Vector2 nw = nn0.normalized;   // 背の面・小口(背の平場を向く)も深くしてよい ── 下限はこの後の「見え面の前の地表」(背なら背の平場)で止まる
+                float m = kv.Value;
+                for (int di = -1; di <= 1; di++) for (int dj = -1; dj <= 1; dj++)
+                {
+                    if (di == 0 && dj == 0) continue; long k2 = ((long)(i + di) << 32) ^ (uint)(j + dj); float v2; Vector2 n2;
+                    if (low0.TryGetValue(k2, out v2) && lowN.TryGetValue(k2, out n2) && n2.magnitude >= 0.25f && Vector2.Dot(n2.normalized, nw) > 0.5f && v2 < m) m = v2;
+                }
+                if (floorMin != null) { float fm = floorMin(org.x + i * hs, org.z + j * hs); if (!float.IsNaN(fm) && m < fm) m = fm; }
+                if (m < kv.Value - 1e-4f) { low[kv.Key] = m; nDeep++; }
+            }
+        }
         if (low.Count > 0)
         {
             var fix = new List<KeyValuePair<long, float>>();
@@ -528,6 +576,8 @@ public static partial class EdoBuild
                 //   当たる先: 二つの石垣が 4m 以内で向き合う所・出隅の駒の法尻(岡部 切坂・溜りの隅)── 法のある石垣を細かい地形に据える邸すべて
                 if (float.IsNaN(gF)) gF = gWalkMin;
                 if (!float.IsNaN(gF) && kv.Value < gF) { fix.Add(new KeyValuePair<long, float>(kv.Key, gF)); nFront++; }
+                //   見え面が前の地表より 0.2 以上上に出る節点 = 「見え面の下」── 後の盛る手(肩の盛り)が土を載せない所(UnderLookingFace)
+                if (!float.IsNaN(gF) && kv.Value + below > gF + 0.2f) LastFaceNodes.Add(kv.Key);
             }
             foreach (var kv in fix) low[kv.Key] = kv.Value;
         }
@@ -548,7 +598,7 @@ public static partial class EdoBuild
             if (n > 0) { td.SetHeights(i0, j0, H); AssetDatabase.SaveAssetIfDirty(td); }
         }
         WriteUndo(undoPath, t.name, undo);
-        return "駒の下の地面を駒の面 −" + below.ToString("0.00") + " へ下げた: 駒の面 " + tmp.Count + "・節点 " + n + "・下げの最大 " + mx.ToString("F2") + "m(地形 " + t.name + ")" + (floorMin != null ? "・床の下限で止めた当たり " + nFloor : "") + "・見え面の前の地表で止めた節点 " + nFront;
+        return "駒の下の地面を駒の面 −" + below.ToString("0.00") + " へ下げた: 駒の面 " + tmp.Count + "・節点 " + n + "・下げの最大 " + mx.ToString("F2") + "m(地形 " + t.name + ")" + (floorMin != null ? "・床の下限で止めた当たり " + nFloor : "") + "・見え面の前の地表で止めた節点 " + nFront + "・見え面の下を周りの面の最低まで下げた節点 " + nDeep;
     }
 
     /// <summary>**駒の足の下の地面を足の底 + <paramref name="bury"/> へ上げる(上げるだけ)**── 地面を先に焼き切った後(溝・土留めの下げの後)に、

@@ -5701,7 +5701,23 @@ public static class EdoOkabeYashikiBuilder
                 float halfW = (Has(kd, "wKen") ? F(kd["wKen"]) : 1f) * C("ken") * 0.5f;
                 if (float.IsNaN(batter)) { ng.Add(g); sb.AppendLine("    ★ 口 " + key + " × " + by + ": 野面の駒の法が測れない ── 紙の口のまま(sideFace を当てない)"); continue; }
                 float[] gs; string note;
-                var lines = EdoBuild.StairSideCrestLines(nodes, foot, ax, halfW, top, batter, surf, uEnd, 0.02f, out gs, out note);
+                // ⭐ 第142巡(施主「石垣に段差ができてないですか？」): sideFace「脇の面は一つだけ・手前へ出る面は作らない【硬】」── 折れ線の天端に平らな法の駒を並べると
+                //   隅の駒の腕の先で見え面が下ほど前後へ食い違った(K_Tsuyo の両脇 0.15〜0.37)⇒ 側ごとに天端を一本の直線(EdoBuild.StairSideCrestLinesOneFace)。
+                //   硬: 見え面の退き ≤ 段石の差し込み − 0.05(段石の端に口を開けない)・口の出隅の折れに焼いた隅の駒。満たせなければ折れ線のまま ⚠。
+                float insSF = float.NaN;
+                {   var mIns = System.Text.RegularExpressions.Regex.Match(S(Get(kd, "sideFaceSashikomi")) ?? "", @"=\s*([0-9.]+)\s*[(（]");
+                    if (!mIns.Success) mIns = System.Text.RegularExpressions.Regex.Match(sf, @"見え面の内へ\s*([0-9.]+)\s*差し込");
+                    if (mIns.Success) insSF = float.Parse(mIns.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture); }
+                string rootP = System.IO.Directory.GetParent(Application.dataPath).FullName;
+                Func<float, bool> kadoOk = dg => System.IO.File.Exists(System.IO.Path.Combine(rootP, EdoBuild.KadoDegBaked(dg, 4.8f, 0)));
+                float[] gsLast = null; string noteLast = null;
+                Func<float, string, List<Vector2>[]> crestLines = (tt, tag) => { float[] gq; string nq; var lq = float.IsNaN(insSF)
+                        ? EdoBuild.StairSideCrestLines(nodes, foot, ax, halfW, tt, batter, surf, uEnd, 0.02f, out gq, out nq)
+                        : EdoBuild.StairSideCrestLinesOneFace(nodes, foot, ax, halfW, tt, batter, surf, uEnd, 0.02f, insSF - 0.05f, kadoOk, out gq, out nq);
+                    gsLast = gq; noteLast = nq;
+                    sb.AppendLine("    口 " + key + " × " + by + "(sideFace の面" + tag + "): " + (float.IsNaN(insSF) ? "★ 差し込みが読めない ── 折れ線のまま " : "") + nq);
+                    return lq; };
+                var lines = crestLines(top, ""); gs = gsLast; note = noteLast;
                 if (lines[0] == null || lines[1] == null) { ng.Add(g); sb.AppendLine("    ★ 口 " + key + " × " + by + ": sideFace の線が解けない(" + note + ")── 紙の口のまま"); continue; }
                 Vector2 nrm = new Vector2(-ax.y, ax.x);
                 // 見え面の足元 = 段石の踏面(その走りの列の天端)── 駒の丈を踏面から測る(⛔ 段の下の地形で測ると丈が足りず踏面の上に口が開いた・第57巡の初手)
@@ -5739,7 +5755,7 @@ public static class EdoOkabeYashikiBuilder
                       var mSd = System.Text.RegularExpressions.Regex.Match(sdTxt ?? "", @"[(（]Side" + si + @"[)）]の天端は[^【]*?(\d+(?:\.\d+)?)【硬】");
                       if (mSd.Success)
                       { float tS = float.Parse(mSd.Groups[1].Value, inv); float[] gs2; string note2;
-                        var l2 = Mathf.Abs(tS - top) > 1e-3f ? EdoBuild.StairSideCrestLines(nodes, foot, ax, halfW, tS, batter, surf, uEnd, 0.02f, out gs2, out note2) : null;
+                        var l2 = Mathf.Abs(tS - top) > 1e-3f ? crestLines(tS, " Side" + si + " 天端 " + tS.ToString("F2", inv)) : null; gs2 = null; note2 = null;
                         if (Mathf.Abs(tS - top) <= 1e-3f || (l2 != null && l2[si] != null)) { topSi = tS; if (l2 != null) linesSi = l2[si]; sb.AppendLine("    口 " + key + " × " + by + ": 脇の返し Side" + si + " の天端 " + top.ToString("F2", inv) + " → " + tS.ToString("F2", inv) + "(欄 side" + si + ")"); }
                         else sb.AppendLine("    ★ 口 " + key + " × " + by + ": 脇の返し Side" + si + " を天端 " + tS.ToString("F2", inv) + " で解けない ── " + top.ToString("F2", inv) + " のまま"); } }
                     float tSi = topSi;
@@ -6375,6 +6391,7 @@ public static class EdoOkabeYashikiBuilder
                     fMin = (x, z) => { float m0 = fMin0 == null ? float.NaN : fMin0(x, z); var q = new Vector2(x, z); if (!nearHk(q)) return m0;
                         float f = EdoGeom.PIP(PPk, q) ? HoriFootFloor(q) : EdoBuild.Ground(x, z); if (float.IsNaN(f)) return m0; return float.IsNaN(m0) ? f : Mathf.Max(f, m0); }; }
             }
+            sb.Append(CutKaidansGroundR137b("(下げの前)"));   // ⭐ 第142巡: 段の下を切ってから見え面の前の地表を読む(CutKaidansGroundR137b の注)
             sb.AppendLine("  " + EdoBuild.SinkGroundUnderParts(walls, 0.05f, SinkUndoPath, fMin));
             // ⭐ 角の庭と練塀の内の足元の帯の下限を最後にもう一度(第116巡: 2b の盛りの後に段の法が庭の縁と隅 P4 の足元を 11.87 まで切り、庭の最低 < 12.30・P4 の足が 0.26 浮いた)
             //   盛った節点・帯の節点が下限より低ければ下限へ上げる(上げるだけ)。溝・桝の駒の外形の中は触らない(溝の中に土を入れない)。
@@ -6537,7 +6554,7 @@ public static class EdoOkabeYashikiBuilder
                     var overP = new List<Vector3>(); string pref = twn + "_";
                     //   区切り = 駒の名の「<欄>_<区切り>_」(TW_Higashi_Se_3_0_124f → 3・TW_Higashi_Se_Side0_1_112f → Side0)── 盛りの上限を超える区切りは丸ごと盛らない
                     System.Func<GameObject, string> grp = g => { string rest = g.name.Substring(pref.Length); int u = rest.IndexOf('_'); return u < 0 ? rest : rest.Substring(0, u); };
-                    string rS = EdoBuild.ShoulderFillToTerrain(ccT, g => g.name.StartsWith(pref), grp, endS, sk, mx, stopY, q => EdoGeom.PIP(PPc, q) && EdoBuild.EdgeDistPublic(PPc, q) >= clipC, q => oth.Covers(q, 0.05f), BandRecPath("s3d"), overP);
+                    string rS = EdoBuild.ShoulderFillToTerrain(ccT, g => g.name.StartsWith(pref), grp, endS, sk, mx, stopY, q => EdoGeom.PIP(PPc, q) && EdoBuild.EdgeDistPublic(PPc, q) >= clipC, q => oth.Covers(q, 0.05f) || EdoBuild.UnderLookingFace(q), BandRecPath("s3d"), overP, EdoBuild.UnderAnyPart);   // ⭐ 第142巡: 見え面の下(駒の下の下げが読んだ節点)へ肩の土を載せない
                     sb.AppendLine("  " + twn + ".shoulder: " + rS);
                     if (overP.Count > 0) { overP.Sort((a, b) => b.z.CompareTo(a.z)); var ls = new List<string>(); for (int k = 0; k < Mathf.Min(8, overP.Count); k++) ls.Add("(" + overP[k].x.ToString("F1", inv) + "," + overP[k].y.ToString("F1", inv) + ") +" + overP[k].z.ToString("F2", inv)); sb.AppendLine("    盛り > " + mx.ToString("F2", inv) + " の点(普請方へ): " + string.Join("・", ls.ToArray())); }
                 }
@@ -6554,15 +6571,7 @@ public static class EdoOkabeYashikiBuilder
         // ⭐ 第138巡(普請方 r137b T1【硬】「石段の平面の地盤は、各点で真上の段石の踏面の天端 −x 以下に高さで指定して切る・段の上に土を載せない」)── 地面を書く手の最後に
         //   (EdoBuild.CutGroundUnderTreads ── 段石の実メッシュの上を向いた面で測る)。欄 kaidans[].groundR137b を持つ石段だけ(⛔ 読めなければ ★ で切らない)
         {
-            var kaiT = GameObject.Find(GN).transform.Find("Fuzoku/Kaidan");
-            foreach (var ko in A(Get(D, "kaidans")) ?? new List<object>())
-            {
-                var k = O(ko); var g7 = k == null ? null : O(Get(k, "groundR137b")); if (g7 == null) continue; string kn = S(Get(k, "name"));
-                var m7 = System.Text.RegularExpressions.Regex.Match(S(Get(g7, "write")) ?? "", @"踏面の天端\s*[−\-]\s*([0-9.]+)\s*以下");
-                if (!m7.Success || kaiT == null) { sb.AppendLine("  ★ " + kn + ".groundR137b: 「踏面の天端 −x 以下」が読めない ── 切らない"); continue; }
-                //   切りは「踏面 −x 以下」── 双一次の地表が蹴上の隅で 0.004 越えた(第138巡)ので x + 0.01 で切る(以下を守る側)
-                sb.AppendLine("  " + kn + "(groundR137b): " + CutUnderKaidan(kn, float.Parse(m7.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) + 0.01f));
-            }
+            sb.Append(CutKaidansGroundR137b(""));
             // ⭐ 第138巡(普請方 r137b T3【硬・敷地外への波及 0】): 線の外 2m の道の側を base_dem(と道の線際の均し)へ両向きで戻す ── 駒の外形の下(基壇の見え面・溝と桝の下)は触らない
             if (EdoBuild.TerrainCell(EdoBuild.T()) < 1f)
             {
@@ -9899,6 +9908,25 @@ public static class EdoOkabeYashikiBuilder
         }
         return sb.ToString();
     }
+    /// <summary>欄 kaidans[].groundR137b を持つ石段の段石の真下の地盤を「踏面の天端 −x 以下」へ切る(<see cref="CutUnderKaidan"/> を石段ごとに)。
+    /// ⭐ 第142巡: Stage3d で**駒の下の下げ(SinkGroundUnderParts)の前にも**流す ── 下げは見え面の前の地表で止めるので、段の下を切る前の
+    /// 平場の高さ(K_Tsuyo の口の中 15.87)を前の地表と読み、脇の返しの見え面の上の節点を 15.85 のまま残した(V 字・縦の帯の土 0.2〜2.3)。冪等(切るだけ)。
+    /// 当たる先: 石段の両脇に法の土留めが立つ所すべて(岡部 K_Tsuyo・K_Kuruwa ほか groundR137b を持つ石段)。</summary>
+    static string CutKaidansGroundR137b(string tag)
+    {
+        var sb = new System.Text.StringBuilder();
+        var kaiT = GameObject.Find(GN).transform.Find("Fuzoku/Kaidan");
+        foreach (var ko in A(Get(D, "kaidans")) ?? new List<object>())
+        {
+            var k = O(ko); var g7 = k == null ? null : O(Get(k, "groundR137b")); if (g7 == null) continue; string kn = S(Get(k, "name"));
+            var m7 = System.Text.RegularExpressions.Regex.Match(S(Get(g7, "write")) ?? "", @"踏面の天端\s*[−\-]\s*([0-9.]+)\s*以下");
+            if (!m7.Success || kaiT == null) { sb.AppendLine("  ★ " + kn + ".groundR137b: 「踏面の天端 −x 以下」が読めない ── 切らない"); continue; }
+            //   切りは「踏面 −x 以下」── 双一次の地表が蹴上の隅で 0.004 越えた(第138巡)ので x + 0.01 で切る(以下を守る側)
+            sb.AppendLine("  " + kn + "(groundR137b" + tag + "): " + CutUnderKaidan(kn, float.Parse(m7.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) + 0.01f));
+        }
+        return sb.ToString();
+    }
+
 
     /// <summary>袖の背の検めで超えた点の「止めた相手」(普請方 r137b T2「盛りの上限ではなく穴で止まっているはず ── どの穴で止まったかを出す」)── 道の路盤・区画の外・
     /// 他の駒の外形(0.3 以内)・脇の返しの背の帯(K_Dan*.sideBack)・設計面との差。読むだけ。</summary>

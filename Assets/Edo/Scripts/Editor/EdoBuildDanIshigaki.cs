@@ -686,6 +686,63 @@ public static partial class EdoBuild
         return res;
     }
 
+    /// <summary>**石段の脇の返しを一つの面で**(指図 kaidans[].sideFace「口の出隅の隅の駒も口の側の面を同じ線にそろえ、脇の面は一つだけ・手前へ出る面は作らない【硬】」
+    /// ・見え面と端の線を揃えるのは【柔】±0.05 ── EDO-0502 第142巡 施主「石垣に段差ができてないですか？」)。
+    /// <see cref="StairSideCrestLines(List{Vector2},Vector2,Vector2,float,float,float,List{Vector2},float,float,out float[],out string)"/> の折れ線の天端は
+    /// 踊り場の前後で 10° 前後折れ、平らな法の駒を折れ線に並べると、折れの所(隅の駒の腕の先と次の駒)で見え面が下ほど前後へ食い違う
+    /// (法 b × 深さ h × 折れの角 ── 岡部 K_Tsuyo の両脇で 0.15〜0.37)。⇒ 側ごとに**天端の線を一本の直線**にする(見え面が一つの平面)。
+    /// 直線は「各踏面の高さで見え面 − 端の線」の最悪(両向き)が最も小さい物(柔 ── 狙いの ±0.05 に届かなければ呼び手が ⚠ で刷る)。
+    /// 硬い(許容0・満たす直線が無ければその側は折れ線のまま ⚠): ① 見え面が端の線より外へ退く最悪 ≤ <paramref name="maxOut"/>(段石の差し込み − 0.05 ── 段石の端と見え面の間に口を開けない)、
+    /// ② 口の出隅の折れの角に焼いた隅の駒がある(<paramref name="angleOk"/>)。当たる先: sideFace を持つ石段の両脇の返し全部(岡部 K_Tsuyo・K_Dan1・K_Dan2)。</summary>
+    public static List<Vector2>[] StairSideCrestLinesOneFace(List<Vector2> wallNodes, Vector2 foot, Vector2 up, float halfW, float crest, float batter,
+        List<Vector2> surf, float uEnd, float tol, float maxOut, Func<float, bool> angleOk, out float[] gapS, out string note)
+    {
+        var res = StairSideCrestLines(wallNodes, foot, up, halfW, crest, batter, surf, uEnd, tol, out gapS, out note);
+        up.Normalize(); Vector2 n = new Vector2(-up.y, up.x);
+        var su = new List<Vector2>(surf); su.Sort((p, q) => p.x.CompareTo(q.x));
+        var off = new List<Vector2>(); foreach (var p in su) if (p.x <= uEnd + 1e-3f) off.Add(new Vector2(p.x, halfW + batter * Mathf.Max(0f, crest - p.y)));
+        if (off.Count < 2) return res;
+        float u0 = off[0].x, u1 = off[off.Count - 1].x;
+        for (int si = 0; si < 2; si++)
+        {
+            if (res[si] == null) continue;
+            float sg = si == 0 ? 1f : -1f;
+            float bestDev = float.MaxValue, bestS = 0f, bestA = 0f, bestDeg = float.NaN, bestArc = float.NaN; Vector2 bestHit = Vector2.zero; int nTry = 0, nOut = 0, nAng = 0;
+            for (int k = -300; k <= 300; k++)
+            {
+                float s = k * 0.002f;   // 退きの勾配(走り u が 1 増すごとに退きが s 減る)
+                float rMin = float.MaxValue, rMax = float.MinValue; foreach (var o in off) { float r = o.y + s * o.x; rMin = Mathf.Min(rMin, r); rMax = Mathf.Max(rMax, r); }
+                float a = 0.5f * (rMin + rMax), dev = 0.5f * (rMax - rMin); nTry++;
+                if (dev >= bestDev) continue;
+                if (dev > maxOut + 1e-4f) { nOut++; continue; }   // 硬 ①: 見え面が端の線より外へ退く最悪 = dev
+                Vector2 pa = foot + up * u0 + n * (sg * (a - s * u0)), pb = foot + up * u1 + n * (sg * (a - s * u1));
+                // 本線との交点(最初の区間を下手へ 20m 延ばす ── 折れ線と同じ)
+                Vector2 A0 = pa - (pb - pa).normalized * 20f, r2 = pb - A0; float hitT = float.MaxValue, arc = 0f, hitArc = float.NaN; Vector2 hit = Vector2.zero, dMain = Vector2.zero;
+                for (int j = 0; j + 1 < wallNodes.Count; j++)
+                {
+                    Vector2 c = wallNodes[j], d = wallNodes[j + 1], s2 = d - c; float den = r2.x * s2.y - r2.y * s2.x;
+                    if (Mathf.Abs(den) > 1e-6f)
+                    {
+                        Vector2 ca = c - A0; float t = (ca.x * s2.y - ca.y * s2.x) / den, uu = (ca.x * r2.y - ca.y * r2.x) / den;
+                        if (t >= 0f && t <= 1f && uu >= -1e-3f && uu <= 1f + 1e-3f && t < hitT) { hitT = t; hit = A0 + r2 * t; hitArc = arc + s2.magnitude * Mathf.Clamp01(uu); dMain = s2.normalized; }
+                    }
+                    arc += s2.magnitude;
+                }
+                if (float.IsNaN(hitArc)) continue;
+                // 口の出隅の折れ(網の折れと同じ読み = 180° − 離れる向きどうしの角)── 本線は口から外(この側)へ離れる向き
+                Vector2 mAway = Vector2.Dot(dMain, n * sg) >= 0f ? dMain : -dMain, sAway = (pb - hit).normalized;
+                float deg = 180f - Vector2.Angle(sAway, mAway);
+                if (angleOk != null && !angleOk(deg)) { nAng++; continue; }
+                bestDev = dev; bestS = s; bestA = a; bestDeg = deg; bestArc = hitArc; bestHit = hit;
+            }
+            if (bestDev == float.MaxValue) { note += (si == 0 ? "右" : "左") + ": ⚠ 一つの面にできない(試し " + nTry + "・差し込みを越える " + nOut + "・焼いた隅の駒の無い折れ " + nAng + ")── 折れ線のまま "; continue; }
+            Vector2 pe = foot + up * u1 + n * (sg * (bestA - bestS * u1));
+            res[si] = new List<Vector2> { bestHit, pe }; gapS[si] = bestArc;
+            note += (si == 0 ? "右" : "左") + ": 一つの面(直線)・本線の s=" + bestArc.ToString("F2") + "・見え面 − 端の線 ±" + bestDev.ToString("F3") + "(柔 狙い ±0.05" + (bestDev > 0.05f ? " ⚠" : " ⭕") + ")・口の出隅の折れ " + bestDeg.ToString("F1") + "° ";
+        }
+        return res;
+    }
+
     // ============================================================ 段違いの継ぎ目の下の積み下ろし(EDO-0502 第11巡)
     /// <summary>**段違いの継ぎ目の下を同じ積みの駒で地表まで積み下ろす**(2026-10-04 EDO-0502 第11巡・指図 terraceWalls[].dropJoint)。
     /// 野面の段の境の駒(<see cref="PlaceNozuraRun"/> が段の境に据える勾配の駒・名 <c>*_dan</c>)は丈が一つ(H1.50)しか焼いていないので、

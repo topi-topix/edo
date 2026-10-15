@@ -3135,6 +3135,11 @@ public static partial class EdoBuild
     /// 区切りの境は天端の段(段は棟の境の妻の線)なので、盛る区切りと盛らない区切りの境は段に隠れる。</summary>
     public static string ShoulderFillToTerrain(NozuraCrestCover cc, Func<GameObject, bool> which, Func<GameObject, string> groupOf, float end, float skirt, float maxFill, Func<Vector2, float> stopY,
                                                Func<Vector2, bool> allow, Func<Vector2, bool> otherPart, string recPath, List<Vector3> over)
+    { return ShoulderFillToTerrain(cc, which, groupOf, end, skirt, maxFill, stopY, allow, otherPart, recPath, over, null); }
+    /// <summary><paramref name="hiddenOver"/>(節点 → 駒の下で見えないか): 盛りが上限を超える節点のうち駒の下に隠れる物は、盛らずに区切りの退けにも数えない
+    /// (第142巡: K_Tsuyo の上がり口で段石の端と積み止めの駒の天端の間 ── 段の下を切った地盤が駒の天端の帯の下に入り、盛り 0.78 で区切り Side1 の肩を丸ごと退けた)。</summary>
+    public static string ShoulderFillToTerrain(NozuraCrestCover cc, Func<GameObject, bool> which, Func<GameObject, string> groupOf, float end, float skirt, float maxFill, Func<Vector2, float> stopY,
+                                               Func<Vector2, bool> allow, Func<Vector2, bool> otherPart, string recPath, List<Vector3> over, Func<Vector2, bool> hiddenOver)
     {
         if (cc == null || cc.list.Count == 0) return "肩の盛り: 覆う駒なし";
         var t = T(); var td = t.terrainData; var org = t.transform.position; int R = td.heightmapResolution; float hs = td.size.x / (R - 1);
@@ -3162,6 +3167,7 @@ public static partial class EdoBuild
                 var q = new Vector2(org.x + i * hs, org.z + j * hs); if (allow != null && !allow(q)) continue;
                 float dB; long bk; float y = cc.ShoulderTarget(q, which, end, skirt, reach, out dB, out bk); if (float.IsNaN(y)) continue; y = capTo(bk, dB, y);
                 float cur0 = H[j - j0, i - i0] * td.size.y + org.y; if (y <= cur0 + 1e-4f || dB > end || cc.Protected(q) || (cc.keepOut != null && cc.keepOut(q)) || (otherPart != null && otherPart(q))) continue;
+                if (hiddenOver != null && y - cur0 > maxFill + 1e-4f && hiddenOver(q)) continue;
                 string gk = grpOf(bk); float nd; needNear.TryGetValue(gk, out nd); if (y - cur0 > nd) needNear[gk] = y - cur0;
             }
         var overBins = new HashSet<string>(); foreach (var kv in needNear) if (kv.Value > maxFill + 1e-4f) overBins.Add(kv.Key);
@@ -3176,6 +3182,7 @@ public static partial class EdoBuild
                 if (cc.keepOut != null && cc.keepOut(q)) continue;
                 if (otherPart != null && otherPart(q)) { nOther++; continue; }
                 if (dB > cc.back && stopY != null) { float sY = stopY(q); if (float.IsNegativeInfinity(sY)) { nStop++; continue; } if (!float.IsNaN(sY) && sY < y) { y = sY; nStop++; if (y <= cur + 1e-4f) continue; } }
+                if (y - cur > maxFill + 1e-4f && hiddenOver != null && hiddenOver(q)) continue;   // 駒の下に隠れる超え ── 盛らない・数えない
                 if (y - cur > maxFill + 1e-4f) { nOver++; mOver = Mathf.Max(mOver, y - cur); if (over != null) over.Add(new Vector3(q.x, q.y, y - cur)); continue; }
                 rec[((long)i << 32) ^ (uint)j] = y; mUp = Mathf.Max(mUp, y - cur); m3 += (y - cur) * hs * hs; nUp++;
                 H[j - j0, i - i0] = (y - org.y) / td.size.y;

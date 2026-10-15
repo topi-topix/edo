@@ -6615,9 +6615,10 @@ public static class EdoOkabeYashikiBuilder
                 List<GameObject> qp; List<Vector2[]> qc; int a1, a2, a3, a4; GroundQAParts(GameObject.Find(GN).transform, out qp, out qc, out a1, out a2, out a3, out a4);
                 var hidQ = EdoBuild.NearHulls(qp, 0f); var covW = qc; System.Func<Vector2, bool> hidW = q => { if (hidQ(q)) return true; foreach (var hh in covW) if (hh != null && hh.Length >= 3 && EdoGeom.PIP(hh, q)) return true; return false; };
                 var mzW = new List<GameObject>(); foreach (var gm in MizoGroups) foreach (Transform c in Group(gm)) if (c.gameObject.activeInHierarchy) mzW.Add(c.gameObject); var nearMz = EdoBuild.NearHulls(mzW, 0.6f);
-                //   高い面 = 記録に無い節点すべて(S1 の平場の面・道の路盤・今の地盤 ── 記録に残す書き手は小段・擦り付け・帯の埋め)。⛔ 設計の面の平らさで選ばない(第141巡の一度目:
-                //   返しの腕の先の 21.0 は設計の平場でなく、高い面に数えられず 1.42 の段が残った)
-                sb.AppendLine("  " + EdoBuild.YieldWrittenToPriority(new[] { BandRecPath("bench"), BandRecPath("s3d") }, nearMz, null, hidW, Poly, slW, 4.0f, BandRecPath("s3d")) + "(writerPriorityR140)");
+                //   高い面 = 平場の面(設計の面が平らで今の地形がその値の節点)。⛔ 記録に無い節点すべてを高い面にしない(第141巡の二度目: TW_Minami_Mizo の端の背の盛りを下げて
+                //   小口の隙が 1→7、返しの腕の先は上げで 1.42→1.92 ── 犬走り・裏込めも低い書き手に数えてしまう)
+                System.Func<Vector2, float> plane = q => { float y = DesignY(q); if (float.IsNaN(y)) return float.NaN; foreach (var d in new[] { new Vector2(0.25f, 0f), new Vector2(-0.25f, 0f), new Vector2(0f, 0.25f), new Vector2(0f, -0.25f) }) { float y2 = DesignY(q + d); if (float.IsNaN(y2) || Mathf.Abs(y2 - y) > 0.005f) return float.NaN; } return y; };
+                sb.AppendLine("  " + EdoBuild.YieldWrittenToPriority(new[] { BandRecPath("bench"), BandRecPath("s3d") }, nearMz, plane, hidW, Poly, slW, 4.0f, BandRecPath("s3d")) + "(writerPriorityR140)");
                 AssetDatabase.SaveAssetIfDirty(EdoBuild.T().terrainData);
             }
         } catch (System.Exception ex) { sb.AppendLine("  ⛔ 書き手の優先の順で例外: " + ex.Message); Debug.LogException(ex); }

@@ -8827,15 +8827,15 @@ public static class EdoOkabeYashikiBuilder
         System.Func<float, float, float> curb = (x, z) => { float bd2 = 6.25f, y2 = float.NaN; foreach (var cp in curbPts) { float d2 = (cp.x - x) * (cp.x - x) + (cp.y - z) * (cp.y - z); if (d2 < bd2) { bd2 = d2; y2 = cp.z; } } return float.IsNaN(y2) ? _mhCurbTop(x, z) : y2; };
         float bat = EdoBuild.RIM_BATTER; var extraPts = new List<Vector3>(); string attemptNote = "";
         //   溝の筋へ入った駒の所だけ法尻の線を局所に背へ足す(入った溝の駒の芯から 1.2 の内 ── ⛔ 脚ごと全部を出さない: 法尻 − 縁 ≤ +0.10【硬】を他の所で割る)
-        //   足す量は入った所から 0.8 は全量・その先 2.5 で 0 へ(⛔ 段で足すと法尻の線に 15〜20° の折れが立ち、隅の駒が偽の隅に据わった)
-        System.Func<Vector2, float> extraAt = q => { float m = 0f; foreach (var ep in extraPts) { float d = Vector2.Distance(new Vector2(ep.x, ep.y), q); m = Mathf.Max(m, ep.z * Mathf.Clamp01(1f - (d - 0.8f) / 2.5f)); } return m; };
+        //   足す量は入った所から 0.8 は全量・その先 4.0 で 0 へ(折れ ≤5°)(⛔ 段で足すと法尻の線に 15〜20° の折れが立ち、隅の駒が偽の隅に据わった)
+        System.Func<Vector2, float> extraAt = q => { float m = 0f; foreach (var ep in extraPts) { float d = Vector2.Distance(new Vector2(ep.x, ep.y), q); m = Mathf.Max(m, ep.z * Mathf.Clamp01(1f - (d - 0.8f) / 4.0f)); } return m; };
         var heights = new List<float>(); foreach (var h in new[] { 0.30f, 0.60f, 0.90f, 1.20f, 1.50f, 1.80f, 2.10f, 2.40f, 4.80f }) if (h >= hLo - 1e-3f && (h <= hHi + 1e-3f || h > 4f)) heights.Add(h);
         float back = 0f; foreach (var v in EdoBuild.BodyAt(EdoAssets.Own.SannoNozura(0.6f, 0f, 0), Vector3.zero, 0f, true)) back = Mathf.Max(back, -v.z);
         for (int attempt = 0; attempt < 6; attempt++)
         {
             var sbA = new System.Text.StringBuilder();
             List<Vector2> curbLine, toeN; List<int> toeOf; int nMeas;
-            var toe = EdoBuild.CurbToeLine(ch, nrm, mz, clr, extraAt, out curbLine, out toeN, out toeOf, out nMeas);
+            var toe = EdoBuild.CurbToeLine(ch, nrm, mz, clr, extraAt, out curbLine, out toeN, out toeOf, out nMeas, cDeg);
             if (toe.Count < 2) return sb + "    ★ 縁石の外の縁が測れない ── 建てない\n";
             var cumT = new float[toe.Count]; for (int k = 1; k < toe.Count; k++) cumT[k] = cumT[k - 1] + Vector2.Distance(toe[k - 1], toe[k]);
             float Lt = cumT[toe.Count - 1]; int nS = Mathf.FloorToInt(Lt / 0.25f) + 1;
@@ -8843,12 +8843,12 @@ public static class EdoOkabeYashikiBuilder
             var qS = new Vector2[nS]; var nS_ = new Vector2[nS]; var cS = new float[nS]; var e = new float[nS]; var gB = new float[nS]; var c = new float[nS];
             for (int i = 0; i < nS; i++) { float s0 = Mathf.Min(Lt, i * 0.25f); int k = segAt(s0); qS[i] = toe[k] + (toe[k + 1] - toe[k]).normalized * (s0 - cumT[k]); nS_[i] = toeN[k]; cS[i] = curb(qS[i].x, qS[i].y); e[i] = 0.6f; }
             //   天端 = 見え面(天端の前の縁 = 法尻 + 法 × 見付)から near の背の今の地盤を一駒の幅(±0.909)で均す ── 見付が天端で変わるので 3 回解く
-            int hw = Mathf.RoundToInt(0.909f / 0.25f);
+            int hw = Mathf.RoundToInt(0.909f / 0.25f); var gTop = new float[nS];
             for (int it = 0; it < 3; it++)
             {
                 for (int i = 0; i < nS; i++) { var q = qS[i] + nS_[i] * (bat * Mathf.Max(0f, e[i]) + near); gB[i] = EdoBuild.Ground(q.x, q.y); }
                 //   背の切り ≤ cutMax【硬】で天端 ≥ 背の地盤【硬】を守れるよう、天端は見え面から near の内の地盤の最高(一駒の窓)− (cutMax − 0.05) を下回らない
-                var gTop = new float[nS]; for (int i = 0; i < nS; i++) { float m = float.MinValue; foreach (var dn in new[] { 0.05f, 0.5f * near, near }) { var q = qS[i] + nS_[i] * (bat * Mathf.Max(0f, e[i]) + dn); float g = EdoBuild.Ground(q.x, q.y); if (!float.IsNaN(g)) m = Mathf.Max(m, g); } gTop[i] = m == float.MinValue ? float.NaN : m; }
+                for (int i = 0; i < nS; i++) { float m = float.MinValue; foreach (var dn in new[] { 0.05f, 0.5f * near, near }) { var q = qS[i] + nS_[i] * (bat * Mathf.Max(0f, e[i]) + dn); float g = EdoBuild.Ground(q.x, q.y); if (!float.IsNaN(g)) m = Mathf.Max(m, g); } gTop[i] = m == float.MinValue ? float.NaN : m; }
                 for (int i = 0; i < nS; i++)
                 {
                     float acc = 0f; int cn = 0; float mx = float.MinValue;
@@ -8876,7 +8876,11 @@ public static class EdoOkabeYashikiBuilder
                 for (int k = 1; k + 1 < toe.Count; k++)
                 {
                     float tn = Vector2.Angle(toe[k] - toe[k - 1], toe[k + 1] - toe[k]); if (tn < cDeg) continue; float sC = cumT[k]; if (sC < sA || sC > sB) continue;
-                    int iC = Mathf.Clamp(Mathf.RoundToInt(sC / 0.25f), ia, ib); float yC = cr[iC - ia];
+                    int iC = Mathf.Clamp(Mathf.RoundToInt(sC / 0.25f), ia, ib); float yC = float.MaxValue, gT = float.MinValue;
+                    for (int i = ia; i <= ib; i++) if (Mathf.Abs(i * 0.25f - sC) <= 0.909f + 0.25f) { yC = Mathf.Min(yC, cr[i - ia]); if (!float.IsNaN(gTop[i])) gT = Mathf.Max(gT, gTop[i]); }
+                    //   隅の駒の焼いた見付に収める(焼いた最も高い H − 根入れ)── 背の切り ≤ cutMax を割らない所まで(割るなら楔のまま ⚠)
+                    { float hMaxK = float.NaN; foreach (var hh in new[] { 2.4f, 2.1f, 1.8f, 1.5f, 1.2f, 0.9f, 0.6f }) { string pk = EdoBuild.KadoDegBaked(tn, hh, 0); if (System.IO.File.Exists(System.IO.Path.Combine(System.IO.Directory.GetParent(Application.dataPath).FullName, pk))) { hMaxK = hh; break; } }
+                      if (!float.IsNaN(hMaxK)) { float yH = cS[iC] + hMaxK - neiri - 0.02f; if (yH < yC) { if (gT == float.MinValue || yH >= gT - (cutMax9 - 0.05f)) { cornerNote += "(隅の駒 H" + hMaxK.ToString("0.0", inv) + " に収めて " + (yC - yH).ToString("F2", inv) + " 下げ)"; yC = yH; } else cornerNote += "(⚠ 隅の駒 H" + hMaxK.ToString("0.0", inv) + " に収めると背の切り > " + cutMax9.ToString("0.00", inv) + ")"; } } }
                     for (int i = ia; i <= ib; i++) if (Mathf.Abs(i * 0.25f - sC) <= 0.909f + 0.25f) cr[i - ia] = yC;
                     cornerNote += " s" + sC.ToString("F1", inv) + " 折れ " + tn.ToString("F1", inv) + "° 天端 " + yC.ToString("F2", inv);
                 }

@@ -343,7 +343,7 @@ public static partial class EdoBuild
     /// 一つの頂点にする(折れの際 0.6 の内の点は捨てる ── 曲がりの間の駒は隅の駒の下)。縁の測れない脚は隣の脚の離れを借りる。⟶ 法尻の線(離れ = 縁 + c + extraAt(縁の点) ── 溝の筋へ入った駒の所だけ局所に足す)。
     /// <paramref name="curbLine"/> = 同じ頂点の縁そのもの(測りの基準)・<paramref name="legN"/> = 線の区間ごとの背の向き・<paramref name="legOf"/> = 区間ごとの鎖の脚。
     /// ⛔ 座標を書かない・基準点で測らない。当たる先: 溝の縁に沿って立てる土留め・帯の線(岡部 TW_Minami_Mizo)。</summary>
-    public static List<Vector2> CurbToeLine(IList<Vector2> ch, IList<Vector2> nrm, IList<GameObject> mz, float clr, Func<Vector2, float> extraAt, out List<Vector2> curbLine, out List<Vector2> legN, out List<int> legOf, out int nMeasured)
+    public static List<Vector2> CurbToeLine(IList<Vector2> ch, IList<Vector2> nrm, IList<GameObject> mz, float clr, Func<Vector2, float> extraAt, out List<Vector2> curbLine, out List<Vector2> legN, out List<int> legOf, out int nMeasured, float cornerDeg = 15f)
     {
         int nl = ch.Count - 1; nMeasured = 0; curbLine = new List<Vector2>(); legN = new List<Vector2>(); legOf = new List<int>();
         var tl = new Vector2[nl]; var Ll = new float[nl]; for (int i = 0; i < nl; i++) { Ll[i] = Vector2.Distance(ch[i], ch[i + 1]); tl[i] = (ch[i + 1] - ch[i]) / Mathf.Max(1e-6f, Ll[i]); }
@@ -377,7 +377,14 @@ public static partial class EdoBuild
             for (int d = 0; d < nl; d++) foreach (int j in new[] { i - d, i + d }) { if (j < 0 || j >= nl || pts[j].Count == 0) continue; var L = pts[j]; return j == i ? (atEnd ? L[L.Count - 1].y : L[0].y) : (j < i ? L[L.Count - 1].y : L[0].y); }
             return 0.6f;
         };
-        Func<Vector2, float> exq = q => extraAt != null ? Mathf.Max(0f, extraAt(q)) : 0f;
+        Func<Vector2, float> exq0 = q => extraAt != null ? Mathf.Max(0f, extraAt(q)) : 0f;
+        // ⭐ 折れ(≥ cornerDeg)の際 2.5 の内は足す量を一つの値(その内の最大)にする ── 両脚を平行に出し、隅の折れを鎖の折れのまま保つ
+        //   (⛔ 点ごとに足すと腕ごとに違う量で出て折れが 38 → 33° に化け、焼いた隅の駒が引けず楔が残った ── 第140巡の一度目の流し)。その先 2.5 で点ごとの量へ戻す
+        var cornerPts = new List<Vector2>(); for (int i = 1; i < nl; i++) if (turn[i] >= cornerDeg) cornerPts.Add(ch[i] + 0.5f * (nrm[i - 1] + nrm[i]) * latEnd(i, false));
+        var cornerMax = new List<float>();
+        foreach (var cp in cornerPts) { float m = 0f; for (float u = -2.5f; u <= 2.5f + 1e-3f; u += 0.25f) foreach (var d in new[] { new Vector2(1f, 0f), new Vector2(0f, 1f) }) { var q = cp + d * u; m = Mathf.Max(m, exq0(q)); } cornerMax.Add(m); }
+        for (int it = 0; it < 3; it++) for (int a = 0; a < cornerPts.Count; a++) for (int b = 0; b < cornerPts.Count; b++) if (a != b && Vector2.Distance(cornerPts[a], cornerPts[b]) <= 5f) cornerMax[a] = Mathf.Max(cornerMax[a], cornerMax[b]);   // 近い隅どうし(間の脚が短い)は同じ量
+        Func<Vector2, float> exq = q => { float v = exq0(q); for (int k = 0; k < cornerPts.Count; k++) { float d = Vector2.Distance(q, cornerPts[k]); float w = d <= 2.5f ? 1f : Mathf.Clamp01(1f - (d - 2.5f) / 2.5f); if (d <= 2.5f) v = cornerMax[k]; else v = Mathf.Max(v, cornerMax[k] * w); } return v; };
         var curbV = new List<Vector2>(); var vLeg = new List<int>(); var toeV = new List<Vector2>();
         Action<Vector2, Vector2, int> addV = (cv, tv, leg) => { curbV.Add(cv); toeV.Add(tv); vLeg.Add(leg); };
         { float l0 = latEnd(0, false); var c0 = ch[0] + nrm[0] * l0; addV(c0, ch[0] + nrm[0] * (l0 + clr + exq(c0)), 0); }
@@ -613,9 +620,51 @@ public static partial class EdoBuild
             foreach (var k in comp) { float cur = hgt(k), y = val[k]; if (Mathf.Abs(y - cur) < 1e-4f) continue; td.SetHeightsDelayLOD((int)(k >> 32), (int)(uint)(k & 0xffffffffL), new float[,] { { (y - tp.y) / ts.y } }); rec[k] = y; nNodes++; if (y > cur) upMx = Mathf.Max(upMx, y - cur); else dnMx = Mathf.Max(dnMx, cur - y); }
             if (comp.Count >= 3) { var p0 = pos(comp[0]); at.Add("(" + p0.x.ToString("F1") + "," + p0.y.ToString("F1") + ") " + comp.Count); }
         }
-        if (nNodes > 0) td.SyncHeightmap();
+        // ⭐ 向かい合う二方を書いた節点に挟まれた帯(幅 ≤ 3 升)── 細い帯の端が書いていない広い所へ抜けていると塊の手では「囲まれていない」になる
+        //   (岡部 TW_Kita_Koshi の返しの腕の先: 小段と擦り付けの間の一升幅・約 3m の帯は両端が外へ抜けていた)。挟む向きのうち短い方で一次に補う。
+        int nSand = 0; float sMx = 0f;
+        var cand2 = new HashSet<long>(cand);   // 幅 2〜3 升の帯の奥の節点は書いた節点に接しない ⇒ 候補を一升広げる
+        foreach (var c0 in cand) { int ix = (int)(c0 >> 32), iz = (int)(uint)(c0 & 0xffffffffL); foreach (var d in new[] { new Vector2Int(1, 0), new Vector2Int(-1, 0), new Vector2Int(0, 1), new Vector2Int(0, -1) }) { int jx = ix + d.x, jz = iz + d.y; if (jx < 1 || jz < 1 || jx >= R - 1 || jz >= R - 1) continue; long kk = key(jx, jz); if (!wr.Contains(kk)) cand2.Add(kk); } }
+        foreach (var c0 in cand2)
+        {
+            if (wr.Contains(c0) || rec.ContainsKey(c0)) continue; var p = pos(c0); if (hidden != null && hidden(p)) continue; if (parcel != null && !EdoGeom.PIP(parcel, p)) continue;
+            int ix = (int)(c0 >> 32), iz = (int)(uint)(c0 & 0xffffffffL); float best = float.NaN; int bestSpan = int.MaxValue;
+            foreach (var ax in new[] { new Vector2Int(1, 0), new Vector2Int(0, 1) })
+            {
+                int a = 0, b = 0;
+                for (int k = 1; k <= 3; k++) { long kk = key(ix - ax.x * k, iz - ax.y * k); if (wr.Contains(kk)) { a = k; break; } if (hidden != null && hidden(pos(kk))) break; }
+                for (int k = 1; k <= 3; k++) { long kk = key(ix + ax.x * k, iz + ax.y * k); if (wr.Contains(kk)) { b = k; break; } if (hidden != null && hidden(pos(kk))) break; }
+                if (a == 0 || b == 0 || a + b - 1 > 3 || a + b >= bestSpan) continue;
+                float ya = hgt(key(ix - ax.x * a, iz - ax.y * a)), yb = hgt(key(ix + ax.x * b, iz + ax.y * b)); best = Mathf.Lerp(ya, yb, a / (float)(a + b)); bestSpan = a + b;
+            }
+            if (float.IsNaN(best)) continue; float cur = hgt(c0); if (Mathf.Abs(best - cur) < 1e-4f) continue;
+            rec[c0] = best; nSand++; sMx = Mathf.Max(sMx, Mathf.Abs(best - cur));
+        }
+        // ⭐ 書いた面と駒の外形の間に残った帯(幅 ≤ 2 升)── 一方が書いた節点・向かいが駒の外形の中: 書いた面を外形まで延ばす
+        //   (普請方 endRaiseR139【硬】「造成の書き手は、駒の外形の縁で止めず、外形の内へ 0.25 以上重ねて書く」を節点で ── 書き手ごとに外形の縁を避けた一升が残る所すべて)
+        int nHull = 0; float hMx = 0f;
+        if (hidden != null)
+            foreach (var c0 in cand2)
+            {
+                if (wr.Contains(c0) || rec.ContainsKey(c0)) continue; var p = pos(c0); if (hidden(p)) continue; if (parcel != null && !EdoGeom.PIP(parcel, p)) continue;
+                int ix = (int)(c0 >> 32), iz = (int)(uint)(c0 & 0xffffffffL); float best = float.NaN; int bestSpan = int.MaxValue;
+                foreach (var d in new[] { new Vector2Int(1, 0), new Vector2Int(-1, 0), new Vector2Int(0, 1), new Vector2Int(0, -1) })
+                {
+                    int a = 0, b = 0;   // a = 書いた節点まで(+d)・b = 外形の中まで(−d)
+                    for (int k = 1; k <= 2; k++) { long kk = key(ix + d.x * k, iz + d.y * k); if (wr.Contains(kk)) { a = k; break; } if (hidden(pos(kk))) break; }
+                    for (int k = 1; k <= 2; k++) { long kk = key(ix - d.x * k, iz - d.y * k); if (hidden(pos(kk))) { b = k; break; } if (wr.Contains(kk)) break; }
+                    if (a == 0 || b == 0 || a + b - 1 > 2 || a + b >= bestSpan) continue;
+                    best = hgt(key(ix + d.x * a, iz + d.y * a)); bestSpan = a + b;
+                }
+                if (float.IsNaN(best)) continue; float cur = hgt(c0); if (Mathf.Abs(best - cur) < 0.02f) continue;
+                rec[c0] = best; nHull++; hMx = Mathf.Max(hMx, Mathf.Abs(best - cur));
+            }
+        //   書く(挟まれた帯は全部の値を決めてから ── 書いた値を隣の補いに混ぜない)
+        foreach (var kv in rec) td.SetHeightsDelayLOD((int)(kv.Key >> 32), (int)(uint)(kv.Key & 0xffffffffL), new float[,] { { (kv.Value - tp.y) / ts.y } });
+        if (nNodes + nSand + nHull > 0) td.SyncHeightmap();
         if (recOut != null && rec.Count > 0) AppendNodeTargets(recOut, t.name, rec);
         return "囲まれた書き残しを隣の書いた値の平均で埋めた(記録の節点 " + wr.Count + "・塊 ≤" + maxNodes + "): 塊 " + nComp + "・書いた節点 " + nNodes + "(上げ 最大 " + upMx.ToString("F2") + "・下げ 最大 " + dnMx.ToString("F2") + ")"
+             + "・向かい合う二方に挟まれた幅 ≤3 升の書き残し " + nSand + " 節点(差 最大 " + sMx.ToString("F2") + ")・書いた面と駒の外形の間の幅 ≤2 升へ書いた面を延ばした " + nHull + " 節点(差 最大 " + hMx.ToString("F2") + ")"
              + (nBig > 0 ? "・大きい塊(囲まれていない扱い)" + nBig : "") + (at.Count > 0 ? "|" + string.Join("・", at.GetRange(0, Mathf.Min(8, at.Count)).ToArray()) : "");
     }
 }

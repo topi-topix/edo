@@ -2059,6 +2059,64 @@ public static class EdoOkabeYashikiBuilder
             }
         }
 
+        // ⭐ 直角でない出隅は最初から留めて建てる(既定の型 EdoBuild.MiterPerimeterCorners・docs/oki-kata.md §2a・指図 const.nagayaObliqueCorner【硬】・施主 2026-10-16)
+        //   据えた表長屋の札の外面の線の交点 Q で、二棟とも二等分の面で切った版へ差し替える。版が無ければ建てず「要る版」を待ちへ(重ねて据えない)。
+        //   門長屋(gate.host / komon[].host)は口の芯を欄の s のまま【硬】── 角を端にした −X 端から口の芯までを版の名に入れる。
+        {
+            var pcs = new List<EdoBuild.PerimPiece>();
+            foreach (var r in Runs)
+            {
+                if (!r.Nagaya) continue; var t = kak.Find(r.name); if (t == null) continue;
+                float gS0, gW0; string gL0; bool hostedR = HostedGate(r.name, out gS0, out gW0, out gL0);
+                int edR = r.edge; Vector2 gWorld = EdgePt(edR, gS0);
+                pcs.Add(new EdoBuild.PerimPiece
+                {
+                    go = t.gameObject, edge = r.edge, s0 = r.s0, s1 = r.s1, seat = r.SeatAt((r.s0 + r.s1) * 0.5f), label = "表長屋 " + r.name,
+                    hint = "blender --background --python Tools/Blender/build_nagaya_omote.py -- <長さ> --body --floors 2 --miter-cut <θL> <θR> --render"
+                         + (hostedR ? "(門長屋: --gate <−X 端から口の芯> " + gW0.ToString("0.###") + " … と併せる ── 生成器は 2026-10-16 時点で併せられない)" : "") + "(入隅 θ<0 は生成器が未対応)",
+                    pathOf = hostedR
+                        ? (Func<float, float, float, Vector2, Vector2, string>)((L, tL, tR, left, xd) =>
+                          {
+                              // 口の芯は**躯体の局所 +X 端から**名に入れる(生成器の --gate は Blender の左 = Unity の +X 端から・棟梁の memory nagaya-mon-gate-offset-axis)。
+                              //   名の 0.01 の丸めと長さの丸めで 0.01〜0.02 ずれるので ±0.05 の内で焼いた版を探す(口の芯の硬い検め ≤ 0.05 は据えた後に実測)
+                              float gc = L - Vector2.Dot(gWorld - left, xd);
+                              string first = EdoAssets.Own.NagayaOmoteMonKutaiMiterCut(L, gc, nikai, tL, tR);
+                              for (int kk = 0; kk <= 10; kk++)
+                              {
+                                  float dg = (kk % 2 == 1 ? 1f : -1f) * ((kk + 1) / 2) * 0.01f;
+                                  string p = EdoAssets.Own.NagayaOmoteMonKutaiMiterCut(L, gc + dg, nikai, tL, tR);
+                                  if (System.IO.File.Exists(p)) return p;
+                              }
+                              return first;
+                          })
+                        : ((L, tL, tR, left, xd) => nikai ? EdoAssets.Own.NagayaOmote2FKutaiMiterCut(L, tL, tR) : null),
+                });
+            }
+            int ovBad; float ovWorst;
+            string mrep = EdoBuild.MiterPerimeterCorners(Poly, pcs, wait, out ovBad, out ovWorst);
+            _miterOverrunBad = ovBad; _miterOverrunWorst = ovWorst;
+            sb.Append("(" + mrep.TrimEnd('\n') + ")\n");
+            foreach (var r in Runs)
+            {
+                if (!r.Nagaya) continue; var t = kak.Find(r.name);
+                if (t == null) { _nagayaSpan.Remove(r.name); continue; }
+                Vector2 o0 = EdgePt(r.edge, 0f), ax = EdgePt(r.edge, 1f) - EdgePt(r.edge, 0f);
+                var sp = EdoBuild.SpecBodySpanAlong(t.gameObject, o0, ax);
+                if (!float.IsNaN(sp.x)) _nagayaSpan[r.name] = sp;
+                // 門長屋を留めの版へ差し替えたなら、口の芯を欄の s で検める(硬い ≤ 0.05)
+                float gS1, gW1; string gL1;
+                if (HostedGate(r.name, out gS1, out gW1, out gL1))
+                {
+                    var spc = EdoPartSpec.Get(PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(t.gameObject));
+                    if (spc != null && spc.passage != null && spc.passage.x1 - spc.passage.x0 > 0.1f)
+                    {
+                        float sC = Vector2.Dot(EdoPartSpec.PassageCenterWorld(spc, t) - o0, ax.normalized);
+                        if (Mathf.Abs(sC - gS1) > 0.05f) wait.Add(gL1 + ": 口の芯が指図の s=" + gS1.ToString("0.###") + " から " + (sC - gS1).ToString("F3") + "m ずれる(出隅の留めの後)");
+                    }
+                }
+            }
+        }
+
         // 棟高の突き合わせ(指図 ⇔ **据えた現物**)。⛔ 呼び寸法や doc の数字で比べない
         if (Has(O(D["const"]), "nagayaH") && nagH > 0.1f)
         {
@@ -2137,6 +2195,8 @@ public static class EdoOkabeYashikiBuilder
     /// <summary>据えた長屋の**実メッシュ**が辺の上で占める区間[m](s)。
     /// 隅の返し(短い練塀)はここへ突き付けるので、⛔ 呼び寸法で継がない。</summary>
     static Dictionary<string, Vector2> _nagayaSpan = new Dictionary<string, Vector2>();
+    /// <summary>この巡の出隅の突き抜け(EdoBuild.MiterPerimeterCorners)── 許容を超えた頂点の数と最悪[m]。</summary>
+    static int _miterOverrunBad; static float _miterOverrunWorst = float.NaN;
 
     /// <summary>指図 runs[] の欄 key(無ければ null)。</summary>
     static string RunText(string run, string key)

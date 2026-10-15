@@ -2366,6 +2366,18 @@ public static class EdoAssets
             return p.Substring(0, p.Length - 4) + "_m" + UnityEngine.Mathf.RoundToInt(thL * 10f) + "x" + UnityEngine.Mathf.RoundToInt(thR * 10f) + ".fbx";
         }
 
+        /// <summary>**門長屋の出隅を二等分の面で切って留めた版**(<see cref="NagayaOmote2FKutaiMiterCut"/> の門長屋版・EDO-0502 2026-10-16)。
+        /// <paramref name="len"/> = 外隅から反対の端までの壁の外面の長さ・<paramref name="gateFromLeft"/> = **躯体の局所 +X 端から**口の芯まで
+        /// (生成器の --gate は Blender の左 = Unity の +X 端から ── 口の芯の局所 x = len/2 − gateFromLeft)・θ は全角[度](入隅は負)。綴り = <see cref="NagayaOmoteMonKutai"/> + `_mc&lt;thL×10&gt;x&lt;thR×10&gt;`。
+        /// **19.4・mon10・2f・mc616x0**: 岡部 N40_0(表門・頂点40 の 61.6° の出隅・−X 端を留める・口の芯は +X 端から 9.999 = 局所 x −0.299)。
+        /// **20.13・mon4.07・2f・mc-101x0**: 岡部 N18_0(裏門・頂点18 の 10.06° の入隅)。
+        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- 19.4 --body --floors 2 --gate 9.999 3.636 3.3 --bansho 2 --bansho-mon --doorh 3.3 --kabuki 0.42 --wide 0.909 --miter-cut 61.613 0 --layout 19.998 R --seal</summary>
+        public static string NagayaOmoteMonKutaiMiterCut(float len, float gateFromLeft, bool nikai, float thL, float thR)
+        {
+            string p = NagayaOmoteMonKutai(len, gateFromLeft, nikai);
+            return p.Substring(0, p.Length - 4) + "_mc" + UnityEngine.Mathf.RoundToInt(thL * 10f) + "x" + UnityEngine.Mathf.RoundToInt(thR * 10f) + ".fbx";
+        }
+
         /// <summary>tsuma=false は両端を突き付けにした版(`--ends none`)。鎖の途中の一本に使う。</summary>
         public static string NagayaOmote(float len, bool tsuma)
         {

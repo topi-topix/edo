@@ -1,11 +1,11 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 c0138e1bd53d -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 53b86ce0481b -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
 
-- 公開関数 675 本(注釈なし 37)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
+- 公開関数 686 本(注釈なし 37)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
 - 同じ道具が刷る目録: 邸ビルダーのメニュー → Stage と中の関数 `docs/builder-mokuroku.md` / 部材の名 `docs/edoassets-mokuroku.md`。
 - 札: **硬** = 注釈に「硬い/許容0」・**柔** = 「柔らかい/狙い」がある(判定ではなく注釈の語)。相手の札(地面・駒どうし・天端・床・断面・面・隅・区域)も注釈の語を拾っただけ。
 - 呼んでいる所 = 定義のファイルの外で `EdoBuild.<名>(` と書いている C# ファイル(`Edo` と `Builder/Rebuild` を落とした名)と、その中の呼んでいる関数(Stage)。同じ名の多重定義はまとめて数える。`EdoBuild` の中どうしの呼び出しは載せない。
@@ -54,7 +54,7 @@
 | [EdoBuildSukima.cs](#edobuildsukimacs) | EdoBuildSukima.cs — 建物と隣の構造物の間の隙のうち、通りから裏手(敷地の内側)へ抜ける物だけを柵で塞ぐ(EDO-0503)。 | 類型ビルダーの町屋の囲い(表店の列の端・角・後ろの棟との間)── 町屋の全区画。 | 1 |
 | [EdoBuildTojiru.cs](#edobuildtojirucs) | 外周の閉じを、建っている駒の実メッシュで測る(EDO-0502 第29巡・2026-10-06) | — | 1 |
 | [EdoBuildTsuchi.cs](#edobuildtsuchics) | 地面を部材の実メッシュに合わせて切る・離す・擦り付ける手(EDO-0502 第138巡・普請方 2026-10-14 r137/r137b)。 | — | 7 |
-| [EdoBuildTsugime.cs](#edobuildtsugimecs) | EdoBuild — 継ぎ目を躯体の実面で納める(2026-10-03・EDO-0502 岡部の普請検査の差し戻し)。 | — | 13 |
+| [EdoBuildTsugime.cs](#edobuildtsugimecs) | EdoBuild — 継ぎ目を躯体の実面で納める(2026-10-03・EDO-0502 岡部の普請検査の差し戻し)。 | — | 24 |
 | [EdoBuildUeru.cs](#edobuilduerucs) | 植木を斜面に据える (EdoBuild の partial・2026-09-23・EDO-0401) | SeatPlant を呼ぶ所すべて(今は山王の社叢の下層と名指しの木 = Stage7_Shaso だけ)。 | 16 |
 | [EdoBuildWaku.cs](#edobuildwakucs) | EdoBuild — 多角形の枠を解く・駒を線と面へ寄せる(2026-10-04・EDO-0554 松江松平 起こし直しの第2段)。 | 指図の欄が poly(四角だが格子に対して傾いた枠)で来る棟・附属屋(松江松平の内長屋 Uchi_* 9棟)と、 門の通路の返し石垣のように「線の端から決まった長さだけ・面を線に揃えて」積む駒(御臺所門の返し 2本)。 | 10 |
 | [EdoBuildZosei.cs](#edobuildzoseics) | EdoBuild — 造成(平場を採る)。2026-09-27・EDO-0477 P1(山王 Stage1_Grade と松江松平 DesignY の型を、図を持たない区画へ)。 | 類型ビルダーで建てる全区画(武家・寺社・町屋・公有地)。 | 8 |
@@ -1195,10 +1195,23 @@ EdoBuild — 継ぎ目を躯体の実面で納める(2026-10-03・EDO-0502 岡�
 | `EdoBuild.SeamSlit(lo, hi, origin, along, atY, openBand, bandAbove=…, step=…)` | `float` | 断面 | 継ぎ目の素通しを目の高さの帯の断面で測る(2026-10-05・EDO-0533 第9巡)。 ⟶ 返す: その最大[m](正 = その高さで素通しの隙・負 = めり込み)・測れなければ NaN | DoiBuilder.Mon(Stage3_Mon) |
 | `EdoBuild.FaceLineCorner(a1, d1, out1, c1, a2, d2, out2, c2)` | `Vector2` |  | 二本の壁の外面の線(辺の始点 a1・走り d1・外向き out1 の線から内へ c1)の交点 Q(外隅)。 | Doi(Stage2_Perimeter) |
 | `EdoBuild.SpecBodyLen(sp)` | `float` |  | 札の躯体の長さ(jambR.x − jambL.x)。 | — |
-| `EdoBuild.PickMiterCut(pathOf, need, path, lenSpec, shortTol=…, longTol=…)` | `bool` | 硬 隅 | 長さの決まった留めの駒を、要る長さ need から札で引く。 ⟶ 返す: 採れたか | Doi(Stage2_Perimeter) |
-| `EdoBuild.SpecMiterCutEnds(sp)` | `bool[]` | 硬 | 札の足の外形から、どちらの端が留めて切ってあるかを読む(背の側の足の端が躯体の端 jamb より 0.05m 以上内へ入る端 = 切った端)。 ⟶ 返す: (−X 端が切ってあるか, +X 端が切ってあるか) | Doi(Stage2_Perimeter) |
+| `EdoBuild.PickMiterCut(pathOf, need, path, lenSpec, shortTol=…, longTol=…)` | `bool` | 硬 隅 | 長さの決まった留めの駒を、要る長さ need から札で引く。 ⟶ 返す: 採れたか | — |
+| `EdoBuild.SpecMiterCutEnds(sp)` | `bool[]` | 硬 | 札の足の外形から、どちらの端が留めて切ってあるかを読む(背の側の足の端が躯体の端 jamb より 0.05m 以上内へ入る端 = 切った端)。 ⟶ 返す: (−X 端が切ってあるか, +X 端が切ってあるか) | — |
 | `EdoBuild.SnapMiterJambTo(go, right, q)` | `float` | 硬 隅 | 留めた端の札 jamb の外面の点(局所 x = jamb.x・z = front)を外隅 q へ平面で寄せる(硬い・高さは動かさない)。 ⟶ 返す: 動かした距離[m](札が無ければ NaN) | Doi(Stage2_Perimeter) |
 | `EdoBuild.MiterCornerGap(a, aRight, b, bRight)` | `float` | 隅 | 出隅で出会う二棟の留めた端の札 jamb の外面の点(局所 x = jamb.x・z = front)どうしの距離[m](0 = 外隅 Q で閉じている)。 | Doi(Stage2_Perimeter) |
+| `EdoBuild.MITER_STRAIGHT_DEG` | `float` |  | 直線とみなす折れ[度]・直角とみなす幅[度](90 ± これ)── MiterByDefault の既定。 | — |
+| `EdoBuild.VertexFold(P, v)` | `float` |  | 多角形 P の頂点 v の符号付きの折れ[度](走りの向きで左へ折れれば +)。 | — |
+| `EdoBuild.IsConvexVertex(P, v)` | `bool` | 隅・区域 | 頂点 v が出隅(区画の外へ角が出る)か ── 多角形の巻き(符号付き面積)と折れの符号で決める。 | — |
+| `EdoBuild.MiterByDefault(foldDeg, minDeg=…, rightTolDeg=…)` | `bool` | 硬 隅 | 既定で留めるか(硬い): 折れの大きさ ／foldDeg／ が直線(≤ minDeg)でも直角(／90 − 折れ／ ≤ rightTolDeg)でもなければ留める。 | Doi(Stage2_Perimeter) |
+| `EdoBuild.SpecFrontLine(go, p, dir, outward)` | `bool` |  | 据えた駒の札の外面の線(局所 z = front)を世界の平面へ: 点 p(局所 x = 0)・走り dir(局所 +X)・ 外向き outward(局所 +Z)。 | Doi(Stage2_Perimeter) |
+| `EdoBuild.MiterOverrun(a, b, bFront, oB, vtx, nTowardB)` | `float` | 硬 隅 | 出隅の突き抜け[m](硬い・許容0): 駒 a の躯体の帯(底〜EdoPartSpec.BAND_HI ── 庇・二階の軒は帯の外・軒は越えてよい 裁定A)の頂点のうち、 留めの面(角の二等分の線・vtx を通り法線 n… | Doi(Stage2_Perimeter) |
+| `EdoBuild.MiterPlaneNormal(P, v)` | `Vector2` | 区域 | 区画の頂点 v の留めの面(角の二等分の線): 通る点 = 頂点・法線 = 辺 v−1 の側から辺 v の側へ((d_v + d_{v−1}).normalized)。 | — |
+| `EdoBuild.MiterJambPoint(go, right)` | `Vector2` |  | 据えた駒の札の留めた端の外面の点(局所 x = jamb.x・z = front)。 | — |
+| `EdoBuild.PickMiterCutOrWait(pathOf, need, label, thL, thR, hint, path, lenSpec, wait)` | `bool` | 硬 | PickMiterCut を引き、無ければ待ちの一行(「要る版: 名・θL・θR・長さ」)を返す(硬い ── 伸縮しない・重ねない ⇒ 建てない)。 | Doi(Stage2_Perimeter) |
+| `EdoBuild.ReplaceWithMiterCut(old, path, frontP, d, outward, loMiter, qLo, hiMiter, qHi)` | `GameObject` | 硬 断面 | 据えた駒 old を留めの版 path へ差し替えて据える(硬い・置き方の4手 ── 固定側は外隅 Q)。 ⟶ 返す: 据えた駒(失敗 null) | — |
+| `PerimPiece`(class) | — | | 外周の一棟(MiterPerimeterCorners へ渡す): 据えた駒・区画の辺・欄の s(辺の始点からの区画の線の上の距離)・ 留めの版の名の引き方 pathOf(L, thL, thR, 局所 −X 端の世界の… | |
+| `EdoBuild.MiterPerimeterCorners(P, pcs, wait, overrunBad, worstOverrun, minDeg=…, rightTolDeg=…, vtxTol=…, tol=…)` | `string` | 硬 隅・区域 | 外周の棟が区画の折れで出会う所を、既定で留めて据える(docs/oki-kata.md §2a・硬い)。 ⟶ 返す: 刷る文 | OkabeYashiki(PlaceOmoteNagaya) |
+| `EdoBuild.IsShearMiter(go)` | `bool` |  | 据えた駒が剪断で留めた版(名の末尾 `_kutai_m&lt;L&gt;x&lt;R&gt;` ── EdoAssets.Own.NagayaOmote2FKutaiMiter)か。 | — |
 | `EdoBuild.SeatBedOnCrest(go, crest, frontLine, outward, along, skipLo, skipHi)` | `float` | 硬 天端 | 長屋・門長屋の土台の底(当たり)を、足の下の基壇の天端 crest へ据える(高さだけ・硬い ±0.001)。 ⟶ 返す: 据える前の 当たり − 天端[m](NaN = 帯に頂点が無い) | DoiBuilder.Mon(Stage3_Mon) |
 | `EdoBuild.SeatBedOnCrest(go, crest, frontLine, outward, along, skips)` | `float` |  | SeatBedOnCrest の、除く区間が幾つもある版 (長屋門の扉口と潜戸 ── どちらも敷居が土台の底より下がる)。 | DoiBuilder.Mon(Stage3_Mon) |
 | `EdoBuild.LastChordDeepest` | `float LastChordFloat,` | 硬 地面・天端・区域 | 地形なりの板柵を、板ごとに弦へ張る(硬い・浮き 0 / 隙 0)。 | — |

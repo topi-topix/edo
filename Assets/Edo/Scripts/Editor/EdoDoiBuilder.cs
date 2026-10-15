@@ -1451,7 +1451,7 @@ public static partial class EdoDoiBuilder
             int ep = hiEnd ? r.edge : (r.edge - 1 + nP) % nP, en = hiEnd ? (r.edge + 1) % nP : r.edge;
             if (hiEnd ? r.s1 < EdgeLen(r.edge) - EdoBuild.VTX_TOL : r.s0 > EdoBuild.VTX_TOL) return null;
             Vector2 dp = Dir(ep), dn = Dir(en);
-            if (Vector2.Dot(dn, OutNormal(ep)) >= 0f || Vector2.Angle(dp, dn) < MITER_CUT_MIN_DEG) return null;   // 入隅・浅い折れは留めない
+            if (Vector2.Dot(dn, OutNormal(ep)) >= 0f || !EdoBuild.MiterByDefault(Vector2.Angle(dp, dn), MITER_CUT_MIN_DEG - 1e-4f, -1f)) return null;   // 入隅・浅い折れは留めない(既定の型 EdoBuild.MiterByDefault ── 土井は 30° 以上の出隅を直角でも留める)
             foreach (var x in Runs)
             {
                 if (x == r || !nagBuilt(x) || !x.nikai || float.IsNaN(x.seat) || Mathf.Abs(x.seat - r.seat) > 0.001f) continue;
@@ -1495,19 +1495,12 @@ public static partial class EdoDoiBuilder
             if (mitered)
             {
                 if (!r.nikai) { Wait("表長屋 " + r.name + ": 出隅の留めは二階の版しか無い"); continue; }
-                bool got = EdoBuild.PickMiterCut(x => EdoAssets.Own.NagayaOmote2FKutaiMiterCut(x, thL, thR), need, out path, out lenSpec);
-                if (!got)
-                {
-                    float lc = Mathf.Ceil(need * 100f - 1e-3f) / 100f;
-                    Wait("表長屋 " + r.name + ": 出隅の留めの部材が無いか長さが合わない(要る長さ = Q から反対の端 " + need.ToString("F3") + "m・控え c = "
-                       + (cr.inset[r.edge] + inu).ToString("F3") + "・札 " + (float.IsNaN(lenSpec) ? "-" : lenSpec.ToString("F3")) + ")── 伸縮しない ⇒ 建てない → "
-                       + "blender --background --python Tools/Blender/build_nagaya_omote.py -- " + lc.ToString("0.##") + " --body --floors 2 --miter-cut "
-                       + thL.ToString("0.###") + " " + thR.ToString("0.###") + " --render");
-                    continue;
-                }
-                var cut = EdoBuild.SpecMiterCutEnds(EdoPartSpec.Get(path));
-                if (cut[0] != (thL > 0f) || cut[1] != (thR > 0f))
-                { Wait("表長屋 " + r.name + ": 札の留めた端(−X " + cut[0] + " / +X " + cut[1] + ")が欄の出隅の端と合わない " + path); continue; }
+                // 版を引く・無ければ「要る版」を待ちへ(既定の型 EdoBuild.PickMiterCutOrWait ── 伸縮しない ⇒ 建てない)
+                float lc = Mathf.Ceil(need * 100f - 1e-3f) / 100f; string mwait;
+                if (!EdoBuild.PickMiterCutOrWait(x => EdoAssets.Own.NagayaOmote2FKutaiMiterCut(x, thL, thR), need, "表長屋 " + r.name + "(控え c = " + (cr.inset[r.edge] + inu).ToString("F3") + ")",
+                        thL, thR, "blender --background --python Tools/Blender/build_nagaya_omote.py -- " + lc.ToString("0.##") + " --body --floors 2 --miter-cut "
+                       + thL.ToString("0.###") + " " + thR.ToString("0.###") + " --render", out path, out lenSpec, out mwait))
+                { Wait(mwait); continue; }
             }
             else path = EdoAssets.Own.KutaiOf(r.nikai ? EdoAssets.Own.NagayaOmote2F(L) : EdoAssets.Own.NagayaOmote(L));
             var spec = EdoPartSpec.Get(path);
@@ -1569,10 +1562,21 @@ public static partial class EdoDoiBuilder
             var l = kv.Value; l.RemoveAll(x => x.Key == null);
             if (l.Count < 2) { sb.AppendLine("  ⚠ 表長屋 頂点" + kv.Key + ": 出隅の留めの相手が据わっていない(片方だけ)"); warn++; continue; }
             float g = EdoBuild.MiterCornerGap(l[0].Key, l[0].Value, l[1].Key, l[1].Value);
-            bool okc = !float.IsNaN(g) && g <= 0.001f;
+            // 出隅の突き抜け(硬い・許容0・EdoBuild.MiterOverrun ── 互いの外面より前へ出る量・帯は底〜+2.0)
+            float ovc = float.NaN;
+            {
+                Vector2 qv = miterQ[kv.Key], p0, d0, o0, p1, d1, o1;
+                if (EdoBuild.SpecFrontLine(l[0].Key, out p0, out d0, out o0) && EdoBuild.SpecFrontLine(l[1].Key, out p1, out d1, out o1))
+                {
+                    Vector2 u0 = d0 * Mathf.Sign(Vector2.Dot(p0 - qv, d0)), u1 = d1 * Mathf.Sign(Vector2.Dot(p1 - qv, d1));
+                    Vector2 nB = (u1 - u0).normalized;   // 留めの面の法線(0 の棟 → 1 の棟)── 控えが同じなので Q は二等分の線の上
+                    ovc = Mathf.Max(EdoBuild.MiterOverrun(l[0].Key, l[1].Key, p1, o1, qv, nB), EdoBuild.MiterOverrun(l[1].Key, l[0].Key, p0, o0, qv, -nB));
+                }
+            }
+            bool okc = !float.IsNaN(g) && g <= 0.001f && !(ovc > 0.001f);
             if (okc) ok++; else bad++;
             sb.AppendLine("  " + (okc ? "⭕" : "✗") + " 表長屋 頂点" + kv.Key + " の出隅の留め " + l[0].Key.name + " × " + l[1].Key.name + ": 留めた端の外面の点どうし "
-                        + (float.IsNaN(g) ? "札が無い" : g.ToString("F4") + "m") + "(Q = " + miterQ[kv.Key].x.ToString("F3") + ", " + miterQ[kv.Key].y.ToString("F3") + ")");
+                        + (float.IsNaN(g) ? "札が無い" : g.ToString("F4") + "m") + "・突き抜け " + (float.IsNaN(ovc) ? "-" : float.IsNegativeInfinity(ovc) ? "なし" : ovc.ToString("+0.000;-0.000") + "m") + "(Q = " + miterQ[kv.Key].x.ToString("F3") + ", " + miterQ[kv.Key].y.ToString("F3") + ")");
         }
         // 継ぎ目(札の躯体の端どうし・硬い隙 0)と区画の線(腰 1.2m・硬い)
         float worstSeam = 0f; string worstSeamN = "-"; int seams = 0;

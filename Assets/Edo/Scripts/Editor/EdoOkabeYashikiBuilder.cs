@@ -6371,7 +6371,9 @@ public static class EdoOkabeYashikiBuilder
             {   // ⭐ 第141巡(fences[F_Hori].r140【硬】「区画の外は触らない」): 堀端の土留めの根の法の面は線の外の地中へ出る ── その上の線の外の節点は下げない(下限 = 今の地盤)
                 var hkP = new List<GameObject>(); foreach (var w0 in walls) if (w0.name.StartsWith("TW_Hori_Kishi")) hkP.Add(w0);
                 if (hkP.Count > 0) { var nearHk = EdoBuild.NearHulls(hkP, 0.3f); var PPk = Poly; var fMin0 = fMin;
-                    fMin = (x, z) => { float m0 = fMin0 == null ? float.NaN : fMin0(x, z); var q = new Vector2(x, z); if (!EdoGeom.PIP(PPk, q) && nearHk(q)) { float g = EdoBuild.Ground(x, z); return float.IsNaN(m0) ? g : Mathf.Max(g, m0); } return m0; }; }
+                    //   ⭐ 第141巡の写真(r141_19): 根の法の面は見え面の前の地中へ出る ⇒ 区画の内の節点も駒の底まで下げると法尻の前に溝の切れ込みが並んだ ── 床 = 法尻の前の造成前の地盤 −0.05(HoriFootFloor)
+                    fMin = (x, z) => { float m0 = fMin0 == null ? float.NaN : fMin0(x, z); var q = new Vector2(x, z); if (!nearHk(q)) return m0;
+                        float f = EdoGeom.PIP(PPk, q) ? HoriFootFloor(q) : EdoBuild.Ground(x, z); if (float.IsNaN(f)) return m0; return float.IsNaN(m0) ? f : Mathf.Max(f, m0); }; }
             }
             sb.AppendLine("  " + EdoBuild.SinkGroundUnderParts(walls, 0.05f, SinkUndoPath, fMin));
             // ⭐ 角の庭と練塀の内の足元の帯の下限を最後にもう一度(第116巡: 2b の盛りの後に段の法が庭の縁と隅 P4 の足元を 11.87 まで切り、庭の最低 < 12.30・P4 の足が 0.26 浮いた)
@@ -9152,6 +9154,35 @@ public static class EdoOkabeYashikiBuilder
         }
         AssetDatabase.SaveAssetIfDirty(EdoBuild.T().terrainData);
         return sb.ToString();
+    }
+    /// <summary>**堀端の土留めの法尻の前の床**(fences[].r140 の辺の線へ点 q を落とし、線の外 0.10 の造成前の地盤 −0.05)── 根の法の面の上の節点を下げる下限。欄が無ければ NaN。
+    /// 当たる先: 法尻を区画の線に置き根を線の外の地中へ出す土留め(岡部 TW_Hori_Kishi)── 駒の下の下げ(SinkGroundUnderParts)と、その後の据え直し。</summary>
+    static float HoriFootFloor(Vector2 q)
+    {
+        Dictionary<string, object> fd = null; foreach (var o in A(D["fences"]) ?? new List<object>()) { var f0 = O(o); if (f0 != null && FenceR140Text(f0) != null) { fd = f0; break; } }
+        if (fd == null) return float.NaN; int e = (int)F(fd["edge"]); Vector2 a = EdgePt(e, F(fd["s0"])), b = EdgePt(e, F(fd["s1"])); Vector2 ab = b - a; float L = ab.magnitude; if (L < 1e-3f) return float.NaN;
+        float s = Mathf.Clamp(Vector2.Dot(q - a, ab / L), 0f, L); var qo = a + ab / L * s + OutNormal(e) * 0.10f; float y = EdoBuild.BaseDem()(qo.x, qo.y); return float.IsNaN(y) ? float.NaN : y - 0.05f;
+    }
+    /// <summary>今の地形で TW_Hori_Kishi の外形の中の区画の内の節点を HoriFootFloor まで上げる(上げるだけ)── 3d の駒の下の下げと同じ下限を据えた後の地形へ当てる(第141巡の写真の直し)。</summary>
+    public static string RaiseHoriFootToFloor()
+    {
+        using (OnKita())
+        {
+            var hk = new List<GameObject>(); foreach (Transform c in Group("Dan")) if (c.gameObject.activeInHierarchy && c.name.StartsWith("TW_Hori_Kishi")) hk.Add(c.gameObject);
+            if (hk.Count == 0) return "TW_Hori_Kishi が無い";
+            var near = EdoBuild.NearHulls(hk, 0.3f); var t = EdoBuild.T(); var td = t.terrainData; int R = td.heightmapResolution; Vector3 tp = t.transform.position, ts = td.size; float cell = ts.x / (R - 1);
+            float x0 = float.MaxValue, x1 = float.MinValue, z0 = float.MaxValue, z1 = float.MinValue; foreach (var g in hk) { var bb = EdoBuild.RB(g); x0 = Mathf.Min(x0, bb.min.x); x1 = Mathf.Max(x1, bb.max.x); z0 = Mathf.Min(z0, bb.min.z); z1 = Mathf.Max(z1, bb.max.z); }
+            int i0 = Mathf.Max(0, Mathf.FloorToInt((x0 - 0.5f - tp.x) / cell)), i1 = Mathf.Min(R - 1, Mathf.CeilToInt((x1 + 0.5f - tp.x) / cell)), j0 = Mathf.Max(0, Mathf.FloorToInt((z0 - 0.5f - tp.z) / cell)), j1 = Mathf.Min(R - 1, Mathf.CeilToInt((z1 + 0.5f - tp.z) / cell));
+            int w = i1 - i0 + 1, h = j1 - j0 + 1; var H = td.GetHeights(i0, j0, w, h); int n = 0; float mx = 0f; var PP = Poly;
+            for (int jz = 0; jz < h; jz++) for (int ix = 0; ix < w; ix++)
+            {
+                var q = new Vector2(tp.x + (i0 + ix) * cell, tp.z + (j0 + jz) * cell); if (!EdoGeom.PIP(PP, q) || !near(q)) continue;
+                float f = HoriFootFloor(q); if (float.IsNaN(f)) continue; float cur = H[jz, ix] * ts.y + tp.y; if (cur >= f - 1e-4f) continue;
+                H[jz, ix] = (f - tp.y) / ts.y; n++; mx = Mathf.Max(mx, f - cur);
+            }
+            if (n > 0) { td.SetHeightsDelayLOD(i0, j0, H); td.SyncHeightmap(); AssetDatabase.SaveAssetIfDirty(td); }
+            return "TW_Hori_Kishi の法尻の前の床(造成前の地盤 −0.05)へ上げた節点 " + n + "(最大 " + mx.ToString("F2") + ")";
+        }
     }
     /// <summary>木柵 <paramref name="fnm"/> の床 ── 欄 r140 で天端の上へ移した柵は「地表と TW_Hori_Kishi の駒の天端の高い方」(EdoBuild.Bed)・ほかは地表。</summary>
     static System.Func<float, float, float> FenceBedFor(Dictionary<string, object> fd)

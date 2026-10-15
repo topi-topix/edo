@@ -1,6 +1,6 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 14e29e344208 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 60f0df60bd12 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
@@ -1169,7 +1169,7 @@ EdoBuildSukima.cs — 建物と隣の構造物の間の隙のうち、通りか�
 
 | 関数 | 返す | 札 | 何をするか(注釈の一文目) | 呼んでいる所 |
 |---|---|---|---|---|
-| `EdoBuild.NearHulls(parts, d)` | `Func<Vector2, bool>` |  | 駒の外形の内か、縁から d 以内かを引く篩(実メッシュの頂点の水平の凸包 ── ⛔ bounds の矩形で篩わない)。 | OkabeYashiki(FenceFootR138・MinamiMizoBack・SodeBackWhy…) |
+| `EdoBuild.NearHulls(parts, d)` | `Func<Vector2, bool>` |  | 駒の外形の内か、縁から d 以内かを引く篩(実メッシュの頂点の水平の凸包 ── ⛔ bounds の矩形で篩わない)。 | OkabeYashiki(FenceFootR138・MinamiMizoBack・RaiseHoriFootToFloor…) |
 | `EdoBuild.OrientBenchesToHigh(ks, probe, minDiff, flipped)` | `int` | 地面・天端・面・隅 | 小段の背の向きを設計面の高い側へ揃える(普請方 第137巡 r137b T4【硬】「小段の範囲は見え面の線から背の向きの符号つきの距離で取る・ 見え面より前は触らない」)。 | OkabeYashiki(Stage2b_Dan_・StairSideAndEndBacks) |
 | `EdoBuild.CutGroundUnderTreads(stones, below, recPath, cover=…)` | `string` | 地面・天端 | 段石の真下の地盤を踏面より下へ切る(普請方 第137巡 r137b T1【硬】「石段の平面の地盤は、各点で真上の段石の踏面の天端 −x 以下に高さで指定して切る・ 段の上に土を載せない(描かれた地表 ≤ 踏面 −0.02… | OkabeYashiki(CutUnderKaidan) |
 | `EdoBuild.FallAwayFrom(piece, top, drop, slope, radius, where, recPath)` | `string` | 天端 | 駒の天端から道へ一方向に離す(普請方 第137巡 r137b T3【硬】「角の前の道の面は桝の天端 −0.02 から道へ 1/50 以上で離す(窪み無し)」)。 | OkabeYashiki(Stage3d_Mizo_) |

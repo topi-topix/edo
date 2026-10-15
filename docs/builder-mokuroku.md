@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 94・関数 988(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 94・関数 990(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -25,7 +25,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoDoiBuilder.cs](#edodoibuildercs) | 土井大隅守上屋敷(三河刈谷藩2万3千石・譜代・雁間)ビルダー。 | 15 | 89 |
 | [EdoMatsudairaDewaBuilder.Niwa.cs](#edomatsudairadewabuilderniwacs) | 松平出羽守上屋敷 — 庭の工程(池・築山・水の系・石組・点景・滝見口)。 | 9 | 30 |
 | [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 16 | 120 |
-| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 21 | 305 |
+| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 21 | 307 |
 | [EdoSannoShaBuilder.cs](#edosannoshabuildercs) | 山王権現社(日枝神社)本体+樹下家邸+山王門前町ビルダー (2026-08-11。観理院は 2026-09-26 に類型へ移し削除) | 1 | 31 |
 | [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 13 | 102 |
 | [EdoSanyashikiRebuild.cs](#edosanyashikirebuildcs) | 三屋敷(太田・加納・鍋島=松平肥前守)の区画を下書きv3へ更新 (2026-08-08) | 0 | 6 |
@@ -738,6 +738,8 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `PlaceMinamiMizoWall139(w139, neiri, hLo, hHi, eEnd, eCut, hLoS, hHiS)` | `string` |  | TW_Minami_Mizo を northSideR139 で建てる(普請方 第139巡の返し・第140巡)。 |
 | `FenceR140Text(fd)` | `string` |  | fences[].r140 の文(普請方 第140巡の返し P3 ── TW_Hori_Kishi と柵の置き場)。 |
 | `PlaceHoriKishi()` | `string` |  | 堀端の土留め TW_Hori_Kishi と木柵の移し(指図 fences[F_Hori].r140 ── 普請方 第140巡の返し P3・第141巡)。 |
+| `HoriFootFloor(q)` | `float` |  | 堀端の土留めの法尻の前の床(fences[].r140 の辺の線へ点 q を落とし、線の外 0.10 の造成前の地盤 −0.05)── 根の法の面の上の節点を下げる下限。 |
+| `RaiseHoriFootToFloor()` | `string` | 公 | 今の地形で TW_Hori_Kishi の外形の中の区画の内の節点を HoriFootFloor まで上げる(上げるだけ)── 3d の駒の下の下げと同じ下限を据えた後の地形へ当てる(第141巡の写真の直し)。 |
 | `FenceBedFor(fd)` | `System.Func<float, float, float>` |  | 木柵 fnm の床 ── 欄 r140 で天端の上へ移した柵は「地表と TW_Hori_Kishi の駒の天端の高い方」(EdoBuild.Bed)・ほかは地表。 |
 | `InMinamiMizoZone(q, backReach)` | `bool` |  | TW_Minami_Mizo の前(縁石まで)から背(小段 + 法)までの区域か ── 溝の帯の擦り付け(bandR137 ②)を当てない(背は CrestFollowBackBench が描く)。 |
 | `MinamiMizoBack(bf)` | `string` |  | TW_Minami_Mizo の背(northSideR138「天端の線から w は天端 −d の平らを取り、その先は今の法へ擦り付ける・天端の上の土は 1/n で溝の側へ」【硬】)── EdoBuild.CrestFo… |

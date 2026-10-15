@@ -28,6 +28,7 @@
 - [第129巡: GradeQA と背の路地・吐き口・S3 の飛ばし](r129-grade-seroji-hakiguchi-chain-s3.md)・[第130巡: S3d 単独は地形が変わる・池の岸の枠・G0 の妻](r130-grade-qa-frames-g0-hei-feet.md) — S1 から一続きで流し同じ中で測る・帰属は段ごとの値で
 - [第133巡: ゆるい坂なりの連鎖・棟の均しが坂の路盤へ・溝の無い嵩上げ石](r133-slope-crest-flat-chain-and-pad-into-ramp.md) — 焼いた勾配0は線の中ほどへ・PadRim.holes・群は頭で空にする / [第137巡: 袖を先にの正規表現が黙って退く・離れて終わる交わりに隅が二つ](r137-sode-first-regex-and-partner-first.md)
 - [第141巡: 溝の駒の外形の包絡線・法尻の外れは連鎖の δ・堀端の野面の根が線を越える](r141-envelope-toe-and-hori-kishi.md) — 測りの輪で NearestS を呼ばない / [第142巡: 下げの止めが段の下を切る前の平場を読む・脇の折れの段差・長屋の出隅](r142-sink-front-ground-before-stair-cut-and-side-folds.md) / [第143巡: 出隅の留めの面・門長屋の名の口は+X端から・流しの最中に焼いた FBX](r143-miter-default-plane-and-parallel-buzai.md)
+- [第144巡: 両端の留めの余り・区画の外の地形の書き手・S_Hei_08 の端](r144-both-end-miter-residual-and-outside-terrain.md) — 入隅一つならそこ・他は半分ずつ ±0.002【硬】・bin の段ごとの差で書き手を割る
 - [第140巡: 継ぎ目ごとに折れる法尻の線・継ぎ目の段の測り](r140-curb-toe-line-and-joint-measure.md) — 交点は残した点で・足しは段で足さない・段は一次式で・strictChain・KadoDegBaked
 - [第138巡: 小段の犬走りが bounds の矩形](r138-bench-keepout-aabb-and-probe-by-reflection.md)・[第139巡: 溝の縁の野面の法尻・型H の板・柵の柱の根](r139-ditch-side-wall-toe-and-fence-level.md) — reflection で刷る・S3 の bin を戻して 20 秒で試す
 - [芯線と天端の線(heiLine)の罠](heiline-stretch-and-tenba-r120.md) — d は c の後・床は区間の組で・線は同じドメインだけ(S2〜3d を続けて)・足は 0.91〜1.60・継ぎ目の切り欠きを埋める

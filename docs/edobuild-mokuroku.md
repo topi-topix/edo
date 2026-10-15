@@ -1,6 +1,6 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 53b86ce0481b -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 708f0d795d30 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
@@ -1207,8 +1207,8 @@ EdoBuild — 継ぎ目を躯体の実面で納める(2026-10-03・EDO-0502 岡�
 | `EdoBuild.MiterOverrun(a, b, bFront, oB, vtx, nTowardB)` | `float` | 硬 隅 | 出隅の突き抜け[m](硬い・許容0): 駒 a の躯体の帯(底〜EdoPartSpec.BAND_HI ── 庇・二階の軒は帯の外・軒は越えてよい 裁定A)の頂点のうち、 留めの面(角の二等分の線・vtx を通り法線 n… | Doi(Stage2_Perimeter) |
 | `EdoBuild.MiterPlaneNormal(P, v)` | `Vector2` | 区域 | 区画の頂点 v の留めの面(角の二等分の線): 通る点 = 頂点・法線 = 辺 v−1 の側から辺 v の側へ((d_v + d_{v−1}).normalized)。 | — |
 | `EdoBuild.MiterJambPoint(go, right)` | `Vector2` |  | 据えた駒の札の留めた端の外面の点(局所 x = jamb.x・z = front)。 | — |
-| `EdoBuild.PickMiterCutOrWait(pathOf, need, label, thL, thR, hint, path, lenSpec, wait)` | `bool` | 硬 | PickMiterCut を引き、無ければ待ちの一行(「要る版: 名・θL・θR・長さ」)を返す(硬い ── 伸縮しない・重ねない ⇒ 建てない)。 | Doi(Stage2_Perimeter) |
-| `EdoBuild.ReplaceWithMiterCut(old, path, frontP, d, outward, loMiter, qLo, hiMiter, qHi)` | `GameObject` | 硬 断面 | 据えた駒 old を留めの版 path へ差し替えて据える(硬い・置き方の4手 ── 固定側は外隅 Q)。 ⟶ 返す: 据えた駒(失敗 null) | — |
+| `EdoBuild.PickMiterCutOrWait(pathOf, need, label, thL, thR, hint, path, lenSpec, wait, bothEnds=…, endTol=…, oneConcave=…)` | `bool` | 硬 床・隅 | PickMiterCut を引き、無ければ待ちの一行(「要る版: 名・θL・θR・長さ」)を返す(硬い ── 伸縮しない・重ねない ⇒ 建てない)。 | Doi(Stage2_Perimeter) |
+| `EdoBuild.ReplaceWithMiterCut(old, path, frontP, d, outward, loMiter, qLo, hiMiter, qHi, loConcave=…, hiConcave=…)` | `GameObject` | 硬 断面・隅 | 据えた駒 old を留めの版 path へ差し替えて据える(硬い・置き方の4手 ── 固定側は外隅 Q)。 ⟶ 返す: 据えた駒(失敗 null) | — |
 | `PerimPiece`(class) | — | | 外周の一棟(MiterPerimeterCorners へ渡す): 据えた駒・区画の辺・欄の s(辺の始点からの区画の線の上の距離)・ 留めの版の名の引き方 pathOf(L, thL, thR, 局所 −X 端の世界の… | |
 | `EdoBuild.MiterPerimeterCorners(P, pcs, wait, overrunBad, worstOverrun, minDeg=…, rightTolDeg=…, vtxTol=…, tol=…)` | `string` | 硬 隅・区域 | 外周の棟が区画の折れで出会う所を、既定で留めて据える(docs/oki-kata.md §2a・硬い)。 ⟶ 返す: 刷る文 | OkabeYashiki(PlaceOmoteNagaya) |
 | `EdoBuild.IsShearMiter(go)` | `bool` |  | 据えた駒が剪断で留めた版(名の末尾 `_kutai_m&lt;L&gt;x&lt;R&gt;` ── EdoAssets.Own.NagayaOmote2FKutaiMiter)か。 | — |

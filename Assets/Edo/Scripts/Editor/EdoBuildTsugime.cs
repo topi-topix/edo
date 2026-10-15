@@ -299,12 +299,18 @@ public static partial class EdoBuild
     }
 
     /// <summary><see cref="PickMiterCut"/> を引き、**無ければ待ちの一行**(「要る版: 名・θL・θR・長さ」)を返す(硬い ── 伸縮しない・重ねない ⇒ 建てない)。
-    /// 札の留めた端(<see cref="SpecMiterCutEnds"/>)が θ の端と合わなければそれも待ち。<paramref name="hint"/> は待ちの末尾に足す焼き方。</summary>
+    /// 札の留めた端(<see cref="SpecMiterCutEnds"/>)が θ の端と合わなければそれも待ち。<paramref name="hint"/> は待ちの末尾に足す焼き方。
+    /// ⭐ <paramref name="bothEnds"/> = 両端を留める棟(第144巡・岡部 頂点16 の +0.005): 両端とも相手の留めの面に受けられ、伸び縮みの逃げが無い ⇒
+    /// 札の余り(札の長さ − 要る長さ)の行き先は <see cref="ReplaceWithMiterCut"/> が決める ── 長い分は入隅の端が一つだけならそこへ(相手の躯体の中へ埋まる)、
+    /// それ以外(両端とも出隅・両端とも入隅・短い分)は両端へ半分ずつ。半分ずつ割る版は |余り| ≤ 2 × <paramref name="endTol"/> でなければ採らない(硬い)。
+    /// 入隅の端が一つだけの棟(<paramref name="oneConcave"/>)の長い分は片端の棟と同じ ≤ 0.03。採った後の突き抜け 0 は <see cref="MiterOverrun"/> が硬く測る。
+    /// 既定(bothEnds = false)の振る舞いは前のまま(土井)。</summary>
     public static bool PickMiterCutOrWait(Func<float, string> pathOf, float need, string label, float thL, float thR, string hint,
-                                          out string path, out float lenSpec, out string wait)
+                                          out string path, out float lenSpec, out string wait, bool bothEnds = false, float endTol = 0.001f, bool oneConcave = false)
     {
         wait = null;
-        if (PickMiterCut(pathOf, need, out path, out lenSpec))
+        bool got = bothEnds ? PickMiterCut(pathOf, need, out path, out lenSpec, 2f * endTol, oneConcave ? 0.03f : 2f * endTol) : PickMiterCut(pathOf, need, out path, out lenSpec);
+        if (got)
         {
             var cut = SpecMiterCutEnds(EdoPartSpec.Get(path));
             // 出隅(θ > 0)の端は背の足が jamb より内へ入る ⇒ 切った端と読める。入隅(θ < 0)は背が長くなる ⇒ 札の足では切った端と読めない(直角の端と同じに見える)
@@ -316,16 +322,21 @@ public static partial class EdoBuild
         { wait = label + ": 版 " + System.IO.Path.GetFileNameWithoutExtension(path) + " は焼いてあるが Unity が取り込んでいない(.meta 無し)── AssetDatabase.Refresh と材の remap の後に流し直す ⇒ 今は建てない"; return false; }
         wait = label + ": 要る版 " + System.IO.Path.GetFileNameWithoutExtension(path) + "(θL " + thL.ToString("0.###") + "°・θR " + thR.ToString("0.###")
              + "°・長さ Q〜反対の端 " + need.ToString("F3") + "m・札 " + (float.IsNaN(lenSpec) ? "-" : lenSpec.ToString("F3")) + ")── 伸縮しない・重ねない ⇒ 建てない"
+             + (bothEnds ? (oneConcave ? "(両端を留める・入隅の端が一つ ⇒ 札は要る長さ −" + (2f * endTol).ToString("0.####") + "〜+0.03・長い分は入隅の端へ)" : "(両端を留める ⇒ 札は要る長さ ±" + (2f * endTol).ToString("0.####") + " で焼く・余りは両端へ割る)") : "")
              + (string.IsNullOrEmpty(hint) ? "" : " → " + hint);
         return false;
     }
 
     /// <summary>**据えた駒 <paramref name="old"/> を留めの版 <paramref name="path"/> へ差し替えて据える**(硬い・置き方の4手 ── 固定側は外隅 Q)。
     /// 高さ = 旧い駒の躯体の底(同じ断面)・外面 = 札の front を外面の線(<paramref name="frontP"/>・外向き <paramref name="outward"/>)へ・
-    /// 走り = 留めた端の札 jamb を Q へ(<see cref="AbutBodyAlong"/> → <see cref="SnapMiterJambTo"/>)。両端とも留めるなら lo の Q へ据え、hi は閉じを測るだけ。
-    /// 旧い駒は据えた後に消す(⛔ 先に消さない)。返り値 = 据えた駒(失敗 null)。</summary>
+    /// 走り = 留めた端の札 jamb を Q へ(<see cref="AbutBodyAlong"/> → <see cref="SnapMiterJambTo"/>)。
+    /// ⭐ 両端とも留めるなら lo の Q へ据えた後、hi の jamb の外面の点が qHi を越える量 e(走りの向き・実測)を測り、余りの行き先を決める(第144巡: lo へ合わせ切ると
+    /// 余りが全部 hi の端の越えになり、座の違う相手で突き抜け +0.005): 長い分(e &gt; 0)で入隅の端が一つだけ(<paramref name="loConcave"/> ≠ <paramref name="hiConcave"/>)なら
+    /// その端へ全部(入隅の越えは相手の躯体の中 ── 埋めて隠す)、それ以外は両端へ半分ずつ。余りの大きさの硬い関門は <see cref="PickMiterCutOrWait"/>(bothEnds)。
+    /// 旧い駒は据えた後に消す(⛔ 先に消さない)。返り値 = 据えた駒(失敗 null)。
+    /// 当たる先: 両端を留める外周の長屋(岡部 N13_0・N15_0・N16_0・N17_0)── 片端の棟・土井(この関数を呼ばない)は変わらない。</summary>
     public static GameObject ReplaceWithMiterCut(GameObject old, string path, Vector2 frontP, Vector2 d, Vector2 outward,
-                                                 bool loMiter, Vector2 qLo, bool hiMiter, Vector2 qHi)
+                                                 bool loMiter, Vector2 qLo, bool hiMiter, Vector2 qHi, bool loConcave = false, bool hiConcave = false)
     {
         var sp = EdoPartSpec.Get(path); if (sp == null || old == null || UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(path) == null) return null;
         var parent = old.transform.parent; string name = old.name;
@@ -338,7 +349,20 @@ public static partial class EdoBuild
         Vector3 fw = go.transform.TransformPoint(new Vector3(0f, 0f, sp.front));
         go.transform.position -= new Vector3(outward.x, 0f, outward.y) * Vector2.Dot(new Vector2(fw.x, fw.z) - frontP, outward);
         bool plusXisHi = Vector2.Dot(EdoPartSpec.W(go.transform, 1f, 0f) - EdoPartSpec.W(go.transform, 0f, 0f), d) > 0f;
-        if (loMiter) { AbutBodyAlong(go, frontP, d, Vector2.Dot(qLo - frontP, d), true); SnapMiterJambTo(go, !plusXisHi, qLo); }
+        if (loMiter)
+        {
+            AbutBodyAlong(go, frontP, d, Vector2.Dot(qLo - frontP, d), true); SnapMiterJambTo(go, !plusXisHi, qLo);
+            if (hiMiter)
+            {
+                Vector2 jHi = MiterJambPoint(go, plusXisHi);
+                if (!float.IsNaN(jHi.x))
+                {
+                    float e = Vector2.Dot(jHi - qHi, d);
+                    float back = e > 0f && loConcave != hiConcave ? (hiConcave ? 0f : e) : 0.5f * e;   // 長い分は入隅の端一つへ・他は半分ずつ
+                    go.transform.position -= new Vector3(d.x, 0f, d.y) * back;
+                }
+            }
+        }
         else if (hiMiter) { AbutBodyAlong(go, frontP, d, Vector2.Dot(qHi - frontP, d), false); SnapMiterJambTo(go, plusXisHi, qHi); }
         UnityEngine.Object.DestroyImmediate(old);
         go.name = name;
@@ -443,9 +467,10 @@ public static partial class EdoBuild
                     seatNote += "・頂点" + c[0] + " の相手 " + o.label + " と座が違う(" + x.seat.ToString("F2", inv) + " / " + o.seat.ToString("F2", inv) + " ── 屋根の継ぎ方は部材方)";
             }
             string path, w; float lenSpec;
-            if (PickMiterCutOrWait(pathOf, need, x.label, thL, thR, x.hint, out path, out lenSpec, out w))
+            bool loCc = lo != null && !(bool)lo[4], hiCc = hi != null && !(bool)hi[4];
+            if (PickMiterCutOrWait(pathOf, need, x.label, thL, thR, x.hint, out path, out lenSpec, out w, lo != null && hi != null, tol, loCc != hiCc))
             {
-                var ng = ReplaceWithMiterCut(x.go, path, fp, d, fo, lo != null, qLo, hi != null, qHi);
+                var ng = ReplaceWithMiterCut(x.go, path, fp, d, fo, lo != null, qLo, hi != null, qHi, loCc, hiCc);
                 if (ng == null) { lacking[x] = x.label + ": 留めの版を据えられない " + path; continue; }
                 x.go = ng; cutDone.Add(x);
                 sb.Append("  ⭕ " + x.label + ": 留めの版 " + System.IO.Path.GetFileNameWithoutExtension(path) + "(札 " + lenSpec.ToString("F3", inv) + "・要る " + need.ToString("F3", inv) + ")" + seatNote + "\n");

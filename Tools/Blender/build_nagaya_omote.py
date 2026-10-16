@@ -14,6 +14,8 @@
         # 門長屋の留め: 割付(口・窓・番所)は 19.998 の版を +X 端に揃えて据え置き、留める端に窓割りを差し足して切る(cut_miter_anchor)
     blender --background --python Tools/Blender/build_nagaya_omote.py -- 20.3468 --body --floors 2 --miter-cut -1.587 -10.059 --seal --cut-kera lo hi --name ...
         # 座の違う相手と留めた切り口の屋根の納め(cut_kera): hi = 高い方(けらばの熨斗+鬼)/ lo = 低い方(壁際の雨押えの熨斗)/ 0。名は変わらない
+    blender --background --python Tools/Blender/build_nagaya_omote.py -- 4.77 --body --floors 2 --miter-cut 0 61.614 --seal --cut-kera 0 sumi
+        # 座の同じ相手と留めた大きな出隅(30° 以上)の隅棟: 外の流れに熨斗の帯を切り口の線を芯に跨がせ、半分ずつ持つ。浅い折れには付けない(一棟の中の折れに見せる)
 
 【`--body`(EDO-0502 2026-10-03)】呼び寸法を**躯体の長さ(両端の妻壁 namako2 の外面どうし)**にする版。
   既定(従来)は呼び寸法 = 破風まで含む全幅なので、隣どうしを呼び寸法で並べると躯体の間に
@@ -1503,7 +1505,12 @@ def cut_kera(bm, h2, th, kera):
         xcap = sum(capx) / len(capx)
         xfar = mx0 if abs(xcap - mx1) < abs(xcap - mx0) else mx1
         made = 0
-        for key in ("front", "back"):
+        # "sumi" = 座の同じ相手と留めた出隅の**隅棟**(EDO-0502 2026-10-16 施主裁定 案A): 外の流れ(出隅は表・入隅は背)だけに
+        #   熨斗の帯を**切り口の線を芯に**跨がせて流し、切る面に掛けて相手の側の半分を落とす(相手も鏡像の半分を持つ ⇒ 継ぎ目なし)。
+        #   内の流れは谷のまま(瓦どうしが二等分の面で出会う)。
+        sumi = (mode == "sumi")
+        my1 = max(v.co.y for v in mv); wmid = (my1 - my0) * 0.5
+        for key in ((("front",) if th[i] > 0 else ("back",)) if sumi else ("front", "back")):
             a, b, yend = L[key]
             dup = bmesh.ops.duplicate(bm, geom=mune)
             nv = [g for g in dup["geom"] if isinstance(g, bmesh.types.BMVert)]
@@ -1525,7 +1532,7 @@ def cut_kera(bm, h2, th, kera):
                 s = (v.co.x - xfar) / (xcap - xfar)                  # 0 = 棟の芯 / 1 = 軒の先(素の小口の蓋)
                 y = ya + s * (yend - ya)
                 w = v.co.y - my0; h = v.co.z - mz0
-                v.co.x = xpl(y) + inw * (KERA_IN + w)
+                v.co.x = xpl(y) + inw * ((w - wmid) if sumi else (KERA_IN + w))
                 v.co.z = a + b * y - KERA_SINK + h
                 v.co.y = y
             # 長さ → y・幅 → x の写しは向きを入れ替える(行列式 = −inw·k)⇒ 正なら巻きはそのまま・負なら裏返す
@@ -1545,7 +1552,8 @@ def cut_kera(bm, h2, th, kera):
                 v.co.z = min(zl, mz0) + (v.co.z - zl)
             for f in nf:
                 f[lay] = 0
-            keep.update(nf); keep.update({e for f in nf for e in f.edges}); keep.update({v for f in nf for v in f.verts})
+            if not sumi:     # 隅棟は切る面に掛けて相手の側の半分を落とす
+                keep.update(nf); keep.update({e for f in nf for e in f.edges}); keep.update({v for f in nf for v in f.verts})
             made += len(nf)
         if mode == "hi":
             # 鬼と冠: 延ばした妻の物を切り口へ(外端の基準は袖瓦も含めた妻の外端 ── 第146巡と同じ据え)
@@ -1742,8 +1750,8 @@ def main():
     if "--cut-kera" in argv:
         i = argv.index("--cut-kera")
         ckera = tuple(None if a in ("0", "-", "none") else a for a in argv[i + 1:i + 3])
-        if any(k not in (None, "hi", "lo") for k in ckera):
-            raise SystemExit("[nagaya] --cut-kera <hi|lo|0> <hi|lo|0>")
+        if any(k not in (None, "hi", "lo", "sumi") for k in ckera):
+            raise SystemExit("[nagaya] --cut-kera <hi|lo|sumi|0> <hi|lo|sumi|0>")
     # --layout <長さm> <L|R|C>  --miter-cut の割付を据え置く長さと揃える端(門長屋は口の芯が割付に依る)
     layout = None
     if "--layout" in argv:

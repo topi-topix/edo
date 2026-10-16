@@ -1,0 +1,57 @@
+{
+    "prefab": "Assets/Edo/Models/Nagaya/Nagaya_Omote_5.5_2f_kutai_mc0x-101.fbx",
+    "kind": "building",
+    "source": "blender:build_nagaya_omote.py(5.5 --body --floors 2 --miter-cut 0 -10.059 --seal)",
+    "unitScale": 1.0,
+    "yBottom": 0.0,
+    "foot": [
+        {
+            "x": -2.75,
+            "y": -0.00298
+        },
+        {
+            "x": 2.75026,
+            "y": -0.00298
+        },
+        {
+            "x": 3.02166,
+            "y": -3.08677
+        },
+        {
+            "x": -2.75,
+            "y": -3.08677
+        }
+    ],
+    "front": 0.0,
+    "back": -3.08677,
+    "jambL": {
+        "x": -2.75,
+        "z0": -3.08677,
+        "z1": 0.0,
+        "y0": 0.35,
+        "y1": 1.8
+    },
+    "jambR": {
+        "x": 2.75,
+        "z0": -3.08677,
+        "z1": 0.0,
+        "y0": 0.35,
+        "y1": 1.8
+    },
+    "passage": {
+        "x0": 0.0,
+        "x1": 0.0
+    },
+    "eave": {
+        "x0": -3.07213,
+        "x1": 3.07523,
+        "z0": -3.72631,
+        "z1": 0.62953,
+        "y0": 0.0,
+        "y1": 7.18272
+    },
+    "faceOut": 0.0,
+    "faceIn": -3.08677,
+    "copingOverhang": 0.0,
+    "height": 7.18272
+}

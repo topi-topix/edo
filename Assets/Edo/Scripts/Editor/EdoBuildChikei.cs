@@ -582,6 +582,9 @@ public static partial class EdoBuild
                 {
                     int fi = Mathf.RoundToInt(i + nn.x * w / hs), fj = Mathf.RoundToInt(j + nn.y * w / hs); if (fi < 0 || fj < 0 || fi >= R || fj >= R) break;
                     if (low.ContainsKey(((long)fi << 32) ^ (uint)fj)) { float gw = td.GetHeight(fi, fj) + org.y; if (float.IsNaN(gWalkMin) || gw < gWalkMin) gWalkMin = gw; continue; }
+                    //   ⭐ 第148巡: 駒と駒の間に取り残された節点(真上に駒が無く隣 8 の 4 以上が駒の下 ── 石の目地・継ぎ目の V)は前の地表でない ── 天端の高さのまま残った
+                    //   その節点を前の地表と読み、隣の見え面の下の節点を天端の高さに止めた(岡部 TW_Hori_Kishi の継ぎ目で 10.05 の土の柱・r147)。末尾の LowerStrandedNodes が下げる
+                    { int cN = 0; for (int di = -1; di <= 1; di++) for (int dj = -1; dj <= 1; dj++) if ((di != 0 || dj != 0) && low.ContainsKey(((long)(fi + di) << 32) ^ (uint)(fj + dj))) cN++; if (cN >= 4) continue; }
                     gF = td.GetHeight(fi, fj) + org.y; break;
                 }
                 //   ⭐ 前の 4m がどれも駒の外形の中(石垣で挟んだ坂の足・隅の駒の法尻 ── 両脇の法の根入れが前の地表を全部覆う)なら、歩いた節点の今の高さの最も低い所を前の地表とする
@@ -637,6 +640,91 @@ public static partial class EdoBuild
         }
         WriteUndo(undoPath, t.name, undo);
         return "駒の下の地面を駒の面 −" + below.ToString("0.00") + " へ下げた: 駒の面 " + tmp.Count + "・節点 " + n + "・下げの最大 " + mx.ToString("F2") + "m(地形 " + t.name + ")" + (floorMin != null ? "・床の下限で止めた当たり " + nFloor : "") + "・見え面の前の地表で止めた節点 " + nFront + "・見え面の下を周りの面の最低まで下げた節点 " + nDeep + "・天端の縁の節点を隣の低い節点まで下げた " + nEdge + "(最大 " + mEdge.ToString("F2") + ")";
+    }
+
+    /// <summary>**駒と駒の間に取り残された節点を下げる**(2026-10-16 EDO-0502 第148巡・施主の写真 r147_kado_P40「溝の中に土の楔」・堀端の野面の継ぎ目の土の柱)。
+    /// 駒の下の下げ(<see cref="SinkGroundUnderParts(IEnumerable{GameObject},float,string,Func{float,float,float})"/>・<see cref="SinkGroundUnderMizo"/>)は
+    /// 真上に駒の面が在る節点しか触らない ⇒ 石と石の目地・駒の継ぎ目の V・隅の駒と溝の間の 0.25 の隙のように**真上に何も無い節点**は造成の面(天端の高さ)のまま残り、
+    /// 周りの下げた節点との三角形が見え面・溝の床の上へ土の柱・楔を立てた(岡部 第147巡: 頂点40 の D_N39_1_Mae_000 の床 14.23 の脇に 16.49・TW_Hori_Kishi の継ぎ目に 10.06〜10.92 が 61 本)。
+    /// ⇒ 真上に駒が無い節点(中心と 0.06 の四方の光線がどれも <paramref name="parts"/> に当たらない)のうち、隣 8 節点の <paramref name="minCovered"/> 以上が駒の下の物を
+    /// 「取り残し」とし、**取り残しでない隣 8 の今の地表の最も低い所**まで下げる(駒の下の隣は下げの手が描いた高さ ── 隣より深い窪みは掘らない)。下限 =
+    /// <paramref name="floorMin"/>(床の下限)。⛔ 上げない・<paramref name="allow"/> が偽の節点(区画の外)は触らない。【硬】見え面・溝の床に土を被せない。
+    /// 地面を書く手の**最後**に一度(後の盛る手が取り残しを再び上げないように)。書くのは <see cref="T"/>。⟶ 下げた節点の数と最大。
+    /// 当たる先: 石垣・土留め・溝を細かい地形の上に据える邸すべて(岡部 Stage3d の末尾。土井・松江松平を細かい地形へ移すとき同じ一行)。</summary>
+    public static string LowerStrandedNodes(IList<GameObject> parts, Func<float, float, float> floorMin, Func<Vector2, bool> allow, string undoPath = null, int minCovered = 4)
+    {
+        var t = T(); var td = t.terrainData; var org = t.transform.position; int R = td.heightmapResolution; float hs = td.size.x / (R - 1);
+        var tmp = new List<MeshCollider>(); var mine = new HashSet<Collider>(); var bnds = new List<Bounds>();
+        foreach (var g in parts)
+        {
+            if (g == null || !g.activeInHierarchy) continue;
+            foreach (var mf in g.GetComponentsInChildren<MeshFilter>())
+            {
+                if (mf.sharedMesh == null) continue; var rr = mf.GetComponent<Renderer>(); if (rr == null || !rr.enabled) continue;
+                var mc = mf.gameObject.AddComponent<MeshCollider>(); mc.sharedMesh = mf.sharedMesh; tmp.Add(mc); mine.Add(mc); bnds.Add(rr.bounds);
+            }
+        }
+        var surf = new Dictionary<long, float>(); var open = new HashSet<long>();
+        int n = 0, nStr = 0; float mx = 0f; var undo = new List<float[]>();
+        try
+        {
+            Physics.SyncTransforms();
+            Func<float, float, float> topHit = (x, z) =>
+            {
+                var hsA = Physics.RaycastAll(new Vector3(x, 400f, z), Vector3.down, 800f); float best = float.NaN, dist = float.MaxValue;
+                foreach (var h in hsA) if (mine.Contains(h.collider) && h.distance < dist) { dist = h.distance; best = h.point.y; }
+                return best;
+            };
+            //   節点ごとに「真上に駒が在るか」と最初に当たる面の高さ(駒の外接 +0.5 の内の節点だけ)
+            foreach (var bb in bnds)
+            {
+                int i0 = Mathf.Max(1, Mathf.FloorToInt((bb.min.x - 0.5f - org.x) / hs)), i1 = Mathf.Min(R - 2, Mathf.CeilToInt((bb.max.x + 0.5f - org.x) / hs));
+                int j0 = Mathf.Max(1, Mathf.FloorToInt((bb.min.z - 0.5f - org.z) / hs)), j1 = Mathf.Min(R - 2, Mathf.CeilToInt((bb.max.z + 0.5f - org.z) / hs));
+                for (int j = j0; j <= j1; j++) for (int i = i0; i <= i1; i++)
+                {
+                    long k = ((long)i << 32) ^ (uint)j; if (surf.ContainsKey(k) || open.Contains(k)) continue;
+                    float x = org.x + i * hs, z = org.z + j * hs; float y = topHit(x, z);
+                    if (float.IsNaN(y)) foreach (var dq in new[] { new Vector2(0.06f, 0f), new Vector2(-0.06f, 0f), new Vector2(0f, 0.06f), new Vector2(0f, -0.06f) }) { float y2 = topHit(x + dq.x, z + dq.y); if (!float.IsNaN(y2) && (float.IsNaN(y) || y2 < y)) y = y2; }
+                    if (float.IsNaN(y)) open.Add(k); else surf[k] = y;
+                }
+            }
+            //   取り残し = 真上に駒が無く、隣 8 の minCovered 以上が駒の下
+            var stranded = new HashSet<long>();
+            foreach (var k in open)
+            {
+                int i = (int)(k >> 32), j = (int)(uint)(k & 0xffffffff); int c = 0;
+                for (int di = -1; di <= 1; di++) for (int dj = -1; dj <= 1; dj++) { if (di == 0 && dj == 0) continue; if (surf.ContainsKey(((long)(i + di) << 32) ^ (uint)(j + dj))) c++; }
+                if (c >= minCovered) stranded.Add(k);
+            }
+            nStr = stranded.Count;
+            var fix = new List<KeyValuePair<long, float>>();
+            foreach (var k in stranded)
+            {
+                int i = (int)(k >> 32), j = (int)(uint)(k & 0xffffffff); float x = org.x + i * hs, z = org.z + j * hs;
+                if (allow != null && !allow(new Vector2(x, z))) continue;
+                //   下げ先 = 取り残しでない隣 8 の今の地表の最も低い所(駒の下の隣は下げの手が描いた高さ ── 埋まった見え面の前は前の地表のまま)。
+                //   ⛔ 隣の駒の面そのものへは下げない(第148巡の試し: 根入れの見え面の高さへ下げ、見え面の前に窪みが開いて前の地表が下がり、見え面の土が 960 → 1017)
+                float tg = float.NaN;
+                for (int di = -1; di <= 1; di++) for (int dj = -1; dj <= 1; dj++)
+                {
+                    if (di == 0 && dj == 0) continue; long k2 = ((long)(i + di) << 32) ^ (uint)(j + dj); if (stranded.Contains(k2)) continue;
+                    float g2 = td.GetHeight(i + di, j + dj) + org.y; if (float.IsNaN(tg) || g2 < tg) tg = g2;
+                }
+                if (float.IsNaN(tg)) continue;
+                if (floorMin != null) { float fm = floorMin(x, z); if (!float.IsNaN(fm)) tg = Mathf.Max(tg, fm); }
+                float cur = td.GetHeight(i, j) + org.y; if (tg >= cur - 1e-3f) continue;
+                fix.Add(new KeyValuePair<long, float>(k, tg)); mx = Mathf.Max(mx, cur - tg);
+            }
+            foreach (var kv in fix)
+            {
+                int i = (int)(kv.Key >> 32), j = (int)(uint)(kv.Key & 0xffffffff); var h1 = td.GetHeights(i, j, 1, 1); float was = h1[0, 0];
+                h1[0, 0] = (kv.Value - org.y) / td.size.y; td.SetHeightsDelayLOD(i, j, h1); undo.Add(new[] { i, j, h1[0, 0], was }); n++;
+            }
+            if (n > 0) { td.SyncHeightmap(); AssetDatabase.SaveAssetIfDirty(td); }
+        }
+        finally { foreach (var mc in tmp) if (mc != null) UnityEngine.Object.DestroyImmediate(mc); }
+        WriteUndo(undoPath, t.name, undo);
+        return "駒と駒の間に取り残された節点(真上に駒が無く隣 8 の " + minCovered + " 以上が駒の下)" + nStr + " のうち、隣の最も低い地表へ下げた " + n + "(最大 " + mx.ToString("F2") + ")";
     }
 
     /// <summary>**駒の足の下の地面を足の底 + <paramref name="bury"/> へ上げる(上げるだけ)**── 地面を先に焼き切った後(溝・土留めの下げの後)に、

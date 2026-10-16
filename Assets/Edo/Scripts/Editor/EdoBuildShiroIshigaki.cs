@@ -861,8 +861,11 @@ public static partial class EdoBuild
     /// 口の裏に、その辺の直線の駒(見付に合う丈 <see cref="CastleWallOfExpose"/>・両脇と同じ倍率)を**内への二等分の向き**に据える:
     /// ① 走りの芯を頂点へ ② 天端 = 両脇の頂点の天端の低い方(実測の最上点)③ 全頂点が両脇の辺の線の内へ入るまで二等分の向きへ引く(区域【硬】・実測)。
     /// 見え面は両脇の駒の見え面の裏に隠れ、口からだけ見える。硬い(区域・天端を越えない)。当たる先: PlaceCastleRun を通る外周の基壇の 40° 未満の出隅(岡部 北の辺・土井)。</summary>
+    /// <summary>最後の <see cref="FillConvexCornerSlits"/> が「留めの版が要る」と刷った出隅(頂点・折れ・切り角・倍率・両脇の天端)── 部材方への待ち(第148巡)。</summary>
+    public static readonly List<string> MiterBaseWait = new List<string>();
     public static string FillConvexCornerSlits(IList<CastleSec> secs, Vector2[] poly, Transform parent, Func<float, float, float> groundAt, float kadoMinTurn = 40f)
     {
+        MiterBaseWait.Clear();
         int n = poly.Length; float area = 0f; for (int i = 0; i < n; i++) area += poly[i].x * poly[(i + 1) % n].y - poly[(i + 1) % n].x * poly[i].y;
         var sb = new System.Text.StringBuilder(); int made = 0;
         for (int v = 0; v < n; v++)
@@ -898,7 +901,10 @@ public static partial class EdoBuild
             float back = Vector2.Dot(new Vector2(go.transform.position.x, go.transform.position.z) - V, nb);
             sb.Append(" P" + v + "(折れ " + tv.ToString("F0") + "°・天端 " + crestTop.ToString("F2") + "・線の外 " + (xOut > 0f ? "+" : "") + xOut.ToString("F3") + "・底 " + yBot.ToString("F2") + " / 外の地表 " + gV.ToString("F2")
                       + (yBot > gV - 0.05f ? " ⚠ 底が外の地表に届かない" : "") + ")");
+            //   ⭐ 第148巡(oki-kata §2a【硬】直角でない出隅は最初から留める・施主の写真 r147_kado_P41): 口の裏の駒は留めの代わりでない ── 両脇の台の石の端は
+            //   角の二等分の面で切った版(端を斜めに切った Castle Wall・倍率 s・天端の違う側は高い方の切り口が見える)で据えるべき所。版が無いので待ちへ(建て方はこの口の駒のまま)
+            MiterBaseWait.Add("P" + v + " 折れ " + tv.ToString("F1") + "°・端の切り角 " + (tv * 0.5f).ToString("F1") + "°・倍率 " + sc.ToString("0.##") + "・天端 " + sA.CrestAt(sA.s1).ToString("F2") + "/" + sB.CrestAt(sB.s0).ToString("F2"));
         }
-        return "浅い出隅の口を裏の駒で塞いだ " + made + " 基:" + sb;
+        return "浅い出隅の口を裏の駒で塞いだ " + made + " 基:" + sb + (MiterBaseWait.Count > 0 ? "\n  ★ 留めの版が要る(台の石の端を角の二等分の面で切った Castle Wall ── 部材方へ・oki-kata §2a): " + string.Join(" / ", MiterBaseWait.ToArray()) : "");
     }
 }

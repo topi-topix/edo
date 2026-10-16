@@ -6486,6 +6486,7 @@ public static class EdoOkabeYashikiBuilder
                     fMin = (x, z) => { float m0 = fMin0 == null ? float.NaN : fMin0(x, z); var q = new Vector2(x, z); if (!nearHk(q)) return m0;
                         float f = EdoGeom.PIP(PPk, q) ? HoriFootFloor(q) : EdoBuild.Ground(x, z); if (float.IsNaN(f)) return m0; return float.IsNaN(m0) ? f : Mathf.Max(f, m0); }; }
             }
+            _sinkFloor = fMin;   // 第148巡: 末尾の取り残しの下げ(LowerStrandedNodes)も同じ床の下限で止める
             sb.Append(CutKaidansGroundR137b("(下げの前)"));   // ⭐ 第142巡: 段の下を切ってから見え面の前の地表を読む(CutKaidansGroundR137b の注)
             sb.AppendLine("  " + EdoBuild.SinkGroundUnderParts(walls, 0.05f, SinkUndoPath, fMin));
             // ⭐ 角の庭と練塀の内の足元の帯の下限を最後にもう一度(第116巡: 2b の盛りの後に段の法が庭の縁と隅 P4 の足元を 11.87 まで切り、庭の最低 < 12.30・P4 の足が 0.26 浮いた)
@@ -6728,6 +6729,15 @@ public static class EdoOkabeYashikiBuilder
                 AssetDatabase.SaveAssetIfDirty(EdoBuild.T().terrainData);
             }
         } catch (System.Exception ex) { sb.AppendLine("  ⛔ 書き手の優先の順で例外: " + ex.Message); Debug.LogException(ex); }
+        {   // ⭐ 第148巡(施主の写真 r147_kado_P40「溝の中の土の楔」・堀端の継ぎ目の土の柱): 地面を書く手の最後に、駒と駒の間に取り残された節点(真上に駒が無く隣の多くが駒の下)を
+            //   隣の駒の面 −0.02 へ下げる(EdoBuild.LowerStrandedNodes ── 下げの手は真上に面が在る節点しか触らず、目地・継ぎ目・隅と溝の隙の節点が天端の高さのまま残った)。
+            //   当たる先: 石垣・段の土留め・溝・石段を細かい地形に据える所すべて(岡部 TW_Hori_Kishi の継ぎ目・頂点40 の隅と D_N39_1_Mae の間・D_MinamiHei_w)
+            var stP = new List<GameObject>(); var rtS = GameObject.Find(GN).transform;
+            foreach (var gm in new[] { "Dan", "Ishigaki" }) { var g = rtS.Find(gm); if (g != null) foreach (Transform c in g) if (c.gameObject.activeInHierarchy) stP.Add(c.gameObject); }
+            foreach (var gm in MizoGroups) { var g = rtS.Find(gm); if (g != null) foreach (Transform c in g) if (c.gameObject.activeInHierarchy) stP.Add(c.gameObject); }
+            { var kai = rtS.Find("Fuzoku/Kaidan"); if (kai != null) foreach (Transform c in kai) if (c.gameObject.activeInHierarchy) stP.Add(c.gameObject); }
+            var PPs = Poly; sb.AppendLine("  " + EdoBuild.LowerStrandedNodes(stP, _sinkFloor, q => EdoGeom.PIP(PPs, q), SinkUndoPath));
+        }
         sb.AppendLine("  " + EdoBuild.HoleUnderMasu(pcs, 0.05f, HoleUndoPath));
         sb.Append(SeRojiHeiFoot(false));   // 据えて下げた後に足を測る(heiFootSpec.order【硬】)
         sb.Append(RampWaterQA());          // 坂の水(ramps[].water・第131巡)── 測るだけ
@@ -9147,6 +9157,7 @@ public static class EdoOkabeYashikiBuilder
     {
         var r = O(Get(fd, "r140")); if (r == null) return null; string t = ""; var wv = Get(r, "write"); if (wv is string) t += S(wv); else foreach (var w in A(wv) ?? new List<object>()) t += S(w); return t;
     }
+    static System.Func<float, float, float> _sinkFloor;   // Stage3d の駒の下の下げの床の下限(第148巡・末尾の LowerStrandedNodes が引く)
     static List<GameObject> _hkPieces = new List<GameObject>(); static float _hkFenceIn = float.NaN; static float _hkPostRoot = float.NaN;
     /// <summary>**堀端の土留め TW_Hori_Kishi と木柵の移し**(指図 fences[F_Hori].r140 ── 普請方 第140巡の返し P3・第141巡)。
     /// 「区画の線の上を野面の土留めで受け、柵は天端の上に立てる。見え面の法尻 = 区画の線 −x(内側)【硬】・法は内へ倒す・天端 = 線の内 y の今の地盤を通した坂なり・継ぎ目の段 ≤j【硬】・

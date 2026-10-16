@@ -1,11 +1,11 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 b9b07219b262 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 c1543d04ece4 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
 
-- 公開関数 687 本(注釈なし 37)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
+- 公開関数 688 本(注釈なし 39)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
 - 同じ道具が刷る目録: 邸ビルダーのメニュー → Stage と中の関数 `docs/builder-mokuroku.md` / 部材の名 `docs/edoassets-mokuroku.md`。
 - 札: **硬** = 注釈に「硬い/許容0」・**柔** = 「柔らかい/狙い」がある(判定ではなく注釈の語)。相手の札(地面・駒どうし・天端・床・断面・面・隅・区域)も注釈の語を拾っただけ。
 - 呼んでいる所 = 定義のファイルの外で `EdoBuild.<名>(` と書いている C# ファイル(`Edo` と `Builder/Rebuild` を落とした名)と、その中の呼んでいる関数(Stage)。同じ名の多重定義はまとめて数える。`EdoBuild` の中どうしの呼び出しは載せない。
@@ -17,7 +17,7 @@
 | ファイル | 何の道具か(ファイル冒頭の注釈) | 当たる先 | 関数 |
 |---|---|---|---|
 | [EdoBuild.cs](#edobuildcs) | 配置・資産系の共有基盤 (Phase 2c, 2026-08-26) | — | 47 |
-| [EdoBuildChikei.cs](#edobuildchikeics) | 地形を座標で引く・邸の Stage が地形を名指す・溝の下の地面を下げる(施主裁定 2026-10-11・EDO-0502)。 | — | 27 |
+| [EdoBuildChikei.cs](#edobuildchikeics) | 地形を座標で引く・邸の Stage が地形を名指す・溝の下の地面を下げる(施主裁定 2026-10-11・EDO-0502)。 | — | 28 |
 | [EdoBuildDanIshigaki.cs](#edobuilddanishigakics) | EdoBuild — 段の土留め(石垣・野面)を天端の折れ線へ据える(2026-10-03・EDO-0502 岡部 terraceWalls)。 | — | 14 |
 | [EdoBuildFaceSoil.cs](#edobuildfacesoilcs) | EdoBuild — 見え面・溝の床の上に出た土を真上から数える(2026-10-16・EDO-0502 第147巡・施主の写真 r146_kado_P15 | — | 1 |
 | [EdoBuildFootBand.cs](#edobuildfootbandcs) | 壁の内の足元の帯(練塀・土塀・長屋の背の内の床)── 据えた駒の実メッシュから内面を測り、その面に沿う帯の地面を高さの式で書く(EDO-0502 第115巡)。 | — | 13 |
@@ -155,6 +155,7 @@
 | `EdoBuild.UnderAnyPart(q)` | `bool` |  | ⚠ 注釈なし | — |
 | `EdoBuild.UnderLookingFace(q)` | `bool` | 地面 | 点 q の最寄りの節点が LastFaceNodes に在るか(地形は T)。 | OkabeYashiki(Stage3d_Mizo_) |
 | `EdoBuild.SinkGroundUnderParts(parts, below, undoPath, floorMin)` | `string` |  | ⚠ 注釈なし | OkabeYashiki(Stage3d_Mizo_) |
+| `EdoBuild.LowerStrandedNodes(parts, floorMin, allow, undoPath=…, minCovered=…)` | `string` | 地面・天端・床・面・隅・区域 | 駒と駒の間に取り残された節点を下げる(2026-10-16 EDO-0502 第148巡・施主の写真 r147_kado_P40「溝の中に土の楔」・堀端の野面の継ぎ目の土の柱)。 | OkabeYashiki(Stage3d_Mizo_) |
 | `EdoBuild.FillUnderFoot(pieces, footBand, bury, margin, keep, allow, undoPath=…, edgeCap=…, allowUnderFoot=…, keepPieces=…, keepPad=…, rimFull=…, capUnderFoot=…, globalBand=…)` | `string` | 硬 地面・天端・床・区域 | 駒の足の下の地面を足の底 + bury へ上げる(上げるだけ)── 地面を先に焼き切った後(溝・土留めの下げの後)に、 座で据えた塀の足の下に残る浮きを地面で埋める(岡部 指図 heiFootSpec.order「帯と床… | OkabeYashiki(Stage3d_Mizo_) |
 | `BandEdge`(class) | — | | 塀の前の帯(PlaneBand)の一辺: 線の始め a・走りの向き u・内向き inw・長さ len・帯の内への離れ [q0, q1](走り s の関数)・面の高さ yAt(s)。 | |
 | `EdoBuild.PlaneBand(edges, allow, off, undoPath=…, ext=…, recPath=…)` | `string` | 地面・天端 | 塀の前の帯の地面を一枚の面にする(上げも下げも・第123巡 2026-10-13 岡部 施主「犬走りの地面は座の線と同じ高さ・同じ勾配の一枚の面」【硬: 土の楔 0】)。 | OkabeYashiki(Stage3d_Mizo_) |
@@ -199,7 +200,7 @@ EdoBuild — 見え面・溝の床の上に出た土を真上から数える(202
 
 | 関数 | 返す | 札 | 何をするか(注釈の一文目) | 呼んでいる所 |
 |---|---|---|---|---|
-| `EdoBuild.SoilOverFacesReport(walls, mizos, step=…, tsv=…)` | `string` | 地面・天端・床・面 | 見え面の上の土・溝の中の土を真上から数える(第147巡)。 ⟶ 返す: 一行の要約(件数・最悪・駒の上位) | OkabeYashiki(GroundQA_) |
+| `EdoBuild.SoilOverFacesReport(walls, mizos, step=…, tsv=…)` | `string` |  | ⚠ 注釈なし | OkabeYashiki(GroundQA_) |
 
 ## EdoBuildFootBand.cs
 
@@ -1099,7 +1100,8 @@ EdoBuild — 城の石垣の直線 run を区画の辺に沿って据える(外�
 | `CastleBack`(class) | — | | PlaceCastleBack の答え。 | |
 | `EdoBuild.PlaceCastleBack(secs, inu, outer, groundAt, parent, log, prefix=…, stepLap=…)` | `CastleBack` | 硬・柔 地面・天端・面・隅 | 基壇を棟の背まで通し、背の面も城の石垣で立てる(2026-10-04・EDO-0533 土井 boundaryPlinth.back)。 ⟶ 返す: CastleBack(駒・区間ごとの見え面と埋めの駒・線・隙) | DoiBuilder.Mon(BuildBackPlinth) |
 | `EdoBuild.BackBedGap(body, stones, origin, along, inward, tBack, skipS, bare, band=…, others=…)` | `float` | 天端 | 据えた棟の背の下端 − 下の石垣の天端[m](浮き = 正・めり込み = 負)。 ⟶ 返す: 絶対値の最悪(符号付き) | DoiBuilder.Mon(BuildBackPlinth) |
-| `EdoBuild.FillConvexCornerSlits(secs, poly, parent, groundAt, kadoMinTurn=…)` | `string` | 硬 天端・面・隅・区域 | 浅い出隅の台の石の口を裏の駒で塞ぐ(第126巡 2026-10-13 岡部 const.heiLine.faceFront【硬】「出隅で台の石が抜ける所を作らない」)。 | OkabeYashiki(PlaceIshigaki) |
+| `EdoBuild.MiterBaseWait` | `List<string>` | 硬 天端・面・隅・区域 | 浅い出隅の台の石の口を裏の駒で塞ぐ(第126巡 2026-10-13 岡部 const.heiLine.faceFront【硬】「出隅で台の石が抜ける所を作らない」)。 | — |
+| `EdoBuild.FillConvexCornerSlits(secs, poly, parent, groundAt, kadoMinTurn=…)` | `string` |  | ⚠ 注釈なし | OkabeYashiki(PlaceIshigaki) |
 
 ## EdoBuildShokusai.cs
 

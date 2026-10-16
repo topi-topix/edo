@@ -15,6 +15,21 @@ public static partial class EdoBuild
     /// <para>溝・桝(<paramref name="mizos"/>):当たった面が上を向き(法線 y ≥ 0.9)駒の天端より 0.08 以上低い(溝の床)所で、地表が床より 0.02 を超えて高い ⇒ 「溝の中の土」。</para>
     /// 【硬】どちらも 0(許容 0 の被り)。⟶ 返す: 一行の要約(件数・最悪・駒の上位)。<paramref name="tsv"/> を渡せば明細を書く。
     /// 当たる先: 石垣・土留め・溝を細かい地形の上に据える邸すべて(岡部 GroundQA ── 土井・松江松平を細かい地形へ移すとき)。</summary>
+    /// <summary>見え面の点 (x, z) の「前の地表」── 面の法線の水平の向き <paramref name="fo"/> へ 0.05 刻みで、真上に駒 <paramref name="g"/> が無くなる所 +0.15 の地表
+    /// (そこの真上に別の駒〔<paramref name="owner"/> の内〕が在れば、その最初に当たる面の高い方)。4m 歩いても駒の下なら NaN。当たる先: <see cref="SoilOverFacesReport"/>(根入れを数えない)。</summary>
+    static float FrontGroundOf(float x, float z, Vector2 fo, GameObject g, Dictionary<Collider, GameObject> owner)
+    {
+        for (float d = 0.05f; d <= 4f; d += 0.05f)
+        {
+            float qx = x + fo.x * d, qz = z + fo.y * d; bool mine = false;
+            foreach (var hh in Physics.RaycastAll(new Vector3(qx, 400f, qz), Vector3.down, 800f)) { GameObject o; if (owner.TryGetValue(hh.collider, out o) && o == g) { mine = true; break; } }
+            if (mine) continue;
+            float ex = d + 0.15f, fx = x + fo.x * ex, fz = z + fo.y * ex; float gy = Ground(fx, fz);
+            foreach (var hh in Physics.RaycastAll(new Vector3(fx, 400f, fz), Vector3.down, 800f)) if (owner.ContainsKey(hh.collider) && !(hh.collider is TerrainCollider) && (float.IsNaN(gy) || hh.point.y > gy)) gy = hh.point.y;
+            return gy;
+        }
+        return float.NaN;
+    }
     public static string SoilOverFacesReport(IList<GameObject> walls, IList<GameObject> mizos, float step = 0.10f, string tsv = null)
     {
         var ci = System.Globalization.CultureInfo.InvariantCulture;
@@ -36,7 +51,7 @@ public static partial class EdoBuild
             }
         };
         add(walls, 0); add(mizos, 1);
-        int nFace = 0, nMizo = 0; float wFace = 0f, wMizo = 0f; Vector3 atFace = Vector3.zero, atMizo = Vector3.zero;
+        int nFace = 0, nMizo = 0, nEmbed = 0, nCrest = 0; float wFace = 0f, wMizo = 0f; Vector3 atFace = Vector3.zero, atMizo = Vector3.zero;
         var byPiece = new Dictionary<string, int>(); var sbT = tsv != null ? new System.Text.StringBuilder() : null;
         try
         {
@@ -64,6 +79,11 @@ public static partial class EdoBuild
                             var fo = new Vector2(h.normal.x, h.normal.z) / nh; var tl = new Vector2(-fo.y, fo.x);
                             float gL = Ground(x + tl.x * 0.3f, z + tl.y * 0.3f), gR = Ground(x - tl.x * 0.3f, z - tl.y * 0.3f);
                             if (float.IsNaN(gL) || float.IsNaN(gR) || gy - Mathf.Max(gL, gR) <= 0.05f) continue;
+                            //   ⭐ 第148巡: 根入れ(見え面の足が前の地表の下に埋まる所)を数えない ── 面の点の地表が「見え面の前の地表」(面の法線の水平の向きへ、真上に
+                            //   この駒が無くなる所 +0.15 の地表・その上に別の石垣の駒が在ればその天端の高い方)より 0.05 を超えて高い所だけ(第147巡の 1891 のうち 939 は前の地表以下 ── 根入れ)。
+                            //   天端の帯(駒の天端 −0.15 より上の面で地表が天端 +0.02 以下)の土は裏石の帯の土(別の作法)なので数えない
+                            if (h.point.y >= top - 0.15f && gy <= top + 0.02f) { nCrest++; continue; }
+                            float fr = FrontGroundOf(x, z, fo, g, owner); if (!float.IsNaN(fr) && gy <= fr + 0.05f) { nEmbed++; continue; }
                             nFace++; if (dep > wFace) { wFace = dep; atFace = h.point; }
                         }
                         else
@@ -82,7 +102,7 @@ public static partial class EdoBuild
         var sb = new System.Text.StringBuilder("見え面・溝の床の上の土(真上から " + step.ToString("0.00", ci) + " 格子・【硬】0): 見え面の土 " + nFace
             + (nFace > 0 ? "(最悪 " + wFace.ToString("F2", ci) + " @(" + atFace.x.ToString("F1", ci) + "," + atFace.z.ToString("F1", ci) + "))" : "")
             + " / 溝の中の土 " + nMizo + (nMizo > 0 ? "(最悪 " + wMizo.ToString("F2", ci) + " @(" + atMizo.x.ToString("F1", ci) + "," + atMizo.z.ToString("F1", ci) + "))" : "")
-            + ((nFace + nMizo) == 0 ? " ⭕" : " ⛔"));
+            + ((nFace + nMizo) == 0 ? " ⭕" : " ⛔") + "(数えない: 前の地表以下の根入れ " + nEmbed + "・天端の帯の土 " + nCrest + ")");
         for (int i = 0; i < Mathf.Min(8, pcs.Count); i++) sb.Append((i == 0 ? "\n    " : "・") + pcs[i].Key + " " + pcs[i].Value);
         return sb.ToString();
     }

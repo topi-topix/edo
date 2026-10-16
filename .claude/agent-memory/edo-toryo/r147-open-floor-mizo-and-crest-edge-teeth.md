@@ -18,5 +18,8 @@ metadata:
 6. 新しい測り `EdoBuild.SoilOverFacesReport`(EdoBuildFaceSoil.cs・真上から 0.1 格子・2 秒): 見え面の土は「面に沿う両脇 0.3 の地表のどちらより 0.05 高い」(根入れ・坂を数えない)・
    _Tooshi は除く。溝の中の土は床(法線 y ≥0.9・天端 −0.08 より下)の上の地表。
 
+7. 部材方が同名で焼き直した FBX 15 本を `ImportAsset(ForceUpdate)` で一本ずつ読み直すと、1 本ごとに Asset Pipeline Refresh が走り約 7 秒・計 100 秒 ⇒ MCP は時間切れ。印のファイル+結果の txt で待つ(Editor.log の `Importing 'GUID` で進みが見える)。読み直した後の GroundQA は 82 秒(第146巡の再起動直後は 436 秒)。
+8. 袖瓦(kera)を入れた段違いの屋根は、真上から見ると切り口に沿って丸瓦の小口が一つずつ低い屋根の上に並び、鋸の歯の破片に見える(頂点18・40)。次に写真で問われたら部材方の話。
+
 **How to apply:** 溝・駒の下の地面を下面で読む器は「裏の面の無い駒」で抜ける ── 抜けたら上の面で読む。地面の歯は天端の縁の節点を先に疑う。欄の書式が二つある back は二つとも読む。
 関連 [[mizo-piece-depth-includes-rim-and-skin-covers]] [[return-lost-when-sashizu-text-format-changes]] [[r146-facestraight-hull-span]]

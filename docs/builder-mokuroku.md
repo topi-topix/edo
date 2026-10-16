@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 94・関数 991(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 27 本・メニュー 94・関数 993(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -25,7 +25,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoDoiBuilder.cs](#edodoibuildercs) | 土井大隅守上屋敷(三河刈谷藩2万3千石・譜代・雁間)ビルダー。 | 15 | 89 |
 | [EdoMatsudairaDewaBuilder.Niwa.cs](#edomatsudairadewabuilderniwacs) | 松平出羽守上屋敷 — 庭の工程(池・築山・水の系・石組・点景・滝見口)。 | 9 | 30 |
 | [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 16 | 120 |
-| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 21 | 308 |
+| [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 21 | 310 |
 | [EdoSannoShaBuilder.cs](#edosannoshabuildercs) | 山王権現社(日枝神社)本体+樹下家邸+山王門前町ビルダー (2026-08-11。観理院は 2026-09-26 に類型へ移し削除) | 1 | 31 |
 | [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 13 | 102 |
 | [EdoSanyashikiRebuild.cs](#edosanyashikirebuildcs) | 三屋敷(太田・加納・鍋島=松平肥前守)の区画を下書きv3へ更新 (2026-08-08) | 0 | 6 |
@@ -642,6 +642,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `OnHeiLineVertex(v)` | `bool` |  | 頂点 v の両脇の辺が芯線(const.heiLine)の上か(隅の駒を据える時に一続きの控え d で面を合わせる ── FitKado・SeatKadoToRuns を通らない)。 |
 | `RunInu(e, s)` | `float` |  | 辺 e・走り s の run の犬走り ── 既定は const.inubashiri。 |
 | `IshigakiHead(full)` | `string` |  | 外周の基壇(城の石垣・const.kidan 甲の型 ── 普請方の設計 2026-10-11 を普請奉行が採った)。 |
+| `NagayaBaseWhole(r, bd, segs)` | `string` |  | 一棟の台の石垣は棟の全長に通す(第147巡・施主の写真 r146_kado_P16「左の棟の台が途中で切れ、石の板が前へ出る」)。 |
 | `PlaceIshigaki()` | `string` |  | — |
 | `PlaceKomon()` | `string` |  | — |
 | `FaceOut(go, e)` | `float` |  | 据えた現物の外面(辺 e の区画線から外向きへの最大の張り出し[m])。 |
@@ -743,7 +744,8 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `FenceBedFor(fd)` | `System.Func<float, float, float>` |  | 木柵 fnm の床 ── 欄 r140 で天端の上へ移した柵は「地表と TW_Hori_Kishi の駒の天端の高い方」(EdoBuild.Bed)・ほかは地表。 |
 | `InMinamiMizoZone(q, backReach)` | `bool` |  | TW_Minami_Mizo の前(縁石まで)から背(小段 + 法)までの区域か ── 溝の帯の擦り付け(bandR137 ②)を当てない(背は CrestFollowBackBench が描く)。 |
 | `MinamiMizoBack(bf)` | `string` |  | TW_Minami_Mizo の背(northSideR138「天端の線から w は天端 −d の平らを取り、その先は今の法へ擦り付ける・天端の上の土は 1/n で溝の側へ」【硬】)── EdoBuild.CrestFo… |
-| `RunBackBands()` | `string` |  | 塀と棟の妻の隙間の土の雨落ち(指図 drains[D_MinamiHei].segs.west.sukima ── 普請方 2026-10-14・第131巡)。 |
+| `RunBackFoot(r, root, mF, P, under)` | `string` |  | 塀と棟の妻の隙間の土の雨落ち(指図 drains[D_MinamiHei].segs.west.sukima ── 普請方 2026-10-14・第131巡)。 |
+| `RunBackBands()` | `string` |  | — |
 | `JointGapCheck(tJ, tG, eH, sHead, keep, offM, yHead, FL, At, Corner)` | `string` |  | 塀と棟の妻の取り合い(指図 drains[D_MinamiHei].segs.west.joint / p11gap ── 普請方 2026-10-14・第131巡の返し)。 |
 | `SukimaAmaochi(tK, eH, sHead, keep, offM, yHead, FL, At, Corner)` | `string` |  | — |
 | `PlaceSeRojiAnkyo()` | `string` |  | 背の路地の暗渠(指図 drains[D_SeRoji].make ── flow・masu・kuchi・toi・at・table・order・EDO-0502 第109巡)。 |

@@ -2933,6 +2933,40 @@ public static class EdoOkabeYashikiBuilder
         for (int i = 1; i < ls.Length; i++) if (ls[i].Contains("坂なり") || ls[i].Contains("出隅 IG_") || ls[i].Contains("出隅の駒")) sb.Append("\n   " + ls[i].Trim());
         return sb.ToString();
     }
+    /// <summary>**一棟の台の石垣は棟の全長に通す**(第147巡・施主の写真 r146_kado_P16「左の棟の台が途中で切れ、石の板が前へ出る」)。
+    /// 算出物 base[] は露出の薄い所(thin・露出 &lt; baseMin)を台なしにしていた ⇒ 同じ棟の前で台が途中で終わり、台の天端の前の出(躯体の面より前 0.3〜0.6)が
+    /// 板のように途切れた(岡部 N16_0: s0〜6.5 だけ台・s6.5〜21.1 は無し)。台を一つでも持つ長屋の run は、薄い所にも同じ天端で据える
+    /// (露出の薄い所は前の地表に埋まる ── 据えは埋めて隠す)。門の口(棟の札の passage)は空ける。<paramref name="segs"/> を書き換える。⟶ 報告の一行(変えなければ null)。
+    /// 当たる先: 台の石垣の上に建つ外周の長屋すべて(岡部 N16〜N18・N39_0・N40_0/1 ── 台を持たない棟(segs 空)は触らない)。</summary>
+    static string NagayaBaseWhole(Run r, Dictionary<string, object> bd, List<Vector2> segs)
+    {
+        var add = new List<Vector2>(); foreach (var q in A(Get(bd, "thin")) ?? new List<object>()) { var t2 = A(q); if (t2 != null && t2.Count == 2 && F(t2[1]) - F(t2[0]) > 0.01f) add.Add(new Vector2(F(t2[0]), F(t2[1]))); }
+        if (add.Count == 0) return null;
+        // 門の口(棟の札の passage を辺の走りへ)── 口の中に台を据えない
+        float g0 = float.NaN, g1 = float.NaN; var root = GameObject.Find(GN); var hT = root == null ? null : root.transform.Find("Kakoi/" + r.name);
+        if (hT != null)
+        {
+            var spec = EdoPartSpec.Get(PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(hT.gameObject));
+            if (spec != null && spec.passage != null && spec.passage.x1 - spec.passage.x0 >= 0.1f)
+            {
+                Vector2 ea = EdgePt(r.edge, 0f), ax = (EdgePt(r.edge, 1f) - ea).normalized;
+                float p0 = Vector2.Dot(EdoPartSpec.W(hT, spec.passage.x0, spec.front) - ea, ax), p1 = Vector2.Dot(EdoPartSpec.W(hT, spec.passage.x1, spec.front) - ea, ax);
+                g0 = Mathf.Min(p0, p1); g1 = Mathf.Max(p0, p1);
+            }
+        }
+        else return "★ " + r.name + ": 棟が無く門の口を測れない ── 台は算出物の区間のまま";
+        float before = 0f; foreach (var sg in segs) before += sg.y - sg.x;
+        var all = new List<Vector2>(segs); all.AddRange(add); all.Sort((a, b) => a.x.CompareTo(b.x));
+        var merged = new List<Vector2>(); foreach (var sg in all) { if (merged.Count > 0 && sg.x <= merged[merged.Count - 1].y + 0.01f) merged[merged.Count - 1] = new Vector2(merged[merged.Count - 1].x, Mathf.Max(merged[merged.Count - 1].y, sg.y)); else merged.Add(sg); }
+        var outS = new List<Vector2>();
+        foreach (var sg in merged)
+        {
+            if (float.IsNaN(g0) || sg.y <= g0 || sg.x >= g1) { outS.Add(sg); continue; }
+            if (g0 - sg.x > 0.5f) outS.Add(new Vector2(sg.x, g0)); if (sg.y - g1 > 0.5f) outS.Add(new Vector2(g1, sg.y));
+        }
+        segs.Clear(); segs.AddRange(outS); float after = 0f; foreach (var sg in segs) after += sg.y - sg.x;
+        return "★ " + r.name + ": 台を棟の全長へ(薄い所も同じ天端で据えて埋める・第147巡)区間 " + before.ToString("F1") + "→" + after.ToString("F1") + "m" + (float.IsNaN(g0) ? "" : "・門の口 s" + g0.ToString("F2") + "〜" + g1.ToString("F2") + " は空ける");
+    }
     static string PlaceIshigaki()
     {
         var grp = Group("Ishigaki"); Clear(grp);
@@ -2966,6 +3000,7 @@ public static class EdoOkabeYashikiBuilder
             var segList = new List<Vector2>();
             if (hasHlB) segList.AddRange(hlB.Value);
             else foreach (var q in A(Get(bd, "segs")) ?? new List<object>()) { var t2 = A(q); if (t2 != null && t2.Count == 2) segList.Add(new Vector2(F(t2[0]), F(t2[1]))); }
+            if (!hasHlB && r.Nagaya && segList.Count > 0) { string nt = NagayaBaseWhole(r, bd, segList); if (nt != null) notes.Add(nt); }
             foreach (var sg in segList)
             {
                 float t0 = sg.x, t1 = sg.y; if (t1 - t0 <= 0.01f) continue;
@@ -6826,6 +6861,11 @@ public static class EdoOkabeYashikiBuilder
         sb.AppendLine("  部材 " + parts.Count + "(段の土留めに接する外周の石垣 " + igN + "・石段 " + stN + ")・覆うだけの駒 " + cover.Count + "(囲い " + cvK + "・段に接しない外周の石垣 " + cvI + ")");
         sb.Append(EdoBuild.SkinGapTable(parts, FlatFaces(null), tol, cover));
         if (dn != null) sb.AppendLine("  " + EdoBuild.NozuraSeamReport(root.transform, dn, null).Replace("\n", "\n  "));
+        {   // ⭐ 第147巡: 見え面の前の土の歯・楔と溝の中の土を真上から(野面の光線の検めは城の石垣の台と前の地表 +0.3 より下を見ていなかった)
+            var wl = new List<GameObject>(); foreach (var gm in new[] { "Dan", "Ishigaki" }) { var g = root.transform.Find(gm); if (g != null) foreach (Transform c in g) if (c.gameObject.activeInHierarchy) wl.Add(c.gameObject); }
+            var mz = new List<GameObject>(); foreach (var gm in MizoGroups) { var g = root.transform.Find(gm); if (g != null) foreach (Transform c in g) if (c.gameObject.activeInHierarchy && EdoBuild.IsMizoBodyPath(PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(c.gameObject))) mz.Add(c.gameObject); }
+            sb.AppendLine("  " + EdoBuild.SoilOverFacesReport(wl, mz, 0.10f, Path.Combine(ProjRoot, BakDir + "/soil_over_faces.tsv")).Replace("\n", "\n  "));
+        }
         sb.AppendLine("  " + EdoBuild.WrittenNodeStepReport(new[] { BandRecPath("bench"), BandRecPath("s3d") }, parts, cover, 0.25f / 1.5f + 0.005f));   // 普請方 F4(第136巡)
         sb.Append(FenceFloatQA());   // 木柵の浮き(fences[].r138【硬】・第139巡)
         return sb.ToString();
@@ -9321,6 +9361,32 @@ public static class EdoOkabeYashikiBuilder
     /// その先は「1/n で…擦り付け」の勾配で帯の高さから上がる上限まで削るだけ(段なし ── 欄に勾配が無ければ同じ辺の棟の back の勾配を借りて ⚠ で名乗る)。
     /// 石垣・土留め・溝・桝の駒の足の外形の中の節点は触らない(駒の下)。⛔ 座標を書かない(帯は実メッシュの背から)。
     /// 当たる先: 背の帯を座より下げて雨落ちにする外周の長屋(岡部 N40_1 ── 以後、back に同じ書式を持つ棟)。</summary>
+    /// <summary>**棟の背の足元の擦り付け**(指図 runs[].back「s a〜b は … 背の足元 座 −d から 1/n で表の溜りへ擦り付け」・第147巡)。
+    /// 足元 = 棟の実メッシュの背の面(EdoBuild.FaceOut)・高さ = min(欄の座, 据えた躯体の底) − d。背の面から外へ 1/n で下る面を上げるだけで書き(低い所を埋める)、
+    /// 足元から 0.5 の内で 座 −d を超える土は切る。石垣・溝・桝の駒の外形の中(<paramref name="under"/>)と区画の外は触らない。⛔ 座標を書かない(帯は実メッシュの背から)。
+    /// 当たる先: 背に土の段を作らず足元から溜りへ擦り付ける外周の長屋(岡部 N40_0 s0〜8.18 ── 以後、back に同じ書式を持つ棟)。</summary>
+    static string RunBackFoot(Run r, Transform root, System.Text.RegularExpressions.Match mF, Vector2[] P, System.Func<Vector2, bool> under)
+    {
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        var nb = root.Find("Kakoi/" + r.name); if (nb == null) return "  ★ 背の足元 " + r.name + ": 棟が無い\n";
+        float sA = Mathf.Max(r.s0, float.Parse(mF.Groups[1].Value, inv)), sB = Mathf.Min(r.s1, float.Parse(mF.Groups[2].Value, inv)), d = float.Parse(mF.Groups[3].Value, inv), gS = 1f / float.Parse(mF.Groups[4].Value, inv);
+        if (sB - sA < 0.5f) return "  ★ 背の足元 " + r.name + ": 区間が run の外\n";
+        Vector2 ea = EdgePt(r.edge, 0f), ax = (EdgePt(r.edge, 1f) - ea).normalized, yd = -OutNormal(r.edge);
+        float back = EdoBuild.FaceOut(nb.gameObject, ea, yd, nb.position.y + 0.1f, nb.position.y + 1.2f); if (float.IsNaN(back)) return "  ★ 背の足元 " + r.name + ": 背の面が測れない\n";
+        float seat = Mathf.Min(r.SeatAt(0.5f * (sA + sB)), nb.position.y), foot = seat - d;
+        float cell = EdoBuild.TerrainCell(EdoBuild.T()), L = 4.0f;
+        System.Func<Vector2, Vector2> sq = q => { var rr = q - ea; return new Vector2(Vector2.Dot(rr, ax), Vector2.Dot(rr, yd)); };
+        System.Func<float, float, Vector2> W = (s, q) => ea + ax * s + yd * q;
+        var band = new[] { W(sA, back - cell), W(sB, back - cell), W(sB, back + L), W(sA, back + L) };
+        float up, dn, m3, up2, dn2;
+        int n1 = EdoBuild.GroundToPoly(band, q => { if (!EdoGeom.PIP(P, q) || under(q)) return float.NaN; var v = sq(q); return foot - Mathf.Max(0f, v.y - back) * gS; }, 1, out up, out dn, out m3);
+        var cap = new[] { W(sA, back - cell), W(sB, back - cell), W(sB, back + 0.5f), W(sA, back + 0.5f) };
+        int n2 = EdoBuild.GroundToPoly(cap, q => { if (!EdoGeom.PIP(P, q) || under(q)) return float.NaN; return foot; }, -1, out up2, out dn2, out m3);
+        // 測る: 背の面の 0.1 外の地表 − 足元(走り 0.5 ごと)
+        float wMax = float.MinValue, wMin = float.MaxValue; for (float s = sA + 0.25f; s <= sB - 0.25f + 1e-4f; s += 0.5f) { var p = W(s, back + 0.1f); if (!EdoGeom.PIP(P, p) || under(p)) continue; float g = EdoBuild.Ground(p.x, p.y); if (float.IsNaN(g)) continue; wMax = Mathf.Max(wMax, g - foot); wMin = Mathf.Min(wMin, g - foot); }
+        return "  背の足元 " + r.name + "(runs.back「s" + sA.ToString("F2", inv) + "〜" + sB.ToString("F2", inv) + " 背の足元 座 −" + d.ToString("F2", inv) + " から 1/" + mF.Groups[4].Value + "」・座 " + seat.ToString("F2", inv) + "(欄と躯体の底の低い方)・背の面 " + back.ToString("F3", inv) + "):"
+            + " 上げた節点 " + n1 + "(最大 " + up.ToString("F2", inv) + ")・足元 0.5 の内で切った節点 " + n2 + "(最大 " + dn2.ToString("F2", inv) + ")|背の面の 0.1 外の地表 − 足元 " + (wMax == float.MinValue ? "-" : wMin.ToString("+0.000;-0.000", inv) + "〜" + wMax.ToString("+0.000;-0.000", inv)) + "\n";
+    }
     static string RunBackBands()
     {
         var inv = System.Globalization.CultureInfo.InvariantCulture; var sb = new System.Text.StringBuilder(); var root = GameObject.Find(GN); if (root == null) return "";
@@ -9336,7 +9402,14 @@ public static class EdoOkabeYashikiBuilder
         {
             if (!r.Nagaya) continue; string bt; if (!backOf.TryGetValue(r.name, out bt)) continue;
             var mB = RXm(bt, @"背の帯\s*1\s*間\s*=\s*座\s*[−\-]\s*([0-9.]+)\s*以下"); var mP = RXm(bt, @"s\s*([0-9.]+)\s+([0-9.]+)\s*→\s*s\s*([0-9.]+)\s+([0-9.]+)");
-            if (!mB.Success || !mP.Success) continue;
+            if (!mB.Success || !mP.Success)
+            {   // ⭐ 第147巡: 二つ目の書式「s a〜b は … 背の足元 座 −d から 1/n で … 擦り付け」(N40_0 の back ── 前は読めずに黙って退き、P40 の入隅で N40_0 の背の足が
+                //   表の溜り 13.27 の上 0.23 浮き、TW_Kado_Hokuto_BackOfN39_1 の端の小口の前が 0.51 空いた)。帯 = 背の面から外へ、足元 = 座 −d、その先 1/n で下る(上げるだけ)
+                //   ・足元の 0.5 の内は 座 −d を超える土を切る。座は棟の実の底(据えた躯体の足)と欄の座の低い方 ── 躯体の足を土に埋めない
+                var mF = RXm(bt, @"s\s*([0-9.]+)\s*〜\s*([0-9.]+)\s*は[^。]*?背の足元\s*座\s*[−\-]\s*([0-9.]+)\s*から\s*1\s*/\s*(\d+)");
+                if (mF.Success) sb.Append(RunBackFoot(r, root.transform, mF, P, under));
+                continue;
+            }
             float d = float.Parse(mB.Groups[1].Value, inv), sA = float.Parse(mP.Groups[1].Value, inv), yA = float.Parse(mP.Groups[2].Value, inv), sB = float.Parse(mP.Groups[3].Value, inv), yB = float.Parse(mP.Groups[4].Value, inv);
             // 擦り付けの勾配(欄 → 同じ辺の棟の back の「1/n で表の溜りへ擦り付け」を借りる)
             //   ⭐ 第132巡: 欄の書式「帯の先の擦り付けは 1/20【柔】」も読む(前は「1/n で…擦り付け」だけで、N40_1 は N40_0 の値を借りて ⚠ を出していた)

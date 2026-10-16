@@ -65,6 +65,9 @@ public static partial class EdoBuild
                 Vector2 f = fOf[s];
                 float ang = Vector2.Angle(fOf[a], fOf[b]);
                 if (straight[a] && straight[b] && ang > 25f) continue;    // 入隅・T 字(隅の駒の無い折れ)は継ぎ目でない
+                //   ⭐ 第147巡: 見え面が向き合う(背中合わせを含む)二つの駒は継ぎ目でない ── 路地を挟む両側の石垣(岡部 TW_Kado_Hokuto_0_1_kado1 × BackOfN39_1_0_143f/145f・折れ 180°)の
+                //   外接箱が重なり、向かい合う面どうしの離れ 1.44/1.28 を「見え面の前後」と刷っていた。隅の駒の折れは鋭い出隅(61.6° の角 = 折れ 118.4°)まで ⇒ 150° 以上は対にしない
+                if (ang >= 150f) continue;
                 Vector2 X = new Vector2(f.y, -f.x); Vector2 o = new Vector2(s.transform.position.x, s.transform.position.z);
                 Func<GameObject, float[]> pr = g => { float a0 = 1e9f, a1 = -1e9f, y0 = 1e9f, y1 = -1e9f; foreach (var v in vs[g]) { float u = Vector2.Dot(new Vector2(v.x, v.z) - o, X); a0 = Mathf.Min(a0, u); a1 = Mathf.Max(a1, u); y0 = Mathf.Min(y0, v.y); y1 = Mathf.Max(y1, v.y); } return new[] { a0, a1, y0, y1 }; };
                 var pa = pr(a); var pb = pr(b);

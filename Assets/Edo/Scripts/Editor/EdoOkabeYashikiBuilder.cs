@@ -2997,7 +2997,7 @@ public static class EdoOkabeYashikiBuilder
     /// 角・段の継ぎ目の左右で違う」)── 算出物 base[] は run ごとに露出から台の有無と倍率を焼いた物 ⇒ 露出の薄い短い棟(岡部 N17_k: segs 空)は台なし・
     /// 隣の棟と倍率違い(N13_0 1.0 × N14_0 0.5・N15_0 0.5 × N16_k 0.25)で、台が一続きの長屋の下で途切れ、石の大きさと天端の前の縁(控え c)が角で食い違った。
     /// 台の石垣に載る外周の長屋の run を、端と端が 0.6m 以内で接する物どうし(同じ辺の継ぎ目・段の継ぎ目・出隅・入隅を問わず)一続きに束ね、
-    /// 一続きのどれかが台を持てば全部の棟に全長の台(<see cref="NagayaBaseWhole"/>)。倍率を一続きの最大へ揃えるのは留めの版待ち(呼び手の ⚠)。
+    /// 一続きのどれかが台を持てば全部の棟に全長の台(<see cref="NagayaBaseWhole"/>)。倍率は一続きの最大へ揃える(呼び手・第153巡)。
     /// 天端の線の run の「倍率を塀の一続きで一つに」(<see cref="HeiLineBaseFromTenba"/>・第123巡)と同じ型を長屋へ。【硬: 台の途切れ 0】
     /// ⟶ run 名 → 一続きの番号(台の算出物の無い run は入らない)。当たる先: 台の石垣の上に建つ外周の長屋すべて(岡部 N12〜N18・N39〜N41)。</summary>
     static Dictionary<string, int> NagayaBaseChains(Dictionary<string, Dictionary<string, object>> baseByRun, out Dictionary<int, float> chainS, out Dictionary<int, bool> chainHasBase)
@@ -3088,9 +3088,9 @@ public static class EdoOkabeYashikiBuilder
             int chId = -1; bool inChain = !hasHlB && r.Nagaya && chains.TryGetValue(r.name, out chId);
             if (inChain)
             {
-                //   ⚠ 倍率を一続きの最大へ揃えるのは**待ち**(第152巡の試し: 北の一続きを 1.0・表の一続きを 0.75 へ揃えると控え c が 0.25〜0.75 動き、外周の長屋 12 棟の
-                //   留めの版の長さが 0.04〜0.2 外れて建たなかった ⇒ 揃えた控えで焼いた版が揃うまで run ごとの倍率のまま。要る版の一覧は報告の行に刷る)
-                if (chainS[chId] > sc + 1e-4f) notes.Add("★ " + r.name + ": 台の倍率 " + sc.ToString("0.##", inv) + "(一続きの最大 " + chainS[chId].ToString("0.##", inv) + " へ揃えるのは留めの版待ち・第152巡)");
+                //   ⭐ 倍率を一続きの最大へ揃える(第153巡・普請奉行の決め ── oki-kata §2a「台が角で一本に折れて回る」: 石の大きさと天端の前の縁 c を角の左右で揃える)。
+                //   第152巡は揃えた控えで焼いた長屋の留めの版が無く待ちだった ⇒ 部材方が揃えた控えの版 11 本を焼いた(4b55c2e8)。版が無ければ長屋の側が「要る版」で止まる【硬】
+                if (chainS[chId] > sc + 1e-4f) { notes.Add("★ " + r.name + ": 台の倍率 " + sc.ToString("0.##", inv) + " → 一続きの最大 " + chainS[chId].ToString("0.##", inv) + " へ揃える(第153巡)"); sc = chainS[chId]; }
                 if (chainHasBase[chId]) { string nt = NagayaBaseWhole(r, bd, segList); if (nt != null) notes.Add(nt); }
             }
             foreach (var sg in segList)
@@ -6842,9 +6842,11 @@ public static class EdoOkabeYashikiBuilder
             //   当たる先: 石垣・段の土留め・溝・石段を細かい地形に据える所すべて(岡部 TW_Hori_Kishi の継ぎ目・頂点40 の隅と D_N39_1_Mae の間・D_MinamiHei_w)
             var stP = new List<GameObject>(); var rtS = GameObject.Find(GN).transform;
             foreach (var gm in new[] { "Dan", "Ishigaki" }) { var g = rtS.Find(gm); if (g != null) foreach (Transform c in g) if (c.gameObject.activeInHierarchy) stP.Add(c.gameObject); }
-            foreach (var gm in MizoGroups) { var g = rtS.Find(gm); if (g != null) foreach (Transform c in g) if (c.gameObject.activeInHierarchy) stP.Add(c.gameObject); }
+            var mzP = new List<GameObject>();
+            foreach (var gm in MizoGroups) { var g = rtS.Find(gm); if (g != null) foreach (Transform c in g) if (c.gameObject.activeInHierarchy) { stP.Add(c.gameObject); mzP.Add(c.gameObject); } }
             { var kai = rtS.Find("Fuzoku/Kaidan"); if (kai != null) foreach (Transform c in kai) if (c.gameObject.activeInHierarchy) stP.Add(c.gameObject); }
-            var PPs = Poly; sb.AppendLine("  " + EdoBuild.LowerStrandedNodes(stP, _sinkFloor, q => EdoGeom.PIP(PPs, q), SinkUndoPath));
+            //   ⭐ 第153巡: 溝の駒だけでも判じる(mizoParts ── 上に土留めが被る溝の継ぎ目の節点 (-456.4,944.1))
+            var PPs = Poly; sb.AppendLine("  " + EdoBuild.LowerStrandedNodes(stP, _sinkFloor, q => EdoGeom.PIP(PPs, q), SinkUndoPath, 4, mzP));
         }
         sb.AppendLine("  " + EdoBuild.HoleUnderMasu(pcs, 0.05f, HoleUndoPath));
         sb.Append(SeRojiHeiFoot(false));   // 据えて下げた後に足を測る(heiFootSpec.order【硬】)
@@ -9875,7 +9877,11 @@ public static class EdoOkabeYashikiBuilder
                 }
             }
             if (kTail != null && dn == kHead) { float sK = Vector2.Dot(kX - ea, ax) + kMouth; if (sK > sHead) { sHead = sK; headWhy = "曲がり目の桝の口の面"; } }
-            if (kTail != null && dn == kTail) { float sK = Vector2.Dot(kX - ea, ax) - kMouth; if (sK < sTail) { sTail = sK; tailWhy = "曲がり目の桝の口の面"; } }
+            //   ⭐ 尻を桝の口の面まで(第153巡 2026-10-17): 尻を「棟の躯体の走りの終わり」と桝の口の面の手前の方で止めていた ⇒ 角の手前に別の駒の棟(岡部 N39_k・4.2m)が
+            //   挟まると溝が N39_1 の妻で終わり、桝まで 4.3m 開いて小口の下に 0.45 の隙(D_N39_1_Mae_012)。corner の「口は桝の内法に突き付け・開けたまま向き合わせない【硬】」は
+            //   棟の割りに依らない ⇒ 桝の尻の溝は桝の口の面まで延ばす(延ばした先の線は最後の棟の前の線のまま・区画の線と棟の躯体は下の検めが見る)。
+            //   当たる先: 曲がり目の桝で受ける前の溝すべて(岡部 D_N39_1_Mae → D_Corner_Masu)。
+            if (kTail != null && dn == kTail) { float sK = Vector2.Dot(kX - ea, ax) - kMouth; if (Mathf.Abs(sK - sTail) > 1e-3f) { tailWhy = "曲がり目の桝の口の面" + (sK > sTail ? "(棟の走りの終わり s" + sTail.ToString("F2", inv) + " の先へ延ばした)" : ""); sTail = sK; } }
             // 線(棟の前の面が違えば継ぎ目で折る)
             var line = new List<Vector2>();
             for (int i = 0; i < segs.Count; i++)

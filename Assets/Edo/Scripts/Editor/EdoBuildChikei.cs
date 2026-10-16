@@ -650,11 +650,16 @@ public static partial class EdoBuild
     /// 「取り残し」とし、**取り残しでない隣 8 の今の地表の最も低い所**まで下げる(駒の下の隣は下げの手が描いた高さ ── 隣より深い窪みは掘らない)。下限 =
     /// <paramref name="floorMin"/>(床の下限)。⛔ 上げない・<paramref name="allow"/> が偽の節点(区画の外)は触らない。【硬】見え面・溝の床に土を被せない。
     /// 地面を書く手の**最後**に一度(後の盛る手が取り残しを再び上げないように)。書くのは <see cref="T"/>。⟶ 下げた節点の数と最大。
-    /// 当たる先: 石垣・土留め・溝を細かい地形の上に据える邸すべて(岡部 Stage3d の末尾。土井・松江松平を細かい地形へ移すとき同じ一行)。</summary>
-    public static string LowerStrandedNodes(IList<GameObject> parts, Func<float, float, float> floorMin, Func<Vector2, bool> allow, string undoPath = null, int minCovered = 4)
+    /// 当たる先: 石垣・土留め・溝を細かい地形の上に据える邸すべて(岡部 Stage3d の末尾。土井・松江松平を細かい地形へ移すとき同じ一行)。
+    /// <para>⭐ <paramref name="mizoParts"/>(第153巡 2026-10-17・岡部 溝の中の土 180 の最悪 0.84 @(-456.5,944.0)): 溝の駒の継ぎ目の節点は、上に被る土留めの笠・法の駒に光線が当たり
+    /// 「真上に駒が在る」と読まれて取り残しから漏れた。⇒ 溝の駒だけで二度目の判じ: 溝の駒に当たらない節点のうち、隣 8 の <paramref name="minCovered"/> 以上が溝の駒の下で、
+    /// かつ向かい合う隣の一組(左右・上下・斜め)の両方が溝の駒の下の物(= 溝の駒と駒の間)も取り残しとする(土留めの足の下の節点は向かい合う両側が溝にならないので触らない)。</para></summary>
+    public static string LowerStrandedNodes(IList<GameObject> parts, Func<float, float, float> floorMin, Func<Vector2, bool> allow, string undoPath = null, int minCovered = 4, IList<GameObject> mizoParts = null)
     {
         var t = T(); var td = t.terrainData; var org = t.transform.position; int R = td.heightmapResolution; float hs = td.size.x / (R - 1);
         var tmp = new List<MeshCollider>(); var mine = new HashSet<Collider>(); var bnds = new List<Bounds>();
+        var mzSet = new HashSet<GameObject>(); if (mizoParts != null) foreach (var g in mizoParts) if (g != null) mzSet.Add(g);
+        var mineMz = new HashSet<Collider>(); var bndsMz = new List<Bounds>(); int nStrMz = 0;
         foreach (var g in parts)
         {
             if (g == null || !g.activeInHierarchy) continue;
@@ -662,6 +667,7 @@ public static partial class EdoBuild
             {
                 if (mf.sharedMesh == null) continue; var rr = mf.GetComponent<Renderer>(); if (rr == null || !rr.enabled) continue;
                 var mc = mf.gameObject.AddComponent<MeshCollider>(); mc.sharedMesh = mf.sharedMesh; tmp.Add(mc); mine.Add(mc); bnds.Add(rr.bounds);
+                if (mzSet.Contains(g)) { mineMz.Add(mc); bndsMz.Add(rr.bounds); }
             }
         }
         var surf = new Dictionary<long, float>(); var open = new HashSet<long>();
@@ -669,12 +675,13 @@ public static partial class EdoBuild
         try
         {
             Physics.SyncTransforms();
-            Func<float, float, float> topHit = (x, z) =>
+            Func<float, float, HashSet<Collider>, float> topHitIn = (x, z, set) =>
             {
                 var hsA = Physics.RaycastAll(new Vector3(x, 400f, z), Vector3.down, 800f); float best = float.NaN, dist = float.MaxValue;
-                foreach (var h in hsA) if (mine.Contains(h.collider) && h.distance < dist) { dist = h.distance; best = h.point.y; }
+                foreach (var h in hsA) if (set.Contains(h.collider) && h.distance < dist) { dist = h.distance; best = h.point.y; }
                 return best;
             };
+            Func<float, float, float> topHit = (x, z) => topHitIn(x, z, mine);
             //   節点ごとに「真上に駒が在るか」と最初に当たる面の高さ(駒の外接 +0.5 の内の節点だけ)
             foreach (var bb in bnds)
             {
@@ -695,6 +702,32 @@ public static partial class EdoBuild
                 int i = (int)(k >> 32), j = (int)(uint)(k & 0xffffffff); int c = 0;
                 for (int di = -1; di <= 1; di++) for (int dj = -1; dj <= 1; dj++) { if (di == 0 && dj == 0) continue; if (surf.ContainsKey(((long)(i + di) << 32) ^ (uint)(j + dj))) c++; }
                 if (c >= minCovered) stranded.Add(k);
+            }
+            //   ⭐ 溝の駒だけで二度目の判じ(第153巡)── 上に被る土留めに当たって「駒の下」と読まれた溝の継ぎ目の節点
+            if (mineMz.Count > 0)
+            {
+                var surfMz = new HashSet<long>(); var openMz = new HashSet<long>();
+                foreach (var bb in bndsMz)
+                {
+                    int i0 = Mathf.Max(1, Mathf.FloorToInt((bb.min.x - 0.5f - org.x) / hs)), i1 = Mathf.Min(R - 2, Mathf.CeilToInt((bb.max.x + 0.5f - org.x) / hs));
+                    int j0 = Mathf.Max(1, Mathf.FloorToInt((bb.min.z - 0.5f - org.z) / hs)), j1 = Mathf.Min(R - 2, Mathf.CeilToInt((bb.max.z + 0.5f - org.z) / hs));
+                    for (int j = j0; j <= j1; j++) for (int i = i0; i <= i1; i++)
+                    {
+                        long k = ((long)i << 32) ^ (uint)j; if (surfMz.Contains(k) || openMz.Contains(k)) continue;
+                        float x = org.x + i * hs, z = org.z + j * hs; bool hit = !float.IsNaN(topHitIn(x, z, mineMz));
+                        if (!hit) foreach (var dq in new[] { new Vector2(0.06f, 0f), new Vector2(-0.06f, 0f), new Vector2(0f, 0.06f), new Vector2(0f, -0.06f) }) if (!float.IsNaN(topHitIn(x + dq.x, z + dq.y, mineMz))) { hit = true; break; }
+                        if (hit) surfMz.Add(k); else openMz.Add(k);
+                    }
+                }
+                Func<int, int, bool> cov = (ii, jj) => surfMz.Contains(((long)ii << 32) ^ (uint)jj);
+                foreach (var k in openMz)
+                {
+                    if (stranded.Contains(k)) continue;
+                    int i = (int)(k >> 32), j = (int)(uint)(k & 0xffffffff); int c = 0;
+                    for (int di = -1; di <= 1; di++) for (int dj = -1; dj <= 1; dj++) { if (di == 0 && dj == 0) continue; if (cov(i + di, j + dj)) c++; }
+                    bool between = (cov(i - 1, j) && cov(i + 1, j)) || (cov(i, j - 1) && cov(i, j + 1)) || (cov(i - 1, j - 1) && cov(i + 1, j + 1)) || (cov(i - 1, j + 1) && cov(i + 1, j - 1));
+                    if (c >= minCovered && between) { stranded.Add(k); nStrMz++; }
+                }
             }
             nStr = stranded.Count;
             var fix = new List<KeyValuePair<long, float>>();
@@ -724,7 +757,7 @@ public static partial class EdoBuild
         }
         finally { foreach (var mc in tmp) if (mc != null) UnityEngine.Object.DestroyImmediate(mc); }
         WriteUndo(undoPath, t.name, undo);
-        return "駒と駒の間に取り残された節点(真上に駒が無く隣 8 の " + minCovered + " 以上が駒の下)" + nStr + " のうち、隣の最も低い地表へ下げた " + n + "(最大 " + mx.ToString("F2") + ")";
+        return "駒と駒の間に取り残された節点(真上に駒が無く隣 8 の " + minCovered + " 以上が駒の下)" + nStr + (mineMz.Count > 0 ? "(うち溝の駒の継ぎ目で上に土留めが被る " + nStrMz + ")" : "") + " のうち、隣の最も低い地表へ下げた " + n + "(最大 " + mx.ToString("F2") + ")";
     }
 
     /// <summary>**駒の足の下の地面を足の底 + <paramref name="bury"/> へ上げる(上げるだけ)**── 地面を先に焼き切った後(溝・土留めの下げの後)に、

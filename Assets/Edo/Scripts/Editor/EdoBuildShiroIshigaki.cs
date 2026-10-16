@@ -910,6 +910,12 @@ public static partial class EdoBuild
                       + (yBot > gV - 0.05f ? " ⚠ 底が外の地表に届かない" : "") + ")");
             //   ⭐ 第148巡(oki-kata §2a【硬】直角でない出隅は最初から留める・施主の写真 r147_kado_P41): 口の裏の駒は留めの代わりでない ── 両脇の台の石の端は
             //   角の二等分の面で切った版(端を斜めに切った Castle Wall・倍率 s・天端の違う側は高い方の切り口が見える)で据えるべき所。版が無いので待ちへ(建て方はこの口の駒のまま)
+            //   ⭐ 第153巡: 片側の区間の駒が全部「埋まり退けた」(岡部 P19: 台の倍率を一続きで 1.0 へ揃えた N18_0 の座 17.60 が辺の全長で地表 17.67〜18.36 の下)なら、
+            //   留める相手が居ない ⇒ 版の待ちではない(口の裏の駒で端を塞ぐのが納め)。待ちの一覧に入れず ℹ で刷る
+            bool buriedA = true, buriedB = true;
+            if (pieces != null) foreach (var pg in pieces) { if (pg == null) continue; if (pg.name.StartsWith(sA.name + "_")) buriedA = false; if (pg.name.StartsWith(sB.name + "_")) buriedB = false; }
+            else { buriedA = false; buriedB = false; }
+            if (buriedA || buriedB) { sb.Append(" ℹ P" + v + " は " + (buriedA ? sA.name : sB.name) + " の駒が全部埋まり退けた ⇒ 留める相手が無く版は要らない(口の裏の駒で塞いだ)"); continue; }
             MiterBaseWait.Add("P" + v + " 折れ " + tv.ToString("F1") + "°・端の切り角 " + (tv * 0.5f).ToString("F1") + "°・倍率 " + sc.ToString("0.##") + "・天端 " + sA.CrestAt(sA.s1).ToString("F2") + "/" + sB.CrestAt(sB.s0).ToString("F2"));
         }
         return "浅い出隅の口を裏の駒で塞いだ " + made + " 基:" + sb + (TomeBaseLog.Count > 0 ? "\n  留めの版: " + string.Join("\n    ", TomeBaseLog.ToArray()) : "") + (MiterBaseWait.Count > 0 ? "\n  ★ 留めの版が要る(台の石の端を角の二等分の面で切った Castle Wall ── 部材方へ・oki-kata §2a): " + string.Join(" / ", MiterBaseWait.ToArray()) : "");

@@ -1,6 +1,6 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 bdfb54d53b71 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 5ec8c766822f -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
@@ -155,7 +155,7 @@
 | `EdoBuild.UnderAnyPart(q)` | `bool` |  | ⚠ 注釈なし | — |
 | `EdoBuild.UnderLookingFace(q)` | `bool` | 地面 | 点 q の最寄りの節点が LastFaceNodes に在るか(地形は T)。 | OkabeYashiki(Stage3d_Mizo_) |
 | `EdoBuild.SinkGroundUnderParts(parts, below, undoPath, floorMin)` | `string` |  | ⚠ 注釈なし | OkabeYashiki(Stage3d_Mizo_) |
-| `EdoBuild.LowerStrandedNodes(parts, floorMin, allow, undoPath=…, minCovered=…)` | `string` | 地面・天端・床・面・隅・区域 | 駒と駒の間に取り残された節点を下げる(2026-10-16 EDO-0502 第148巡・施主の写真 r147_kado_P40「溝の中に土の楔」・堀端の野面の継ぎ目の土の柱)。 | OkabeYashiki(Stage3d_Mizo_) |
+| `EdoBuild.LowerStrandedNodes(parts, floorMin, allow, undoPath=…, minCovered=…, mizoParts=…)` | `string` | 地面・天端・床・面・隅・区域 | 駒と駒の間に取り残された節点を下げる(2026-10-16 EDO-0502 第148巡・施主の写真 r147_kado_P40「溝の中に土の楔」・堀端の野面の継ぎ目の土の柱)。 | OkabeYashiki(Stage3d_Mizo_) |
 | `EdoBuild.FillUnderFoot(pieces, footBand, bury, margin, keep, allow, undoPath=…, edgeCap=…, allowUnderFoot=…, keepPieces=…, keepPad=…, rimFull=…, capUnderFoot=…, globalBand=…)` | `string` | 硬 地面・天端・床・区域 | 駒の足の下の地面を足の底 + bury へ上げる(上げるだけ)── 地面を先に焼き切った後(溝・土留めの下げの後)に、 座で据えた塀の足の下に残る浮きを地面で埋める(岡部 指図 heiFootSpec.order「帯と床… | OkabeYashiki(Stage3d_Mizo_) |
 | `BandEdge`(class) | — | | 塀の前の帯(PlaneBand)の一辺: 線の始め a・走りの向き u・内向き inw・長さ len・帯の内への離れ [q0, q1](走り s の関数)・面の高さ yAt(s)。 | |
 | `EdoBuild.PlaneBand(edges, allow, off, undoPath=…, ext=…, recPath=…)` | `string` | 地面・天端 | 塀の前の帯の地面を一枚の面にする(上げも下げも・第123巡 2026-10-13 岡部 施主「犬走りの地面は座の線と同じ高さ・同じ勾配の一枚の面」【硬: 土の楔 0】)。 | OkabeYashiki(Stage3d_Mizo_) |

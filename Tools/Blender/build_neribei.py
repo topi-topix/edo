@@ -547,7 +547,7 @@ def build_straight(k_tiles=NTILE, grade=0.0):
 
 
 # ---------------------------------------------------------------- 斜めに切った端(EDO-0502 第128巡 const.heiLine.cornerP12)
-NANAME_ROOF_BACK = 0.06    # 斜めの端の屋根を切り口より駒の内へ引く量[m](相手の漆喰の面の奥へ)。浮き彫りの出 0.03 + 埋め 0.03
+NANAME_ROOF_BACK = 0.06    # 斜めの端の屋根と壁体を切り口(札の足)より駒の内へ引く量[m](相手の漆喰の面の奥へ)。浮き彫りの出 0.03 + 埋め 0.03
 
 
 def naname_name(deg, hand, grade=0.0):
@@ -558,7 +558,7 @@ def build_naname(deg, hand="S", k_tiles=4, grade=0.0):
     """**端を斜めの鉛直面で切った練塀**(一枚物の練塀が長屋の正面の線へ斜めに当たる端 ── 岡部 P12 の S_Hei_08 × N12_0・67°)。
     局所(Unity): +X = 切る端・+Z = 見え面・**ピボット = 切り口と外面(足元の表 = 札の faceOut)の交点・足元 Y = 0**。直角の端は X = −k·tile
     (瓦の周期・ピボットから外面で測る)。切り口の線は走りと deg をなし、`S` = 見え面の側が短い(内へ行くほど +X へ出る ── 外面から深さ w で
-    w·cot(deg) 先)/ `L` = 見え面の側が長い。切り口の壁体は断面で塞ぐ(屋根は切りっぱなし ── 相手の長屋の正面の中へ入る)。
+    w·cot(deg) 先)/ `L` = 見え面の側が長い。切り口の壁体は断面で塞ぎ、屋根・壁体・蓋とも札の切り口より NANAME_ROOF_BACK 内へ引く(相手の長屋の正面の中へ埋まる)。
     grade ≠ 0 は坂なり(Unity +X へ grade で上がる縦の剪断・ピボットで Y = 0)。札(fence)の foot は台形の実の足。"""
     V.reset()
     g, shift, uv_is, uv_hei = load(SRC_C)
@@ -578,13 +578,16 @@ def build_naname(deg, hand="S", k_tiles=4, grade=0.0):
     # 屋根(瓦・軒・垂木・棟・桁)は切り口より NANAME_ROOF_BACK だけ駒の内へ引いて切る(EDO-0502 第146巡 P12)。
     #   駒は相手(長屋)の隅の中を斜めに通り、切り口だけが相手の正面に出る。切り口の線は相手の足元の表(海鼠の浮き彫りの出 +0.03)
     #   に合うので、その上の漆喰の面より 3cm 前に出て、塞がない屋根の断面が壁の前に細い線の破片で見えた ⇒ 屋根だけ相手の
-    #   漆喰の面の奥まで引いて埋める(壁体の断面の蓋・札の足は切り口のまま ── 蓋は正面に見える留めの柱のまま)
+    #   漆喰の面の奥まで引いて埋める
+    #   第147巡 P12: 壁体も同じ ── 切り口の断面の蓋(下見板の帯 0〜1.82 が濃い木・漆喰の帯 1.82〜2.47 が淡い)が相手の正面より 3cm 前に
+    #   出て、長屋の海鼠壁の前に濃い柱と淡い板(0.46 幅)が立って見えた ⇒ 壁体と蓋も屋根と同じだけ引いて、断面を相手の壁の中へ埋める。
+    #   札の足(foot・cutAtFaceOutX)は切り口のまま ── 据えの基準(ピボット = 切り口と外面の交点)は動かない。
     co_r = tuple(Vector(co) + n * NANAME_ROOF_BACK)
     for c in parts:
-        cut(c, co_r if gname(c) in ROOF else co, tuple(n), True)
+        cut(c, co_r, tuple(n), True)
     parts = [c for c in parts if len(c.data.polygons)]
     objs = merge_groups(parts)
-    pc = (-sg * zf * cotd, 0.0, 0.0)                 # 切り口の上の芯(y = 0)
+    pc = tuple(Vector((-sg * zf * cotd, 0.0, 0.0)) + n * NANAME_ROOF_BACK)   # 引いた切り口の上の芯(y = 0)
     lat = (-sg * cotd, 1.0, 0.0)                     # 厚み 1 あたりの切り口の上の向き
     objs.append(cap_object("koguchi", mat, [((Lk, 0, 0), (1, 0, 0), (0, 1, 0), (1, 0, 0)),
                                             (pc, (1, 0, 0), lat, tuple(-n))], sec, uv_is, uv_hei))

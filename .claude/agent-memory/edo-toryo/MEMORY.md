@@ -32,6 +32,7 @@
 - [第146巡の検め: 据えなかった 96 は注記](r146b-unplaced-96-are-notes.md) / [第147巡: 型A_Ago の溝は底の裏が無く溝の中の土が下がらない・台の前の歯は天端の縁の節点](r147-open-floor-mizo-and-crest-edge-teeth.md) — 抜けたら上の面で読む・back の二つ目の書式 / [第148巡: 楔・土の柱は真上に駒の無い取り残しの節点・見え面の土の半分は根入れ](r148-stranded-nodes-and-embed-count.md)
 - [第149巡: 角の座は硬く退ける・流さない版の一覧](r149-corner-seat-hard-and-dry-miter-plan.md) — PlanCornerMiters は Group を呼ばない・控えの変わる辺は見込み / [第150巡: 台の留めの版は Q へ寄せるだけでは据わらない・長屋の版は S2 の待ちの長さで](r150-kidan-tome-placement.md) / [第151巡: 留めの版の走りに天端の角の奥行 tan(折れ/2) を足す](r151-tome-len-plus-crest-setback.md) / [第152巡: 台の有無は長屋の一続きで・倍率を揃えると留めの版が外れ12棟建たない・足の埋めは近くの辺すべての c](r152-nagaya-base-chain-and-foot-fill-corner.md)
 - [第153巡: 揃えた倍率で片側の台が全部埋まると偽の留めの待ち・溝の継ぎ目は土留めが被り取り残しから漏れる・桝の尻の溝が棟の割りで止まる](r153-chain-scale-buried-side-and-mizo-seam.md)
+- [第154巡: 前の溝は台の基準線 0.55 で P18 の留めの版と嵩上げ 0.60 が要る・取り残しの床の下限が溝に土の柱・P12 の楔は隣の区画](r154-front-ditch-needs-parts-and-floor-in-ditch.md)
 - [第140巡: 継ぎ目ごとに折れる法尻の線・継ぎ目の段の測り](r140-curb-toe-line-and-joint-measure.md) — 交点は残した点で・足しは段で足さない・段は一次式で・strictChain・KadoDegBaked
 - [第138巡: 小段の犬走りが bounds の矩形](r138-bench-keepout-aabb-and-probe-by-reflection.md)・[第139巡: 溝の縁の野面の法尻・型H の板・柵の柱の根](r139-ditch-side-wall-toe-and-fence-level.md) — reflection で刷る・S3 の bin を戻して 20 秒で試す
 - [芯線と天端の線(heiLine)の罠](heiline-stretch-and-tenba-r120.md) — d は c の後・床は区間の組で・線は同じドメインだけ(S2〜3d を続けて)・足は 0.91〜1.60・継ぎ目の切り欠きを埋める

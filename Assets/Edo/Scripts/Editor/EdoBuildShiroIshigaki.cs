@@ -976,7 +976,27 @@ public static partial class EdoBuild
         if (Mathf.Abs(den) < 1e-6f) { why = "★ 天端の前の縁の線が平行 ── 口の裏の駒で塞ぐ"; return 0; }
         float tt = ((LB[0].x - LA[0].x) * u.y - (LB[0].y - LA[0].y) * u.x) / den; Vector2 Q = LA[0] + r * tt;
         var tomes = new string[2]; var gOff = new float[2]; var tOff = new float[2];
-        for (int side = 0; side < 2; side++) tomes[side] = EdoAssets.Own.IshigakiChokuTomeNearest(gs[side], turn, pEnd[side], hs[side], ls[side], out gOff[side], out tOff[side]);
+        //   版の走り = 端の駒の len + (端の駒の天端の前の縁の角の端 → Q の走りの道のり) ÷ 倍率(第151巡)── 端の駒が Q の手前で止まる角(岡部 P35: 1.39/0.41 の _L 駒が
+        //   Q の 0.27 手前)は、伸ばした版(L175/L77)で Q まで届かせる。版の奥の端は元の駒の奥の端のまま(隣の駒との継ぎは変わらない)。伸ばした版が無ければ元の len の版。
+        //   当たる先: 外周の基壇の 40° 未満の出隅すべて(Q で終わる角は伸び 0 ⇒ 元の len と同じ版)。
+        var lsTome = new float[2];
+        for (int side = 0; side < 2; side++)
+        {
+            Vector2 d = side == 0 ? dA : dB; float sg = side == 0 ? 1f : -1f;
+            var ce = ends[side].transform.TransformPoint(new Vector3(-1.4f, 0f, pEnd[side] ? 0f : -ls[side]));
+            float ext = Vector2.Dot(Q - new Vector2(ce.x, ce.z), d) * sg, sc = Mathf.Max(1e-4f, ends[side].transform.lossyScale.x);
+            //   版の切り口は足元の前の角(X = −2.40)を枠の端に残すので、天端の前の縁(X = −1.40)の角は端から 1.0·tan(折れ/2) 奥 ⇒ その奥行ぶんも足す
+            //   (Q で終わる角は ext = −1.0·tan·倍率 で伸び 0。P35: 1.39 + 0.125/0.75 + 0.196 = 1.753 → L175・0.41 + 0.126/0.75 + 0.196 = 0.774 → L77)
+            float need = ls[side] + ext / sc + Mathf.Tan(Mathf.Abs(turn) * 0.5f * Mathf.Deg2Rad);
+            tomes[side] = null; lsTome[side] = ls[side];
+            if (Mathf.Abs(need - ls[side]) > 0.005f && need > 0.05f && need < 2f - 1e-4f)
+                foreach (float dl in new[] { 0f, 0.01f, -0.01f })
+                {
+                    tomes[side] = EdoAssets.Own.IshigakiChokuTomeNearest(gs[side], turn, pEnd[side], hs[side], need + dl, out gOff[side], out tOff[side]);
+                    if (tomes[side] != null) { lsTome[side] = Mathf.Round((need + dl) * 100f) / 100f; break; }
+                }
+            if (tomes[side] == null) tomes[side] = EdoAssets.Own.IshigakiChokuTomeNearest(gs[side], turn, pEnd[side], hs[side], ls[side], out gOff[side], out tOff[side]);
+        }
         if (tomes[0] == null || tomes[1] == null)
         {
             why = "★ 版が無い: " + (tomes[0] == null ? System.IO.Path.GetFileName(EdoAssets.Own.IshigakiChokuTome(gs[0], turn, pEnd[0], hs[0], ls[0])) + " " : "")
@@ -1015,6 +1035,11 @@ public static partial class EdoBuild
             var wc = old.transform.TransformPoint(cfc);
             var pa = old.transform.position + new Vector3(Q.x - wc.x, 0f, Q.y - wc.z); pa.y = old.transform.position.y + s * (hs[side] + gs[side] * zq) - com * s;
             posA[side] = pa; posB[side] = old.transform.position;
+            if (pEnd[side] && Mathf.Abs(lsTome[side] - ls[side]) > 1e-4f)
+            {   //   伸ばした版で角の端が局所 Z = 0(原点)の側 ⇒ 元の位置のままでは奥へ伸びる。奥の端を元の駒の奥の端に残すよう角の向きへ (伸び × 倍率) 寄せる
+                var fw0 = old.transform.forward; float k = (side == 0 ? 1f : -1f) * (lsTome[side] - ls[side]) * s;
+                posB[side] += new Vector3(d.x * k, gs[side] * k * Vector2.Dot(d, new Vector2(fw0.x, fw0.z).normalized), d.y * k);
+            }
             var rot = old.transform.rotation; string nm = old.name; var par = old.transform.parent;
             var go = Place(tomes[side], pa, rot.eulerAngles.y, old.transform.localScale, par, nm + "_Tome"); go.transform.rotation = rot;
             for (int i = 0; i < pieces.Count; i++) if (pieces[i] == old) pieces[i] = go;
@@ -1053,7 +1078,7 @@ public static partial class EdoBuild
         };
         Func<int, Vector2> footOf = side =>
         {
-            var f = made[side].transform.TransformPoint(new Vector3(-2.4f, 0f, pEnd[side] ? 0f : -ls[side])); return new Vector2(f.x, f.z);
+            var f = made[side].transform.TransformPoint(new Vector3(-2.4f, 0f, pEnd[side] ? 0f : -lsTome[side])); return new Vector2(f.x, f.z);
         };
         //   走りに沿って k[m] 動かす(坂なりの駒は天端の線に乗るよう y も勾配で)
         Func<int, Vector3, float, Vector3> slideAlong = (side, basePos, k) =>
@@ -1090,7 +1115,7 @@ public static partial class EdoBuild
         }
         for (int side = 0; side < 2; side++)
         {
-            var go = made[side]; float zEnd = pEnd[side] ? 0f : -ls[side];
+            var go = made[side]; float zEnd = pEnd[side] ? 0f : -lsTome[side];
             var f = go.transform.TransformPoint(new Vector3(-2.4f, 0f, zEnd)); footW[side] = new Vector2(f.x, f.z);
             var c = go.transform.TransformPoint(new Vector3(-1.4f, 0f, zEnd + (pEnd[side] ? -1f : 1f) * Mathf.Tan(turn * 0.5f * Mathf.Deg2Rad))); crestW[side] = new Vector2(c.x, c.z);
         }

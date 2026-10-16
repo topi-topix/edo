@@ -714,6 +714,13 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
     中心は**躯体の端**から測る(⇒ 口の芯は従来どおりローカル +X で Lm/2 − gc)。
     False(既定)は従来どおり Lm = 破風まで含む全幅で、出力は変わらない。"""
     V.reset()
+    if miter_cut is not None and any(miter_cut[i] < 0 for i in range(2)):
+        # 入隅の端は既定で谷の納め(cut_tani の注)。座の違う相手の hi/lo を名指しした端はそのまま
+        ck = list(cut_kera) if cut_kera is not None else [None, None]
+        for i in range(2):
+            if miter_cut[i] < 0 and ck[i] is None:
+                ck[i] = "tani"
+        cut_kera = tuple(ck)
     gc, mc = read_groups("knagaya01c")
     gl, ml = read_groups("knagaya01l")
     gr, mr = read_groups("knagaya01r")
@@ -751,7 +758,8 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
     to_l, to_r = l_gab - l_n2, r_n2 - r_gab
     # 切り口の板の UV(seal_cut)── 漆喰は二階の白壁(n_wall の表の最大の面)、屋根の断面は破風板(n_kera_top)から借りる
     uvs_seal = dict(wall=_uv_rect_of(gc["n_wall"], lambda p: p.normal.y > 0.9),
-                    wood=_uv_rect_of(gl["n_kera_top"], lambda p: True))
+                    wood=_uv_rect_of(gl["n_kera_top"], lambda p: True),
+                    hira=_uv_rect_of(gc["n_hira"], lambda p: p.normal.z > 0.5))
     if body:
         # ⭐ 妻の面を一枚に揃える(EDO-0533 2026-10-05)。素の妻は土台が浮き彫りの表より 0.030・白壁(漆喰)が
         #   0.0335 内へ引っ込み、海鼠の地の箱は浮き彫りの殻の 0.036 手前で終わる ⇒ 妻どうし突き付けて座が
@@ -1089,7 +1097,7 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
     if miter_cut is not None:
         if anch is None and (gate is not None or kuguri is not None or bansho):
             raise SystemExit("[nagaya] --miter-cut は門口・番所と併せない(口の位置が延ばした分ずれる)")
-        cut_miter_apply(o, Lnom, eL, eR, miter_cut, cut_kera)
+        cut_miter_apply(o, Lnom, eL, eR, miter_cut, cut_kera, uvs_seal)
         me = o.data
         Lm = Lnom
         if seal:
@@ -1489,7 +1497,7 @@ def cut_kera(bm, h2, th, kera):
     keep = set()
     for i, sgn in ((1, 1.0), (0, -1.0)):
         mode = kera[i]
-        if th[i] == 0 or not mode:
+        if th[i] == 0 or not mode or mode == "tani":
             continue
         t = math.tan(math.radians(th[i]) * 0.5)
         side = lambda f: (f.calc_center_median().x * -sgn) > 0       # Unity +X 端 = Blender −x の側(bx = −ux)
@@ -1579,7 +1587,146 @@ def cut_kera(bm, h2, th, kera):
     return keep
 
 
-def cut_miter_apply(o, Lnom, eL, eR, th, kera=None):
+TANI_W = 0.15      # 谷の片側の幅[m](切り口の線から瓦を切り戻す量・谷全体で 0.30 = 一尺)
+TANI_OV = 0.10     # 谷の板を残る瓦の下へ差し込む量[m]
+TANI_DT = 0.20     # 谷の底の深さ(丸瓦の山の線から下へ)。瓦の層は山から −0.17 まで(素の実測)
+TANI_DS = 0.15     # 谷の板の縁の深さ(瓦の下へ差し込んだ先)
+TANI_TAPER = 0.6   # 軒の先から谷を深くしていく長さ[m]
+TANI_LAYER = -0.19 # 切り戻す瓦の層の下限(山の線から)。これより下の垂木・茅負・軒裏は残す
+
+
+def cut_tani(bm, h2, th, kera, uvr):
+    """**入隅の谷の納め**(`--cut-kera … tani`・入隅の端の既定・EDO-0502 2026-10-16 岡部 頂点15〜18)。
+    座の同じ二棟を二等分の面で切ると、谷の側の流れ(入隅は表・出隅は背)で切る面が丸瓦の筋とほぼ平行に走り、
+    瓦の位相が両棟で揃わない(窓割りの切り貼りに縛られる)ので、片方の丸瓦の脇と断面の板が 5〜10cm 高く帯に出た(頂点18)。
+    ⇒ 本瓦葺の谷の定石どおり、切り口の線から TANI_W だけ**瓦の層を切り戻し**、その下に**谷の板**(谷瓦の溝)を
+    切り口の線を芯に跨がせて敷く(切る面で相手の側の半分を落とす ── 相手も鏡像の半分を持つ ⇒ 継ぎ目なし)。
+    谷の板は底 TANI_DT・縁は残る瓦の下へ TANI_OV 差し込む。軒の先から棟の熨斗の下まで。材は平瓦の UV。
+    両棟とも瓦は切り口から同じだけ引くので、上から見ると谷は一本の溝に見え、どちらの瓦も相手より上に出ない。
+    切り口の断面の板(seal_cut)は切り面の上の点の包絡なので、谷の底より上へ出ない。戻り値なし(谷の板は切る面に掛ける)。"""
+    lay = bm.faces.layers.int.get("kera")
+    if lay is None:
+        print("[nagaya] ⚠ 谷: 印が無い"); return
+    uvl = bm.loops.layers.uv.active
+    for i, sgn in ((1, 1.0), (0, -1.0)):
+        if th[i] == 0 or kera is None or kera[i] != "tani":
+            continue
+        t = math.tan(math.radians(th[i]) * 0.5)
+        side = lambda f: (f.calc_center_median().x * -sgn) > 0
+        maru = [f for f in bm.faces if f[lay] == 4 and side(f)]
+        mune = [f for f in bm.faces if f[lay] == 3 and side(f)]
+        if not maru or not mune:
+            print("[nagaya] ⚠ 谷 %s 端: 妻の丸瓦か棟が無い" % ("+X" if sgn > 0 else "−X")); continue
+        L = _roof_lines([(v.co.y, v.co.z) for f in maru for v in f.verts])
+        key = "front" if th[i] < 0 else "back"
+        a, b, yend = L[key]
+        ya, za = L["apex"]
+        mv = [v for f in mune for v in f.verts]
+        yr = min(v.co.y for v in mv) if key == "front" else max(v.co.y for v in mv)   # 棟の熨斗の谷の側の縁
+        dxdy = t if sgn > 0 else -t
+        xpl = (lambda y: t * y - h2) if sgn > 0 else (lambda y: h2 - t * y)
+        inw = 1.0 if sgn > 0 else -1.0
+        ylo, yhi = (yend, yr) if key == "front" else (yr, yend)
+        inband = (lambda y: yend - 0.05 <= y <= yr) if key == "front" else (lambda y: yr <= y <= yend + 0.05)
+        def tile(f):
+            c = f.calc_center_median()
+            # 層の判定は頂点の最も高い点で(瓦の下の材の脇の面が谷の底より上へ頭を出す ── 2026-10-17 頂点18 の近景で踏んだ)
+            return (inband(c.y) and max(v.co.z - (a + b * v.co.y) for v in f.verts) > TANI_LAYER and f[lay] not in (1, 2, 3, 5)
+                    and inw * (c.x - xpl(c.y)) < TANI_W + 0.6)
+        sub = [f for f in bm.faces if tile(f)]
+        # 1) 切り口の線から TANI_W の面(切り面に平行)と棟の熨斗の縁(y = yr)で瓦の層を切り、その内を落とす
+        geom = list({v for f in sub for v in f.verts}) + list({e for f in sub for e in f.edges}) + sub
+        res = bmesh.ops.bisect_plane(bm, geom=geom, dist=1e-5,
+                                     plane_co=Vector((xpl(0.0) + inw * TANI_W, 0, 0)),
+                                     plane_no=Vector((1.0, -dxdy, 0)).normalized())
+        sub = [f for f in bm.faces if tile(f)] + [f for f in bm.faces if f[lay] not in (1, 2, 3, 5) and
+                                                     abs(f.calc_center_median().y - yr) < 0.3 and
+                                                     f.calc_center_median().z - (a + b * f.calc_center_median().y) > TANI_LAYER and
+                                                     inw * (f.calc_center_median().x - xpl(f.calc_center_median().y)) < TANI_W + 0.6]
+        sub = list(set(sub))
+        mi0 = sub[0].material_index if sub else 0
+        geom = list({v for f in sub for v in f.verts}) + list({e for f in sub for e in f.edges}) + sub
+        bmesh.ops.bisect_plane(bm, geom=geom, dist=1e-5, plane_co=Vector((0, yr, 0)), plane_no=Vector((0, 1.0, 0)))
+        # P2 の上の切り口の点(瓦の層)── 小口の板の天端の包絡に使う
+        onp = [(v.co.y, v.co.z - (a + b * v.co.y)) for v in bm.verts
+               if abs(inw * (v.co.x - xpl(v.co.y)) - TANI_W) < 3e-4 and inband(v.co.y)
+               and v.co.z - (a + b * v.co.y) > TANI_LAYER]
+        dead = [f for f in bm.faces if tile(f) and inw * (f.calc_center_median().x - xpl(f.calc_center_median().y)) < TANI_W - 1e-4]
+        bmesh.ops.delete(bm, geom=dead, context='FACES_ONLY')
+        bmesh.ops.delete(bm, geom=[e for e in bm.edges if not e.link_faces], context='EDGES')
+        bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
+        # 2) 谷の板: 断面 w(切り口の線から内へ +)→ 山の線からの深さ。芯を跨いで両側(相手の側は切る面で落ちる)
+        prof = [(-(TANI_W + TANI_OV), -TANI_DS), (-TANI_W, -TANI_DS - 0.02), (-0.10, -TANI_DT), (0.0, -TANI_DT),
+                (0.10, -TANI_DT), (TANI_W, -TANI_DS - 0.02), (TANI_W + TANI_OV, -TANI_DS)]
+        y0 = (yend - 0.01) if key == "front" else (yr - 0.04)
+        y1 = (yr + 0.04) if key == "front" else (yend + 0.01)
+        # 軒の先では谷を浅くする(軒瓦の帯より下へ谷の板を垂らさない): 先で 0.3・TANI_TAPER 入って 1
+        mdep = lambda y: min(1.0, 0.3 + 0.7 * abs(y - yend) / TANI_TAPER)
+        nseg = max(2, int(math.ceil(abs(y1 - y0) / 0.30)))
+        ys_ = sorted({y0 + (y1 - y0) * k / nseg for k in range(nseg + 1)} |
+                     {yend + (1 if key == "front" else -1) * TANI_TAPER * q / 4.0 for q in range(1, 4)})
+        rows = []
+        if key == "back":
+            ys_ = ys_[::-1]
+        nseg = len(ys_) - 1
+        for y in ys_:
+            rows.append([bm.verts.new((xpl(y) + inw * w, y, a + b * y + d * mdep(y))) for w, d in prof])
+        made = []
+        for k in range(nseg):
+            for j in range(len(prof) - 1):
+                f = bm.faces.new((rows[k][j], rows[k][j + 1], rows[k + 1][j + 1], rows[k + 1][j]))
+                f.normal_update()
+                if f.normal.z < 0:
+                    f.normal_flip()
+                f.material_index = mi0
+                ij = {rows[k][j]: (j, 0), rows[k][j + 1]: (j + 1, 0), rows[k + 1][j + 1]: (j + 1, 1), rows[k + 1][j]: (j, 1)}
+                for l in f.loops:
+                    jj, dk = ij[l.vert]
+                    fu = jj / (len(prof) - 1.0); fv = float(dk)          # 一刻み 0.30 ごとに平瓦の矩形を一枚
+                    l[uvl].uv = (uvr[0] + (uvr[2] - uvr[0]) * fu, uvr[1] + (uvr[3] - uvr[1]) * fv)
+                made.append(f)
+        mi = made[0].material_index if made else 0
+        def quad(p0, p1, p2, p3, nrm):
+            vs = [bm.verts.new(q) for q in (p0, p1, p2, p3)]
+            f = bm.faces.new(vs); f.normal_update()
+            if f.normal.dot(nrm) < 0:
+                f.normal_flip()
+            f.material_index = mi
+            for l, (fu, fv) in zip(f.loops, ((0, 0), (1, 0), (1, 1), (0, 1))):
+                l[uvl].uv = (uvr[0] + (uvr[2] - uvr[0]) * fu, uvr[1] + (uvr[3] - uvr[1]) * fv)
+            made.append(f)
+        # 3) 瓦の小口の板(P2 の上・谷へ向く): 切り戻した瓦の断面(丸瓦の脇の壁が片側だけ残り、裏から見える)を塞ぐ。
+        #    天端は P2 の上の切り口の点の包絡(0.05 の刻みの階段)・下は谷の板の縁(−TANI_DS − 0.02)
+        st = 0.05; zb = -TANI_DS - 0.02
+        ylo_, yhi_ = ((yend - 0.01), yr) if key == "front" else (yr, yend + 0.01)
+        nb = max(1, int(math.ceil((yhi_ - ylo_) / st)))
+        tops = [None] * nb
+        for y, d in onp:
+            j = min(nb - 1, max(0, int((y - ylo_) / st)))
+            tops[j] = d if tops[j] is None else max(tops[j], d)
+        idx = [j for j, q in enumerate(tops) if q is not None]
+        for j in range(nb):
+            if tops[j] is None and idx:
+                tops[j] = tops[min(idx, key=lambda q: abs(q - j))]
+        nrm_in = Vector((-inw, inw * dxdy, 0)).normalized()          # 谷(切り口の線)の側へ
+        for j in range(nb):
+            if tops[j] is None or tops[j] <= zb * mdep(ylo_ + (j + 0.5) * st) + 0.005:
+                continue
+            ya_, yb_ = ylo_ + j * st, min(yhi_, ylo_ + (j + 1) * st)
+            xa, xb = xpl(ya_) + inw * TANI_W, xpl(yb_) + inw * TANI_W
+            quad((xa, ya_, a + b * ya_ + zb * mdep(ya_)), (xb, yb_, a + b * yb_ + zb * mdep(yb_)),
+                 (xb, yb_, a + b * yb_ + tops[j]), (xa, ya_, a + b * ya_ + tops[j]), nrm_in)
+        # 4) 棟の際の蓋(y = yr・軒の側へ向く): 谷の上端から瓦の山の線まで ── 棟の下の切り口の断面板を谷から見せない
+        yy = yr; ws = [w for w, d in prof]
+        for (w0, d0), (w1, d1) in zip(prof, prof[1:]):
+            quad((xpl(yy) + inw * w0, yy, a + b * yy + d0), (xpl(yy) + inw * w1, yy, a + b * yy + d1),
+                 (xpl(yy) + inw * w1, yy, a + b * yy), (xpl(yy) + inw * w0, yy, a + b * yy),
+                 Vector((0, -1.0 if key == "front" else 1.0, 0)))
+        print("[nagaya] 谷 %s 端(%s の流れ): 瓦を切り口から %.2f 切り戻し(面 %d を落とす)・谷の板 %d 面(y %.3f〜%.3f・底 −%.2f)"
+              % ("+X" if sgn > 0 else "−X", "表" if key == "front" else "背", TANI_W, len(dead), len(made), y0, y1, TANI_DT))
+
+
+def cut_miter_apply(o, Lnom, eL, eR, th, kera=None, uvs=None):
     """延ばして組んだ躯体(Unity 局所の芯 = 延ばした全長の芯)を呼び寸法の芯へ戻し、留める端を二等分の面で切る。
     出隅: +X 端は ux ≤ h2 + uz·tR / −X 端は ux ≥ −h2 − uz·tL を残す(uz < 0 が背 ⇒ 背ほど短い)。
     Blender 座標(bx = −ux・by = −uz)で: +X 端は bx − by·tR + h2 ≥ 0 / −X 端は h2 − by·tL − bx ≥ 0。
@@ -1593,6 +1740,8 @@ def cut_miter_apply(o, Lnom, eL, eR, th, kera=None):
     keep = set()
     if kera is not None:
         keep = cut_kera(bm, h2, th, kera)
+        if any(k == "tani" for k in kera):
+            cut_tani(bm, h2, th, kera, (uvs or {}).get("hira", (0.0, 0.0, 1.0, 1.0)))
     for i, sgn in ((1, 1.0), (0, -1.0)):
         if th[i] == 0:
             continue

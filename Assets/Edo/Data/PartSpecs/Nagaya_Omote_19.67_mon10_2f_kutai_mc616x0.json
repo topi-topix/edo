@@ -1,0 +1,57 @@
+{
+    "prefab": "Assets/Edo/Models/Nagaya/Nagaya_Omote_19.67_mon10_2f_kutai_mc616x0.fbx",
+    "kind": "building",
+    "source": "blender:build_nagaya_omote.py(19.67 --body --floors 2 --gate 9.999 3.636 3.3 --bansho 2 --bansho-mon --doorh 3.3 --kabuki 0.42 --wide 0.909 --miter-cut 61.614 0 --layout 19.998 R --seal --cut-kera sumi 0)",
+    "unitScale": 1.0,
+    "yBottom": 0.0,
+    "foot": [
+        {
+            "x": -9.83323,
+            "y": -0.00298
+        },
+        {
+            "x": 9.835,
+            "y": -0.00298
+        },
+        {
+            "x": 9.835,
+            "y": -3.08677
+        },
+        {
+            "x": -7.99441,
+            "y": -3.08677
+        }
+    ],
+    "front": 0.0,
+    "back": -3.08677,
+    "jambL": {
+        "x": -9.835,
+        "z0": -3.08677,
+        "z1": 0.0,
+        "y0": 0.35,
+        "y1": 1.8
+    },
+    "jambR": {
+        "x": 9.835,
+        "z0": -3.08677,
+        "z1": 0.0,
+        "y0": 0.35,
+        "y1": 1.8
+    },
+    "passage": {
+        "x0": -1.982,
+        "x1": 1.654
+    },
+    "eave": {
+        "x0": -10.20838,
+        "x1": 10.15713,
+        "z0": -3.72632,
+        "z1": 0.62953,
+        "y0": 0.0,
+        "y1": 7.18272
+    },
+    "faceOut": 0.0,
+    "faceIn": -3.08677,
+    "copingOverhang": 0.0,
+    "height": 7.18272
+}

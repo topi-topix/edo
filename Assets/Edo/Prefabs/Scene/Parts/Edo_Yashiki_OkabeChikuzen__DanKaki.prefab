@@ -47,25 +47,25 @@ Transform:
   - {fileID: 204186084665371400}
   - {fileID: 2028342567294298541}
   - {fileID: 5471355447651291428}
-  - {fileID: 4132665390104127539}
+  - {fileID: 1823681337998183869}
   - {fileID: 5251335774998352527}
   - {fileID: 4014698939499522111}
   - {fileID: 6938996267166614689}
-  - {fileID: 129453815497031974}
+  - {fileID: 888898495434399191}
   - {fileID: 8289701394484490011}
-  - {fileID: 1638687664209718360}
+  - {fileID: 1207010750775585518}
   - {fileID: 8023241120125679175}
-  - {fileID: 8780479517782124234}
+  - {fileID: 3173816221448327581}
   - {fileID: 5205506758663427245}
-  - {fileID: 4549847720688430897}
+  - {fileID: 4610149536418391088}
   - {fileID: 4828676176449446306}
-  - {fileID: 8226294949588259790}
+  - {fileID: 2678966630060316253}
   - {fileID: 1576109896535614312}
   - {fileID: 4468888312353052618}
   - {fileID: 5624544625841162639}
-  - {fileID: 3307347845323060942}
+  - {fileID: 8061895159202048539}
   - {fileID: 4340519119665503918}
-  - {fileID: 5247405476801773269}
+  - {fileID: 6939884548065526834}
   - {fileID: 9000353045394418199}
   - {fileID: 2151258367266643934}
   - {fileID: 7235775864627967471}
@@ -74,7 +74,7 @@ Transform:
   - {fileID: 8921403080796127465}
   - {fileID: 4022515029824873615}
   - {fileID: 7656470832813796416}
-  - {fileID: 7110811867957447887}
+  - {fileID: 2730162380161886808}
   - {fileID: 908919927251487264}
   - {fileID: 5084213591069021701}
   - {fileID: 3301206107819132675}
@@ -94,7 +94,7 @@ Transform:
   - {fileID: 3857759273057941584}
   - {fileID: 1739888974458247332}
   - {fileID: 5680061615006688614}
-  - {fileID: 3334436190918055371}
+  - {fileID: 1023763977339531216}
   - {fileID: 7256272126832907615}
   - {fileID: 4400300447109845742}
   - {fileID: 3788403901057196314}
@@ -166,26 +166,28 @@ Transform:
   - {fileID: 4414559458422095521}
   - {fileID: 8301504087367750161}
   - {fileID: 4455969683550208372}
-  - {fileID: 35336995819919536}
-  - {fileID: 8303815790916001408}
-  - {fileID: 1428602728527543757}
-  - {fileID: 109535715165192713}
-  - {fileID: 1462477080223703802}
-  - {fileID: 7691622045932184641}
-  - {fileID: 8947670643613895664}
-  - {fileID: 1987560231742807049}
-  - {fileID: 6747792866829522621}
+  - {fileID: 8732046300122055671}
+  - {fileID: 2692557783506879884}
+  - {fileID: 4790834690758762848}
+  - {fileID: 4416892516693633393}
+  - {fileID: 1291597374008988240}
+  - {fileID: 1689069729443383447}
+  - {fileID: 2989737395571303719}
+  - {fileID: 2495056786098691433}
+  - {fileID: 4022921764614352790}
+  - {fileID: 3660190202581034974}
+  - {fileID: 5756318982544676563}
+  - {fileID: 3983652745250719943}
+  - {fileID: 7269830500831297389}
+  - {fileID: 7946416840364507658}
+  - {fileID: 1354521240776000313}
+  - {fileID: 7807001421757464876}
+  - {fileID: 3809746884009139243}
+  - {fileID: 5050648685644200637}
+  - {fileID: 3666354936400067461}
   - {fileID: 6871618772831416620}
-  - {fileID: 4676204877901960404}
-  - {fileID: 2739030658698886044}
-  - {fileID: 8155891989467154080}
-  - {fileID: 6257215096874431438}
-  - {fileID: 1539323972050531295}
-  - {fileID: 957310478186904384}
-  - {fileID: 2891551469026123213}
-  - {fileID: 3991113349858055283}
-  - {fileID: 3992685166982435548}
-  - {fileID: 2542006113285614380}
+  - {fileID: 9007208740037591354}
+  - {fileID: 7114739445823093467}
   - {fileID: 1165918930942924786}
   - {fileID: 8157490798351222119}
   m_Father: {fileID: 0}
@@ -438,192 +440,6 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 387260454905564387}
   m_PrefabAsset: {fileID: 0}
---- !u!1001 &436742899621602786
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 2452855187026814818}
-    m_Modifications:
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -516.88324
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 21.004467
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 949.7285
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 0.082813874
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: -0.99656504
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_Name
-      value: Kaki_TW_Minami_Koshi_1_003
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
---- !u!4 &109535715165192713 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-  m_PrefabInstance: {fileID: 436742899621602786}
-  m_PrefabAsset: {fileID: 0}
---- !u!1001 &450730439388718797
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 2452855187026814818}
-    m_Modifications:
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -436.5743
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 13.721639
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 1087.5072
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 0.13850881
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: 0.9903612
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 919132149155446097, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_Name
-      value: Kaki_TW_Kado_Hokuto_1_post
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
---- !u!4 &129453815497031974 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-  m_PrefabInstance: {fileID: 450730439388718797}
-  m_PrefabAsset: {fileID: 0}
---- !u!1001 &573984317210623835
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 2452855187026814818}
-    m_Modifications:
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -511.50394
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 21.005182
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 948.82825
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 0.082813874
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: -0.99656504
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_Name
-      value: Kaki_TW_Minami_Koshi_1_000
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
---- !u!4 &35336995819919536 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-  m_PrefabInstance: {fileID: 573984317210623835}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &599633516669518291
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -752,7 +568,7 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 698352693111009245}
   m_PrefabAsset: {fileID: 0}
---- !u!1001 &775663344172113067
+--- !u!1001 &702450030385334331
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -760,59 +576,59 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 2452855187026814818}
     m_Modifications:
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -503.74084
+      value: -429.17053
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 21.003128
+      value: 16.248928
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 946.5216
+      value: 1063.0342
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalRotation.w
-      value: 0.15886231
+      value: 0.99813914
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalRotation.x
       value: -0
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalRotation.y
-      value: -0.98730075
+      value: -0.060977723
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalRotation.z
       value: -0
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalEulerAnglesHint.y
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+    - target: {fileID: 919132149155446097, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_Name
-      value: Kaki_TW_Minami_Koshi_2_014
+      value: Kaki_TW_Higashi_Hokuto_8_post
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
---- !u!4 &957310478186904384 stripped
+  m_SourcePrefab: {fileID: 100100000, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+--- !u!4 &1023763977339531216 stripped
 Transform:
-  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-  m_PrefabInstance: {fileID: 775663344172113067}
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+  m_PrefabInstance: {fileID: 702450030385334331}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &799275301097188811
 PrefabInstance:
@@ -937,6 +753,68 @@ PrefabInstance:
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 802552048438952174}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &854761463288592956
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 2452855187026814818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -436.5743
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 13.721639
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1087.5072
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.13850881
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9903612
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_Name
+      value: Kaki_TW_Kado_Hokuto_1_post
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+--- !u!4 &888898495434399191 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+  m_PrefabInstance: {fileID: 854761463288592956}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &929617971783797474
 PrefabInstance:
@@ -1186,6 +1064,68 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 1220430622758107268}
   m_PrefabAsset: {fileID: 0}
+--- !u!1001 &1223429359401693052
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 2452855187026814818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -520.57904
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 21.003832
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 950.347
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.082813405
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.9965651
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_Name
+      value: Kaki_TW_Minami_Koshi_0_005
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+--- !u!4 &1689069729443383447 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+  m_PrefabInstance: {fileID: 1223429359401693052}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &1226323008140016160
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -1247,68 +1187,6 @@ PrefabInstance:
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 1226323008140016160}
-  m_PrefabAsset: {fileID: 0}
---- !u!1001 &1240584204743707571
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 2452855187026814818}
-    m_Modifications:
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -437.72827
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 14.162705
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 1087.178
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 0.13850881
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: 0.9903612
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 919132149155446097, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_Name
-      value: Kaki_TW_Kado_Hokuto_1_post
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
---- !u!4 &1638687664209718360 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-  m_PrefabInstance: {fileID: 1240584204743707571}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &1321189547895604355
 PrefabInstance:
@@ -1376,68 +1254,6 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 1321189547895604355}
   m_PrefabAsset: {fileID: 0}
---- !u!1001 &1357412535278359604
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 2452855187026814818}
-    m_Modifications:
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -502.01456
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 21.005634
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 945.95135
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 0.15886231
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: -0.98730075
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_Name
-      value: Kaki_TW_Minami_Koshi_2_013
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
---- !u!4 &1539323972050531295 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-  m_PrefabInstance: {fileID: 1357412535278359604}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &1402259952821274716
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -1500,68 +1316,6 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 1402259952821274716}
   m_PrefabAsset: {fileID: 0}
---- !u!1001 &1423553486680687889
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 2452855187026814818}
-    m_Modifications:
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -518.67633
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 21.003492
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 950.02856
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 0.082813874
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: -0.99656504
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_Name
-      value: Kaki_TW_Minami_Koshi_1_004
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
---- !u!4 &1462477080223703802 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-  m_PrefabInstance: {fileID: 1423553486680687889}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &1453820439956196829
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -1623,68 +1377,6 @@ PrefabInstance:
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 1453820439956196829}
-  m_PrefabAsset: {fileID: 0}
---- !u!1001 &1466436119988328998
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 2452855187026814818}
-    m_Modifications:
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -515.09015
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 21.005701
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 949.4284
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 0.082813874
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: -0.99656504
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_Name
-      value: Kaki_TW_Minami_Koshi_1_002
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
---- !u!4 &1428602728527543757 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-  m_PrefabInstance: {fileID: 1466436119988328998}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &1472644626816254662
 PrefabInstance:
@@ -1809,6 +1501,192 @@ PrefabInstance:
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 1472830294671527299}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &1533054118515549394
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 2452855187026814818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -502.01456
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 21.004814
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 945.95135
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.15886231
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.98730075
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_Name
+      value: Kaki_TW_Minami_Koshi_1_013
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+--- !u!4 &1354521240776000313 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+  m_PrefabInstance: {fileID: 1533054118515549394}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &1614001201326552507
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 2452855187026814818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -518.78595
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 21.003294
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 950.0469
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.082813405
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.9965651
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_Name
+      value: Kaki_TW_Minami_Koshi_0_004
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+--- !u!4 &1291597374008988240 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+  m_PrefabInstance: {fileID: 1614001201326552507}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &1678312825848794373
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 2452855187026814818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -437.72827
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 14.162705
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1087.178
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.13850881
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9903612
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_Name
+      value: Kaki_TW_Kado_Hokuto_1_post
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+--- !u!4 &1207010750775585518 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+  m_PrefabInstance: {fileID: 1678312825848794373}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &1696327894906222616
 PrefabInstance:
@@ -2248,7 +2126,7 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 1994153092208922182}
   m_PrefabAsset: {fileID: 0}
---- !u!1001 &2026482382357691362
+--- !u!1001 &2217387293396265558
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -2256,59 +2134,59 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 2452855187026814818}
     m_Modifications:
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -524.0556
+      value: -434.29413
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 21.003422
+      value: 16.501425
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 950.92883
+      value: 1081.6095
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalRotation.w
-      value: 0.082813874
+      value: 0.74145555
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalRotation.x
       value: -0
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalRotation.y
-      value: -0.99656504
+      value: 0.6710021
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalRotation.z
       value: -0
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalEulerAnglesHint.y
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+    - target: {fileID: 919132149155446097, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_Name
-      value: Kaki_TW_Minami_Koshi_1_007
+      value: Kaki_TW_Kado_Hokuto_0_post
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
---- !u!4 &1987560231742807049 stripped
+  m_SourcePrefab: {fileID: 100100000, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+--- !u!4 &1823681337998183869 stripped
 Transform:
-  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-  m_PrefabInstance: {fileID: 2026482382357691362}
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+  m_PrefabInstance: {fileID: 2217387293396265558}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &2283301580714196815
 PrefabInstance:
@@ -2434,68 +2312,6 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 2338160015054129655}
   m_PrefabAsset: {fileID: 0}
---- !u!1001 &2416256663701675127
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 2452855187026814818}
-    m_Modifications:
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -496.83572
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 21.004587
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 944.2404
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 0.15886231
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: -0.98730075
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_Name
-      value: Kaki_TW_Minami_Koshi_2_010
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
---- !u!4 &2739030658698886044 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-  m_PrefabInstance: {fileID: 2416256663701675127}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &2422725632839236386
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2557,6 +2373,192 @@ PrefabInstance:
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 2422725632839236386}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &2479729971028970931
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 2452855187026814818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -413.83817
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 16.357933
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1073.034
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.68010044
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.73311895
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_Name
+      value: Kaki_TW_Higashi_Hokuto_2_post
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+--- !u!4 &2730162380161886808 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+  m_PrefabInstance: {fileID: 2479729971028970931}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &2497000294192492982
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 2452855187026814818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -440.80548
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 14.007728
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1086.3
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.13850881
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.9903612
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_Name
+      value: Kaki_TW_Kado_Hokuto_1_post
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+--- !u!4 &2678966630060316253 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+  m_PrefabInstance: {fileID: 2497000294192492982}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &2510574774524666471
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 2452855187026814818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -513.4066
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 21.003332
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 949.14667
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.082813405
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.9965651
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_Name
+      value: Kaki_TW_Minami_Koshi_0_001
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+--- !u!4 &2692557783506879884 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+  m_PrefabInstance: {fileID: 2510574774524666471}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &2537953198475524730
 PrefabInstance:
@@ -2872,7 +2874,7 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 2643848348974452839}
   m_PrefabAsset: {fileID: 0}
---- !u!1001 &2651982923237936327
+--- !u!1001 &2678095384091982466
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -2880,59 +2882,59 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 2452855187026814818}
     m_Modifications:
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -509.7219
+      value: -524.1653
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 20.999416
+      value: 21.005653
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 948.4976
+      value: 950.9472
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_LocalRotation.w
-      value: 0.15886231
+      value: 0.082813405
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_LocalRotation.x
       value: -0
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_LocalRotation.y
-      value: -0.98730075
+      value: -0.9965651
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_LocalRotation.z
       value: -0
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_LocalEulerAnglesHint.y
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 919132149155446097, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_Name
-      value: Kaki_TW_Minami_Koshi_2_post
+      value: Kaki_TW_Minami_Koshi_0_007
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
---- !u!4 &2542006113285614380 stripped
+  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+--- !u!4 &2495056786098691433 stripped
 Transform:
-  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-  m_PrefabInstance: {fileID: 2651982923237936327}
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+  m_PrefabInstance: {fileID: 2678095384091982466}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &2692718011361536190
 PrefabInstance:
@@ -3368,68 +3370,6 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 2931971390539944118}
   m_PrefabAsset: {fileID: 0}
---- !u!1001 &3012052120567149088
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 2452855187026814818}
-    m_Modifications:
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -429.17053
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 16.248928
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 1063.0342
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 0.99813914
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: -0.060977723
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 919132149155446097, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_Name
-      value: Kaki_TW_Higashi_Hokuto_8_post
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
---- !u!4 &3334436190918055371 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-  m_PrefabInstance: {fileID: 3012052120567149088}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &3051896882765078760
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -3496,7 +3436,7 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 3051896882765078760}
   m_PrefabAsset: {fileID: 0}
---- !u!1001 &3057018542401458469
+--- !u!1001 &3134804909576271478
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -3506,19 +3446,19 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -441.48596
+      value: -439.17072
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 16.4996
+      value: 14.245588
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 1086.1511
+      value: 1086.7665
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalRotation.w
-      value: 0.798232
+      value: 0.13850881
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalRotation.x
@@ -3526,7 +3466,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalRotation.y
-      value: 0.6023501
+      value: 0.9903612
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalRotation.z
@@ -3546,17 +3486,17 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_Name
-      value: Kaki_TW_Kado_Hokuto_2_post
+      value: Kaki_TW_Kado_Hokuto_1_post
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
---- !u!4 &3307347845323060942 stripped
+--- !u!4 &3173816221448327581 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-  m_PrefabInstance: {fileID: 3057018542401458469}
+  m_PrefabInstance: {fileID: 3134804909576271478}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &3151947149308686363
 PrefabInstance:
@@ -3806,7 +3746,7 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 3349828412074908402}
   m_PrefabAsset: {fileID: 0}
---- !u!1001 &3434667345592908326
+--- !u!1001 &3384199137032913612
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -3816,19 +3756,19 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -505.4671
+      value: -522.3722
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 21.00342
+      value: 21.005922
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 947.0919
+      value: 950.6471
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_LocalRotation.w
-      value: 0.15886231
+      value: 0.082813405
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_LocalRotation.x
@@ -3836,7 +3776,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_LocalRotation.y
-      value: -0.98730075
+      value: -0.9965651
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_LocalRotation.z
@@ -3856,17 +3796,17 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_Name
-      value: Kaki_TW_Minami_Koshi_2_015
+      value: Kaki_TW_Minami_Koshi_0_006
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
---- !u!4 &2891551469026123213 stripped
+--- !u!4 &2989737395571303719 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-  m_PrefabInstance: {fileID: 3434667345592908326}
+  m_PrefabInstance: {fileID: 3384199137032913612}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &3476121504632852436
 PrefabInstance:
@@ -3992,6 +3932,130 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
   m_PrefabInstance: {fileID: 3483641406761517924}
   m_PrefabAsset: {fileID: 0}
+--- !u!1001 &3485490869857667197
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 2452855187026814818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -525.9584
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 21.00612
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 951.24725
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.082813405
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.9965651
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_Name
+      value: Kaki_TW_Minami_Koshi_0_008
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+--- !u!4 &4022921764614352790 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+  m_PrefabInstance: {fileID: 3485490869857667197}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &3513509669065764652
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 2452855187026814818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -496.83572
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 21.002983
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 944.2404
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.15886231
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.98730075
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_Name
+      value: Kaki_TW_Minami_Koshi_1_010
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+--- !u!4 &3983652745250719943 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+  m_PrefabInstance: {fileID: 3513509669065764652}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &3522485850532897755
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -4053,130 +4117,6 @@ PrefabInstance:
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 3522485850532897755}
-  m_PrefabAsset: {fileID: 0}
---- !u!1001 &3522491641556956471
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 2452855187026814818}
-    m_Modifications:
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -508.9196
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 21.004295
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 948.23254
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 0.15886231
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: -0.98730075
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_Name
-      value: Kaki_TW_Minami_Koshi_2_017
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
---- !u!4 &3992685166982435548 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-  m_PrefabInstance: {fileID: 3522491641556956471}
-  m_PrefabAsset: {fileID: 0}
---- !u!1001 &3524613231633413016
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 2452855187026814818}
-    m_Modifications:
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -507.19336
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 21.005291
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 947.66223
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 0.15886231
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: -0.98730075
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_Name
-      value: Kaki_TW_Minami_Koshi_2_016
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
---- !u!4 &3991113349858055283 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-  m_PrefabInstance: {fileID: 3524613231633413016}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &3525789904042289492
 PrefabInstance:
@@ -4488,6 +4428,68 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 3682154747060193009}
   m_PrefabAsset: {fileID: 0}
+--- !u!1001 &3698662447632710592
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 2452855187026814818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -505.4671
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 21.005527
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 947.0919
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.15886231
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.98730075
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_Name
+      value: Kaki_TW_Minami_Koshi_1_015
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+--- !u!4 &3809746884009139243 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+  m_PrefabInstance: {fileID: 3698662447632710592}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &3702012463590165087
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -4611,6 +4613,130 @@ PrefabInstance:
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
   m_PrefabInstance: {fileID: 3728415838646585979}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &3837386727619051573
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 2452855187026814818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -526.7918
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 21.001324
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 951.3867
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.082813405
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.9965651
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_Name
+      value: Kaki_TW_Minami_Koshi_0_post
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+--- !u!4 &3660190202581034974 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+  m_PrefabInstance: {fileID: 3837386727619051573}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &3849235309944200302
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 2452855187026814818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -508.9196
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 21.004814
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 948.23254
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.15886231
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.98730075
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_Name
+      value: Kaki_TW_Minami_Koshi_1_017
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+--- !u!4 &3666354936400067461 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+  m_PrefabInstance: {fileID: 3849235309944200302}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &3963187119294454784
 PrefabInstance:
@@ -4736,7 +4862,7 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
   m_PrefabInstance: {fileID: 4056873618809232402}
   m_PrefabAsset: {fileID: 0}
---- !u!1001 &4084473595252459738
+--- !u!1001 &4066807563379475419
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -4793,10 +4919,10 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
---- !u!4 &4549847720688430897 stripped
+--- !u!4 &4610149536418391088 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-  m_PrefabInstance: {fileID: 4084473595252459738}
+  m_PrefabInstance: {fileID: 4066807563379475419}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &4147277884728258593
 PrefabInstance:
@@ -5045,6 +5171,68 @@ PrefabInstance:
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
   m_PrefabInstance: {fileID: 4223171987566294277}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &4233749971283185306
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 2452855187026814818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -516.9928
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 21.004883
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 949.7468
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.082813405
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.9965651
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_Name
+      value: Kaki_TW_Minami_Koshi_0_003
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+--- !u!4 &4416892516693633393 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+  m_PrefabInstance: {fileID: 4233749971283185306}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &4235937872578582858
 PrefabInstance:
@@ -5426,68 +5614,6 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 4430928386218220035}
   m_PrefabAsset: {fileID: 0}
---- !u!1001 &4526280609685327832
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 2452855187026814818}
-    m_Modifications:
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -434.29413
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 16.501425
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 1081.6095
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 0.74145555
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: 0.6710021
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 919132149155446097, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_Name
-      value: Kaki_TW_Kado_Hokuto_0_post
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
---- !u!4 &4132665390104127539 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-  m_PrefabInstance: {fileID: 4526280609685327832}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &4680238901475220141
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -5611,6 +5737,68 @@ PrefabInstance:
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
   m_PrefabInstance: {fileID: 4685001658304606702}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &4728000352012524886
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 2452855187026814818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -507.19336
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 21.004978
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 947.66223
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.15886231
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.98730075
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_Name
+      value: Kaki_TW_Minami_Koshi_1_016
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+--- !u!4 &5050648685644200637 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+  m_PrefabInstance: {fileID: 4728000352012524886}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &4870206072941599891
 PrefabInstance:
@@ -5868,7 +6056,69 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 3ca02561ad9454ef8b5727832b1935ca, type: 3}
   m_PrefabInstance: {fileID: 4977980326105465333}
   m_PrefabAsset: {fileID: 0}
---- !u!1001 &5147490073083048767
+--- !u!1001 &5041445229835978379
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 2452855187026814818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -515.1997
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 21.004932
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 949.4468
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.082813405
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.9965651
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_Name
+      value: Kaki_TW_Minami_Koshi_0_002
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+--- !u!4 &4790834690758762848 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+  m_PrefabInstance: {fileID: 5041445229835978379}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &5217478308053430584
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -5882,7 +6132,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 21.00373
+      value: 21.003721
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_LocalPosition.z
@@ -5918,17 +6168,17 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_Name
-      value: Kaki_TW_Minami_Koshi_2_009
+      value: Kaki_TW_Minami_Koshi_1_009
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
---- !u!4 &4676204877901960404 stripped
+--- !u!4 &5756318982544676563 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-  m_PrefabInstance: {fileID: 5147490073083048767}
+  m_PrefabInstance: {fileID: 5217478308053430584}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &5274981076339571070
 PrefabInstance:
@@ -6492,68 +6742,6 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 5574103532161342800}
   m_PrefabAsset: {fileID: 0}
---- !u!1001 &5717387930281449790
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 2452855187026814818}
-    m_Modifications:
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -441.59573
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 16.4996
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 1086.5358
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 0.798232
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: 0.6023501
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 919132149155446097, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_Name
-      value: Kaki_TW_Kado_Hokuto_2_post
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
---- !u!4 &5247405476801773269 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-  m_PrefabInstance: {fileID: 5717387930281449790}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &5722605551648421220
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -6809,68 +6997,6 @@ PrefabInstance:
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 5764104790497095653}
-  m_PrefabAsset: {fileID: 0}
---- !u!1001 &5862752709820814373
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 2452855187026814818}
-    m_Modifications:
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -500.28827
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 21.0048
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 945.38104
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 0.15886231
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: -0.98730075
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_Name
-      value: Kaki_TW_Minami_Koshi_2_012
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
---- !u!4 &6257215096874431438 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-  m_PrefabInstance: {fileID: 5862752709820814373}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &5944121484944678034
 PrefabInstance:
@@ -7254,19 +7380,19 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -526.6821
+      value: -509.7219
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 21.001572
+      value: 21.001944
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 951.3684
+      value: 948.4976
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalRotation.w
-      value: 0.082813874
+      value: 0.15886231
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalRotation.x
@@ -7274,7 +7400,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalRotation.y
-      value: -0.99656504
+      value: -0.98730075
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalRotation.z
@@ -7367,68 +7493,6 @@ PrefabInstance:
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 6425578684198889301}
-  m_PrefabAsset: {fileID: 0}
---- !u!1001 &6498202372910920022
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 2452855187026814818}
-    m_Modifications:
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -525.8487
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 21.004353
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 951.22894
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 0.082813874
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: -0.99656504
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_Name
-      value: Kaki_TW_Minami_Koshi_1_008
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
---- !u!4 &6747792866829522621 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-  m_PrefabInstance: {fileID: 6498202372910920022}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &6500973080542160350
 PrefabInstance:
@@ -8058,6 +8122,68 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 7149970667785220788}
   m_PrefabAsset: {fileID: 0}
+--- !u!1001 &7163284375149484166
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 2452855187026814818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -498.562
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 21.004805
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 944.8107
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.15886231
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.98730075
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_Name
+      value: Kaki_TW_Minami_Koshi_1_011
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+--- !u!4 &7269830500831297389 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+  m_PrefabInstance: {fileID: 7163284375149484166}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &7196781558957855236
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -8182,7 +8308,7 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 7235954216416018534}
   m_PrefabAsset: {fileID: 0}
---- !u!1001 &7287972934952495908
+--- !u!1001 &7293043764577426736
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -8192,19 +8318,19 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -413.83817
+      value: -528.65283
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 16.357933
+      value: 21.002285
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 1073.034
+      value: 949.0624
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalRotation.w
-      value: 0.68010044
+      value: 0.646318
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalRotation.x
@@ -8212,7 +8338,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalRotation.y
-      value: -0.73311895
+      value: 0.7630682
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_LocalRotation.z
@@ -8232,17 +8358,17 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
       propertyPath: m_Name
-      value: Kaki_TW_Higashi_Hokuto_2_post
+      value: Kaki_TW_Minami_Koshi#ret0_0_post
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
---- !u!4 &7110811867957447887 stripped
+--- !u!4 &7114739445823093467 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-  m_PrefabInstance: {fileID: 7287972934952495908}
+  m_PrefabInstance: {fileID: 7293043764577426736}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &7303622528060074266
 PrefabInstance:
@@ -8368,6 +8494,68 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 7315809129990346077}
   m_PrefabAsset: {fileID: 0}
+--- !u!1001 &7477617258497729497
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 2452855187026814818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -441.59573
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 16.4996
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1086.5358
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.798232
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.6023501
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_Name
+      value: Kaki_TW_Kado_Hokuto_2_post
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+--- !u!4 &6939884548065526834 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+  m_PrefabInstance: {fileID: 7477617258497729497}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &7477942589409665866
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -8433,6 +8621,68 @@ PrefabInstance:
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 7477942589409665866}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &7524146718901833200
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 2452855187026814818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -441.48596
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 16.4996
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1086.1511
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.798232
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.6023501
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+      propertyPath: m_Name
+      value: Kaki_TW_Kado_Hokuto_2_post
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+--- !u!4 &8061895159202048539 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+  m_PrefabInstance: {fileID: 7524146718901833200}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &7553379038553215404
 PrefabInstance:
@@ -8500,6 +8750,130 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 7553379038553215404}
   m_PrefabAsset: {fileID: 0}
+--- !u!1001 &7623997679007606241
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 2452855187026814818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -500.28827
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 21.004656
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 945.38104
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.15886231
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.98730075
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_Name
+      value: Kaki_TW_Minami_Koshi_1_012
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+--- !u!4 &7946416840364507658 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+  m_PrefabInstance: {fileID: 7623997679007606241}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &7769469203340306119
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 2452855187026814818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -503.74084
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 21.002985
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 946.5216
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.15886231
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.98730075
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_Name
+      value: Kaki_TW_Minami_Koshi_1_014
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+--- !u!4 &7807001421757464876 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+  m_PrefabInstance: {fileID: 7769469203340306119}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &7839700624793677348
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -8561,68 +8935,6 @@ PrefabInstance:
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 7839700624793677348}
-  m_PrefabAsset: {fileID: 0}
---- !u!1001 &7869081586717983658
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 2452855187026814818}
-    m_Modifications:
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -520.4694
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 21.003868
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 950.3286
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 0.082813874
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: -0.99656504
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_Name
-      value: Kaki_TW_Minami_Koshi_1_005
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
---- !u!4 &7691622045932184641 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-  m_PrefabInstance: {fileID: 7869081586717983658}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &7911565421432277931
 PrefabInstance:
@@ -8942,68 +9254,6 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 8394804272527804656}
   m_PrefabAsset: {fileID: 0}
---- !u!1001 &8410381088126318955
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 2452855187026814818}
-    m_Modifications:
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -513.29706
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 21.004951
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 949.12836
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 0.082813874
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: -0.99656504
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_Name
-      value: Kaki_TW_Minami_Koshi_1_001
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
---- !u!4 &8303815790916001408 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-  m_PrefabInstance: {fileID: 8410381088126318955}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &8412271683007641082
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -9127,130 +9377,6 @@ PrefabInstance:
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 8412998079785237262}
-  m_PrefabAsset: {fileID: 0}
---- !u!1001 &8476639636145386533
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 2452855187026814818}
-    m_Modifications:
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -440.80548
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 14.007728
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 1086.3
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 0.13850881
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: 0.9903612
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 919132149155446097, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-      propertyPath: m_Name
-      value: Kaki_TW_Kado_Hokuto_1_post
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
---- !u!4 &8226294949588259790 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-  m_PrefabInstance: {fileID: 8476639636145386533}
-  m_PrefabAsset: {fileID: 0}
---- !u!1001 &8549298772609966411
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 2452855187026814818}
-    m_Modifications:
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -498.562
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 21.005829
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 944.8107
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 0.15886231
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: -0.98730075
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_Name
-      value: Kaki_TW_Minami_Koshi_2_011
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
---- !u!4 &8155891989467154080 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-  m_PrefabInstance: {fileID: 8549298772609966411}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &8556702764934324876
 PrefabInstance:
@@ -9624,6 +9750,68 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 8807415604676151829}
   m_PrefabAsset: {fileID: 0}
+--- !u!1001 &8830065582310254289
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 2452855187026814818}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -528.5138
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 20.84632
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 949.8959
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.646318
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.7630682
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+      propertyPath: m_Name
+      value: Kaki_TW_Minami_Koshi#ret0_0_000
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+--- !u!4 &9007208740037591354 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+  m_PrefabInstance: {fileID: 8830065582310254289}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &8884937986862096492
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -9747,68 +9935,6 @@ PrefabInstance:
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 8893786923134062076}
-  m_PrefabAsset: {fileID: 0}
---- !u!1001 &8909873192780262427
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 2452855187026814818}
-    m_Modifications:
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -522.2625
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 21.00279
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 950.6287
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 0.082813874
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: -0.99656504
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-      propertyPath: m_Name
-      value: Kaki_TW_Minami_Koshi_1_006
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
---- !u!4 &8947670643613895664 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
-  m_PrefabInstance: {fileID: 8909873192780262427}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &8938060401865687213
 PrefabInstance:
@@ -10000,7 +10126,7 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
   m_PrefabInstance: {fileID: 8992341723978636769}
   m_PrefabAsset: {fileID: 0}
---- !u!1001 &9101843999249023265
+--- !u!1001 &9125643754130596892
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -10008,59 +10134,59 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 2452855187026814818}
     m_Modifications:
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -439.17072
+      value: -511.61356
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 14.245588
+      value: 21.003178
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 1086.7665
+      value: 948.8466
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_LocalRotation.w
-      value: 0.13850881
+      value: 0.082813405
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_LocalRotation.x
       value: -0
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_LocalRotation.y
-      value: 0.9903612
+      value: -0.9965651
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_LocalRotation.z
       value: -0
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_LocalEulerAnglesHint.y
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+    - target: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 919132149155446097, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
+    - target: {fileID: 919132149155446097, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
       propertyPath: m_Name
-      value: Kaki_TW_Kado_Hokuto_1_post
+      value: Kaki_TW_Minami_Koshi_0_000
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
---- !u!4 &8780479517782124234 stripped
+  m_SourcePrefab: {fileID: 100100000, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+--- !u!4 &8732046300122055671 stripped
 Transform:
-  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f875afee541db436f8ea4ad0854c97af, type: 3}
-  m_PrefabInstance: {fileID: 9101843999249023265}
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f850cce0185744f61bac5b4696cebcb9, type: 3}
+  m_PrefabInstance: {fileID: 9125643754130596892}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &9146011602851876978
 PrefabInstance:

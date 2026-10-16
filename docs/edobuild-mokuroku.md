@@ -1,6 +1,6 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 b4558c2f3f05 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 bdfb54d53b71 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
@@ -1190,7 +1190,7 @@ EdoBuildSukima.cs — 建物と隣の構造物の間の隙のうち、通りか�
 | `EdoBuild.NearHulls(parts, d)` | `Func<Vector2, bool>` |  | 駒の外形の内か、縁から d 以内かを引く篩(実メッシュの頂点の水平の凸包 ── ⛔ bounds の矩形で篩わない)。 | OkabeYashiki(FenceFootR138・MinamiMizoBack・RaiseHoriFootToFloor…) |
 | `EdoBuild.OrientBenchesToHigh(ks, probe, minDiff, flipped)` | `int` | 地面・天端・面・隅 | 小段の背の向きを設計面の高い側へ揃える(普請方 第137巡 r137b T4【硬】「小段の範囲は見え面の線から背の向きの符号つきの距離で取る・ 見え面より前は触らない」)。 | OkabeYashiki(Stage2b_Dan_・StairSideAndEndBacks) |
 | `EdoBuild.CutGroundUnderTreads(stones, below, recPath, cover=…)` | `string` | 地面・天端 | 段石の真下の地盤を踏面より下へ切る(普請方 第137巡 r137b T1【硬】「石段の平面の地盤は、各点で真上の段石の踏面の天端 −x 以下に高さで指定して切る・ 段の上に土を載せない(描かれた地表 ≤ 踏面 −0.02… | OkabeYashiki(CutUnderKaidan) |
-| `EdoBuild.FallAwayFrom(piece, top, drop, slope, radius, where, recPath)` | `string` | 天端 | 駒の天端から道へ一方向に離す(普請方 第137巡 r137b T3【硬】「角の前の道の面は桝の天端 −0.02 から道へ 1/50 以上で離す(窪み無し)」)。 | OkabeYashiki(Stage3d_Mizo_) |
+| `EdoBuild.FallAwayFrom(piece, top, drop, slope, radius, where, recPath, fillUp=…)` | `string` | 地面・天端 | 駒の天端から道へ一方向に離す(普請方 第137巡 r137b T3【硬】「角の前の道の面は桝の天端 −0.02 から道へ 1/50 以上で離す(窪み無し)」)。 | OkabeYashiki(Stage3d_Mizo_) |
 | `EdoBuild.TaperBandOutside(band, x, maxDiff, keep, recPath, sideNeed)` | `string` | 地面・床・区域 | 溝の帯の外を 1:x で今の地盤へ擦り付ける(普請方 第137巡 r137 K2 ②③【硬】「帯の外の縁から今の地盤へ 1:1.5 より緩く擦り付ける(切りも盛りも)・ 擦り付けは練塀の犬走り・棟の座・区画の線の手前で止… | OkabeYashiki(Stage3d_Mizo_) |
 | `EdoBuild.CrestBackDiffCheck(key, line, back, crestDepth, maxDiff, behind, pieces, ground, why, nOver)` | `string` | 硬 天端 | 天端と背の地盤の差を、各駒の控えの後端 +behind の背で測る(普請方 第137巡 r137b T2【硬】「検めは各駒の控えの後端 +0.05 の背の地盤で測る・ 駒の外形の内は数えない(駒の下・見えない)」)。 | OkabeYashiki(Stage2b_Dan_・Stage3c_SodeSlopeCheck_) |
 | `EdoBuild.YieldWrittenToPriority(lowRecPaths, lowExclude, highPlaneAt, hidden, parcel, slope, reach, recOut)` | `string` | 地面・区域 | 造成の書き手どうしの優先の順で、低い書き手を高い面の縁へ退かせる(普請方 第140巡 grading.writerPriorityR140 P4【硬】「優先の順: 平場の面・道の路盤・溝と桝の帯・犬走り > 小段 > 擦… | OkabeYashiki(Stage3d_Mizo_) |

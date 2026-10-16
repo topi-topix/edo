@@ -2992,7 +2992,35 @@ public static class EdoOkabeYashikiBuilder
     /// 算出物 base[] は露出の薄い所(thin・露出 &lt; baseMin)を台なしにしていた ⇒ 同じ棟の前で台が途中で終わり、台の天端の前の出(躯体の面より前 0.3〜0.6)が
     /// 板のように途切れた(岡部 N16_0: s0〜6.5 だけ台・s6.5〜21.1 は無し)。台を一つでも持つ長屋の run は、薄い所にも同じ天端で据える
     /// (露出の薄い所は前の地表に埋まる ── 据えは埋めて隠す)。門の口(棟の札の passage)は空ける。<paramref name="segs"/> を書き換える。⟶ 報告の一行(変えなければ null)。
-    /// 当たる先: 台の石垣の上に建つ外周の長屋すべて(岡部 N16〜N18・N39_0・N40_0/1 ── 台を持たない棟(segs 空)は触らない)。</summary>
+    /// 当たる先: 台の石垣の上に建つ外周の長屋すべて(岡部 N16〜N18・N39_0・N40_0/1)── 台を持つかは一続き(NagayaBaseChains)で判じる(第152巡)。</summary>
+    /// <summary>**一続きの長屋の台**(第152巡・施主の写真 r151_kado_P18「中の棟の右半分の下に台が無く腰が地面に直に載る」・r151_kado_P14/P16「台の石の大きさと天端の縁が
+    /// 角・段の継ぎ目の左右で違う」)── 算出物 base[] は run ごとに露出から台の有無と倍率を焼いた物 ⇒ 露出の薄い短い棟(岡部 N17_k: segs 空)は台なし・
+    /// 隣の棟と倍率違い(N13_0 1.0 × N14_0 0.5・N15_0 0.5 × N16_k 0.25)で、台が一続きの長屋の下で途切れ、石の大きさと天端の前の縁(控え c)が角で食い違った。
+    /// 台の石垣に載る外周の長屋の run を、端と端が 0.6m 以内で接する物どうし(同じ辺の継ぎ目・段の継ぎ目・出隅・入隅を問わず)一続きに束ね、
+    /// 一続きのどれかが台を持てば全部の棟に全長の台(<see cref="NagayaBaseWhole"/>)。倍率を一続きの最大へ揃えるのは留めの版待ち(呼び手の ⚠)。
+    /// 天端の線の run の「倍率を塀の一続きで一つに」(<see cref="HeiLineBaseFromTenba"/>・第123巡)と同じ型を長屋へ。【硬: 台の途切れ 0】
+    /// ⟶ run 名 → 一続きの番号(台の算出物の無い run は入らない)。当たる先: 台の石垣の上に建つ外周の長屋すべて(岡部 N12〜N18・N39〜N41)。</summary>
+    static Dictionary<string, int> NagayaBaseChains(Dictionary<string, Dictionary<string, object>> baseByRun, out Dictionary<int, float> chainS, out Dictionary<int, bool> chainHasBase)
+    {
+        var rs = new List<Run>(); foreach (var r in Runs) if (r.Nagaya && r.Ishigaki && baseByRun.ContainsKey(r.name)) rs.Add(r);
+        int n = rs.Count; var par = new int[n]; for (int i = 0; i < n; i++) par[i] = i;
+        Func<int, int> find = null; find = x => par[x] == x ? x : (par[x] = find(par[x]));
+        Func<Run, float, Vector2> at = (r, sv) => { Vector2 a = EdgePt(r.edge, 0f); return a + (EdgePt(r.edge, 1f) - a).normalized * sv; };
+        for (int i = 0; i < n; i++) for (int j = i + 1; j < n; j++)
+        {
+            Vector2 a0 = at(rs[i], rs[i].s0), a1 = at(rs[i], rs[i].s1), b0 = at(rs[j], rs[j].s0), b1 = at(rs[j], rs[j].s1);
+            if (Mathf.Min(Mathf.Min((a0 - b0).magnitude, (a0 - b1).magnitude), Mathf.Min((a1 - b0).magnitude, (a1 - b1).magnitude)) <= 0.6f) par[find(i)] = find(j);
+        }
+        var map = new Dictionary<string, int>(); chainS = new Dictionary<int, float>(); chainHasBase = new Dictionary<int, bool>();
+        for (int i = 0; i < n; i++)
+        {
+            int c = find(i); map[rs[i].name] = c; var bd = baseByRun[rs[i].name];
+            float sv = Has(bd, "s") ? F(bd["s"]) : rs[i].s; float q; chainS[c] = chainS.TryGetValue(c, out q) ? Mathf.Max(q, sv) : sv;
+            bool hb = false; foreach (var o in A(Get(bd, "segs")) ?? new List<object>()) { var t2 = A(o); if (t2 != null && t2.Count == 2 && F(t2[1]) - F(t2[0]) > 0.01f) hb = true; }
+            bool b0; chainHasBase[c] = (chainHasBase.TryGetValue(c, out b0) && b0) || hb;
+        }
+        return map;
+    }
     static string NagayaBaseWhole(Run r, Dictionary<string, object> bd, List<Vector2> segs)
     {
         var add = new List<Vector2>(); foreach (var q in A(Get(bd, "thin")) ?? new List<object>()) { var t2 = A(q); if (t2 != null && t2.Count == 2 && F(t2[1]) - F(t2[0]) > 0.01f) add.Add(new Vector2(F(t2[0]), F(t2[1]))); }
@@ -3032,6 +3060,7 @@ public static class EdoOkabeYashikiBuilder
         { var e = O(o); if (e != null) baseByRun[S(e["run"])] = e; }
         float gutW = FrontGutterWidth();
         var secs = new List<EdoBuild.CastleSec>(); var miss = new List<string>(); float thin = 0f; var notes = new List<string>();
+        Dictionary<int, float> chainS; Dictionary<int, bool> chainHasBase; var chains = NagayaBaseChains(baseByRun, out chainS, out chainHasBase);
         foreach (var r in Runs)
         {
             if (!r.Ishigaki) continue;
@@ -3055,7 +3084,15 @@ public static class EdoOkabeYashikiBuilder
             var segList = new List<Vector2>();
             if (hasHlB) segList.AddRange(hlB.Value);
             else foreach (var q in A(Get(bd, "segs")) ?? new List<object>()) { var t2 = A(q); if (t2 != null && t2.Count == 2) segList.Add(new Vector2(F(t2[0]), F(t2[1]))); }
-            if (!hasHlB && r.Nagaya && segList.Count > 0) { string nt = NagayaBaseWhole(r, bd, segList); if (nt != null) notes.Add(nt); }
+            //   ⭐ 一続きの長屋の台(第152巡)── 台を持つかは run でなく一続き(NagayaBaseChains)で判じ、倍率は一続きの最大へ
+            int chId = -1; bool inChain = !hasHlB && r.Nagaya && chains.TryGetValue(r.name, out chId);
+            if (inChain)
+            {
+                //   ⚠ 倍率を一続きの最大へ揃えるのは**待ち**(第152巡の試し: 北の一続きを 1.0・表の一続きを 0.75 へ揃えると控え c が 0.25〜0.75 動き、外周の長屋 12 棟の
+                //   留めの版の長さが 0.04〜0.2 外れて建たなかった ⇒ 揃えた控えで焼いた版が揃うまで run ごとの倍率のまま。要る版の一覧は報告の行に刷る)
+                if (chainS[chId] > sc + 1e-4f) notes.Add("★ " + r.name + ": 台の倍率 " + sc.ToString("0.##", inv) + "(一続きの最大 " + chainS[chId].ToString("0.##", inv) + " へ揃えるのは留めの版待ち・第152巡)");
+                if (chainHasBase[chId]) { string nt = NagayaBaseWhole(r, bd, segList); if (nt != null) notes.Add(nt); }
+            }
             foreach (var sg in segList)
             {
                 float t0 = sg.x, t1 = sg.y; if (t1 - t0 <= 0.01f) continue;
@@ -6587,10 +6624,26 @@ public static class EdoOkabeYashikiBuilder
             //   足の下(凸包の中)は「石が足の底を支えている所」だけ触らない ── 台の石垣の継ぎ目の切り欠きの底(足を支えない石の面)は足に覆われるので土で埋める。
             //   ⛔ 台の石垣の天端の前の縁(区画の線から c)+0.05 より前は触らない(犬走り 0 の run は腰が法の上へ出る ── 見え面の前へ土を出さない)。第120巡 2026-10-12
             System.Func<Vector2, float> faceInAt = q => { int be = -1; float bd = float.MaxValue, bs = 0f; for (int e2 = 0; e2 < PPf.Length; e2++) { Vector2 a2 = PPf[e2], b2 = PPf[(e2 + 1) % PPf.Length]; float L2 = (b2 - a2).magnitude; if (L2 < 1e-4f) continue; float s2 = Mathf.Clamp(Vector2.Dot(q - a2, (b2 - a2) / L2), 0f, L2); float d2 = (a2 + (b2 - a2) / L2 * s2 - q).magnitude; if (d2 < bd) { bd = d2; be = e2; bs = s2; } } return be < 0 ? 0f : FaceIn(be, bs); };
-            System.Func<Vector2, float> crestIn = q => { int be = -1; float bd = float.MaxValue, bs = 0f; for (int e2 = 0; e2 < PPf.Length; e2++) { Vector2 a2 = PPf[e2], b2 = PPf[(e2 + 1) % PPf.Length]; float L2 = (b2 - a2).magnitude; if (L2 < 1e-4f) continue; float s2 = Mathf.Clamp(Vector2.Dot(q - a2, (b2 - a2) / L2), 0f, L2); float d2 = (a2 + (b2 - a2) / L2 * s2 - q).magnitude; if (d2 < bd) { bd = d2; be = e2; bs = s2; } } return be < 0 ? 0f : KidanC(be, bs); };
+            //   ⭐ 天端の前の縁より奥かは**近くの辺すべて**で見る(第152巡・施主の写真 r151_P12_hei_end「野面の台と切石の台の間に緑の土の柱 2 本」)── 最も近い辺の c だけで判じると、
+            //   二つの台が出会う頂点(岡部 P12: S_Hei_08 の台 c 0.75 × N12_0 の野面の台 c 1.0)で、練塀の足が張り出す下の節点(高い台の法の見え面の前)を
+            //   近い辺の c の奥と読み、足の底 19.10 まで土を上げた(16.2 → 19.1 の柱・hei_foot_fill の記録で名指し)。走りの射影が辺の内に入る辺のうち 3m 以内の物すべての
+            //   c +0.05 より奥の節点だけ触る。当たる先: 台の石垣の上の練塀・隅の足の下を埋める所すべて(岡部 外周の頂点で控え c が違う台が出会う所 ── P12 ほか)。
+            System.Func<Vector2, bool> behindCrests = q =>
+            {
+                if (!(EdoGeom.PIP(PPf, q) && EdoBuild.EdgeDistPublic(PPf, q) >= clipF)) return false;
+                for (int e2 = 0; e2 < PPf.Length; e2++)
+                {
+                    Vector2 a2 = PPf[e2], b2 = PPf[(e2 + 1) % PPf.Length]; float L2 = (b2 - a2).magnitude; if (L2 < 1e-4f) continue;
+                    float s2 = Vector2.Dot(q - a2, (b2 - a2) / L2); if (s2 < 0f || s2 > L2) continue;
+                    float d2 = (a2 + (b2 - a2) / L2 * s2 - q).magnitude; if (d2 > 3f) continue;
+                    if (d2 < KidanC(e2, s2) + 0.05f) return false;
+                }
+                return true;
+            };
             sb.AppendLine("  練塀の足(heiFootSpec.order): " + EdoBuild.FillUnderFoot(hp, 0.05f, 0.03f, EdoBuild.TerrainCell(EdoBuild.T()), null,
-                q => EdoGeom.PIP(PPf, q) && EdoBuild.EdgeDistPublic(PPf, q) >= clipF && !(stoneBed.At(q.x, q.y) > EdoBuild.Ground(q.x, q.y) + 0.02f), FootUndoPath, 0.30f,
-                (q, yb) => EdoGeom.PIP(PPf, q) && EdoBuild.EdgeDistPublic(PPf, q) >= Mathf.Max(clipF, crestIn(q) + 0.05f) && !(stoneBed.At(q.x, q.y) >= yb - 0.02f), keepP, 0.04f,
+                //   縁の節点(足の凸包の外)も同じ behindCrests で(第152巡の流し: 凸包の中だけ直すと P12 の節点は隣の駒の縁として rimFull〔0.35 の内の高い台の天端〕で 19.10 へ上がった)
+                q => behindCrests(q) && !(stoneBed.At(q.x, q.y) > EdoBuild.Ground(q.x, q.y) + 0.02f), FootUndoPath, 0.30f,
+                (q, yb) => behindCrests(q) && !(stoneBed.At(q.x, q.y) >= yb - 0.02f), keepP, 0.04f,
                 //   犬走りの土(const.heiLine.kidan「控えの差は石垣の天端の露出(犬走り)の幅で吸う」・第122巡)── 縁の節点の 0.35 の内に台の天端(地表より上の石・上げる高さ −0.10 以上)が
                 //   あれば、縁の上げを止めない(土は台の天端で受ける ⇒ 土の柱にならない)
                 //   ⭐ 第126巡: 縁の 0.35 の内に溝・桝の駒の天端(上げる高さ −0.10 以上)があれば、土は駒の縁で受ける ⇒ 縁の上げを止めない
@@ -6600,7 +6653,7 @@ public static class EdoOkabeYashikiBuilder
                 //   石が足を支える足の下の節点は石の天端 −0.02 まで上げる(台の裏の縁の一升の落ち込み ── 第125巡)。天端の前の縁 c +0.05 より前(見え面の側)は触らない
                 //   ⭐ 第127巡: 塀の外面の線より奥(塀の下と裏)は上限なし ── 隅で両脇の天端が 0.01〜0.03 違い、天端 −0.02 の上限で内の縁が 0.02〜0.04 浮いた(Kado_P32〜P38)。
                 //   塀の下と裏の土は外から見えない(天端に土を見せないのは犬走り = 外面の線より前)
-                q => { if (!(EdoGeom.PIP(PPf, q) && EdoBuild.EdgeDistPublic(PPf, q) >= Mathf.Max(clipF, crestIn(q) + 0.05f))) return float.NaN; string w8; float tp = stoneTops.Top(q.x, q.y, out w8); if (float.IsNaN(tp)) return float.NaN;
+                q => { if (!behindCrests(q)) return float.NaN; string w8; float tp = stoneTops.Top(q.x, q.y, out w8); if (float.IsNaN(tp)) return float.NaN;
                        return EdoBuild.EdgeDistPublic(PPf, q) >= faceInAt(q) + 0.05f ? float.PositiveInfinity : tp - 0.02f; }));
             sb.Append(RunBackBands());   // 棟の背の帯(runs[].back・第131巡)── 浮いた棟の足の下の上げより前(下げた帯で足が浮けば次の手が受ける)
             // ⭐ 座で据えた棟(外周の長屋・附属屋)の足が、後の地面の下げ(背の路地の床の切り・溝の帯・天端の肩の落とし)で**どこも地面に触れず浮いた**ものは、
@@ -6745,7 +6798,7 @@ public static class EdoOkabeYashikiBuilder
                 float mTop = float.MinValue; foreach (var v in EdoBuild.Body(masu, 999999)) mTop = Mathf.Max(mTop, v.y);
                 var PPm = Poly; var othM = new List<Vector2[]>(); foreach (var pc in EdoParcels.All) if (pc.id != ParcelId && pc.pts.Count >= 3) othM.Add(pc.Poly);
                 sb.AppendLine("  角の前の道(cornerR137b): " + EdoBuild.FallAwayFrom(masu.gameObject, mTop, float.Parse(m8.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture),
-                    1f / float.Parse(m8.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture), 2.0f, q => { if (EdoGeom.PIP(PPm, q)) return false; foreach (var op in othM) if (EdoGeom.PIP(op, q)) return false; return true; }, BandRecPath("s3d")));
+                    1f / float.Parse(m8.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture), 2.0f, q => { if (EdoGeom.PIP(PPm, q)) return false; foreach (var op in othM) if (EdoGeom.PIP(op, q)) return false; return true; }, BandRecPath("s3d"), true));
             }
         }
         // ⭐ 第140巡(普請方 TW_Kita_Koshi.endRaiseR139【硬】「Stage3d の地面を書く手の最後に、継ぎ目を閉じる手を一つ足す: 書いた節点に四方を囲まれた書いていない節点は、

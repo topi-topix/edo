@@ -85,8 +85,11 @@ public static partial class EdoBuild
     /// <summary>**駒の天端から道へ一方向に離す**(普請方 第137巡 r137b T3【硬】「角の前の道の面は桝の天端 −0.02 から道へ 1/50 以上で離す(窪み無し)」)。
     /// 駒の実メッシュの水平の凸包からの距離 d の節点(<paramref name="where"/> が真の所・d ≤ <paramref name="radius"/>)を、
     /// 天端 <paramref name="top"/> − <paramref name="drop"/> − d × <paramref name="slope"/> より高ければそこへ下げる(切るだけ)。外形の内は触らない。
-    /// 書いた高さは <paramref name="recPath"/> へ。当たる先: 道の際に据える桝・溝の頭(岡部 D_Corner_Masu)。⟶ 一行。</summary>
-    public static string FallAwayFrom(GameObject piece, float top, float drop, float slope, float radius, Func<Vector2, bool> where, string recPath)
+    /// 書いた高さは <paramref name="recPath"/> へ。当たる先: 道の際に据える桝・溝の頭(岡部 D_Corner_Masu)。⟶ 一行。
+    /// <para>⭐ <paramref name="fillUp"/>(第152巡・施主の写真 r151_naname_P40a/b「頂点40 の角の足元に黒い石の欠片が突き出る」)── 「窪み無し」は下げだけでは守れない:
+    /// 桝の天端を尻の溝の天端(14.02)で据えると道(13.89)より 0.13 高く、切るだけの手は道に触れず桝の縁が道から突き出た(地面と駒の取り合い C 0.11)。
+    /// 真なら、天端 − drop より低い節点を、外形の縁で天端 − drop・半径の所で今の高さになる一次の下りへ上げる(縁から外へ単調に下る ⇒ 1/n 以上で離す・窪み無し)。</para></summary>
+    public static string FallAwayFrom(GameObject piece, float top, float drop, float slope, float radius, Func<Vector2, bool> where, string recPath, bool fillUp = false)
     {
         if (piece == null) return "駒が無い ── 離さない";
         var pts = new List<Vector2>(); foreach (var v in Body(piece.transform, 999999)) pts.Add(new Vector2(v.x, v.z));
@@ -95,16 +98,19 @@ public static partial class EdoBuild
         var t = T(); var td = t.terrainData; int R = td.heightmapResolution; Vector3 tp = t.transform.position, ts = td.size; float cell = ts.x / (R - 1);
         int x0 = Mathf.Clamp(Mathf.FloorToInt((mnx - radius - tp.x) / cell), 0, R - 1), z0 = Mathf.Clamp(Mathf.FloorToInt((mnz - radius - tp.z) / cell), 0, R - 1);
         int x1 = Mathf.Clamp(Mathf.CeilToInt((mxx + radius - tp.x) / cell), 0, R - 1), z1 = Mathf.Clamp(Mathf.CeilToInt((mxz + radius - tp.z) / cell), 0, R - 1);
-        var H = td.GetHeights(x0, z0, x1 - x0 + 1, z1 - z0 + 1); int n = 0; float mx = 0f; var rec = new Dictionary<long, float>();
+        var H = td.GetHeights(x0, z0, x1 - x0 + 1, z1 - z0 + 1); int n = 0; float mx = 0f; int nU = 0; float mxU = 0f; var rec = new Dictionary<long, float>();
         for (int iz = z0; iz <= z1; iz++) for (int ix = x0; ix <= x1; ix++)
         {
             var p = new Vector2(tp.x + ix * cell, tp.z + iz * cell); if (EdoGeom.PIP(hull, p)) continue; float d = EdgeDist(hull, p); if (d > radius) continue;
             if (where != null && !where(p)) continue;
-            float cur = H[iz - z0, ix - x0] * ts.y + tp.y, y = top - drop - d * slope; if (cur <= y + 1e-4f) continue;
+            float cur = H[iz - z0, ix - x0] * ts.y + tp.y, y = top - drop - d * slope;
+            if (fillUp && cur < top - drop - 1e-4f) { float yu = Mathf.Lerp(top - drop, cur, d / Mathf.Max(radius, 1e-4f)); if (yu > cur + 1e-4f) { mxU = Mathf.Max(mxU, yu - cur); H[iz - z0, ix - x0] = (yu - tp.y) / ts.y; nU++; rec[((long)ix << 32) ^ (uint)iz] = yu; } continue; }
+            if (cur <= y + 1e-4f) continue;
             mx = Mathf.Max(mx, cur - y); H[iz - z0, ix - x0] = (y - tp.y) / ts.y; n++; rec[((long)ix << 32) ^ (uint)iz] = y;
         }
-        if (n > 0) { td.SetHeights(x0, z0, H); AssetDatabase.SaveAssetIfDirty(td); AppendNodeTargets(recPath, t.name, rec); }
-        return piece.name + " の天端 " + top.ToString("F2") + " −" + drop.ToString("F2") + " から 1/" + (1f / Mathf.Max(slope, 1e-4f)).ToString("F0") + " で離した(" + radius.ToString("F1") + "m の内): 下げた節点 " + n + "・最大 " + mx.ToString("F3");
+        if (n + nU > 0) { td.SetHeights(x0, z0, H); AssetDatabase.SaveAssetIfDirty(td); AppendNodeTargets(recPath, t.name, rec); }
+        return piece.name + " の天端 " + top.ToString("F2") + " −" + drop.ToString("F2") + " から 1/" + (1f / Mathf.Max(slope, 1e-4f)).ToString("F0") + " で離した(" + radius.ToString("F1") + "m の内): 下げた節点 " + n + "・最大 " + mx.ToString("F3")
+             + (fillUp ? "・天端 −" + drop.ToString("F2") + " より低く縁から下る面へ上げた節点 " + nU + "・最大 " + mxU.ToString("F3") : "");
     }
 
     /// <summary>**溝の帯の外を 1:x で今の地盤へ擦り付ける**(普請方 第137巡 r137 K2 ②③【硬】「帯の外の縁から今の地盤へ 1:1.5 より緩く擦り付ける(切りも盛りも)・

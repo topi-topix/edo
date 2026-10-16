@@ -122,3 +122,4 @@
 - [切る留めを入隅・門長屋・両端へ・座の違う相手は板で塞ぐ](nagaya-miter-cut-signed-anchor-seal.md) — 両端は --layout で割付据え置き・--seal・θ<0 は入隅(2026-10-16)
 - [両端を留めた表長屋の長さの余りが突き抜けになる](miter-both-ends-length-overshoot.md) — 札は要る長さ−0.0002・seal は土台で段(2026-10-16)
 - [座の違う留めの屋根の継ぎと斜め端の練塀](cut-kera-step-roof-and-naname-roof-back.md) — --cut-kera は棟の熨斗の帯(袖瓦は上から鋸の歯)・Naname は屋根も壁体も 0.06 引く(2026-10-16)
+- [台の浅い出隅の留めの版 _TP/_TM](kidan-shallow-kado-tome-cut.md) — 足元の前の角を枠の端に残して切る・倍率は名に入れない・短い駒は素の剪断(2026-10-16)

@@ -1,0 +1,94 @@
+{
+    "prefab": "Assets/Edo/Models/Kado/Ishigaki_Choku_H0400_GU0894_TP060.fbx",
+    "kind": "fence",
+    "source": "Tools/Blender/build_kidan_saka.py -- --tome P 12 --grade 8.94",
+    "unitScale": 1.0,
+    "yBottom": -0.1788,
+    "foot": [
+        {
+            "x": -2.39999,
+            "y": -1.44071
+        },
+        {
+            "x": -2.38853,
+            "y": -1.95414
+        },
+        {
+            "x": -2.38749,
+            "y": -1.99999
+        },
+        {
+            "x": -2.34999,
+            "y": -1.99999
+        },
+        {
+            "x": -0.0,
+            "y": -1.99999
+        },
+        {
+            "x": -0.0,
+            "y": -1.51125
+        }
+    ],
+    "front": 0.0,
+    "back": 0.0,
+    "jambL": {
+        "x": 0.0,
+        "z0": 0.0,
+        "z1": 0.0,
+        "y0": 0.0,
+        "y1": 0.0
+    },
+    "jambR": {
+        "x": 0.0,
+        "z0": 0.0,
+        "z1": 0.0,
+        "y0": 0.0,
+        "y1": 0.0
+    },
+    "passage": {
+        "x0": 0.0,
+        "x1": 0.0
+    },
+    "eave": {
+        "x0": 0.0,
+        "x1": 0.0,
+        "z0": 0.0,
+        "z1": 0.0,
+        "y0": 0.0,
+        "y1": 0.0
+    },
+    "faceOut": -1.44071,
+    "faceIn": -1.99999,
+    "copingOverhang": 0.47765,
+    "height": 4.17878,
+    "frame": "Castle Wall の局所(走り Z・背 X=0・見え面 −X・ピボット = Z=0 の端の背の足元)── 共通の欄は Measure の読みで据えに使わない",
+    "grade": 0.0894,
+    "gradeAxis": "+Z",
+    "h": 4.0,
+    "runZ": [
+        -2.0,
+        0.0
+    ],
+    "tomeEnd": "P",
+    "tomeCutDeg": 6.0,
+    "tomeTurnDeg": 12.0,
+    "tomePlane": "Z = −(X + 2.40)·tan c(足元の前の角 X=−2.40 が Z=0・背 X=0 は Z=−2.40·tan c)",
+    "tomeFootCorner": {
+        "x": -2.4,
+        "z": 0.0
+    },
+    "tomeCrestFrontCorner": {
+        "x": -1.4,
+        "y": 4.0,
+        "z": -0.1051
+    },
+    "crestOnMiter": 4.0,
+    "crestFarEnd": 3.8212,
+    "crestConstOnMiter": true,
+    "crestFrontX": -1.4,
+    "crestBackX": 0.0,
+    "faceFootX": -2.4,
+    "batter": 0.25,
+    "place": "yaw・倍率は直線の駒と同じ / 切り口の面を角の鉛直な二等分の面(両脇の天端の前の縁の線の交点を通る)へ: tomeCrestFrontCorner を交点へ・y = 角の天端 − crestOnMiter·s(坂なりは切り口の上で天端が一定)"
+}

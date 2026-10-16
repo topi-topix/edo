@@ -6,6 +6,10 @@
         # → Ishigaki_Choku_H0400_GD0270(局所 +Z へ下がる)/ 丈違い _H0450_ / 走りを詰めた _L160
     blender --background --python Tools/Blender/build_kidan_saka.py -- --kado 78.367 --s 0.75 --grade 0,2.7 --render
         # → Ishigaki_Kado_78_H0400_S075_GU0000xU0270(素の隅 Ishigaki_Kado_78_H0400_S075 を芯の道のりで剪断)
+    blender --background --python Tools/Blender/build_kidan_saka.py -- --tome P 27.15 [--grade 9.04] [--len 1.39]
+        # → Ishigaki_Choku_H0400[_GU0904][_L139]_TP136(浅い出隅の留めの版・端を角の二等分の鉛直面で切る・第149巡)
+    blender --background --python Tools/Blender/build_kidan_saka.py -- --okabe-tome [--render]
+        # 岡部の浅い出隅 10 か所の 18 本と、二つの駒を据えた並べ焼き Screenshots/kidan_tome_P<n>_{me,naname,ue}.png
     blender --background --python Tools/Blender/build_kidan_saka.py -- --okabe [--render]
         # 岡部の一式(練塀の坂なりの勾配 OKABE_GRADES × U/D と、坂に掛かる出隅 OKABE_KADO)
 
@@ -49,7 +53,8 @@ CREST_W = 1.40; FOOT = 2.40; BATTER = 0.25
 # 練塀の坂なりの勾配(Assets/Edo/Models/Neribei/Neribei_Saka_* の名から・2026-10-13)── 絶対値。U/D の両方を焼く
 OKABE_GRADES = (0.0104, 0.0107, 0.0118, 0.0122, 0.0134, 0.0145, 0.0270, 0.0293, 0.0303, 0.0433, 0.0497, 0.0567,
                 0.0594, 0.0614, 0.0625, 0.0762, 0.0841, 0.0866, 0.0867, 0.0878, 0.0882, 0.0883, 0.0946, 0.0948,
-                0.0987, 0.1069, 0.1200, 0.1206, 0.1250)
+                0.0987, 0.1069, 0.1200, 0.1206, 0.1250,
+                0.0621, 0.0757, 0.0858, 0.0872, 0.0895, 0.0903, 0.1041)   # 末尾 7 つは第149巡 S2 の ★(2026-10-16)
 # 坂に掛かる台の出隅(≥40°・隅の駒を受ける所)── 練塀の坂の隅 Neribei_Kado_78_G* と同じ頂点 P24(辺23 平ら → 辺24 上り)。
 #   (折れ, 倍率, 入り %, 出 %)。どちらの腕を局所 −Z へ据えるかで (0, +g) と (−g, 0) の両方
 OKABE_KADO = [(78.367, 0.75, 0.0, 2.70), (78.367, 0.75, -2.70, 0.0), (78.367, 0.75, 0.0, 3.03), (78.367, 0.75, -3.03, 0.0)]
@@ -261,6 +266,311 @@ def build_kado(deg, s, gIn, gOut):
     return o, path, a
 
 
+# ---------------------------------------------------------------- 浅い出隅の留めの版(第149巡 2026-10-16)
+# 台の Castle Wall の浅い出隅(隅の駒を置かない折れ 1°〜40°)で、頂点に来る端の駒の端を**角の二等分の鉛直面**で切った版。
+#   名 = 元の駒の名 + `_T<P|M><切り角×10 の 3 桁>`(例 Ishigaki_Choku_H0400_GU0904_TP080 / 平らは Ishigaki_Choku_H0400_TM136)。
+#   P = 局所 Z = 0 の端(ピボットの側)を切る / M = Z = −len の端を切る。切り角 c = 折れ/2。出隅だけ(見え面の側が長い)。
+#   切る面(Unity 局所・倍率の前): P 端 Z = −(X + 2.40)·tan c / M 端 Z = −len + (X + 2.40)·tan c
+#     ⇒ 足元の前の角(X = −2.40)が素の枠の端(Z = 0 か −len)に残り、背(X = 0)は 2.40·tan c 詰まる。⭐ 枠は素と同じ(はみ出さない)。
+#   坂なり(g ≠ 0)は剪断でなく**芯の道のり**で反らす(build_kado の坂の隅と同じ考え・式は warp_tome): 切る面の上で天端が一定・切らない端の断面は直線の駒と一致。
+#     切り口の上の天端 = P は h / M は h − g·len(どちらも直線の駒の「Z = 0 の端の天端 = h」の据えと同じ規約)。
+#     ⚠ 切り口が背の側で切らない端の小口まで届く短い駒(P35 の L41)は道のりが二つの値を持つ ⇒ 素の剪断(切り口の上の天端は 1.3cm 変わる)。
+#   切り口は素の小口の柄の帯(build_ishigaki_kiri と同じ CAP_U/CAP_V)を面の座標で貼る(一点貼りにしない)。
+TOME_CAP_U = (0.26, 0.74); TOME_CAP_V = (0.01, 0.74)
+# 岡部の浅い出隅 10 か所(S2 の待ち r149/need_versions_s2.txt §2・base_ends.txt)── (頂点, 折れ[°], 前の辺の端の駒 (g, len), 次の辺の端の駒 (g, len))
+#   前の辺の端の駒は P 端を、次の辺の端の駒は M 端を切る(岡部の区画は時計回り ⇒ 駒の局所 +Z = 辺の走りの向き)。折れは parcels.json okabe の多角形から。
+OKABE_TOME = [
+    ("P8", 27.15, (0.0, 2.0), (0.0, 2.0)),
+    ("P9", 38.51, (0.0, 2.0), (0.0, 2.0)),
+    ("P13", 11.47, (0.0, 2.0), (0.0, 2.0)),
+    ("P14", 3.40, (0.0, 2.0), (0.0, 2.0)),
+    ("P19", 12.96, (0.0, 2.0), (-0.0625, 2.0)),
+    ("P29", 15.99, (0.0904, 2.0), (0.0857, 2.0)),
+    ("P31", 12.09, (0.0894, 2.0), (0.0125, 2.0)),
+    ("P35", 22.19, (-0.0396, 1.39), (-0.0623, 0.41)),
+    ("P39", 18.39, (-0.0870, 2.0), (0.0, 2.0)),
+    ("P41", 38.60, (0.0, 2.0), (0.0, 2.0)),
+]
+# 並べ焼きの両脇の倍率と角の天端(base_ends / s2_basewait の値)
+OKABE_TOME_SCENE = {"P8": (0.75, 0.75, 18.82, 18.82), "P9": (0.75, 0.75, 18.87, 18.87), "P13": (1.0, 1.0, 19.60, 19.60),
+                    "P14": (1.0, 0.5, 19.60, 19.60), "P19": (0.25, 0.75, 17.70, 18.00), "P29": (0.75, 0.75, 16.90, 16.90),
+                    "P31": (0.75, 0.75, 24.05, 24.05), "P35": (0.75, 0.75, 23.56, 23.56), "P39": (0.75, 0.75, 18.06, 16.50),
+                    "P41": (0.25, 0.5, 12.60, 12.60)}
+
+
+def tome_tag(c):
+    return "%03d" % int(round(abs(c) * 10))
+
+
+def tome_name(g, c, end, h=4.0, L=RUN):
+    n = "Ishigaki_Choku_H%04d" % int(round(h * 100))
+    if abs(g) > 1e-9:
+        n += "_G" + grade_tag(g)
+    if L < RUN - 1e-6:
+        n += "_L%d" % int(round(L * 100))
+    return n + "_T%s%s" % (end, tome_tag(c))
+
+
+def tome_ym(x, c, end, L):
+    """切る面の Blender y(Blender x = 見え面へ +・足元の前 x = 2.40)。P: y = (2.4 − x)·t / M: y = L − (2.4 − x)·t。"""
+    t = math.tan(math.radians(c))
+    return (FOOT - x) * t if end == "P" else L - (FOOT - x) * t
+
+
+def cut_tome(o, c, end, L):
+    """切る面で落とし、面の上の頂点で凸な切り口を張る(素の駒は凸 ⇒ 断面は凸)。切り口の UV は小口の柄の帯。"""
+    t = math.tan(math.radians(c))
+    # 平面: P は y − (2.4 − x)·t ≥ 0 を残す ⇒ 法線 (t, 1, 0)。M は L − (2.4 − x)·t − y ≥ 0 を残す ⇒ 法線 (t, −1, 0)… を外向きに
+    if end == "P":
+        nrm = Vector((t, 1.0, 0.0)).normalized(); co = Vector((FOOT, 0.0, 0.0)); keep_pos = True
+    else:
+        nrm = Vector((-t, 1.0, 0.0)).normalized(); co = Vector((FOOT, L, 0.0)); keep_pos = False
+    me = o.data
+    bm = bmesh.new(); bm.from_mesh(me)
+    uvl = bm.loops.layers.uv.active
+    bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], dist=1e-6, plane_co=co, plane_no=nrm,
+                           clear_outer=not keep_pos, clear_inner=keep_pos)
+    bmesh.ops.delete(bm, geom=[e for e in bm.edges if not e.link_faces], context='EDGES')
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-4)
+    #   浅い切り角(1.7°)では素の小口が足元の前の角で面に接し、面の上に小口の欠片が残る ⇒ 面の上に載り切った面を消してから張る
+    pd = lambda v: abs((v.co - co).dot(nrm))
+    bmesh.ops.delete(bm, geom=[f for f in bm.faces if all(pd(v) < 5e-5 for v in f.verts)], context='FACES_ONLY')
+    bmesh.ops.delete(bm, geom=[e for e in bm.edges if not e.link_faces], context='EDGES')
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
+    on = [v for v in bm.verts if abs((v.co - co).dot(nrm)) < 5e-5]
+    tv = Vector((nrm.y, -nrm.x, 0.0))
+    cen = sum((v.co for v in on), Vector()) / len(on)
+    on.sort(key=lambda v: math.atan2((v.co - cen).z, (v.co - cen).dot(tv)))
+    uniq = []
+    for v in on:
+        if not uniq or (uniq[-1].co - v.co).length > 1e-5:
+            uniq.append(v)
+    if len(uniq) > 2 and (uniq[0].co - uniq[-1].co).length < 1e-5:
+        uniq.pop()
+    f = bm.faces.new(uniq)
+    bm.normal_update()
+    outward = -nrm if keep_pos else nrm
+    if f.normal.dot(outward) < 0:
+        f.normal_flip()
+    f.material_index = 0
+    ss = [(l.vert.co - cen).dot(tv) for l in f.loops]
+    s0, s1 = min(ss), max(ss)
+    k = min((TOME_CAP_U[1] - TOME_CAP_U[0]) / max(1e-6, (s1 - s0) * 0.25 / CREST_W), (TOME_CAP_V[1] - TOME_CAP_V[0]) / (4.0 * 0.25))
+    for l, s in zip(f.loops, ss):
+        l[uvl].uv = (TOME_CAP_U[0] + (s - s0) * 0.25 / CREST_W * k, TOME_CAP_V[0] + l.vert.co.z * 0.25 * k)
+    bm.to_mesh(me); bm.free(); me.update()
+    return len(uniq)
+
+
+def warp_tome(o, g, c, end, L):
+    """坂なり: Blender z に足す量。直線の駒(z += −g·y)と切らない端で一致し、切り口の上で一定。
+    P: −g·L·(y − ym)/(L − ym)(切り口 0・y = L で −g·L)/ M: −g·L·y/ym(y = 0 で 0・切り口 −g·L)。"""
+    ymb = tome_ym(0.0, c, end, L)
+    if (end == "M" and ymb <= 1e-6) or (end == "P" and ymb >= L - 1e-6):
+        #   切り口が背の側で切らない端の小口まで届く短い駒(P35 の L41)── 道のりは切り口と端の小口の交わる所で二つの値を持つ ⇒ 素の剪断
+        shear(o, g)
+        return False
+    for v in o.data.vertices:
+        ym = tome_ym(v.co.x, c, end, L)
+        if end == "P":
+            den = L - ym
+            r = (v.co.y - ym) / den if den > 1e-6 else 1.0
+        else:
+            r = v.co.y / ym if ym > 1e-6 else 1.0
+        v.co.z += -g * L * max(0.0, min(1.0, r))
+    o.data.update()
+    return True
+
+
+def _section(tris, y):
+    pts = []
+    for tr in tris:
+        for i in range(3):
+            a, b = tr[i], tr[(i + 1) % 3]
+            if (a[1] - y) * (b[1] - y) < 0:
+                u = (y - a[1]) / (b[1] - a[1]); pts.append(tuple(a[k] + (b[k] - a[k]) * u for k in range(3)))
+            elif abs(a[1] - y) < 1e-7:
+                pts.append(a)
+    return pts
+
+
+def _hull(p2):
+    p2 = sorted(set((round(x, 6), round(z, 6)) for x, z in p2))
+    if len(p2) < 3:
+        return p2
+    cr = lambda o, a, b: (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    lo, hi = [], []
+    for p in p2:
+        while len(lo) >= 2 and cr(lo[-2], lo[-1], p) <= 0: lo.pop()
+        lo.append(p)
+    for p in reversed(p2):
+        while len(hi) >= 2 and cr(hi[-2], hi[-1], p) <= 0: hi.pop()
+        hi.append(p)
+    return lo[:-1] + hi[:-1]
+
+
+def spec_tome(o, name, g, c, end, h, L, src, warped=True):
+    """札(fence)。据えに使うのは tome* と crest*/runZ(作図の値)。共通の欄(yBottom・foot・faceOut/faceIn・copingOverhang)は
+    EdoPartSpec.Measure と同じ手続き(足元 +0.05 / 半分の高さの断面)を Python で写した読み ── 据えに使わない(spec_straight と同じ扱い)。"""
+    me = o.data; me.calc_loop_triangles()
+    U = lambda v: (-v.co.x, v.co.z, -v.co.y)
+    tris = [[U(me.vertices[i]) for i in lt.vertices] for lt in me.loop_triangles]
+    ys = [p[1] for tr in tris for p in tr]; xs = [p[0] for tr in tris for p in tr]
+    yb, yt = min(ys), max(ys); x0, x1 = min(xs), max(xs)
+    foot = _section(tris, yb + 0.05)
+    hull = _hull([(p[0], p[2]) for p in foot])
+    mid = _section(tris, yb + (yt - yb) * 0.5)
+    coping = max(0.0, max(min(p[0] for p in mid) - x0, x1 - max(p[0] for p in mid))) if mid else 0.0
+    t = math.tan(math.radians(c))
+    if end == "P":
+        plane = "Z = −(X + 2.40)·tan c(足元の前の角 X=−2.40 が Z=0・背 X=0 は Z=−2.40·tan c)"
+        cf = {"x": -CREST_W, "y": h, "z": -1.0 * t}; crest_miter = h; crest_far = h - g * L
+    else:
+        plane = "Z = −len + (X + 2.40)·tan c(足元の前の角が Z=−len・背は Z=−len+2.40·tan c)"
+        cf = {"x": -CREST_W, "y": h - g * L, "z": -L + 1.0 * t}; crest_miter = h - g * L; crest_far = h
+    if not warped:   # 素の剪断(短い駒)── 切り口の上の天端は一定でない: 天端の前の角の所の値
+        cf["y"] = h + g * cf["z"]; crest_miter = cf["y"]
+    return {"source": src, "unitScale": 1.0, "yBottom": yb, "height": yt - yb,
+            "foot": [{"x": a, "y": b} for a, b in hull],
+            "faceOut": max(p[2] for p in foot) if foot else 0.0, "faceIn": min(p[2] for p in foot) if foot else 0.0,
+            "copingOverhang": coping,
+            "frame": "Castle Wall の局所(走り Z・背 X=0・見え面 −X・ピボット = Z=0 の端の背の足元)── 共通の欄は Measure の読みで据えに使わない",
+            "grade": g, "gradeAxis": "+Z", "h": h, "runZ": [-L, 0.0],
+            "tomeEnd": end, "tomeCutDeg": c, "tomeTurnDeg": 2 * c, "tomePlane": plane,
+            "tomeFootCorner": {"x": -FOOT, "z": 0.0 if end == "P" else -L},
+            "tomeCrestFrontCorner": cf,
+            "crestOnMiter": crest_miter, "crestFarEnd": crest_far, "crestConstOnMiter": bool(warped),
+            "crestFrontX": -CREST_W, "crestBackX": 0.0, "faceFootX": -FOOT, "batter": BATTER,
+            "place": "yaw・倍率は直線の駒と同じ / 切り口の面を角の鉛直な二等分の面(両脇の天端の前の縁の線の交点を通る)へ: "
+                     "tomeCrestFrontCorner を交点へ・y = 角の天端 − crestOnMiter·s(坂なりは切り口の上で天端が一定)"}
+
+
+def build_tome(g, c, end, h=4.0, L=RUN):
+    V.reset()
+    o, _ = K.load("ishigaki")
+    K.normalize(o, "ishigaki", [])
+    if h > 4.0 + 1e-6:
+        o = K.extend_down(o, h)
+    if L < RUN - 1e-6:
+        cut_len(o, L)
+    ncap = cut_tome(o, c, end, L)
+    bm = bmesh.new(); bm.from_mesh(o.data)
+    nopen = sum(1 for e in bm.edges if e.is_boundary and not all(abs(v.co.z) < 1e-4 for v in e.verts))
+    bm.free()
+    warped = True
+    if abs(g) > 1e-9:
+        warped = warp_tome(o, g, c, end, L)
+    name = tome_name(g, c, end, h, L)
+    o.name = name; o.data.name = name
+    V.set_origin(o, (0, 0, 0))
+    me = o.data
+    # 検算: 切る面の外に頂点が無い・切り口の上の天端が一定・切らない端の天端が直線の駒と同じ
+    sg = 1.0 if end == "P" else -1.0
+    bite = max(sg * (tome_ym(v.co.x, c, end, L) - v.co.y) for v in me.vertices)
+    onm = [v for v in me.vertices if abs(v.co.y - tome_ym(v.co.x, c, end, L)) < 5e-5]
+    tops = [v.co.z for v in onm if v.co.z > 2.0]
+    ctop = max(tops) - min([z for z in tops if z > max(tops) - 0.5]) if tops else 0.0
+    far = [v for v in me.vertices if abs(v.co.y - (L if end == "P" else 0.0)) < 1e-5 and v.co.z > 3.0]
+    far_dz = max(abs(v.co.z - (h + (-g * L if end == "P" else 0.0))) for v in far if abs(v.co.z - max(w.co.z for w in far)) < 1e-4) if far else 0.0
+    xs = [v.co.x for v in me.vertices]; ys = [v.co.y for v in me.vertices]; zs = [v.co.z for v in me.vertices]
+    print("[tome] %s 切り口 %d 角形 Unity X[%.3f,%.3f] Y[%.3f,%.3f] Z[%.3f,%.3f] 面 %d 開いた辺(底のほか) %d 面の外 %.6f 切り口の天端の差 %.5f 端の天端の差 %.5f"
+          % (name, ncap, -max(xs), -min(xs), min(zs), max(zs), -max(ys), -min(ys), len(me.polygons), nopen, bite, ctop, far_dz))
+    if not warped:
+        print("[tome]   ⚠ 素の剪断(切り口が端の小口まで届く)── 切り口の上の天端は走りに沿って %.4f 変わる" % ctop)
+        ctop = 0.0
+    if nopen or bite > 5e-5 or ctop > 1e-4 or far_dz > 1e-4:
+        raise SystemExit("[tome] ⛔ 検算が落ちた %s" % name)
+    path = os.path.join(OUT, name + ".fbx")
+    src = "Tools/Blender/build_kidan_saka.py -- --tome %s %g" % (end, 2 * c) + ("" if abs(g) < 1e-9 else " --grade %g" % (g * 100)) \
+          + ("" if h == 4.0 else " --h %g" % h) + ("" if L >= RUN - 1e-6 else " --len %g" % L)
+    spec = spec_tome(o, name, g, c, end, h, L, src, warped)
+    spec["prefab"] = CANON + "/" + name + ".fbx"
+    if SPEC_OUT:
+        V.SPEC_DIR = SPEC_OUT
+    jp = V.write_spec(path, dict(spec, kind="fence"))
+    write_json_meta(jp)
+    V.export_fbx([o], path, kind="fence")
+    write_meta(path)
+    print("[tome] wrote %s" % path)
+    return path
+
+
+def okabe_tome_rows():
+    """(頂点, 側, g, c, end, L)。c = 折れ/2 を 0.1° に丸める(名の 3 桁と同じ)。"""
+    rows = []
+    for vtx, turn, (gA, LA), (gB, LB) in OKABE_TOME:
+        c = round(turn * 5) / 10.0
+        rows.append((vtx, "A", gA, c, "P", LA)); rows.append((vtx, "B", gB, c, "M", LB))
+    return rows
+
+
+def render_tome_pair(vtx, paths):
+    """角の並べ: 前の辺の端の駒(P を切った版)+ その一つ奥の直線の駒 / 次の辺の端の駒(M を切った版)+ 一つ先の直線の駒。
+    世界 = Blender。角の天端の前の縁の線の交点を原点・前の辺は −y へ進み見え面 +x・次の辺は右へ折れ(時計回りの区画の出隅)。"""
+    turn = [r for r in OKABE_TOME if r[0] == vtx][0][1]
+    c = round(turn * 5) / 10.0; t = math.tan(math.radians(c)); phi = math.radians(turn)
+    sA, sB, CA, CB = OKABE_TOME_SCENE[vtx]
+    (_, _, (gA, LA), (gB, LB)) = [r for r in OKABE_TOME if r[0] == vtx][0]
+    V.reset()
+    def imp(p):
+        before = set(bpy.data.objects); bpy.ops.import_scene.fbx(filepath=p)
+        new = [x for x in bpy.data.objects if x not in before]
+        ms = [x for x in new if x.type == 'MESH']
+        V.sel(ms); bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+        for x in new:
+            if x.type != 'MESH':
+                bpy.data.objects.remove(x, do_unlink=True)
+        return ms[0]
+    def straight_obj(g):
+        if abs(g) < 1e-9:
+            o, _ = K.load("ishigaki"); K.normalize(o, "ishigaki", []); return o
+        return imp(os.path.join(OUT, "Ishigaki_Choku_H0400_G%s.fbx" % grade_tag(g)))
+    K.load("ishigaki")[0].hide_render = True      # V.TEX を城のテクスチャへ
+    objs = []
+    # 前の辺: 切った版 A(局所 y ∈ [0, LA])の天端の前の角 (1.4, 1.0·t) を原点へ・z: 切り口の天端 h → CA
+    a = imp(paths[(vtx, "A")])
+    M = Matrix.Translation((-1.4 * sA, -1.0 * t * sA, CA - 4.0 * sA)) @ Matrix.Scale(sA, 4)
+    a.data.transform(M); objs.append(a)
+    a2 = straight_obj(gA)
+    y0 = LA - 0.2
+    M2 = Matrix.Translation((-1.4 * sA, -1.0 * t * sA + y0 * sA, CA - 4.0 * sA - gA * y0 * sA)) @ Matrix.Scale(sA, 4)
+    a2.data.transform(M2); objs.append(a2)
+    # 次の辺: 切った版 B(局所 y ∈ [0, LB])の天端の前の角 (1.4, LB − 1.0·t) を原点へ・時計回りに φ 回す・z: 切り口の天端 4 − gB·LB → CB
+    R = Matrix.Rotation(-phi, 4, 'Z')
+    b = imp(paths[(vtx, "B")])
+    Mb = R @ Matrix.Translation((-1.4 * sB, -(LB - 1.0 * t) * sB, CB - (4.0 - gB * LB) * sB)) @ Matrix.Scale(sB, 4)
+    b.data.transform(Mb); objs.append(b)
+    b2 = straight_obj(gB)
+    y1 = -(2.0 - 0.2)
+    Mb2 = R @ Matrix.Translation((-1.4 * sB, -(LB - 1.0 * t) * sB + y1 * sB, CB - (4.0 - gB * LB) * sB - gB * y1 * sB)) @ Matrix.Scale(sB, 4)
+    b2.data.transform(Mb2); objs.append(b2)
+    for o in objs:
+        o.matrix_world = Matrix.Identity(4)
+    # 視点: 外(二等分の外向き = +x を φ/2 だけ時計回り)から目の高さ・斜め上・真上
+    out = Vector((math.cos(-phi / 2), math.sin(-phi / 2), 0.0))
+    ctop = max(CA, CB)
+    pts = [o.matrix_world @ v.co for o in objs for v in o.data.vertices]
+    lo = Vector([min(p[i] for p in pts) for i in range(3)]); hi = Vector([max(p[i] for p in pts) for i in range(3)])
+    cen = Vector((0.0, 0.0, ctop - 1.2))
+    R0 = max((hi - lo).length * 0.9, 5.0)
+    cam = V.studio(tuple(cen + out * R0), tuple(cen), res=(1400, 900))
+    hook_and_bg()
+    files = []
+    for nm, loc, look, ortho in (("me", cen + out * R0 * 0.9 + Vector((0, 0, 0.3)), cen, None),
+                                 ("naname", cen + out * R0 * 0.8 + Vector((0, 0, R0 * 0.6)), cen, None),
+                                 ("ue", Vector((0.0, 0.0, ctop + 30.0)), Vector((0.0, 0.0, ctop)), 8.0 * max(sA, sB) + 2.0)):
+        cam.location = loc
+        cam.rotation_euler = (look - loc).to_track_quat('-Z', 'Y').to_euler()
+        if ortho:
+            cam.data.type = 'ORTHO'; cam.data.ortho_scale = ortho
+        else:
+            cam.data.type = 'PERSP'; cam.data.lens = 35
+        p = os.path.join(SHOTS, "kidan_tome_%s_%s.png" % (vtx, nm)); V.render(p); files.append(p)
+    print("[tome] 検め %s %s" % (vtx, json.dumps(files, ensure_ascii=False)))
+    return files
+
+
 # ---------------------------------------------------------------- 検め(並べ焼き)
 def hook_and_bg():
     V.hook_textures()
@@ -395,7 +705,25 @@ def main():
             render_run(0.125); render_run(0.027)
             render_kado(78.367, 0.75, 0.0, 0.027)
         return
+    if "--okabe-tome" in argv:
+        paths = {}
+        done = {}
+        for vtx, side, g, c, end, LL in okabe_tome_rows():
+            key = (round(g, 4), c, end, LL)
+            if key not in done:
+                done[key] = build_tome(g, c, end, 4.0, LL)
+            paths[(vtx, side)] = done[key]
+        print("[tome] 焼いた版 %d 本" % len(done))
+        if do_render:
+            for vtx, *_ in OKABE_TOME:
+                render_tome_pair(vtx, paths)
+        return
     gr = [float(t) / 100.0 for t in argv[argv.index("--grade") + 1].split(",")] if "--grade" in argv else [0.0]
+    if "--tome" in argv:
+        i = argv.index("--tome")
+        end, turn = argv[i + 1], float(argv[i + 2])
+        build_tome(gr[0], round(turn * 5) / 10.0, end, h, L)
+        return
     if "--kado" in argv:
         deg = float(argv[argv.index("--kado") + 1])
         if len(gr) == 1:

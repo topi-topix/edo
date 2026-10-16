@@ -1,0 +1,102 @@
+{
+    "prefab": "Assets/Edo/Models/Kado/Ishigaki_Choku_H0400_TP065.fbx",
+    "kind": "fence",
+    "source": "Tools/Blender/build_kidan_saka.py -- --tome P 13",
+    "unitScale": 1.0,
+    "yBottom": 0.0,
+    "foot": [
+        {
+            "x": -2.38749,
+            "y": -0.00143
+        },
+        {
+            "x": -2.38749,
+            "y": -1.0
+        },
+        {
+            "x": -2.38749,
+            "y": -1.99999
+        },
+        {
+            "x": -2.34999,
+            "y": -1.99999
+        },
+        {
+            "x": -0.0,
+            "y": -1.99999
+        },
+        {
+            "x": -0.0,
+            "y": -1.94999
+        },
+        {
+            "x": -0.0,
+            "y": -0.96367
+        },
+        {
+            "x": -0.0,
+            "y": -0.27344
+        }
+    ],
+    "front": 0.0,
+    "back": 0.0,
+    "jambL": {
+        "x": 0.0,
+        "z0": 0.0,
+        "z1": 0.0,
+        "y0": 0.0,
+        "y1": 0.0
+    },
+    "jambR": {
+        "x": 0.0,
+        "z0": 0.0,
+        "z1": 0.0,
+        "y0": 0.0,
+        "y1": 0.0
+    },
+    "passage": {
+        "x0": 0.0,
+        "x1": 0.0
+    },
+    "eave": {
+        "x0": 0.0,
+        "x1": 0.0,
+        "z0": 0.0,
+        "z1": 0.0,
+        "y0": 0.0,
+        "y1": 0.0
+    },
+    "faceOut": -0.00143,
+    "faceIn": -1.99999,
+    "copingOverhang": 0.5,
+    "height": 3.99998,
+    "frame": "Castle Wall の局所(走り Z・背 X=0・見え面 −X・ピボット = Z=0 の端の背の足元)── 共通の欄は Measure の読みで据えに使わない",
+    "grade": 0.0,
+    "gradeAxis": "+Z",
+    "h": 4.0,
+    "runZ": [
+        -2.0,
+        0.0
+    ],
+    "tomeEnd": "P",
+    "tomeCutDeg": 6.5,
+    "tomeTurnDeg": 13.0,
+    "tomePlane": "Z = −(X + 2.40)·tan c(足元の前の角 X=−2.40 が Z=0・背 X=0 は Z=−2.40·tan c)",
+    "tomeFootCorner": {
+        "x": -2.4,
+        "z": 0.0
+    },
+    "tomeCrestFrontCorner": {
+        "x": -1.4,
+        "y": 4.0,
+        "z": -0.11394
+    },
+    "crestOnMiter": 4.0,
+    "crestFarEnd": 4.0,
+    "crestConstOnMiter": true,
+    "crestFrontX": -1.4,
+    "crestBackX": 0.0,
+    "faceFootX": -2.4,
+    "batter": 0.25,
+    "place": "yaw・倍率は直線の駒と同じ / 切り口の面を角の鉛直な二等分の面(両脇の天端の前の縁の線の交点を通る)へ: tomeCrestFrontCorner を交点へ・y = 角の天端 − crestOnMiter·s(坂なりは切り口の上で天端が一定)"
+}

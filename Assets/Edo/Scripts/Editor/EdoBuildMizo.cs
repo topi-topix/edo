@@ -2472,14 +2472,56 @@ public static partial class EdoBuild
     }
 
     /// <summary>**N8 長屋・塀の面(一直線)**: 駒の実メッシュの、駒ごとの足元から [yLo, yHi] の帯で <paramref name="towardPoint"/> の側へ最も出た所(実際に触れる面)を、
-    /// 走りの向きの一直線(2 点)にする。当たる先: 表長屋の内面からの溝(土井 D7 seg1・D9 seg3)・塀の内面へ下ろす段落ち(D10 seg4)・門の背の面(N7)。</summary>
+    /// 走りの向きの一直線(2 点)にする。**向きは面そのもの**: 帯の頂点の凸包の辺のうち、外向きが「凸包の最も近い点 → towardPoint」から 30° 内の物を候補に、
+    /// その向きの支え線(最も出た所)から 0.01 内に載る頂点の広がり(走りの長さ)が最も長い辺の向き。⛔ 頂点の主軸(PCA)は向きに使わない ──
+    /// 端を斜めに留めて切った長屋は頂点が偏って主軸が傾き(岡部 N12_0 で 3.25°・土井 E12_N03 で 9.1°・EDO-0502 第146巡)、正方に近い短い駒(土井 E13_N01 4.05m)では
+    /// 主軸が面と関係の無い向きを指す。候補が無ければ従来の主軸の向き。
+    /// 当たる先: 表長屋の内面からの溝(土井 D7 seg1・D9 seg3)・塀の内面へ下ろす段落ち(D10 seg4)・門の背の面(N7・GateBackLine)・塀の外の地盤(GroundBeyondWall)・
+    /// 練塀の端を長屋の正面で切る角(岡部 P12 NeribeiNanameEnd)。</summary>
     public static List<Vector2> FaceStraight(IList<GameObject> pieces, Vector2 towardPoint, float yLo, float yHi, out Vector2 normal, out string why)
     {
         var fl = WallFaceLine(pieces, towardPoint, yLo, yHi, 0.5f, out normal, out why);
         if (fl == null) return null;
+        var Q = new List<Vector2>();
+        foreach (var g in pieces)
+        {
+            if (g == null || !g.activeInHierarchy) continue;
+            var B = Body(g.transform, 999999, false); if (B.Count == 0) continue;
+            float lo = float.MaxValue; foreach (var p in B) lo = Mathf.Min(lo, p.y);
+            foreach (var p in B) if (p.y >= lo + yLo && p.y <= lo + yHi) Q.Add(new Vector2(p.x, p.z));
+        }
+        if (Q.Count >= 3)
+        {
+            // 面の向きの目安 r = 凸包の最も近い点 → towardPoint(面の前に置いた点なら面の法線そのもの)。凸包の中なら重心から
+            var H = ConvexHull2(Q); Vector2 cq = Vector2.zero; foreach (var q in Q) cq += q; cq /= Q.Count;
+            Vector2 near = cq; float dn = float.MaxValue; bool inside = H.Count >= 3;
+            for (int i = 0; H.Count >= 3 && i < H.Count; i++)
+            {
+                Vector2 h0 = H[i], h1 = H[(i + 1) % H.Count], e = h1 - h0; float ee = e.sqrMagnitude; if (ee < 1e-8f) continue;
+                if (e.x * (towardPoint.y - h0.y) - e.y * (towardPoint.x - h0.x) < 0f) inside = false;
+                var pr = h0 + e * Mathf.Clamp01(Vector2.Dot(towardPoint - h0, e) / ee); float d = (towardPoint - pr).sqrMagnitude;
+                if (d < dn) { dn = d; near = pr; }
+            }
+            var r = inside ? towardPoint - cq : towardPoint - near; r = r.sqrMagnitude > 1e-8f ? r.normalized : normal;
+            float bestSpan = 0f, bestL = 0f; Vector2 bn = normal; bool found = false;
+            for (int i = 0; H.Count >= 3 && i < H.Count; i++)
+            {
+                var e = H[(i + 1) % H.Count] - H[i]; float L = e.magnitude; if (L < 1e-3f) continue;
+                var en = new Vector2(e.y, -e.x) / L;                                   // 反時計回りの凸包の辺の外向き
+                if (Vector2.Dot(en, r) < 0.866f) continue;                            // 面の側(r から 30° 内 ── 留めの切り口の面 ≈43° を拾わない)
+                var te = new Vector2(en.y, -en.x); float sup = float.MinValue;
+                foreach (var q in Q) sup = Mathf.Max(sup, Vector2.Dot(q, en));
+                float a = float.MaxValue, b = float.MinValue;
+                foreach (var q in Q) if (sup - Vector2.Dot(q, en) <= 0.01f) { float s = Vector2.Dot(q, te); a = Mathf.Min(a, s); b = Mathf.Max(b, s); }
+                float sp = b - a;
+                if (sp > bestSpan + 1e-4f || (Mathf.Abs(sp - bestSpan) <= 1e-4f && L > bestL)) { bestSpan = sp; bestL = L; bn = en; found = true; }
+            }
+            if (found) normal = bn;
+        }
         var t = new Vector2(normal.y, -normal.x); var o = fl[0];
         float s0 = float.MaxValue, s1 = float.MinValue, off = float.MinValue;
-        foreach (var q in fl) { float s = Vector2.Dot(q - o, t); s0 = Mathf.Min(s0, s); s1 = Mathf.Max(s1, s); off = Mathf.Max(off, Vector2.Dot(q - o, normal)); }
+        foreach (var q in fl) { float s = Vector2.Dot(q - o, t); s0 = Mathf.Min(s0, s); s1 = Mathf.Max(s1, s); }
+        foreach (var q in (Q.Count > 0 ? (IList<Vector2>)Q : fl)) off = Mathf.Max(off, Vector2.Dot(q - o, normal));
         return new List<Vector2> { o + t * s0 + normal * off, o + t * s1 + normal * off };
     }
 

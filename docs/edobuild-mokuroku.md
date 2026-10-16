@@ -1,6 +1,6 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 d780c11145c7 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 b4558c2f3f05 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
@@ -1101,7 +1101,8 @@ EdoBuild — 城の石垣の直線 run を区画の辺に沿って据える(外�
 | `EdoBuild.PlaceCastleBack(secs, inu, outer, groundAt, parent, log, prefix=…, stepLap=…)` | `CastleBack` | 硬・柔 地面・天端・面・隅 | 基壇を棟の背まで通し、背の面も城の石垣で立てる(2026-10-04・EDO-0533 土井 boundaryPlinth.back)。 ⟶ 返す: CastleBack(駒・区間ごとの見え面と埋めの駒・線・隙) | DoiBuilder.Mon(BuildBackPlinth) |
 | `EdoBuild.BackBedGap(body, stones, origin, along, inward, tBack, skipS, bare, band=…, others=…)` | `float` | 天端 | 据えた棟の背の下端 − 下の石垣の天端[m](浮き = 正・めり込み = 負)。 ⟶ 返す: 絶対値の最悪(符号付き) | DoiBuilder.Mon(BuildBackPlinth) |
 | `EdoBuild.MiterBaseWait` | `List<string>` | 硬 天端・面・隅・区域 | 浅い出隅の台の石の口を裏の駒で塞ぐ(第126巡 2026-10-13 岡部 const.heiLine.faceFront【硬】「出隅で台の石が抜ける所を作らない」)。 | — |
-| `EdoBuild.FillConvexCornerSlits(secs, poly, parent, groundAt, kadoMinTurn=…)` | `string` |  | ⚠ 注釈なし | OkabeYashiki(PlaceIshigaki) |
+| `EdoBuild.FillConvexCornerSlits(secs, poly, parent, groundAt, kadoMinTurn=…, pieces=…)` | `string` |  | ⚠ 注釈なし | OkabeYashiki(PlaceIshigaki) |
+| `EdoBuild.TomeBaseLog` | `List<string>` |  | 最後の FillConvexCornerSlits の留めの版の差し替えの行(頂点ごと)。 | — |
 
 ## EdoBuildShokusai.cs
 

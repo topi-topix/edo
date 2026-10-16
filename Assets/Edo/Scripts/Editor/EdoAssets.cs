@@ -2294,7 +2294,11 @@ public static class EdoAssets
         ///   12.47 = N41_0(7間 − 0.259 を角 P41 = s0 = −X の側): `-- 12.467 --body --floors 2 --frac -0.259 L`
         ///   9.35 = N40_1(5間 + 0.259 を N40_2 = s1 = +X の側): `-- 9.349 --body --floors 2 --frac 0.259 R`
         ///   15.61 = N41_5(8.5間 + 0.161 を角 P0 = s1 = +X の側): `-- 15.614 --body --floors 2 --frac 0.161 R`
-        ///   16.36 = N41_1〜3(9間)/ 15.45 = N41_4(8.5間)は対称のまま: `-- 16.362 --body --floors 2` / `-- 15.453 --body --floors 2`</para></summary>
+        ///   16.36 = N41_1〜3(9間)/ 15.45 = N41_4(8.5間)は対称のまま: `-- 16.362 --body --floors 2` / `-- 15.453 --body --floors 2`</para>
+        /// <para>岡部 角で同じ座の割り(施主裁定 案A 2026-10-16・EDO-0502)の素の版: 17.48 = N16_0 / 14.83 = N17_0 / 12.22 と 12.23 = N39_1(12.225 は float で 12.22 に丸まる・両方焼いた)
+        /// ── `-- 17.479 --body --floors 2` ほか(素の全幅版 _2f も同じ長さで)。
+        /// ⚠ **3.64 = N16_k(2間)は妻二つでは組めない**(端の間の詰めが上限を越える)⇒ −X 端を 0.01° の留めで切った代わりの版(−X 端は断面の板・妻なし)。
+        /// 頂点16 の留めの版 3.66_mc-36x0 に引き直す前提の札合わせ: `-- 3.636 --body --floors 2 --miter-cut -0.01 0 --seal --name Nagaya_Omote_3.64_2f_kutai`</para></summary>
         public static string NagayaOmote2FKutai(float len)
         {
             return "Assets/Edo/Models/Nagaya/Nagaya_Omote_" + Len2(len) + "_2f_kutai.fbx";
@@ -2318,7 +2322,11 @@ public static class EdoAssets
         /// **20・mon10・2f**: 岡部の表門 N40_0(11間 19.998・口の芯は一続きの真ん中・EDO-0502 施主 2026-10-11)。**棟は表長屋と同じ 7.183**(--ridge なし)。
         /// 割り = 部屋3間・番所1.5間・口2間・番所1.5間・部屋3間 ⇒ `--wide 0.909` で真ん中の窓割りだけ 2間に広げ、口をそこへ抜く(窓は躯体の端から
         /// 1.381/4.091/6.818 | 口 8.181〜11.817 | 13.181/15.908/18.617)。口は芯対称なので据えの向きに関わらず mon10。一階の天端 3.895・口の有効高 3.30+冠木 0.42 = 3.72。
-        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- 19.998 --body --floors 2 --wide 0.909 --gate 9.999 3.636 3.3 --doorh 3.3 --kabuki 0.42 --bansho 2 --bansho-mon --render</summary>
+        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- 19.998 --body --floors 2 --wide 0.909 --gate 9.999 3.636 3.3 --doorh 3.3 --kabuki 0.42 --bansho 2 --bansho-mon --render
+        /// **14.62・mon10.55 / mon4.07・2f**: 岡部 N18_0(裏門・s5.454〜20.074・口の芯 s=16 ── 角で同じ座の割りで頂点18 の側を N18_k へ切り出した残り・両端は妻)。
+        /// 向きで gc が割れるので両方焼いた(素の全幅版 _2f も)。
+        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- 14.62 --body --floors 2 --gate 10.546 2.727 2.8 --render
+        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- 14.62 --body --floors 2 --gate 4.074 2.727 2.8 --render</summary>
         public static string NagayaOmoteMonKutai(float len, float gateFromLeft, bool nikai)
         {
             return "Assets/Edo/Models/Nagaya/Nagaya_Omote_" + Len2(len)
@@ -2349,7 +2357,18 @@ public static class EdoAssets
         /// 札の躯体 jambR.x − jambL.x = 4.050(実メッシュの壁の外面と一致・妻の端の海鼠だけ 0.004 外へ出るのは 4.04 と同じ)。
         /// EdoBuild.PickMiterCut が切り上げの名で拾い、芯に据えるので留めの面は Q から 0.004 外へずれるだけ(4.04 は残す)。
         ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- 4.04 --body --floors 2 --miter-cut 0 94.616 --render
-        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- 4.05 --body --floors 2 --miter-cut 0 94.616 --render</summary>
+        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- 4.05 --body --floors 2 --miter-cut 0 94.616 --render
+        /// <para>⭐ **岡部 角で同じ座の留め**(施主裁定 案A 2026-10-16・EDO-0502 第150巡): 二棟は同じ高さで二等分の面で出会い、外は隅棟・内は谷で一つの屋根に回る
+        /// (⛔ 座の違う継ぎの `--cut-kera hi|lo` は付けない)。`--seal` の板は相手の板と背中合わせで見えない。30° 以上の出隅だけ `--cut-kera … sumi` で
+        /// 外の流れに隅棟(熨斗の帯を切り口の線に跨がせ半分ずつ持つ)。両端を留める版は札 = 要る長さ −0.0002(名は切り上げ・`--name`)。
+        ///   11.55_mc0x115 = N12_0: `-- 11.55 --body --floors 2 --miter-cut 0 11.468 --seal`
+        ///   15.05_mc115x34 = N13_0: `-- 15.0478 --body --floors 2 --miter-cut 11.468 3.397 --seal --name Nagaya_Omote_15.05_2f_kutai_mc115x34`
+        ///   15.98_mc34x-89 = N14_0: `-- 15.9728 --body --floors 2 --miter-cut 3.397 -8.93 --seal --name Nagaya_Omote_15.98_2f_kutai_mc34x-89`
+        ///   17.63_mc-89x-36 = N15_0: `-- 17.6278 --body --floors 2 --miter-cut -8.93 -3.597 --seal --name Nagaya_Omote_17.63_2f_kutai_mc-89x-36`
+        ///   3.66_mc-36x0 = N16_k / 17.49_mc0x-16 = N16_0 / 14.84_mc-16x0 = N17_0 / 5.5_mc0x-101 = N17_k / 5.51_mc-101x0 = N18_k: `-- 3.66 --body --floors 2 --miter-cut -3.597 0 --seal` ほか
+        ///   4.77_mc0x616 = N39_k: `-- 4.77 --body --floors 2 --miter-cut 0 61.614 --seal --cut-kera 0 sumi`
+        ///   13.89_mc0x386 = N40_3: `-- 13.89 --body --floors 2 --miter-cut 0 38.6 --seal --cut-kera 0 sumi`
+        ///   12.4_mc386x0 = N41_0: `-- 12.4 --body --floors 2 --miter-cut 38.6 0 --layout 12.726 R --seal --cut-kera sumi 0`</para></summary>
         public static string NagayaOmote2FKutaiMiterCut(float len, float thL, float thR)
         {
             string p = NagayaOmote2FKutai(len);
@@ -2371,7 +2390,8 @@ public static class EdoAssets
         /// (生成器の --gate は Blender の左 = Unity の +X 端から ── 口の芯の局所 x = len/2 − gateFromLeft)・θ は全角[度](入隅は負)。綴り = <see cref="NagayaOmoteMonKutai"/> + `_mc&lt;thL×10&gt;x&lt;thR×10&gt;`。
         /// **19.4・mon10・2f・mc616x0**: 岡部 N40_0(表門・頂点40 の 61.6° の出隅・−X 端を留める・口の芯は +X 端から 9.999 = 局所 x −0.299)。
         /// **20.13・mon4.07・2f・mc-101x0**: 岡部 N18_0(裏門・頂点18 の 10.06° の入隅)。
-        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- 19.4 --body --floors 2 --gate 9.999 3.636 3.3 --bansho 2 --bansho-mon --doorh 3.3 --kabuki 0.42 --wide 0.909 --miter-cut 61.613 0 --layout 19.998 R --seal</summary>
+        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- 19.4 --body --floors 2 --gate 9.999 3.636 3.3 --bansho 2 --bansho-mon --doorh 3.3 --kabuki 0.42 --wide 0.909 --miter-cut 61.613 0 --layout 19.998 R --seal --cut-kera sumi 0
+        /// (2026-10-16 第150巡: 頂点40 を N39_k と同じ座 13.6 で回すので、座の違う継ぎの --cut-kera lo を隅棟 sumi に替えて焼き直した・名と GUID は不変)</summary>
         public static string NagayaOmoteMonKutaiMiterCut(float len, float gateFromLeft, bool nikai, float thL, float thR)
         {
             string p = NagayaOmoteMonKutai(len, gateFromLeft, nikai);
@@ -2934,8 +2954,8 @@ public static class EdoAssets
         /// <summary>焼いてある台の石垣の坂なりの勾配(絶対値・<see cref="IshigakiChokuSaka"/> は U と D の両方)── 練塀の坂なり `Neribei_Saka_*` の名にある勾配の全部(2026-10-13)。
         /// ほかの勾配は `--grade` で焼き足す(1 本 0.1 秒・.meta も書くので remap は要らない)。</summary>
         public static readonly float[] IshigakiChokuSakaGrades = { 0.0104f, 0.0107f, 0.0118f, 0.0122f, 0.0134f, 0.0145f, 0.027f, 0.0293f, 0.0303f, 0.0433f,
-            0.0497f, 0.0567f, 0.0594f, 0.0614f, 0.0625f, 0.0762f, 0.0841f, 0.0866f, 0.0867f, 0.0878f, 0.0882f, 0.0883f, 0.0946f, 0.0948f, 0.0987f, 0.1069f,
-            0.12f, 0.1206f, 0.125f };
+            0.0497f, 0.0567f, 0.0594f, 0.0614f, 0.0621f, 0.0625f, 0.0757f, 0.0762f, 0.0841f, 0.0858f, 0.0866f, 0.0867f, 0.0872f, 0.0878f, 0.0882f, 0.0883f,
+            0.0895f, 0.0903f, 0.0946f, 0.0948f, 0.0987f, 0.1041f, 0.1069f, 0.12f, 0.1206f, 0.125f };   // 0.0621・0.0757・0.0858・0.0872・0.0895・0.0903・0.1041 は 2026-10-16 第149巡の S2 の ★ から
 
         /// <summary>**台の石垣(外周の基壇)の坂なりの直線の駒** ── 素の `JC.CastleWall`(材 `stone wall`)を**縦の剪断**で勾配 <paramref name="grade"/> に沿わせた物
         /// (Unity 局所で Y += grade·Z)。天端・段の目地・根石の底は勾配に沿い、背・小口・縦の線は鉛直のまま・法 1:0.25 は回らない。
@@ -2954,6 +2974,45 @@ public static class EdoAssets
         {
             string p = "Assets/Edo/Models/Kado/Ishigaki_Choku_H" + UnityEngine.Mathf.RoundToInt(h * 100f).ToString("0000") + "_G" + NeribeiGradeTag(grade);
             return len >= 2f - 1e-4f ? p + ".fbx" : p + "_L" + UnityEngine.Mathf.RoundToInt(len * 100f) + ".fbx";
+        }
+        /// <summary>**台の石垣の浅い出隅の留めの版**(EDO-0502 第149巡 2026-10-16・oki-kata §2a「直角でない出隅は最初から留める」)── 頂点に来る端の駒
+        /// (<see cref="IshigakiChokuSaka"/> の坂なり・平らは素の `JC.CastleWall`)の端を**角の鉛直な二等分の面**で切った物。隅の駒を置かない折れ(1°〜40°)の出隅だけ。
+        /// <paramref name="pEnd"/> = true: 局所 Z = 0 の端(ピボットの側)を切る `_TP` / false: Z = −len の端を切る `_TM`。岡部(時計回りの区画・駒の局所 +Z = 辺の走り)では
+        /// **前の辺の最後の駒 = P・次の辺の最初の駒 = M**。名の 3 桁 = 切り角 c = 折れ/2 を 0.1° に丸めた物(<paramref name="turnDeg"/> は折れそのもの)。
+        /// 切る面(局所・倍率の前): P 端 Z = −(X + 2.40)·tan c / M 端 Z = −len + (X + 2.40)·tan c ── 足元の前の角が素の枠の端に残り、背は 2.40·tan c 詰まる(枠は素と同じ・はみ出さない)。
+        /// 一様な倍率 s で切り角は変わらない(倍率は名に入れない・両脇で倍率が違っても同じ版)。坂なりは切り口の上で天端が一定(芯の道のりで反らす)・切らない端の断面は直線の駒と一致。
+        /// 据え: yaw・倍率は直線の駒と同じ / 切り口を角の二等分の面へ ── 札の tomeCrestFrontCorner(天端の前の縁の角)を両脇の天端の前の縁の線の交点へ・
+        /// y = 角の天端 − crestOnMiter·s。両脇の天端が違う角(P19・P39)は高い側の切り口が低い側の天端より上に見える(小口の柄)。材 `stone wall`(.meta は直線の駒の写し ⇒ remap 不要)。
+        /// 焼いたもの: 岡部の 10 か所の 18 本(_TP/_TM × 017・057・060・065・080・092・111・136・193)。
+        ///   blender --background --python Tools/Blender/build_kidan_saka.py -- --tome &lt;P|M&gt; &lt;折れ°&gt; [--grade &lt;%&gt;] [--len &lt;m&gt;]   (岡部の一式は --okabe-tome --render)</summary>
+        public static string IshigakiChokuTome(float grade, float turnDeg, bool pEnd, float h = 4f, float len = 2f)
+        {
+            string p = "Assets/Edo/Models/Kado/Ishigaki_Choku_H" + UnityEngine.Mathf.RoundToInt(h * 100f).ToString("0000");
+            if (UnityEngine.Mathf.Abs(grade) > 5e-5f) p += "_G" + NeribeiGradeTag(grade);
+            if (len < 2f - 1e-4f) p += "_L" + UnityEngine.Mathf.RoundToInt(len * 100f);
+            return p + "_T" + (pEnd ? "P" : "M") + UnityEngine.Mathf.RoundToInt(UnityEngine.Mathf.Abs(turnDeg) * 5f).ToString("000") + ".fbx";
+        }
+        /// <summary>**焼いてある留めの版のうち、据わった端の駒に最も近い物**(EDO-0502 第150巡)── 名は据わった駒の勾配に結びつき 1e-4 で外れる(部材方の注)ので、
+        /// 勾配は <paramref name="grade"/> ± <paramref name="gradeTol"/>(既定 0.0005)の焼いてある版を近い順に、折れの 3 桁は ±1 を引く。符号(U/D)・丈・走りは一致を要る。
+        /// 返す: 版のパス(無ければ null)・<paramref name="gradeOff"/> = 版の勾配 − grade・<paramref name="turnOff"/> = 版の折れ − turnDeg[度]。当たる先: FillConvexCornerSlits(岡部 外周の基壇の 40° 未満の出隅)。</summary>
+        public static string IshigakiChokuTomeNearest(float grade, float turnDeg, bool pEnd, float h, float len, out float gradeOff, out float turnOff, float gradeTol = 0.0005f)
+        {
+            gradeOff = 0f; turnOff = 0f;
+            string root = System.IO.Directory.GetParent(UnityEngine.Application.dataPath).FullName;
+            int g0 = UnityEngine.Mathf.RoundToInt(grade * 10000f), t0 = UnityEngine.Mathf.RoundToInt(UnityEngine.Mathf.Abs(turnDeg) * 5f), kMax = UnityEngine.Mathf.RoundToInt(gradeTol * 10000f);
+            for (int k = 0; k <= kMax; k++)
+                foreach (int sg in new[] { 1, -1 })
+                {
+                    if (k == 0 && sg < 0) continue;
+                    int gi = g0 + sg * k; if (g0 != 0 && (gi == 0 || System.Math.Sign(gi) != System.Math.Sign(g0))) continue;   // 平らと坂・U と D は混ぜない
+                    foreach (int dt in new[] { 0, 1, -1 })
+                    {
+                        string p = IshigakiChokuTome(gi / 10000f, (t0 + dt) / 5f, pEnd, h, len);
+                        if (!System.IO.File.Exists(System.IO.Path.Combine(root, p))) continue;
+                        gradeOff = gi / 10000f - grade; turnOff = (t0 + dt) / 5f - UnityEngine.Mathf.Abs(turnDeg); return p;
+                    }
+                }
+            return null;
         }
         /// <summary>焼いてある台の坂なりの勾配(<see cref="IshigakiChokuSakaGrades"/>・符号つき)のうち <paramref name="grade"/> に最も近いもの(<see cref="NeribeiSakaNearest"/> と同じ)。</summary>
         public static float IshigakiChokuSakaNearest(float grade)

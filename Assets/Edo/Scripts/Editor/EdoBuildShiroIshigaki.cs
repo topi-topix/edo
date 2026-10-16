@@ -863,9 +863,9 @@ public static partial class EdoBuild
     /// 見え面は両脇の駒の見え面の裏に隠れ、口からだけ見える。硬い(区域・天端を越えない)。当たる先: PlaceCastleRun を通る外周の基壇の 40° 未満の出隅(岡部 北の辺・土井)。</summary>
     /// <summary>最後の <see cref="FillConvexCornerSlits"/> が「留めの版が要る」と刷った出隅(頂点・折れ・切り角・倍率・両脇の天端)── 部材方への待ち(第148巡)。</summary>
     public static readonly List<string> MiterBaseWait = new List<string>();
-    public static string FillConvexCornerSlits(IList<CastleSec> secs, Vector2[] poly, Transform parent, Func<float, float, float> groundAt, float kadoMinTurn = 40f)
+    public static string FillConvexCornerSlits(IList<CastleSec> secs, Vector2[] poly, Transform parent, Func<float, float, float> groundAt, float kadoMinTurn = 40f, IList<GameObject> pieces = null)
     {
-        MiterBaseWait.Clear();
+        MiterBaseWait.Clear(); TomeBaseLog.Clear();
         int n = poly.Length; float area = 0f; for (int i = 0; i < n; i++) area += poly[i].x * poly[(i + 1) % n].y - poly[(i + 1) % n].x * poly[i].y;
         var sb = new System.Text.StringBuilder(); int made = 0;
         for (int v = 0; v < n; v++)
@@ -877,6 +877,13 @@ public static partial class EdoBuild
             CastleSec sA = null, sB = null; foreach (var x in secs) { if (x.edge == e0 && x.s1 >= L0 - VTX_TOL) sA = x; if (x.edge == v && x.s0 <= VTX_TOL) sB = x; }
             if (sA == null || sB == null) continue;
             Vector2 oA = PolyEdgeOut(poly, e0), oB = PolyEdgeOut(poly, v); Vector2 nb = -(oA + oB).normalized;   // 内への二等分
+            //   ⭐ 第150巡(oki-kata §2a【硬】直角でない出隅は最初から留める): 両脇の端の駒を角の二等分の面で切った版(Own.IshigakiChokuTome)へ差し替える ── 両方据われば口は閉じ、裏の駒は置かない
+            if (pieces != null)
+            {
+                string why; int nT = SwapEndsToTome(pieces, parent, poly, v, e0, tv, sA, sB, out why);
+                TomeBaseLog.Add("P" + v + " " + why);
+                if (nT == 2) { sb.Append(" P" + v + "(留め)"); continue; }
+            }
             float crestTop = Mathf.Min(sA.CrestAt(sA.s1), sB.CrestAt(sB.s0)); float sc = sB.scale > 0f ? sB.scale : 1f;
             float gV = groundAt(V.x + (oA.x + oB.x) * 0.15f, V.y + (oA.y + oB.y) * 0.15f); if (float.IsNaN(gV)) gV = groundAt(V.x, V.y);
             float expose = (crestTop - gV) / sc + 0.6f;   // 根入れ 0.6(名の丈で)
@@ -905,6 +912,197 @@ public static partial class EdoBuild
             //   角の二等分の面で切った版(端を斜めに切った Castle Wall・倍率 s・天端の違う側は高い方の切り口が見える)で据えるべき所。版が無いので待ちへ(建て方はこの口の駒のまま)
             MiterBaseWait.Add("P" + v + " 折れ " + tv.ToString("F1") + "°・端の切り角 " + (tv * 0.5f).ToString("F1") + "°・倍率 " + sc.ToString("0.##") + "・天端 " + sA.CrestAt(sA.s1).ToString("F2") + "/" + sB.CrestAt(sB.s0).ToString("F2"));
         }
-        return "浅い出隅の口を裏の駒で塞いだ " + made + " 基:" + sb + (MiterBaseWait.Count > 0 ? "\n  ★ 留めの版が要る(台の石の端を角の二等分の面で切った Castle Wall ── 部材方へ・oki-kata §2a): " + string.Join(" / ", MiterBaseWait.ToArray()) : "");
+        return "浅い出隅の口を裏の駒で塞いだ " + made + " 基:" + sb + (TomeBaseLog.Count > 0 ? "\n  留めの版: " + string.Join("\n    ", TomeBaseLog.ToArray()) : "") + (MiterBaseWait.Count > 0 ? "\n  ★ 留めの版が要る(台の石の端を角の二等分の面で切った Castle Wall ── 部材方へ・oki-kata §2a): " + string.Join(" / ", MiterBaseWait.ToArray()) : "");
     }
+
+    /// <summary>最後の <see cref="FillConvexCornerSlits"/> の留めの版の差し替えの行(頂点ごと)。</summary>
+    public static readonly List<string> TomeBaseLog = new List<string>();
+    /// <summary>台の石垣の端の駒の名(資産のパス)から丈・勾配・走りを読む(`JC.CastleWall` = 丈 4・平ら・2.0 / `Ishigaki_Choku_H<丈>[_G<U|D><勾配>][_L<cm>]`)。読めなければ偽。</summary>
+    static bool ParseChokuPiece(string path, out float h, out float g, out float len)
+    {
+        h = 4f; g = 0f; len = 2f;
+        if (string.IsNullOrEmpty(path)) return false;
+        if (path == EdoAssets.JC.CastleWall) return true;
+        var m = System.Text.RegularExpressions.Regex.Match(System.IO.Path.GetFileNameWithoutExtension(path), @"^Ishigaki_Choku_H(\d{4})(?:_G([UD])(\d{4}))?(?:_L(\d+))?$");
+        if (!m.Success) return false;
+        h = int.Parse(m.Groups[1].Value) / 100f;
+        if (m.Groups[2].Success) g = (m.Groups[2].Value == "D" ? -1f : 1f) * int.Parse(m.Groups[3].Value) / 10000f;
+        if (m.Groups[4].Success) len = int.Parse(m.Groups[4].Value) / 100f;
+        return true;
+    }
+    /// <summary>**浅い出隅の両脇の台の石の端の駒を留めの版へ差し替える**(第150巡・札の tomeCrestFrontCorner / crestOnMiter の据え)。
+    /// ① 端の駒 = 区間の辺に沿う(局所 +Z が辺と平行)駒のうち、端(局所 Z = 0 か −len)が頂点の走りの位置に最も近い物(据わった実物から ── 名と倍率と勾配はその駒の物)
+    /// ② 版 = <see cref="EdoAssets.Own.IshigakiChokuTomeNearest"/>(勾配 ±0.0005・折れ ±0.2°)③ 両脇の天端の前の縁の線(局所 X = −1.40 の線を据わった駒で世界へ)の交点 Q
+    /// ④ 版を元の駒の yaw・倍率で、札の tomeCrestFrontCorner を Q へ・y = 元の駒の Q での天端 − crestOnMiter·s。
+    /// 硬い: 端の駒が見つからない・版が無い側は差し替えない(呼び手が口の裏の駒で塞ぎ ★ 待ちへ)。返す: 差し替えた数(0〜2)。</summary>
+    static int SwapEndsToTome(IList<GameObject> pieces, Transform parent, Vector2[] poly, int v, int e0, float turn, CastleSec sA, CastleSec sB, out string why)
+    {
+        int n = poly.Length; Vector2 V = poly[v];
+        Vector2 dA = (poly[v] - poly[e0]).normalized, dB = (poly[(v + 1) % n] - poly[v]).normalized;
+        var ends = new GameObject[2]; var pEnd = new bool[2]; var hs = new float[2]; var gs = new float[2]; var ls = new float[2]; var paths = new string[2];
+        for (int side = 0; side < 2; side++)
+        {
+            Vector2 d = side == 0 ? dA : dB; float best = float.MaxValue;
+            foreach (var go in pieces)
+            {
+                if (go == null || go.name.StartsWith("IG_Slit_")) continue;
+                string ap = UnityEditor.PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(go); float h, g, len;
+                if (!ParseChokuPiece(ap, out h, out g, out len)) continue;
+                var f = new Vector2(go.transform.forward.x, go.transform.forward.z).normalized;
+                if (Mathf.Abs(Vector2.Dot(f, d)) < 0.995f) continue;
+                for (int e = 0; e < 2; e++)
+                {
+                    var w = go.transform.TransformPoint(new Vector3(-2.4f, 0f, e == 0 ? 0f : -len)); var q = new Vector2(w.x, w.z) - V;
+                    float along = Mathf.Abs(Vector2.Dot(q, d)), across = Mathf.Abs(d.x * q.y - d.y * q.x);
+                    if (across > 1.0f || along > 1.0f) continue;   // 足元の前の角(局所 X = −2.40)が頂点の近く
+                    // 端は頂点の側の端(前の辺は走りの終わり・次の辺は始まり)── 走りの向きで判ずる
+                    var other = go.transform.TransformPoint(new Vector3(-2.4f, 0f, e == 0 ? -len : 0f));
+                    float sEnd = Vector2.Dot(new Vector2(w.x, w.z) - V, d), sOther = Vector2.Dot(new Vector2(other.x, other.z) - V, d);
+                    if (side == 0 ? sOther > sEnd : sOther < sEnd) continue;
+                    if (along < best) { best = along; ends[side] = go; pEnd[side] = e == 0; hs[side] = h; gs[side] = g; ls[side] = len; paths[side] = ap; }
+                }
+            }
+        }
+        why = "";
+        if (ends[0] == null || ends[1] == null) { why = "★ 端の駒が見つからない(" + (ends[0] == null ? "前の辺" : "") + (ends[1] == null ? " 次の辺" : "") + ")── 口の裏の駒で塞ぐ"; return 0; }
+        // ③ 天端の前の縁の線の交点
+        Func<GameObject, float, Vector2[]> crestLine = (go, len) =>
+        {
+            var a = go.transform.TransformPoint(new Vector3(-1.4f, 0f, 0f)); var b = go.transform.TransformPoint(new Vector3(-1.4f, 0f, -len));
+            return new[] { new Vector2(a.x, a.z), new Vector2(b.x, b.z) };
+        };
+        var LA = crestLine(ends[0], ls[0]); var LB = crestLine(ends[1], ls[1]);
+        Vector2 r = LA[1] - LA[0], u = LB[1] - LB[0]; float den = r.x * u.y - r.y * u.x;
+        if (Mathf.Abs(den) < 1e-6f) { why = "★ 天端の前の縁の線が平行 ── 口の裏の駒で塞ぐ"; return 0; }
+        float tt = ((LB[0].x - LA[0].x) * u.y - (LB[0].y - LA[0].y) * u.x) / den; Vector2 Q = LA[0] + r * tt;
+        var tomes = new string[2]; var gOff = new float[2]; var tOff = new float[2];
+        for (int side = 0; side < 2; side++) tomes[side] = EdoAssets.Own.IshigakiChokuTomeNearest(gs[side], turn, pEnd[side], hs[side], ls[side], out gOff[side], out tOff[side]);
+        if (tomes[0] == null || tomes[1] == null)
+        {
+            why = "★ 版が無い: " + (tomes[0] == null ? System.IO.Path.GetFileName(EdoAssets.Own.IshigakiChokuTome(gs[0], turn, pEnd[0], hs[0], ls[0])) + " " : "")
+                + (tomes[1] == null ? System.IO.Path.GetFileName(EdoAssets.Own.IshigakiChokuTome(gs[1], turn, pEnd[1], hs[1], ls[1])) : "") + "(端の駒 " + ends[0].name + " / " + ends[1].name + ")── 口の裏の駒で塞ぐ";
+            return 0;
+        }
+        //   ④ 据え: 二通りを据えて測る【硬】
+        //   (a) 札の据え ── tomeCrestFrontCorner を両脇の天端の前の縁の線の交点 Q へ・y = 元の駒の Q での天端 − crestOnMiter·s(継ぎ目は天端の角で閉じる)
+        //   (b) 元の駒の position・yaw・倍率のまま(版は元の駒と同じ枠 ── 足元の前の角を枠の端に残す)
+        //   (a) を採るのは両脇とも ① 全頂点が区画の線の内(0.01)② 同じ走りの隣の駒が版の奥の端を跨ぐ(口が開かない)③ 同じ走りのほかの駒が版の先(足元の角)を越えない(突き抜けない)とき。
+        //   どれかを破れば両脇とも (b)。(a) が破れるのは両脇の控え c が倍率と違う角・一つずつ内へ引いた端の駒(第150巡の試し: P14 は Q が 8.4m 先・P19 2.2・P35 隣と 0.27 の口・P41 隣が 0.15 越える)。
+        Vector2 mn = (dA + dB).normalized;   // 二つの切り口の面の法線(走りの平均)
+        Vector2 oEA = PolyEdgeOut(poly, e0), oEB = PolyEdgeOut(poly, v);
+        var made = new GameObject[2]; var footW = new Vector2[2]; var crestW = new Vector2[2]; var posB = new Vector3[2]; var posA = new Vector3[2];
+        var others = new List<GameObject>[2];
+        for (int side = 0; side < 2; side++)
+        {
+            var old = ends[side]; Vector2 d = side == 0 ? dA : dB;
+            others[side] = new List<GameObject>();
+            foreach (var g in pieces)
+            {
+                if (g == null || g == old || g == ends[1 - side] || g.name.StartsWith("IG_Slit_")) continue;
+                var fg = new Vector2(g.transform.forward.x, g.transform.forward.z).normalized; if (Mathf.Abs(Vector2.Dot(fg, d)) < 0.9999f) continue;
+                var q = new Vector2(g.transform.position.x - old.transform.position.x, g.transform.position.z - old.transform.position.z);
+                if (Mathf.Abs(d.x * q.y - d.y * q.x) > 1.0f || Mathf.Abs(Vector2.Dot(q, d)) > 6f) continue; others[side].Add(g);
+            }
+            var spec = UnityEditor.AssetDatabase.LoadAssetAtPath<TextAsset>(EdoAssets.PartSpecs.Dir + System.IO.Path.GetFileNameWithoutExtension(tomes[side]) + ".json");
+            Vector3 cfc = new Vector3(-1.4f, hs[side], 0f); float com = hs[side];
+            if (spec != null)
+            {
+                var j = JsonUtility.FromJson<TomeSpecJ>(spec.text);
+                if (j != null && j.tomeCrestFrontCorner != null) { cfc = new Vector3(j.tomeCrestFrontCorner.x, j.tomeCrestFrontCorner.y, j.tomeCrestFrontCorner.z); com = j.crestOnMiter; }
+            }
+            float s = old.transform.lossyScale.x;
+            float zq = old.transform.InverseTransformPoint(new Vector3(Q.x, old.transform.position.y, Q.y)).z;
+            var wc = old.transform.TransformPoint(cfc);
+            var pa = old.transform.position + new Vector3(Q.x - wc.x, 0f, Q.y - wc.z); pa.y = old.transform.position.y + s * (hs[side] + gs[side] * zq) - com * s;
+            posA[side] = pa; posB[side] = old.transform.position;
+            var rot = old.transform.rotation; string nm = old.name; var par = old.transform.parent;
+            var go = Place(tomes[side], pa, rot.eulerAngles.y, old.transform.localScale, par, nm + "_Tome"); go.transform.rotation = rot;
+            for (int i = 0; i < pieces.Count; i++) if (pieces[i] == old) pieces[i] = go;
+            UnityEngine.Object.DestroyImmediate(old); made[side] = go;
+        }
+        Physics.SyncTransforms();
+        var superseded = new List<GameObject>();
+        Func<string> check = () =>
+        {
+            superseded.Clear();
+            for (int side = 0; side < 2; side++)
+            {
+                Vector2 d = side == 0 ? dA : dB; float sg = side == 0 ? 1f : -1f;   // 角へ向かう走り
+                float tMin = float.MaxValue, tMax = float.MinValue, outW = float.MinValue;
+                foreach (var w in Body(made[side].transform, 999999))
+                {
+                    var q = new Vector2(w.x, w.z) - V; float a = Vector2.Dot(q, d) * sg; tMin = Mathf.Min(tMin, a); tMax = Mathf.Max(tMax, a);
+                    if (!EdoGeom.PIP(poly, new Vector2(w.x, w.z))) outW = Mathf.Max(outW, Mathf.Min(Mathf.Max(Vector2.Dot(q, oEA), Vector2.Dot(q, oEB)), 99f));
+                }
+                if (outW > 0.01f) return (side == 0 ? "前" : "次") + "の辺の版が区画の外 " + outW.ToString("F3");
+                bool covered = others[side].Count == 0; float over = float.MinValue; var bTome = RB(made[side]);
+                foreach (var g in others[side])
+                {
+                    var bg = RB(g); if (bg.max.y < bTome.min.y + 0.1f || bg.min.y > bTome.max.y - 0.1f) continue;   // 下へ継いだ段・上の駒は同じ段でない
+                    float aMin = float.MaxValue, aMax = float.MinValue;
+                    foreach (var w in Body(g.transform, 999999)) { float a = Vector2.Dot(new Vector2(w.x, w.z) - V, d) * sg; aMin = Mathf.Min(aMin, a); aMax = Mathf.Max(aMax, a); }
+                    //   版の奥の端より全て先(角の側)に在る駒は版に替わられた残り ── この据えを採るなら退ける(留めの面を越えて隣の辺へ突き抜ける)
+                    if (aMin > tMin + 0.01f && aMax > tMax - 0.01f) { superseded.Add(g); continue; }
+                    if (aMin < tMin + 0.01f && aMax > tMin - 0.01f) covered = true;
+                    over = Mathf.Max(over, aMax - tMax);
+                }
+                if (!covered) return (side == 0 ? "前" : "次") + "の辺の版の奥に口(隣の駒が届かない)";
+                if (over > 0.02f) return (side == 0 ? "前" : "次") + "の辺の隣の駒が版の先を " + over.ToString("F3") + " 越える";
+            }
+            return null;
+        };
+        Func<int, Vector2> footOf = side =>
+        {
+            var f = made[side].transform.TransformPoint(new Vector3(-2.4f, 0f, pEnd[side] ? 0f : -ls[side])); return new Vector2(f.x, f.z);
+        };
+        //   走りに沿って k[m] 動かす(坂なりの駒は天端の線に乗るよう y も勾配で)
+        Func<int, Vector3, float, Vector3> slideAlong = (side, basePos, k) =>
+        {
+            Vector2 d = side == 0 ? dA : dB; var fw = made[side].transform.forward; float run = k * Vector2.Dot(d, new Vector2(fw.x, fw.z).normalized);
+            return basePos + new Vector3(d.x * k, gs[side] * run, d.y * k);
+        };
+        string fail = null, how = null; var tried = new List<string>();
+        //   (a) 札の据え(Q)
+        made[0].transform.position = posA[0]; made[1].transform.position = posA[1]; Physics.SyncTransforms();
+        fail = check(); if (fail == null) how = "札の据え(Q へ寄せ " + (new Vector2(posA[0].x - posB[0].x, posA[0].z - posB[0].z)).magnitude.ToString("F3") + "/" + (new Vector2(posA[1].x - posB[1].x, posA[1].z - posB[1].z)).magnitude.ToString("F3") + ")";
+        else tried.Add("Q: " + fail);
+        if (how == null)
+        {
+            //   (c) 元の位置から片側だけ(前の辺 → 次の辺 → 半分ずつ)走りに沿って寄せ、足元の前の角で継ぎ目を閉じる
+            made[0].transform.position = posB[0]; made[1].transform.position = posB[1]; Physics.SyncTransforms();
+            float d0 = Vector2.Dot(footOf(0) - footOf(1), mn);
+            float kA = -d0 / Mathf.Max(1e-3f, Vector2.Dot(dA, mn)), kB = d0 / Mathf.Max(1e-3f, Vector2.Dot(dB, mn));
+            var opts = new[] { new Vector2(kA, 0f), new Vector2(0f, kB), new Vector2(kA * 0.5f, kB * 0.5f) }; var lab = new[] { "前の辺だけ", "次の辺だけ", "半分ずつ" };
+            for (int o = 0; o < opts.Length && how == null; o++)
+            {
+                if (Mathf.Abs(d0) <= 0.02f) break;
+                made[0].transform.position = slideAlong(0, posB[0], opts[o].x); made[1].transform.position = slideAlong(1, posB[1], opts[o].y); Physics.SyncTransforms();
+                var f = check(); if (f == null) how = lab[o] + "寄せ(" + opts[o].x.ToString("+0.000;-0.000") + "/" + opts[o].y.ToString("+0.000;-0.000") + ")"; else tried.Add(lab[o] + ": " + f);
+            }
+        }
+        if (how == null) { superseded.Clear(); made[0].transform.position = posB[0]; made[1].transform.position = posB[1]; Physics.SyncTransforms(); how = "元の駒の位置(" + string.Join(" / ", tried.ToArray()) + ")"; }
+        fail = null;
+        string retired = "";
+        if (superseded.Count > 0)
+        {
+            foreach (var g in superseded) { if (g == null) continue; retired += " " + g.name; pieces.Remove(g); UnityEngine.Object.DestroyImmediate(g); }
+            Physics.SyncTransforms();
+        }
+        for (int side = 0; side < 2; side++)
+        {
+            var go = made[side]; float zEnd = pEnd[side] ? 0f : -ls[side];
+            var f = go.transform.TransformPoint(new Vector3(-2.4f, 0f, zEnd)); footW[side] = new Vector2(f.x, f.z);
+            var c = go.transform.TransformPoint(new Vector3(-1.4f, 0f, zEnd + (pEnd[side] ? -1f : 1f) * Mathf.Tan(turn * 0.5f * Mathf.Deg2Rad))); crestW[side] = new Vector2(c.x, c.z);
+        }
+        //   継ぎ目の離れ(+ = 前の辺の切り口が次の辺の切り口より先 = 重なり・− = 口)── 足元の前の角と天端の前の縁の角の両方で
+        float dFoot = Vector2.Dot(footW[0] - footW[1], mn), dCrest = Vector2.Dot(crestW[0] - crestW[1], mn);
+        float worst = Mathf.Abs(dFoot) > Mathf.Abs(dCrest) ? dFoot : dCrest;
+        var sbw = new System.Text.StringBuilder((Mathf.Abs(worst) <= 0.02f ? "⭕" : worst < 0f ? "★" : "⚠") + " 折れ " + turn.ToString("F1") + "°・" + how + (retired.Length > 0 ? "・版の先の残りを退けた:" + retired : "") + "・継ぎ目 足元 " + dFoot.ToString("+0.000;-0.000") + " / 天端 " + dCrest.ToString("+0.000;-0.000")
+            + (worst < -0.02f ? "(口 ── 裏の駒も据える)" : worst > 0.02f ? "(重なり)" : ""));
+        for (int side = 0; side < 2; side++)
+            sbw.Append(" / " + made[side].name + " ← " + System.IO.Path.GetFileNameWithoutExtension(tomes[side]) + "(勾配の外れ " + gOff[side].ToString("+0.0000;-0.0000") + "・折れ " + tOff[side].ToString("+0.0;-0.0") + "°)");
+        why = sbw.ToString(); return worst < -0.02f ? 1 : 2;
+    }
+    [Serializable] class TomeV3J { public float x, y, z; }
+    [Serializable] class TomeSpecJ { public TomeV3J tomeCrestFrontCorner; public float crestOnMiter; }
 }

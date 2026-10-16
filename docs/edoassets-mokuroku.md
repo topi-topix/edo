@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 470(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 472(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -125,7 +125,7 @@
 
 | 名 | 種 | 中身・注釈の一文目 | 使っている所 |
 |---|---|---|---|
-| `JC.CastleWall` | string | `Castle Wall.prefab` | MatsudairaDewa(DaidokoromonGamae・Stage3_Ishigaki), OkabeYashiki(Pivot・Stage2b_Dan_), BuildDanIshigaki(CastleWallOfExpose), BuildIshidan ほか4 |
+| `JC.CastleWall` | string | `Castle Wall.prefab` | MatsudairaDewa(DaidokoromonGamae・Stage3_Ishigaki), OkabeYashiki(Pivot・Stage2b_Dan_), BuildDanIshigaki(CastleWallOfExpose), BuildIshidan ほか5 |
 | `JC.CastleWallCorner` | string | `Castle Wall Corner.prefab` | Yamato |
 | `JC.CastleWall4x12Mesh` | string | `Castle Wall 4x12.fbx` | IshigakiFit |
 | `JC.GateDoorCastleL` | string | `Gate Castle Door L.fbx` — 小門用(1.5×2.8)。対で開口 3.0m ちょうど。 | — |
@@ -336,6 +336,8 @@
 | `Own.IshigakiChoku(h)` | 関数 | 丈違いの城の石垣の直線の駒(`JC.CastleWall` 1 枚・走り 2.00 を丈 h m へ下へ継いだ物)。 | BuildDanIshigaki(CastleWallOfExpose) |
 | `Own.IshigakiChokuSakaGrades` | float[] | 焼いてある台の石垣の坂なりの勾配(絶対値・IshigakiChokuSaka は U と D の両方)── 練塀の坂なり `Neribei_Saka_*` の名にある勾配の全部(2026-10-13)。 | — |
 | `Own.IshigakiChokuSaka(grade, h=…, len=…)` | 関数 | 台の石垣(外周の基壇)の坂なりの直線の駒 ── 素の `JC.CastleWall`(材 `stone wall`)を縦の剪断で勾配 grade に沿わせた物 (Unity 局所で Y += grade·Z)。 | OkabeYashiki(PlaceIshigaki) |
+| `Own.IshigakiChokuTome(grade, turnDeg, pEnd, h=…, len=…)` | 関数 | 台の石垣の浅い出隅の留めの版(EDO-0502 第149巡 2026-10-16・oki-kata §2a「直角でない出隅は最初から留める」)── 頂点に来る端の駒 (IshigakiChokuSaka の坂なり・平らは… | BuildShiroIshigaki(SwapEndsToTome) |
+| `Own.IshigakiChokuTomeNearest(grade, turnDeg, pEnd, h, len, gradeOff, turnOff, gradeTol=…)` | 関数 | 焼いてある留めの版のうち、据わった端の駒に最も近い物(EDO-0502 第150巡)── 名は据わった駒の勾配に結びつき 1e-4 で外れる(部材方の注)ので、 勾配は grade ± gradeTol(既定 0.000… | BuildShiroIshigaki(ParseChokuPiece・SwapEndsToTome) |
 | `Own.IshigakiChokuSakaNearest(grade)` | 関数 | 焼いてある台の坂なりの勾配(IshigakiChokuSakaGrades・符号つき)のうち grade に最も近いもの(NeribeiSakaNearest と同じ)。 | — |
 | `Own.IshigakiKadoSaka(deg, h, s, gradeIn, gradeOut)` | 関数 | 台の石垣の坂の隅(倍率 s の素の隅 IshigakiKadoS を、練塀の坂の隅 NeribeiKadoSaka と同じ芯の道のり T で剪断)。 | BuildKado(Dispose), OkabeYashiki(PlaceIshigaki) |
 | `Own.DobeiKiri(deg, faceLonger, cutAtMinusX=…)` | 関数 | 端を隣の辺の線で斜めに切った練塀の駒(`DobeiRun` の組 = `s_hei_center` 表裏2枚を実寸で 1 枚分・走り 2.990)。 | OkabeYashiki(KiriEnd・MiterOf) |
@@ -519,7 +521,7 @@
 
 | 名 | 種 | 中身・注釈の一文目 | 使っている所 |
 |---|---|---|---|
-| `PartSpecs.Dir` | string | `` — 札の置き場。ファイル名 = 部材の資産名(拡張子なし)+ `.json`。 | PartSpec(FileFor・Reload・Save…), PartSpecTests(門の語はすべて札を持つ) |
+| `PartSpecs.Dir` | string | `` — 札の置き場。ファイル名 = 部材の資産名(拡張子なし)+ `.json`。 | PartSpec(FileFor・Reload・Save…), BuildShiroIshigaki(SwapEndsToTome), PartSpecTests(門の語はすべて札を持つ) |
 | `PartSpecs.GateKinds` | string | 類型表の門の語 → 札のファイル名(C# の試験と Python の関門が同じ表を読む)。 | PartSpec(GateKinds・Reload) |
 
 ## Chikei

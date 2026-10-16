@@ -3253,7 +3253,7 @@ public static class EdoOkabeYashikiBuilder
         }
         if (p0Note != null) log.AppendLine("  " + p0Note);
         //   ⭐ 40° 未満の出隅の口を裏の駒で塞ぐ(const.heiLine.faceFront【硬】「出隅で台の石が抜ける所を作らない」・第126巡 P35)
-        log.AppendLine("  " + EdoBuild.FillConvexCornerSlits(secs, Poly, grp, gB, 40f));
+        log.AppendLine("  " + EdoBuild.FillConvexCornerSlits(secs, Poly, grp, gB, 40f, cr.pieces));
         log.AppendLine("  ⭕ 城の石垣の出隅の駒 " + kn + " / 40° 以上で両脇の揃う出隅 " + kadoAt.Count + "(" + string.Join("・", kadoAt.ToArray()) + ")" + (kn < kadoAt.Count ? " ★ 据わらない隅あり(上の出隅の行)" : ""));
         foreach (var kv in cr.insetOf) _kidanC[kv.Key] = kv.Value;
         foreach (var r in Runs) { float c; if (_kidanC.TryGetValue(r.name, out c)) _kidanCe[r.edge] = Mathf.Max(_kidanCe.ContainsKey(r.edge) ? _kidanCe[r.edge] : 0f, c); }

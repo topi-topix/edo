@@ -221,22 +221,22 @@
    "corners": {
     "13〜16": "19.6 の一直線",
     "17": "19.1",
-    "18": "18.6",
+    "18": "18.8(案1 2026-10-17・旧 18.6)",
     "40": "13.6(表門の敷居)",
     "41": "12.6"
    },
    "steps": [
     "辺16 s3.636 で 0.5",
-    "辺17 s14.827 で 0.5",
-    "辺18 s5.454 で 0.9",
-    "辺39 s29.903 で 0.6(辺39 s17.678 の段は 2.3)",
-    "辺40 s44.021 で 0.5(背の路地の暗渠の所)",
-    "辺41: 12.6/12.8 の差 0.2 は通用門の口(s12.467〜16.273)にかかる"
+    "辺17 s16.645 で 0.3(案1・旧 s14.827 0.5)",
+    "辺18 s3.636 で 0.3・s12.726 で 0.5(案1・旧 s5.454 0.9)",
+    "辺39 s29.903 で 0.6",
+    "辺40 s44.021 で 0.5",
+    "辺41: 12.6/12.8 の差 0.2 は通用門の口にかかる"
    ],
    "drains": {
     "D_N39_1_Mae": "底 s17.678 13.68 → s29.903 13.45 → 角 13.40。D_N40_Mae の頭 13.45→13.40。下流は今の min の決め方のまま【P】",
     "seRoji": "辺40 s44.021 で段石一段 12.80→12.45(暗渠は段の上で取る)。角まで 1/100 で 12.30。辺41 s0 12.30・s12.467 12.25・溜り 12.20 へ摺り付け。頂点41 の角の段石は要らない。TW_Higashi_Se の見えは 0.5〜0.65 高くなる【P】",
-    "minami17_18": "辺17 s14.8〜辺18 は床より道の方が高い(−0.57〜+0.05)。前に型A の溝を通す: 底は座 −0.15 以下・道 −0.25 以下、西へ一方向に下げ、裏門の下は暗渠。吐き口は頂点19 の先の道が下がった所【U・棟梁が実地形で決める】"
+    "minami17_18": "取り下げ(案1 2026-10-17)── 前の溝は台の控えを変え嵩上げ石 0.60 が要り 10-11 に当たる。前の雨落ち → 線際の帯(1/20 で線へ)→ 道 → 西へ 5〜7% で P19 → 辺19 の外 → 西の低地【P】"
    },
    "dai": "台の石は辺12〜15 で +0.4〜0.5 高くなる(N12 の台の丈が 3.0 を超え、控え c 0.75→1.0 の見込み)。辺40 s44〜辺41 s12 は 0.3〜0.5 低くなる。頂点40 は N39_k の台が溝の底から 0.15〜0.20 で N40_0 と同じ高さで角を回る【P】",
    "envelope": "系統差は全棟 ±0.25 以内(普請方の測り d=1.05/1.3・確度P、正は棟梁が実メッシュで)。今の辺12〜15 は −0.37〜−0.61 で外れていた(runs を数える検査が無い → 掲示板 EDO-0592)。N40_3 の +0.63 と N41_0 の例外(planes devEnvelopeExceptions[N41_0])は解ける",
@@ -246,7 +246,32 @@
    ],
    "ruling": "施主裁定 案A 2026-10-16「案Ａでお願いします」・裁定図 https://claude.ai/artifact/UAsHxXRUFYye9WUHyo2UtG",
    "design": "docs/Sashizu/okabe_notes/fushin_r148_corner_seat_2026-10-16.json",
-   "cert": "P"
+   "cert": "P",
+   "devEnvelopeExceptions": [
+    {
+     "name": "N18_k",
+     "quote": "案1です。",
+     "ruling": "施主裁定 案1 2026-10-17「案1です。」・裁定図 https://claude.ai/artifact/5ZicGMhGvnfffqAPRgQyxr",
+     "why": "座 18.8 を前の道に合わせる。江戸の復元地盤では +0.32(現況 +0.16)── 復元は西の崖のモデル(U)が道の際まで掛かった窪み(掲示板 EDO-0594)"
+    },
+    {
+     "name": "N18_a",
+     "quote": "案1です。",
+     "ruling": "施主裁定 案1 2026-10-17「案1です。」・裁定図 https://claude.ai/artifact/5ZicGMhGvnfffqAPRgQyxr",
+     "why": "座 18.5。復元 +0.64 / 現況 +0.17"
+    },
+    {
+     "name": "N18_0",
+     "quote": "案1です。",
+     "ruling": "施主裁定 案1 2026-10-17「案1です。」・裁定図 https://claude.ai/artifact/5ZicGMhGvnfffqAPRgQyxr",
+     "why": "裏門・座 18.0。復元 +0.72 / 現況 −0.69 ── どちらの地盤で測っても外れる(足元が復元では窪み・現況では土手)"
+    }
+   ],
+   "r155": {
+    "ruling": "施主裁定 案1 2026-10-17「案1です。」・裁定図 https://claude.ai/artifact/5ZicGMhGvnfffqAPRgQyxr",
+    "design": "docs/Sashizu/okabe_notes/fushin_r155_minami_p39_2026-10-17.json",
+    "e39": "N39_0 を s5.453 から(12.225)・角は塀 N_Hei_39 で回す・N_Hei_35 の東の端の座 16.5→17.7"
+   }
   }
  },
  "polygon": [
@@ -2531,7 +2556,7 @@
    "kind": "Dobei",
    "seat": 17.7,
    "seat0": 18.89,
-   "seat1": 16.5,
+   "seat1": 17.7,
    "base": "Ishigaki",
    "on": "辺の内側の造成後の地盤(座は下絵の造成後の地盤 0.7m 内)",
    "cert": "@run.Dobei",
@@ -2541,7 +2566,36 @@
     "hMax": 1.4,
     "cert": "下絵の値(下絵 `UserData/EDO0502/an1/saitei_okabe2/plans2.py` plan_1() の perim_walls)── U",
     "certSig": "U"
-   }
+   },
+   "prevR155": {
+    "seat1": 16.5
+   },
+   "seatR155": "前の道に合わせ座を道なりに上げ段は直線の継ぎ目へ ── 普請方 docs/Sashizu/okabe_notes/fushin_r155_minami_p39_2026-10-17.json【P】・施主裁定 案1 2026-10-17「案1です。」・裁定図 https://claude.ai/artifact/5ZicGMhGvnfffqAPRgQyxr"
+  },
+  {
+   "name": "N_Hei_39",
+   "edge": 39,
+   "s0": 0.0,
+   "s1": 5.453,
+   "kind": "Dobei",
+   "seat": 17.4,
+   "seat0": 17.7,
+   "seat1": 17.1,
+   "base": "Ishigaki",
+   "on": "辺の内側の造成後の地盤(座は下絵の造成後の地盤 0.7m 内)",
+   "cert": "@run.Dobei / 道の高い角を塀で回し長屋を道の低い所から始める=B・当家U【P】",
+   "sFrom": "天端 − 法尻の地形(棟梁が実地形から導く)",
+   "kyoIshigaki": {
+    "len": 3.1,
+    "hMax": 1.4,
+    "cert": "下絵の値(下絵 `UserData/EDO0502/an1/saitei_okabe2/plans2.py` plan_1() の perim_walls)── U",
+    "certSig": "U"
+   },
+   "seatR155": "辺39 の東の端を塀で回す(普請方 E1)── docs/Sashizu/okabe_notes/fushin_r155_minami_p39_2026-10-17.json・裁定なしの欄の上書き(規則4)",
+   "steps": "1.5間ずつ二段 17.7(s0–2.727)/17.1(s2.727–5.453)、長屋 N39_0 の妻で 16.5 へ 0.6 下がる ── 段 0.6・0.6 の揃い【硬: 段の点・柔: 値】",
+   "corner": "頂点39 の折れ約17° < 40° で隅の駒なしに突き付け(kidan.corner.lt40)",
+   "kidan": "道の側は外が高いので外向きの基壇を置かない(kidan.orient)。内(門の内 16.5)の側は塀の下の石垣で受ける(見え 0.6〜1.2・天端 = 塀の座で段ごとに一直線)【硬: 内に土の段を見せない】",
+   "water": "内の雨落ち(N39_0 の背の溝の頭 s≈0.5)は塀の下の石垣の足元を通って s9.0 の集水枡へ 1/100【硬】"
   },
   {
    "name": "S_Hei_01b",
@@ -2719,67 +2773,117 @@
    "name": "N17_0",
    "edge": 17,
    "s0": 0.0,
-   "s1": 14.827,
+   "s1": 16.645,
    "kind": "Nagaya",
    "seat": 19.1,
    "base": "Ishigaki",
    "on": "坂なり(一棟ずつ高さを変える)",
    "cert": "@run.Nagaya",
-   "asset": "Own.NagayaOmote2F(14.827)",
+   "asset": "Own.NagayaOmote2F(16.645)",
    "assetKubun": "在庫",
-   "len": 14.827,
+   "len": 16.645,
    "seatR148": "出隅で一棟に見せる座の割り(角で同じ座・段は直線の継ぎ目へ)── 普請方の設計 2026-10-16【P】・施主裁定 案A 2026-10-16「案Ａでお願いします」・裁定図 https://claude.ai/artifact/UAsHxXRUFYye9WUHyo2UtG",
    "prevR148": {
     "s1": 20.281,
     "len": 20.281,
     "seat": 18.9,
     "asset": "Own.NagayaOmote2F(20.281)"
-   }
+   },
+   "prevR155": {
+    "s1": 14.827,
+    "len": 14.827,
+    "asset": "Own.NagayaOmote2F(14.827)"
+   },
+   "seatR155": "前の道に合わせ座を道なりに上げ段は直線の継ぎ目へ ── 普請方 docs/Sashizu/okabe_notes/fushin_r155_minami_p39_2026-10-17.json【P】・施主裁定 案1 2026-10-17「案1です。」・裁定図 https://claude.ai/artifact/5ZicGMhGvnfffqAPRgQyxr"
   },
   {
    "name": "N17_k",
    "edge": 17,
-   "s0": 14.827,
+   "s0": 16.645,
    "s1": 20.281,
    "kind": "Nagaya",
-   "seat": 18.6,
+   "seat": 18.8,
    "base": "Ishigaki",
    "on": "坂なり(一棟ずつ高さを変える)",
    "cert": "@run.Nagaya / 角の側の短い棟 3間【P】",
-   "asset": "Own.NagayaOmote2F(5.454)",
+   "asset": "Own.NagayaOmote2F(3.636)",
    "assetKubun": "新造待ち(部材方)",
-   "len": 5.454,
-   "seatR148": "出隅で一棟に見せる座の割り(角で同じ座・段は直線の継ぎ目へ)── 普請方の設計 2026-10-16【P】・施主裁定 案A 2026-10-16「案Ａでお願いします」・裁定図 https://claude.ai/artifact/UAsHxXRUFYye9WUHyo2UtG"
+   "len": 3.636,
+   "seatR148": "出隅で一棟に見せる座の割り(角で同じ座・段は直線の継ぎ目へ)── 普請方の設計 2026-10-16【P】・施主裁定 案A 2026-10-16「案Ａでお願いします」・裁定図 https://claude.ai/artifact/UAsHxXRUFYye9WUHyo2UtG",
+   "prevR155": {
+    "s0": 14.827,
+    "len": 5.454,
+    "seat": 18.6,
+    "asset": "Own.NagayaOmote2F(5.454)"
+   },
+   "segs": [
+    [
+     16.645,
+     20.281
+    ]
+   ],
+   "daiNote": "台は全長に通す(見えが 0.2 未満の所も根を埋めて通す)【硬】",
+   "seatR155": "前の道に合わせ座を道なりに上げ段は直線の継ぎ目へ ── 普請方 docs/Sashizu/okabe_notes/fushin_r155_minami_p39_2026-10-17.json【P】・施主裁定 案1 2026-10-17「案1です。」・裁定図 https://claude.ai/artifact/5ZicGMhGvnfffqAPRgQyxr"
   },
   {
    "name": "N18_k",
    "edge": 18,
    "s0": 0.0,
-   "s1": 5.454,
+   "s1": 3.636,
    "kind": "Nagaya",
-   "seat": 18.6,
+   "seat": 18.8,
    "base": "Ishigaki",
    "on": "坂なり(一棟ずつ高さを変える)",
    "cert": "@run.Nagaya / 角の側の短い棟 3間【P】",
-   "asset": "Own.NagayaOmote2F(5.454)",
+   "asset": "Own.NagayaOmote2F(3.636)",
    "assetKubun": "新造待ち(部材方)",
-   "len": 5.454,
+   "len": 3.636,
    "seatR148": "出隅で一棟に見せる座の割り(角で同じ座・段は直線の継ぎ目へ)── 普請方の設計 2026-10-16【P】・施主裁定 案A 2026-10-16「案Ａでお願いします」・裁定図 https://claude.ai/artifact/UAsHxXRUFYye9WUHyo2UtG",
-   "monNoteR148": "裏門は N18_0(s5.454〜20.074)の内に残る。門口は辺18 の s=16 のまま(棟の始まりから約 10.546)。敷居 = 座 17.7【P】"
+   "prevR155": {
+    "s1": 5.454,
+    "len": 5.454,
+    "seat": 18.6,
+    "asset": "Own.NagayaOmote2F(5.454)"
+   },
+   "segs": [
+    [
+     0.0,
+     3.636
+    ]
+   ],
+   "daiNote": "台は全長に通す【硬】",
+   "seatR155": "前の道に合わせ座を道なりに上げ段は直線の継ぎ目へ ── 普請方 docs/Sashizu/okabe_notes/fushin_r155_minami_p39_2026-10-17.json【P】・施主裁定 案1 2026-10-17「案1です。」・裁定図 https://claude.ai/artifact/5ZicGMhGvnfffqAPRgQyxr"
+  },
+  {
+   "name": "N18_a",
+   "edge": 18,
+   "s0": 3.636,
+   "s1": 12.726,
+   "kind": "Nagaya",
+   "seat": 18.5,
+   "base": "Ishigaki",
+   "on": "坂なり(一棟ずつ高さを変える)",
+   "cert": "@run.Nagaya / 坂の長屋を段で下げる=B・当家U【P】",
+   "asset": "Own.NagayaOmote2F(9.09)",
+   "assetKubun": "新造待ち(部材方)",
+   "len": 9.09,
+   "seatR148": "出隅で一棟に見せる座の割り(角で同じ座・段は直線の継ぎ目へ)── 普請方の設計 2026-10-16【P】・施主裁定 案A 2026-10-16「案Ａでお願いします」・裁定図 https://claude.ai/artifact/UAsHxXRUFYye9WUHyo2UtG",
+   "seatR155": "前の道に合わせ座を道なりに上げ段は直線の継ぎ目へ ── 普請方 docs/Sashizu/okabe_notes/fushin_r155_minami_p39_2026-10-17.json【P】・施主裁定 案1 2026-10-17「案1です。」・裁定図 https://claude.ai/artifact/5ZicGMhGvnfffqAPRgQyxr",
+   "back": "背が座より 0.3 以上低い所は野面石の腰(天端 18.45 一直線・一〜二段)で受け、0.3 以下は 1/20 で擦り付ける(背に土の段を作らない)【硬】"
   },
   {
    "name": "N18_0",
    "edge": 18,
-   "s0": 5.454,
+   "s0": 12.726,
    "s1": 20.074,
    "kind": "Nagaya",
-   "seat": 17.7,
+   "seat": 18.0,
    "base": "Ishigaki",
    "on": "坂なり(一棟ずつ高さを変える)",
    "cert": "@run.Nagaya / 裏門の門長屋=**U**(施主裁定 2026-10-03『裁定1はB、裁定2もBでお願いします』(EDO-0537 B・EDO-0538 B・裁定図 k4))",
-   "asset": "Own.NagayaOmote2F(14.62)",
+   "asset": "Own.NagayaOmote2F(7.348)",
    "assetKubun": "在庫",
-   "len": 14.62,
+   "len": 7.348,
    "mon": "裏門",
    "monNote": "門口(s=16)を長屋の駒の内に取る。門長屋の駒(門口付きの二階長屋)を在庫で引くか新造するかは未決 ── 在庫方へ照会",
    "seatR148": "出隅で一棟に見せる座の割り(角で同じ座・段は直線の継ぎ目へ)── 普請方の設計 2026-10-16【P】・施主裁定 案A 2026-10-16「案Ａでお願いします」・裁定図 https://claude.ai/artifact/UAsHxXRUFYye9WUHyo2UtG",
@@ -2789,22 +2893,36 @@
     "seat": 18.0,
     "asset": "Own.NagayaOmote2F(20.074)"
    },
-   "monNoteR148": "裏門は N18_0(s5.454〜20.074)の内に残る。門口は辺18 の s=16 のまま(棟の始まりから約 10.546)。敷居 = 座 17.7【P】"
+   "monNoteR148": "裏門は N18_0(s5.454〜20.074)の内に残る。門口は辺18 の s=16 のまま(棟の始まりから約 10.546)。敷居 = 座 17.7【P】",
+   "prevR155": {
+    "s0": 5.454,
+    "len": 14.62,
+    "seat": 17.7,
+    "asset": "Own.NagayaOmote2F(14.62)"
+   },
+   "seatR155": "前の道に合わせ座を道なりに上げ段は直線の継ぎ目へ ── 普請方 docs/Sashizu/okabe_notes/fushin_r155_minami_p39_2026-10-17.json【P】・施主裁定 案1 2026-10-17「案1です。」・裁定図 https://claude.ai/artifact/5ZicGMhGvnfffqAPRgQyxr",
+   "monNoteR155": "裏門は N18_0(辺18 s12.726〜20.074)の内。門口は辺18 の s=16 のまま(棟の始まりから 3.274)。敷居 = 座 18.0 = S_Hei_16 の seat0 18.0(頂点19 に段なし)【硬】。門口の道より 0.11〜0.48 高い"
   },
   {
    "name": "N39_0",
    "edge": 39,
-   "s0": 0.0,
+   "s0": 5.453,
    "s1": 17.678,
    "kind": "Nagaya",
    "seat": 16.5,
    "base": "Ishigaki",
    "on": "坂なり(一棟ずつ高さを変える)",
    "cert": "@run.Nagaya / 表門の両脇を長屋にする=型 **B**・当家 **U**(据え置き)/ [追川2017] p.84 第1章末の注記が引く [宮崎1994]A(本文未見)の『表門に連なる塀は長屋塀を避けた』は近世初期の話で、安政期を直接縛らない・全周を長屋にしない方向でのみ効く(K343 照合 2026-10-03)",
-   "asset": "Own.NagayaOmote2F(17.678)",
+   "asset": "Own.NagayaOmote2F(12.225)",
    "assetKubun": "在庫(N39_1 と同じ型)",
-   "len": 17.678,
-   "note": "門を外して普通の二階長屋に戻す。座 16.5・台・前の腰石垣は今のまま【硬】(背が門の内 16.5 なので動かせない)"
+   "len": 12.225,
+   "note": "門を外して普通の二階長屋に戻す。座 16.5・台・前の腰石垣は今のまま【硬】(背が門の内 16.5 なので動かせない)",
+   "prevR155": {
+    "s0": 0.0,
+    "len": 17.678,
+    "asset": "Own.NagayaOmote2F(17.678)"
+   },
+   "seatR155": "前の道に合わせ座を道なりに上げ段は直線の継ぎ目へ ── 普請方 docs/Sashizu/okabe_notes/fushin_r155_minami_p39_2026-10-17.json【P】・施主裁定 案1 2026-10-17「案1です。」・裁定図 https://claude.ai/artifact/5ZicGMhGvnfffqAPRgQyxr"
   },
   {
    "name": "N39_1",
@@ -7125,7 +7243,7 @@
    "w": 2.727,
    "wKen": 1.5,
    "profY": [
-    17.7,
+    18.0,
     17.38,
     17.25,
     16.36,
@@ -7135,7 +7253,7 @@
    ],
    "len": 32.9,
    "rise": -3.2,
-   "grade": "1/10 前後(一様勾配)",
+   "grade": "一様勾配で解き直す 3.5/32.9 = 1/9.4【柔: 1/10 前後】",
    "fill": {
     "moridoM3": 68,
     "moridoMax": 1.9,
@@ -7157,7 +7275,12 @@
     "soft": "余裕は棟梁が実メッシュで測る。足りなければ芯を内へ寄せる ── 上限 1.5m(2026-10-03 普請奉行の上書き: 0.5m では地形の格子 2m の描きで路面の盛りが区画線から 1.00m まで下りた・e7a50b9a/99388d2d の実測)",
     "cert": "P(2m格子)/U",
     "by": "普請方の設計(2026-10-03・分担 EDO-0410)。原案 UserData/EDO0502/fushin_an.json"
-   }
+   },
+   "prevR155": {
+    "profY0": 17.7,
+    "grade": "1/10 前後(一様勾配)"
+   },
+   "r155": "裏門の敷居 17.7→18.0 に合わせる(盛り 約+4m³)・施主裁定 案1 2026-10-17「案1です。」・裁定図 https://claude.ai/artifact/5ZicGMhGvnfffqAPRgQyxr"
   },
   {
    "name": "R_KiriZaka",

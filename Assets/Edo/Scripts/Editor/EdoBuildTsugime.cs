@@ -375,6 +375,26 @@ public static partial class EdoBuild
     {
         public GameObject go; public int edge; public float s0, s1, seat = float.NaN; public string label, hint;
         public Func<float, float, float, Vector2, Vector2, string> pathOf;
+        /// <summary>欄の座の、走りの始め(s0)と終わり(s1)の値(坂なりの棟は端で違う)。NaN なら <see cref="seat"/>。角の座の検め(<see cref="CornerSeatMismatch"/>)が引く。</summary>
+        public float seatLo = float.NaN, seatHi = float.NaN;
+        /// <summary>この棟が持つ門の口の芯 s と幅(門長屋のみ・無ければ NaN)── 要る版の一覧(<see cref="MiterNeedPlan"/>)に刷る。</summary>
+        public float gateS = float.NaN, gateW = float.NaN;
+        /// <summary>流さない一覧(<see cref="MiterNeedPlan"/>)だけが使う: 外面の線の区画の線からの内への離れ[m](始め・終わりの角)。</summary>
+        public float faceInLo = float.NaN, faceInHi = float.NaN;
+        public float SeatEnd(bool hi) { float v = hi ? seatHi : seatLo; return float.IsNaN(v) ? seat : v; }
+    }
+
+    /// <summary>**角で出会う二棟の座の検め**(硬い・docs/oki-kata.md §2a「角で一棟に見えること」・施主裁定 案A 2026-10-16):
+    /// 辺 v−1 の終わりの棟 <paramref name="A"/>(座 = s1 の端)と辺 v の始めの棟 <paramref name="B"/>(座 = s0 の端)の座の差が <paramref name="tol"/> を超えれば
+    /// 待ちの一行「角で座が違う: 頂点v A 座 / B 座」を返す(⛔ 座を発明しない ── 座は指図の runs[].seat が持つ)。同じなら null。座が NaN の棟は測れないので null。
+    /// 当たる先: 外周の長屋が区画の折れで出会う所すべて(岡部 頂点13〜18・40・41・類型ビルダーの外周の長屋・松江松平・土井の表長屋)。</summary>
+    public static string CornerSeatMismatch(int v, PerimPiece A, PerimPiece B, float tol = 0.001f)
+    {
+        float a = A.SeatEnd(true), b = B.SeatEnd(false);
+        if (float.IsNaN(a) || float.IsNaN(b) || Mathf.Abs(a - b) <= tol) return null;
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        return "角で座が違う: 頂点" + v + " " + A.label + " 座 " + a.ToString("0.###", inv) + " / " + B.label + " 座 " + b.ToString("0.###", inv)
+             + "(差 " + Mathf.Abs(a - b).ToString("0.###", inv) + "m ── 段は直線の継ぎ目へ・指図 runs[].seat を直す)";
     }
 
     /// <summary>**外周の棟が区画の折れで出会う所を、既定で留めて据える**(docs/oki-kata.md §2a・硬い)。
@@ -384,6 +404,7 @@ public static partial class EdoBuild
     /// あれば差し替える(<see cref="ReplaceWithMiterCut"/>)。その後に頂点ごとに突き抜け(<see cref="MiterOverrun"/> 両向き)と、切った版なら留めた端の外面の点が
     /// 留めの面に載るか(離れ ≤ 0.001)を測り、**超えれば切った版でない棟を消す(建てない・重ねない)**── 剪断で留めた版(_m)は測って 0 なら据えたまま(⚠)。
     /// θ は全角[度]・入隅は負。返り値 = 刷る文。<paramref name="overrunBad"/> = 突き抜けが許容を超えた頂点の数。
+    /// ⭐ 角(直線でない折れ・直角も含む)で出会う二棟の座が違えば【硬】二棟とも建てず待ちへ「角で座が違う: 頂点・棟・座」(<see cref="CornerSeatMismatch"/>・oki-kata §2a「角で一棟に見えること」・施主裁定 案A 2026-10-16)── 座を発明しない。
     /// 当たる先: 岡部の外周の長屋(頂点13〜18・40・41)・類型ビルダーの外周の長屋・松江松平の外周。土井は表長屋の据えで同じ部品(MiterByDefault・PickMiterCutOrWait・MiterOverrun)を呼ぶ。</summary>
     public static string MiterPerimeterCorners(Vector2[] P, List<PerimPiece> pcs, List<string> wait, out int overrunBad, out float worstOverrun,
                                                float minDeg = MITER_STRAIGHT_DEG, float rightTolDeg = MITER_RIGHT_TOL_DEG, float vtxTol = 0.01f, float tol = 0.001f)
@@ -395,7 +416,7 @@ public static partial class EdoBuild
         Func<int, Vector2> edir = e => (P[((e + 1) % n + n) % n] - P[(e % n + n) % n]).normalized;
         pcs.RemoveAll(x => x == null || x.go == null || !x.go.activeInHierarchy);
         // ── 頂点ごとの出会い { v, A, B, foldDeg, convex, 留めの面の法線(A→B) }
-        var corners = new List<object[]>();
+        var corners = new List<object[]>(); var seatMs = new List<object[]>();
         for (int v = 0; v < n; v++)
         {
             int ep = (v - 1 + n) % n;
@@ -403,6 +424,7 @@ public static partial class EdoBuild
             foreach (var x in pcs) { if (x.edge == ep && x.s1 >= elen(ep) - vtxTol) A = x; if (x.edge == v && x.s0 <= vtxTol) B = x; }
             if (A == null || B == null || A == B) continue;
             float f = VertexFold(P, v);
+            if (Mathf.Abs(f) > minDeg) { string ms = CornerSeatMismatch(v, A, B); if (ms != null) seatMs.Add(new object[] { ms, A, B }); }   // 直角の角も座は検める
             if (!MiterByDefault(f, minDeg, rightTolDeg)) continue;
             // 留めの面の通る点: 二棟の札の外面の線の交点 Q(外面が角で段なく閉じる)。控えが違い、Q が頂点の二等分の線から控え c より離れる(浅い折れ ──
             // 岡部 頂点14: 控え 1.05 / 0.80・折れ 3.4° で Q が頂点から 4.3m)なら頂点を通る(外面は角で控えの差だけ段になる)
@@ -416,7 +438,21 @@ public static partial class EdoBuild
             }
             corners.Add(new object[] { v, A, B, f, IsConvexVertex(P, v), nn, X, via });
         }
-        if (corners.Count == 0) return "出隅の留め: 留める頂点なし";
+        // ── 角の座の検め【硬】(oki-kata §2a): 二棟の座が角で違えば、その二棟は建てない(待ちへ・座を発明しない)。その棟の出る角は留めない
+        var seatBad = new HashSet<PerimPiece>(); var seatSb = new System.Text.StringBuilder();
+        foreach (var m in seatMs)
+        {
+            string ms = (string)m[0];
+            wait.Add(ms + " ⇒ 二棟とも建てない"); seatSb.Append("  ✗ " + ms + " ⇒ 二棟とも建てない\n");
+            seatBad.Add((PerimPiece)m[1]); seatBad.Add((PerimPiece)m[2]);
+        }
+        if (seatBad.Count > 0)
+        {
+            corners.RemoveAll(c => seatBad.Contains((PerimPiece)c[1]) || seatBad.Contains((PerimPiece)c[2]));
+            foreach (var x in seatBad) { if (x.go != null) UnityEngine.Object.DestroyImmediate(x.go); x.go = null; }
+            pcs.RemoveAll(x => seatBad.Contains(x));
+        }
+        if (corners.Count == 0) return "出隅の留め: 留める頂点なし" + (seatBad.Count > 0 ? "・角で座が違い建てない " + seatBad.Count + " 棟\n" + seatSb : "");
         // 棟の外面の線と留めの面の交わり(その棟の外隅)
         Func<object[], GameObject, Vector2> cornerOf = (c, go) =>
         {
@@ -459,13 +495,7 @@ public static partial class EdoBuild
                 Vector2 left = fp + d * (plusXisHi ? a : b);
                 return x.pathOf(L, thL, thR, left, xDir);
             };
-            string seatNote = "";
-            foreach (var c in new[] { lo, hi })
-            {
-                if (c == null) continue; var o = (PerimPiece)(c == lo ? c[1] : c[2]);
-                if (!float.IsNaN(x.seat) && !float.IsNaN(o.seat) && Mathf.Abs(x.seat - o.seat) > 0.001f)
-                    seatNote += "・頂点" + c[0] + " の相手 " + o.label + " と座が違う(" + x.seat.ToString("F2", inv) + " / " + o.seat.ToString("F2", inv) + " ── 屋根の継ぎ方は部材方)";
-            }
+            string seatNote = "";   // 角の座の違いは上で退けた(CornerSeatMismatch)
             string path, w; float lenSpec;
             bool loCc = lo != null && !(bool)lo[4], hiCc = hi != null && !(bool)hi[4];
             if (PickMiterCutOrWait(pathOf, need, x.label, thL, thR, x.hint, out path, out lenSpec, out w, lo != null && hi != null, tol, loCc != hiCc))
@@ -528,8 +558,84 @@ public static partial class EdoBuild
             UnityEngine.Object.DestroyImmediate(x.go); x.go = null;
         }
         foreach (var kv in lacking) if (!drop.Contains(kv.Key)) sb.Append("  ⚠ " + kv.Value + "(剪断の留めの版で突き抜け 0 ⇒ 据えたまま)\n");
-        return "出隅の留め: 頂点 " + corners.Count + "・切った版 " + cutDone.Count + "・建てない " + drop.Count + "・突き抜けの超え " + overrunBad
-             + "・突き抜け 最悪 " + (float.IsNegativeInfinity(worstOverrun) ? "なし" : worstOverrun.ToString("+0.000;-0.000", inv) + "m") + "\n" + sb;
+        return "出隅の留め: 頂点 " + corners.Count + "・切った版 " + cutDone.Count + "・建てない " + drop.Count + "・角で座が違い建てない " + seatBad.Count + "・突き抜けの超え " + overrunBad
+             + "・突き抜け 最悪 " + (float.IsNegativeInfinity(worstOverrun) ? "なし" : worstOverrun.ToString("+0.000;-0.000", inv) + "m") + "\n" + seatSb + sb;
+    }
+
+    /// <summary>**流さずに、外周の長屋の出隅に要る留めの版の一覧を出す**(見込み・据えない・消さない)。<see cref="MiterPerimeterCorners"/> と同じ角の拾い(欄の s が頂点から
+    /// <paramref name="vtxTol"/> 内)・同じ留めの面(<see cref="MiterPlaneNormal"/>・外面の線の交点 Q か頂点)・同じ θ の符号(入隅は負)・同じ版の名の引き(<see cref="PickMiterCutOrWait"/>)で、
+    /// 駒の代わりに**区画の線を <see cref="PerimPiece.faceIn"/> だけ内へ寄せた外面の線**を使う。要る長さ = 留めた端の外隅 〜 反対の端(留めない端は欄の s ── 実の流しでは隣の棟の躯体の端)。
+    /// ⚠ 外面の控えは前の流しの実測(呼び手が渡す)なので、台の控えが変わる辺は要る長さが c·tan(θ/2) ほど動く ── 正は流しの S2 の待ちの行。角の座の違い(<see cref="CornerSeatMismatch"/>)も刷る。
+    /// 局所 +X は外向き +Z の右((o.y, −o.x))。返り値 = 一棟一行(名・θL・θR・要る長さ・両端か・座・門の口・在庫の有無)。当たる先: <see cref="MiterPerimeterCorners"/> を呼ぶ邸すべて。</summary>
+    public static List<string> MiterNeedPlan(Vector2[] P, List<PerimPiece> pcs, out int need, out int have, float minDeg = MITER_STRAIGHT_DEG, float rightTolDeg = MITER_RIGHT_TOL_DEG, float vtxTol = 0.01f)
+    {
+        need = 0; have = 0; var outL = new List<string>(); var inv = System.Globalization.CultureInfo.InvariantCulture;
+        int n = P.Length;
+        Func<int, float> elen = e => Vector2.Distance(P[(e % n + n) % n], P[((e + 1) % n + n) % n]);
+        Func<int, Vector2> edir = e => (P[((e + 1) % n + n) % n] - P[(e % n + n) % n]).normalized;
+        Func<int, Vector2> inw = e => EdoGeom.InwardNormal(P, (e % n + n) % n);
+        Func<PerimPiece, bool, Vector2> fpOf = (x, hi) => P[x.edge % n] + inw(x.edge) * (hi ? x.faceInHi : x.faceInLo);
+        var corners = new List<object[]>();
+        for (int v = 0; v < n; v++)
+        {
+            int ep = (v - 1 + n) % n; PerimPiece A = null, B = null;
+            foreach (var x in pcs) { if (x.edge == ep && x.s1 >= elen(ep) - vtxTol) A = x; if (x.edge == v && x.s0 <= vtxTol) B = x; }
+            if (A == null || B == null || A == B) continue;
+            float f = VertexFold(P, v);
+            if (Mathf.Abs(f) > minDeg) { string ms0 = CornerSeatMismatch(v, A, B); if (ms0 != null) outL.Add("✗ " + ms0 + " ⇒ 流しでは二棟とも建てない"); }
+            if (!MiterByDefault(f, minDeg, rightTolDeg)) continue;
+            Vector2 nn = MiterPlaneNormal(P, v), X = P[v]; string via = "頂点";
+            Vector2 pa = fpOf(A, true), da = edir(A.edge), oa = -inw(A.edge), pb = fpOf(B, false), db = edir(B.edge), ob = -inw(B.edge);
+            Vector2 q = FaceLineCorner(pa, da, oa, 0f, pb, db, ob, 0f);
+            float cMax = Mathf.Max(A.faceInHi, B.faceInLo);
+            if (!float.IsNaN(q.x) && Mathf.Abs(Vector2.Dot(q - P[v], nn)) <= cMax) { X = q; via = "外面の線の交点"; }
+            corners.Add(new object[] { v, A, B, f, IsConvexVertex(P, v), nn, X, via });
+        }
+        var touched = new List<PerimPiece>();
+        foreach (var c in corners) foreach (var x in new[] { (PerimPiece)c[1], (PerimPiece)c[2] }) if (!touched.Contains(x)) touched.Add(x);
+        touched.Sort((a, b) => a.edge != b.edge ? a.edge.CompareTo(b.edge) : a.s0.CompareTo(b.s0));
+        foreach (var x in touched)
+        {
+            object[] lo = null, hi = null;
+            foreach (var c in corners) { if (c[2] == x) lo = c; if (c[1] == x) hi = c; }
+            Vector2 d = edir(x.edge), o = -inw(x.edge);
+            Vector2 fp = P[x.edge % n] + inw(x.edge) * (lo != null ? x.faceInLo : x.faceInHi);
+            float sLo = x.s0, sHi = x.s1, thLo = 0f, thHi = 0f;
+            Func<object[], float> sAt = c =>
+            {
+                Vector2 nn = (Vector2)c[5]; Vector2 bis = new Vector2(-nn.y, nn.x);
+                Vector2 q = FaceLineCorner(fp, d, o, 0f, (Vector2)c[6], bis, nn, 0f);
+                return float.IsNaN(q.x) ? float.NaN : Vector2.Dot(q - fp, d);
+            };
+            if (lo != null) { sLo = sAt(lo); float f = Mathf.Abs((float)lo[3]); thLo = (bool)lo[4] ? f : -f; }
+            if (hi != null) { sHi = sAt(hi); float f = Mathf.Abs((float)hi[3]); thHi = (bool)hi[4] ? f : -f; }
+            if (float.IsNaN(sLo) || float.IsNaN(sHi)) { outL.Add("? " + x.label + ": 外面の線が留めの面と交わらない"); continue; }
+            Vector2 xDir = new Vector2(o.y, -o.x); bool plusXisHi = Vector2.Dot(xDir, d) > 0f;
+            float thL = plusXisHi ? thLo : thHi, thR = plusXisHi ? thHi : thLo, L0 = sHi - sLo;
+            bool loFixed = lo != null; float sFixLo = sLo, sFixHi = sHi;
+            float gcOut = float.NaN;
+            Func<float, string> pathOf = L =>
+            {
+                float a = loFixed ? sFixLo : sFixHi - L, b = loFixed ? sFixLo + L : sFixHi;
+                Vector2 left = fp + d * (plusXisHi ? a : b);
+                if (!float.IsNaN(x.gateS)) { Vector2 g = P[x.edge % n] + d * x.gateS; gcOut = L - Vector2.Dot(g - left, xDir); }
+                return x.pathOf(L, thL, thR, left, xDir);
+            };
+            bool loCc = lo != null && !(bool)lo[4], hiCc = hi != null && !(bool)hi[4];
+            string path, w; float lenSpec;
+            bool ok = PickMiterCutOrWait(pathOf, L0, x.label, thL, thR, x.hint, out path, out lenSpec, out w, lo != null && hi != null, 0.001f, loCc != hiCc);
+            if (ok) have++; else need++;
+            pathOf(Mathf.Ceil(L0 * 100f - 1e-3f) / 100f);
+            outL.Add((ok ? "在庫 " : "要る ") + x.label + "(辺" + x.edge + " s" + x.s0.ToString("0.###", inv) + "〜" + x.s1.ToString("0.###", inv) + ")"
+                     + "\t版 " + (path == null ? "-" : System.IO.Path.GetFileNameWithoutExtension(path))
+                     + "\tθL " + thL.ToString("0.###", inv) + "°\tθR " + thR.ToString("0.###", inv) + "°"
+                     + "\t要る長さ " + L0.ToString("F3", inv) + "m(" + (lo != null && hi != null ? "両端を留める" : (lo != null ? "s0 の端を留める(頂点" + lo[0] + ")" : "s1 の端を留める(頂点" + hi[0] + ")")) + "・"
+                     + (lo != null && hi != null ? "頂点" + lo[0] + "・" + hi[0] : "") + "外面の控え " + (lo != null ? x.faceInLo : x.faceInHi).ToString("F3", inv) + ")"
+                     + "\t座 " + x.SeatEnd(false).ToString("0.###", inv) + (Mathf.Abs(x.SeatEnd(true) - x.SeatEnd(false)) > 0.001f ? "→" + x.SeatEnd(true).ToString("0.###", inv) : "")
+                     + "\t門の口 " + (float.IsNaN(x.gateS) ? "無し" : "s" + x.gateS.ToString("0.###", inv) + "・幅 " + x.gateW.ToString("0.###", inv) + "・+X 端から芯 " + gcOut.ToString("0.###", inv))
+                     + (ok ? "\t札 " + lenSpec.ToString("F3", inv) : (w != null && w.Contains(".meta") ? "\t焼いてあるが .meta 無し" : "")));
+        }
+        return outL;
     }
 
     static string Kind(PerimPiece x, HashSet<PerimPiece> cut, bool shear) { return cut.Contains(x) ? "切った留め" : (shear ? "剪断の留め" : "直角の妻"); }

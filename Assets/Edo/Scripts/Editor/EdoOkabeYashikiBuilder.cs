@@ -2067,30 +2067,7 @@ public static class EdoOkabeYashikiBuilder
             foreach (var r in Runs)
             {
                 if (!r.Nagaya) continue; var t = kak.Find(r.name); if (t == null) continue;
-                float gS0, gW0; string gL0; bool hostedR = HostedGate(r.name, out gS0, out gW0, out gL0);
-                int edR = r.edge; Vector2 gWorld = EdgePt(edR, gS0);
-                pcs.Add(new EdoBuild.PerimPiece
-                {
-                    go = t.gameObject, edge = r.edge, s0 = r.s0, s1 = r.s1, seat = r.SeatAt((r.s0 + r.s1) * 0.5f), label = "表長屋 " + r.name,
-                    hint = "blender --background --python Tools/Blender/build_nagaya_omote.py -- <長さ> --body --floors 2 --miter-cut <θL> <θR> --render"
-                         + (hostedR ? "(門長屋: --gate <−X 端から口の芯> " + gW0.ToString("0.###") + " … と併せる ── 生成器は 2026-10-16 時点で併せられない)" : "") + "(入隅 θ<0 は生成器が未対応)",
-                    pathOf = hostedR
-                        ? (Func<float, float, float, Vector2, Vector2, string>)((L, tL, tR, left, xd) =>
-                          {
-                              // 口の芯は**躯体の局所 +X 端から**名に入れる(生成器の --gate は Blender の左 = Unity の +X 端から・棟梁の memory nagaya-mon-gate-offset-axis)。
-                              //   名の 0.01 の丸めと長さの丸めで 0.01〜0.02 ずれるので ±0.05 の内で焼いた版を探す(口の芯の硬い検め ≤ 0.05 は据えた後に実測)
-                              float gc = L - Vector2.Dot(gWorld - left, xd);
-                              string first = EdoAssets.Own.NagayaOmoteMonKutaiMiterCut(L, gc, nikai, tL, tR);
-                              for (int kk = 0; kk <= 10; kk++)
-                              {
-                                  float dg = (kk % 2 == 1 ? 1f : -1f) * ((kk + 1) / 2) * 0.01f;
-                                  string p = EdoAssets.Own.NagayaOmoteMonKutaiMiterCut(L, gc + dg, nikai, tL, tR);
-                                  if (System.IO.File.Exists(p)) return p;
-                              }
-                              return first;
-                          })
-                        : ((L, tL, tR, left, xd) => nikai ? EdoAssets.Own.NagayaOmote2FKutaiMiterCut(L, tL, tR) : null),
-                });
+                pcs.Add(PerimPieceOf(r, t.gameObject, nikai));
             }
             int ovBad; float ovWorst;
             string mrep = EdoBuild.MiterPerimeterCorners(Poly, pcs, wait, out ovBad, out ovWorst);
@@ -2138,6 +2115,84 @@ public static class EdoOkabeYashikiBuilder
         }
         sb.Append("表長屋・表門: " + made + " 棟" + (nikai ? "(二階)" : "(平屋)")
                 + (miss > 0 ? " / 部材の無いもの " + miss : ""));
+        return sb.ToString();
+    }
+
+    /// <summary>外周の一棟を <see cref="EdoBuild.MiterPerimeterCorners"/> / <see cref="EdoBuild.MiterNeedPlan"/> へ渡す形にする(座は欄の両端・門長屋は口の芯と留めの版の名の引き方)。<paramref name="go"/> は流さない一覧では null。</summary>
+    static EdoBuild.PerimPiece PerimPieceOf(Run r, GameObject go, bool nikai)
+    {
+        float gS0, gW0; string gL0; bool hostedR = HostedGate(r.name, out gS0, out gW0, out gL0);
+        int edR = r.edge; Vector2 gWorld = EdgePt(edR, gS0);
+        var pp = new EdoBuild.PerimPiece
+        {
+            go = go, edge = r.edge, s0 = r.s0, s1 = r.s1, seat = r.SeatAt((r.s0 + r.s1) * 0.5f), seatLo = r.SeatAt(r.s0), seatHi = r.SeatAt(r.s1), label = "表長屋 " + r.name,
+            hint = "blender --background --python Tools/Blender/build_nagaya_omote.py -- <長さ> --body --floors 2 --miter-cut <θL> <θR> --render"
+                 + (hostedR ? "(門長屋: --gate <−X 端から口の芯> " + gW0.ToString("0.###") + " … と併せる ── 生成器は 2026-10-16 時点で併せられない)" : "") + "(入隅 θ<0 は生成器が未対応)",
+            pathOf = hostedR
+                ? (Func<float, float, float, Vector2, Vector2, string>)((L, tL, tR, left, xd) =>
+                  {
+                      // 口の芯は**躯体の局所 +X 端から**名に入れる(生成器の --gate は Blender の左 = Unity の +X 端から・棟梁の memory nagaya-mon-gate-offset-axis)。
+                      //   名の 0.01 の丸めと長さの丸めで 0.01〜0.02 ずれるので ±0.05 の内で焼いた版を探す(口の芯の硬い検め ≤ 0.05 は据えた後に実測)
+                      float gc = L - Vector2.Dot(gWorld - left, xd);
+                      string first = EdoAssets.Own.NagayaOmoteMonKutaiMiterCut(L, gc, nikai, tL, tR);
+                      for (int kk = 0; kk <= 10; kk++)
+                      {
+                          float dg = (kk % 2 == 1 ? 1f : -1f) * ((kk + 1) / 2) * 0.01f;
+                          string p = EdoAssets.Own.NagayaOmoteMonKutaiMiterCut(L, gc + dg, nikai, tL, tR);
+                          if (System.IO.File.Exists(p)) return p;
+                      }
+                      return first;
+                  })
+                : ((L, tL, tR, left, xd) => nikai ? EdoAssets.Own.NagayaOmote2FKutaiMiterCut(L, tL, tR) : null),
+        };
+        if (hostedR) { pp.gateS = gS0; pp.gateW = gW0; }
+        return pp;
+    }
+
+    /// <summary>**流さずに、外周の長屋の出隅に要る留めの版の一覧を書き出す**(施主裁定 案A 2026-10-16・EDO-0502 第149巡)。今の指図の runs で角を拾い、
+    /// 外面の控えは**今シーンに据わっている同じ辺の長屋の札の外面**で測る(無い辺は同じ辺の練塀・門も無ければ FaceIn)。据えない・消さない。⟶ 一覧の文(<paramref name="outPath"/> にも書く)。</summary>
+    public static string PlanCornerMiters(string outPath)
+    {
+        var rf = O(Get(O(Get(D, "roofs")), "OmoteNagaya"));
+        bool nikai = rf != null && Has(rf, "kai") && S(rf["kai"]).Contains("二階");   // PlaceOmoteNagaya と同じ読み
+        // ⛔ Group() を呼ばない(解いて書き戻しの台帳に載せる)── 読むだけ
+        var root = GameObject.Find(GN); var kak = root != null ? root.transform.Find("Kakoi") : null;
+        if (kak == null) return "★ " + GN + "/Kakoi が見つからない(作業場を開いてから)";
+        var faceOf = new Dictionary<int, float>(); var faceSrc = new Dictionary<int, string>();
+        foreach (Transform c in kak)
+        {
+            if (!c.gameObject.activeInHierarchy) continue;
+            int ed = -1; foreach (var r in Runs) if (r.Nagaya && r.name == c.name) ed = r.edge;
+            if (ed < 0 || faceOf.ContainsKey(ed)) continue;
+            Vector2 fp, fd, fo; if (!EdoBuild.SpecFrontLine(c.gameObject, out fp, out fd, out fo)) continue;
+            faceOf[ed] = Vector2.Dot(EdgePt(ed, 0f) - fp, OutNormal(ed)); faceSrc[ed] = c.name;
+        }
+        var pcs = new List<EdoBuild.PerimPiece>(); var xchk = new System.Text.StringBuilder();
+        foreach (var r in Runs)
+        {
+            if (!r.Nagaya) continue;
+            var pp = PerimPieceOf(r, null, nikai);
+            float c0; bool m = faceOf.TryGetValue(r.edge, out c0);
+            pp.faceInLo = m ? c0 : FaceIn(r.edge, r.s0); pp.faceInHi = m ? c0 : FaceIn(r.edge, r.s1);
+            if (!m) xchk.Append("辺" + r.edge + " は据わった長屋が無く FaceIn " + pp.faceInLo.ToString("F3") + " で見込む・");
+            pcs.Add(pp);
+            var t = kak.Find(r.name);
+            if (t != null)
+            {
+                Vector2 xw = EdoPartSpec.W(t, 1f, 0f) - EdoPartSpec.W(t, 0f, 0f), o = OutNormal(r.edge);
+                if (Vector2.Dot(xw.normalized, new Vector2(o.y, -o.x)) < 0.99f) xchk.Append(r.name + " の局所 +X が外向きの右と違う・");
+            }
+        }
+        int need, have;
+        var lines = EdoBuild.MiterNeedPlan(Poly, pcs, out need, out have);
+        var sb = new System.Text.StringBuilder();
+        sb.Append("# 岡部 外周の長屋の出隅に要る留めの版(流さない見込み・" + System.DateTime.Now.ToString("yyyy-MM-dd HH:mm") + ")\n");
+        sb.Append("# 要る " + need + "・在庫 " + have + "。外面の控え = 今シーンの同じ辺の長屋の札の外面(");
+        foreach (var kv in faceOf) sb.Append("辺" + kv.Key + " " + kv.Value.ToString("F3") + "=" + faceSrc[kv.Key] + " ");
+        sb.Append(")。台の控えが変わる辺は要る長さが c·tan(θ/2) ほど動く ── 正は流しの S2 の待ちの行\n");
+        if (xchk.Length > 0) sb.Append("# 注: " + xchk + "\n");
+        foreach (var l in lines) sb.Append(l + "\n");
+        if (!string.IsNullOrEmpty(outPath)) System.IO.File.WriteAllText(outPath, sb.ToString());
         return sb.ToString();
     }
 

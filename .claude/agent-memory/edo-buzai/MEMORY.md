@@ -124,3 +124,4 @@
 - [座の違う留めの屋根の継ぎと斜め端の練塀](cut-kera-step-roof-and-naname-roof-back.md) — --cut-kera は棟の熨斗の帯(袖瓦は上から鋸の歯)・Naname は屋根も壁体も 0.06 引く(2026-10-16)
 - [台の浅い出隅の留めの版 _TP/_TM](kidan-shallow-kado-tome-cut.md) — 足元の前の角を枠の端に残して切る・倍率は名に入れない・短い駒は素の剪断(2026-10-16)
 - [角で同じ座の留めと隅棟・2間の代わりの版](same-seat-miter-hip-and-short-standin.md) — kera なしの seal で一つの屋根・30°以上は sumi・3.636 は妻二つで組めない(2026-10-16)
+- [直線の段の継ぎ目は低い端を切る](dan-seam-low-end-flat-cut.md) — 素の妻が高い棟へ 0.322 入り壁の前に欠片・0.01° で切って lo・浅い谷の裂け目は位相(2026-10-16)

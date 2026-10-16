@@ -1,7 +1,7 @@
 {
     "prefab": "Assets/Edo/Models/Nagaya/Nagaya_Omote_9.35_2f_kutai.fbx",
     "kind": "building",
-    "source": "blender:build_nagaya_omote.py(9.349 --body --floors 2 --frac 0.259 R)",
+    "source": "blender:build_nagaya_omote.py(9.349 --body --floors 2 --frac 0.259 R --miter-cut 0.01 0 --seal --cut-kera lo 0)",
     "unitScale": 1.0,
     "yBottom": 0.0,
     "foot": [
@@ -18,7 +18,7 @@
             "y": -3.08677
         },
         {
-            "x": -4.6745,
+            "x": -4.67423,
             "y": -3.08677
         }
     ],
@@ -43,10 +43,10 @@
         "x1": 0.0
     },
     "eave": {
-        "x0": -4.99663,
+        "x0": -4.67455,
         "x1": 4.99663,
         "z0": -3.72632,
-        "z1": 0.62598,
+        "z1": 0.62953,
         "y0": 0.0,
         "y1": 7.18272
     },

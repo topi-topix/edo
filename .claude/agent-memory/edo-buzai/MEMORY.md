@@ -119,3 +119,6 @@
 - [張り出し付きの吐き口の敷き石は縁石で止める](haki-ago-sill-stops-at-curb.md) — 石は線の内・口の先は土の床で塞ぐ(2026-10-13)
 - [曲がり目の桝 GK は芯 0.27 の留めの六角形・口の下は敷居](masu-kado-bent-trench-sill.md) — 敷居の深さを名に・鏡像は A/B を入れ替えて焼く(2026-10-14)
 - [柵の根は下へ箱を継ぐ・地上は差0で示す](horisaku-root-extension.md) — HoriSaku_R0.60・zsh の名簿は glob で(2026-10-15)
+- [切る留めを入隅・門長屋・両端へ・座の違う相手は板で塞ぐ](nagaya-miter-cut-signed-anchor-seal.md) — 両端は --layout で割付据え置き・--seal・θ<0 は入隅(2026-10-16)
+- [両端を留めた表長屋の長さの余りが突き抜けになる](miter-both-ends-length-overshoot.md) — 札は要る長さ−0.0002・seal は土台で段(2026-10-16)
+- [座の違う留めの屋根の袖瓦と斜め端の練塀の屋根](cut-kera-step-roof-and-naname-roof-back.md) — --cut-kera hi/lo・Naname は屋根を内へ 0.06 引く・写真の塊は色分けで持ち主を確かめる(2026-10-16)

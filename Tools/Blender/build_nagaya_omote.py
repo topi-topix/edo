@@ -12,6 +12,8 @@
         # 二等分の面で切る留め(cut_miter_*)。θ > 0 = 出隅 / θ < 0 = 入隅 → _kutai_mc0x616。--seal は切り口に断面の板
     blender --background --python Tools/Blender/build_nagaya_omote.py -- 19.4 --body --floors 2 --gate 9.999 3.636 3.3 ... --miter-cut 61.613 0 --layout 19.998 R --seal
         # 門長屋の留め: 割付(口・窓・番所)は 19.998 の版を +X 端に揃えて据え置き、留める端に窓割りを差し足して切る(cut_miter_anchor)
+    blender --background --python Tools/Blender/build_nagaya_omote.py -- 20.3468 --body --floors 2 --miter-cut -1.587 -10.059 --seal --cut-kera lo hi --name ...
+        # 座の違う相手と留めた切り口の屋根の納め(cut_kera): hi = 高い方(袖瓦+鬼)/ lo = 低い方(袖瓦)/ 0。名は変わらない
 
 【`--body`(EDO-0502 2026-10-03)】呼び寸法を**躯体の長さ(両端の妻壁 namako2 の外面どうし)**にする版。
   既定(従来)は呼び寸法 = 破風まで含む全幅なので、隣どうしを呼び寸法で並べると躯体の間に
@@ -693,11 +695,13 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
           ridge=None, doorh=None, bansho=0, kabuki=0.0, kuguri=None,
           bansho_out=None, gate_drop=0.0, body=False, miter=None, bansho_ux=-1,
           gate_post=0.0, join_sill=False, miter_cut=None, bansho_mon=False, frac=None, wide=0.0,
-          layout=None, seal=False):
+          layout=None, seal=False, cut_kera=None):
     """miter_cut=(θL, θR)(`--miter-cut`)は**大きく外へ折れる角を二等分の面で切って留める**版(cut_miter_* の注)。
     θ > 0 = 出隅(背ほど短い)/ θ < 0 = 入隅(背ほど長い)/ 0 = 妻のまま(EDO-0502 2026-10-16)。
     門口・番所・--wide・--frac・layout と併せると**割付を据え置いて**延ばす(cut_miter_anchor の注)。
     seal=True(`--seal`)は留めの切り口に断面の板を張って塞ぐ(seal_cut の注・座の違う相手と継ぐとき)。
+    cut_kera=(−X, +X)(`--cut-kera`)は座の違う相手と留めた切り口の屋根の納め(cut_kera の注)── "hi" = 高い方(袖瓦+鬼)/
+    "lo" = 低い方(袖瓦だけ)/ None = 納めない。
     body=True(`--body`)は **Lm = 躯体の長さ(両端の妻壁の外面どうし)**。破風(片側 0.322m)は
     躯体の外へ出る。中の窓割りは 1.5間 で通し、端数は両端の間で受ける(solve_body)。門口・潜り戸の
     中心は**躯体の端**から測る(⇒ 口の芯は従来どおりローカル +X で Lm/2 − gc)。
@@ -707,6 +711,8 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
     gl, ml = read_groups("knagaya01l")
     gr, mr = read_groups("knagaya01r")
     V.dedup_materials()
+    if cut_kera is not None:
+        tag_kera(gl); tag_kera(gr)         # 妻の袖瓦・鬼に印(延ばした妻から切り口へ移す ── cut_kera の注)
 
     # 寸法は必ずメッシュから測る(素の x とは符号が逆なので決め打ちしない)
     d0, d1 = xspan(gc["n_dodai"])
@@ -1076,13 +1082,15 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
     if miter_cut is not None:
         if anch is None and (gate is not None or kuguri is not None or bansho):
             raise SystemExit("[nagaya] --miter-cut は門口・番所と併せない(口の位置が延ばした分ずれる)")
-        cut_miter_apply(o, Lnom, eL, eR, miter_cut)
+        cut_miter_apply(o, Lnom, eL, eR, miter_cut, cut_kera)
         me = o.data
         Lm = Lnom
         if seal:
-            seal_cut(o, Lnom, miter_cut, uvs_seal)
+            seal_cut(o, Lnom, miter_cut, uvs_seal, cut_kera)
             me = o.data
 
+    if "kera" in me.attributes:
+        me.attributes.remove(me.attributes["kera"])
     ys = [v.co.y for v in me.vertices]
     xs = [v.co.x for v in me.vertices]; zs = [v.co.z for v in me.vertices]
     L_real = max(xs) - min(xs)
@@ -1145,7 +1153,9 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
                               (" --miter %g %g" % tuple(miter) if mit is not None else "")
                               + (" --miter-cut %g %g" % tuple(miter_cut) if miter_cut is not None else "")
                               + (" --layout %g %s" % tuple(layout) if layout is not None else "")
-                              + (" --seal" if (miter_cut is not None and seal) else "")),
+                              + (" --seal" if (miter_cut is not None and seal) else "")
+                              + (" --cut-kera %s %s" % tuple(k or "0" for k in cut_kera)
+                                 if (miter_cut is not None and cut_kera is not None) else "")),
                     unitScale=1.0, yBottom=0.0, foot=[dict(x=x, y=z) for x, z in foot],
                     front=0.0, back=zf(dd_y0),
                     jambL=dict(x=jxL, z0=zf(dd_y0), z1=0.0, y0=0.35, y1=1.80),
@@ -1275,12 +1285,14 @@ SEAL_IN = 0.002    # 断面の板を切り面から駒の内へ引く量[m](相�
 SEAL_RELIEF = 0.035  # 壁の外面より外へ出る海鼠の浮き彫りの出[m](この内は躯体として土台の底まで塞ぐ)
 
 
-def seal_cut(o, Lnom, th, uvs):
+def seal_cut(o, Lnom, th, uvs, kera=None):
     """**留めの切り口を断面の板で塞ぐ**(`--seal`・EDO-0502 2026-10-16 岡部 頂点40)。座の違う相手(N39_1 14.1 × N40_0 13.6)や、
     外面の控えの違う相手(頂点14/15 で 0.25)と二等分の面で継ぐと、切り口(塞がない)の断面が相手の断面の外へ出て、
     屋根の帯・壁の脇が中の空洞まで素通しになる ⇒ 切り面の上の断面の外形(上 = 屋根の背の包絡・下 = 躯体の内は土台の底 0、
     軒の出は軒裏)を一枚の板にして、切り面から SEAL_IN だけ内へ張る(外向き = 相手の側)。座も控えも同じ相手とは板どうしが
-    向かい合って重なり、見えない。UV は軒裏より上を破風板・下を二階の白壁から借りる(材質は増やさない)。"""
+    向かい合って重なり、見えない。UV は軒裏より上を破風板・下を二階の白壁から借りる(材質は増やさない)。
+    kera の "hi"(座の高い方の妻・cut_kera)の端は板の全部を白壁にする ── 素の妻と同じく妻壁は漆喰で袖瓦の下まで上がる
+    (軒裏より上を破風の木にすると妻に黒い三角が立った)。"""
     me = o.data; h2 = Lnom * 0.5
     bm = bmesh.new(); bm.from_mesh(me)
     uvl = bm.loops.layers.uv.active
@@ -1364,10 +1376,11 @@ def seal_cut(o, Lnom, th, uvs):
         tri = bmesh.ops.triangulate(bm, faces=[f], quad_method='BEAUTY', ngon_method='BEAUTY')["faces"]
         ymax = max(p[1] for p in clean)
         ysplit = soffit if soffit is not None else 0.75 * ymax
+        hi = kera is not None and kera[i] == "hi"
         for tf in tri:
             tf.material_index = mi
             yc = sum(l.vert.co.z for l in tf.loops) / 3.0
-            r = uvs["wood"] if yc > ysplit else uvs["wall"]
+            r = uvs["wood"] if (yc > ysplit and not hi) else uvs["wall"]
             for l in tf.loops:
                 fu = (-l.vert.co.y - z0) / max(1e-6, z1 - z0); fv = l.vert.co.z / max(1e-6, ymax)
                 l[uvl].uv = (r[0] + (r[2] - r[0]) * fu, r[1] + (r[3] - r[1]) * fv)
@@ -1418,21 +1431,81 @@ def cut_miter_ext(Lnom, th, m):
     return best[1], best[2]
 
 
-def cut_miter_apply(o, Lnom, eL, eR, th):
+KERA_IN = 0.004   # 切り口へ移した袖瓦の外の面を切り口の板(SEAL_IN 0.002)より内へ(同じ面で重ねない)
+KERA_TAGS = (("n_kera_hira", 1), ("n_kera_maru", 1), ("n_kera_top", 2), ("n_oni", 2))
+
+
+def tag_kera(groups):
+    """妻の袖瓦(1)・棟の端の冠と鬼(2)の面に印 "kera" を打つ(join・積み・bisect を経ても面の属性は残る)。"""
+    for k, val in KERA_TAGS:
+        if k not in groups:
+            continue
+        me = groups[k].data
+        a = me.attributes.get("kera") or me.attributes.new("kera", 'INT', 'FACE')
+        a.data.foreach_set("value", [val] * len(me.polygons))
+
+
+def cut_kera(bm, h2, th, kera):
+    """**座の違う相手と留めた切り口の屋根の納め**(`--cut-kera`・EDO-0502 2026-10-16 岡部 第146巡 頂点18)。
+    二等分の面で切った屋根は、座が違うと切り口が相手の屋根より上(高い方)・下(低い方)に段違いで出て、切りっぱなしの瓦の列が
+    相手の屋根へ乗り上げて見えた(頂点18 座の差 0.9)。⇒ 段違いの屋根の継ぎの定石どおり、
+      ・高い方("hi")= 妻の納め: 切り口に**袖瓦**を通し、棟の端に**鬼と冠**を据える(破風は断面の板 seal_cut)
+      ・低い方("lo")= 高い方の妻壁へ突き当てる: 切り口に**袖瓦だけ**を通して瓦の小口を押さえる(雨押えの見え)
+    袖瓦・鬼は**延ばした妻の在庫の物そのもの**(素の knagaya01l/r の n_kera_* / n_oni)を写し、走りの向きに剪断して
+    切り口の線へ沿わせる: bx' = 面の x(by) + (bx − 外端) ± KERA_IN。断面(勾配・瓦の高さ)は走りに一様なので形は変わらない。
+    戻り値は写した面の集合(切る面に掛けない)。"""
+    lay = bm.faces.layers.int.get("kera")
+    if lay is None:
+        print("[nagaya] ⚠ --cut-kera: 袖瓦の印が無い"); return set()
+    keep = set()
+    for i, sgn in ((1, 1.0), (0, -1.0)):
+        mode = kera[i]
+        if th[i] == 0 or not mode:
+            continue
+        t = math.tan(math.radians(th[i]) * 0.5)
+        vals = (1, 2) if mode == "hi" else (1,)
+        # Unity +X 端 = Blender −x の側(bx = −ux)
+        fs = [f for f in bm.faces if f[lay] in vals and (f.calc_center_median().x * -sgn) > 0]
+        if not fs:
+            print("[nagaya] ⚠ --cut-kera %s 端: 妻の袖瓦が無い" % ("+X" if sgn > 0 else "−X")); continue
+        dup = bmesh.ops.duplicate(bm, geom=fs)
+        nv = [g for g in dup["geom"] if isinstance(g, bmesh.types.BMVert)]
+        nf = [g for g in dup["geom"] if isinstance(g, bmesh.types.BMFace)]
+        if sgn > 0:
+            g = min(v.co.x for v in nv)
+            for v in nv:
+                v.co.x = (t * v.co.y - h2) + (v.co.x - g) + KERA_IN
+        else:
+            g = max(v.co.x for v in nv)
+            for v in nv:
+                v.co.x = (h2 - t * v.co.y) + (v.co.x - g) - KERA_IN
+        for f in nf:
+            f[lay] = 0
+        keep.update(dup["geom"])
+        print("[nagaya] --cut-kera %s 端(%s): 妻の%s を切り口へ移した(面 %d・剪断 tan %.4f)"
+              % ("+X" if sgn > 0 else "−X", mode, "袖瓦・鬼" if mode == "hi" else "袖瓦", len(nf), t))
+    return keep
+
+
+def cut_miter_apply(o, Lnom, eL, eR, th, kera=None):
     """延ばして組んだ躯体(Unity 局所の芯 = 延ばした全長の芯)を呼び寸法の芯へ戻し、留める端を二等分の面で切る。
     出隅: +X 端は ux ≤ h2 + uz·tR / −X 端は ux ≥ −h2 − uz·tL を残す(uz < 0 が背 ⇒ 背ほど短い)。
-    Blender 座標(bx = −ux・by = −uz)で: +X 端は bx − by·tR + h2 ≥ 0 / −X 端は h2 − by·tL − bx ≥ 0。"""
+    Blender 座標(bx = −ux・by = −uz)で: +X 端は bx − by·tR + h2 ≥ 0 / −X 端は h2 − by·tL − bx ≥ 0。
+    kera=(−X, +X) は切る前に延ばした妻の袖瓦(と高い方は鬼)を写して切り口へ移す(cut_kera の注)。"""
     me = o.data; h2 = Lnom * 0.5
     sh = (eL - eR) * 0.5                          # Unity x の芯のずれ ⇒ Blender x は +sh
     for v in me.vertices:
         v.co.x += sh
     me.update()
     bm = bmesh.new(); bm.from_mesh(me)
+    keep = set()
+    if kera is not None:
+        keep = cut_kera(bm, h2, th, kera)
     for i, sgn in ((1, 1.0), (0, -1.0)):
         if th[i] == 0:
             continue
         t = math.tan(math.radians(th[i]) * 0.5)
-        geom = bm.verts[:] + bm.edges[:] + bm.faces[:]
+        geom = [g for g in bm.verts[:] + bm.edges[:] + bm.faces[:] if g not in keep]
         bmesh.ops.bisect_plane(bm, geom=geom, dist=1e-5,
                                plane_co=Vector((-sgn * h2, 0, 0)), plane_no=Vector((sgn, -t, 0)).normalized(),
                                clear_inner=True, clear_outer=False)
@@ -1585,6 +1658,13 @@ def main():
         i = argv.index("--miter-cut")
         mcut = (float(argv[i + 1]), float(argv[i + 2]))
     wide = float(argv[argv.index("--wide") + 1]) if "--wide" in argv else 0.0
+    # --cut-kera <−X> <+X>  座の違う相手と留めた切り口の屋根の納め: hi(高い方: 袖瓦+鬼)/ lo(低い方: 袖瓦)/ 0
+    ckera = None
+    if "--cut-kera" in argv:
+        i = argv.index("--cut-kera")
+        ckera = tuple(None if a in ("0", "-", "none") else a for a in argv[i + 1:i + 3])
+        if any(k not in (None, "hi", "lo") for k in ckera):
+            raise SystemExit("[nagaya] --cut-kera <hi|lo|0> <hi|lo|0>")
     # --layout <長さm> <L|R|C>  --miter-cut の割付を据え置く長さと揃える端(門長屋は口の芯が割付に依る)
     layout = None
     if "--layout" in argv:
@@ -1615,6 +1695,8 @@ def main():
         i = argv.index("--frac"); skip.update((i, i + 1, i + 2))
     if "--layout" in argv:
         i = argv.index("--layout"); skip.update((i, i + 1, i + 2))
+    if "--cut-kera" in argv:
+        i = argv.index("--cut-kera"); skip.update((i, i + 1, i + 2))
     lens = [float(a) for i, a in enumerate(argv)
             if i not in skip and not a.startswith("--")]
     if not lens:
@@ -1627,7 +1709,7 @@ def main():
                                 gate_drop=gdrop, body=body, miter=miter,
                                 bansho_ux=bux, gate_post=gpost, join_sill=('--join-sill' in argv),
                                 miter_cut=mcut, bansho_mon=('--bansho-mon' in argv), frac=frac, wide=wide,
-                                layout=layout, seal=('--seal' in argv))
+                                layout=layout, seal=('--seal' in argv), cut_kera=ckera)
         if do_render:
             shots(o, fmt(Lm) + ("" if gate is None else "_mon%s" % fmt(gate[0]))
                   + ("" if floors < 2 else "_%df" % floors)

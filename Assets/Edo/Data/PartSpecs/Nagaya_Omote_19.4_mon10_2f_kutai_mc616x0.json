@@ -1,7 +1,7 @@
 {
     "prefab": "Assets/Edo/Models/Nagaya/Nagaya_Omote_19.4_mon10_2f_kutai_mc616x0.fbx",
     "kind": "building",
-    "source": "blender:build_nagaya_omote.py(19.4 --body --floors 2 --gate 9.999 3.636 3.3 --bansho 2 --bansho-mon --doorh 3.3 --kabuki 0.42 --wide 0.909 --miter-cut 61.613 0 --layout 19.998 R --seal)",
+    "source": "blender:build_nagaya_omote.py(19.4 --body --floors 2 --gate 9.999 3.636 3.3 --bansho 2 --bansho-mon --doorh 3.3 --kabuki 0.42 --wide 0.909 --miter-cut 61.613 0 --layout 19.998 R --seal --cut-kera lo 0)",
     "unitScale": 1.0,
     "yBottom": 0.0,
     "foot": [

@@ -547,6 +547,9 @@ def build_straight(k_tiles=NTILE, grade=0.0):
 
 
 # ---------------------------------------------------------------- 斜めに切った端(EDO-0502 第128巡 const.heiLine.cornerP12)
+NANAME_ROOF_BACK = 0.06    # 斜めの端の屋根を切り口より駒の内へ引く量[m](相手の漆喰の面の奥へ)。浮き彫りの出 0.03 + 埋め 0.03
+
+
 def naname_name(deg, hand, grade=0.0):
     return "Neribei_Naname_%03d_%s" % (int(round(abs(deg) * 10)), hand) + ("" if abs(grade) < 1e-9 else "_G" + grade_tag(grade))
 
@@ -572,8 +575,13 @@ def build_naname(deg, hand="S", k_tiles=4, grade=0.0):
     clear_src(g)
     n = Vector((1.0, sg * cotd, 0.0)).normalized()  # 残す側 n·(p − co) ≥ 0
     co = (0.0, -zf, 0.0)
+    # 屋根(瓦・軒・垂木・棟・桁)は切り口より NANAME_ROOF_BACK だけ駒の内へ引いて切る(EDO-0502 第146巡 P12)。
+    #   駒は相手(長屋)の隅の中を斜めに通り、切り口だけが相手の正面に出る。切り口の線は相手の足元の表(海鼠の浮き彫りの出 +0.03)
+    #   に合うので、その上の漆喰の面より 3cm 前に出て、塞がない屋根の断面が壁の前に細い線の破片で見えた ⇒ 屋根だけ相手の
+    #   漆喰の面の奥まで引いて埋める(壁体の断面の蓋・札の足は切り口のまま ── 蓋は正面に見える留めの柱のまま)
+    co_r = tuple(Vector(co) + n * NANAME_ROOF_BACK)
     for c in parts:
-        cut(c, co, tuple(n), True)
+        cut(c, co_r if gname(c) in ROOF else co, tuple(n), True)
     parts = [c for c in parts if len(c.data.polygons)]
     objs = merge_groups(parts)
     pc = (-sg * zf * cotd, 0.0, 0.0)                 # 切り口の上の芯(y = 0)

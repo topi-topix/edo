@@ -18,6 +18,7 @@
 - [外周の石垣の見え面は区画の外・隣の棟の均しが節点を奪う](outer-wall-face-outside-parcel-and-shared-pads.md) — 皮の own が 2m 格子のまま描く。LevelPad は低い順
 - [欄の上書きの直後は算出物の指紋で Stage1 が止まる](impl-fingerprint-after-yat-overwrite.md) — 食い違い0なら bake_impl --write。長い流しは印+txt で待つ
 - [作業場が前の窓の邸で dirty・旧い退避は前の案の造成前](koba-left-dirty-by-other-window.md) — UnwrittenIn を最初に見る。他邸の書き戻しは分類器が止める→返す
+- [worktree の枝が古い・cs_check が Library 無しで空振り](worktree-codeonly-base-and-cs-check.md) — ff-only で main へ・Library を本体へ差して EDO_ROOT で
 - [岡部の外周は S1→S2→S2b→S3d で流す・一枚物の練塀の測り](okabe-perimeter-rerun-order-and-neribei-measure.md) — S2 だけだと基壇が変わり 3d が 2.9m 掘る・2b は60〜90分・継ぎ目は ±0.004 の光線 / [指図を書き換えた直後の S1 は 1m で造成する](graded-bin-stale-after-sashizu-commit.md) — bin を焼き直し _graded を捨てる・隅の座は古い
 - [天端の線を外周全体へ(第121巡)](heiline-tenba-spec-r121.md)・[台の天端を座の線へ(第122巡)](kidan-crest-slope-r122.md) — 頂点の座は折れ点・出隅で隣の勾配を先取り・坂の台も丈を選ぶ・焼く一覧は最後の据えから
 - [塀の内の溝・足の下の土(第125巡)](inner-ditch-and-foot-fill-r125.md) — 溝の外の縁は地際の板まで・足を 0.15 の升で読むと隅の留めで土の柱・台の裏の縁の節点

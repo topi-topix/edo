@@ -125,7 +125,7 @@
 
 | 名 | 種 | 中身・注釈の一文目 | 使っている所 |
 |---|---|---|---|
-| `JC.CastleWall` | string | `Castle Wall.prefab` | MatsudairaDewa(DaidokoromonGamae・Stage3_Ishigaki), OkabeYashiki(Pivot・Stage2b_Dan_), BuildDanIshigaki(CastleWallOfExpose), BuildIshidan ほか5 |
+| `JC.CastleWall` | string | `Castle Wall.prefab` | MatsudairaDewa(DaidokoromonGamae・Stage3_Ishigaki), OkabeYashiki(Pivot・Stage2b_Dan_), BuildDanIshigaki(CastleWallOfExpose), BuildIshidan ほか6 |
 | `JC.CastleWallCorner` | string | `Castle Wall Corner.prefab` | Yamato |
 | `JC.CastleWall4x12Mesh` | string | `Castle Wall 4x12.fbx` | IshigakiFit |
 | `JC.GateDoorCastleL` | string | `Gate Castle Door L.fbx` — 小門用(1.5×2.8)。対で開口 3.0m ちょうど。 | — |
@@ -333,7 +333,7 @@
 | `Own.IshigakiKadoS(deg, h, s)` | 関数 | 倍率 s の石垣の隅(外周の基壇 = `Castle Wall` を Vector3.one·s で並べた run の出隅・EDO-0502 岡部 const.kidan.corner.ge40)。 | OkabeYashiki(PlaceIshigaki) |
 | `Own.IshigakiKadoS(deg, h, s, armNegZ, armPosX)` | 関数 | IshigakiKadoS の腕を詰めた版(綴りは IshigakiKado と同じ・腕は素の cm)。 | OkabeYashiki(PlaceIshigaki) |
 | `Own.IshigakiKado2(deg1, deg2, mid, h, armNegZ, armPosX)` | 関数 | 二重折れの石垣の隅(`Castle Wall` の留め継ぎを二つ一体に)。 | BuildKado(PlaceRunKado), OkabeYashiki(Stage2b_Dan_) |
-| `Own.IshigakiChoku(h)` | 関数 | 丈違いの城の石垣の直線の駒(`JC.CastleWall` 1 枚・走り 2.00 を丈 h m へ下へ継いだ物)。 | BuildDanIshigaki(CastleWallOfExpose) |
+| `Own.IshigakiChoku(h)` | 関数 | 丈違いの城の石垣の直線の駒(`JC.CastleWall` 1 枚・走り 2.00 を丈 h m へ下へ継いだ物)。 | BuildDanIshigaki(CastleWallOfExpose), BuildWaritsuke(PathOfH・Pick) |
 | `Own.IshigakiChokuSakaGrades` | float[] | 焼いてある台の石垣の坂なりの勾配(絶対値・IshigakiChokuSaka は U と D の両方)── 練塀の坂なり `Neribei_Saka_*` の名にある勾配の全部(2026-10-13)。 | — |
 | `Own.IshigakiChokuSaka(grade, h=…, len=…)` | 関数 | 台の石垣(外周の基壇)の坂なりの直線の駒 ── 素の `JC.CastleWall`(材 `stone wall`)を縦の剪断で勾配 grade に沿わせた物 (Unity 局所で Y += grade·Z)。 | OkabeYashiki(PlaceIshigaki・RunBackKoshi・UnderWallInner) |
 | `Own.IshigakiChokuTome(grade, turnDeg, pEnd, h=…, len=…)` | 関数 | 台の石垣の浅い出隅の留めの版(EDO-0502 第149巡 2026-10-16・oki-kata §2a「直角でない出隅は最初から留める」)── 頂点に来る端の駒 (IshigakiChokuSaka の坂なり・平らは… | BuildShiroIshigaki(SwapEndsToTome) |

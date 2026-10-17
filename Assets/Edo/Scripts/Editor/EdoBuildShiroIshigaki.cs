@@ -1134,6 +1134,48 @@ public static partial class EdoBuild
             sbw.Append(" / " + made[side].name + " ← " + System.IO.Path.GetFileNameWithoutExtension(tomes[side]) + "(勾配の外れ " + gOff[side].ToString("+0.0000;-0.0000") + "・折れ " + tOff[side].ToString("+0.0;-0.0") + "°)");
         why = sbw.ToString(); return worst < -0.02f ? 1 : 2;
     }
+    /// <summary>塀の下の内向きの石垣(<see cref="PlaceUnderWallInner"/>)の一区間 ── 辺の走り s0〜s1 の天端 crest(水平)か勾配 grade。</summary>
+    public struct InnerCrestSeg { public float s0, s1, crest, grade; }
+
+    /// <summary>**塀の下の石垣を内向きに据える**(岡部 runs[].kidan「道の側は外が高いので外向きの基壇を置かない。内の側は塀の下の石垣で受ける(天端 = 塀の座で段ごとに一直線)」・第156巡)。
+    /// 外が高く内が低い辺で、塀の足を内の低い地面の上へ受ける土留め ── 見え面(法)は区画の内(低い側)を向き、天端の前の縁 = 塀の内面の線(区画の線から <paramref name="wallInnerIn"/>)。
+    /// 置き方の4手: 区画の線 A→B(外向き <paramref name="outward"/>)を内へ wallInnerIn + c に平行に引いた線を根石の外面の基準線とし、そこから外(道の側)へ区画の線までを区域とする
+    /// 仮の多角形で <see cref="PlaceCastleRun"/> を呼ぶ(法の向きは仮の多角形の外 = 区画の内)。c は 1 回目の据えの実測の控え ⇒ 2 回目で基準線を c だけ内へ移して据え直し、
+    /// 天端の前の縁を塀の内面に合わせる(⛔ 部材の基準点で位置を決めない・控えは実メッシュで測る)。
+    /// 【硬】区域(駒の全頂点が区画の線と基準線の間)・天端 = 区間の crest。【柔】天端の前の縁 − 塀の内面 ≤0.02(2 回目の控えの食い違い ⇒ ⚠)。倍率 <paramref name="scale"/> は呼び手(見えから)。
+    /// ⟶ 据えた駒(区間の名 <paramref name="name"/>_k)・<paramref name="cOut"/> = 2 回目の控え。当たる先: 外が高い辺で塀の内を石垣で受ける所(岡部 N_Hei_39)── 他邸は未適用。</summary>
+    public static CastleRun PlaceUnderWallInner(string name, Vector2 A, Vector2 B, Vector2 outward, float wallInnerIn, IList<InnerCrestSeg> segs, float scale,
+                                                Func<float, float, float> groundAt, Transform parent, System.Text.StringBuilder log, Func<float, float, float, string> slopePathOf, out float cOut)
+    {
+        var inv = System.Globalization.CultureInfo.InvariantCulture; cOut = float.NaN;
+        Vector2 u = (B - A).normalized; float L = (B - A).magnitude;
+        CastleRun res = null; float c = 0f;
+        for (int pass = 0; pass < 2; pass++)
+        {
+            if (res != null) foreach (var g in res.pieces) if (g != null) UnityEngine.Object.DestroyImmediate(g);
+            float w = wallInnerIn + c;
+            //   仮の多角形: 辺0 = 基準線を B→A(向きを返す ⇒ 仮の多角形の外 = 区画の内)・奥の辺 = 区画の線
+            Vector2 qB = B - outward * w, qA = A - outward * w;
+            var poly = new[] { qB, qA, A, B };
+            var secs = new List<CastleSec>(); int k = 0;
+            foreach (var sg in segs)
+            {
+                float a0 = Mathf.Clamp(L - sg.s1, 0f, L), a1 = Mathf.Clamp(L - sg.s0, 0f, L); if (a1 - a0 < 0.01f) continue;
+                //   走りを返すので勾配も返る(s' = L − s)
+                secs.Add(new CastleSec { name = name + "_" + (k++), edge = 0, s0 = a0, s1 = a1, crest = sg.crest + sg.grade * (sg.s1 - sg.s0), grade = -sg.grade, scale = scale, insetKey = name });
+            }
+            var lg = new System.Text.StringBuilder();
+            res = PlaceCastleRun(secs, poly, groundAt, parent, lg, 2.5f, 0.001f, -1f, 999f, new HashSet<int> { 0, 1, 2, 3 }, slopePathOf);
+            float ci; if (!res.insetOf.TryGetValue(name, out ci)) { log.AppendLine("  ★ 塀の下の石垣 " + name + ": 控えが測れない(駒 " + res.pieces.Count + ")\n" + lg); cOut = float.NaN; return res; }
+            if (pass == 0) { c = ci; continue; }
+            cOut = ci;
+            log.AppendLine("  塀の下の石垣 " + name + "(控える・内向き・倍率 " + scale.ToString("0.##", inv) + "): " + res.pieces.Count + " 駒・控え 1 回目 " + c.ToString("F3", inv) + " / 2 回目 " + ci.ToString("F3", inv)
+                           + " ⇒ 天端の前の縁 − 塀の内面 " + (c - ci).ToString("+0.000;-0.000", inv) + (Mathf.Abs(c - ci) <= 0.02f ? " ⭕" : " ⚠【柔】") + "・浮き最大 " + (float.IsNegativeInfinity(res.worstFloat) ? "-" : res.worstFloat.ToString("F3", inv)) + "・埋まって退けた " + res.buried);
+            foreach (var ln in lg.ToString().Split('\n')) if (ln.Contains("★") || ln.Contains("⛔")) log.AppendLine("    " + ln.Trim());
+        }
+        return res;
+    }
+
     [Serializable] class TomeV3J { public float x, y, z; }
     [Serializable] class TomeSpecJ { public TomeV3J tomeCrestFrontCorner; public float crestOnMiter; }
 }

@@ -1,11 +1,11 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 cf4907b0f4bf -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 890746ae2ffc -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
 
-- 公開関数 692 本(注釈なし 39)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
+- 公開関数 694 本(注釈なし 39)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
 - 同じ道具が刷る目録: 邸ビルダーのメニュー → Stage と中の関数 `docs/builder-mokuroku.md` / 部材の名 `docs/edoassets-mokuroku.md`。
 - 札: **硬** = 注釈に「硬い/許容0」・**柔** = 「柔らかい/狙い」がある(判定ではなく注釈の語)。相手の札(地面・駒どうし・天端・床・断面・面・隅・区域)も注釈の語を拾っただけ。
 - 呼んでいる所 = 定義のファイルの外で `EdoBuild.<名>(` と書いている C# ファイル(`Edo` と `Builder/Rebuild` を落とした名)と、その中の呼んでいる関数(Stage)。同じ名の多重定義はまとめて数える。`EdoBuild` の中どうしの呼び出しは載せない。
@@ -17,9 +17,9 @@
 | ファイル | 何の道具か(ファイル冒頭の注釈) | 当たる先 | 関数 |
 |---|---|---|---|
 | [EdoBuild.cs](#edobuildcs) | 配置・資産系の共有基盤 (Phase 2c, 2026-08-26) | — | 47 |
-| [EdoBuildChikei.cs](#edobuildchikeics) | 地形を座標で引く・邸の Stage が地形を名指す・溝の下の地面を下げる(施主裁定 2026-10-11・EDO-0502)。 | — | 28 |
+| [EdoBuildChikei.cs](#edobuildchikeics) | 地形を座標で引く・邸の Stage が地形を名指す・溝の下の地面を下げる(施主裁定 2026-10-11・EDO-0502)。 | — | 29 |
 | [EdoBuildDanIshigaki.cs](#edobuilddanishigakics) | EdoBuild — 段の土留め(石垣・野面)を天端の折れ線へ据える(2026-10-03・EDO-0502 岡部 terraceWalls)。 | — | 14 |
-| [EdoBuildFaceSoil.cs](#edobuildfacesoilcs) | EdoBuild — 見え面・溝の床の上に出た土を真上から数える(2026-10-16・EDO-0502 第147巡・施主の写真 r146_kado_P15 | — | 1 |
+| [EdoBuildFaceSoil.cs](#edobuildfacesoilcs) | EdoBuild — 見え面・溝の床の上に出た土を真上から数える(2026-10-16・EDO-0502 第147巡・施主の写真 r146_kado_P15 | — | 2 |
 | [EdoBuildFootBand.cs](#edobuildfootbandcs) | 壁の内の足元の帯(練塀・土塀・長屋の背の内の床)── 据えた駒の実メッシュから内面を測り、その面に沿う帯の地面を高さの式で書く(EDO-0502 第115巡)。 | — | 13 |
 | [EdoBuildGaki.cs](#edobuildgakics) | — | — | 1 |
 | [EdoBuildGamae.cs](#edobuildgamaecs) | ══════════════════════════════════════════════════════════════════════ | — | 18 |
@@ -156,9 +156,11 @@
 | `EdoBuild.UnderLookingFace(q)` | `bool` | 地面 | 点 q の最寄りの節点が LastFaceNodes に在るか(地形は T)。 | OkabeYashiki(Stage3d_Mizo_) |
 | `EdoBuild.SinkGroundUnderParts(parts, below, undoPath, floorMin)` | `string` |  | ⚠ 注釈なし | OkabeYashiki(Stage3d_Mizo_) |
 | `EdoBuild.LowerStrandedNodes(parts, floorMin, allow, undoPath=…, minCovered=…, mizoParts=…)` | `string` | 地面・天端・床・面・隅・区域 | 駒と駒の間に取り残された節点を下げる(2026-10-16 EDO-0502 第148巡・施主の写真 r147_kado_P40「溝の中に土の楔」・堀端の野面の継ぎ目の土の柱)。 | OkabeYashiki(Stage3d_Mizo_) |
-| `EdoBuild.FillUnderFoot(pieces, footBand, bury, margin, keep, allow, undoPath=…, edgeCap=…, allowUnderFoot=…, keepPieces=…, keepPad=…, rimFull=…, capUnderFoot=…, globalBand=…)` | `string` | 硬 地面・天端・床・区域 | 駒の足の下の地面を足の底 + bury へ上げる(上げるだけ)── 地面を先に焼き切った後(溝・土留めの下げの後)に、 座で据えた塀の足の下に残る浮きを地面で埋める(岡部 指図 heiFootSpec.order「帯と床… | OkabeYashiki(Stage3d_Mizo_) |
+| `EdoBuild.FillUnderFoot(pieces, footBand, bury, margin, keep, allow, undoPath=…, edgeCap=…, allowUnderFoot=…, keepPieces=…, keepPad=…, rimFull=…, capUnderFoot=…, globalBand=…, upCap=…)` | `string` | 硬 地面・天端・床・区域 | 駒の足の下の地面を足の底 + bury へ上げる(上げるだけ)── 地面を先に焼き切った後(溝・土留めの下げの後)に、 座で据えた塀の足の下に残る浮きを地面で埋める(岡部 指図 heiFootSpec.order「帯と床… | OkabeYashiki(Stage3d_Mizo_) |
+| `EdoBuild.LevelGatePassage(host, x0, x1, allow, recPath=…)` | `string` | 地面・床・区域 | 門の通り口の床を扉の下端の高さの平らな面にする(上げも下げも【硬: 扉の下に土を被せない・扉を浮かせない】・第158巡 岡部 裏門 N18_0 ── 写真 r157_uramon_*「門の扉の下に地表が被る」: 口の中の… | OkabeYashiki(Stage3d_Mizo_) |
 | `BandEdge`(class) | — | | 塀の前の帯(PlaneBand)の一辺: 線の始め a・走りの向き u・内向き inw・長さ len・帯の内への離れ [q0, q1](走り s の関数)・面の高さ yAt(s)。 | |
-| `EdoBuild.PlaneBand(edges, allow, off, undoPath=…, ext=…, recPath=…)` | `string` | 地面・天端 | 塀の前の帯の地面を一枚の面にする(上げも下げも・第123巡 2026-10-13 岡部 施主「犬走りの地面は座の線と同じ高さ・同じ勾配の一枚の面」【硬: 土の楔 0】)。 | OkabeYashiki(Stage3d_Mizo_) |
+| `EdoBuild.SPAN_TO_VERTEX` | `float` | 隅 | 帯の範囲の端が辺の端から この内なら、辺の端まで届くと読む[m](隅の駒の腕の分 ── 端の先の扇 ext を残す)。 | — |
+| `EdoBuild.PlaneBand(edges, allow, off, undoPath=…, ext=…, recPath=…, upCap=…)` | `string` | 地面・天端 | 塀の前の帯の地面を一枚の面にする(上げも下げも・第123巡 2026-10-13 岡部 施主「犬走りの地面は座の線と同じ高さ・同じ勾配の一枚の面」【硬: 土の楔 0】)。 | OkabeYashiki(Stage3d_Mizo_) |
 | `EdoBuild.SaveNodeTargets(path, terrainName, want, cap)` | `void` | 地面 | 節点(地形の格子の i, j)ごとの設計の高さ want(面の高さ)と上限 cap(下げるだけの所)を path へ残す。 | — |
 | `EdoBuild.AppendNodeTargets(path, terrainName, want)` | `void` | 地面・天端 | SaveNodeTargets の足し書き(同じ地形の記録へ節点 → 設計の高さを追記 ── 後の行が勝つ)。 | — |
 | `EdoBuild.LoadNodeTargets(path, terrainName)` | `Dictionary<long, Vector2>` | 地面 | SaveNodeTargets を読む ⟶ 節点 → (面の高さ NaN 可, 上限 NaN 可)。 | OkabeYashiki(GradeQA_) |
@@ -201,6 +203,7 @@ EdoBuild — 見え面・溝の床の上に出た土を真上から数える(202
 | 関数 | 返す | 札 | 何をするか(注釈の一文目) | 呼んでいる所 |
 |---|---|---|---|---|
 | `EdoBuild.SoilOverFacesReport(walls, mizos, step=…, tsv=…)` | `string` |  | ⚠ 注釈なし | OkabeYashiki(GroundQA_) |
+| `EdoBuild.SoilFamily(nm)` | `string` | 面 | 駒の名の系統(見え面の土の明細の束ね方)── IGB_ 背の腰・IGU_ 塀の下の石垣・IG_ 台の石垣・ほかは数字で始まる語の手前まで(TW_Hori_Kishi_0_1_003f → TW_Hori_Kishi)。 | — |
 
 ## EdoBuildFootBand.cs
 

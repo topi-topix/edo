@@ -132,7 +132,7 @@ public static partial class EdoBuild
         var undo = new List<float[]>();
         var t = T(); var td = t.terrainData; var org = t.transform.position; int R = td.heightmapResolution;
         float hs = td.size.x / (R - 1);
-        int nPiece = 0, nNode = 0, nSkip = 0, nApron = 0, nApronNode = 0, nApronDeep = 0, nUpA = 0, nOpenFloor = 0; float mx = 0f, mUp = 0f; var chan = new HashSet<long>();
+        int nPiece = 0, nNode = 0, nSkip = 0, nApron = 0, nApronNode = 0, nApronDeep = 0, nUpA = 0, nOpenFloor = 0, nHollow = 0; float mx = 0f, mUp = 0f; var chan = new HashSet<long>();
         var low = new Dictionary<long, float>();
         foreach (var g in pieces)
         {
@@ -194,7 +194,17 @@ public static partial class EdoBuild
                         //   六角の曲がり目の桝(GK・肩の土の皮が全周で MizoApronOf が xBody 0 と読む)の外形の外の矩形の隅を 13.28 へ掘り、区画の外の道に 0.6 の穴を開けた。
                         //   当たる先: 張り出し(土の板・皮)を持つ溝・桝の駒すべて(岡部 D_Corner_Masu・型A の Ago の溝)。
                         if (top == float.MinValue) continue;
-                        if (top > float.MinValue)
+                        //   ⭐ 第158巡: 真上の面が駒の**床**(札の floor + 0.02 以下)なら張り出しの板でなく桝・溝の中 ── 床の下面 − below へ下げる(⛔ 板の上面 − below へ上げない)。
+                        //   六角の曲がり目の桝(GK・肩の土の皮が全周で xBody 0)は中の床まで「張り出しの下」と読まれ、床 13.46 の下の地面を 13.25 → 13.52 へ上げて桝の中に土が出た
+                        //   (岡部 D_Corner_Masu・写真 r157_kado_P40 の角の足元の土の塊)。当たる先: 張り出し(肩の皮)を持つ桝・溝の駒すべて(岡部 D_Corner_Masu・土井の GK の桝)。
+                        float floorW = l2w.MultiplyPoint3x4(new Vector3(lp.x, sp.floor, lp.z)).y;
+                        if (top <= floorW + 0.02f)
+                        {
+                            float underH = float.MaxValue; var rayH = new Ray(new Vector3(wp.x, yb - 2f, wp.z), Vector3.up); RaycastHit huH;
+                            foreach (var mc in apMc) if (mc.Raycast(rayH, out huH, RB(g).size.y + 4f)) underH = Mathf.Min(underH, huH.point.y);
+                            yb = underH < float.MaxValue ? Mathf.Min(yb, underH - below) : Mathf.Min(yb, top - 0.15f - below); nHollow++;
+                        }
+                        else if (top > float.MinValue)
                         {
                             yb = top - below; nApronNode++; apronOnly = true;
                             // 溝の中へ地面を出さない【硬】: 板の下の節点と溝の中の節点(最下点 − below・格子の対角まで)を結ぶ三角形が溝の内法の壁(xInner)で底を越えないよう、縁石に近い節点は下げる
@@ -234,7 +244,7 @@ public static partial class EdoBuild
         }
         WriteUndo(undoPath, t.name, undo);
         return "溝・桝の下の地面を駒の底 −" + below.ToString("0.00") + " へ下げた: 駒 " + nPiece + "・節点 " + nNode + "・下げの最大 " + mx.ToString("F2")
-               + "m(地形 " + t.name + "・升 " + hs.ToString("0.###") + "m" + (nOpenFloor > 0 ? "・底の裏の面の無い駒の溝の中を上の面で読んだ節点 " + nOpenFloor : "") + (nSkip > 0 ? "・札の測れない駒 " + nSkip : "") + (nApron > 0 ? "・地際の張り出しの駒 " + nApron + "(板の下の節点 " + nApronNode + " は板の上面 −" + below.ToString("0.00") + " まで・うち溝の中へ三角形を出さないよう深くした " + nApronDeep + "・板の下だけの節点で板の上面 −" + below.ToString("0.00") + " まで上げた " + nUpA + "(最大 " + mUp.ToString("F2") + "))" : "") + ")";
+               + "m(地形 " + t.name + "・升 " + hs.ToString("0.###") + "m" + (nOpenFloor > 0 ? "・底の裏の面の無い駒の溝の中を上の面で読んだ節点 " + nOpenFloor : "") + (nHollow > 0 ? "・張り出しの駒の床の下(桝の中)を床の下面へ下げた節点 " + nHollow : "") + (nSkip > 0 ? "・札の測れない駒 " + nSkip : "") + (nApron > 0 ? "・地際の張り出しの駒 " + nApron + "(板の下の節点 " + nApronNode + " は板の上面 −" + below.ToString("0.00") + " まで・うち溝の中へ三角形を出さないよう深くした " + nApronDeep + "・板の下だけの節点で板の上面 −" + below.ToString("0.00") + " まで上げた " + nUpA + "(最大 " + mUp.ToString("F2") + "))" : "") + ")";
     }
 
     /// <summary>**溝の両脇の地面を溝の縁石の天端へ合わせる**(施主 2026-10-11「溝の上面が地表の面と一致しているべき」・指図 grading.omoteNagayaDai.mizo.outerTop
@@ -777,8 +787,12 @@ public static partial class EdoBuild
     /// <para>⚠ 縁の節点の上げの上限 <paramref name="edgeCap"/> が小さいと、0.25m の格子で足の縁が二つの節点の間に落ちる所で、双一次の地表が縁で足の底を割る
     /// (第120巡: 岡部 辺19 の内の縁で 0.04 浮いた・上限 0.10 では届かなかった ⇒ 岡部は 0.30)。</para></summary>
     public static string FillUnderFoot(IEnumerable<GameObject> pieces, float footBand, float bury, float margin, IList<Bounds> keep, Func<Vector2, bool> allow, string undoPath = null, float edgeCap = 0.10f, Func<Vector2, float, bool> allowUnderFoot = null,
-                                       IList<GameObject> keepPieces = null, float keepPad = 0.04f, Func<Vector2, float, bool> rimFull = null, Func<Vector2, float> capUnderFoot = null, float globalBand = float.NaN)
+                                       IList<GameObject> keepPieces = null, float keepPad = 0.04f, Func<Vector2, float, bool> rimFull = null, Func<Vector2, float> capUnderFoot = null, float globalBand = float.NaN,
+                                       Func<Vector2, float> upCap = null)
     {
+        //   ⭐ upCap(節点)── 上げる上限(NaN = 上限なし)。第158巡: 岡部 頂点19 で練塀 S_Hei_16 の足の縁の節点を、隣の台の石垣(IG_N18_0 の留め)の法の見え面の上 17.97 へ上げた
+        //   (<see cref="PlaneBand"/> と同じ篩 ── 呼び手は <see cref="PartTops.FaceAbove"/> − 0.02 を渡す)。
+        int nCapUp = 0;
         //   ⭐ globalBand: 足を駒の最下点から globalBand 以内の頂点に限る(水平に据えた棟 ── 長屋・附属屋)。⛔ 足を半径の内の最下点だけで判じると、低い頂点が
         //   半径 0.45 の内に無い所(妻の壁の上端・棟の高い桁)を「足」と読み、その下の地面を 7.85m 上げた(EDO-0502 第129巡 N41_0)。練塀(坂なり)は NaN のまま。
         //   ⭐ capUnderFoot(節点): 足の凸包の中と縁で allowUnderFoot / allow が偽(石が足を支える・石の駒の下)の節点も、上限 cap まで上げる(NaN = 触らない)── 第125巡 岡部:
@@ -879,33 +893,91 @@ public static partial class EdoBuild
             foreach (var kv in want)
             {
                 int i = (int)(kv.Key >> 32), j = (int)(uint)(kv.Key & 0xffffffff);
-                float cur = H[j - j0, i - i0] * td.size.y + org.y;
-                if (kv.Value <= cur + 1e-4f) continue;
-                mx = Mathf.Max(mx, kv.Value - cur); undo.Add(new[] { i, j, (kv.Value - org.y) / td.size.y, H[j - j0, i - i0] }); H[j - j0, i - i0] = (kv.Value - org.y) / td.size.y; n++;
+                float cur = H[j - j0, i - i0] * td.size.y + org.y; float tv = kv.Value;
+                if (upCap != null && tv > cur) { float uc = upCap(new Vector2(org.x + i * hs, org.z + j * hs)); if (!float.IsNaN(uc) && tv > Mathf.Max(cur, uc)) { tv = Mathf.Max(cur, uc); nCapUp++; } }
+                if (tv <= cur + 1e-4f) continue;
+                mx = Mathf.Max(mx, tv - cur); undo.Add(new[] { i, j, (tv - org.y) / td.size.y, H[j - j0, i - i0] }); H[j - j0, i - i0] = (tv - org.y) / td.size.y; n++;
             }
             if (n > 0) { td.SetHeights(i0, j0, H); AssetDatabase.SaveAssetIfDirty(td); }
         }
         if (undoPath != null) WriteUndo(undoPath, t.name, undo);
-        return "足の下の地面を足の底 +" + bury.ToString("0.00") + " へ上げた(上げるだけ・足の凸包 + 縁 " + margin.ToString("0.00") + "): 駒 " + nPc + "・足の下の節点 " + want.Count + "・上げた " + n + "・最大 " + mx.ToString("F2") + "m・溝の外接で除いた " + nKeep + "・区画の外で除いた " + nOut;
+        return "足の下の地面を足の底 +" + bury.ToString("0.00") + " へ上げた(上げるだけ・足の凸包 + 縁 " + margin.ToString("0.00") + "): 駒 " + nPc + "・足の下の節点 " + want.Count + "・上げた " + n + "・最大 " + mx.ToString("F2") + "m・溝の外接で除いた " + nKeep + "・区画の外で除いた " + nOut + (upCap != null ? "・見え面の上で上げを止めた " + nCapUp : "");
+    }
+
+    /// <summary>**門の通り口の床を扉の下端の高さの平らな面にする**(上げも下げも【硬: 扉の下に土を被せない・扉を浮かせない】・第158巡 岡部 裏門 N18_0
+    /// ── 写真 r157_uramon_*「門の扉の下に地表が被る」: 口の中の地面が 17.74〜18.21 で扉の下端 17.90 を最大 0.31 埋めた)。
+    /// 置き方: ① 固定側 = 据わった門の駒(門長屋・長屋門)。② 触れる所 = 札の通り口 [<paramref name="x0"/>, <paramref name="x1"/>](局所 X)の中の駒の最も低い頂点
+    /// (扉・敷居の下端 ── 実メッシュで測る・⛔ 基準点で決めない)。奥行 = 駒の最下点から 1.0 以内の頂点の局所 Z の範囲(壁体の下の帯 ── 軒を拾わない)。
+    /// ③ 口の矩形の中の地形の節点をその高さへ(<paramref name="allow"/> が偽の節点は触らない ── 区画の外)。⟶ 報告の一行。
+    /// 当たる先: 通り口を持つ門の駒すべて(岡部 裏門 N18_0・表門 N40_0 ── 門長屋・長屋門・棟門を細かい地形に据える邸)。</summary>
+    public static string LevelGatePassage(GameObject host, float x0, float x1, Func<Vector2, bool> allow, string recPath = null)
+    {
+        if (host == null || x1 - x0 < 0.2f) return "門の通り口の床: 駒か口が無い ── 均さない";
+        var tr = host.transform; float yb = float.MaxValue; var loc = new List<Vector3>();
+        foreach (var mf in host.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue; var rr = mf.GetComponent<Renderer>(); if (rr == null || !rr.enabled) continue;
+            var m = mf.transform.localToWorldMatrix; foreach (var v in mf.sharedMesh.vertices) loc.Add(tr.InverseTransformPoint(m.MultiplyPoint3x4(v)));
+        }
+        foreach (var v in loc) if (v.x >= x0 + 0.10f && v.x <= x1 - 0.10f) yb = Mathf.Min(yb, v.y);
+        if (yb == float.MaxValue) return "門の通り口の床 " + host.name + ": 口の中に駒の頂点が無い ── 均さない";
+        float zlo = float.MaxValue, zhi = float.MinValue, ymin = float.MaxValue; foreach (var v in loc) ymin = Mathf.Min(ymin, v.y);
+        foreach (var v in loc) if (v.y <= ymin + 1.0f) { zlo = Mathf.Min(zlo, v.z); zhi = Mathf.Max(zhi, v.z); }
+        float yW = tr.TransformPoint(new Vector3(0.5f * (x0 + x1), yb, 0.5f * (zlo + zhi))).y;
+        var t = T(); var td = t.terrainData; var org = t.transform.position; int R = td.heightmapResolution; float hs = td.size.x / (R - 1);
+        float wx0 = float.MaxValue, wx1 = float.MinValue, wz0 = float.MaxValue, wz1 = float.MinValue;
+        foreach (var lx in new[] { x0, x1 }) foreach (var lz in new[] { zlo, zhi }) { var w = tr.TransformPoint(new Vector3(lx, yb, lz)); wx0 = Mathf.Min(wx0, w.x); wx1 = Mathf.Max(wx1, w.x); wz0 = Mathf.Min(wz0, w.z); wz1 = Mathf.Max(wz1, w.z); }
+        int i0 = Mathf.Max(0, Mathf.CeilToInt((wx0 - org.x) / hs)), i1 = Mathf.Min(R - 1, Mathf.FloorToInt((wx1 - org.x) / hs));
+        int j0 = Mathf.Max(0, Mathf.CeilToInt((wz0 - org.z) / hs)), j1 = Mathf.Min(R - 1, Mathf.FloorToInt((wz1 - org.z) / hs));
+        if (i1 < i0 || j1 < j0) return "門の通り口の床 " + host.name + ": 地形の外 ── 均さない";
+        var H = td.GetHeights(i0, j0, i1 - i0 + 1, j1 - j0 + 1); int nUp = 0, nDn = 0; float mUp = 0f, mDn = 0f; var rec = new Dictionary<long, float>();
+        for (int j = j0; j <= j1; j++)
+            for (int i = i0; i <= i1; i++)
+            {
+                float px = org.x + i * hs, pz = org.z + j * hs; var lp = tr.InverseTransformPoint(new Vector3(px, yW, pz));
+                if (lp.x < x0 || lp.x > x1 || lp.z < zlo || lp.z > zhi) continue;
+                if (allow != null && !allow(new Vector2(px, pz))) continue;
+                float cur = H[j - j0, i - i0] * td.size.y + org.y, dv = yW - cur; rec[((long)i << 32) ^ (uint)j] = yW;
+                if (Mathf.Abs(dv) < 1e-4f) continue;
+                if (dv > 0f) { nUp++; mUp = Mathf.Max(mUp, dv); } else { nDn++; mDn = Mathf.Max(mDn, -dv); }
+                H[j - j0, i - i0] = (yW - org.y) / td.size.y;
+            }
+        if (nUp + nDn > 0) { td.SetHeights(i0, j0, H); AssetDatabase.SaveAssetIfDirty(td); }
+        if (recPath != null && rec.Count > 0) AppendNodeTargets(recPath, t.name, rec);   // 造成QA が「書いた帯の記録」として引く(足し書き)
+        return "門の通り口の床 " + host.name + ": 扉の下端 " + yW.ToString("F3") + " の平らな面へ(口 " + (x1 - x0).ToString("F2") + "m × 奥行 " + (zhi - zlo).ToString("F2") + "m)・上げた " + nUp + "(最大 " + mUp.ToString("F2") + ")・下げた " + nDn + "(最大 " + mDn.ToString("F2") + ")";
     }
 
     /// <summary>塀の前の帯(<see cref="PlaneBand"/>)の一辺: 線の始め a・走りの向き u・内向き inw・長さ len・帯の内への離れ [q0, q1](走り s の関数)・面の高さ yAt(s)。</summary>
-    public class BandEdge { public string name; public Vector2 a, u, inw; public float len; public Func<float, float> q0, q1, yAt; public Func<float, float> qCap; public float capBatter; }
+    public class BandEdge
+    {
+        public string name; public Vector2 a, u, inw; public float len; public Func<float, float> q0, q1, yAt; public Func<float, float> qCap; public float capBatter;
+        /// <summary>⭐ 帯の走りの範囲 [s0, s1](NaN = 辺の全長)── 辺の一部だけを占める run(岡部 N_Hei_39: 辺39 の s 0〜5.45・その先は長屋 N39_0)は、run の外へ帯を延ばさない。
+        /// 端の先(ext)は範囲が辺の端に届く側だけ(<see cref="SPAN_TO_VERTEX"/> 以内)。第158巡: 辺の全長で帯を引き、長屋の外面と腰石垣の天端の間の細い帯を塀の座 17.46 へ上げ、
+        /// なまこ壁に高さ 1m の土の壁が貼り付いた(写真 r157_kado_P39_high・dan_e39a)。</summary>
+        public float s0 = float.NaN, s1 = float.NaN;
+        public float Lo { get { return float.IsNaN(s0) || s0 <= SPAN_TO_VERTEX ? 0f : s0; } }
+        public float Hi { get { return float.IsNaN(s1) || s1 >= len - SPAN_TO_VERTEX ? len : s1; } }
+    }
+    /// <summary>帯の範囲の端が辺の端から この内なら、辺の端まで届くと読む[m](隅の駒の腕の分 ── 端の先の扇 ext を残す)。</summary>
+    public const float SPAN_TO_VERTEX = 1.0f;
     /// <summary>**塀の前の帯の地面を一枚の面にする**(上げも下げも・第123巡 2026-10-13 岡部 施主「犬走りの地面は座の線と同じ高さ・同じ勾配の一枚の面」【硬: 土の楔 0】)。
     /// 各辺の帯(走り s ∈ [0, len]・線から内へ q ∈ [q0(s), q1(s)])の節点を yAt(s) + <paramref name="off"/> にする(辺の隅で二つの帯に入る節点は高い方)。
     /// 帯は呼び手が決める(岡部: 台の天端の前の縁 c から塀の腰の外の縁の一升奥まで ── 塀の裏・内の帯は触らない)。<paramref name="allow"/> が偽の節点は触らない。
     /// 段は yAt が s で跳ぶ所で一升の中の段になる(呼び手は段の脇の一升を低い側の高さにする ── 双一次の斜めが下の天端の上へ出ないように)。⛔ 部材の基準点を使わない(面は指図の座の線)。当たる先: 天端の線の上の練塀の前(岡部の外周)。</summary>
     /// <para>⭐ <paramref name="recPath"/>: 帯の**設計の高さ**(節点 → 面の高さ・肩の下げの上限)を残す(<see cref="LoadNodeTargets"/> で造成QA が引く ── EDO-0502 第129巡)。
     /// 帯は塀の座の線(天端の線)から解くので算出物 graded は知らない。地形の今の高さは書かない。</para>
-    public static string PlaneBand(IList<BandEdge> edges, Func<Vector2, bool> allow, float off, string undoPath = null, float ext = 0f, string recPath = null)
+    public static string PlaneBand(IList<BandEdge> edges, Func<Vector2, bool> allow, float off, string undoPath = null, float ext = 0f, string recPath = null, Func<Vector2, float> upCap = null)
     {
+        //   ⭐ upCap(節点)── 上げる上限(NaN = 上限なし・⛔ 下げには使わない)。第158巡: 岡部 頂点19 の出隅の扇(ext)が、隣の辺の台の石垣(IG_N18_0 の留め)の法の見え面の上へ
+        //   土を座 18.0 まで盛り、二つの台の取り合いに高さ 0.8 の土の塊が立った。呼び手は「見え面の上に土を載せない」(<see cref="PartTops.FaceAbove"/> − 0.02)を渡す。
+        int nCapUp = 0;
         var t = T(); var td = t.terrainData; var org = t.transform.position; int R = td.heightmapResolution; float hs = td.size.x / (R - 1);
         var want = new Dictionary<long, float>(); var cap = new Dictionary<long, float>(); var extW = new Dictionary<long, float>();
         //   ⭐ 下げるだけの所(第123巡): 帯の手前の見え面の肩(qCap(s) ≤ q < q0)と辺の端の先(ext)── 面の高さより上の土だけ下げる
         //   (P35: 辺34 の端の先へ延ばした帯が上の踏み面の座で辺35 の下の天端の上へ土を 0.94 盛った・見え面の肩の土は誰も下げていなかった)
         foreach (var be in edges)
         {
-            Vector2 b = be.a + be.u * be.len; float qm = 3f;
+            Vector2 b = be.a + be.u * be.len; float qm = 3f; float sLo = be.Lo, sHi = be.Hi; float extLo = sLo <= 0f ? ext : 0f, extHi = sHi >= be.len ? ext : 0f;
             float x0 = Mathf.Min(be.a.x, b.x) - qm, x1 = Mathf.Max(be.a.x, b.x) + qm, z0 = Mathf.Min(be.a.y, b.y) - qm, z1 = Mathf.Max(be.a.y, b.y) + qm;
             int i0 = Mathf.Max(0, Mathf.CeilToInt((x0 - org.x) / hs)), i1 = Mathf.Min(R - 1, Mathf.FloorToInt((x1 - org.x) / hs));
             int j0 = Mathf.Max(0, Mathf.CeilToInt((z0 - org.z) / hs)), j1 = Mathf.Min(R - 1, Mathf.FloorToInt((z1 - org.z) / hs));
@@ -914,7 +986,7 @@ public static partial class EdoBuild
                 {
                     var p = new Vector2(org.x + i * hs, org.z + j * hs); var r = p - be.a; float sv = Vector2.Dot(r, be.u), qv = Vector2.Dot(r, be.inw);
                     //   ext: 辺の端の先へも帯を延ばす(出隅の外の扇の所 ── 隅の駒の腰の縁が二つの辺の帯のどちらにも入らず浮いた)。面の高さは端の値
-                    if (sv < -ext || sv > be.len + ext) continue; float sc = Mathf.Clamp(sv, 0f, be.len);
+                    if (sv < sLo - extLo || sv > sHi + extHi) continue; float sc = Mathf.Clamp(sv, 0f, be.len);
                     float qlo = be.qCap != null ? Mathf.Min(be.qCap(sc), be.q0(sc)) : be.q0(sc); if (qv < qlo || qv > be.q1(sc)) continue;
                     if (allow != null && !allow(p)) continue;
                     float y = be.yAt(sc) + off; if (float.IsNaN(y)) continue;
@@ -926,7 +998,7 @@ public static partial class EdoBuild
                         //   ⭐ 他の辺の走りの内で、その辺の帯の奥(q1)より線の側の節点(見え面の前・肩・帯)は使わない(第126巡 岡部 P35: 辺34 の延長が辺35 の見え面の前の
                         //   節点 線から 0.2〜0.8 を上の座 23.6 へ上げ、見え面の前に高さ 2m の土の柱が立った ── const.heiLine.faceFront【硬】)
                         bool other = false;
-                        foreach (var ot in edges) { if (ot == be) continue; var r2 = p - ot.a; float s2 = Vector2.Dot(r2, ot.u), q2 = Vector2.Dot(r2, ot.inw); if (s2 < 0f || s2 > ot.len) continue; if (q2 > -0.5f && q2 < ot.q1(s2)) { other = true; break; } }
+                        foreach (var ot in edges) { if (ot == be) continue; var r2 = p - ot.a; float s2 = Vector2.Dot(r2, ot.u), q2 = Vector2.Dot(r2, ot.inw); if (s2 < ot.Lo || s2 > ot.Hi) continue; if (q2 > -0.5f && q2 < ot.q1(s2)) { other = true; break; } }
                         if (!other && (!extW.TryGetValue(k, out cur) || y > cur)) extW[k] = y;
                     }
                     else if (!want.TryGetValue(k, out cur) || y > cur) want[k] = y;
@@ -946,6 +1018,7 @@ public static partial class EdoBuild
                 int i = (int)(kv.Key >> 32), j = (int)(uint)(kv.Key & 0xffffffff);
                 float cur = H[j - j0, i - i0] * td.size.y + org.y; float tgt = float.IsPositiveInfinity(kv.Value) ? cur : kv.Value; float cp;
                 if (cap.TryGetValue(kv.Key, out cp)) tgt = Mathf.Min(tgt, cp);
+                if (upCap != null && tgt > cur) { float uc = upCap(new Vector2(org.x + i * hs, org.z + j * hs)); if (!float.IsNaN(uc) && tgt > Mathf.Max(cur, uc)) { tgt = Mathf.Max(cur, uc); nCapUp++; } }
                 float dv = tgt - cur; if (Mathf.Abs(dv) < 1e-4f) continue;
                 if (dv > 0f) { nUp++; mUp = Mathf.Max(mUp, dv); } else { nDn++; mDn = Mathf.Max(mDn, -dv); }
                 undo.Add(new[] { i, j, (tgt - org.y) / td.size.y, H[j - j0, i - i0] }); H[j - j0, i - i0] = (tgt - org.y) / td.size.y;
@@ -953,7 +1026,8 @@ public static partial class EdoBuild
             if (nUp + nDn > 0) { td.SetHeights(i0, j0, H); AssetDatabase.SaveAssetIfDirty(td); }
         }
         if (undoPath != null) WriteUndo(undoPath, t.name, undo);
-        return "塀の前の帯を座の線の一枚の面(座 " + off.ToString("+0.00;-0.00") + ")へ: 帯の節点 " + want.Count + "・上げた " + nUp + "(最大 " + mUp.ToString("F2") + ")・下げた " + nDn + "(最大 " + mDn.ToString("F2") + ")";
+        return "塀の前の帯を座の線の一枚の面(座 " + off.ToString("+0.00;-0.00") + ")へ: 帯の節点 " + want.Count + "・上げた " + nUp + "(最大 " + mUp.ToString("F2") + ")・下げた " + nDn + "(最大 " + mDn.ToString("F2") + ")"
+               + (upCap != null ? "・見え面の上で上げを止めた " + nCapUp : "");
     }
 
     /// <summary>節点(地形の格子の i, j)ごとの設計の高さ <paramref name="want"/>(面の高さ)と上限 <paramref name="cap"/>(下げるだけの所)を <paramref name="path"/> へ残す。

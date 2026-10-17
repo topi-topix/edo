@@ -3835,6 +3835,16 @@ public static partial class EdoBuild
         { int w; float y = idx.Top(x, z, out w); who = w >= 0 ? idx.names[w] : null; return y; }
         /// <summary>(x,z) の部材の上向きの面の最も高い所(帯で篩わない・無ければ NaN)。</summary>
         public float RawTop(float x, float z) { int w; return idx.TopRaw(x, z, out w); }
+        readonly List<Vector3> colTmp = new List<Vector3>();
+        /// <summary>**(x,z) の真上で一番上の面が法の見え面なら、その高さ**(天端・踏面〔法線の y ≥ UP_NY〕・駒の無い所は NaN)── 地面を上げる手の上限
+        /// (見え面の上に土を載せない【硬】・第158巡 岡部 頂点19 の台の取り合いの土の塊)。鉛直・下向きの面は数えない。
+        /// 当たる先: 地面を上げる手(<see cref="PlaneBand"/>・<see cref="FillUnderFoot"/> の upCap)── 石垣・土留めの見え面の際を上げる所すべて。</summary>
+        public float FaceAbove(float x, float z)
+        {
+            colTmp.Clear(); idx.Column(x, z, colTmp, null); float best = float.NaN, bny = 0f;
+            foreach (var h in colTmp) { if (h.z <= 0.05f) continue; if (float.IsNaN(best) || h.y > best) { best = h.y; bny = h.z; } }
+            return float.IsNaN(best) || bny >= UP_NY ? float.NaN : best;
+        }
     }
 
     // ---------------------------------------------------------------- 当たりの床(2026-09-27・EDO-0437/EDO-0480 ── docs/oki-kata.md §0a)

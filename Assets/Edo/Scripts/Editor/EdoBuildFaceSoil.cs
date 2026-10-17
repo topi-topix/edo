@@ -53,6 +53,8 @@ public static partial class EdoBuild
         add(walls, 0); add(mizos, 1);
         int nFace = 0, nMizo = 0, nEmbed = 0, nCrest = 0; float wFace = 0f, wMizo = 0f; Vector3 atFace = Vector3.zero, atMizo = Vector3.zero;
         var byPiece = new Dictionary<string, int>(); var sbT = tsv != null ? new System.Text.StringBuilder() : null;
+        var famFace = new Dictionary<string, int>(); var famN = new Dictionary<string, int>();
+        foreach (var kv in all) if (kv.Value == 0) { string fm = SoilFamily(kv.Key.name); int f0; famN.TryGetValue(fm, out f0); famN[fm] = f0 + 1; }
         try
         {
             Physics.SyncTransforms();
@@ -85,6 +87,7 @@ public static partial class EdoBuild
                             if (h.point.y >= top - 0.15f && gy <= top + 0.02f) { nCrest++; continue; }
                             float fr = FrontGroundOf(x, z, fo, g, owner); if (!float.IsNaN(fr) && gy <= fr + 0.05f) { nEmbed++; continue; }
                             nFace++; if (dep > wFace) { wFace = dep; atFace = h.point; }
+                            { string fm = SoilFamily(g.name); int f0; famFace.TryGetValue(fm, out f0); famFace[fm] = f0 + 1; }
                         }
                         else
                         {
@@ -104,6 +107,18 @@ public static partial class EdoBuild
             + " / 溝の中の土 " + nMizo + (nMizo > 0 ? "(最悪 " + wMizo.ToString("F2", ci) + " @(" + atMizo.x.ToString("F1", ci) + "," + atMizo.z.ToString("F1", ci) + "))" : "")
             + ((nFace + nMizo) == 0 ? " ⭕" : " ⛔") + "(数えない: 前の地表以下の根入れ " + nEmbed + "・天端の帯の土 " + nCrest + ")");
         for (int i = 0; i < Mathf.Min(8, pcs.Count); i++) sb.Append((i == 0 ? "\n    " : "・") + pcs[i].Key + " " + pcs[i].Value);
+        //   ⭐ 第158巡: 系統別の明細(見え面の土 / 測った駒)── 上位 8 駒だけだと、背の腰(IGB_)・塀の下の石垣(IGU_)のような新しい系統の駒が測られたのか 0 なのかが分からなかった
+        var fams = new List<string>(famN.Keys); fams.Sort((a, b) => { int fa, fb; famFace.TryGetValue(a, out fa); famFace.TryGetValue(b, out fb); int c = fb.CompareTo(fa); return c != 0 ? c : string.CompareOrdinal(a, b); });
+        sb.Append("\n    系統別(見え面の土 / 測った駒):");
+        foreach (var fm in fams) { int fa; famFace.TryGetValue(fm, out fa); sb.Append(" " + fm + " " + fa + "/" + famN[fm]); }
         return sb.ToString();
+    }
+    /// <summary>駒の名の系統(見え面の土の明細の束ね方)── IGB_ 背の腰・IGU_ 塀の下の石垣・IG_ 台の石垣・ほかは数字で始まる語の手前まで(TW_Hori_Kishi_0_1_003f → TW_Hori_Kishi)。</summary>
+    public static string SoilFamily(string nm)
+    {
+        if (nm.StartsWith("IGB_")) return "IGB(背の腰)"; if (nm.StartsWith("IGU_")) return "IGU(塀の下の石垣)"; if (nm.StartsWith("IG_")) return "IG(台の石垣)";
+        var ps = nm.Split('_'); var keep = new List<string>();
+        foreach (var p in ps) { if (p.Length > 0 && char.IsDigit(p[0])) break; keep.Add(p); if (keep.Count >= 4) break; }
+        return keep.Count == 0 ? nm : string.Join("_", keep.ToArray());
     }
 }

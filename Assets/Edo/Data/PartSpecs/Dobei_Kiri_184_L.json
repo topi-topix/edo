@@ -1,0 +1,57 @@
+{
+    "prefab": "Assets/Edo/Models/Kado/Dobei_Kiri_184_L.fbx",
+    "kind": "fence",
+    "source": "Tools/Blender/build_dobei_kiri.py -- 18.39",
+    "unitScale": 1.0,
+    "yBottom": 0.0,
+    "foot": [
+        {
+            "x": 0.0,
+            "y": 0.0
+        },
+        {
+            "x": -1.91701,
+            "y": -0.63733
+        },
+        {
+            "x": -2.99048,
+            "y": -0.63733
+        },
+        {
+            "x": -2.99048,
+            "y": 0.0
+        }
+    ],
+    "front": 0.0,
+    "back": 0.0,
+    "jambL": {
+        "x": 0.0,
+        "z0": 0.0,
+        "z1": 0.0,
+        "y0": 0.0,
+        "y1": 0.0
+    },
+    "jambR": {
+        "x": 0.0,
+        "z0": 0.0,
+        "z1": 0.0,
+        "y0": 0.0,
+        "y1": 0.0
+    },
+    "passage": {
+        "x0": 0.0,
+        "x1": 0.0
+    },
+    "eave": {
+        "x0": 0.0,
+        "x1": 0.0,
+        "z0": 0.0,
+        "z1": 0.0,
+        "y0": 0.0,
+        "y1": 0.0
+    },
+    "faceOut": 0.0,
+    "faceIn": -0.63733,
+    "copingOverhang": 0.0,
+    "height": 2.64575
+}

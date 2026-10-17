@@ -21,6 +21,9 @@
         #   けらば・袖瓦・破風が 0.322 だけ高い棟の中へ入り、軒の出の分だけ高い棟の壁の前に欠片と黒い破風が出た(辺16 の写真)。
         #   ⇒ その端を 0.01° で切り(躯体の端で鉛直に切る ── msuf は 0 に丸めるので留めの名は変わらない・素の版は --name で名を保つ)、
         #   壁際の雨押えの熨斗(lo)と断面の板で納める。高い方は素の妻のまま(破風と妻壁が低い屋根の上に見える)。札は jamb 不変・eave.x0 が躯体の端へ
+    blender --background --python Tools/Blender/build_nagaya_omote.py -- 3.75 --body --floors 2 --miter-cut 0.01 -10.059 --seal --cut-kera lo 0 --extend
+        # **両端を留める短い駒**(EDO-0502 第155巡 岡部 N17_k): 据え置きの割付(cut_miter_anchor)は駒の長さ 3.75 で組めない ⇒ --extend で
+        #   延ばして組んで切る(cut_miter_ext を両端とも全幅で探す)。窓は駒の中ほどに 1 つ・Q と窓の縁の離れ 0.79。入隅の端は "0" で谷(tani は既定)
 
 【`--body`(EDO-0502 2026-10-03)】呼び寸法を**躯体の長さ(両端の妻壁 namako2 の外面どうし)**にする版。
   既定(従来)は呼び寸法 = 破風まで含む全幅なので、隣どうしを呼び寸法で並べると躯体の間に
@@ -702,7 +705,7 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
           ridge=None, doorh=None, bansho=0, kabuki=0.0, kuguri=None,
           bansho_out=None, gate_drop=0.0, body=False, miter=None, bansho_ux=-1,
           gate_post=0.0, join_sill=False, miter_cut=None, bansho_mon=False, frac=None, wide=0.0,
-          layout=None, seal=False, cut_kera=None):
+          layout=None, seal=False, cut_kera=None, extend=False):
     """miter_cut=(θL, θR)(`--miter-cut`)は**大きく外へ折れる角を二等分の面で切って留める**版(cut_miter_* の注)。
     θ > 0 = 出隅(背ほど短い)/ θ < 0 = 入隅(背ほど長い)/ 0 = 妻のまま(EDO-0502 2026-10-16)。
     門口・番所・--wide・--frac・layout と併せると**割付を据え置いて**延ばす(cut_miter_anchor の注)。
@@ -782,7 +785,9 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
     #   Q に窓が掛かる ── 2026-10-16 に 17.63 で −0.30・15.98 で −0.02。芯に揃えれば各 Q の窓は 1.381±0.69 で外れない)
     if miter_cut is not None and (gate is not None or kuguri is not None or bansho or wide
                                   or frac is not None or layout is not None
-                                  or (miter_cut[0] != 0 and miter_cut[1] != 0)):
+                                  or (miter_cut[0] != 0 and miter_cut[1] != 0 and not extend)):
+        # ⚠ `--extend`(EDO-0502 第155巡): 両端を留める**短い**駒(3.75)は駒の長さの割付が組めない(solve_body の下限)⇒
+        #   据え置きを外し、片端の留めと同じ「延ばして組んで切る」で焼く。延ばしは両端とも全幅で探す(窓が Q に掛からない所を選ぶ)
         if not body:
             raise SystemExit("[nagaya] --miter-cut は --body だけ")
         anch = cut_miter_anchor(Lnom, miter_cut, layout)
@@ -794,7 +799,7 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
             raise SystemExit("[nagaya] --miter-cut は --body だけ")
         eL, eR = cut_miter_ext(Lnom, miter_cut, dict(bay=bay, cap_w=cap_w, rwin=rwin, lwin=lwin,
                                                        r_n2=r_n2, l_n2=l_n2, to_l=to_l, to_r=to_r,
-                                                       hw=win_hw))
+                                                       hw=win_hw, extend=extend))
         Lm = Lnom + eL + eR
         print("[nagaya] --miter-cut %.3f° / %.3f°: 躯体 %.3fm を −X へ %.3f・+X へ %.3f 延ばして組み、二等分の面で切る"
               % (miter_cut[0], miter_cut[1], Lnom, eL, eR))
@@ -1168,6 +1173,7 @@ def build(Lm, ends="both", name=None, floors=1, gate=None,
                               (" --miter %g %g" % tuple(miter) if mit is not None else "")
                               + (" --miter-cut %g %g" % tuple(miter_cut) if miter_cut is not None else "")
                               + (" --layout %g %s" % tuple(layout) if layout is not None else "")
+                              + (" --extend" if extend else "")
                               + (" --seal" if (miter_cut is not None and seal) else "")
                               + (" --cut-kera %s %s" % tuple(k or "0" for k in cut_kera)
                                  if (miter_cut is not None and cut_kera is not None) else "")),
@@ -1440,8 +1446,8 @@ def cut_miter_ext(Lnom, th, m):
                                                                  # 寄るので残り、隅に黒い筋が立つ ⇒ 縁から 0.15 離す
             if best is None or sc > best[0] + 1e-6:
                 best = (sc, eL, eR)
-        if th[0] != 0 and th[1] != 0 and dL > 0.6:
-            break                                  # 両端とも留めるときは探す幅を縮める(組み合わせの爆発)
+        if th[0] != 0 and th[1] != 0 and dL > (3.0 if m.get("extend") else 0.6):
+            break                                  # 両端とも留めるときは探す幅を縮める(組み合わせの爆発・--extend は全幅を探す)
     print("[nagaya] --miter-cut 外隅と窓の縁の離れ %.3fm(延ばし −X %.3f / +X %.3f)" % best)
     return best[1], best[2]
 
@@ -1950,7 +1956,8 @@ def main():
                                 gate_drop=gdrop, body=body, miter=miter,
                                 bansho_ux=bux, gate_post=gpost, join_sill=('--join-sill' in argv),
                                 miter_cut=mcut, bansho_mon=('--bansho-mon' in argv), frac=frac, wide=wide,
-                                layout=layout, seal=('--seal' in argv), cut_kera=ckera)
+                                layout=layout, seal=('--seal' in argv), cut_kera=ckera,
+                                extend=('--extend' in argv))
         if do_render:
             shots(o, fmt(Lm) + ("" if gate is None else "_mon%s" % fmt(gate[0]))
                   + ("" if floors < 2 else "_%df" % floors)

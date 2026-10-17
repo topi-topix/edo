@@ -34,6 +34,8 @@ public static partial class EdoBuild
         /// <summary>駒の一様な倍率(既定 1)。城の石垣の駒を run の倍率 s で据える所(岡部 外周の基壇 ── 壁高 4.0s・天端幅 1.4s・底厚 2.4s)。
         /// 見付は <see cref="pathOfH"/> へ 見付 ÷ scale で渡す(焼いた丈は倍率 1 の値)。走り・送りは呼び手が scale を掛けて渡す。</summary>
         public float scale = 1f;
+        /// <summary>坂なりの駒の丈の上限(名の丈 H・素の m・既定 8.0 = 焼いてある最大)。石の倍率を揃える邸(<see cref="StoneScale"/>)は 16.0 まで引き、焼いていない丈は missingSlope へ。</summary>
+        public float hNameMax = 8f;
         /// <summary>**坂なりの駒の引き手**(既定 null = 天端は区間の両端の高い方の水平)。渡すと、両端の天端が違う区間は天端が一様な勾配で両端を結ぶ線に沿う
         /// 駒(局所 Y += g·Z の剪断 ── 局所・ピボットは素の Castle Wall と同じ)で据える: (局所の勾配 g = 局所 +Z へ 1m あたり・丈 h(倍率 1 の値)・走り len(倍率 1 の値))→ パス。
         /// 据え = 素と同じ向きと走り(見え面を低い側へ・天端の前の縁を線へ・走りの端を実メッシュで)・**y = その駒の局所 Z = 0 の端の所の天端の線 − h·scale**
@@ -251,7 +253,7 @@ public static partial class EdoBuild
             UnityEngine.Object.DestroyImmediate(pr2);
             for (int s3 = 0; s3 < 3; s3++) { float u = Mathf.Clamp(t0 + Wp * (0.1f + 0.4f * s3), c.x, c.y); Vector2 p = a + dir * u + lowN * (ft + 0.3f); float gy = groundAt(p.x, p.y); if (!float.IsNaN(gy)) ex = Mathf.Max(ex, yLine(u) - gy); }
         }
-        float hN = ex / wsc <= 4.01f ? 4f : Mathf.Min(8f, Mathf.Ceil(ex / wsc * 2f - 1e-3f) / 2f);
+        float hN = ex / wsc <= 4.01f ? 4f : Mathf.Min(w.hNameMax, Mathf.Ceil(ex / wsc * 2f - 1e-3f) / 2f);
         string path = w.pathOfSlope(gLoc, hN, lenLoc);
         string root = System.IO.Directory.GetParent(Application.dataPath).FullName;
         bool missing = path == null || !System.IO.File.Exists(System.IO.Path.Combine(root, path));
@@ -259,7 +261,7 @@ public static partial class EdoBuild
         {   // ★ 焼いていない ⇒ 素の駒(水平・天端 = 走りの高い方)で代わりに据える ── 抜けにしない(控え c の測りが駒の有無で 0 に化けて芯線の d が変わるのを避ける)。焼き足す一覧へ
             CrestWall.missingSlope.Add(path ?? ("?" + gLoc));
             log.AppendLine("  ★ " + name + ": 坂なりの駒が焼いていない " + System.IO.Path.GetFileNameWithoutExtension(path ?? "") + "(局所の勾配 " + (gLoc * 100f).ToString("F2", inv) + "%・走り " + lenLoc.ToString("F2", inv) + ")── 素の駒を水平に据えた");
-            var gf = Place(w.pathOfH(Mathf.Min(ex / wsc, 8f)), pos, 0f, Vector3.one * wsc, parent, name);
+            var gf = Place(w.pathOfH(Mathf.Min(ex / wsc, w.hNameMax)), pos, 0f, Vector3.one * wsc, parent, name);
             if (gf == null) return null;
             gf.transform.rotation = rot;
             float mnf = float.MaxValue, topf = float.MinValue; foreach (var v in Body(gf.transform, 999999)) { mnf = Mathf.Min(mnf, Vector2.Dot(new Vector2(v.x, v.z) - a, dir)); topf = Mathf.Max(topf, v.y); }

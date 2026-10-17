@@ -1537,6 +1537,7 @@ public static class EdoOkabeYashikiBuilder
 
         // ---- 木柵 ------------------------------------------------------
         sb.AppendLine(PlaceFences());
+        foreach (var w in _stoneWait) if (!wait.Contains(w)) wait.Add(w);   // 石の倍率の待ち(要る丈の版・隅の駒 _S<倍率>)── 最後に流した PlaceIshigaki の物(重ねない)
 
         if (wait.Count > 0)
         {
@@ -2073,6 +2074,36 @@ public static class EdoOkabeYashikiBuilder
             string mrep = EdoBuild.MiterPerimeterCorners(Poly, pcs, wait, out ovBad, out ovWorst);
             _miterOverrunBad = ovBad; _miterOverrunWorst = ovWorst;
             sb.Append("(" + mrep.TrimEnd('\n') + ")\n");
+            // ⭐ 割付の型(指図 const.nagayaKata【硬】・施主裁定 2026-10-17「③伸ばす」)── 海鼠の目地を外周の道のり u の格子に揃えた版(_w<φcm>)へ差し替える。
+            //   u の線 = 据えた棟の札の外面(外隅 Q で続ける)・φ は駒ごとに EdoBuild が出す。門の版は型の外。版が無ければ待ちへ(据えたまま)
+            {
+                var nk = O(Get(O(Get(D, "const")), "nagayaKata"));
+                if (nk != null)
+                {
+                    var cst = O(Get(D, "const")); float ken = Has(cst, "ken") ? F(cst["ken"]) : 1.818f;
+                    var kata = EdoBuild.ReadNagayaKata(S(Get(nk, "rule")), ken);
+                    if (!kata.On) wait.Add("割付の型: const.nagayaKata.rule の海鼠の周期が読めない ── 従前の版のまま");
+                    else sb.Append("(" + EdoBuild.ApplyNagayaKata(Poly, pcs, kata, wait).TrimEnd('\n') + ")\n");
+                }
+            }
+            // ⭐ 棟ごとの系統差(規則3 ±0.25【硬・建ては止めない】・掲示板 EDO-0592)── 据えた駒の札の外形の中で 座(欄)− 造成前の地盤 base_dem の中央値。
+            //   例外 = planes[].devEnvelopeExceptions と const.nagayaCornerSeat.devEnvelopeExceptions の名
+            {
+                var exc = new HashSet<string>();
+                Action<object> addExc = lst => { foreach (var o in A(lst) ?? new List<object>()) { string nm = o as string ?? S(Get(O(o), "name")); if (!string.IsNullOrEmpty(nm)) exc.Add(nm); } };
+                foreach (var o in A(Get(D, "planes")) ?? new List<object>()) addExc(Get(O(o), "devEnvelopeExceptions"));
+                addExc(Get(O(Get(O(Get(D, "const")), "nagayaCornerSeat")), "devEnvelopeExceptions"));
+                var its = new List<EdoBuild.EnvItem>();
+                foreach (var r in Runs)
+                {
+                    if (!r.Nagaya) continue; var t = kak.Find(r.name); var rr = r;
+                    Vector2 e0 = EdgePt(r.edge, 0f), ex = (EdgePt(r.edge, 1f) - e0).normalized;
+                    its.Add(new EdoBuild.EnvItem { name = r.name, go = t == null ? null : t.gameObject,
+                                                    seatAt = q => rr.SeatAt(Mathf.Clamp(Vector2.Dot(q - e0, ex), rr.s0, rr.s1)) });
+                }
+                int envBad; sb.Append("(" + EdoBuild.SeatEnvelopeReport(its, EdoBuild.BaseDem(), exc, out envBad).TrimEnd('\n') + ")\n");
+                _seatEnvelopeBad = envBad;
+            }
             foreach (var r in Runs)
             {
                 if (!r.Nagaya) continue; var t = kak.Find(r.name);
@@ -2252,6 +2283,8 @@ public static class EdoOkabeYashikiBuilder
     static Dictionary<string, Vector2> _nagayaSpan = new Dictionary<string, Vector2>();
     /// <summary>この巡の出隅の突き抜け(EdoBuild.MiterPerimeterCorners)── 許容を超えた頂点の数と最悪[m]。</summary>
     static int _miterOverrunBad; static float _miterOverrunWorst = float.NaN;
+    /// <summary>直近の Stage2 の棟の系統差 ★ の数(EdoBuild.SeatEnvelopeReport・規則3 ±0.25・掲示板 EDO-0592)。</summary>
+    static int _seatEnvelopeBad;
 
     /// <summary>指図 runs[] の欄 key(無ければ null)。</summary>
     static string RunText(string run, string key)
@@ -2542,8 +2575,12 @@ public static class EdoOkabeYashikiBuilder
             { Vector2 p = EdgePt(r.edge, Mathf.Min(sv, a1)) - o2 * (wIn + 1.0f); float gr = EdoBuild.Ground(p.x, p.y); if (float.IsNaN(gr)) continue; float ex = r.SeatOnRow(kq, Mathf.Min(sv, a1)) - gr; if (ex > exMax) { exMax = ex; exAt = "s" + sv.ToString("F2", inv); } }
         }
         float sc = Mathf.Max(0.25f, Mathf.Ceil(exMax / unit * 4f - 1e-6f) / 4f);
+        //   ⭐ 石の倍率を一つに(const.ishigakiScale【硬】)── 塀の下の石垣も外周の台と同じ倍率・高さは丈違いの版で吸う
+        var stU = StoneRule(); sc = stU.Pick(sc, "IGU_" + r.name);
         var lg = new System.Text.StringBuilder(); float cO;
-        EdoBuild.PlaceUnderWallInner("IGU_" + r.name, EdgePt(r.edge, r.s0), EdgePt(r.edge, r.s1), o2, wIn, segs, sc, (x, z) => EdoBuild.Ground(x, z), grp, lg, (g, h, len) => EdoAssets.Own.IshigakiChokuSaka(g, h, len), out cO);
+        EdoBuild.PlaceUnderWallInner("IGU_" + r.name, EdgePt(r.edge, r.s0), EdgePt(r.edge, r.s1), o2, wIn, segs, sc, (x, z) => EdoBuild.Ground(x, z), grp, lg, (g, h, len) => EdoAssets.Own.IshigakiChokuSaka(g, h, len), out cO,
+                                     stU.On ? (Func<float, string>)stU.PathOfH : null, stU.On ? stU.hNameMax : 8f);
+        if (stU.On) { string hU; foreach (var w in stU.Report(out hU)) _stoneWait.Add(w); }
         return "  " + r.name + ": 外向きの台を置かない(kidan)・内の側を塀の下の石垣で受ける ── 天端の前の縁を塀の内面へ控える(線から " + wIn.ToString("F3", inv) + ")・区間 " + segs.Count
                + "・見えの最大 " + exMax.ToString("F2", inv) + " @" + exAt + (float.IsNaN(hMax) ? "" : (exMax > hMax + 1e-3f ? " ⚠ kyoIshigaki.hMax " + hMax.ToString("F2", inv) + " を越える【柔】" : " ≤ hMax " + hMax.ToString("F2", inv))) + "\n" + lg;
     }
@@ -2982,6 +3019,7 @@ public static class EdoOkabeYashikiBuilder
             string sRun = RunText(r.name, "s"); float sc;
             float sFix; if (sRun != null && float.TryParse(sRun, System.Globalization.NumberStyles.Float, inv, out sFix) && sFix > 0f) sc = sFix;
             else sc = Mathf.Max(0.25f, Mathf.Ceil(exMax / unit * 4f - 1e-6f) / 4f);
+            sc = StoneRule().Pick(sc, r.name);   // ⭐ 石の倍率を一つに(const.ishigakiScale【硬】)── 揃えないなら素通し
             _hlBase[r.name] = new KeyValuePair<float, List<Vector2>>(sc, segs);
             float lenNew = 0f; foreach (var sg in segs) lenNew += sg.y - sg.x;
             float lenOld = 0f, sOld = float.NaN; Dictionary<string, object> bo; if (baseByRun.TryGetValue(r.name, out bo)) { if (Has(bo, "s")) sOld = F(bo["s"]); foreach (var q in A(Get(bo, "segs")) ?? new List<object>()) { var t2 = A(q); if (t2 != null && t2.Count == 2) lenOld += F(t2[1]) - F(t2[0]); } }
@@ -3074,7 +3112,7 @@ public static class EdoOkabeYashikiBuilder
     static string IshigakiHead(string full)
     {
         var ls = full.Split('\n'); var sb = new System.Text.StringBuilder(ls[0]);
-        for (int i = 1; i < ls.Length; i++) if (ls[i].Contains("坂なり") || ls[i].Contains("出隅 IG_") || ls[i].Contains("出隅の駒") || ls[i].Contains("塀の下の石垣")) sb.Append("\n   " + ls[i].Trim());
+        for (int i = 1; i < ls.Length; i++) if (ls[i].Contains("坂なり") || ls[i].Contains("石の倍率") || ls[i].Contains("出隅 IG_") || ls[i].Contains("出隅の駒") || ls[i].Contains("塀の下の石垣")) sb.Append("\n   " + ls[i].Trim());
         return sb.ToString();
     }
     /// <summary>**一棟の台の石垣は棟の全長に通す**(第147巡・施主の写真 r146_kado_P16「左の棟の台が途中で切れ、石の板が前へ出る」)。
@@ -3091,24 +3129,17 @@ public static class EdoOkabeYashikiBuilder
     /// ⟶ run 名 → 一続きの番号(台の算出物の無い run は入らない)。当たる先: 台の石垣の上に建つ外周の長屋すべて(岡部 N12〜N18・N39〜N41)。</summary>
     static Dictionary<string, int> NagayaBaseChains(Dictionary<string, Dictionary<string, object>> baseByRun, out Dictionary<int, float> chainS, out Dictionary<int, bool> chainHasBase)
     {
-        var rs = new List<Run>(); foreach (var r in Runs) if (r.Nagaya && r.Ishigaki && baseByRun.ContainsKey(r.name)) rs.Add(r);
-        int n = rs.Count; var par = new int[n]; for (int i = 0; i < n; i++) par[i] = i;
-        Func<int, int> find = null; find = x => par[x] == x ? x : (par[x] = find(par[x]));
+        //   束ね方は EdoBuild.ChainByEnds(端と端が 0.6m 以内・2026-10-17 EDO-0502 で EdoBuild へ移した)── ここは run の端・倍率・台の有無を渡すだけ(規則21)
+        var items = new List<EdoBuild.ChainItem>();
         Func<Run, float, Vector2> at = (r, sv) => { Vector2 a = EdgePt(r.edge, 0f); return a + (EdgePt(r.edge, 1f) - a).normalized * sv; };
-        for (int i = 0; i < n; i++) for (int j = i + 1; j < n; j++)
+        foreach (var r in Runs)
         {
-            Vector2 a0 = at(rs[i], rs[i].s0), a1 = at(rs[i], rs[i].s1), b0 = at(rs[j], rs[j].s0), b1 = at(rs[j], rs[j].s1);
-            if (Mathf.Min(Mathf.Min((a0 - b0).magnitude, (a0 - b1).magnitude), Mathf.Min((a1 - b0).magnitude, (a1 - b1).magnitude)) <= 0.6f) par[find(i)] = find(j);
-        }
-        var map = new Dictionary<string, int>(); chainS = new Dictionary<int, float>(); chainHasBase = new Dictionary<int, bool>();
-        for (int i = 0; i < n; i++)
-        {
-            int c = find(i); map[rs[i].name] = c; var bd = baseByRun[rs[i].name];
-            float sv = Has(bd, "s") ? F(bd["s"]) : rs[i].s; float q; chainS[c] = chainS.TryGetValue(c, out q) ? Mathf.Max(q, sv) : sv;
+            if (!(r.Nagaya && r.Ishigaki && baseByRun.ContainsKey(r.name))) continue;
+            var bd = baseByRun[r.name]; float sv = Has(bd, "s") ? F(bd["s"]) : r.s;
             bool hb = false; foreach (var o in A(Get(bd, "segs")) ?? new List<object>()) { var t2 = A(o); if (t2 != null && t2.Count == 2 && F(t2[1]) - F(t2[0]) > 0.01f) hb = true; }
-            bool b0; chainHasBase[c] = (chainHasBase.TryGetValue(c, out b0) && b0) || hb;
+            items.Add(new EdoBuild.ChainItem { name = r.name, a = at(r, r.s0), b = at(r, r.s1), scale = sv, hasBase = hb });
         }
-        return map;
+        return EdoBuild.ChainByEnds(items, 0.6f, out chainS, out chainHasBase);
     }
     static string NagayaBaseWhole(Run r, Dictionary<string, object> bd, List<Vector2> segs)
     {
@@ -3139,9 +3170,23 @@ public static class EdoOkabeYashikiBuilder
         segs.Clear(); segs.AddRange(outS); float after = 0f; foreach (var sg in segs) after += sg.y - sg.x;
         return "★ " + r.name + ": 台を棟の全長へ(薄い所も同じ天端で据えて埋める・第147巡)区間 " + before.ToString("F1") + "→" + after.ToString("F1") + "m" + (float.IsNaN(g0) ? "" : "・門の口 s" + g0.ToString("F2") + "〜" + g1.ToString("F2") + " は空ける");
     }
+    /// <summary>石の倍率の決め(指図 const.ishigakiScale.rule ── 「一続きに見える石垣は石の倍率を一つ(0.25 = 一段 1.0m)に揃える」【硬】)。
+    /// 欄が無ければ揃えない(従前の決め)。欄があって読めなければ s = NaN で ★ を刷る(<see cref="_stoneNote"/>)。読み方は EdoBuild.ReadStoneScale。</summary>
+    static EdoBuild.StoneScale StoneRule()
+    {
+        var cs = O(Get(O(Get(D, "const")), "ishigakiScale")); if (cs == null) { _stoneNote = null; return new EdoBuild.StoneScale(); }
+        var ss = EdoBuild.ReadStoneScale(S(Get(cs, "rule")));
+        _stoneNote = ss.On ? null : "★ const.ishigakiScale.rule の倍率が読めない ── 倍率は従前の決め(run ごと・一続きの最大)";
+        return ss;
+    }
+    static string _stoneNote;
+    /// <summary>直近の <see cref="PlaceIshigaki"/> の石の倍率の待ち(要る丈の版・要る隅の駒)── Stage2 の「外周で据えなかったもの」へ足す。</summary>
+    static readonly List<string> _stoneWait = new List<string>();
     static string PlaceIshigaki()
     {
         var grp = Group("Ishigaki"); Clear(grp);
+        //   ⭐ 石の倍率を一つに(const.ishigakiScale【硬】・施主 2026-10-17「隣り合う石垣が異なるサイズだと…違和感」)── 置き方は EdoBuild(StoneScale・UnifyStoneScale)
+        var stone = StoneRule(); _stoneWait.Clear(); EdoBuild.RunKadoWanted.Clear();
         _kidanC.Clear(); _kidanCe.Clear();
         var inv = System.Globalization.CultureInfo.InvariantCulture;
         var baseByRun = new Dictionary<string, Dictionary<string, object>>();
@@ -3183,7 +3228,7 @@ public static class EdoOkabeYashikiBuilder
             {
                 //   ⭐ 倍率を一続きの最大へ揃える(第153巡・普請奉行の決め ── oki-kata §2a「台が角で一本に折れて回る」: 石の大きさと天端の前の縁 c を角の左右で揃える)。
                 //   第152巡は揃えた控えで焼いた長屋の留めの版が無く待ちだった ⇒ 部材方が揃えた控えの版 11 本を焼いた(4b55c2e8)。版が無ければ長屋の側が「要る版」で止まる【硬】
-                if (chainS[chId] > sc + 1e-4f) { notes.Add("★ " + r.name + ": 台の倍率 " + sc.ToString("0.##", inv) + " → 一続きの最大 " + chainS[chId].ToString("0.##", inv) + " へ揃える(第153巡)"); sc = chainS[chId]; }
+                if (!stone.On && chainS[chId] > sc + 1e-4f) { notes.Add("★ " + r.name + ": 台の倍率 " + sc.ToString("0.##", inv) + " → 一続きの最大 " + chainS[chId].ToString("0.##", inv) + " へ揃える(第153巡)"); sc = chainS[chId]; }
                 if (chainHasBase[chId]) { string nt = NagayaBaseWhole(r, bd, segList); if (nt != null) notes.Add(nt); }
             }
             foreach (var sg in segList)
@@ -3208,6 +3253,13 @@ public static class EdoOkabeYashikiBuilder
                 k++;
             }
         }
+        //   ⭐ 石の倍率を一つに(const.ishigakiScale【硬】)── 角の隅の駒の検め(両脇の倍率が同じか)より先に揃える。欄 runs[].s の倍率も揃える(食い違いは下に ⚠)
+        if (stone.On)
+        {
+            foreach (var r in Runs) { string sR = RunText(r.name, "s"); float sF; if (sR != null && float.TryParse(sR, System.Globalization.NumberStyles.Float, inv, out sF) && Mathf.Abs(sF - stone.s) > 1e-4f) notes.Add("⚠ " + r.name + ": 欄 runs[].s " + sF.ToString("0.##", inv) + " は const.ishigakiScale " + stone.s.ToString("0.##", inv) + " と食い違う ── " + stone.s.ToString("0.##", inv) + " を採る(欄は指図へ差し戻し)"); }
+            EdoBuild.UnifyStoneScale(secs, stone);
+        }
+        else if (_stoneNote != null) notes.Add(_stoneNote);
         var log = new System.Text.StringBuilder();
         // 区画の外の地盤の基準 = base_dem と道の線際の均し(michiNarashi)の低い方 ── Unity の今の地形を採らない(const.kidan.faces【硬】・規則13)。区画の内は今の地形(造成後)。
         var bdB = EdoBuild.BaseDem(); var mnB = MichiNarashi;
@@ -3328,7 +3380,8 @@ public static class EdoOkabeYashikiBuilder
             else { kadoAt.Add("P" + v + " " + tv.ToString("F1", inv) + "°"); kadoV.Add(v); }
         }
         EdoBuild.CrestWall.missingSlope.Clear(); EdoBuild.SlopeKado.missing.Clear();
-        var cr = EdoBuild.PlaceCastleRun(secs, Poly, gB, grp, log, 2.5f, SEAM_TOL, -1f, 40f, kadoSkip, (g, h, len) => EdoAssets.Own.IshigakiChokuSaka(g, h, len));
+        var cr = EdoBuild.PlaceCastleRun(secs, Poly, gB, grp, log, 2.5f, SEAM_TOL, -1f, 40f, kadoSkip, (g, h, len) => EdoAssets.Own.IshigakiChokuSaka(g, h, len),
+                                         stone.On ? (Func<float, string>)stone.PathOfH : null, stone.On ? stone.hNameMax : 8f);
         // 隅の駒: 実寸の丈 hReal → 名の丈 hReal / s(倍率の版を焼いた s から引く ── 素の 1 も候補)・scale = 1 で据える(⛔ s を二重に掛けない)
         var scales = new List<float>(); foreach (var x in secs) if (!scales.Exists(q => Mathf.Abs(q - x.scale) < 1e-4f)) scales.Add(x.scale);
         string projRoot = System.IO.Directory.GetParent(Application.dataPath).FullName;
@@ -3409,6 +3462,12 @@ public static class EdoOkabeYashikiBuilder
         {
             var ms = new List<string>(); foreach (var x in EdoBuild.CrestWall.missingSlope) ms.Add(System.IO.Path.GetFileNameWithoutExtension(x)); foreach (var x in EdoBuild.SlopeKado.missing) ms.Add(System.IO.Path.GetFileNameWithoutExtension(x)); ms.Sort();
             sb.Append("\n★ 台の坂なりの駒が焼いていない " + ms.Count + ": " + string.Join(" ", ms.ToArray()));
+            if (stone.On) foreach (var x in ms) _stoneWait.Add("石の倍率 " + stone.s.ToString("0.##", inv) + ": 要る坂なりの版 " + x + " ⇒ 素の駒を水平に据えた");
+        }
+        {   // 石の倍率の頭の行と待ちの表(Stage2 の「外周で据えなかったもの」へ)
+            string head; var rows = stone.Report(out head);
+            if (head != null) sb.Append("\n" + head + (rows.Count > 0 ? "・待ち " + rows.Count : ""));
+            _stoneWait.AddRange(rows);
         }
         return sb.ToString();
     }
@@ -9664,7 +9723,10 @@ public static class EdoOkabeYashikiBuilder
                 for (float s = rg.x; s <= rg.y + 1e-4f; s += 0.25f) { var p = ea + (EdgePt(r.edge, 1f) - ea).normalized * Mathf.Min(s, rg.y) + yd * (wIn + 0.25f); float g = EdoBuild.Ground(p.x, p.y); if (float.IsNaN(g)) continue; exMax = Mathf.Max(exMax, crest - g); exMin = Mathf.Min(exMin, crest - g); }
                 var segs = new List<EdoBuild.InnerCrestSeg> { new EdoBuild.InnerCrestSeg { s0 = 0f, s1 = rg.y - rg.x, crest = crest, grade = 0f } };
                 var lg = new System.Text.StringBuilder(); float cO;
-                var cr = EdoBuild.PlaceUnderWallInner("IGB_" + r.name + "_" + (k++), EdgePt(r.edge, rg.x), EdgePt(r.edge, rg.y), OutNormal(r.edge), wIn, segs, sc, (x, z) => EdoBuild.Ground(x, z), grp, lg, (g, h, len) => EdoAssets.Own.IshigakiChokuSaka(g, h, len), out cO);
+                var stB = StoneRule();   // ⭐ 背の腰も同じ倍率(const.ishigakiScale【硬】)── 倍率は表の台の駒から・高さは丈違いの版で吸う
+                var cr = EdoBuild.PlaceUnderWallInner("IGB_" + r.name + "_" + (k++), EdgePt(r.edge, rg.x), EdgePt(r.edge, rg.y), OutNormal(r.edge), wIn, segs, sc, (x, z) => EdoBuild.Ground(x, z), grp, lg, (g, h, len) => EdoAssets.Own.IshigakiChokuSaka(g, h, len), out cO,
+                                                     stB.On ? (Func<float, string>)stB.PathOfH : null, stB.On ? stB.hNameMax : 8f);
+                if (stB.On) { string hB; foreach (var w in stB.Report(out hB)) sb.AppendLine("  ★ 背の腰 " + r.name + ": " + w); }
                 sb.AppendLine("  背の腰 " + r.name + "(runs.back/backFace【硬】天端 " + crest.ToString("F2", inv) + "・天端の前の縁 = 背の面 " + back.ToString("F3", inv) + " + " + off.ToString("F2", inv) + "・倍率 " + sc.ToString("0.##", inv) + " = 表の台・" + how + "): s"
                               + rg.x.ToString("F2", inv) + "〜" + rg.y.ToString("F2", inv) + " 駒 " + (cr == null ? 0 : cr.pieces.Count) + "・見付 " + (exMin == float.MaxValue ? "-" : exMin.ToString("F2", inv) + "〜" + exMax.ToString("F2", inv)));
                 sb.Append(lg);

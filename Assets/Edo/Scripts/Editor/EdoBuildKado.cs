@@ -431,7 +431,12 @@ public static partial class EdoBuild
             string pp = have(pathOf(degR, hh), hh);
             if (pp != null) { path = pp; h = hh; break; }
         }
-        if (path == null) { note = "⚠ 隅の駒が焼いていない(折れ " + degR + "°・要る丈 ≥ " + (crest - gMin).ToString("F2") + "m)— 建てない"; return null; }
+        if (path == null)
+        {
+            //   要る版の名を待ちの表へ(両脇の直線材の丈そのもの ── 石の倍率を揃える邸の _S<倍率> の隅・EdoBuild.StoneScale.Report)
+            string wantK = pathOf(degR, Mathf.Round(nbH * 100f) / 100f); if (wantK != null) RunKadoWanted.Add(wantK);
+            note = "⚠ 隅の駒が焼いていない(折れ " + degR + "°・要る丈 ≥ " + (crest - gMin).ToString("F2") + "m" + (wantK != null ? "・要る版 " + System.IO.Path.GetFileNameWithoutExtension(wantK) : "") + ")— 建てない"; return null;
+        }
         // 腕が兼ねる端の駒 = 隅に最も近い駒
         Func<IList<GameObject>, Vector2, GameObject> endOf = (run, arm) =>
         { GameObject best = null; float bd = float.MaxValue;
@@ -739,6 +744,9 @@ public static partial class EdoBuild
     public static bool DebugCorners = false;
     /// <summary>坂なりの出隅(<see cref="PlaceRunKado"/> の slope)── 折れ点の天端・各 run の端から奥への天端の勾配・駒の実寸の丈・
     /// 坂の隅の引き手 (折れ, 丈, 入りの腕の勾配, 出の腕の勾配) → パス(例 EdoAssets.Own.IshigakiKadoSaka)。2026-10-13 第122巡(岡部 P24)。</summary>
+    /// <summary>隅の駒が焼いていなくて建てなかった出隅の、要る版の名(両脇の直線材の丈で引いた名・<see cref="PlaceRunKado"/> が足す)。呼び手が流しの頭で Clear する。
+    /// 石の倍率を揃える邸(<see cref="StoneScale.Report"/>)は _S&lt;倍率&gt; の物を待ちの表へ刷る。</summary>
+    public static readonly HashSet<string> RunKadoWanted = new HashSet<string>();
     public class SlopeKado { public float crest, gAwayA, gAwayB, hReal; public Func<float, float, float, float, string> pathOf; public static readonly HashSet<string> missing = new HashSet<string>(); }
     public struct RunEnd { public string key; public string run; public int node; public Vector2 p; public Vector2 outw; public Vector2 away;
         /// <summary>坂なりの区間の端(<see cref="CrestWall.pathOfSlope"/>)か・端の天端・端から奥へ向かう天端の勾配(1m あたり)・駒の実寸の丈(2026-10-13 第122巡)。</summary>

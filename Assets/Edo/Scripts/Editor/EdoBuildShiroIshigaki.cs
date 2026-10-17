@@ -89,7 +89,8 @@ public static partial class EdoBuild
     /// ピボットを線に置く旧い据えのまま ── 移し替えは別票)。</summary>
     public static CastleRun PlaceCastleRun(IList<CastleSec> secs, Vector2[] poly, Func<float, float, float> groundAt, Transform parent,
                                            System.Text.StringBuilder log, float maxInset = 2.5f, float tol = 0.001f, float stepLap = -1f, float kadoMinTurn = 40f,
-                                           ICollection<int> kadoSkip = null, Func<float, float, float, string> slopePathOf = null)
+                                           ICollection<int> kadoSkip = null, Func<float, float, float, string> slopePathOf = null,
+                                           Func<float, string> castlePathOfH = null, float hNameMax = 8f)
     {
         var res = new CastleRun();
         if (secs == null || secs.Count == 0 || poly == null) return res;
@@ -255,8 +256,8 @@ public static partial class EdoBuild
                 float tA = slp ? s.CrestAt(Vector2.Dot(a - A(e), d)) : s.crest, tB = slp ? s.CrestAt(Vector2.Dot(b - A(e), d)) : s.crest;
                 if (s.Sloped && slopePathOf == null && final) log?.AppendLine("  ★ 城の石垣 " + s.name + ": 坂なりの区間(勾配 " + (s.grade * 100f).ToString("F2") + "%)に坂の駒の引き手が無い ── 天端 s0 の水平で据えた");
                 var cw = new CrestWall { name = wallOf[s], nodes = new List<Vector2> { a, b }, nodeTops = new List<float> { tA, tB }, gaps = gaps,
-                                         pathOfH = CastleWallOfExpose, runAlongX = false, runLen = 2.0f * ssc, pitchMax = 1.8f * ssc,
-                                         lowHint = (p, q) => o, lowForce = true, scale = ssc, pathOfSlope = slp ? slopePathOf : null };
+                                         pathOfH = castlePathOfH ?? CastleWallOfExpose, runAlongX = false, runLen = 2.0f * ssc, pitchMax = 1.8f * ssc,
+                                         lowHint = (p, q) => o, lowForce = true, scale = ssc, pathOfSlope = slp ? slopePathOf : null, hNameMax = hNameMax };
                 float wf; int bs;
                 var segOut = new Dictionary<string, List<GameObject>>();
                 // 境の外が隣の造成で下がる区間: 線の外の点の地面を 天端 − outsideCap で頭打ちにして組む。
@@ -1145,7 +1146,8 @@ public static partial class EdoBuild
     /// 【硬】区域(駒の全頂点が区画の線と基準線の間)・天端 = 区間の crest。【柔】天端の前の縁 − 塀の内面 ≤0.02(2 回目の控えの食い違い ⇒ ⚠)。倍率 <paramref name="scale"/> は呼び手(見えから)。
     /// ⟶ 据えた駒(区間の名 <paramref name="name"/>_k)・<paramref name="cOut"/> = 2 回目の控え。当たる先: 外が高い辺で塀の内を石垣で受ける所(岡部 N_Hei_39)── 他邸は未適用。</summary>
     public static CastleRun PlaceUnderWallInner(string name, Vector2 A, Vector2 B, Vector2 outward, float wallInnerIn, IList<InnerCrestSeg> segs, float scale,
-                                                Func<float, float, float> groundAt, Transform parent, System.Text.StringBuilder log, Func<float, float, float, string> slopePathOf, out float cOut)
+                                                Func<float, float, float> groundAt, Transform parent, System.Text.StringBuilder log, Func<float, float, float, string> slopePathOf, out float cOut,
+                                                Func<float, string> castlePathOfH = null, float hNameMax = 8f)
     {
         var inv = System.Globalization.CultureInfo.InvariantCulture; cOut = float.NaN;
         Vector2 u = (B - A).normalized; float L = (B - A).magnitude;
@@ -1165,7 +1167,7 @@ public static partial class EdoBuild
                 secs.Add(new CastleSec { name = name + "_" + (k++), edge = 0, s0 = a0, s1 = a1, crest = sg.crest + sg.grade * (sg.s1 - sg.s0), grade = -sg.grade, scale = scale, insetKey = name });
             }
             var lg = new System.Text.StringBuilder();
-            res = PlaceCastleRun(secs, poly, groundAt, parent, lg, 2.5f, 0.001f, -1f, 999f, new HashSet<int> { 0, 1, 2, 3 }, slopePathOf);
+            res = PlaceCastleRun(secs, poly, groundAt, parent, lg, 2.5f, 0.001f, -1f, 999f, new HashSet<int> { 0, 1, 2, 3 }, slopePathOf, castlePathOfH, hNameMax);
             float ci; if (!res.insetOf.TryGetValue(name, out ci)) { log.AppendLine("  ★ 塀の下の石垣 " + name + ": 控えが測れない(駒 " + res.pieces.Count + ")\n" + lg); cOut = float.NaN; return res; }
             if (pass == 0) { c = ci; continue; }
             cOut = ci;

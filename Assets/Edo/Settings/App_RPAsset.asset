@@ -82,9 +82,9 @@ MonoBehaviour:
   m_UseFastSRGBLinearConversion: 0
   m_SupportDataDrivenLensFlare: 1
   m_SupportScreenSpaceLensFlare: 1
-  m_GPUResidentDrawerMode: 1
+  m_GPUResidentDrawerMode: 0
   m_SmallMeshScreenPercentage: 0.4
-  m_GPUResidentDrawerEnableOcclusionCullingInCameras: 1
+  m_GPUResidentDrawerEnableOcclusionCullingInCameras: 0
   m_ShadowType: 1
   m_LocalShadowsSupported: 0
   m_LocalShadowsAtlasResolution: 256
@@ -129,7 +129,7 @@ MonoBehaviour:
   m_PrefilterScreenCoord: 1
   m_PrefilterScreenSpaceIrradiance: 1
   m_PrefilterNativeRenderPass: 1
-  m_PrefilterUseLegacyLightmaps: 1
+  m_PrefilterUseLegacyLightmaps: 0
   m_PrefilterBicubicLightmapSampling: 1
   m_PrefilterReflectionProbeRotation: 1
   m_PrefilterReflectionProbeBlending: 0

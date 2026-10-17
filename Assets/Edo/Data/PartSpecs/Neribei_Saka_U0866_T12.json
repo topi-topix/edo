@@ -1,0 +1,58 @@
+{
+    "prefab": "Assets/Edo/Models/Neribei/Neribei_Saka_U0866_T12.fbx",
+    "kind": "fence",
+    "source": "Tools/Blender/build_neribei.py -- --kiri 12 --grade 8.66",
+    "unitScale": 1.0,
+    "yBottom": -0.11099,
+    "foot": [
+        {
+            "x": -1.28164,
+            "y": -0.33745
+        },
+        {
+            "x": 1.28164,
+            "y": -0.33745
+        },
+        {
+            "x": 1.28164,
+            "y": 0.33745
+        },
+        {
+            "x": -1.28164,
+            "y": 0.33745
+        }
+    ],
+    "front": 0.0,
+    "back": 0.0,
+    "jambL": {
+        "x": 0.0,
+        "z0": 0.0,
+        "z1": 0.0,
+        "y0": 0.0,
+        "y1": 0.0
+    },
+    "jambR": {
+        "x": 0.0,
+        "z0": 0.0,
+        "z1": 0.0,
+        "y0": 0.0,
+        "y1": 0.0
+    },
+    "passage": {
+        "x0": 0.0,
+        "x1": 0.0
+    },
+    "eave": {
+        "x0": 0.0,
+        "x1": 0.0,
+        "z0": 0.0,
+        "z1": 0.0,
+        "y0": 0.0,
+        "y1": 0.0
+    },
+    "faceOut": 0.33745,
+    "faceIn": -0.33745,
+    "copingOverhang": 0.0,
+    "height": 2.86773,
+    "grade": 0.0866
+}

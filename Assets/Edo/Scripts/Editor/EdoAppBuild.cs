@@ -38,6 +38,10 @@ public static class EdoAppBuild
     public const float TreeDistance = 600f, DetailDistance = 50f, HeightmapPixelError = 4f, BasemapDistance = 250f;
     /// <summary>書き出す絵の一辺の上限(px)。庭のパックの木の絵が 4096・無圧縮で 1 枚 112〜170MB ある。</summary>
     public const int MaxTextureSize = 2048;
+    /// <summary>GPU Resident Drawer(遠くの小さい駒の間引き・見えない駒の間引き)を使うか。
+    /// ⚠ 2026-10-17 のアプリで、これを入れると建物が一つも映らず(地形と木だけ)、切ると映った。原因(材質の DOTS 対応か)は
+    ///   まだ突き止めていない ── 突き止めるまで切る。入れ直すときはアプリで建物が映ることを必ず確かめる。</summary>
+    public const bool UseGpuResidentDrawer = false;
 
     [MenuItem("Edo/書き出し/Mac アプリ", false, 900)]
     static void BuildMac() => Build(BuildTarget.StandaloneOSX);
@@ -183,7 +187,7 @@ public static class EdoAppBuild
         Debug.Log($"[書き出し] 開始画面の絵を撮った → {EdoAssets.App.TitleImage}");
     }
 
-    public static BuildReport Build(BuildTarget target)
+    public static BuildReport Build(BuildTarget target, BuildOptions extra = BuildOptions.None)
     {
         if (!BuildPipeline.IsBuildTargetSupported(BuildPipeline.GetBuildTargetGroup(target), target))
         {
@@ -210,9 +214,13 @@ public static class EdoAppBuild
         int editorLevel = QualitySettings.GetQualityLevel();
         bool prevRetina = PlayerSettings.macRetinaSupport;
         int prevTex = EditorUserBuildSettings.overrideMaxTextureSize;
+        bool prevStaticBatching = PlayerSettings.GetStaticBatchingForPlatform(target);
         try
         {
             SetPlatformDefault(qs, plat, app);
+            // GPU Resident Drawer を使う時だけ静的バッチングを切る(両者は併せられない)。使わない間は静的バッチの方が軽い
+            //   ⚠ 2026-10-17 に建物が映らなかったのは静的バッチのせいではなかった(切っても映らず、GRD を切ったら映った)
+            PlayerSettings.SetStaticBatchingForPlatform(target, !UseGpuResidentDrawer && prevStaticBatching);
             // Retina の 4 倍の画素は M1 の GPU に重い。アプリは 1 倍の画素で描き、OS が引き伸ばす
             PlayerSettings.macRetinaSupport = false;
             EditorUserBuildSettings.overrideMaxTextureSize = MaxTextureSize;
@@ -223,7 +231,7 @@ public static class EdoAppBuild
                 scenes = BuildScenes,
                 target = target,
                 locationPathName = Path.Combine(EdoAssets.App.BuildDir, sub),
-                options = BuildOptions.None,
+                options = extra,
             };
             var t0 = System.DateTime.Now;
             var rep = BuildPipeline.BuildPlayer(opt);
@@ -237,6 +245,7 @@ public static class EdoAppBuild
             SetPlatformDefault(qs, plat, prevDefault);
             PlayerSettings.macRetinaSupport = prevRetina;
             EditorUserBuildSettings.overrideMaxTextureSize = prevTex;
+            PlayerSettings.SetStaticBatchingForPlatform(target, prevStaticBatching);
             QualitySettings.SetQualityLevel(editorLevel, false);
         }
     }
@@ -294,8 +303,8 @@ public static class EdoAppBuild
         void I(string p, int v) { var q = so.FindProperty(p); if (q != null) q.intValue = v; else Debug.LogWarning("[書き出し] 欄が無い " + p); }
         void F(string p, float v) { var q = so.FindProperty(p); if (q != null) q.floatValue = v; else Debug.LogWarning("[書き出し] 欄が無い " + p); }
         void B(string p, bool v) { var q = so.FindProperty(p); if (q != null) q.boolValue = v; else Debug.LogWarning("[書き出し] 欄が無い " + p); }
-        I("m_GPUResidentDrawerMode", (int)GPUResidentDrawerMode.InstancedDrawing);
-        B("m_GPUResidentDrawerEnableOcclusionCullingInCameras", true);
+        I("m_GPUResidentDrawerMode", (int)(UseGpuResidentDrawer ? GPUResidentDrawerMode.InstancedDrawing : GPUResidentDrawerMode.Disabled));
+        B("m_GPUResidentDrawerEnableOcclusionCullingInCameras", UseGpuResidentDrawer);
         F("m_SmallMeshScreenPercentage", SmallMeshScreenPercent);
         I("m_ShadowCascadeCount", 2);
         I("m_SoftShadowQuality", (int)SoftShadowQuality.Low);
@@ -356,6 +365,8 @@ class EdoAppSceneStrip : IProcessSceneWithReport
         if (report == null) return;                       // エディタの再生
         if (scene.path != EdoAssets.Scenes.Akasaka) return;
 
+        RefuseEmbeddedScripts(scene);
+
         int dropped = 0, inactive = 0;
         foreach (var root in scene.GetRootGameObjects())
         {
@@ -363,6 +374,8 @@ class EdoAppSceneStrip : IProcessSceneWithReport
             { Object.DestroyImmediate(root); dropped++; continue; }
             inactive += DropInactive(root.transform);
         }
+
+        int skinCols = AddSkinColliders(scene);
 
         foreach (var t in Object.FindObjectsByType<Terrain>(FindObjectsSortMode.None))
         {
@@ -374,13 +387,55 @@ class EdoAppSceneStrip : IProcessSceneWithReport
             t.heightmapPixelError = EdoAppBuild.HeightmapPixelError;
             t.basemapDistance = EdoAppBuild.BasemapDistance;
         }
-        Debug.Log($"[書き出し] 下ごしらえ: 図の置き場 {dropped} 本と非表示の撤去物 {inactive} 塊を外した・地形の遠景を縮めた");
+        Debug.Log($"[書き出し] 下ごしらえ: 図の置き場 {dropped} 本と非表示の撤去物 {inactive} 塊を外した・縁の皮 {skinCols} 枚に当たりを付けた・地形の遠景を縮めた");
+    }
+
+    /// <summary>
+    /// 地形の穴を塞ぐ縁の皮(<see cref="EdoBuild.SKIN_PREFIX"/>)のうち当たりの無いものに MeshCollider を付ける(書き出す写しだけ)。
+    /// ⚠ 2026-10-17 まで皮は見た目だけで当たりが無く、アプリでは始まりの位置(山王の境内)から穴へ落ちた。
+    ///   ビルダー(<c>EdoBuild.CutEdgeSkin</c>)は今後付けるが、建て直していない邸の皮はここで補う。
+    /// </summary>
+    static int AddSkinColliders(Scene scene)
+    {
+        int n = 0;
+        foreach (var root in scene.GetRootGameObjects())
+            foreach (var mf in root.GetComponentsInChildren<MeshFilter>(true))
+            {
+                var m = mf.sharedMesh;
+                if (m == null || !m.name.StartsWith(EdoBuild.SKIN_PREFIX) || mf.GetComponent<Collider>() != null) continue;
+                mf.gameObject.AddComponent<MeshCollider>().sharedMesh = m;
+                n++;
+            }
+        return n;
+    }
+
+    /// <summary>
+    /// 台本(MonoScript)が資産でなくシーンに埋め込まれた部品があれば書き出しを止める。
+    /// ⚠ クラス名とファイル名が違う MonoBehaviour(例: GeoReference.cs に同居していた GeoMarker)を付けると、
+    ///   Unity は台本の仮の写しをシーンの中に埋め込む。エディタでは動くが、アプリはそれを読めず
+    ///   「level1 is corrupted / Position out of bounds」で起動時に落ちる(2026-09-27〜10-17 に書き出し 20 回で切り分けた)。
+    ///   書き出しが通ってから起動で落ちるより、ここで名指しして止める。直し方: クラスを自分の名前のファイルへ移し、
+    ///   シーンの m_Script をその台本の GUID へ付け替える。
+    /// </summary>
+    static void RefuseEmbeddedScripts(Scene scene)
+    {
+        var bad = new List<string>();
+        foreach (var root in scene.GetRootGameObjects())
+            foreach (var mb in root.GetComponentsInChildren<MonoBehaviour>(true))
+            {
+                if (mb == null) continue;
+                var ms = MonoScript.FromMonoBehaviour(mb);
+                if (ms != null && !AssetDatabase.Contains(ms))
+                    bad.Add($"{mb.GetType().FullName} @ {mb.transform.root.name}/{mb.name}");
+            }
+        if (bad.Count == 0) return;
+        throw new BuildFailedException($"[書き出し] 台本が資産でない部品 {bad.Count} 個(クラス名とファイル名の不一致)— アプリが赤坂を読めず落ちる: " +
+                                       string.Join(", ", bad.GetRange(0, System.Math.Min(10, bad.Count))));
     }
 
     /// <summary>非表示の塊(撤去物)を外す。動く部品(自作の MonoBehaviour)が下にある塊は、実行時に点く恐れがあるので残す。
-    /// ⛔ **プレハブの中の塊は外さない。** 2026-09-27 の初回の書き出しでプレハブの中の非表示 8 塊を消したところ、
-    ///   アプリが起動時に赤坂(level0)を読めず「corrupted / Position out of bounds」で落ちた(3 回とも同じ)。
-    ///   プレハブの繋がりを残したまま子を消すと、書き出したシーンの中の参照が食い違う疑いが濃い。</summary>
+    /// プレハブの中の塊は外さない(用心)。⚠ 2026-09-27 に起動時に落ちたのをここのせいと疑ったが、本当の原因は
+    ///   シーンに埋め込まれた台本だった(<see cref="RefuseEmbeddedScripts"/>)。消さずに書き出しても同じく落ちた(2026-10-17)。</summary>
     static int DropInactive(Transform t)
     {
         if (!t.gameObject.activeSelf)

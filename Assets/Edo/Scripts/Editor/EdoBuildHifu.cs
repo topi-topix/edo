@@ -2624,6 +2624,9 @@ public static partial class EdoBuild
         var mr = go.AddComponent<MeshRenderer>();
         mr.sharedMaterials = SkinMaterials(t);
         mr.shadowCastingMode = ShadowCastingMode.On; mr.receiveShadows = true;
+        // ⛔ 皮は地形に開けた穴の上に乗る ── 当たりを付けないと歩く人が穴から落ちる(アプリで山王の境内から
+        //   奈落へ落ちた・2026-10-17 EDO-0450)。見た目の面そのものを当たりにする。
+        go.AddComponent<MeshCollider>().sharedMesh = m;
 
         // ---- 5 穴を開ける
         for (int j = 0; j < bh; j++) for (int i = 0; i < bw; i++) if (inSet[j, i] && hv[j, i]) { hv[j, i] = false; r.holesCut++; }   // ⛔ 被せる升(inOv)は開けない

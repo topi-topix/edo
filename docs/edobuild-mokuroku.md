@@ -1,6 +1,6 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 de2a9bb92644 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 ff714cb842b3 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
@@ -327,7 +327,7 @@ EdoBuild — 見え面・溝の床の上に出た土を真上から数える(202
 | `EdoBuild.FLOOR_REACH` | `float` | 天端・床 | FloorTris が床の天端を探す、面の高さからの幅[m]。 | — |
 | `EdoBuild.SkinTrace` | `List<Vector2>` |  | 皮の高さの追跡(診断・2026-10-07 EDO-0502 第42巡): 点を入れると CutEdgeSkin が、その点に最も近い格子の点の高さを段ごとに SkinTraceLog へ刷る(どの段が皮を下げ・上げたか… | — |
 | `EdoBuild.SkinTraceLog` | `System.Text.StringBuilder` |  | ⚠ 注釈なし | — |
-| `EdoBuild.CutEdgeSkin(name, parent, parts, faces, faceTol, step=…, margin=…, eps=…, under=…, design=…, drawTol=…, backfill=…, sealFace=…, digParts=…, digUnder=…, digBatter=…, crestBandParts=…, plantPoints=…, floorParts=…, faceKeepOut=…, hollowParts=…, seated=…, keepGradeBeside=…, keepBatter=…, stairApronFrontOnly=…, drawAreas=…, solve=…)` | `SkinReport` |  | ⚠ 注釈なし | DoiBuilder.Hifu(Stage4b_Hifu), OkabeYashiki(Stage3b_Hifu_), SannoSha(Stage9_Hifu) |
+| `EdoBuild.CutEdgeSkin(name, parent, parts, faces, faceTol, step=…, margin=…, eps=…, under=…, design=…, drawTol=…, backfill=…, sealFace=…, digParts=…, digUnder=…, digBatter=…, crestBandParts=…, plantPoints=…, floorParts=…, faceKeepOut=…, hollowParts=…, seated=…, keepGradeBeside=…, keepBatter=…, stairApronFrontOnly=…, drawAreas=…, solve=…)` | `SkinReport` |  | ⚠ 注釈なし | AppBuild(OnProcessScene), DoiBuilder.Hifu(Stage4b_Hifu), OkabeYashiki(Stage3b_Hifu_), SannoSha(Stage9_Hifu) |
 | `EdoBuild.MeasureSkinContact(parts, samples=…, crestBandParts=…, crestCover=…)` | `SkinReport` |  | 皮と部材の取り合いを測り直す(皮を起こし直さずに)。 | — |
 | `EdoBuild.SEAT_TOL` | `float` | 地面・床 | 据わりの守りで「地面に触れていた」と読む頂点の高さの上限(元の地形からの浮き)[m]。 | — |
 | `EdoBuild.SeatedUnder(root, exclude)` | `List<GameObject>` |  | 据わりの守りに渡す駒を集める(CutEdgeSkin の seated)── root の下の 生きた MeshFilter の持ち主すべて。 | DoiBuilder.Hifu(Stage4b_Hifu) |

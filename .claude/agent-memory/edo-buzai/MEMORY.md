@@ -128,3 +128,4 @@
 - [入隅の留めは谷瓦の溝で納める](iri-sumi-tani-valley.md) — cut_tani・層は頂点の最高点で・丸瓦の脇は小口の板・軒で浅く・既存の入隅の版も焼き直す(2026-10-17)
 - [両端を留める短い表長屋は --extend・cut-kera に tani は書けない](nagaya-short-both-ends-extend.md) — 門長屋は s0 側の版も焼く(2026-10-17)
 - [練塀の坂なりの _T は切りの瓦の枚数](neribei-saka-T-is-tiles.md) — 無印は一枚・T を落とすと辺が建たない。--kiri kk --grade で(2026-10-17)
+- [表長屋の割付の型 --kata と海鼠の目地の周期](nagaya-kata-namako-phase-and-window-layout.md) — 目地 bay/7・瓦 bay/11・窓は穴と一体。φ は外周の道のりから(2026-10-17)

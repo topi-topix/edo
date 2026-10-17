@@ -50,10 +50,25 @@ public class EdoAppFlow : MonoBehaviour
         if (Instance != null && Instance != this) { gameObject.SetActive(false); Destroy(gameObject); return; }
         Instance = this;
         DontDestroyOnLoad(gameObject);
+        EnsureEventSystem();
         lastLoadSeconds = PlayerPrefs.GetFloat(LastLoadKey, 0f);
     }
 
     void OnDestroy() { if (Instance == this) Instance = null; }
+
+    /// <summary>
+    /// 画面のボタンへマウスとキーを渡す受け口(EventSystem + 新しい入力の UI 入力)を、無ければ自分の子に起こす。
+    /// ⚠ このプロジェクトは入力が「新しい入力だけ」なので、受け口が無いと開始画面のボタンが押せない
+    ///   (2026-10-17 の書き出しで「はじめる」が反応しなかった)。自分の子に置けばシーンをまたいでも残る。
+    /// </summary>
+    void EnsureEventSystem()
+    {
+        if (FindAnyObjectByType<UnityEngine.EventSystems.EventSystem>() != null) return;
+        var es = new GameObject("EventSystem");
+        es.transform.SetParent(transform, false);
+        es.AddComponent<UnityEngine.EventSystems.EventSystem>();
+        es.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
+    }
 
     void OnEnable()
     {

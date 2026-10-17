@@ -127,3 +127,4 @@
 - [直線の段の継ぎ目は低い端を切る](dan-seam-low-end-flat-cut.md) — 素の妻が高い棟へ 0.322 入り壁の前に欠片・0.01° で切って lo・浅い谷の裂け目は位相(2026-10-16)
 - [入隅の留めは谷瓦の溝で納める](iri-sumi-tani-valley.md) — cut_tani・層は頂点の最高点で・丸瓦の脇は小口の板・軒で浅く・既存の入隅の版も焼き直す(2026-10-17)
 - [両端を留める短い表長屋は --extend・cut-kera に tani は書けない](nagaya-short-both-ends-extend.md) — 門長屋は s0 側の版も焼く(2026-10-17)
+- [練塀の坂なりの _T は切りの瓦の枚数](neribei-saka-T-is-tiles.md) — 無印は一枚・T を落とすと辺が建たない。--kiri kk --grade で(2026-10-17)

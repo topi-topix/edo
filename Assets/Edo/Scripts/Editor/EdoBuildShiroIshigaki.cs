@@ -1176,6 +1176,30 @@ public static partial class EdoBuild
         return res;
     }
 
+    /// <summary>**落差が閾値以上の区間**を走りの上で拾う(測るだけ)── <paramref name="drop"/>(s) ≥ <paramref name="thr"/> の点を <paramref name="step"/> ごとに数え、
+    /// 間が <paramref name="mergeGap"/> 未満の区間はつなぎ、<paramref name="minLen"/> に満たない区間は中ほどを芯に minLen へ広げる([s0,s1] で切る)。NaN の点は数えない。
+    /// ⟶ 区間の列 (a, b)。当たる先: 棟の背の野面石の腰(岡部 runs[].back「背が座より x 以上低い所は野面石の腰」・第157巡)── 落差で受けの有無を決める所すべて。【柔】(区間の端は step の刻み)</summary>
+    public static List<Vector2> DropRanges(Func<float, float> drop, float s0, float s1, float step, float thr, float minLen, float mergeGap)
+    {
+        var raw = new List<Vector2>(); float a = float.NaN, last = float.NaN;
+        for (float s = s0; s <= s1 + 1e-4f; s += step)
+        {
+            float sv = Mathf.Min(s, s1), d = drop(sv); bool on = !float.IsNaN(d) && d >= thr;
+            if (on) { if (float.IsNaN(a)) a = sv; last = sv; }
+            else if (!float.IsNaN(a)) { raw.Add(new Vector2(a, last)); a = float.NaN; }
+        }
+        if (!float.IsNaN(a)) raw.Add(new Vector2(a, last));
+        var mg = new List<Vector2>();
+        foreach (var r in raw) { if (mg.Count > 0 && r.x - mg[mg.Count - 1].y < mergeGap) mg[mg.Count - 1] = new Vector2(mg[mg.Count - 1].x, r.y); else mg.Add(r); }
+        for (int i = 0; i < mg.Count; i++)
+        {
+            var r = mg[i]; float x0 = Mathf.Max(s0, r.x - 0.5f * step), x1 = Mathf.Min(s1, r.y + 0.5f * step);
+            if (x1 - x0 < minLen) { float m = 0.5f * (x0 + x1); x0 = Mathf.Max(s0, m - 0.5f * minLen); x1 = Mathf.Min(s1, x0 + minLen); x0 = Mathf.Max(s0, x1 - minLen); }
+            mg[i] = new Vector2(x0, x1);
+        }
+        return mg;
+    }
+
     [Serializable] class TomeV3J { public float x, y, z; }
     [Serializable] class TomeSpecJ { public TomeV3J tomeCrestFrontCorner; public float crestOnMiter; }
 }

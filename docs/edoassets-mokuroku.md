@@ -335,7 +335,7 @@
 | `Own.IshigakiKado2(deg1, deg2, mid, h, armNegZ, armPosX)` | 関数 | 二重折れの石垣の隅(`Castle Wall` の留め継ぎを二つ一体に)。 | BuildKado(PlaceRunKado), OkabeYashiki(Stage2b_Dan_) |
 | `Own.IshigakiChoku(h)` | 関数 | 丈違いの城の石垣の直線の駒(`JC.CastleWall` 1 枚・走り 2.00 を丈 h m へ下へ継いだ物)。 | BuildDanIshigaki(CastleWallOfExpose) |
 | `Own.IshigakiChokuSakaGrades` | float[] | 焼いてある台の石垣の坂なりの勾配(絶対値・IshigakiChokuSaka は U と D の両方)── 練塀の坂なり `Neribei_Saka_*` の名にある勾配の全部(2026-10-13)。 | — |
-| `Own.IshigakiChokuSaka(grade, h=…, len=…)` | 関数 | 台の石垣(外周の基壇)の坂なりの直線の駒 ── 素の `JC.CastleWall`(材 `stone wall`)を縦の剪断で勾配 grade に沿わせた物 (Unity 局所で Y += grade·Z)。 | OkabeYashiki(PlaceIshigaki・UnderWallInner) |
+| `Own.IshigakiChokuSaka(grade, h=…, len=…)` | 関数 | 台の石垣(外周の基壇)の坂なりの直線の駒 ── 素の `JC.CastleWall`(材 `stone wall`)を縦の剪断で勾配 grade に沿わせた物 (Unity 局所で Y += grade·Z)。 | OkabeYashiki(PlaceIshigaki・RunBackKoshi・UnderWallInner) |
 | `Own.IshigakiChokuTome(grade, turnDeg, pEnd, h=…, len=…)` | 関数 | 台の石垣の浅い出隅の留めの版(EDO-0502 第149巡 2026-10-16・oki-kata §2a「直角でない出隅は最初から留める」)── 頂点に来る端の駒 (IshigakiChokuSaka の坂なり・平らは… | BuildShiroIshigaki(SwapEndsToTome) |
 | `Own.IshigakiChokuTomeNearest(grade, turnDeg, pEnd, h, len, gradeOff, turnOff, gradeTol=…)` | 関数 | 焼いてある留めの版のうち、据わった端の駒に最も近い物(EDO-0502 第150巡)── 名は据わった駒の勾配に結びつき 1e-4 で外れる(部材方の注)ので、 勾配は grade ± gradeTol(既定 0.000… | BuildShiroIshigaki(ParseChokuPiece・SwapEndsToTome) |
 | `Own.IshigakiChokuSakaNearest(grade)` | 関数 | 焼いてある台の坂なりの勾配(IshigakiChokuSakaGrades・符号つき)のうち grade に最も近いもの(NeribeiSakaNearest と同じ)。 | — |

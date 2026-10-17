@@ -6745,6 +6745,7 @@ public static class EdoOkabeYashikiBuilder
                 //   塀の下と裏の土は外から見えない(天端に土を見せないのは犬走り = 外面の線より前)
                 q => { if (!behindCrests(q)) return float.NaN; string w8; float tp = stoneTops.Top(q.x, q.y, out w8); if (float.IsNaN(tp)) return float.NaN;
                        return EdoBuild.EdgeDistPublic(PPf, q) >= faceInAt(q) + 0.05f ? float.PositiveInfinity : tp - 0.02f; }));
+            sb.Append(RunBackKoshi());   // 棟の背の野面石の腰(runs[].back/backFace・第157巡)── 背の帯より前(帯は Ishigaki の駒の下を触らない)
             sb.Append(RunBackBands());   // 棟の背の帯(runs[].back・第131巡)── 浮いた棟の足の下の上げより前(下げた帯で足が浮けば次の手が受ける)
             // ⭐ 座で据えた棟(外周の長屋・附属屋)の足が、後の地面の下げ(背の路地の床の切り・溝の帯・天端の肩の落とし)で**どこも地面に触れず浮いた**ものは、
             //   足の下の地面を足の底 +0.005 へ上げる(上げるだけ・同じ FillUnderFoot・石が足を支える所と溝の駒の外形の中は触らない)【硬: 浮き0】。
@@ -9597,6 +9598,58 @@ public static class EdoOkabeYashikiBuilder
         float wMax = float.MinValue, wMin = float.MaxValue; for (float s = sA + 0.25f; s <= sB - 0.25f + 1e-4f; s += 0.5f) { var p = W(s, back + 0.1f); if (!EdoGeom.PIP(P, p) || under(p)) continue; float g = EdoBuild.Ground(p.x, p.y); if (float.IsNaN(g)) continue; wMax = Mathf.Max(wMax, g - foot); wMin = Mathf.Min(wMin, g - foot); }
         return "  背の足元 " + r.name + "(runs.back「s" + sA.ToString("F2", inv) + "〜" + sB.ToString("F2", inv) + " 背の足元 座 −" + d.ToString("F2", inv) + " から 1/" + mF.Groups[4].Value + "」・座 " + seat.ToString("F2", inv) + "(欄と躯体の底の低い方)・背の面 " + back.ToString("F3", inv) + "):"
             + " 上げた節点 " + n1 + "(最大 " + up.ToString("F2", inv) + ")・足元 0.5 の内で切った節点 " + n2 + "(最大 " + dn2.ToString("F2", inv) + ")|背の面の 0.1 外の地表 − 足元 " + (wMax == float.MinValue ? "-" : wMin.ToString("+0.000;-0.000", inv) + "〜" + wMax.ToString("+0.000;-0.000", inv)) + "\n";
+    }
+    /// <summary>**棟の背の野面石の腰**(runs[].back「…野面石の腰(天端 y 一直線…)で受け…」+ backFace「const.kidan.faces を背へ写す(天端の縁 = 棟の背の壁の外面から x 外・
+    /// 法と石の倍率は同じ一続きの表の台と同じ)」・第157巡)── 欄を読んで <see cref="EdoBuild.PlaceUnderWallInner"/> へ渡すだけ(規則21):
+    /// 区間 = 欄の「s a〜b の背は野面石」か、「背が座より d 以上低い所」を <see cref="EdoBuild.DropRanges"/> で測った所(座 − 背の面の x+0.25 外の地表)・
+    /// 天端 = 欄の y(水平)・天端の前の縁 = 背の壁の外面(実メッシュ FaceOut)+ x・法は区画の内(棟から離れる向き)・倍率 = 表の台(IG_&lt;run&gt;_ の駒)の倍率。
+    /// 【硬】天端 = 欄・区域は区画の線と基準線の間。【柔】天端の前の縁 − 狙い ≤0.02。駒は Ishigaki の群に IGB_&lt;run&gt;_k(据え直す前に退ける)。
+    /// 当たる先: backFace を持つ長屋(岡部 N18_a・N40_0)── 他邸は未適用。</summary>
+    static string RunBackKoshi()
+    {
+        var inv = System.Globalization.CultureInfo.InvariantCulture; var sb = new System.Text.StringBuilder(); var root = GameObject.Find(GN); if (root == null) return "";
+        var grp = Group("Ishigaki"); var old = new List<GameObject>(); foreach (Transform c in grp) if (c.name.StartsWith("IGB_")) old.Add(c.gameObject);
+        foreach (var g in old) UnityEngine.Object.DestroyImmediate(g);
+        foreach (var r in Runs)
+        {
+            if (!r.Nagaya) continue; string bt = RunText(r.name, "back"), bf = RunText(r.name, "backFace"); if (bt == null || bf == null) continue;
+            var mC = RXm(bt, @"野面石[^。]*?の腰\s*[(（]\s*天端\s*([0-9.]+)\s*一直線"); var mX = RXm(bf, @"背の壁の外面から\s*([0-9.]+)\s*外");
+            if (!mC.Success || !mX.Success) { sb.AppendLine("  ★ 背の腰 " + r.name + ": 欄の天端(野面石の腰(天端 y 一直線)か backFace の「背の壁の外面から x 外」が読めない ── 据えない"); continue; }
+            float crest = float.Parse(mC.Groups[1].Value, inv), off = float.Parse(mX.Groups[1].Value, inv);
+            var nb = root.transform.Find("Kakoi/" + r.name); if (nb == null) { sb.AppendLine("  ★ 背の腰 " + r.name + ": 棟が無い ── 据えない"); continue; }
+            Vector2 ea = EdgePt(r.edge, 0f), yd = -OutNormal(r.edge);
+            float back = EdoBuild.FaceOut(nb.gameObject, ea, yd, nb.position.y + 0.1f, nb.position.y + 1.2f); if (float.IsNaN(back) || back == float.MinValue) { sb.AppendLine("  ★ 背の腰 " + r.name + ": 背の面が測れない"); continue; }
+            //   倍率 = 表の台(同じ run の IG_ の駒)── 一続きで揃えた倍率がそのまま駒に載っている
+            float sc = 0f; foreach (Transform c in grp) if (c.gameObject.activeInHierarchy && c.name.StartsWith("IG_" + r.name + "_")) sc = Mathf.Max(sc, c.localScale.x);
+            if (sc <= 0f) { sb.AppendLine("  ★ 背の腰 " + r.name + ": 表の台の駒(IG_" + r.name + "_)が無く倍率が決まらない ── 据えない"); continue; }
+            float wIn = back + off;
+            var ranges = new List<Vector2>(); string how;
+            var mS = RXm(bt, @"s\s*([0-9.]+)\s*〜\s*([0-9.]+)\s*の背は野面石"); var mD = RXm(bt, @"背が座より\s*([0-9.]+)\s*以上低い所は野面石");
+            if (mS.Success) { ranges.Add(new Vector2(Mathf.Max(r.s0, float.Parse(mS.Groups[1].Value, inv)), Mathf.Min(r.s1, float.Parse(mS.Groups[2].Value, inv)))); how = "欄の区間"; }
+            else if (mD.Success)
+            {
+                float thr = float.Parse(mD.Groups[1].Value, inv);
+                ranges = EdoBuild.DropRanges(s => { var p = ea + (EdgePt(r.edge, 1f) - ea).normalized * s + yd * (wIn + 0.25f); float g = EdoBuild.Ground(p.x, p.y); return float.IsNaN(g) ? float.NaN : r.SeatAt(s) - g; },
+                                             r.s0, r.s1, 0.25f, thr, 1.8f, 1.8f);
+                how = "座 − 背の地表 ≥ " + thr.ToString("F2", inv) + " の所(0.25 ごと・間 1.8 未満はつなぎ・最短 1.8)";
+            }
+            else { sb.AppendLine("  ★ 背の腰 " + r.name + ": 区間(s a〜b の背は / 背が座より d 以上低い所)が読めない ── 据えない"); continue; }
+            if (ranges.Count == 0) { sb.AppendLine("  背の腰 " + r.name + ": " + how + " が無い ── 据えない"); continue; }
+            int k = 0;
+            foreach (var rg in ranges)
+            {
+                if (rg.y - rg.x < 0.3f) continue;
+                float exMax = float.MinValue, exMin = float.MaxValue;
+                for (float s = rg.x; s <= rg.y + 1e-4f; s += 0.25f) { var p = ea + (EdgePt(r.edge, 1f) - ea).normalized * Mathf.Min(s, rg.y) + yd * (wIn + 0.25f); float g = EdoBuild.Ground(p.x, p.y); if (float.IsNaN(g)) continue; exMax = Mathf.Max(exMax, crest - g); exMin = Mathf.Min(exMin, crest - g); }
+                var segs = new List<EdoBuild.InnerCrestSeg> { new EdoBuild.InnerCrestSeg { s0 = 0f, s1 = rg.y - rg.x, crest = crest, grade = 0f } };
+                var lg = new System.Text.StringBuilder(); float cO;
+                var cr = EdoBuild.PlaceUnderWallInner("IGB_" + r.name + "_" + (k++), EdgePt(r.edge, rg.x), EdgePt(r.edge, rg.y), OutNormal(r.edge), wIn, segs, sc, (x, z) => EdoBuild.Ground(x, z), grp, lg, (g, h, len) => EdoAssets.Own.IshigakiChokuSaka(g, h, len), out cO);
+                sb.AppendLine("  背の腰 " + r.name + "(runs.back/backFace【硬】天端 " + crest.ToString("F2", inv) + "・天端の前の縁 = 背の面 " + back.ToString("F3", inv) + " + " + off.ToString("F2", inv) + "・倍率 " + sc.ToString("0.##", inv) + " = 表の台・" + how + "): s"
+                              + rg.x.ToString("F2", inv) + "〜" + rg.y.ToString("F2", inv) + " 駒 " + (cr == null ? 0 : cr.pieces.Count) + "・見付 " + (exMin == float.MaxValue ? "-" : exMin.ToString("F2", inv) + "〜" + exMax.ToString("F2", inv)));
+                sb.Append(lg);
+            }
+        }
+        return sb.ToString();
     }
     static string RunBackBands()
     {
